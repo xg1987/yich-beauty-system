@@ -109,13 +109,15 @@ await request<{ ok: boolean }>(baseUrl, "/api/public/online-booking-requests", {
   },
 });
 const afterOnlineRequest = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
-assert.equal(afterOnlineRequest.onlineBookingRequests[0].status, "待处理", "D1 should persist public online booking request");
-const afterOnlineConvert = await request<AppData>(baseUrl, `/api/online-booking-requests/${afterOnlineRequest.onlineBookingRequests[0].id}/convert`, {
+const onlineRequest = afterOnlineRequest.onlineBookingRequests.find((item) => item.customerName === `线上预约客户 ${runId}`);
+assert.ok(onlineRequest, "D1 should persist public online booking request");
+assert.equal(onlineRequest.status, "待处理", "D1 should persist public online booking request as pending");
+const afterOnlineConvert = await request<AppData>(baseUrl, `/api/online-booking-requests/${onlineRequest.id}/convert`, {
   method: "POST",
   token: ownerSession.token,
   body: { staffId: therapistStaffId },
 });
-assert.equal(afterOnlineConvert.onlineBookingRequests[0].status, "已转预约", "D1 should convert online request into appointment");
+assert.equal(afterOnlineConvert.onlineBookingRequests.find((item) => item.id === onlineRequest.id)?.status, "已转预约", "D1 should convert online request into appointment");
 
 const afterFrontdeskStaff = await request<AppData>(baseUrl, "/api/staff", {
   method: "POST",
