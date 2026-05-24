@@ -4,10 +4,12 @@ import {
   addStaffMember,
   addSupplier,
   adjustInventory,
+  bindReferralRelation,
   checkoutOrder,
   createAppointment,
   createApprovalRequest,
   createCouponTemplate,
+  createDistributor,
   createDailyClose,
   createMarketingActivity,
   createStaffShift,
@@ -141,6 +143,51 @@ function card(data: AppData, cardId: string) {
     "split commission should include primary and collaborator staff",
   );
   assert.equal(commissions.reduce((sum, item) => sum + item.amount, 0), 48, "split commissions should preserve total commission");
+}
+
+{
+  const distributorCreated = createDistributor(
+    cloneSeed(),
+    { type: "员工", staffId: "s3", rate: 0.06 },
+    { idFactory: testId, now: fixedNow },
+  );
+  const distributorId = distributorCreated.distributors[0].id;
+  assert.equal(distributorCreated.distributors[0].name, "阿宁", "distributor should inherit staff profile");
+
+  const relationBound = bindReferralRelation(
+    distributorCreated,
+    { distributorId, customerId: "c3" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(relationBound.referralRelations[0].status, "有效", "referral relation should bind customer to distributor");
+
+  const checkedOut = checkoutOrder(
+    relationBound,
+    {
+      customerId: "c3",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOut.orders[0].distributorId, distributorId, "checkout should use referral distributor");
+  assert.equal(checkedOut.distributionCommissions[0].amount, 24, "checkout should create distribution commission");
+  assert.equal(checkedOut.distributionCommissions[0].status, "待结算", "distribution commission should wait settlement");
+
+  const partialRefund = refundOrder(
+    checkedOut,
+    { orderId: checkedOut.orders[0].id, amount: 100, reason: "客户部分退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(partialRefund.distributionCommissions[0].amount, 18, "partial refund should reduce distribution commission");
+
+  const fullRefund = refundOrder(
+    checkedOut,
+    { orderId: checkedOut.orders[0].id, reason: "客户全额退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(fullRefund.distributionCommissions[0].status, "已冲销", "full refund should reverse distribution commission");
 }
 
 {
@@ -411,15 +458,18 @@ function card(data: AppData, cardId: string) {
 }
 
 {
+  const seed = cloneSeed();
+  const conflictStartAt = seed.appointments.find((appointment) => appointment.staffId === "s2")?.startAt;
+  assert.ok(conflictStartAt, "seed should include an existing therapist appointment");
   assert.throws(
     () =>
       createAppointment(
-        cloneSeed(),
+        seed,
         {
           customerId: "c1",
           staffId: "s2",
           serviceId: "v1",
-          startAt: "2026-05-25T02:00:00.000Z",
+          startAt: conflictStartAt,
         },
         { idFactory: testId, now: fixedNow },
       ),

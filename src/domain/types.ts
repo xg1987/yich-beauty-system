@@ -183,6 +183,28 @@ export type ActivityParticipant = {
   checkedAt?: string;
 };
 
+export type Distributor = {
+  id: string;
+  type: "客户" | "员工";
+  customerId?: string;
+  staffId?: string;
+  name: string;
+  phone: string;
+  rate: number;
+  status: "启用" | "停用";
+  inviteCode: string;
+  createdAt: string;
+};
+
+export type ReferralRelation = {
+  id: string;
+  distributorId: string;
+  customerId: string;
+  source: "手工绑定" | "邀请码";
+  status: "有效" | "已解除";
+  createdAt: string;
+};
+
 export type Order = {
   id: string;
   orderNo: string;
@@ -198,6 +220,7 @@ export type Order = {
   approvalId?: string;
   couponId?: string;
   activityId?: string;
+  distributorId?: string;
   payMethod: "现金" | "微信" | "支付宝" | "银行卡" | "会员卡";
   status: "已支付" | "部分退款" | "已退款";
   createdAt: string;
@@ -212,6 +235,19 @@ export type Commission = {
   amount: number;
   status: "待结算" | "已结算" | "已冲销";
   createdAt: string;
+};
+
+export type DistributionCommission = {
+  id: string;
+  distributorId: string;
+  customerId: string;
+  orderId: string;
+  baseAmount: number;
+  rate: number;
+  amount: number;
+  status: "待结算" | "已结算" | "已冲销";
+  createdAt: string;
+  settledAt?: string;
 };
 
 export type InventoryLog = {
@@ -359,9 +395,12 @@ export type AppData = {
   customerCoupons: CustomerCoupon[];
   marketingActivities: MarketingActivity[];
   activityParticipants: ActivityParticipant[];
+  distributors: Distributor[];
+  referralRelations: ReferralRelation[];
   orders: Order[];
   refunds: Refund[];
   commissions: Commission[];
+  distributionCommissions: DistributionCommission[];
   inventoryLogs: InventoryLog[];
   memberCardTransactions: MemberCardTransaction[];
   operationLogs: OperationLog[];

@@ -770,6 +770,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [approvalId, setApprovalId] = useState("");
   const [couponId, setCouponId] = useState("");
   const [activityId, setActivityId] = useState("");
+  const [distributorId, setDistributorId] = useState("");
   const [approvalReason, setApprovalReason] = useState("客户活动价");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
@@ -797,6 +798,9 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   );
   const selectedCoupon = availableCoupons.find((coupon) => coupon.id === couponId);
   const couponDiscount = selectedCoupon?.amount ?? 0;
+  const customerReferral = data.referralRelations.find((relation) => relation.customerId === customerId && relation.status === "有效");
+  const activeDistributors = data.distributors.filter((distributor) => distributor.status === "启用" && distributor.customerId !== customerId);
+  const selectedDistributor = data.distributors.find((distributor) => distributor.id === (distributorId || customerReferral?.distributorId));
   const paidTotal = Math.max(0, activityTotal - discountAmount - couponDiscount);
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
@@ -817,6 +821,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         approvalId: approvalId || undefined,
         couponId: couponId || undefined,
         activityId: activityId || undefined,
+        distributorId: distributorId || undefined,
         payMethod,
         cardId: payMethod === "会员卡" ? cardId : undefined,
       }),
@@ -828,6 +833,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setApprovalId("");
     setCouponId("");
     setActivityId("");
+    setDistributorId("");
   };
 
   const requestDiscountApproval = () => {
@@ -858,7 +864,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="快速开单" action="自动提成/扣库存" />
         <form className="form" onSubmit={checkout}>
-          <Select label="客户" value={customerId} onChange={(value) => { setCustomerId(value); setCardId(""); setCouponId(""); }} options={data.customers.map(optionOf)} />
+          <Select label="客户" value={customerId} onChange={(value) => { setCustomerId(value); setCardId(""); setCouponId(""); setDistributorId(""); }} options={data.customers.map(optionOf)} />
           <Select label="服务项目" value={serviceId} onChange={(value) => { setServiceId(value); setCouponId(""); setActivityId(""); }} options={data.services.map(optionOf)} />
           <Select
             label="服务员工"
@@ -886,6 +892,18 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
               ...activeActivities.map((activity) => ({
                 value: activity.id,
                 label: `${activity.type} · ${activity.name} · ${money(activity.activityPrice)} · 剩${activity.quota - activity.soldCount}`,
+              })),
+            ]}
+          />
+          <Select
+            label="分销归属"
+            value={distributorId}
+            onChange={setDistributorId}
+            options={[
+              { value: "", label: customerReferral ? `自动归属：${nameOf(data.distributors, customerReferral.distributorId)}` : "不指定分销员" },
+              ...activeDistributors.map((distributor) => ({
+                value: distributor.id,
+                label: `${distributor.name} · ${distributor.type} · ${Math.round(distributor.rate * 100)}%`,
               })),
             ]}
           />
@@ -939,6 +957,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
             <strong>{money(paidTotal)}</strong>
             {selectedActivity && <small>已用{selectedActivity.type}活动价优惠 {money(activityDiscount)}</small>}
             {selectedCoupon && <small>已用营销券抵扣 {money(couponDiscount)}</small>}
+            {selectedDistributor && <small>分销归属：{selectedDistributor.name}，成交后生成 {Math.round(selectedDistributor.rate * 100)}% 分销佣金</small>}
           </div>
           <button className="primary-button" disabled={payMethod === "会员卡" && !cardId}>完成收银</button>
         </form>
@@ -1037,6 +1056,12 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [activityQuota, setActivityQuota] = useState(20);
   const [activityStartsAt, setActivityStartsAt] = useState(toLocalInputValue(new Date().toISOString()));
   const [activityEndsAt, setActivityEndsAt] = useState(toLocalInputValue(tomorrowAt(7 * 24)));
+  const [distributorType, setDistributorType] = useState<"客户" | "员工">("客户");
+  const [distributorCustomerId, setDistributorCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [distributorStaffId, setDistributorStaffId] = useState(data.staff[0]?.id ?? "");
+  const [distributorRate, setDistributorRate] = useState(0.08);
+  const [referralDistributorId, setReferralDistributorId] = useState(data.distributors[0]?.id ?? "");
+  const [referralCustomerId, setReferralCustomerId] = useState(data.customers[1]?.id ?? data.customers[0]?.id ?? "");
 
   useEffect(() => {
     const customer = data.customers.find((item) => item.id === tagCustomerId);
@@ -1153,6 +1178,29 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     );
   };
 
+  const createDistributor = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.createDistributor({
+        type: distributorType,
+        customerId: distributorType === "客户" ? distributorCustomerId : undefined,
+        staffId: distributorType === "员工" ? distributorStaffId : undefined,
+        rate: distributorRate,
+      }),
+    );
+  };
+
+  const bindReferral = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.bindReferralRelation({
+        distributorId: referralDistributorId,
+        customerId: referralCustomerId,
+        source: "手工绑定",
+      }),
+    );
+  };
+
   const activeCards = data.memberCards.filter((card) => card.status === "正常");
   const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
   const allTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
@@ -1167,6 +1215,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   }).length;
   const activeCoupons = data.customerCoupons.filter((coupon) => coupon.status === "未使用").length;
   const runningActivities = data.marketingActivities.filter((activity) => activity.status === "进行中").length;
+  const activeDistributorCount = data.distributors.filter((distributor) => distributor.status === "启用").length;
 
   return (
     <div className="page-stack">
@@ -1179,7 +1228,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
           { label: "有效卡项", value: `${activeCards.length} 张`, hint: "储值与次数卡", icon: <CreditCard size={18} /> },
           { label: "营销券", value: `${activeCoupons} 张`, hint: "未使用客户券", icon: <BadgeCent size={18} /> },
-          { label: "营销活动", value: `${runningActivities} 个`, hint: "拼团/秒杀", icon: <Sparkles size={18} /> },
+          { label: "分销员", value: `${activeDistributorCount} 个`, hint: `${runningActivities} 个活动`, icon: <Share2 size={18} /> },
         ]}
       />
       <div className="content-grid">
@@ -1228,6 +1277,23 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>开始时间<input type="datetime-local" value={activityStartsAt} onChange={(event) => setActivityStartsAt(event.target.value)} /></label>
           <label>结束时间<input type="datetime-local" value={activityEndsAt} onChange={(event) => setActivityEndsAt(event.target.value)} /></label>
           <button className="primary-button">创建活动</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<Share2 size={18} />} title="分销设置" action="推荐归属/成交佣金" />
+        <form className="form" onSubmit={createDistributor}>
+          <Select label="分销员类型" value={distributorType} onChange={(value) => setDistributorType(value as "客户" | "员工")} options={["客户", "员工"].map((item) => ({ value: item, label: item }))} />
+          {distributorType === "客户" ? (
+            <Select label="客户分销员" value={distributorCustomerId} onChange={setDistributorCustomerId} options={data.customers.map(optionOf)} />
+          ) : (
+            <Select label="员工分销员" value={distributorStaffId} onChange={setDistributorStaffId} options={data.staff.map(optionOf)} />
+          )}
+          <label>分销比例<input type="number" step="0.01" value={distributorRate} onChange={(event) => setDistributorRate(Number(event.target.value))} /></label>
+          <button className="primary-button">启用分销员</button>
+        </form>
+        <form className="form compact-form" onSubmit={bindReferral}>
+          <Select label="分销员" value={referralDistributorId} onChange={setReferralDistributorId} options={data.distributors.filter((item) => item.status === "启用").map(optionOf)} />
+          <Select label="绑定客户" value={referralCustomerId} onChange={setReferralCustomerId} options={data.customers.map(optionOf)} />
+          <button className="primary-button" disabled={!referralDistributorId}>绑定客户归属</button>
         </form>
         <div className="divider" />
         <PanelTitle icon={<CreditCard size={18} />} title="开卡/办卡" action="储值或次数" />
@@ -1358,6 +1424,29 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             participant.orderId ? data.orders.find((order) => order.id === participant.orderId)?.orderNo ?? participant.orderId : "未下单",
             <Badge key={`${participant.id}-status`} text={participant.status} tone={participant.status === "已核销" ? "ok" : "warn"} />,
             shortDate(participant.joinedAt),
+          ])}
+        />
+        <div className="divider" />
+        <PanelTitle icon={<Share2 size={18} />} title="分销关系" action={`${data.distributors.length} 个分销员`} />
+        <DataTable
+          columns={["分销员", "类型", "手机号", "比例", "邀请码", "状态"]}
+          rows={data.distributors.map((distributor) => [
+            distributor.name,
+            distributor.type,
+            distributor.phone,
+            `${Math.round(distributor.rate * 100)}%`,
+            distributor.inviteCode,
+            <Badge key={`${distributor.id}-status`} text={distributor.status} tone={distributor.status === "启用" ? "ok" : "warn"} />,
+          ])}
+        />
+        <DataTable
+          columns={["客户", "归属分销员", "来源", "状态", "绑定时间"]}
+          rows={data.referralRelations.map((relation) => [
+            nameOf(data.customers, relation.customerId),
+            nameOf(data.distributors, relation.distributorId),
+            relation.source,
+            <Badge key={`${relation.id}-status`} text={relation.status} tone={relation.status === "有效" ? "ok" : "warn"} />,
+            shortDate(relation.createdAt),
           ])}
         />
         <div className="divider" />
@@ -1524,6 +1613,10 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     void runMutation(actions.settleCommissions);
   };
 
+  const settleDistributionAll = () => {
+    void runMutation(actions.settleDistributionCommissions);
+  };
+
   const addStaff = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() => actions.addStaff({ name, phone, role, baseSalary, commissionRate }));
@@ -1539,6 +1632,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingCommission = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const pendingDistributionCommission = data.distributionCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <div className="page-stack">
@@ -1551,6 +1645,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           { label: "在职员工", value: `${activeStaff} 人`, hint: `${data.staff.length} 人档案`, icon: <UsersRound size={18} /> },
           { label: "待加入员工", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
           { label: "待结提成", value: money(pendingCommission), hint: "财务待处理", icon: <BadgeCent size={18} /> },
+          { label: "分销佣金", value: money(pendingDistributionCommission), hint: "待财务结算", icon: <Share2 size={18} /> },
         ]}
       />
       <div className="content-grid">
@@ -1642,6 +1737,25 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             nameOf(data.staff, item.staffId),
             item.type,
             money(item.baseAmount),
+            money(item.amount),
+            <Badge key={item.id} text={item.status} />,
+            shortDate(item.createdAt),
+          ])}
+        />
+        <div className="divider" />
+        <PanelTitle
+          icon={<Share2 size={18} />}
+          title="分销佣金"
+          action={hasPermission(session, "commissions:settle") ? <button onClick={settleDistributionAll}>全部结算</button> : "仅查看"}
+        />
+        <DataTable
+          columns={["分销员", "客户", "订单", "计算基数", "比例", "佣金", "状态", "时间"]}
+          rows={data.distributionCommissions.map((item) => [
+            nameOf(data.distributors, item.distributorId),
+            nameOf(data.customers, item.customerId),
+            data.orders.find((order) => order.id === item.orderId)?.orderNo ?? item.orderId,
+            money(item.baseAmount),
+            `${Math.round(item.rate * 100)}%`,
             money(item.amount),
             <Badge key={item.id} text={item.status} />,
             shortDate(item.createdAt),
@@ -1795,11 +1909,12 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         icon={<ChartNoAxesColumnIncreasing size={15} />}
         eyebrow="报表分析"
         title="报表分析"
-        desc="查看实收、退款、会员储值、员工提成与营业日结。"
+        desc="查看实收、退款、会员储值、员工提成、分销佣金与营业日结。"
         stats={[
           { label: "实收现金流", value: money(summary.revenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
           { label: "项目服务数", value: `${summary.serviceCount} 单`, hint: "已完成收银", icon: <Sparkles size={18} /> },
           { label: "员工提成", value: money(summary.commission), hint: "服务提成合计", icon: <BadgeCent size={18} /> },
+          { label: "分销佣金", value: money(summary.distributionCommission), hint: "转介绍待结算", icon: <Share2 size={18} /> },
         ]}
       />
       <div className="page-grid">
@@ -1807,6 +1922,7 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         <StatCard title="项目服务数" value={`${summary.serviceCount} 单`} hint="已完成收银订单" />
         <StatCard title="会员储值余额" value={money(summary.cardBalance)} hint="未消耗客户资产" />
         <StatCard title="员工提成" value={money(summary.commission)} hint="服务提成合计" />
+        <StatCard title="分销佣金" value={money(summary.distributionCommission)} hint="转介绍佣金合计" />
         <section className="panel">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="实收拆分" />
         <div className="bar-list">

@@ -34,6 +34,7 @@ export function createApiClient(getToken: () => string | undefined) {
       approvalId?: string;
       couponId?: string;
       activityId?: string;
+      distributorId?: string;
       payMethod: Order["payMethod"];
       cardId?: string;
     }) => request<AppData>("/api/checkout", { method: "POST", body, token: getToken() }),
@@ -85,6 +86,11 @@ export function createApiClient(getToken: () => string | undefined) {
       startsAt: string;
       endsAt: string;
     }) => request<AppData>("/api/marketing-activities", { method: "POST", body, token: getToken() }),
+    createDistributor: (body: { type: "客户" | "员工"; customerId?: string; staffId?: string; name?: string; phone?: string; rate: number }) =>
+      request<AppData>("/api/distributors", { method: "POST", body, token: getToken() }),
+    bindReferralRelation: (body: { distributorId: string; customerId: string; source?: "手工绑定" | "邀请码" }) =>
+      request<AppData>("/api/referral-relations", { method: "POST", body, token: getToken() }),
+    settleDistributionCommissions: () => request<AppData>("/api/distribution-commissions/settle", { method: "POST", token: getToken() }),
     refundMemberCard: (memberCardId: string, reason: string) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/refund`, {
         method: "POST",

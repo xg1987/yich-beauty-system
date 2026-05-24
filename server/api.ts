@@ -7,9 +7,11 @@ import {
   addSupplier,
   adjustInventory,
   checkoutOrder,
+  bindReferralRelation,
   createAppointment,
   createApprovalRequest,
   createCouponTemplate,
+  createDistributor,
   createMarketingActivity,
   createDailyClose,
   createStaffShift,
@@ -190,6 +192,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             approvalId: optionalString(body, "approvalId"),
             couponId: optionalString(body, "couponId"),
             activityId: optionalString(body, "activityId"),
+            distributorId: optionalString(body, "distributorId"),
             payMethod: requiredString(body, "payMethod") as Order["payMethod"],
             cardId: optionalString(body, "cardId"),
           }),
@@ -761,6 +764,65 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/api/distributors") {
+        requirePermission(session, "customers:manage");
+        const body = await readJson(request);
+        const nextData = updateData(database, session, {
+          action: "新增分销员",
+          targetType: "distributor",
+          targetId: "latest",
+          summary: `${session.user.name} 新增分销员`,
+        }, (data) =>
+          createDistributor(data, {
+            type: requiredString(body, "type") as "客户" | "员工",
+            customerId: optionalString(body, "customerId"),
+            staffId: optionalString(body, "staffId"),
+            name: optionalString(body, "name"),
+            phone: optionalString(body, "phone"),
+            rate: requiredNumber(body, "rate"),
+          }),
+        );
+        sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/referral-relations") {
+        requirePermission(session, "customers:manage");
+        const body = await readJson(request);
+        const nextData = updateData(database, session, {
+          action: "绑定分销客户",
+          targetType: "referral",
+          targetId: requiredString(body, "customerId"),
+          summary: `${session.user.name} 绑定分销客户`,
+        }, (data) =>
+          bindReferralRelation(data, {
+            distributorId: requiredString(body, "distributorId"),
+            customerId: requiredString(body, "customerId"),
+            source: optionalString(body, "source") as "手工绑定" | "邀请码" | undefined,
+          }),
+        );
+        sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/distribution-commissions/settle") {
+        requirePermission(session, "commissions:settle");
+        const settledAt = nowIso();
+        const nextData = updateData(database, session, {
+          action: "结算分销佣金",
+          targetType: "distributionCommission",
+          targetId: "all",
+          summary: `${session.user.name} 结算全部待结算分销佣金`,
+        }, (data) => ({
+          ...data,
+          distributionCommissions: data.distributionCommissions.map((item) =>
+            item.status === "待结算" ? { ...item, status: "已结算", settledAt } : item,
+          ),
+        }));
+        sendJson(response, 200, scopeDataForSession(nextData, session));
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/api/daily-close") {
         requirePermission(session, "reports:view");
         const body = await readJson(request);
@@ -845,9 +907,12 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     customerCoupons: sanitizedData.customerCoupons.filter((item) => customerIds.has(item.customerId)),
     marketingActivities: sanitizedData.marketingActivities.filter((item) => orders.some((order) => order.activityId === item.id)),
     activityParticipants: sanitizedData.activityParticipants.filter((item) => customerIds.has(item.customerId)),
+    distributors: sanitizedData.distributors.filter((item) => item.staffId === staffId || orders.some((order) => order.distributorId === item.id)),
+    referralRelations: sanitizedData.referralRelations.filter((item) => customerIds.has(item.customerId)),
     approvalRequests: [],
     authUsers: sanitizedData.authUsers.filter((item) => item.staffId === staffId || item.id === session.user.id),
     staffInvites: [],
+    distributionCommissions: sanitizedData.distributionCommissions.filter((item) => orderIds.has(item.orderId)),
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     operationLogs: sanitizedData.operationLogs.filter((item) => item.userId === session.user.id),

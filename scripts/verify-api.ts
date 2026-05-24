@@ -107,6 +107,8 @@ try {
   });
   assert.equal(afterCustomerTags.customers[0].level, "VIP", "customer API should update member level");
   assert.deepEqual(afterCustomerTags.customers[0].tags, ["敏感肌", "高消费"], "customer API should update tags");
+  const conflictStartAt = initialData.appointments.find((appointment) => appointment.staffId === "s2")?.startAt;
+  assert.ok(conflictStartAt, "test fixture should include existing therapist appointment");
 
   await assert.rejects(
     () =>
@@ -117,7 +119,7 @@ try {
           customerId: "c1",
           staffId: "s2",
           serviceId: "v1",
-          startAt: "2026-05-25T02:00:00.000Z",
+          startAt: conflictStartAt,
           note: "冲突预约",
         },
       }),
@@ -262,6 +264,32 @@ try {
   assert.equal(afterActivityCheckout.marketingActivities.find((item) => item.id === apiActivityId)?.soldCount, 1, "activity checkout should consume quota");
   assert.equal(afterActivityCheckout.activityParticipants[0].status, "已核销", "activity checkout should create participant");
 
+  const afterDistributor = await request<AppData>(baseUrl, "/api/distributors", {
+    method: "POST",
+    token: session.token,
+    body: { type: "客户", customerId: afterCustomer.customers[0].id, rate: 0.07 },
+  });
+  const apiDistributorId = afterDistributor.distributors[0].id;
+  assert.equal(afterDistributor.distributors[0].status, "启用", "distributor API should create active distributor");
+  const afterReferral = await request<AppData>(baseUrl, "/api/referral-relations", {
+    method: "POST",
+    token: session.token,
+    body: { distributorId: apiDistributorId, customerId: "c3" },
+  });
+  assert.equal(afterReferral.referralRelations[0].distributorId, apiDistributorId, "referral API should bind customer to distributor");
+  const afterDistributionCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c3",
+      staffId: "s2",
+      serviceId: "v2",
+      payMethod: "微信",
+    },
+  });
+  assert.equal(afterDistributionCheckout.orders[0].distributorId, apiDistributorId, "checkout should apply referral distributor");
+  assert.equal(afterDistributionCheckout.distributionCommissions[0].amount, 19, "checkout should create distribution commission");
+
   const afterDiscountCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     method: "POST",
     token: session.token,
@@ -289,7 +317,7 @@ try {
       payMethod: "微信",
     },
   });
-  assert.equal(afterCheckout.orders.length, 4, "checkout API should create another order");
+  assert.equal(afterCheckout.orders.length, 5, "checkout API should create another order");
   assert.equal(afterCheckout.orders[0].totalAmount, 597, "checkout API should calculate total");
   assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 14, "checkout API should consume service stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 23, "checkout API should consume retail stock");
@@ -308,6 +336,7 @@ try {
   assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 15, "refund API should restore service stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p4")?.stock, 24, "refund API should restore retail stock");
   assert.ok(afterRefund.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id).every((item) => item.status === "已冲销"), "refund API should reverse commission");
+  assert.ok(afterRefund.distributionCommissions.some((item) => item.status === "待结算"), "unrelated distribution commission should remain pending");
 
   const afterPartialCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     method: "POST",
@@ -523,8 +552,9 @@ try {
   assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 8, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 9, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
+  assert.ok(persistedData.distributionCommissions.length >= 1, "API data should persist distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
 
   await assert.rejects(

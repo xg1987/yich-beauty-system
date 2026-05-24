@@ -225,6 +225,32 @@ const afterActivityCheckout = await request<AppData>(baseUrl, "/api/checkout", {
 assert.equal(afterActivityCheckout.orders[0].paidAmount, 298, "D1 should persist activity checkout price");
 assert.equal(afterActivityCheckout.marketingActivities.find((item) => item.id === cloudflareActivityId)?.soldCount, 1, "D1 should consume activity quota");
 
+const afterDistributor = await request<AppData>(baseUrl, "/api/distributors", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { type: "客户", customerId, rate: 0.07 },
+});
+const distributorId = afterDistributor.distributors[0].id;
+assert.equal(afterDistributor.distributors[0].status, "启用", "D1 should create active distributor");
+const afterReferral = await request<AppData>(baseUrl, "/api/referral-relations", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { distributorId, customerId: secondCustomerId },
+});
+assert.equal(afterReferral.referralRelations[0].customerId, secondCustomerId, "D1 should bind referral relation");
+const afterDistributionCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { customerId: secondCustomerId, staffId: therapistStaffId, serviceId, payMethod: "微信" },
+});
+assert.equal(afterDistributionCheckout.orders[0].distributorId, distributorId, "D1 checkout should apply referral distributor");
+assert.equal(afterDistributionCheckout.distributionCommissions[0].amount, 28, "D1 should create distribution commission");
+const afterDistributionSettle = await request<AppData>(baseUrl, "/api/distribution-commissions/settle", {
+  method: "POST",
+  token: ownerSession.token,
+});
+assert.equal(afterDistributionSettle.distributionCommissions[0].status, "已结算", "D1 should settle distribution commission");
+
 const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",
   token: ownerSession.token,
