@@ -1,0 +1,33 @@
+{
+  "name": "yich-beauty-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "dev:api": "tsx server/start.ts",
+    "dev:full": "sh -c 'npm run dev:api & npm run dev; wait'",
+    "build": "tsc --noEmit && vite build",
+    "verify:business": "tsx scripts/verify-business.ts",
+    "verify:api": "tsx scripts/verify-api.ts",
+    "preview": "vite preview --host 0.0.0.0",
+    "cf:login": "wrangler login",
+    "cf:whoami": "wrangler whoami",
+    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true --commit-hash local-first-stage --commit-message \"Deploy YiCh first-stage MVP\""
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.21.0",
+    "wrangler": "^4.94.0"
+  }
+}
