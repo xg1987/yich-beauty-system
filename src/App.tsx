@@ -35,6 +35,7 @@ import { type ApiActions, useApiData } from "./hooks/useApiData";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admin";
 type ThemeMode = "day" | "night";
+type CardType = "储值卡" | "次数卡" | "套餐卡";
 
 const THEME_KEY = "yich-system-theme";
 
@@ -950,9 +951,11 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [phone, setPhone] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [cardName, setCardName] = useState("新客储值卡");
+  const [cardType, setCardType] = useState<CardType>("储值卡");
   const [cardAmount, setCardAmount] = useState(1000);
   const [cardTimes, setCardTimes] = useState(0);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
+  const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
   const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
   const [rechargeAmount, setRechargeAmount] = useState(300);
   const [rechargeTimes, setRechargeTimes] = useState(0);
@@ -987,15 +990,26 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
 
   const openCard = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() =>
-      actions.openMemberCard({
+    void runMutation(async () => {
+      if (cardType !== "储值卡" && cardTimes <= 0) {
+        throw new Error("次数卡和套餐卡需要填写可用次数");
+      }
+      if (cardType === "次数卡" && !cardServiceId) {
+        throw new Error("次数卡需要绑定一个服务项目");
+      }
+      if (cardType === "套餐卡" && cardServiceIds.length === 0) {
+        throw new Error("套餐卡至少选择一个可用项目");
+      }
+      return actions.openMemberCard({
         customerId,
         name: cardName,
-        balance: cardAmount,
-        remainingTimes: cardTimes,
-        serviceId: cardTimes > 0 ? cardServiceId : undefined,
-      }),
-    );
+        type: cardType,
+        balance: cardType === "储值卡" ? cardAmount : 0,
+        remainingTimes: cardType === "储值卡" ? 0 : cardTimes,
+        serviceId: cardType === "次数卡" ? cardServiceId : undefined,
+        serviceIds: cardType === "套餐卡" ? cardServiceIds : undefined,
+      });
+    });
   };
 
   const rechargeCard = (event: FormEvent) => {
@@ -1039,6 +1053,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
   const allTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
   const filteredCustomers = tagFilter ? data.customers.filter((customer) => customer.tags.includes(tagFilter)) : data.customers;
+  const projectScope = (serviceId?: string, serviceIds?: string[]) => {
+    if (serviceIds?.length) return serviceIds.map((id) => nameOf(data.services, id)).join(" / ");
+    return serviceId ? nameOf(data.services, serviceId) : "通用";
+  };
   const recentVisits = data.customers.filter((customer) => {
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
@@ -1079,9 +1097,15 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         <form className="form" onSubmit={openCard}>
           <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} /></label>
-          <label>储值金额<input type="number" value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
-          <label>次数卡次数<input type="number" value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
-          {cardTimes > 0 && <Select label="绑定项目" value={cardServiceId} onChange={setCardServiceId} options={data.services.map(optionOf)} />}
+          <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡"].map((item) => ({ value: item, label: item }))} />
+          {cardType === "储值卡" && (
+            <label>储值金额<input type="number" value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
+          )}
+          {cardType !== "储值卡" && (
+            <label>可用次数<input type="number" value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
+          )}
+          {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={setCardServiceId} options={data.services.map(optionOf)} />}
+          {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
           <button className="primary-button">开卡</button>
         </form>
         <div className="divider" />
@@ -1134,7 +1158,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             shortDate(customer.lastVisit),
             data.memberCards
               .filter((card) => card.customerId === customer.id)
-              .map((card) => `${card.name}${card.serviceId ? `(${nameOf(data.services, card.serviceId)})` : ""}`)
+              .map((card) => `${card.name}(${projectScope(card.serviceId, card.serviceIds)})`)
               .join("，") || "未开卡",
           ])}
         />
@@ -1148,7 +1172,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             card.type,
             money(card.balance),
             card.remainingTimes,
-            card.serviceId ? nameOf(data.services, card.serviceId) : "通用",
+            projectScope(card.serviceId, card.serviceIds),
             <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "已退卡" ? "warn" : "ok"} />,
             card.status === "正常" ? (
               <button key={`${card.id}-refund`} onClick={() => void runMutation(() => actions.refundMemberCard(card.id, "客户退卡"))}>
@@ -1898,7 +1922,7 @@ function CheckboxGroup({
     <fieldset className="check-group">
       <legend>{label}</legend>
       {options.length === 0 ? (
-        <span>暂无可选员工</span>
+        <span>暂无可选项</span>
       ) : (
         options.map((option) => (
           <label key={option.value}>

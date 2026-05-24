@@ -326,6 +326,26 @@ try {
     body: { customerId: "c2", name: "API 储值卡", balance: 500, remainingTimes: 0 },
   });
   const apiCardId = afterOpenCard.memberCards[0].id;
+  const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: { customerId: "c2", name: "API 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: ["v1", "v2"] },
+  });
+  const packageCard = afterOpenPackageCard.memberCards[0];
+  assert.equal(packageCard.type, "套餐卡", "package card API should persist package type");
+  assert.deepEqual(packageCard.serviceIds, ["v1", "v2"], "package card API should persist multiple services");
+  const afterPackageCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c2",
+      staffId: "s2",
+      serviceId: "v2",
+      payMethod: "会员卡",
+      cardId: packageCard.id,
+    },
+  });
+  assert.equal(afterPackageCheckout.memberCards.find((item) => item.id === packageCard.id)?.remainingTimes, 4, "package card should be usable by any selected package service");
   const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${apiCardId}/recharge`, {
     method: "POST",
     token: session.token,
@@ -448,7 +468,7 @@ try {
   assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 5, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 6, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
 

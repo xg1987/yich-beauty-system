@@ -215,6 +215,13 @@ const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
   body: { customerId, name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0 },
 });
 const cardId = afterOpenCard.memberCards[0].id;
+const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { customerId, name: "Cloudflare 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: [serviceId] },
+});
+assert.equal(afterOpenPackageCard.memberCards[0].type, "套餐卡", "D1 should persist package card type");
+assert.deepEqual(afterOpenPackageCard.memberCards[0].serviceIds, [serviceId], "D1 should persist package card services");
 const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/recharge`, {
   method: "POST",
   token: ownerSession.token,

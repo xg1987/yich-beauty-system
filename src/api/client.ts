@@ -59,7 +59,15 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/customers", { method: "POST", body, token: getToken() }),
     updateCustomer: (customerId: string, body: { name?: string; phone?: string; level?: string; source?: string; tags?: string[] }) =>
       request<AppData>(`/api/customers/${encodeURIComponent(customerId)}`, { method: "PATCH", body, token: getToken() }),
-    openMemberCard: (body: { customerId: string; name: string; balance: number; remainingTimes: number; serviceId?: string; serviceIds?: string[] }) =>
+    openMemberCard: (body: {
+      customerId: string;
+      name: string;
+      type?: "储值卡" | "次数卡" | "套餐卡";
+      balance: number;
+      remainingTimes: number;
+      serviceId?: string;
+      serviceIds?: string[];
+    }) =>
       request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
     refundMemberCard: (memberCardId: string, reason: string) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/refund`, {

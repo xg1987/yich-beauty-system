@@ -357,7 +357,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requirePermission(session, "customers:manage");
       const body = await readJson(context.request);
       const remainingTimes = optionalNumber(body, "remainingTimes") ?? 0;
-      const balance = remainingTimes > 0 ? 0 : requiredNumber(body, "balance");
+      const serviceIds = optionalStringArray(body, "serviceIds") ?? [];
+      const requestedType = optionalString(body, "type");
+      const cardType = requestedType === "套餐卡" || requestedType === "次数卡" || requestedType === "储值卡"
+        ? requestedType
+        : remainingTimes > 0 && serviceIds.length > 1
+          ? "套餐卡"
+          : remainingTimes > 0
+            ? "次数卡"
+            : "储值卡";
+      const balance = cardType === "储值卡" ? requiredNumber(body, "balance") : 0;
       const cardId = makeId("m");
       const createdAt = nowIso();
       const nextData = updateData(await database.readData(), session, {
@@ -372,13 +381,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             id: cardId,
             customerId: requiredString(body, "customerId"),
             name: requiredString(body, "name"),
-            type: remainingTimes > 0 ? "次数卡" : "储值卡",
+            type: cardType,
             balance,
             remainingTimes,
             expiresAt: optionalString(body, "expiresAt") ?? "2027-12-31",
             status: "正常",
-            serviceId: optionalString(body, "serviceId"),
-            serviceIds: optionalStringArray(body, "serviceIds"),
+            serviceId: cardType === "次数卡" ? optionalString(body, "serviceId") : undefined,
+            serviceIds: cardType === "套餐卡" ? serviceIds : undefined,
           },
           ...data.memberCards,
         ],
