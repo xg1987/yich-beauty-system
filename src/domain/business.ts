@@ -1,6 +1,7 @@
 import type {
   AppData,
   ApprovalRequest,
+  ActivityParticipant,
   CouponTemplate,
   CustomerCoupon,
   CustomerFollowUp,
@@ -8,6 +9,7 @@ import type {
   DailyClose,
   InventoryLog,
   MemberCardTransaction,
+  MarketingActivity,
   OperationLog,
   Order,
   PurchaseOrder,
@@ -69,6 +71,7 @@ export type CheckoutInput = {
   adjustmentReason?: string;
   approvalId?: string;
   couponId?: string;
+  activityId?: string;
   payMethod: Order["payMethod"];
   cardId?: string;
 };
@@ -84,6 +87,17 @@ export type CouponTemplateInput = {
 export type IssueCouponInput = {
   templateId: string;
   customerId: string;
+};
+
+export type MarketingActivityInput = {
+  name: string;
+  type: MarketingActivity["type"];
+  serviceId: string;
+  activityPrice: number;
+  groupSize?: number;
+  quota: number;
+  startsAt: string;
+  endsAt: string;
 };
 
 export type InventoryAdjustmentInput = {
@@ -467,6 +481,40 @@ export function issueCustomerCoupon(
   };
 }
 
+export function createMarketingActivity(
+  data: AppData,
+  input: MarketingActivityInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const service = data.services.find((item) => item.id === input.serviceId);
+  if (!service) throw new Error("服务项目不存在");
+  if (input.activityPrice <= 0 || input.activityPrice >= service.price) throw new Error("活动价必须低于项目原价");
+  if (input.quota <= 0) throw new Error("活动名额必须大于 0");
+  if (+new Date(input.endsAt) <= +new Date(input.startsAt)) throw new Error("活动结束时间必须晚于开始时间");
+  if (input.type === "拼团" && (!input.groupSize || input.groupSize < 2)) throw new Error("拼团人数至少 2 人");
+
+  const activity: MarketingActivity = {
+    id: idFactory("ma"),
+    name: input.name,
+    type: input.type,
+    serviceId: input.serviceId,
+    activityPrice: input.activityPrice,
+    groupSize: input.type === "拼团" ? input.groupSize : undefined,
+    quota: input.quota,
+    soldCount: 0,
+    startsAt: input.startsAt,
+    endsAt: input.endsAt,
+    status: "进行中",
+    createdAt,
+  };
+  return {
+    ...data,
+    marketingActivities: [activity, ...data.marketingActivities],
+  };
+}
+
 export function checkoutOrder(
   data: AppData,
   input: CheckoutInput,
@@ -510,9 +558,11 @@ export function checkoutOrder(
   }
   const orderId = idFactory("o");
   const createdAt = currentTime();
+  const selectedActivity = input.activityId ? data.marketingActivities.find((item) => item.id === input.activityId) : undefined;
+  const activityDiscount = selectedActivity ? validateMarketingActivity(selectedActivity, input.serviceId, selectedService.price, createdAt) : 0;
   const selectedCoupon = input.couponId ? data.customerCoupons.find((item) => item.id === input.couponId) : undefined;
   const couponDiscount = selectedCoupon ? validateCustomerCoupon(selectedCoupon, input.customerId, input.serviceId, total, createdAt) : 0;
-  const totalDiscount = discountAmount + couponDiscount;
+  const totalDiscount = activityDiscount + discountAmount + couponDiscount;
   if (totalDiscount >= total) {
     throw new Error("优惠金额无效");
   }
@@ -531,11 +581,14 @@ export function checkoutOrder(
     totalAmount: total,
     paidAmount,
     discountAmount: totalDiscount,
-    adjustmentReason: selectedCoupon
-      ? [input.adjustmentReason, `营销券：${selectedCoupon.name}`].filter(Boolean).join("；")
-      : input.adjustmentReason,
+    adjustmentReason: [
+      selectedActivity ? `${selectedActivity.type}活动：${selectedActivity.name}` : undefined,
+      selectedCoupon ? `营销券：${selectedCoupon.name}` : undefined,
+      input.adjustmentReason,
+    ].filter(Boolean).join("；") || undefined,
     approvalId: input.approvalId,
     couponId: selectedCoupon?.id,
+    activityId: selectedActivity?.id,
     payMethod: input.payMethod,
     status: "已支付",
     createdAt,
@@ -589,6 +642,25 @@ export function checkoutOrder(
           ...data.memberCardTransactions,
         ]
       : data.memberCardTransactions;
+  const marketingActivities = selectedActivity
+    ? data.marketingActivities.map((activity) =>
+        activity.id === selectedActivity.id ? { ...activity, soldCount: activity.soldCount + 1 } : activity,
+      )
+    : data.marketingActivities;
+  const activityParticipants: ActivityParticipant[] = selectedActivity
+    ? [
+        {
+          id: idFactory("ap"),
+          activityId: selectedActivity.id,
+          customerId: input.customerId,
+          orderId,
+          status: "已核销",
+          joinedAt: createdAt,
+          checkedAt: createdAt,
+        },
+        ...data.activityParticipants,
+      ]
+    : data.activityParticipants;
 
   const commissionTotal = Math.round(paidAmount * 0.12);
   const commissionStaffIds = uniqueIds([input.staffId, ...(input.collaboratorStaffIds ?? [])]);
@@ -601,6 +673,8 @@ export function checkoutOrder(
     inventoryLogs,
     orders: [order, ...data.orders],
     memberCardTransactions,
+    marketingActivities,
+    activityParticipants,
     customerCoupons: selectedCoupon
       ? data.customerCoupons.map((coupon) =>
           coupon.id === selectedCoupon.id ? { ...coupon, status: "已使用", usedOrderId: orderId, usedAt: createdAt } : coupon,
@@ -744,6 +818,16 @@ export function refundOrder(
             : coupon,
         )
       : data.customerCoupons,
+    marketingActivities: isFullRefund && order.activityId
+      ? data.marketingActivities.map((activity) =>
+          activity.id === order.activityId ? { ...activity, soldCount: Math.max(0, activity.soldCount - 1) } : activity,
+        )
+      : data.marketingActivities,
+    activityParticipants: isFullRefund && order.activityId
+      ? data.activityParticipants.map((participant) =>
+          participant.orderId === order.id ? { ...participant, status: "已取消", checkedAt: undefined } : participant,
+        )
+      : data.activityParticipants,
     commissions: data.commissions.map((item) =>
       item.orderId === order.id
         ? {
@@ -1571,6 +1655,16 @@ function validateCustomerCoupon(coupon: CustomerCoupon, customerId: string, serv
   if (coupon.serviceId && coupon.serviceId !== serviceId) throw new Error("优惠券不可用于当前项目");
   if (total < coupon.minSpend) throw new Error("订单金额未达到优惠券门槛");
   return coupon.amount;
+}
+
+function validateMarketingActivity(activity: MarketingActivity, serviceId: string, servicePrice: number, createdAt: string) {
+  if (activity.status !== "进行中") throw new Error("活动不可用");
+  if (activity.serviceId !== serviceId) throw new Error("活动不可用于当前项目");
+  if (+new Date(activity.startsAt) > +new Date(createdAt) || +new Date(activity.endsAt) < +new Date(createdAt)) {
+    throw new Error("活动不在有效时间内");
+  }
+  if (activity.soldCount >= activity.quota) throw new Error("活动名额已满");
+  return servicePrice - activity.activityPrice;
 }
 
 function assertBusinessDateOpen(data: AppData, businessDate: string) {

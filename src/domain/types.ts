@@ -158,6 +158,31 @@ export type CustomerCoupon = {
   usedAt?: string;
 };
 
+export type MarketingActivity = {
+  id: string;
+  name: string;
+  type: "拼团" | "秒杀";
+  serviceId: string;
+  activityPrice: number;
+  groupSize?: number;
+  quota: number;
+  soldCount: number;
+  startsAt: string;
+  endsAt: string;
+  status: "进行中" | "已结束" | "已停用";
+  createdAt: string;
+};
+
+export type ActivityParticipant = {
+  id: string;
+  activityId: string;
+  customerId: string;
+  orderId?: string;
+  status: "已参加" | "已核销" | "已取消";
+  joinedAt: string;
+  checkedAt?: string;
+};
+
 export type Order = {
   id: string;
   orderNo: string;
@@ -172,6 +197,7 @@ export type Order = {
   adjustmentReason?: string;
   approvalId?: string;
   couponId?: string;
+  activityId?: string;
   payMethod: "现金" | "微信" | "支付宝" | "银行卡" | "会员卡";
   status: "已支付" | "部分退款" | "已退款";
   createdAt: string;
@@ -331,6 +357,8 @@ export type AppData = {
   memberCards: MemberCard[];
   couponTemplates: CouponTemplate[];
   customerCoupons: CustomerCoupon[];
+  marketingActivities: MarketingActivity[];
+  activityParticipants: ActivityParticipant[];
   orders: Order[];
   refunds: Refund[];
   commissions: Commission[];

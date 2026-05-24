@@ -14,6 +14,8 @@ export const seedData: AppData = {
   memberCards: [],
   couponTemplates: [],
   customerCoupons: [],
+  marketingActivities: [],
+  activityParticipants: [],
   orders: [],
   refunds: [],
   commissions: [],

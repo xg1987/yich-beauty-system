@@ -109,6 +109,7 @@ export function useApiData() {
     openMemberCard: client.openMemberCard,
     createCouponTemplate: client.createCouponTemplate,
     issueCustomerCoupon: client.issueCustomerCoupon,
+    createMarketingActivity: client.createMarketingActivity,
     refundMemberCard: client.refundMemberCard,
     rechargeMemberCard: client.rechargeMemberCard,
     updateMemberCardStatus: client.updateMemberCardStatus,

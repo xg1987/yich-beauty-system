@@ -9,6 +9,7 @@ import {
   createAppointment,
   createApprovalRequest,
   createCouponTemplate,
+  createMarketingActivity,
   createDailyClose,
   createStaffShift,
   createStaffUnavailableSlot,
@@ -179,6 +180,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           adjustmentReason: optionalString(body, "adjustmentReason"),
           approvalId: optionalString(body, "approvalId"),
           couponId: optionalString(body, "couponId"),
+          activityId: optionalString(body, "activityId"),
           payMethod: requiredString(body, "payMethod") as Order["payMethod"],
           cardId: optionalString(body, "cardId"),
         }),
@@ -450,6 +452,32 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           targetType: "customerCoupon",
           targetId: "latest",
           summary: `${session.user.name} 给客户发放营销券`,
+        },
+      );
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/marketing-activities") {
+      requirePermission(session, "customers:manage");
+      const body = await readJson(context.request);
+      const nextData = addOperationLog(
+        createMarketingActivity(await database.readData(), {
+          name: requiredString(body, "name"),
+          type: requiredString(body, "type") as "拼团" | "秒杀",
+          serviceId: requiredString(body, "serviceId"),
+          activityPrice: requiredNumber(body, "activityPrice"),
+          groupSize: optionalNumber(body, "groupSize"),
+          quota: requiredNumber(body, "quota"),
+          startsAt: requiredString(body, "startsAt"),
+          endsAt: requiredString(body, "endsAt"),
+        }),
+        {
+          userId: session.user.id,
+          action: "创建营销活动",
+          targetType: "marketingActivity",
+          targetId: "latest",
+          summary: `${session.user.name} 创建营销活动 ${requiredString(body, "name")}`,
         },
       );
       await database.replaceData(nextData);
@@ -773,6 +801,8 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     commissions: sanitizedData.commissions.filter((item) => item.staffId === staffId),
     couponTemplates: [],
     customerCoupons: sanitizedData.customerCoupons.filter((item) => customerIds.has(item.customerId)),
+    marketingActivities: sanitizedData.marketingActivities.filter((item) => orders.some((order) => order.activityId === item.id)),
+    activityParticipants: sanitizedData.activityParticipants.filter((item) => customerIds.has(item.customerId)),
     approvalRequests: [],
     authUsers: sanitizedData.authUsers.filter((item) => item.staffId === staffId || item.id === session.user.id),
     staffInvites: [],

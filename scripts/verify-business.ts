@@ -9,6 +9,7 @@ import {
   createApprovalRequest,
   createCouponTemplate,
   createDailyClose,
+  createMarketingActivity,
   createStaffShift,
   createStaffInvite,
   createStaffUnavailableSlot,
@@ -317,6 +318,44 @@ function card(data: AppData, cardId: string) {
   assert.equal(card(refundedCard, "m1").balance, 0, "member card refund should clear balance");
   assert.equal(refundedCard.memberCardTransactions[0].type, "退卡", "member card refund should write card transaction");
   assert.equal(refundedCard.operationLogs[0].action, "会员退卡", "member card refund should write operation log");
+}
+
+{
+  const activityData = createMarketingActivity(
+    cloneSeed(),
+    {
+      name: "小气泡秒杀",
+      type: "秒杀",
+      serviceId: "v1",
+      activityPrice: 298,
+      quota: 10,
+      startsAt: "2026-05-23T00:00:00.000Z",
+      endsAt: "2026-05-25T00:00:00.000Z",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const checkedOut = checkoutOrder(
+    activityData,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+      activityId: activityData.marketingActivities[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOut.orders[0].paidAmount, 298, "marketing activity should apply activity price");
+  assert.equal(checkedOut.orders[0].activityId, activityData.marketingActivities[0].id, "order should keep activity source");
+  assert.equal(checkedOut.marketingActivities[0].soldCount, 1, "activity checkout should consume quota");
+  assert.equal(checkedOut.activityParticipants[0].status, "已核销", "activity checkout should create checked participant");
+  const refunded = refundOrder(
+    checkedOut,
+    { orderId: checkedOut.orders[0].id, reason: "撤销活动订单", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(refunded.marketingActivities[0].soldCount, 0, "full refund should restore activity quota");
+  assert.equal(refunded.activityParticipants[0].status, "已取消", "full refund should cancel activity participant");
 }
 
 {

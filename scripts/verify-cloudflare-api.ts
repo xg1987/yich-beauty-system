@@ -203,6 +203,28 @@ const afterCouponCheckout = await request<AppData>(baseUrl, "/api/checkout", {
 assert.equal(afterCouponCheckout.orders[0].paidAmount, 348, "D1 should persist coupon checkout discount");
 assert.equal(afterCouponCheckout.customerCoupons.find((item) => item.id === cloudflareCouponId)?.status, "已使用", "D1 should mark coupon used");
 
+const afterMarketingActivity = await request<AppData>(baseUrl, "/api/marketing-activities", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    name: "Cloudflare 小气泡秒杀",
+    type: "秒杀",
+    serviceId,
+    activityPrice: 298,
+    quota: 10,
+    startsAt: `${today}T00:00:00.000Z`,
+    endsAt: `${futureDay(2)}T00:00:00.000Z`,
+  },
+});
+const cloudflareActivityId = afterMarketingActivity.marketingActivities[0].id;
+const afterActivityCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { customerId, staffId: therapistStaffId, serviceId, payMethod: "微信", activityId: cloudflareActivityId },
+});
+assert.equal(afterActivityCheckout.orders[0].paidAmount, 298, "D1 should persist activity checkout price");
+assert.equal(afterActivityCheckout.marketingActivities.find((item) => item.id === cloudflareActivityId)?.soldCount, 1, "D1 should consume activity quota");
+
 const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",
   token: ownerSession.token,
