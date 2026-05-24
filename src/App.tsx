@@ -305,49 +305,56 @@ function LoginScreen({
   return (
     <div className="login-page">
       <section className="login-panel">
-        <form className="login-card" onSubmit={submit}>
-          <div className="login-brand">
-            <div className="brand-mark">D</div>
-            <div>
-              <strong>一宸 YiCh 美业门店系统</strong>
-              <span>门店经营管理平台</span>
+        <div className="login-unified-card">
+          <div className="login-hero">
+            <div className="login-brand">
+              <div className="brand-mark">D</div>
+              <div>
+                <strong>一宸 YiCh 美业门店系统</strong>
+                <span>门店经营管理平台</span>
+              </div>
             </div>
           </div>
-          <div className="segmented">
-            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>登录</button>
-            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>注册门店</button>
-            <button type="button" className={mode === "join" ? "active" : ""} onClick={() => setMode("join")}>员工加入</button>
-          </div>
-          {mode === "register" && (
-            <>
-              <label>门店名称<input value={storeName} onChange={(event) => setStoreName(event.target.value)} /></label>
-              <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} /></label>
-              <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
-              <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
-              <p className="register-note">预约、开单、会员、员工、库存、财务和经营分析统一管理。</p>
-            </>
-          )}
-          {mode === "join" ? (
-            <>
-              <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="由店长/老板在人员管理生成" /></label>
-              <label>姓名<input value={joinName} onChange={(event) => setJoinName(event.target.value)} /></label>
-            </>
-          ) : (
+          <form className={`login-card login-card-${mode}`} onSubmit={submit}>
+            <div className="login-card-head">
+              <strong>{mode === "login" ? "登录系统" : mode === "register" ? "注册门店" : "邀请码加入"}</strong>
+              <span>{mode === "login" ? "使用门店账号进入工作台" : mode === "register" ? "创建老板账号并开通门店" : "邀请码由老板或店长在人员管理中生成"}</span>
+            </div>
+            {mode === "register" && (
+              <>
+                <label>门店名称<input value={storeName} onChange={(event) => setStoreName(event.target.value)} /></label>
+                <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} /></label>
+                <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+                <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+                <p className="register-note">预约、开单、会员、员工、库存、财务和经营分析统一管理。</p>
+              </>
+            )}
+            {mode === "join" ? (
+              <>
+                <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" /></label>
+                <label>姓名<input value={joinName} onChange={(event) => setJoinName(event.target.value)} placeholder="请输入姓名" /></label>
+              </>
+            ) : (
+              <label>
+                账号
+                <input value={account} onChange={(event) => setAccount(event.target.value)} />
+              </label>
+            )}
             <label>
-              账号
-              <input value={account} onChange={(event) => setAccount(event.target.value)} />
+              密码
+              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
             </label>
-          )}
-          <label>
-            密码
-            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
-          </label>
-          {error && <p className="form-error">{error}</p>}
-          <button className="primary-button" disabled={loading}>
-            <LockKeyhole size={17} />
-            {loading ? "处理中" : mode === "login" ? "进入系统" : mode === "register" ? "创建门店" : "加入门店"}
-          </button>
-        </form>
+            {error && <p className="form-error">{error}</p>}
+            <button className="primary-button" disabled={loading}>
+              <LockKeyhole size={17} />
+              {loading ? "处理中" : mode === "login" ? "进入系统" : mode === "register" ? "创建门店" : "加入门店"}
+            </button>
+            <div className="login-card-links">
+              {mode !== "login" && <button type="button" onClick={() => setMode("login")}>返回登录</button>}
+              {mode !== "join" && <button type="button" onClick={() => setMode("join")}>已有邀请码？加入门店</button>}
+            </div>
+          </form>
+        </div>
       </section>
     </div>
   );
@@ -1278,7 +1285,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             <PanelTitle icon={<LockKeyhole size={18} />} title="邀请员工" action="邀请码加入" />
             <form className="form" onSubmit={createInvite}>
               <Select label="员工" value={inviteStaffId} onChange={setInviteStaffId} options={data.staff.map(optionOf)} />
-              <label>员工手机号/账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} placeholder="员工加入后用于登录" /></label>
+              <label>员工手机号/账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} placeholder="确认邀请码后用于登录" /></label>
               <Select
                 label="账号角色"
                 value={inviteRole}
