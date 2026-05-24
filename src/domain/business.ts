@@ -7,6 +7,8 @@ import type {
   CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
+  DataQualityIssue,
+  DataQualityReport,
   Commission,
   CommissionSettlement,
   DailyClose,
@@ -578,6 +580,47 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
       ...data.storeProfiles.slice(1),
     ],
   };
+}
+
+export function formalDataAudit(data: AppData): DataQualityReport {
+  const issues: DataQualityIssue[] = [];
+  const inspect = (scope: string, id: string, name: string, fields: string[], detail: string) => {
+    const hit = fields.map((field) => suspiciousReason(field)).find(Boolean);
+    if (!hit) return;
+    issues.push({
+      id,
+      scope,
+      name: name || id,
+      detail,
+      reason: hit,
+    });
+  };
+
+  data.staff.forEach((staff) => inspect("员工", staff.id, staff.name, [staff.name, staff.phone, staff.role], `岗位 ${staff.role}`));
+  data.authUsers.forEach((user) => inspect("账号", user.id, user.name, [user.name, user.account], `账号 ${user.account}`));
+  data.customers.forEach((customer) => inspect("客户", customer.id, customer.name, [customer.name, customer.phone, customer.source, ...customer.tags], `来源 ${customer.source}`));
+  data.services.forEach((service) => inspect("项目", service.id, service.name, [service.name, service.category], `分类 ${service.category}`));
+  data.products.forEach((product) => inspect("商品", product.id, product.name, [product.name, product.type], `库存 ${product.stock}${product.unit}`));
+  data.tagDefinitions.forEach((tag) => inspect("标签", tag.id, tag.name, [tag.name], `范围 ${tag.scope}`));
+  data.onlineStorefronts.forEach((storefront) =>
+    inspect("线上店铺", storefront.id, storefront.headline, [storefront.shareCode, storefront.headline, storefront.description], `分享码 ${storefront.shareCode}`),
+  );
+
+  return {
+    issueCount: issues.length,
+    issues: issues.slice(0, 50),
+  };
+}
+
+function suspiciousReason(value: string) {
+  const normalized = value.toLowerCase();
+  if (value.includes("验证")) return "包含验证数据字样";
+  if (value.includes("测试")) return "包含测试数据字样";
+  if (normalized.includes("demo")) return "包含 demo 字样";
+  if (normalized.includes("sample")) return "包含 sample 字样";
+  if (normalized.includes("@test.local")) return "使用测试账号域名";
+  if (normalized.includes("cloudflare")) return "包含线上验证脚本字样";
+  return "";
 }
 
 export function upsertOnlineStorefront(

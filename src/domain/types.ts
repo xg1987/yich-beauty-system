@@ -465,6 +465,19 @@ export type Stocktake = {
   createdAt: string;
 };
 
+export type DataQualityIssue = {
+  id: string;
+  scope: string;
+  name: string;
+  detail: string;
+  reason: string;
+};
+
+export type DataQualityReport = {
+  issueCount: number;
+  issues: DataQualityIssue[];
+};
+
 export type AppData = {
   storeProfiles: StoreProfile[];
   onlineStorefronts: OnlineStorefront[];

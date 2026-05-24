@@ -2,8 +2,14 @@ import assert from "node:assert/strict";
 import type { AppData } from "../src/domain/types";
 
 const baseUrl = process.env.API_BASE_URL ?? "http://localhost:8788";
+const allowPersistentWrite = process.env.ALLOW_PERSISTENT_CLOUDFLARE_VERIFY === "1";
+const isRemotePagesTarget = /^https:\/\/.+\.pages\.dev\/?$/.test(baseUrl);
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const today = new Date().toISOString().slice(0, 10);
+
+if (isRemotePagesTarget && !allowPersistentWrite) {
+  throw new Error("线上验证会写入正式 D1 数据。请改用本地 wrangler pages dev，或明确设置 ALLOW_PERSISTENT_CLOUDFLARE_VERIFY=1。");
+}
 
 const health = await request<{ ok: boolean; runtime?: string }>(baseUrl, "/api/health");
 assert.equal(health.ok, true, "health check should pass");

@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
-import { calculateOrderTotal, reportSummary } from "./domain/business";
+import { calculateOrderTotal, formalDataAudit, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
@@ -2891,6 +2891,7 @@ function SettingsView({
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
   const publicStoreUrl = `${window.location.origin}/store/${onlineShareCode || onlineStorefront?.shareCode || ""}`;
+  const dataQualityReport = formalDataAudit(data);
 
   useEffect(() => {
     setStoreName(store?.name ?? "");
@@ -3026,6 +3027,25 @@ function SettingsView({
             <button className="primary-button" type="submit"><LockKeyhole size={16} /> 保存线上店铺</button>
           </div>
         </form>
+      </section>
+
+      <section className="admin-online-panel data-quality-panel">
+        <PanelTitle
+          icon={<ShieldCheck size={18} />}
+          title="数据巡检"
+          action={dataQualityReport.issueCount > 0 ? `${dataQualityReport.issueCount} 项需处理` : "状态正常"}
+        />
+        <p className="data-quality-copy">只做识别和提示，不自动删除正式库数据。需要清理时先确认范围，再执行迁移。</p>
+        <DataTable
+          columns={["模块", "数据", "问题", "处理建议"]}
+          rows={dataQualityReport.issues.slice(0, 12).map((issue) => [
+            issue.scope,
+            issue.name,
+            `${issue.reason} · ${issue.detail}`,
+            "确认后清理或改名",
+          ])}
+        />
+        {dataQualityReport.issueCount > 12 && <p className="data-quality-copy">仅显示前 12 项，其余数据需通过清理脚本分批处理。</p>}
       </section>
 
       <section className="admin-module-section">

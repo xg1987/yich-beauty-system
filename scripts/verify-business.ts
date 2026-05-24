@@ -25,6 +25,7 @@ import {
   issueCustomerCoupon,
   joinStaffInvite,
   addSystemNotification,
+  formalDataAudit,
   markAllVisibleNotificationsRead,
   markNotificationRead,
   receivePurchaseOrder,
@@ -64,6 +65,21 @@ function card(data: AppData, cardId: string) {
   const result = data.memberCards.find((item) => item.id === cardId);
   assert.ok(result, `missing card ${cardId}`);
   return result;
+}
+
+{
+  const cleanReport = formalDataAudit({
+    ...cloneSeed(),
+    onlineStorefronts: cloneSeed().onlineStorefronts.map((storefront) => ({ ...storefront, shareCode: "yich-store" })),
+    authUsers: cloneSeed().authUsers.map((user) => ({ ...user, account: user.account.replace("@test.local", "@yich.local") })),
+  });
+  assert.equal(cleanReport.issueCount, 0, "formal data audit should pass clean fixture after formal share code");
+  const pollutedReport = formalDataAudit({
+    ...cloneSeed(),
+    staff: [{ ...cloneSeed().staff[0], id: "s_dirty", name: "验证员工" }, ...cloneSeed().staff],
+    authUsers: [{ ...cloneSeed().authUsers[0], id: "u_dirty", account: "dirty@test.local" }, ...cloneSeed().authUsers],
+  });
+  assert.ok(pollutedReport.issueCount >= 2, "formal data audit should flag verification and test account data");
 }
 
 {
