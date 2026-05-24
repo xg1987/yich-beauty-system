@@ -100,6 +100,13 @@ try {
     body: { name: "李女士", phone: "13600000004" },
   });
   assert.equal(afterCustomer.customers[0].name, "李女士", "customer API should create a customer");
+  const afterCustomerTags = await request<AppData>(baseUrl, `/api/customers/${afterCustomer.customers[0].id}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { level: "VIP", source: "转介绍", tags: ["敏感肌", "高消费"] },
+  });
+  assert.equal(afterCustomerTags.customers[0].level, "VIP", "customer API should update member level");
+  assert.deepEqual(afterCustomerTags.customers[0].tags, ["敏感肌", "高消费"], "customer API should update tags");
 
   await assert.rejects(
     () =>

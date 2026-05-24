@@ -105,6 +105,7 @@ export function useApiData() {
     addStaffShift: client.addStaffShift,
     updateAppointmentStatus: client.updateAppointmentStatus,
     addCustomer: client.addCustomer,
+    updateCustomer: client.updateCustomer,
     openMemberCard: client.openMemberCard,
     refundMemberCard: client.refundMemberCard,
     rechargeMemberCard: client.rechargeMemberCard,

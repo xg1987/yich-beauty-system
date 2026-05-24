@@ -964,6 +964,19 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [skinCondition, setSkinCondition] = useState("敏感偏干");
   const [afterNote, setAfterNote] = useState("补水修护后泛红下降");
   const [followUpAt, setFollowUpAt] = useState(toLocalInputValue(tomorrowAt(18)));
+  const [tagCustomerId, setTagCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [customerLevel, setCustomerLevel] = useState(data.customers[0]?.level ?? "普通会员");
+  const [customerSource, setCustomerSource] = useState(data.customers[0]?.source ?? "门店登记");
+  const [customerTags, setCustomerTags] = useState(data.customers[0]?.tags.join("，") ?? "新客");
+  const [tagFilter, setTagFilter] = useState("");
+
+  useEffect(() => {
+    const customer = data.customers.find((item) => item.id === tagCustomerId);
+    if (!customer) return;
+    setCustomerLevel(customer.level);
+    setCustomerSource(customer.source);
+    setCustomerTags(customer.tags.join("，"));
+  }, [tagCustomerId, data.customers]);
 
   const addCustomer = (event: FormEvent) => {
     event.preventDefault();
@@ -1011,8 +1024,21 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     );
   };
 
+  const updateCustomerTags = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.updateCustomer(tagCustomerId, {
+        level: customerLevel,
+        source: customerSource,
+        tags: parseTags(customerTags),
+      }),
+    );
+  };
+
   const activeCards = data.memberCards.filter((card) => card.status === "正常");
   const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
+  const allTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
+  const filteredCustomers = tagFilter ? data.customers.filter((customer) => customer.tags.includes(tagFilter)) : data.customers;
   const recentVisits = data.customers.filter((customer) => {
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
@@ -1038,6 +1064,15 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
           <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
           <button className="primary-button">保存客户</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<UsersRound size={18} />} title="客户标签" action="分层筛选" />
+        <form className="form" onSubmit={updateCustomerTags}>
+          <Select label="客户" value={tagCustomerId} onChange={setTagCustomerId} options={data.customers.map(optionOf)} />
+          <label>会员等级<input value={customerLevel} onChange={(event) => setCustomerLevel(event.target.value)} placeholder="普通会员 / VIP / 黑金会员" /></label>
+          <label>客户来源<input value={customerSource} onChange={(event) => setCustomerSource(event.target.value)} placeholder="门店登记 / 抖音 / 转介绍" /></label>
+          <label>客户标签<input value={customerTags} onChange={(event) => setCustomerTags(event.target.value)} placeholder="敏感肌，老客户，高消费" /></label>
+          <button className="primary-button">保存标签</button>
         </form>
         <div className="divider" />
         <PanelTitle icon={<CreditCard size={18} />} title="开卡/办卡" action="储值或次数" />
@@ -1082,10 +1117,16 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         </form>
         </section>
         <section className="panel wide">
-        <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
+        <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${filteredCustomers.length}/${data.customers.length} 位客户`} />
+        <div className="inline-actions">
+          <button className={!tagFilter ? "active" : ""} onClick={() => setTagFilter("")}>全部</button>
+          {allTags.map((tag) => (
+            <button className={tagFilter === tag ? "active" : ""} key={tag} onClick={() => setTagFilter(tag)}>{tag}</button>
+          ))}
+        </div>
         <DataTable
           columns={["客户", "手机", "等级", "标签", "最近到店", "卡项"]}
-          rows={data.customers.map((customer) => [
+          rows={filteredCustomers.map((customer) => [
             customer.name,
             customer.phone,
             customer.level,
@@ -1889,4 +1930,15 @@ function optionOf(item: { id: string; name: string }) {
 
 function nameOf(collection: Array<{ id: string; name: string }>, id: string) {
   return collection.find((item) => item.id === id)?.name ?? "-";
+}
+
+function parseTags(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,，、/\s]+/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
 }

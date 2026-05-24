@@ -322,6 +322,37 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(201, scopeDataForSession(nextData, session));
     }
 
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/customers/")) {
+      requirePermission(session, "customers:manage");
+      const customerId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      const body = await readJson(context.request);
+      const nextData = updateData(await database.readData(), session, {
+        action: "更新客户标签",
+        targetType: "customer",
+        targetId: customerId,
+        summary: `${session.user.name} 更新客户资料`,
+      }, (data) => {
+        if (!data.customers.some((customer) => customer.id === customerId)) throw new Error("客户不存在");
+        return {
+          ...data,
+          customers: data.customers.map((customer) =>
+            customer.id === customerId
+              ? {
+                  ...customer,
+                  name: optionalString(body, "name") ?? customer.name,
+                  phone: optionalString(body, "phone") ?? customer.phone,
+                  level: optionalString(body, "level") ?? customer.level,
+                  source: optionalString(body, "source") ?? customer.source,
+                  tags: optionalStringArray(body, "tags") ?? customer.tags,
+                }
+              : customer,
+          ),
+        };
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
     if (context.request.method === "POST" && pathname === "/api/member-cards") {
       requirePermission(session, "customers:manage");
       const body = await readJson(context.request);

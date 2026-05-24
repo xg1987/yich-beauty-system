@@ -666,6 +666,13 @@ td > button {
   color: var(--ink);
 }
 
+.inline-actions button.active {
+  border-color: rgba(111, 66, 193, 0.28);
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
+  font-weight: 750;
+}
+
 .sub-panel {
   display: grid;
   gap: 10px;
@@ -3067,6 +3074,12 @@ html[data-theme="day"],
   border-color: rgba(111, 66, 193, 0.16);
   background: #fffdfa;
   color: var(--yich-ink);
+}
+
+.theme-day .inline-actions button.active {
+  border-color: rgba(111, 66, 193, 0.28);
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
 }
 
 .theme-day .admin-profile-hero,
