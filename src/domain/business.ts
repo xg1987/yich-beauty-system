@@ -2,6 +2,7 @@ import type {
   AppData,
   ApprovalRequest,
   ActivityParticipant,
+  Appointment,
   CouponTemplate,
   CustomerCoupon,
   CustomerFollowUp,
@@ -203,6 +204,20 @@ export type AppointmentInput = {
   customerId: string;
   staffId: string;
   serviceId: string;
+  startAt: string;
+  note?: string;
+};
+
+export type AppointmentStatusInput = {
+  appointmentId: string;
+  status: Appointment["status"];
+  reason?: string;
+};
+
+export type AppointmentRescheduleInput = {
+  appointmentId: string;
+  staffId?: string;
+  serviceId?: string;
   startAt: string;
   note?: string;
 };
@@ -1657,18 +1672,153 @@ export function createAppointment(
   options: { idFactory?: IdFactory; now?: () => string } = {},
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
-  const selectedService = data.services.find((item) => item.id === input.serviceId);
+  validateAppointmentSchedule(data, {
+    customerId: input.customerId,
+    staffId: input.staffId,
+    serviceId: input.serviceId,
+    startAt: input.startAt,
+  });
 
+  return {
+    ...data,
+    appointments: [
+      {
+        id: idFactory("a"),
+        customerId: input.customerId,
+        staffId: input.staffId,
+        serviceId: input.serviceId,
+        startAt: input.startAt,
+        status: "待确认",
+        note: input.note ?? "",
+        updatedAt: (options.now ?? nowIso)(),
+      },
+      ...data.appointments,
+    ],
+  };
+}
+
+export function updateAppointmentStatus(
+  data: AppData,
+  input: AppointmentStatusInput,
+  options: { now?: () => string } = {},
+): AppData {
+  const appointment = data.appointments.find((item) => item.id === input.appointmentId);
+  if (!appointment) throw new Error("预约不存在");
+
+  const nextStatus = input.status;
+  if (!isAppointmentStatus(nextStatus)) throw new Error("预约状态不正确");
+  if (appointment.status === nextStatus) return data;
+
+  const allowedTransitions: Record<Appointment["status"], Appointment["status"][]> = {
+    待确认: ["已确认", "已到店", "已取消", "爽约"],
+    已确认: ["已到店", "已取消", "爽约"],
+    已到店: ["已完成", "已取消"],
+    已完成: [],
+    已取消: [],
+    爽约: [],
+  };
+
+  if (!allowedTransitions[appointment.status].includes(nextStatus)) {
+    throw new Error(`预约状态不能从${appointment.status}改为${nextStatus}`);
+  }
+
+  const currentTime = (options.now ?? nowIso)();
+  const reason = input.reason?.trim();
+  if (nextStatus === "已取消" && !reason) {
+    throw new Error("取消预约必须填写原因");
+  }
+
+  return {
+    ...data,
+    appointments: data.appointments.map((item) => {
+      if (item.id !== input.appointmentId) return item;
+      return {
+        ...item,
+        status: nextStatus,
+        arrivedAt: nextStatus === "已到店" ? currentTime : item.arrivedAt,
+        completedAt: nextStatus === "已完成" ? currentTime : item.completedAt,
+        canceledAt: nextStatus === "已取消" ? currentTime : item.canceledAt,
+        cancelReason: nextStatus === "已取消" ? reason : item.cancelReason,
+        noShowAt: nextStatus === "爽约" ? currentTime : item.noShowAt,
+        updatedAt: currentTime,
+      };
+    }),
+  };
+}
+
+export function rescheduleAppointment(
+  data: AppData,
+  input: AppointmentRescheduleInput,
+  options: { now?: () => string } = {},
+): AppData {
+  const appointment = data.appointments.find((item) => item.id === input.appointmentId);
+  if (!appointment) throw new Error("预约不存在");
+  if (["已到店", "已完成", "已取消", "爽约"].includes(appointment.status)) {
+    throw new Error("当前预约状态不能改约");
+  }
+
+  const nextStaffId = input.staffId ?? appointment.staffId;
+  const nextServiceId = input.serviceId ?? appointment.serviceId;
+  validateAppointmentSchedule(data, {
+    customerId: appointment.customerId,
+    staffId: nextStaffId,
+    serviceId: nextServiceId,
+    startAt: input.startAt,
+    excludeAppointmentId: appointment.id,
+  });
+
+  const currentTime = (options.now ?? nowIso)();
+  return {
+    ...data,
+    appointments: data.appointments.map((item) => {
+      if (item.id !== appointment.id) return item;
+      return {
+        ...item,
+        staffId: nextStaffId,
+        serviceId: nextServiceId,
+        startAt: input.startAt,
+        note: input.note ?? item.note,
+        status: item.status === "待确认" ? "待确认" : "已确认",
+        rescheduledAt: currentTime,
+        updatedAt: currentTime,
+      };
+    }),
+  };
+}
+
+function isAppointmentStatus(status: string): status is Appointment["status"] {
+  return ["待确认", "已确认", "已到店", "已完成", "已取消", "爽约"].includes(status);
+}
+
+function validateAppointmentSchedule(
+  data: AppData,
+  input: {
+    customerId: string;
+    staffId: string;
+    serviceId: string;
+    startAt: string;
+    excludeAppointmentId?: string;
+  },
+) {
+  if (!data.customers.some((item) => item.id === input.customerId)) {
+    throw new Error("客户不存在");
+  }
+  if (!data.staff.some((item) => item.id === input.staffId && item.status === "active")) {
+    throw new Error("服务员工不存在或已停用");
+  }
+  const selectedService = data.services.find((item) => item.id === input.serviceId);
   if (!selectedService) {
     throw new Error("服务项目不存在");
   }
 
   const startAt = new Date(input.startAt);
+  if (Number.isNaN(startAt.getTime())) throw new Error("预约时间不正确");
   const endAt = new Date(startAt.getTime() + selectedService.duration * 60 * 1000);
 
   const hasAppointmentConflict = data.appointments.some((appointment) => {
+    if (appointment.id === input.excludeAppointmentId) return false;
     if (appointment.staffId !== input.staffId) return false;
-    if (["已取消", "爽约"].includes(appointment.status)) return false;
+    if (["已完成", "已取消", "爽约"].includes(appointment.status)) return false;
     const service = data.services.find((item) => item.id === appointment.serviceId);
     const appointmentStart = new Date(appointment.startAt);
     const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
@@ -1697,22 +1847,6 @@ export function createAppointment(
   if (!insideShift) {
     throw new Error("预约时间不在员工班次内");
   }
-
-  return {
-    ...data,
-    appointments: [
-      {
-        id: idFactory("a"),
-        customerId: input.customerId,
-        staffId: input.staffId,
-        serviceId: input.serviceId,
-        startAt: input.startAt,
-        status: "待确认",
-        note: input.note ?? "",
-      },
-      ...data.appointments,
-    ],
-  };
 }
 
 export function createStaffShift(

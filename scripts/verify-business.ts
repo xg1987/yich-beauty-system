@@ -32,9 +32,11 @@ import {
   reportSummary,
   revokeStaffInvite,
   reverseDailyClose,
+  rescheduleAppointment,
   settleDistributionCommissions,
   settleCommissions,
   transferMemberCard,
+  updateAppointmentStatus,
   updateStaffMember,
   updateTagDefinition,
   updateMemberCardStatus,
@@ -650,6 +652,45 @@ function card(data: AppData, cardId: string) {
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(data.appointments[0].staffId, "s3", "non-conflicting appointment should be created");
+  assert.equal(data.appointments[0].updatedAt, fixedNow(), "appointment should stamp update time");
+
+  assert.throws(
+    () =>
+      updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已完成" }, { now: fixedNow }),
+    /不能从待确认改为已完成/,
+    "appointment should reject invalid status transition",
+  );
+
+  const confirmed = updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已确认" }, { now: fixedNow });
+  const arrived = updateAppointmentStatus(confirmed, { appointmentId: data.appointments[0].id, status: "已到店" }, { now: fixedNow });
+  assert.equal(arrived.appointments[0].arrivedAt, fixedNow(), "arrival should keep arrival timestamp");
+  const completed = updateAppointmentStatus(arrived, { appointmentId: data.appointments[0].id, status: "已完成" }, { now: fixedNow });
+  assert.equal(completed.appointments[0].completedAt, fixedNow(), "completion should keep completion timestamp");
+  assert.throws(
+    () => rescheduleAppointment(completed, { appointmentId: data.appointments[0].id, startAt: "2026-05-25T04:00:00.000Z" }, { now: fixedNow }),
+    /不能改约/,
+    "completed appointment should not be rescheduled",
+  );
+
+  const rescheduled = rescheduleAppointment(
+    data,
+    { appointmentId: data.appointments[0].id, staffId: "s3", serviceId: "v2", startAt: "2026-05-25T05:00:00.000Z", note: "改约后到店" },
+    { now: fixedNow },
+  );
+  assert.equal(rescheduled.appointments[0].serviceId, "v2", "reschedule should update service");
+  assert.equal(rescheduled.appointments[0].rescheduledAt, fixedNow(), "reschedule should keep audit time");
+  assert.throws(
+    () => rescheduleAppointment(data, { appointmentId: data.appointments[0].id, staffId: "s2", startAt: conflictStartAt }, { now: fixedNow }),
+    /已有预约/,
+    "reschedule should reject staff schedule conflict",
+  );
+  assert.throws(
+    () => updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已取消" }, { now: fixedNow }),
+    /必须填写原因/,
+    "canceling an appointment should require a reason",
+  );
+  const canceled = updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已取消", reason: "客户临时取消" }, { now: fixedNow });
+  assert.equal(canceled.appointments[0].cancelReason, "客户临时取消", "canceling should keep cancel reason");
 }
 
 {

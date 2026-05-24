@@ -107,6 +107,7 @@ export function useApiData() {
     addStaffUnavailableSlot: client.addStaffUnavailableSlot,
     addStaffShift: client.addStaffShift,
     updateAppointmentStatus: client.updateAppointmentStatus,
+    rescheduleAppointment: client.rescheduleAppointment,
     addCustomer: client.addCustomer,
     updateCustomer: client.updateCustomer,
     createTag: client.createTag,

@@ -732,6 +732,13 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const [shiftEndAt, setShiftEndAt] = useState(toLocalInputValue(tomorrowAt(21)));
   const [shiftNote, setShiftNote] = useState("正常班");
   const [onlineRequestStaffId, setOnlineRequestStaffId] = useState(data.staff[0]?.id ?? "");
+  const [activeAppointmentAction, setActiveAppointmentAction] = useState<"reschedule" | "cancel" | undefined>();
+  const [activeAppointmentId, setActiveAppointmentId] = useState("");
+  const [rescheduleStaffId, setRescheduleStaffId] = useState(data.staff[0]?.id ?? "");
+  const [rescheduleServiceId, setRescheduleServiceId] = useState(data.services[0]?.id ?? "");
+  const [rescheduleStartAt, setRescheduleStartAt] = useState(toLocalInputValue(tomorrowAt(12)));
+  const [rescheduleNote, setRescheduleNote] = useState("");
+  const [cancelReason, setCancelReason] = useState("客户临时取消");
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
@@ -739,8 +746,48 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     setNote("");
   };
 
-  const setStatus = (id: string, status: Appointment["status"]) => {
-    void runMutation(() => actions.updateAppointmentStatus(id, status));
+  const setStatus = (id: string, status: Appointment["status"], reason?: string) => {
+    void runMutation(() => actions.updateAppointmentStatus(id, status, reason));
+  };
+
+  const openReschedule = (appointment: Appointment) => {
+    setActiveAppointmentId(appointment.id);
+    setActiveAppointmentAction("reschedule");
+    setRescheduleStaffId(appointment.staffId);
+    setRescheduleServiceId(appointment.serviceId);
+    setRescheduleStartAt(toLocalInputValue(appointment.startAt));
+    setRescheduleNote(appointment.note);
+  };
+
+  const openCancel = (appointment: Appointment) => {
+    setActiveAppointmentId(appointment.id);
+    setActiveAppointmentAction("cancel");
+    setCancelReason(appointment.cancelReason ?? "客户临时取消");
+  };
+
+  const submitReschedule = (event: FormEvent) => {
+    event.preventDefault();
+    const appointmentId = activeAppointmentId;
+    void runMutation(() =>
+      actions.rescheduleAppointment(appointmentId, {
+        staffId: rescheduleStaffId,
+        serviceId: rescheduleServiceId,
+        startAt: new Date(rescheduleStartAt).toISOString(),
+        note: rescheduleNote,
+      }),
+    ).then(() => {
+      setActiveAppointmentAction(undefined);
+      setActiveAppointmentId("");
+    });
+  };
+
+  const submitCancel = (event: FormEvent) => {
+    event.preventDefault();
+    const appointmentId = activeAppointmentId;
+    void runMutation(() => actions.updateAppointmentStatus(appointmentId, "已取消", cancelReason)).then(() => {
+      setActiveAppointmentAction(undefined);
+      setActiveAppointmentId("");
+    });
   };
 
   const addBlockedSlot = (event: FormEvent) => {
@@ -873,13 +920,52 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
                 <strong>{nameOf(data.customers, item.customerId)}</strong>
                 <span>{shortDate(item.startAt)} · {nameOf(data.services, item.serviceId)} · {nameOf(data.staff, item.staffId)}</span>
                 {item.note && <small>{item.note}</small>}
+                {item.rescheduledAt && <small>最近改约：{shortDate(item.rescheduledAt)}</small>}
+                {item.arrivedAt && <small>到店：{shortDate(item.arrivedAt)}</small>}
+                {item.completedAt && <small>完成：{shortDate(item.completedAt)}</small>}
+                {item.cancelReason && <small>取消原因：{item.cancelReason}</small>}
               </div>
               <div className="row-actions">
-                <Badge text={item.status} />
-                <button onClick={() => setStatus(item.id, "已确认")}>确认</button>
-                <button onClick={() => setStatus(item.id, "已到店")}>到店</button>
-                <button onClick={() => setStatus(item.id, "已完成")}>完成</button>
+                <Badge text={item.status} tone={appointmentTone(item)} />
+                {item.status === "待确认" && <button onClick={() => setStatus(item.id, "已确认")}>确认</button>}
+                {(item.status === "待确认" || item.status === "已确认") && <button onClick={() => setStatus(item.id, "已到店")}>到店</button>}
+                {item.status === "已到店" && <button onClick={() => setStatus(item.id, "已完成")}>完成</button>}
+                {(item.status === "待确认" || item.status === "已确认") && <button onClick={() => openReschedule(item)}>改约</button>}
+                {(item.status === "待确认" || item.status === "已确认" || item.status === "已到店") && (
+                  <button onClick={() => openCancel(item)}>取消</button>
+                )}
+                {(item.status === "待确认" || item.status === "已确认") && <button onClick={() => setStatus(item.id, "爽约")}>爽约</button>}
               </div>
+              {activeAppointmentId === item.id && activeAppointmentAction === "reschedule" && (
+                <form className="appointment-action-form" onSubmit={submitReschedule}>
+                  <Select label="服务员工" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={data.staff.map(optionOf)} />
+                  <Select label="服务项目" value={rescheduleServiceId} onChange={setRescheduleServiceId} options={data.services.map(optionOf)} />
+                  <label>
+                    新预约时间
+                    <input type="datetime-local" value={rescheduleStartAt} onChange={(event) => setRescheduleStartAt(event.target.value)} />
+                  </label>
+                  <label>
+                    改约备注
+                    <input value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} />
+                  </label>
+                  <div className="row-actions">
+                    <button className="primary-button">保存改约</button>
+                    <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>收起</button>
+                  </div>
+                </form>
+              )}
+              {activeAppointmentId === item.id && activeAppointmentAction === "cancel" && (
+                <form className="appointment-action-form" onSubmit={submitCancel}>
+                  <label>
+                    取消原因
+                    <input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="例如客户临时取消、时间冲突" />
+                  </label>
+                  <div className="row-actions">
+                    <button className="primary-button">确认取消</button>
+                    <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>收起</button>
+                  </div>
+                </form>
+              )}
             </article>
           ))}
         </div>
@@ -2656,6 +2742,12 @@ function CheckboxGroup({
       )}
     </fieldset>
   );
+}
+
+function appointmentTone(appointment: Appointment): "ok" | "warn" | undefined {
+  if (appointment.status === "已到店" || appointment.status === "已完成") return "ok";
+  if (appointment.status === "已取消" || appointment.status === "爽约") return "warn";
+  return undefined;
 }
 
 function Badge({ text, tone }: { text: string; tone?: "ok" | "warn" }) {

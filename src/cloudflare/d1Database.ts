@@ -239,7 +239,7 @@ export class D1BeautyDatabase {
 
     for (const appointment of data.appointments) {
       statements.push(
-        this.statement("INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, status, note) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           appointment.id,
           appointment.customerId,
           appointment.staffId,
@@ -247,6 +247,13 @@ export class D1BeautyDatabase {
           appointment.startAt,
           appointment.status,
           appointment.note,
+          appointment.arrivedAt ?? null,
+          appointment.completedAt ?? null,
+          appointment.canceledAt ?? null,
+          appointment.cancelReason ?? null,
+          appointment.noShowAt ?? null,
+          appointment.rescheduledAt ?? null,
+          appointment.updatedAt ?? null,
         ]),
       );
     }
@@ -476,7 +483,17 @@ function mapProduct(row: unknown): Product {
 }
 
 function mapAppointment(row: unknown): Appointment {
-  return row as Appointment;
+  const value = row as Appointment;
+  return {
+    ...value,
+    arrivedAt: value.arrivedAt ?? undefined,
+    completedAt: value.completedAt ?? undefined,
+    canceledAt: value.canceledAt ?? undefined,
+    cancelReason: value.cancelReason ?? undefined,
+    noShowAt: value.noShowAt ?? undefined,
+    rescheduledAt: value.rescheduledAt ?? undefined,
+    updatedAt: value.updatedAt ?? undefined,
+  };
 }
 
 function mapStaffUnavailableSlot(row: unknown): StaffUnavailableSlot {

@@ -247,7 +247,7 @@ export class BeautyDatabase {
     for (const appointment of data.appointments) {
       this.db
         .prepare(
-          "INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, status, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           appointment.id,
@@ -257,6 +257,13 @@ export class BeautyDatabase {
           appointment.startAt,
           appointment.status,
           appointment.note,
+          appointment.arrivedAt ?? null,
+          appointment.completedAt ?? null,
+          appointment.canceledAt ?? null,
+          appointment.cancelReason ?? null,
+          appointment.noShowAt ?? null,
+          appointment.rescheduledAt ?? null,
+          appointment.updatedAt ?? null,
         );
     }
 
@@ -505,7 +512,14 @@ export class BeautyDatabase {
         serviceId TEXT NOT NULL,
         startAt TEXT NOT NULL,
         status TEXT NOT NULL,
-        note TEXT NOT NULL
+        note TEXT NOT NULL,
+        arrivedAt TEXT,
+        completedAt TEXT,
+        canceledAt TEXT,
+        cancelReason TEXT,
+        noShowAt TEXT,
+        rescheduledAt TEXT,
+        updatedAt TEXT
       );
 
       CREATE TABLE IF NOT EXISTS onlineBookingRequests (
@@ -723,6 +737,13 @@ export class BeautyDatabase {
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("commissions", "settledAt", "TEXT");
     this.addColumnIfMissing("commissions", "settlementId", "TEXT");
+    this.addColumnIfMissing("appointments", "arrivedAt", "TEXT");
+    this.addColumnIfMissing("appointments", "completedAt", "TEXT");
+    this.addColumnIfMissing("appointments", "canceledAt", "TEXT");
+    this.addColumnIfMissing("appointments", "cancelReason", "TEXT");
+    this.addColumnIfMissing("appointments", "noShowAt", "TEXT");
+    this.addColumnIfMissing("appointments", "rescheduledAt", "TEXT");
+    this.addColumnIfMissing("appointments", "updatedAt", "TEXT");
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
@@ -766,7 +787,17 @@ function mapProduct(row: unknown): Product {
 }
 
 function mapAppointment(row: unknown): Appointment {
-  return row as Appointment;
+  const value = row as Appointment;
+  return {
+    ...value,
+    arrivedAt: value.arrivedAt ?? undefined,
+    completedAt: value.completedAt ?? undefined,
+    canceledAt: value.canceledAt ?? undefined,
+    cancelReason: value.cancelReason ?? undefined,
+    noShowAt: value.noShowAt ?? undefined,
+    rescheduledAt: value.rescheduledAt ?? undefined,
+    updatedAt: value.updatedAt ?? undefined,
+  };
 }
 
 function mapStaffUnavailableSlot(row: unknown): StaffUnavailableSlot {

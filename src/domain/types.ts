@@ -128,6 +128,13 @@ export type Appointment = {
   startAt: string;
   status: "待确认" | "已确认" | "已到店" | "已完成" | "已取消" | "爽约";
   note: string;
+  arrivedAt?: string;
+  completedAt?: string;
+  canceledAt?: string;
+  cancelReason?: string;
+  noShowAt?: string;
+  rescheduledAt?: string;
+  updatedAt?: string;
 };
 
 export type OnlineBookingRequest = {

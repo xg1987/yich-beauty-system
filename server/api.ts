@@ -31,8 +31,10 @@ import {
   registerStore,
   revokeStaffInvite,
   reverseDailyClose,
+  rescheduleAppointment,
   settleDistributionCommissions,
   settleCommissions,
+  updateAppointmentStatus,
   transferMemberCard,
   upsertOnlineStorefront,
   joinStaffInvite,
@@ -362,6 +364,28 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
 
+      if (request.method === "POST" && url.pathname.startsWith("/api/appointments/") && url.pathname.endsWith("/reschedule")) {
+        requirePermission(session, "appointments:manage");
+        const appointmentId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        const nextData = updateData(database, session, {
+          action: "改约",
+          targetType: "appointment",
+          targetId: appointmentId,
+          summary: `${session.user.name} 调整预约时间`,
+        }, (data) =>
+          rescheduleAppointment(data, {
+            appointmentId,
+            staffId: optionalString(body, "staffId"),
+            serviceId: optionalString(body, "serviceId"),
+            startAt: requiredString(body, "startAt"),
+            note: optionalString(body, "note"),
+          }),
+        );
+        sendJson(response, 200, scopeDataForSession(nextData, session));
+        return;
+      }
+
       if (request.method === "PATCH" && url.pathname.startsWith("/api/appointments/")) {
         requirePermission(session, "appointments:manage");
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
@@ -372,10 +396,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           targetType: "appointment",
           targetId: appointmentId,
           summary: `${session.user.name} 将预约状态改为 ${status}`,
-        }, (data) => ({
-          ...data,
-          appointments: data.appointments.map((item) => (item.id === appointmentId ? { ...item, status } : item)),
-        }));
+        }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
         sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }

@@ -30,8 +30,10 @@ import {
   registerStore,
   revokeStaffInvite,
   reverseDailyClose,
+  rescheduleAppointment,
   settleDistributionCommissions,
   settleCommissions,
+  updateAppointmentStatus,
   transferMemberCard,
   upsertOnlineStorefront,
   joinStaffInvite,
@@ -345,6 +347,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(201, scopeDataForSession(nextData, session));
     }
 
+    if (context.request.method === "POST" && pathname.startsWith("/api/appointments/") && pathname.endsWith("/reschedule")) {
+      requirePermission(session, "appointments:manage");
+      const appointmentId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = updateData(await database.readData(), session, {
+        action: "改约",
+        targetType: "appointment",
+        targetId: appointmentId,
+        summary: `${session.user.name} 调整预约时间`,
+      }, (data) =>
+        rescheduleAppointment(data, {
+          appointmentId,
+          staffId: optionalString(body, "staffId"),
+          serviceId: optionalString(body, "serviceId"),
+          startAt: requiredString(body, "startAt"),
+          note: optionalString(body, "note"),
+        }),
+      );
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
     if (context.request.method === "PATCH" && pathname.startsWith("/api/appointments/")) {
       requirePermission(session, "appointments:manage");
       const appointmentId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
@@ -355,10 +379,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetType: "appointment",
         targetId: appointmentId,
         summary: `${session.user.name} 将预约状态改为 ${status}`,
-      }, (data) => ({
-        ...data,
-        appointments: data.appointments.map((item) => (item.id === appointmentId ? { ...item, status } : item)),
-      }));
+      }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }

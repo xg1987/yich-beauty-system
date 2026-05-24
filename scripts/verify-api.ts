@@ -215,6 +215,76 @@ try {
     },
   });
   assert.equal(afterAppointment.appointments[0].status, "待确认", "appointment API should create pending appointment");
+  const appointmentId = afterAppointment.appointments[0].id;
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
+        method: "PATCH",
+        token: session.token,
+        body: { status: "已完成" },
+      }),
+    /不能从待确认改为已完成/,
+    "appointment API should reject invalid status transitions",
+  );
+  const afterConfirm = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已确认" },
+  });
+  assert.equal(afterConfirm.appointments.find((item) => item.id === appointmentId)?.status, "已确认", "appointment API should confirm");
+  const afterArrive = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已到店" },
+  });
+  assert.ok(afterArrive.appointments.find((item) => item.id === appointmentId)?.arrivedAt, "appointment API should stamp arrival");
+  const afterComplete = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已完成" },
+  });
+  assert.ok(afterComplete.appointments.find((item) => item.id === appointmentId)?.completedAt, "appointment API should stamp completion");
+
+  const afterSecondAppointment = await request<AppData>(baseUrl, "/api/appointments", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c1",
+      staffId: "s3",
+      serviceId: "v1",
+      startAt: "2026-05-25T05:00:00.000Z",
+      note: "API 改约测试",
+    },
+  });
+  const secondAppointmentId = afterSecondAppointment.appointments[0].id;
+  const afterReschedule = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(secondAppointmentId)}/reschedule`, {
+    method: "POST",
+    token: session.token,
+    body: {
+      staffId: "s3",
+      serviceId: "v2",
+      startAt: "2026-05-25T06:00:00.000Z",
+      note: "API 已改约",
+    },
+  });
+  assert.equal(afterReschedule.appointments[0].serviceId, "v2", "appointment API should reschedule service");
+  assert.ok(afterReschedule.appointments[0].rescheduledAt, "appointment API should stamp reschedule time");
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(secondAppointmentId)}`, {
+        method: "PATCH",
+        token: session.token,
+        body: { status: "已取消" },
+      }),
+    /必须填写原因/,
+    "appointment API should require cancel reason",
+  );
+  const afterCancel = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(secondAppointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已取消", reason: "客户临时取消" },
+  });
+  assert.equal(afterCancel.appointments[0].cancelReason, "客户临时取消", "appointment API should keep cancel reason");
 
   const afterUnavailableSlot = await request<AppData>(baseUrl, "/api/staff-unavailable-slots", {
     method: "POST",

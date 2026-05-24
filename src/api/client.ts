@@ -66,10 +66,16 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/staff-unavailable-slots", { method: "POST", body, token: getToken() }),
     addStaffShift: (body: { staffId: string; startAt: string; endAt: string; note: string }) =>
       request<AppData>("/api/staff-shifts", { method: "POST", body, token: getToken() }),
-    updateAppointmentStatus: (id: string, status: Appointment["status"]) =>
+    updateAppointmentStatus: (id: string, status: Appointment["status"], reason?: string) =>
       request<AppData>(`/api/appointments/${encodeURIComponent(id)}`, {
         method: "PATCH",
-        body: { status },
+        body: { status, reason },
+        token: getToken(),
+      }),
+    rescheduleAppointment: (id: string, body: { staffId?: string; serviceId?: string; startAt: string; note?: string }) =>
+      request<AppData>(`/api/appointments/${encodeURIComponent(id)}/reschedule`, {
+        method: "POST",
+        body,
         token: getToken(),
       }),
     addCustomer: (body: { name: string; phone: string }) =>
