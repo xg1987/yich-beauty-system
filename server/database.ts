@@ -8,6 +8,7 @@ import type {
   Appointment,
   AuthUser,
   Commission,
+  CommissionSettlement,
   ActivityParticipant,
   CouponTemplate,
   Customer,
@@ -69,6 +70,7 @@ const tableNames: TableName[] = [
   "refunds",
   "commissions",
   "distributionCommissions",
+  "commissionSettlements",
   "inventoryLogs",
   "memberCardTransactions",
   "operationLogs",
@@ -156,6 +158,7 @@ export class BeautyDatabase {
       refunds: this.db.prepare("SELECT * FROM refunds ORDER BY rowid DESC").all().map(mapRefund),
       commissions: this.db.prepare("SELECT * FROM commissions ORDER BY rowid DESC").all().map(mapCommission),
       distributionCommissions: this.db.prepare("SELECT payload_json FROM distributionCommissions ORDER BY rowid DESC").all().map(mapJsonPayload<DistributionCommission>),
+      commissionSettlements: this.db.prepare("SELECT payload_json FROM commissionSettlements ORDER BY rowid DESC").all().map(mapJsonPayload<CommissionSettlement>),
       inventoryLogs: this.db.prepare("SELECT * FROM inventoryLogs ORDER BY rowid DESC").all().map(mapInventoryLog),
       memberCardTransactions: this.db
         .prepare("SELECT * FROM memberCardTransactions ORDER BY rowid DESC")
@@ -331,7 +334,7 @@ export class BeautyDatabase {
     for (const commission of data.commissions) {
       this.db
         .prepare(
-          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, rate, amount, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, rate, amount, status, createdAt, settledAt, settlementId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           commission.id,
@@ -343,10 +346,13 @@ export class BeautyDatabase {
           commission.amount,
           commission.status,
           commission.createdAt,
+          commission.settledAt ?? null,
+          commission.settlementId ?? null,
         );
     }
 
     this.writeJsonTable("distributionCommissions", data.distributionCommissions);
+    this.writeJsonTable("commissionSettlements", data.commissionSettlements);
 
     for (const log of data.inventoryLogs) {
       this.db
@@ -595,10 +601,17 @@ export class BeautyDatabase {
         rate REAL NOT NULL DEFAULT 0,
         amount REAL NOT NULL,
         status TEXT NOT NULL,
-        createdAt TEXT NOT NULL
+        createdAt TEXT NOT NULL,
+        settledAt TEXT,
+        settlementId TEXT
       );
 
       CREATE TABLE IF NOT EXISTS distributionCommissions (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS commissionSettlements (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
       );
@@ -708,6 +721,8 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "activityId", "TEXT");
     this.addColumnIfMissing("orders", "distributorId", "TEXT");
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
+    this.addColumnIfMissing("commissions", "settledAt", "TEXT");
+    this.addColumnIfMissing("commissions", "settlementId", "TEXT");
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
@@ -788,7 +803,7 @@ function mapRefund(row: unknown): Refund {
 
 function mapCommission(row: unknown): Commission {
   const value = row as Commission;
-  return { ...value, rate: value.rate ?? 0 };
+  return { ...value, rate: value.rate ?? 0, settledAt: value.settledAt ?? undefined, settlementId: value.settlementId ?? undefined };
 }
 
 function mapInventoryLog(row: unknown): InventoryLog {

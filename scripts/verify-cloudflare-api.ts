@@ -319,6 +319,7 @@ const afterDistributionSettle = await request<AppData>(baseUrl, "/api/distributi
   token: ownerSession.token,
 });
 assert.equal(afterDistributionSettle.distributionCommissions[0].status, "已结算", "D1 should settle distribution commission");
+assert.equal(afterDistributionSettle.commissionSettlements[0].type, "分销佣金", "D1 should create distribution settlement batch");
 
 const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",
@@ -338,6 +339,8 @@ const orderId = afterCheckout.orders[0].id;
 assert.equal(afterCheckout.orders[0].paidAmount, 547, "approved checkout should persist in D1");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "checkout should create commission in D1");
 assert.equal(afterCheckout.commissions.find((item) => item.orderId === orderId)?.rate, 0.1, "D1 should persist staff commission rate");
+assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "服务提成"), "D1 should create service commission");
+assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "销售提成"), "D1 should create sales commission");
 
 const afterPartialRefund = await request<AppData>(baseUrl, `/api/orders/${orderId}/refund`, {
   method: "POST",

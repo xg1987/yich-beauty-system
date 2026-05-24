@@ -282,6 +282,8 @@ export type Commission = {
   amount: number;
   status: "待结算" | "已结算" | "已冲销";
   createdAt: string;
+  settledAt?: string;
+  settlementId?: string;
 };
 
 export type DistributionCommission = {
@@ -295,6 +297,17 @@ export type DistributionCommission = {
   status: "待结算" | "已结算" | "已冲销";
   createdAt: string;
   settledAt?: string;
+  settlementId?: string;
+};
+
+export type CommissionSettlement = {
+  id: string;
+  type: "员工提成" | "分销佣金";
+  commissionIds: string[];
+  amount: number;
+  count: number;
+  createdBy: string;
+  createdAt: string;
 };
 
 export type InventoryLog = {
@@ -455,6 +468,7 @@ export type AppData = {
   refunds: Refund[];
   commissions: Commission[];
   distributionCommissions: DistributionCommission[];
+  commissionSettlements: CommissionSettlement[];
   inventoryLogs: InventoryLog[];
   memberCardTransactions: MemberCardTransaction[];
   operationLogs: OperationLog[];

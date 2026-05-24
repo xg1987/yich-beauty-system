@@ -211,6 +211,7 @@ export const testFixtureData: AppData = {
   refunds: [],
   commissions: [],
   distributionCommissions: [],
+  commissionSettlements: [],
   inventoryLogs: [],
   memberCardTransactions: [],
   operationLogs: [],

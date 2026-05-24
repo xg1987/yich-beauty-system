@@ -5,6 +5,7 @@ import type {
   Appointment,
   AuthUser,
   Commission,
+  CommissionSettlement,
   ActivityParticipant,
   CouponTemplate,
   Customer,
@@ -65,6 +66,7 @@ const tableNames: TableName[] = [
   "refunds",
   "commissions",
   "distributionCommissions",
+  "commissionSettlements",
   "inventoryLogs",
   "memberCardTransactions",
   "operationLogs",
@@ -131,6 +133,7 @@ export class D1BeautyDatabase {
       refunds: await this.all("SELECT * FROM refunds ORDER BY rowid DESC", mapRefund),
       commissions: await this.all("SELECT * FROM commissions ORDER BY rowid DESC", mapCommission),
       distributionCommissions: await this.all("SELECT payload_json FROM distributionCommissions ORDER BY rowid DESC", mapJsonPayload<DistributionCommission>),
+      commissionSettlements: await this.all("SELECT payload_json FROM commissionSettlements ORDER BY rowid DESC", mapJsonPayload<CommissionSettlement>),
       inventoryLogs: await this.all("SELECT * FROM inventoryLogs ORDER BY rowid DESC", mapInventoryLog),
       memberCardTransactions: await this.all(
         "SELECT * FROM memberCardTransactions ORDER BY rowid DESC",
@@ -332,7 +335,7 @@ export class D1BeautyDatabase {
     for (const commission of data.commissions) {
       statements.push(
         this.statement(
-          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, rate, amount, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, rate, amount, status, createdAt, settledAt, settlementId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             commission.id,
             commission.staffId,
@@ -343,12 +346,15 @@ export class D1BeautyDatabase {
             commission.amount,
             commission.status,
             commission.createdAt,
+            commission.settledAt ?? null,
+            commission.settlementId ?? null,
           ],
         ),
       );
     }
 
     this.writeJsonTable(statements, "distributionCommissions", data.distributionCommissions);
+    this.writeJsonTable(statements, "commissionSettlements", data.commissionSettlements);
 
     for (const log of data.inventoryLogs) {
       statements.push(
@@ -507,7 +513,7 @@ function mapRefund(row: unknown): Refund {
 
 function mapCommission(row: unknown): Commission {
   const value = row as Commission;
-  return { ...value, rate: value.rate ?? 0 };
+  return { ...value, rate: value.rate ?? 0, settledAt: value.settledAt ?? undefined, settlementId: value.settlementId ?? undefined };
 }
 
 function mapInventoryLog(row: unknown): InventoryLog {

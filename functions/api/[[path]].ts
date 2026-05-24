@@ -30,6 +30,8 @@ import {
   registerStore,
   revokeStaffInvite,
   reverseDailyClose,
+  settleDistributionCommissions,
+  settleCommissions,
   transferMemberCard,
   upsertOnlineStorefront,
   joinStaffInvite,
@@ -884,10 +886,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetType: "commission",
         targetId: "all",
         summary: `${session.user.name} 结算全部待结算提成`,
-      }, (data) => ({
-        ...data,
-        commissions: data.commissions.map((item) => (item.status === "待结算" ? { ...item, status: "已结算" } : item)),
-      }));
+      }, (data) => settleCommissions(data, { userId: session.user.id }));
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }
@@ -935,18 +934,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/distribution-commissions/settle") {
       requirePermission(session, "commissions:settle");
-      const settledAt = nowIso();
       const nextData = updateData(await database.readData(), session, {
         action: "结算分销佣金",
         targetType: "distributionCommission",
         targetId: "all",
         summary: `${session.user.name} 结算全部待结算分销佣金`,
-      }, (data) => ({
-        ...data,
-        distributionCommissions: data.distributionCommissions.map((item) =>
-          item.status === "待结算" ? { ...item, status: "已结算", settledAt } : item,
-        ),
-      }));
+      }, (data) => settleDistributionCommissions(data, { userId: session.user.id }));
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }
@@ -1046,6 +1039,9 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     operationLogs: sanitizedData.operationLogs.filter((item) => item.userId === session.user.id),
+    commissionSettlements: sanitizedData.commissionSettlements.filter((item) =>
+      item.commissionIds.some((commissionId) => sanitizedData.commissions.some((commission) => commission.id === commissionId && commission.staffId === staffId)),
+    ),
     dailyCloses: [],
   };
 }

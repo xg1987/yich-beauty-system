@@ -397,8 +397,11 @@ try {
   assert.equal(afterCheckout.orders[0].totalAmount, 597, "checkout API should calculate total");
   assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 14, "checkout API should consume service stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 23, "checkout API should consume retail stock");
-  assert.equal(afterCheckout.commissions[0].amount, 72, "checkout API should create commission");
-  assert.equal(afterCheckout.commissions[0].rate, 0.12, "checkout API should persist staff commission rate");
+  const checkoutCommissions = afterCheckout.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id);
+  assert.equal(checkoutCommissions.length, 2, "checkout API should create service and sales commissions");
+  assert.equal(checkoutCommissions.find((item) => item.type === "服务提成")?.amount, 48, "checkout API should create service commission");
+  assert.equal(checkoutCommissions.find((item) => item.type === "销售提成")?.amount, 24, "checkout API should create sales commission");
+  assert.equal(checkoutCommissions[0].rate, 0.12, "checkout API should persist staff commission rate");
   assert.equal(afterCheckout.operationLogs[0].action, "开单收银", "checkout API should write operation log");
 
   const afterRefund = await request<AppData>(baseUrl, `/api/orders/${afterCheckout.orders[0].id}/refund`, {
@@ -612,6 +615,13 @@ try {
   });
   assert.equal(afterDailyClose.dailyCloses.length, 1, "daily close API should create daily close record");
   assert.ok(afterDailyClose.dailyCloses[0].revenue >= 398, "daily close should summarize revenue");
+  const afterCommissionSettlement = await request<AppData>(baseUrl, "/api/commissions/settle", {
+    method: "POST",
+    token: session.token,
+  });
+  assert.equal(afterCommissionSettlement.commissionSettlements[0].type, "员工提成", "commission settle API should create settlement batch");
+  assert.ok(afterCommissionSettlement.commissions.every((item) => item.status !== "待结算"), "commission settle API should settle pending commissions");
+  assert.ok(afterCommissionSettlement.commissions.some((item) => item.settlementId === afterCommissionSettlement.commissionSettlements[0].id), "commission settle API should stamp settlement id");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, "/api/inventory/adjust", {

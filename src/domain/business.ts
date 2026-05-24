@@ -6,6 +6,8 @@ import type {
   CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
+  Commission,
+  CommissionSettlement,
   DailyClose,
   DistributionCommission,
   Distributor,
@@ -284,6 +286,10 @@ export type CompleteFollowUpInput = {
   followUpId: string;
 };
 
+export type SettleCommissionInput = {
+  userId: string;
+};
+
 export type SupplierInput = {
   name: string;
   phone: string;
@@ -409,6 +415,29 @@ function normalizeTagStatus(value?: TagDefinition["status"]) {
 
 function staffCommissionRate(data: AppData, staffId: string) {
   return data.staff.find((staff) => staff.id === staffId)?.commissionRate ?? 0;
+}
+
+function commissionRecord(
+  idFactory: IdFactory,
+  staffId: string,
+  orderId: string,
+  type: Commission["type"],
+  baseAmount: number,
+  createdAt: string,
+  rate: number,
+): Commission | undefined {
+  if (baseAmount <= 0 || rate <= 0) return undefined;
+  return {
+    id: idFactory("cm"),
+    staffId,
+    orderId,
+    type,
+    baseAmount,
+    rate,
+    amount: Math.round(baseAmount * rate),
+    status: "待结算",
+    createdAt,
+  };
 }
 
 export function registerStore(
@@ -1077,8 +1106,34 @@ export function checkoutOrder(
       ]
     : data.activityParticipants;
 
+  const selectedProduct = input.productId ? data.products.find((item) => item.id === input.productId) : undefined;
+  const productCommissionBase = selectedProduct ? Math.round(paidAmount * (selectedProduct.price / total)) : 0;
+  const serviceCommissionBase = Math.round(paidAmount) - productCommissionBase;
   const commissionStaffIds = uniqueIds([input.staffId, ...(input.collaboratorStaffIds ?? [])]);
-  const commissionBaseAmounts = splitAmount(Math.round(paidAmount), commissionStaffIds.length);
+  const serviceCommissionBaseAmounts = splitAmount(serviceCommissionBase, commissionStaffIds.length);
+  const serviceCommissions = commissionStaffIds
+    .map((staffId, index) =>
+      commissionRecord(
+        idFactory,
+        staffId,
+        orderId,
+        "服务提成",
+        serviceCommissionBaseAmounts[index],
+        createdAt,
+        staffCommissionRate(data, staffId),
+      ),
+    )
+    .filter((item): item is Commission => Boolean(item));
+  const salesCommission = commissionRecord(
+    idFactory,
+    input.staffId,
+    orderId,
+    "销售提成",
+    productCommissionBase,
+    createdAt,
+    staffCommissionRate(data, input.staffId),
+  );
+  const commissions: Commission[] = salesCommission ? [salesCommission, ...serviceCommissions] : serviceCommissions;
   const shouldCreateReferralRelation =
     selectedDistributor && !existingReferral && !data.referralRelations.some((item) => item.customerId === input.customerId && item.status === "有效");
   const referralRelations = shouldCreateReferralRelation
@@ -1124,20 +1179,7 @@ export function checkoutOrder(
         )
       : data.customerCoupons,
     customers: data.customers.map((customer) => (customer.id === input.customerId ? { ...customer, lastVisit: createdAt } : customer)),
-    commissions: [
-      ...commissionStaffIds.map((staffId, index) => ({
-        id: idFactory("cm"),
-        staffId,
-        orderId,
-        type: "服务提成" as const,
-        baseAmount: commissionBaseAmounts[index],
-        rate: staffCommissionRate(data, staffId),
-        amount: Math.round(commissionBaseAmounts[index] * staffCommissionRate(data, staffId)),
-        status: "待结算" as const,
-        createdAt,
-      })),
-      ...data.commissions,
-    ],
+    commissions: [...commissions, ...data.commissions],
     distributionCommissions: distributionCommission ? [distributionCommission, ...data.distributionCommissions] : data.distributionCommissions,
   };
 }
@@ -2091,6 +2133,62 @@ export function completeCustomerFollowUp(
     customerFollowUps: data.customerFollowUps.map((item) =>
       item.id === input.followUpId ? { ...item, status: "已完成", completedAt } : item,
     ),
+  };
+}
+
+export function settleCommissions(
+  data: AppData,
+  input: SettleCommissionInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const pending = data.commissions.filter((item) => item.status === "待结算");
+  if (!pending.length) throw new Error("暂无待结算提成");
+  const settlementId = idFactory("cs");
+  const settlement: CommissionSettlement = {
+    id: settlementId,
+    type: "员工提成",
+    commissionIds: pending.map((item) => item.id),
+    amount: pending.reduce((sum, item) => sum + item.amount, 0),
+    count: pending.length,
+    createdBy: input.userId,
+    createdAt,
+  };
+  return {
+    ...data,
+    commissions: data.commissions.map((item) =>
+      item.status === "待结算" ? { ...item, status: "已结算", settledAt: createdAt, settlementId } : item,
+    ),
+    commissionSettlements: [settlement, ...data.commissionSettlements],
+  };
+}
+
+export function settleDistributionCommissions(
+  data: AppData,
+  input: SettleCommissionInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const pending = data.distributionCommissions.filter((item) => item.status === "待结算");
+  if (!pending.length) throw new Error("暂无待结算分销佣金");
+  const settlementId = idFactory("cs");
+  const settlement: CommissionSettlement = {
+    id: settlementId,
+    type: "分销佣金",
+    commissionIds: pending.map((item) => item.id),
+    amount: pending.reduce((sum, item) => sum + item.amount, 0),
+    count: pending.length,
+    createdBy: input.userId,
+    createdAt,
+  };
+  return {
+    ...data,
+    distributionCommissions: data.distributionCommissions.map((item) =>
+      item.status === "待结算" ? { ...item, status: "已结算", settledAt: createdAt, settlementId } : item,
+    ),
+    commissionSettlements: [settlement, ...data.commissionSettlements],
   };
 }
 

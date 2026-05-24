@@ -1939,10 +1939,14 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     const staffCommissions = data.commissions.filter((item) => item.staffId === staff.id && item.status !== "已冲销");
     const pending = staffCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
     const settled = staffCommissions.filter((item) => item.status === "已结算").reduce((sum, item) => sum + item.amount, 0);
+    const serviceCommission = staffCommissions.filter((item) => item.type === "服务提成").reduce((sum, item) => sum + item.amount, 0);
+    const salesCommission = staffCommissions.filter((item) => item.type === "销售提成").reduce((sum, item) => sum + item.amount, 0);
     return {
       staff,
       pending,
       settled,
+      serviceCommission,
+      salesCommission,
       expected: (staff.baseSalary ?? 0) + pending + settled,
     };
   });
@@ -2029,11 +2033,13 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         <div className="divider" />
         <PanelTitle icon={<HeartHandshake size={18} />} title="薪资汇总" action="底薪 + 提成" />
         <DataTable
-          columns={["员工", "岗位", "底薪", "待结提成", "已结提成", "预计薪资"]}
+          columns={["员工", "岗位", "底薪", "项目提成", "商品提成", "待结提成", "已结提成", "预计薪资"]}
           rows={salaryRows.map((row) => [
             row.staff.name,
             row.staff.role,
             money(row.staff.baseSalary ?? 0),
+            money(row.serviceCommission),
+            money(row.salesCommission),
             money(row.pending),
             money(row.settled),
             money(row.expected),
@@ -2059,20 +2065,34 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           ])}
         />
         <div className="divider" />
+        <PanelTitle icon={<ClipboardList size={18} />} title="结算流水" action={`${data.commissionSettlements.length} 批`} />
+        <DataTable
+          columns={["类型", "金额", "笔数", "操作人", "时间"]}
+          rows={data.commissionSettlements.map((item) => [
+            item.type,
+            money(item.amount),
+            `${item.count} 笔`,
+            nameOf(data.authUsers, item.createdBy),
+            shortDate(item.createdAt),
+          ])}
+        />
+        <div className="divider" />
         <PanelTitle
           icon={<BadgeCent size={18} />}
           title="提成记录"
           action={hasPermission(session, "commissions:settle") ? <button onClick={settleAll}>全部结算</button> : "仅查看"}
         />
         <DataTable
-          columns={["员工", "类型", "计算基数", "比例", "提成", "状态", "时间"]}
+          columns={["员工", "类型", "订单", "计算基数", "比例", "提成", "状态", "结算批次", "时间"]}
           rows={data.commissions.map((item) => [
             nameOf(data.staff, item.staffId),
             item.type,
+            data.orders.find((order) => order.id === item.orderId)?.orderNo ?? item.orderId,
             money(item.baseAmount),
             `${Math.round((item.rate ?? 0) * 100)}%`,
             money(item.amount),
             <Badge key={item.id} text={item.status} />,
+            item.settlementId ?? "-",
             shortDate(item.createdAt),
           ])}
         />

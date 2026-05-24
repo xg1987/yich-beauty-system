@@ -32,6 +32,8 @@ import {
   reportSummary,
   revokeStaffInvite,
   reverseDailyClose,
+  settleDistributionCommissions,
+  settleCommissions,
   transferMemberCard,
   updateStaffMember,
   updateTagDefinition,
@@ -204,14 +206,23 @@ function card(data: AppData, cardId: string) {
   assert.equal(productStock(data, "p1"), 17, "service consumable stock should decrease");
   assert.equal(productStock(data, "p4"), 23, "retail product stock should decrease");
   assert.equal(data.inventoryLogs.length, 2, "service and retail stock changes should both log");
-  assert.equal(data.commissions[0].amount, 72, "commission should be 12 percent rounded");
-  assert.equal(data.commissions[0].rate, 0.12, "commission should persist staff commission rate");
+  const orderCommissions = data.commissions.filter((item) => item.orderId === data.orders[0].id);
+  assert.equal(orderCommissions.length, 2, "checkout should create service and sales commissions");
+  assert.equal(orderCommissions.find((item) => item.type === "服务提成")?.amount, 48, "service commission should be based on service amount");
+  assert.equal(orderCommissions.find((item) => item.type === "销售提成")?.amount, 24, "sales commission should be based on product amount");
+  assert.equal(orderCommissions.reduce((sum, item) => sum + item.amount, 0), 72, "commission total should stay consistent");
+  assert.equal(orderCommissions[0].rate, 0.12, "commission should persist staff commission rate");
   assert.equal(data.operationLogs.length, 0, "pure business checkout should not require operation log");
 
   const summary = reportSummary(data);
   assert.equal(summary.revenue, 597, "report revenue should match paid amount");
   assert.equal(summary.serviceCount, 1, "report service count should track paid orders");
   assert.equal(summary.commission, 72, "report commission should aggregate commission records");
+
+  const settled = settleCommissions(data, { userId: "u_manager" }, { idFactory: testId, now: fixedNow });
+  assert.equal(settled.commissionSettlements[0].type, "员工提成", "settlement should create staff commission batch");
+  assert.equal(settled.commissionSettlements[0].amount, 72, "settlement should summarize pending commission amount");
+  assert.ok(settled.commissions.every((item) => item.status === "已结算" && item.settlementId === settled.commissionSettlements[0].id), "settlement should stamp commission records");
 }
 
 {
@@ -284,6 +295,9 @@ function card(data: AppData, cardId: string) {
   assert.equal(checkedOut.orders[0].distributorId, distributorId, "checkout should use referral distributor");
   assert.equal(checkedOut.distributionCommissions[0].amount, 24, "checkout should create distribution commission");
   assert.equal(checkedOut.distributionCommissions[0].status, "待结算", "distribution commission should wait settlement");
+  const settledDistribution = settleDistributionCommissions(checkedOut, { userId: "u_manager" }, { idFactory: testId, now: fixedNow });
+  assert.equal(settledDistribution.commissionSettlements[0].type, "分销佣金", "settlement should create distribution commission batch");
+  assert.equal(settledDistribution.distributionCommissions[0].settlementId, settledDistribution.commissionSettlements[0].id, "distribution settlement should stamp commission records");
 
   const partialRefund = refundOrder(
     checkedOut,
