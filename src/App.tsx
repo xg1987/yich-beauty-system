@@ -292,7 +292,7 @@ function LoginScreen({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (mode === "login") {
-      void onLogin(account, password);
+      void onLogin(account.trim(), password);
       return;
     }
     if (mode === "register") {
@@ -304,6 +304,11 @@ function LoginScreen({
 
   return (
     <div className="login-page">
+      {error && (
+        <div className="login-error-toast" role="alert" aria-live="assertive">
+          {error}
+        </div>
+      )}
       <section className="login-panel">
         <div className="login-unified-card">
           <div className="login-hero">
