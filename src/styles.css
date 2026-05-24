@@ -2637,3 +2637,236 @@ textarea {
     color: rgba(246, 240, 234, 0.62);
   }
 }
+
+/* Global beauty-theme hardening: stronger contrast, less washed-out pink. */
+:root {
+  --beauty-ink: #2b211e;
+  --beauty-muted: #6f5e58;
+  --beauty-line: rgba(150, 95, 82, 0.22);
+  --beauty-surface: #fffdfa;
+  --beauty-soft: #f7eee8;
+  --beauty-rose: #b94b63;
+  --beauty-rose-strong: #96364d;
+  --beauty-rose-soft: #f1d5dc;
+  --beauty-gold: #b9853f;
+  --beauty-shadow: 0 14px 36px rgba(105, 65, 55, 0.12);
+}
+
+::selection {
+  background: rgba(185, 75, 99, 0.22);
+  color: var(--beauty-ink);
+}
+
+html[data-theme="day"],
+.theme-day {
+  background:
+    radial-gradient(circle at 16% -8%, rgba(185, 75, 99, 0.15), transparent 28%),
+    radial-gradient(circle at 88% 4%, rgba(185, 133, 63, 0.14), transparent 24%),
+    linear-gradient(180deg, #fff8f3 0%, #f4e9e0 100%);
+  color: var(--beauty-ink);
+}
+
+.theme-day .main {
+  color: var(--beauty-ink);
+}
+
+.theme-day .topbar {
+  background: linear-gradient(180deg, rgba(255, 248, 243, 0.98) 0%, rgba(255, 248, 243, 0.9) 74%, rgba(255, 248, 243, 0) 100%);
+}
+
+.theme-day .topbar-title p {
+  color: var(--beauty-rose-strong);
+  opacity: 0.86;
+}
+
+.theme-day .topbar-title h1 {
+  display: inline-block;
+  color: #201716;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.15;
+  background: transparent;
+  text-shadow: none;
+  user-select: none;
+}
+
+.theme-day .sidebar {
+  background: rgba(255, 248, 243, 0.98);
+  border-right-color: var(--beauty-line);
+}
+
+.theme-day .brand-mark,
+.theme-day .account-avatar-large {
+  background: var(--beauty-rose-soft);
+  color: var(--beauty-rose-strong);
+}
+
+.theme-day .panel,
+.theme-day .stat-card,
+.theme-day .quick-card,
+.theme-day .record-card,
+.theme-day .inventory-line,
+.theme-day .settings-card,
+.theme-day .sub-panel,
+.theme-day .empty,
+.theme-day .admin-code-panel,
+.theme-day .admin-module-card,
+.theme-day .theme-switch-panel,
+.theme-day .account-bind-list > div,
+.theme-day .dashboard-panel,
+.theme-day .action-strip button,
+.theme-day .timeline-item,
+.theme-day .care-item,
+.theme-day .health-grid .dashboard-metric {
+  border-color: var(--beauty-line);
+  background: rgba(255, 253, 250, 0.98);
+  box-shadow: var(--beauty-shadow);
+}
+
+.theme-day .panel-title h2,
+.theme-day .admin-code-panel h2,
+.theme-day .admin-section-title strong,
+.theme-day .admin-module-card strong,
+.theme-day .settings-card strong,
+.theme-day .record-card strong,
+.theme-day td,
+.theme-day .action-strip strong,
+.theme-day .timeline-item strong,
+.theme-day .care-item strong,
+.theme-day .health-grid .dashboard-metric strong {
+  color: var(--beauty-ink);
+}
+
+.theme-day .panel-title span,
+.theme-day .stat-card span,
+.theme-day .stat-card small,
+.theme-day th,
+.theme-day label,
+.theme-day .record-card span,
+.theme-day .record-card small,
+.theme-day .inventory-line span,
+.theme-day .settings-card span,
+.theme-day .empty,
+.theme-day .quick-card small,
+.theme-day .admin-code-panel p,
+.theme-day .admin-section-title span,
+.theme-day .admin-module-card small,
+.theme-day .admin-module-card em,
+.theme-day .account-drawer-head span,
+.theme-day .theme-switch-panel span,
+.theme-day .account-bind-list span,
+.theme-day .action-strip span,
+.theme-day .timeline-item span,
+.theme-day .care-item span,
+.theme-day .care-item small,
+.theme-day .health-grid .dashboard-metric span:not(.metric-icon),
+.theme-day .health-grid .dashboard-metric small {
+  color: var(--beauty-muted);
+}
+
+.theme-day input,
+.theme-day select,
+.theme-day textarea,
+.theme-day .theme-toggle button {
+  border-color: rgba(150, 95, 82, 0.24);
+  background: #fff8f3;
+  color: var(--beauty-ink);
+}
+
+.theme-day input:focus,
+.theme-day select:focus,
+.theme-day textarea:focus {
+  border-color: var(--beauty-rose);
+  box-shadow: 0 0 0 3px rgba(185, 75, 99, 0.16);
+}
+
+.theme-day .primary-button,
+.theme-day .account-avatar-button,
+.theme-day .inline-form button,
+.theme-day .theme-toggle button.active {
+  background: linear-gradient(135deg, var(--beauty-rose), var(--beauty-rose-strong));
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(150, 54, 77, 0.22);
+}
+
+.theme-day .icon-button,
+.theme-day .ghost-button,
+.theme-day .user-chip,
+.theme-day .row-actions button,
+.theme-day .panel-title button,
+.theme-day td > button,
+.theme-day .table-action button,
+.theme-day .inline-actions button,
+.theme-day .secondary-button,
+.theme-day .sub-panel button {
+  border-color: var(--beauty-line);
+  background: #fffdf9;
+  color: var(--beauty-ink);
+}
+
+.theme-day .admin-profile-hero,
+.theme-day .beauty-hero {
+  border-color: rgba(150, 95, 82, 0.22);
+  background:
+    linear-gradient(135deg, #b94b63 0%, #d87486 48%, #c59658 100%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.28), transparent 30%);
+  box-shadow: 0 22px 54px rgba(150, 54, 77, 0.22);
+}
+
+.theme-day .admin-code-panel {
+  background: #fffdf9;
+}
+
+.theme-day .admin-code-panel h2 {
+  color: var(--beauty-ink);
+}
+
+.theme-day .admin-code-panel p {
+  color: var(--beauty-muted);
+}
+
+.theme-day .admin-module-icon.rose {
+  background: rgba(185, 75, 99, 0.16);
+  color: var(--beauty-rose-strong);
+}
+
+.theme-day .admin-module-icon.violet {
+  background: rgba(103, 77, 149, 0.14);
+  color: #674d95;
+}
+
+.theme-day .admin-module-icon.teal {
+  background: rgba(37, 128, 103, 0.14);
+  color: #257f67;
+}
+
+.theme-day .admin-module-icon.amber {
+  background: rgba(185, 133, 63, 0.16);
+  color: #8c642c;
+}
+
+.theme-day .badge {
+  background: var(--beauty-rose-soft);
+  color: var(--beauty-rose-strong);
+}
+
+.theme-day .table-wrap {
+  border-color: rgba(150, 95, 82, 0.18);
+  background: rgba(255, 253, 250, 0.72);
+}
+
+.theme-day .workbar {
+  border-color: rgba(150, 95, 82, 0.22);
+  background: rgba(255, 250, 246, 0.96);
+  box-shadow: 0 -18px 42px rgba(105, 65, 55, 0.16);
+}
+
+.theme-day .workbar button {
+  color: rgba(43, 33, 30, 0.68);
+}
+
+.theme-day .workbar button.active {
+  background: linear-gradient(135deg, var(--beauty-rose), var(--beauty-rose-strong));
+  color: #fff;
+  box-shadow: 0 14px 32px rgba(150, 54, 77, 0.24);
+}
