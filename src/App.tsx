@@ -8,21 +8,20 @@ import {
   ClipboardList,
   CreditCard,
   Database,
-  Eye,
+  ArrowLeft,
   Headphones,
   HeartHandshake,
   LayoutDashboard,
+  LogOut,
   LockKeyhole,
   Megaphone,
   MessageCircle,
-  Moon,
   Network,
   PackagePlus,
   Settings,
   Share2,
   ShieldCheck,
   Sparkles,
-  Sun,
   UserRound,
   UsersRound,
   X,
@@ -63,8 +62,9 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
 export default function App() {
   const { data, session, loading, error, login, registerStore, joinInvite, authenticate, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
-  const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [adminBackVisible, setAdminBackVisible] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem(THEME_KEY) === "night" ? "night" : "day"));
 
   useEffect(() => {
@@ -91,6 +91,12 @@ export default function App() {
   const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
   const activeWorkbar = workbarForView(activeView);
   const notificationCount = notificationItems(data).filter((item) => item.count > 0).length;
+  const navigate = (nextView: ViewKey, options?: { fromAdmin?: boolean }) => {
+    setView(nextView);
+    setNotificationPanelOpen(false);
+    setAccountMenuOpen(false);
+    setAdminBackVisible(Boolean(options?.fromAdmin && nextView !== "settings"));
+  };
 
   return (
     <div className={`app-shell theme-${themeMode}`}>
@@ -110,17 +116,30 @@ export default function App() {
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
-            <button className="icon-button notification-button" aria-label="通知" onClick={() => setNotificationPanelOpen((open) => !open)}>
+            <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
               <Bell size={18} />
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
-            <button className="account-avatar-button" aria-label="账号中心" onClick={() => setAccountPanelOpen(true)}>
+            <button className="account-avatar-button" aria-label="账号中心" onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
               <UserRound size={18} />
             </button>
-            {notificationPanelOpen && <NotificationPanel data={data} setView={setView} onClose={() => setNotificationPanelOpen(false)} />}
+            {notificationPanelOpen && <NotificationPanel data={data} setView={navigate} onClose={() => setNotificationPanelOpen(false)} />}
+            {accountMenuOpen && (
+              <AccountMenu
+                session={session}
+                logout={logout}
+                openSettings={() => navigate("settings")}
+              />
+            )}
           </div>
         </header>
-        {activeView === "dashboard" && <Dashboard data={data} session={session} setView={setView} />}
+        {adminBackVisible && activeView !== "settings" && (
+          <button className="back-to-admin" type="button" onClick={() => navigate("settings")}>
+            <ArrowLeft size={16} />
+            返回管理中心
+          </button>
+        )}
+        {activeView === "dashboard" && <Dashboard data={data} session={session} setView={navigate} />}
         {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
@@ -129,28 +148,19 @@ export default function App() {
         {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "settings" && <SettingsView data={data} session={session} setView={setView} />}
+        {activeView === "settings" && <SettingsView data={data} session={session} setView={(nextView) => navigate(nextView, { fromAdmin: true })} />}
       </main>
       <nav className="workbar" aria-label="主工作栏">
         {workbarItems.filter((item) => canAccessView(session, item.view)).map((item) => {
           const Icon = item.icon;
           return (
-            <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => setView(item.view)}>
+            <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => navigate(item.view)}>
               <Icon size={18} />
               <span>{item.label}</span>
             </button>
           );
         })}
       </nav>
-      {accountPanelOpen && (
-        <AccountCenterPanel
-          session={session}
-          logout={logout}
-          onClose={() => setAccountPanelOpen(false)}
-          themeMode={themeMode}
-          setThemeMode={setThemeMode}
-        />
-      )}
     </div>
   );
 }
@@ -224,63 +234,33 @@ function workbarForView(view: ViewKey): WorkbarKey {
   return "workbench";
 }
 
-function AccountCenterPanel({
+function AccountMenu({
   session,
   logout,
-  onClose,
-  themeMode,
-  setThemeMode,
+  openSettings,
 }: {
   session: UserSession;
   logout: () => void;
-  onClose: () => void;
-  themeMode: ThemeMode;
-  setThemeMode: (mode: ThemeMode) => void;
+  openSettings: () => void;
 }) {
   return (
-    <div className="account-drawer-backdrop" onClick={onClose}>
-      <aside className="account-drawer" onClick={(event) => event.stopPropagation()}>
-        <div className="account-drawer-head">
-          <div className="account-avatar-large"><UserRound size={28} /></div>
-          <div>
-            <strong>{session.user.name}</strong>
-            <span>{session.user.roleName} · {session.user.account}</span>
-          </div>
-          <button className="icon-button" aria-label="关闭账号中心" onClick={onClose}><X size={18} /></button>
+    <aside className="account-menu" aria-label="账号菜单">
+      <div className="account-menu-user">
+        <div className="account-menu-avatar"><UserRound size={22} /></div>
+        <div>
+          <strong>{session.user.name}</strong>
+          <span>{session.user.roleName}</span>
         </div>
-        <section className="theme-switch-panel">
-          <div>
-            <strong>显示模式</strong>
-            <span>根据门店环境切换日间 / 夜间后台</span>
-          </div>
-          <div className="theme-toggle" role="group" aria-label="显示模式">
-            <button className={themeMode === "day" ? "active" : ""} type="button" onClick={() => setThemeMode("day")}>
-              <Sun size={16} />
-              日间
-            </button>
-            <button className={themeMode === "night" ? "active" : ""} type="button" onClick={() => setThemeMode("night")}>
-              <Moon size={16} />
-              夜间
-            </button>
-          </div>
-        </section>
-        <div className="account-form-grid">
-          <label>联系电话<input value="13827445244" readOnly /></label>
-          <label>绑定微信<input value="yichen_admin" readOnly /></label>
-          <label>新密码<input value="" readOnly type="password" placeholder="输入新密码" /></label>
-          <label>确认密码<input value="" readOnly type="password" placeholder="再次输入新密码" /></label>
-        </div>
-        <div className="account-bind-list">
-          <div><ShieldCheck size={18} /><span>账号权限</span><strong>{session.user.permissions.length} 项</strong></div>
-          <div><Eye size={18} /><span>登录安全</span><strong>密码登录</strong></div>
-          <div><MessageCircle size={18} /><span>消息绑定</span><strong>微信待确认</strong></div>
-        </div>
-        <div className="account-drawer-actions">
-          <button className="primary-button" type="button"><LockKeyhole size={16} /> 保存账号资料</button>
-          <button className="secondary-button" type="button" onClick={logout}>退出登录</button>
-        </div>
-      </aside>
-    </div>
+      </div>
+      <button type="button" onClick={openSettings}>
+        <Settings size={17} />
+        <span>系统设置</span>
+      </button>
+      <button className="danger" type="button" onClick={logout}>
+        <LogOut size={17} />
+        <span>退出登录</span>
+      </button>
+    </aside>
   );
 }
 
@@ -654,8 +634,8 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
       <PageHero
         icon={<CalendarDays size={15} />}
         eyebrow="预约管理"
-        title="今天谁来店、谁服务、哪个时间段可约"
-        desc="把新增预约、员工锁时和班次校验放在一个业务页里，前台可以先看今日节奏，再处理客户到店安排。"
+        title="预约管理"
+        desc="管理客户预约、员工排班、不可预约时段与到店确认。"
         stats={[
           { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "当天服务计划", icon: <CalendarDays size={18} /> },
           { label: "待到店", value: `${pendingArrival} 单`, hint: "需确认或接待", icon: <ClipboardList size={18} /> },
@@ -827,8 +807,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
       <PageHero
         icon={<CreditCard size={15} />}
         eyebrow="开单收银"
-        title="先确认客户与项目，再完成收款和自动扣库存"
-        desc="收银页要服务高频操作：选客户、选项目、选员工、走支付，系统同步记录提成、会员卡和库存消耗。"
+        title="开单收银"
+        desc="完成项目开单、会员卡扣款、支付记录、提成计算与库存扣减。"
         stats={[
           { label: "当前应收", value: money(paidTotal), hint: "按已选项目计算", icon: <CreditCard size={18} /> },
           { label: "今日收款", value: money(todayPaid), hint: `${todayOrders.length} 笔订单`, icon: <ChartNoAxesColumnIncreasing size={18} /> },
@@ -1032,8 +1012,8 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
       <PageHero
         icon={<UsersRound size={15} />}
         eyebrow="客户会员"
-        title="客户资产、会员卡和护理档案要在一个页面闭环"
-        desc="客户页不是简单通讯录，重点是沉淀会员资产、护理记录和回访计划，方便前台和美容师持续服务。"
+        title="客户会员"
+        desc="管理客户档案、会员卡项、护理记录与回访计划。"
         stats={[
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
           { label: "有效卡项", value: `${activeCards.length} 张`, hint: "储值与次数卡", icon: <CreditCard size={18} /> },
@@ -1202,8 +1182,8 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
       <PageHero
         icon={<Sparkles size={15} />}
         eyebrow="项目商品"
-        title="服务项目、商品和耗材资料统一维护"
-        desc="项目价格影响开单，耗材资料影响库存消耗，商品资料影响附加收银，基础资料要清晰稳定。"
+        title="项目商品"
+        desc="维护服务项目、商品资料、耗材库存和标准价格。"
         stats={[
           { label: "服务项目", value: `${data.services.length} 个`, hint: "可用于预约/开单", icon: <Sparkles size={18} /> },
           { label: "商品耗材", value: `${data.products.length} 个`, hint: "库存资料", icon: <Boxes size={18} /> },
@@ -1274,8 +1254,8 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
       <PageHero
         icon={<BadgeCent size={15} />}
         eyebrow="员工提成"
-        title="员工档案、账号邀请和提成结算集中管理"
-        desc="店长和老板需要看到人员状态、账号开通和待结提成，员工则只看到自己的业绩与账号信息。"
+        title="员工提成"
+        desc="管理员工档案、账号邀请、岗位权限与提成结算。"
         stats={[
           { label: "在职员工", value: `${activeStaff} 人`, hint: `${data.staff.length} 人档案`, icon: <UsersRound size={18} /> },
           { label: "待加入账号", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
@@ -1423,8 +1403,8 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
       <PageHero
         icon={<Boxes size={15} />}
         eyebrow="库存管理"
-        title="耗材、商品、采购和盘点要跟服务消耗对上"
-        desc="库存页突出低库存、采购入库和盘点差异，避免服务过程中耗材断档或账实不一致。"
+        title="库存管理"
+        desc="管理商品耗材、采购入库、库存流水和盘点差异。"
         stats={[
           { label: "库存品项", value: `${data.products.length} 个`, hint: `合计库存 ${stockValue}`, icon: <Boxes size={18} /> },
           { label: "低库存", value: `${lowStock} 项`, hint: "低于预警值", icon: <PackagePlus size={18} /> },
@@ -1523,8 +1503,8 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
       <PageHero
         icon={<ChartNoAxesColumnIncreasing size={15} />}
         eyebrow="报表分析"
-        title="老板看现金流，店长看转化，财务看日结"
-        desc="报表页把实收、退款、会员储值、提成和营业日锁账放在一起，支持门店做每日复盘。"
+        title="报表分析"
+        desc="查看实收、退款、会员储值、员工提成与营业日结。"
         stats={[
           { label: "实收现金流", value: money(summary.revenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
           { label: "项目服务数", value: `${summary.serviceCount} 单`, hint: "已完成收银", icon: <Sparkles size={18} /> },
@@ -1608,8 +1588,8 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
       <PageHero
         icon={<ShieldCheck size={15} />}
         eyebrow="审批中心"
-        title="改价、退款和例外处理必须留下审批痕迹"
-        desc="审批页要让老板和店长快速看到风险单据，前台提交后可以在同页跟踪处理结果。"
+        title="审批中心"
+        desc="处理改价折扣、订单退款和门店例外审批。"
         stats={[
           { label: "待审批", value: `${pendingApprovals} 单`, hint: "需要处理", icon: <ShieldCheck size={18} /> },
           { label: "已通过", value: `${passedApprovals} 单`, hint: "可用于业务", icon: <ClipboardList size={18} /> },

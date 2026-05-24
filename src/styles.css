@@ -3253,6 +3253,141 @@ html[data-theme="day"],
   color: rgba(246, 240, 234, 0.58);
 }
 
+.topbar {
+  min-height: 44px;
+  margin-bottom: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.theme-day .topbar,
+.theme-night .topbar {
+  background: transparent;
+}
+
+.topbar-title p {
+  font-size: 16px;
+  color: var(--yich-purple-deep);
+}
+
+.account-menu {
+  position: absolute;
+  z-index: 95;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 260px;
+  overflow: hidden;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 253, 250, 0.98);
+  box-shadow: 0 22px 60px rgba(39, 25, 69, 0.16);
+}
+
+.account-menu-user {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 16px 18px;
+  background: rgba(248, 244, 239, 0.72);
+}
+
+.account-menu-avatar {
+  width: 42px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
+}
+
+.account-menu-user strong,
+.account-menu-user span {
+  display: block;
+}
+
+.account-menu-user strong {
+  color: var(--yich-ink);
+  font-size: 15px;
+}
+
+.account-menu-user span {
+  margin-top: 3px;
+  color: var(--yich-muted);
+  font-size: 12px;
+}
+
+.account-menu button {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border: 0;
+  border-top: 1px solid rgba(111, 66, 193, 0.08);
+  background: transparent;
+  color: var(--yich-ink);
+  font-weight: 800;
+  text-align: left;
+}
+
+.account-menu button svg {
+  color: var(--yich-muted);
+}
+
+.account-menu button.danger {
+  color: #c82333;
+}
+
+.account-menu button.danger svg {
+  color: #c82333;
+}
+
+.back-to-admin {
+  width: fit-content;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 12px;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 253, 250, 0.82);
+  color: var(--yich-purple-deep);
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(69, 37, 127, 0.08);
+}
+
+.theme-night .account-menu {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #141210;
+}
+
+.theme-night .account-menu-user {
+  background: #1b1816;
+}
+
+.theme-night .account-menu-user strong,
+.theme-night .account-menu button {
+  color: #f7efe8;
+}
+
+.theme-night .account-menu-user span {
+  color: rgba(246, 240, 234, 0.58);
+}
+
+.theme-night .back-to-admin {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(20, 18, 16, 0.72);
+  color: #d7c3ff;
+}
+
 .page-stack {
   width: min(1360px, 100%);
   margin: 0 auto;
