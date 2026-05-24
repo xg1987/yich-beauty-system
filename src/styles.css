@@ -2946,8 +2946,8 @@ html[data-theme="day"],
 }
 
 .theme-day .sidebar {
-  background: rgba(251, 248, 255, 0.96);
-  border-right-color: var(--yich-purple-line);
+  background: transparent;
+  border-right-color: transparent;
 }
 
 .theme-day .rail-admin {
