@@ -1,16 +1,27 @@
 import {
   BadgeCent,
+  Bell,
   Boxes,
+  Building2,
   CalendarDays,
   ChartNoAxesColumnIncreasing,
   ClipboardList,
   CreditCard,
+  Database,
+  Headphones,
+  HeartHandshake,
   LayoutDashboard,
   LockKeyhole,
+  Megaphone,
+  MessageCircle,
+  Network,
   PackagePlus,
+  RadioTower,
   Settings,
+  Share2,
   ShieldCheck,
   Sparkles,
+  UserRound,
   UsersRound,
 } from "lucide-react";
 import { FormEvent, ReactNode, useState } from "react";
@@ -53,6 +64,9 @@ export default function App() {
   }
 
   const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key));
+  const mobileNavItems = ["dashboard", "appointments", "pos", "customers", "settings"]
+    .map((key) => visibleNavItems.find((item) => item.key === key))
+    .filter((item): item is (typeof visibleNavItems)[number] => Boolean(item));
   const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
 
   return (
@@ -85,6 +99,7 @@ export default function App() {
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
+            <button className="icon-button" aria-label="通知"><Bell size={18} /></button>
             <button className="ghost-button" onClick={logout}>退出</button>
             <div className="user-chip">{session.user.name} · {session.user.roleName}</div>
           </div>
@@ -98,8 +113,19 @@ export default function App() {
         {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "settings" && <SettingsView data={data} session={session} />}
+        {activeView === "settings" && <SettingsView data={data} session={session} setView={setView} />}
       </main>
+      <nav className="mobile-bottom-nav" aria-label="移动端主导航">
+        {mobileNavItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button key={item.key} className={activeView === item.key ? "active" : ""} onClick={() => setView(item.key)}>
+              <Icon size={18} />
+              <span>{item.label.replace("管理", "")}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
@@ -1238,26 +1264,73 @@ function DailyCloseControl({
   );
 }
 
-function SettingsView({ data, session }: { data: AppData; session: UserSession }) {
+function SettingsView({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
+  const store = data.storeProfiles[0];
+  const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
+  const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
+  const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
+  const managementCards: Array<{
+    title: string;
+    desc: string;
+    metric: string;
+    icon: typeof LayoutDashboard;
+    tone: "rose" | "violet" | "teal" | "amber";
+    view: ViewKey;
+  }> = [
+    { title: "系统流程图", desc: "预约、开单、会员、库存、财务链路", metric: "全链路", icon: Network, tone: "rose", view: "dashboard" },
+    { title: "渠道人员", desc: "前台邀约、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: RadioTower, tone: "rose", view: "customers" },
+    { title: "销售人员", desc: "销售成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: UsersRound, tone: "violet", view: "reports" },
+    { title: "客服人员", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
+    { title: "部门管理", desc: "岗位、账号、邀请、权限分配", metric: `${activeStaff} 在职`, icon: Building2, tone: "violet", view: "staff" },
+    { title: "组织架构", desc: "老板、店长、前台、美容师、财务", metric: `${data.authUsers.length} 账号`, icon: Share2, tone: "teal", view: "staff" },
+    { title: "账号审批", desc: "注册审核、开屏授权、离职停用", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
+    { title: "客户池", desc: "销售线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
+    { title: "跟进记录", desc: "按团队、销售查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
+    { title: "公告中心", desc: "全员通知、团队公告、个人推送", metric: "待接入", icon: Megaphone, tone: "rose", view: "settings" },
+    { title: "产品管理", desc: "产品、类别、项目、耗材资料", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "catalog" },
+    { title: "佣金报表", desc: "按销售员、产品、时间汇总", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
+  ];
+
   return (
-    <div className="content-grid">
-      <section className="panel">
-        <PanelTitle icon={<Settings size={18} />} title="门店资料" action="基础资料" />
-        <div className="settings-card">
-          <strong>一宸 YiCh 皮肤管理中心</strong>
-          <span>营业时间：10:00 - 21:00</span>
-          <span>地址：上海市静安区示例路 88 号</span>
-          <span>电话：021-8888-0000</span>
+    <div className="admin-center-page">
+      <section className="admin-profile-hero">
+        <div className="admin-avatar">
+          <UserRound size={34} />
+        </div>
+        <div className="admin-profile-copy">
+          <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
+          <h2>{session.user.name}</h2>
+          <p>{session.user.account}</p>
+        </div>
+        <div className="admin-secret-card">
+          <span>当前权限</span>
+          <strong>{session.user.permissions.length} 项</strong>
         </div>
       </section>
-      <section className="panel wide">
-        <PanelTitle icon={<LockKeyhole size={18} />} title="角色权限" action="第一阶段预设" />
-        <div className="settings-card compact">
-          <strong>当前登录：{session.user.name}</strong>
-          <span>角色：{session.user.roleName}</span>
-          <span>账号：{session.user.account}</span>
+
+      <section className="admin-code-panel">
+        <div>
+          <h2>管理员系统信号</h2>
+          <p>员工出问题加这个微信咨询，留空则隐藏客服入口</p>
         </div>
-        <div className="divider" />
+        <input value={store?.phone ?? ""} readOnly aria-label="管理员联系信号" />
+        <button className="primary-button" type="button"><LockKeyhole size={16} /> 保存</button>
+      </section>
+
+      <section className="admin-module-section">
+        <div className="admin-section-title">
+          <span>管理入口</span>
+          <strong>{store?.name ?? "一宸 YiCh 门店"}</strong>
+        </div>
+        <div className="admin-module-grid">
+          {managementCards.map((item) => (
+            <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view)} />
+          ))}
+        </div>
+      </section>
+
+      <section className="panel admin-permission-panel">
+        <PanelTitle icon={<LockKeyhole size={18} />} title="角色权限" action="权限边界" />
         <DataTable
           columns={["角色", "可用模块", "关键限制"]}
           rows={[
@@ -1268,16 +1341,29 @@ function SettingsView({ data, session }: { data: AppData; session: UserSession }
             ["财务", "订单、支付、退款、报表", "不能修改服务项目"],
           ]}
         />
-        <div className="divider" />
-        <PanelTitle icon={<ClipboardList size={18} />} title="操作日志" action={`${data.operationLogs.length} 条`} />
-        <DataTable
-          columns={["动作", "对象", "说明", "时间"]}
-          rows={data.operationLogs.map((log) => [log.action, `${log.targetType}:${log.targetId}`, log.summary, shortDate(log.createdAt)])}
-        />
       </section>
     </div>
   );
 }
+
+function AdminCenterCard({
+  item,
+  onClick,
+}: {
+  item: { title: string; desc: string; metric: string; icon: typeof LayoutDashboard; tone: "rose" | "violet" | "teal" | "amber" };
+  onClick: () => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <button className="admin-module-card" onClick={onClick}>
+      <span className={`admin-module-icon ${item.tone}`}><Icon size={22} /></span>
+      <strong>{item.title}</strong>
+      <small>{item.desc}</small>
+      <em>{item.metric}</em>
+    </button>
+  );
+}
+
 
 function StatCard({ title, value, hint, tone }: { title: string; value: string; hint: string; tone?: "ok" | "warn" }) {
   return (
