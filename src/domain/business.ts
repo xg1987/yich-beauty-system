@@ -1172,17 +1172,21 @@ export function createDailyClose(
     createdAt,
     status: "已锁定",
   };
+  const reversedClose = data.dailyCloses.find((item) => item.businessDate === input.businessDate && item.status === "已反结");
+  const nextDailyCloses = reversedClose
+    ? data.dailyCloses.map((item) => (item.id === reversedClose.id ? { ...dailyClose, id: item.id } : item))
+    : [dailyClose, ...data.dailyCloses];
 
   return {
     ...data,
-    dailyCloses: [dailyClose, ...data.dailyCloses],
+    dailyCloses: nextDailyCloses,
     operationLogs: [
       {
         id: idFactory("op"),
         userId: input.userId,
         action: "财务日结",
         targetType: "dailyClose",
-        targetId: dailyClose.id,
+        targetId: reversedClose?.id ?? dailyClose.id,
         summary: `${input.businessDate} 日结：实收 ${dailyClose.revenue} 元，退款 ${dailyClose.refundAmount} 元`,
         createdAt,
       },
