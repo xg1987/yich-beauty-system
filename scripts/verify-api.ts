@@ -47,6 +47,14 @@ try {
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
 
+  const afterServiceWithConsumable = await request<AppData>(baseUrl, "/api/services", {
+    method: "POST",
+    token: session.token,
+    body: { name: "API 耗材绑定护理", category: "皮肤管理", price: 398, duration: 60, consumableProductId: "p1", consumableQty: 2 },
+  });
+  assert.equal(afterServiceWithConsumable.services[0].consumableProductId, "p1", "service API should persist consumable product");
+  assert.equal(afterServiceWithConsumable.services[0].consumableQty, 2, "service API should persist consumable quantity");
+
   const registeredSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
     method: "POST",
     body: {

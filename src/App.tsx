@@ -1173,13 +1173,30 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
 function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
   const [serviceName, setServiceName] = useState("");
   const [servicePrice, setServicePrice] = useState(398);
+  const [serviceDuration, setServiceDuration] = useState(60);
+  const [serviceConsumableProductId, setServiceConsumableProductId] = useState("");
+  const [serviceConsumableQty, setServiceConsumableQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
+  const consumableOptions = data.products
+    .filter((product) => product.type === "consumable")
+    .map((product) => ({ value: product.id, label: `${product.name} · ${product.stock}${product.unit}` }));
 
   const addService = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.addService({ name: serviceName, price: servicePrice, category: "自定义项目", duration: 60 }));
+    void runMutation(() =>
+      actions.addService({
+        name: serviceName,
+        price: servicePrice,
+        category: "自定义项目",
+        duration: serviceDuration,
+        consumableProductId: serviceConsumableProductId || undefined,
+        consumableQty: serviceConsumableProductId ? serviceConsumableQty : undefined,
+      }),
+    );
     setServiceName("");
+    setServiceConsumableProductId("");
+    setServiceConsumableQty(1);
   };
 
   const addProduct = (event: FormEvent) => {
@@ -1207,6 +1224,16 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         <form className="form" onSubmit={addService}>
           <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
           <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
+          <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
+          <Select
+            label="默认耗材"
+            value={serviceConsumableProductId}
+            onChange={setServiceConsumableProductId}
+            options={[{ value: "", label: "不绑定耗材" }, ...consumableOptions]}
+          />
+          {serviceConsumableProductId && (
+            <label>单次用量<input type="number" min={0} step={0.1} value={serviceConsumableQty} onChange={(event) => setServiceConsumableQty(Number(event.target.value))} /></label>
+          )}
           <button className="primary-button">保存项目</button>
         </form>
         <div className="divider" />
@@ -1220,7 +1247,18 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         <section className="panel wide">
         <PanelTitle icon={<Sparkles size={18} />} title="项目与商品" action="价格/库存" />
         <div className="split-list">
-          <DataTable columns={["项目", "分类", "价格", "时长"]} rows={data.services.map((item) => [item.name, item.category, money(item.price), `${item.duration} 分钟`])} />
+          <DataTable
+            columns={["项目", "分类", "价格", "时长", "默认耗材"]}
+            rows={data.services.map((item) => [
+              item.name,
+              item.category,
+              money(item.price),
+              `${item.duration} 分钟`,
+              item.consumableProductId
+                ? `${nameOf(data.products, item.consumableProductId)} × ${item.consumableQty ?? 0}`
+                : "未配置",
+            ])}
+          />
           <DataTable columns={["商品", "类型", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.type === "sale" ? "销售商品" : "服务耗材", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
         </div>
         </section>

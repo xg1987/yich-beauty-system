@@ -525,6 +525,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             category: optionalString(body, "category") ?? "自定义项目",
             price: requiredNumber(body, "price"),
             duration: optionalNumber(body, "duration") ?? 60,
+            consumableProductId: optionalString(body, "consumableProductId"),
+            consumableQty: optionalNumber(body, "consumableQty"),
           },
           ...data.services,
         ],

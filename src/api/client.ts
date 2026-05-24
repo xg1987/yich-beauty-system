@@ -111,7 +111,7 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/follow-ups", { method: "POST", body, token: getToken() }),
     completeFollowUp: (followUpId: string) =>
       request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", token: getToken() }),
-    addService: (body: { name: string; price: number; category?: string; duration?: number }) =>
+    addService: (body: { name: string; price: number; category?: string; duration?: number; consumableProductId?: string; consumableQty?: number }) =>
       request<AppData>("/api/services", { method: "POST", body, token: getToken() }),
     addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; unit?: string }) =>
       request<AppData>("/api/products", { method: "POST", body, token: getToken() }),
