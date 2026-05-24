@@ -1,13 +1,26 @@
 import assert from "node:assert/strict";
 import {
+  addCustomerServiceRecord,
+  addSupplier,
   adjustInventory,
   checkoutOrder,
   createAppointment,
+  createApprovalRequest,
   createDailyClose,
+  createStaffShift,
   createStaffUnavailableSlot,
+  createStocktake,
+  completeCustomerFollowUp,
+  decideApprovalRequest,
+  extendMemberCard,
+  receivePurchaseOrder,
+  rechargeMemberCard,
   refundMemberCard,
   refundOrder,
   reportSummary,
+  reverseDailyClose,
+  transferMemberCard,
+  updateMemberCardStatus,
 } from "../src/domain/business";
 import { seedData } from "../src/domain/seed";
 import type { AppData } from "../src/domain/types";
@@ -362,4 +375,188 @@ function card(data: AppData, cardId: string) {
   assert.equal(data.inventoryLogs[0].note, "采购入库", "inventory note should be preserved");
 }
 
-console.log("业务规则验证通过：开单、扣库存、会员卡、项目次数卡、预约冲突、不可预约时段、日结、提成拆分、全额退款、部分退款、退卡、卡项流水、报表、库存调整。");
+{
+  assert.throws(
+    () =>
+      checkoutOrder(
+        cloneSeed(),
+        {
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          payMethod: "微信",
+          discountAmount: 50,
+          adjustmentReason: "活动价",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /需要审批/,
+    "discount checkout should require approved request",
+  );
+
+  const requested = createApprovalRequest(
+    cloneSeed(),
+    { type: "改价折扣", targetId: "manual", requestedBy: "u_frontdesk", amount: 50, reason: "活动价" },
+    { idFactory: testId, now: fixedNow },
+  );
+  const approved = decideApprovalRequest(
+    requested,
+    { approvalId: requested.approvalRequests[0].id, userId: "u_manager", approved: true },
+    { idFactory: testId, now: fixedNow },
+  );
+  const checkedOut = checkoutOrder(
+    approved,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+      discountAmount: 50,
+      adjustmentReason: "活动价",
+      approvalId: approved.approvalRequests[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOut.orders[0].paidAmount, 348, "approved discount should reduce paid amount");
+  assert.equal(checkedOut.orders[0].discountAmount, 50, "order should persist discount amount");
+}
+
+{
+  const recharged = rechargeMemberCard(
+    cloneSeed(),
+    { memberCardId: "m1", amount: 100, times: 0, note: "测试充值", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(recharged, "m1").balance, 2700, "member card recharge should increase balance");
+
+  const frozen = updateMemberCardStatus(
+    recharged,
+    { memberCardId: "m1", status: "冻结", reason: "风控冻结", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(frozen, "m1").status, "冻结", "member card should be frozen");
+
+  const extended = extendMemberCard(
+    frozen,
+    { memberCardId: "m1", expiresAt: "2028-12-31", reason: "延期", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(extended, "m1").expiresAt, "2028-12-31", "member card should extend expiry");
+
+  const transferred = transferMemberCard(
+    extended,
+    { memberCardId: "m1", toCustomerId: "c2", reason: "客户转卡", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(transferred, "m1").customerId, "c2", "member card should transfer owner");
+}
+
+{
+  const shifted = createStaffShift(
+    cloneSeed(),
+    {
+      staffId: "s3",
+      startAt: "2026-05-28T02:00:00.000Z",
+      endAt: "2026-05-28T03:00:00.000Z",
+      note: "早班",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.throws(
+    () =>
+      createAppointment(
+        shifted,
+        {
+          customerId: "c1",
+          staffId: "s3",
+          serviceId: "v1",
+          startAt: "2026-05-28T04:00:00.000Z",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /不在员工班次内/,
+    "appointment should reject time outside staff shift",
+  );
+}
+
+{
+  const withRecord = addCustomerServiceRecord(
+    cloneSeed(),
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      skinCondition: "敏感偏干",
+      beforeNote: "轻微泛红",
+      afterNote: "补水修护",
+      nextFollowUpAt: "2026-05-26T10:00:00.000Z",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(withRecord.customerServiceRecords.length, 1, "service record should be created");
+  assert.equal(withRecord.customerFollowUps[0].status, "待跟进", "service record should create follow-up");
+
+  const completed = completeCustomerFollowUp(
+    withRecord,
+    { followUpId: withRecord.customerFollowUps[0].id },
+    { now: fixedNow },
+  );
+  assert.equal(completed.customerFollowUps[0].status, "已完成", "follow-up should be completed");
+}
+
+{
+  const withSupplier = addSupplier(cloneSeed(), { name: "测试供应商", phone: "13800000000", contact: "王经理" }, { idFactory: testId });
+  const purchased = receivePurchaseOrder(
+    withSupplier,
+    { supplierId: withSupplier.suppliers[0].id, productId: "p1", quantity: 3, unitCost: 60, userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(purchased, "p1"), 21, "purchase order should increase stock");
+  assert.equal(purchased.inventoryLogs[0].type, "采购入库", "purchase order should log inbound stock");
+
+  const counted = createStocktake(
+    purchased,
+    { productId: "p1", actualStock: 19, reason: "盘点差异", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(counted, "p1"), 19, "stocktake should update actual stock");
+  assert.equal(counted.stocktakes[0].delta, -2, "stocktake should preserve stock delta");
+}
+
+{
+  const checkedOut = checkoutOrder(
+    cloneSeed(),
+    { customerId: "c1", staffId: "s2", serviceId: "v1", payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  const closed = createDailyClose(
+    checkedOut,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.throws(
+    () =>
+      adjustInventory(
+        closed,
+        { productId: "p1", type: "入库", quantity: 1 },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /已日结锁账/,
+    "daily close should lock same-day inventory changes",
+  );
+  const reversed = reverseDailyClose(
+    closed,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(reversed.dailyCloses[0].status, "已反结", "reverse daily close should unlock business date");
+  const adjusted = adjustInventory(
+    reversed,
+    { productId: "p1", type: "入库", quantity: 1 },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(adjusted, "p1"), 18, "inventory changes should be allowed after reverse close");
+}
+
+console.log("业务规则验证通过：P1 开单、审批、卡项、预约/班次、服务档案、回访、进销存、日结锁账/反结、退款、提成、报表。");

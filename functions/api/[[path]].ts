@@ -1,12 +1,26 @@
 import {
   addOperationLog,
+  addCustomerFollowUp,
+  addCustomerServiceRecord,
+  addSupplier,
   adjustInventory,
   checkoutOrder,
   createAppointment,
+  createApprovalRequest,
   createDailyClose,
+  createStaffShift,
   createStaffUnavailableSlot,
+  createStocktake,
+  completeCustomerFollowUp,
+  decideApprovalRequest,
+  extendMemberCard,
+  receivePurchaseOrder,
+  rechargeMemberCard,
   refundMemberCard,
   refundOrder,
+  reverseDailyClose,
+  transferMemberCard,
+  updateMemberCardStatus,
 } from "../../src/domain/business";
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, InventoryLog, Order } from "../../src/domain/types";
@@ -77,6 +91,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
           serviceId: requiredString(body, "serviceId"),
           productId: optionalString(body, "productId"),
+          discountAmount: optionalNumber(body, "discountAmount"),
+          adjustmentReason: optionalString(body, "adjustmentReason"),
+          approvalId: optionalString(body, "approvalId"),
           payMethod: requiredString(body, "payMethod") as Order["payMethod"],
           cardId: optionalString(body, "cardId"),
         }),
@@ -101,6 +118,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         reason: optionalString(body, "reason") ?? "门店退款",
         userId: session.user.id,
         amount: optionalNumber(body, "amount"),
+        approvalId: optionalString(body, "approvalId"),
       });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
@@ -157,6 +175,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         startAt: requiredString(body, "startAt"),
         endAt: requiredString(body, "endAt"),
         reason: optionalString(body, "reason") ?? "不可预约",
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/staff-shifts") {
+      requirePermission(session, "appointments:manage");
+      const body = await readJson(context.request);
+      const nextData = createStaffShift(await database.readData(), {
+        staffId: requiredString(body, "staffId"),
+        startAt: requiredString(body, "startAt"),
+        endAt: requiredString(body, "endAt"),
+        note: optionalString(body, "note") ?? "门店班次",
         userId: session.user.id,
       });
       await database.replaceData(nextData);
@@ -233,6 +265,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             expiresAt: optionalString(body, "expiresAt") ?? "2027-12-31",
             status: "正常",
             serviceId: optionalString(body, "serviceId"),
+            serviceIds: optionalStringArray(body, "serviceIds"),
           },
           ...data.memberCards,
         ],
@@ -253,6 +286,131 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }));
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/recharge")) {
+      requirePermission(session, "customers:manage");
+      const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = rechargeMemberCard(await database.readData(), {
+        memberCardId,
+        amount: optionalNumber(body, "amount") ?? 0,
+        giftAmount: optionalNumber(body, "giftAmount"),
+        times: optionalNumber(body, "times"),
+        giftTimes: optionalNumber(body, "giftTimes"),
+        note: optionalString(body, "note"),
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/status")) {
+      requirePermission(session, "customers:manage");
+      const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = updateMemberCardStatus(await database.readData(), {
+        memberCardId,
+        status: requiredString(body, "status") as "正常" | "冻结",
+        reason: optionalString(body, "reason") ?? "门店操作",
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/extend")) {
+      requirePermission(session, "customers:manage");
+      const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = extendMemberCard(await database.readData(), {
+        memberCardId,
+        expiresAt: requiredString(body, "expiresAt"),
+        reason: optionalString(body, "reason") ?? "会员卡延期",
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/transfer")) {
+      requirePermission(session, "customers:manage");
+      const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = transferMemberCard(await database.readData(), {
+        memberCardId,
+        toCustomerId: requiredString(body, "toCustomerId"),
+        reason: optionalString(body, "reason") ?? "会员转卡",
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/approvals") {
+      requirePermission(session, "pos:manage");
+      const body = await readJson(context.request);
+      const nextData = createApprovalRequest(await database.readData(), {
+        type: requiredString(body, "type") as "改价折扣" | "订单退款",
+        targetId: requiredString(body, "targetId"),
+        requestedBy: session.user.id,
+        amount: requiredNumber(body, "amount"),
+        reason: optionalString(body, "reason") ?? "门店审批",
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/approvals/")) {
+      requirePermission(session, "approvals:manage");
+      const approvalId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      const body = await readJson(context.request);
+      const nextData = decideApprovalRequest(await database.readData(), {
+        approvalId,
+        userId: session.user.id,
+        approved: optionalBoolean(body, "approved") ?? true,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/service-records") {
+      requirePermission(session, "customers:manage");
+      const body = await readJson(context.request);
+      const nextData = addCustomerServiceRecord(await database.readData(), {
+        customerId: requiredString(body, "customerId"),
+        staffId: requiredString(body, "staffId"),
+        serviceId: requiredString(body, "serviceId"),
+        orderId: optionalString(body, "orderId"),
+        skinCondition: optionalString(body, "skinCondition") ?? "",
+        beforeNote: optionalString(body, "beforeNote") ?? "",
+        afterNote: optionalString(body, "afterNote") ?? "",
+        nextFollowUpAt: optionalString(body, "nextFollowUpAt"),
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/follow-ups") {
+      requirePermission(session, "customers:manage");
+      const body = await readJson(context.request);
+      const nextData = addCustomerFollowUp(await database.readData(), {
+        customerId: requiredString(body, "customerId"),
+        staffId: requiredString(body, "staffId"),
+        dueAt: requiredString(body, "dueAt"),
+        method: requiredString(body, "method") as "电话" | "微信" | "到店",
+        note: optionalString(body, "note") ?? "",
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/follow-ups/")) {
+      requirePermission(session, "customers:manage");
+      const followUpId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      const nextData = completeCustomerFollowUp(await database.readData(), { followUpId });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/refund")) {
@@ -321,6 +479,45 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(201, scopeDataForSession(nextData, session));
     }
 
+    if (context.request.method === "POST" && pathname === "/api/suppliers") {
+      requirePermission(session, "inventory:manage");
+      const body = await readJson(context.request);
+      const nextData = addSupplier(await database.readData(), {
+        name: requiredString(body, "name"),
+        phone: optionalString(body, "phone") ?? "",
+        contact: optionalString(body, "contact") ?? "",
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/purchase-orders") {
+      requirePermission(session, "inventory:manage");
+      const body = await readJson(context.request);
+      const nextData = receivePurchaseOrder(await database.readData(), {
+        supplierId: requiredString(body, "supplierId"),
+        productId: requiredString(body, "productId"),
+        quantity: requiredNumber(body, "quantity"),
+        unitCost: requiredNumber(body, "unitCost"),
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/stocktakes") {
+      requirePermission(session, "inventory:manage");
+      const body = await readJson(context.request);
+      const nextData = createStocktake(await database.readData(), {
+        productId: requiredString(body, "productId"),
+        actualStock: requiredNumber(body, "actualStock"),
+        reason: optionalString(body, "reason") ?? "库存盘点",
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
     if (context.request.method === "POST" && pathname === "/api/commissions/settle") {
       requirePermission(session, "commissions:settle");
       const nextData = updateData(await database.readData(), session, {
@@ -345,6 +542,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/daily-close/reverse") {
+      requirePermission(session, "reports:view");
+      const body = await readJson(context.request);
+      const nextData = reverseDailyClose(await database.readData(), {
+        businessDate: requiredString(body, "businessDate"),
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
     }
 
     return sendJson(404, { error: "Not found" });
@@ -384,10 +592,14 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     ...data,
     customers: data.customers.filter((item) => customerIds.has(item.id)),
     appointments,
+    staffShifts: data.staffShifts.filter((item) => item.staffId === staffId),
     staffUnavailableSlots: data.staffUnavailableSlots.filter((item) => item.staffId === staffId),
     orders,
     refunds: data.refunds.filter((item) => orderIds.has(item.orderId)),
     commissions: data.commissions.filter((item) => item.staffId === staffId),
+    approvalRequests: [],
+    customerServiceRecords: data.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
+    customerFollowUps: data.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     operationLogs: data.operationLogs.filter((item) => item.userId === session.user.id),
     dailyCloses: [],
   };
@@ -446,6 +658,11 @@ function requiredNumber(body: JsonBody, key: string) {
 function optionalNumber(body: JsonBody, key: string) {
   const value = body[key];
   return typeof value === "number" && !Number.isNaN(value) ? value : undefined;
+}
+
+function optionalBoolean(body: JsonBody, key: string) {
+  const value = body[key];
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function optionalStringArray(body: JsonBody, key: string) {

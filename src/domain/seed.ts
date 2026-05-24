@@ -76,6 +76,11 @@ export const seedData: AppData = {
     { id: "a2", customerId: "c3", staffId: "s1", serviceId: "v3", startAt: tomorrowAt(14), status: "待确认", note: "老客套餐咨询" },
   ],
   staffUnavailableSlots: [],
+  staffShifts: [
+    { id: "ss1", staffId: "s1", startAt: tomorrowAt(9), endAt: tomorrowAt(21), note: "标准早晚班", createdBy: "u_manager", createdAt: nowIso() },
+    { id: "ss2", staffId: "s2", startAt: tomorrowAt(9), endAt: tomorrowAt(21), note: "标准早晚班", createdBy: "u_manager", createdAt: nowIso() },
+    { id: "ss3", staffId: "s3", startAt: tomorrowAt(9), endAt: tomorrowAt(21), note: "标准早晚班", createdBy: "u_manager", createdAt: nowIso() },
+  ],
   memberCards: [
     { id: "m1", customerId: "c1", name: "尊享储值卡", type: "储值卡", balance: 2600, remainingTimes: 0, expiresAt: "2027-12-31", status: "正常" },
     {
@@ -88,6 +93,7 @@ export const seedData: AppData = {
       expiresAt: "2027-06-30",
       status: "正常",
       serviceId: "v1",
+      serviceIds: ["v1"],
     },
   ],
   orders: [],
@@ -97,4 +103,12 @@ export const seedData: AppData = {
   memberCardTransactions: [],
   operationLogs: [],
   dailyCloses: [],
+  approvalRequests: [],
+  customerServiceRecords: [],
+  customerFollowUps: [],
+  suppliers: [
+    { id: "sp1", name: "一宸耗材供应商", phone: "021-6666-0000", contact: "张经理", status: "active" },
+  ],
+  purchaseOrders: [],
+  stocktakes: [],
 };

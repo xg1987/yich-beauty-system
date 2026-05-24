@@ -7,6 +7,7 @@ export type ViewKey =
   | "staff"
   | "inventory"
   | "reports"
+  | "approvals"
   | "settings";
 
 export type Staff = {
@@ -68,6 +69,16 @@ export type StaffUnavailableSlot = {
   createdAt: string;
 };
 
+export type StaffShift = {
+  id: string;
+  staffId: string;
+  startAt: string;
+  endAt: string;
+  note: string;
+  createdBy: string;
+  createdAt: string;
+};
+
 export type MemberCard = {
   id: string;
   customerId: string;
@@ -78,6 +89,7 @@ export type MemberCard = {
   expiresAt: string;
   status: "正常" | "冻结" | "过期" | "已退卡";
   serviceId?: string;
+  serviceIds?: string[];
 };
 
 export type Order = {
@@ -90,6 +102,9 @@ export type Order = {
   cardId?: string;
   totalAmount: number;
   paidAmount: number;
+  discountAmount: number;
+  adjustmentReason?: string;
+  approvalId?: string;
   payMethod: "现金" | "微信" | "支付宝" | "银行卡" | "会员卡";
   status: "已支付" | "部分退款" | "已退款";
   createdAt: string;
@@ -109,7 +124,7 @@ export type Commission = {
 export type InventoryLog = {
   id: string;
   productId: string;
-  type: "入库" | "服务消耗" | "销售出库" | "报损" | "盘点调整" | "退款回滚";
+  type: "入库" | "采购入库" | "服务消耗" | "销售出库" | "报损" | "盘点调整" | "退款回滚";
   delta: number;
   stockAfter: number;
   note: string;
@@ -129,7 +144,7 @@ export type MemberCardTransaction = {
   id: string;
   memberCardId: string;
   orderId?: string;
-  type: "开卡" | "充值" | "消费" | "退款" | "退卡" | "调整";
+  type: "开卡" | "充值" | "消费" | "退款" | "退卡" | "冻结" | "解冻" | "延期" | "转卡" | "调整";
   amountDelta: number;
   timesDelta: number;
   balanceAfter: number;
@@ -162,6 +177,77 @@ export type DailyClose = {
   commissionAmount: number;
   createdBy: string;
   createdAt: string;
+  status: "已锁定" | "已反结";
+  reversedBy?: string;
+  reversedAt?: string;
+};
+
+export type ApprovalRequest = {
+  id: string;
+  type: "改价折扣" | "订单退款";
+  targetId: string;
+  requestedBy: string;
+  amount: number;
+  reason: string;
+  status: "待审批" | "已通过" | "已拒绝";
+  approvedBy?: string;
+  approvedAt?: string;
+  createdAt: string;
+};
+
+export type CustomerServiceRecord = {
+  id: string;
+  customerId: string;
+  staffId: string;
+  serviceId: string;
+  orderId?: string;
+  skinCondition: string;
+  beforeNote: string;
+  afterNote: string;
+  nextFollowUpAt?: string;
+  createdAt: string;
+};
+
+export type CustomerFollowUp = {
+  id: string;
+  customerId: string;
+  staffId: string;
+  dueAt: string;
+  method: "电话" | "微信" | "到店";
+  note: string;
+  status: "待跟进" | "已完成";
+  completedAt?: string;
+  createdAt: string;
+};
+
+export type Supplier = {
+  id: string;
+  name: string;
+  phone: string;
+  contact: string;
+  status: "active" | "inactive";
+};
+
+export type PurchaseOrder = {
+  id: string;
+  supplierId: string;
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  status: "已入库";
+  createdBy: string;
+  createdAt: string;
+};
+
+export type Stocktake = {
+  id: string;
+  productId: string;
+  systemStock: number;
+  actualStock: number;
+  delta: number;
+  reason: string;
+  createdBy: string;
+  createdAt: string;
 };
 
 export type AppData = {
@@ -171,6 +257,7 @@ export type AppData = {
   products: Product[];
   appointments: Appointment[];
   staffUnavailableSlots: StaffUnavailableSlot[];
+  staffShifts: StaffShift[];
   memberCards: MemberCard[];
   orders: Order[];
   refunds: Refund[];
@@ -179,4 +266,10 @@ export type AppData = {
   memberCardTransactions: MemberCardTransaction[];
   operationLogs: OperationLog[];
   dailyCloses: DailyClose[];
+  approvalRequests: ApprovalRequest[];
+  customerServiceRecords: CustomerServiceRecord[];
+  customerFollowUps: CustomerFollowUp[];
+  suppliers: Supplier[];
+  purchaseOrders: PurchaseOrder[];
+  stocktakes: Stocktake[];
 };

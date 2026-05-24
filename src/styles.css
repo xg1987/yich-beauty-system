@@ -580,6 +580,38 @@ td > button {
   font-weight: 700;
 }
 
+.inline-form.compact {
+  align-items: end;
+  margin-top: 10px;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.inline-actions button,
+.secondary-button,
+.sub-panel button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.sub-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
 .checkout-total strong {
   font-size: 28px;
   color: var(--purple-dark);

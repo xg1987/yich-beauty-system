@@ -9,6 +9,7 @@ import {
   LockKeyhole,
   PackagePlus,
   Settings,
+  ShieldCheck,
   Sparkles,
   UsersRound,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "staff", label: "员工提成", icon: BadgeCent },
   { key: "inventory", label: "库存管理", icon: Boxes },
   { key: "reports", label: "报表分析", icon: ChartNoAxesColumnIncreasing },
+  { key: "approvals", label: "审批中心", icon: ShieldCheck },
   { key: "settings", label: "系统设置", icon: Settings },
 ];
 
@@ -96,6 +98,7 @@ export default function App() {
         {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />}
         {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "settings" && <SettingsView data={data} session={session} />}
       </main>
     </div>
@@ -194,6 +197,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const [blockedStartAt, setBlockedStartAt] = useState(toLocalInputValue(tomorrowAt(16)));
   const [blockedEndAt, setBlockedEndAt] = useState(toLocalInputValue(tomorrowAt(17)));
   const [blockedReason, setBlockedReason] = useState("员工休息/培训");
+  const [shiftStaffId, setShiftStaffId] = useState(data.staff[0]?.id ?? "");
+  const [shiftStartAt, setShiftStartAt] = useState(toLocalInputValue(tomorrowAt(9)));
+  const [shiftEndAt, setShiftEndAt] = useState(toLocalInputValue(tomorrowAt(21)));
+  const [shiftNote, setShiftNote] = useState("正常班");
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
@@ -213,6 +220,18 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         startAt: new Date(blockedStartAt).toISOString(),
         endAt: new Date(blockedEndAt).toISOString(),
         reason: blockedReason,
+      }),
+    );
+  };
+
+  const addShift = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.addStaffShift({
+        staffId: shiftStaffId,
+        startAt: new Date(shiftStartAt).toISOString(),
+        endAt: new Date(shiftEndAt).toISOString(),
+        note: shiftNote,
       }),
     );
   };
@@ -253,6 +272,24 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           </label>
           <button className="primary-button">锁定时间</button>
         </form>
+        <div className="divider" />
+        <PanelTitle icon={<CalendarDays size={18} />} title="员工排班" action="预约校验" />
+        <form className="form" onSubmit={addShift}>
+          <Select label="员工" value={shiftStaffId} onChange={setShiftStaffId} options={data.staff.map(optionOf)} />
+          <label>
+            上班时间
+            <input type="datetime-local" value={shiftStartAt} onChange={(event) => setShiftStartAt(event.target.value)} />
+          </label>
+          <label>
+            下班时间
+            <input type="datetime-local" value={shiftEndAt} onChange={(event) => setShiftEndAt(event.target.value)} />
+          </label>
+          <label>
+            班次说明
+            <input value={shiftNote} onChange={(event) => setShiftNote(event.target.value)} />
+          </label>
+          <button className="primary-button">保存班次</button>
+        </form>
       </section>
       <section className="panel wide">
         <PanelTitle icon={<ClipboardList size={18} />} title="预约列表" action="支持到店确认" />
@@ -285,6 +322,18 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             shortDate(slot.createdAt),
           ])}
         />
+        <div className="divider" />
+        <PanelTitle icon={<CalendarDays size={18} />} title="班次列表" action={`${data.staffShifts.length} 条`} />
+        <DataTable
+          columns={["员工", "上班", "下班", "说明", "创建时间"]}
+          rows={data.staffShifts.map((shift) => [
+            nameOf(data.staff, shift.staffId),
+            shortDate(shift.startAt),
+            shortDate(shift.endAt),
+            shift.note,
+            shortDate(shift.createdAt),
+          ])}
+        />
       </section>
     </div>
   );
@@ -298,10 +347,16 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [productId, setProductId] = useState("");
   const [payMethod, setPayMethod] = useState<Order["payMethod"]>("微信");
   const [cardId, setCardId] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [approvalId, setApprovalId] = useState("");
+  const [approvalReason, setApprovalReason] = useState("客户活动价");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
+  const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
 
   const availableCards = data.memberCards.filter((item) => item.customerId === customerId && item.status === "正常");
   const total = calculateOrderTotal(data, serviceId, productId || undefined);
+  const paidTotal = Math.max(0, total - discountAmount);
 
   const checkout = (event: FormEvent) => {
     event.preventDefault();
@@ -312,12 +367,29 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         collaboratorStaffIds,
         serviceId,
         productId: productId || undefined,
+        discountAmount: discountAmount || undefined,
+        adjustmentReason: adjustmentReason || undefined,
+        approvalId: approvalId || undefined,
         payMethod,
         cardId: payMethod === "会员卡" ? cardId : undefined,
       }),
     );
     setProductId("");
     setCollaboratorStaffIds([]);
+    setDiscountAmount(0);
+    setAdjustmentReason("");
+    setApprovalId("");
+  };
+
+  const requestDiscountApproval = () => {
+    void runMutation(() =>
+      actions.createApproval({
+        type: "改价折扣",
+        targetId: `${customerId}:${serviceId}`,
+        amount: discountAmount,
+        reason: approvalReason,
+      }),
+    );
   };
 
   return (
@@ -352,9 +424,37 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
               options={availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${item.balance ? money(item.balance) : `${item.remainingTimes} 次`}` }))}
             />
           )}
+          <label>
+            优惠/改价金额
+            <input type="number" value={discountAmount} onChange={(event) => setDiscountAmount(Number(event.target.value))} min={0} />
+          </label>
+          <label>
+            改价原因
+            <input value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="如老客维护、活动价" />
+          </label>
+          {discountAmount > 0 && (
+            <div className="sub-panel">
+              <label>
+                审批原因
+                <input value={approvalReason} onChange={(event) => setApprovalReason(event.target.value)} />
+              </label>
+              <button type="button" onClick={requestDiscountApproval}>提交改价审批</button>
+              <Select
+                label="已通过审批"
+                value={approvalId}
+                onChange={setApprovalId}
+                options={[
+                  { value: "", label: "选择审批单" },
+                  ...data.approvalRequests
+                    .filter((item) => item.type === "改价折扣" && item.status === "已通过" && item.amount >= discountAmount)
+                    .map((item) => ({ value: item.id, label: `${item.reason} · ${money(item.amount)}` })),
+                ]}
+              />
+            </div>
+          )}
           <div className="checkout-total">
             <span>应收金额</span>
-            <strong>{money(total)}</strong>
+            <strong>{money(paidTotal)}</strong>
           </div>
           <button className="primary-button" disabled={payMethod === "会员卡" && !cardId}>完成收银</button>
         </form>
@@ -369,7 +469,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
             nameOf(data.services, order.serviceId),
             nameOf(data.staff, order.staffId),
             order.payMethod,
-            money(order.paidAmount),
+            `${money(order.paidAmount)}${order.discountAmount ? ` / 优惠${money(order.discountAmount)}` : ""}`,
             <Badge key={`${order.id}-status`} text={order.status} tone={order.status === "已退款" ? "warn" : "ok"} />,
             shortDate(order.createdAt),
             order.status === "已支付" ? (
@@ -380,6 +480,12 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
                   value={refundAmounts[order.id] ?? ""}
                   onChange={(event) => setRefundAmounts((previous) => ({ ...previous, [order.id]: event.target.value }))}
                 />
+                <input
+                  aria-label={`${order.orderNo}退款审批`}
+                  placeholder="审批ID"
+                  value={refundApprovalIds[order.id] ?? ""}
+                  onChange={(event) => setRefundApprovalIds((previous) => ({ ...previous, [order.id]: event.target.value }))}
+                />
                 <button
                   onClick={() =>
                     void runMutation(() =>
@@ -387,6 +493,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
                         order.id,
                         "门店退款",
                         refundAmounts[order.id] ? Number(refundAmounts[order.id]) : undefined,
+                        refundApprovalIds[order.id] || undefined,
                       ),
                     )
                   }
@@ -412,6 +519,17 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [cardAmount, setCardAmount] = useState(1000);
   const [cardTimes, setCardTimes] = useState(0);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
+  const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
+  const [rechargeAmount, setRechargeAmount] = useState(300);
+  const [rechargeTimes, setRechargeTimes] = useState(0);
+  const [extendTo, setExtendTo] = useState("2027-12-31");
+  const [transferToCustomerId, setTransferToCustomerId] = useState(data.customers[1]?.id ?? data.customers[0]?.id ?? "");
+  const [recordCustomerId, setRecordCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [recordStaffId, setRecordStaffId] = useState(data.staff[1]?.id ?? data.staff[0]?.id ?? "");
+  const [recordServiceId, setRecordServiceId] = useState(data.services[0]?.id ?? "");
+  const [skinCondition, setSkinCondition] = useState("敏感偏干");
+  const [afterNote, setAfterNote] = useState("补水修护后泛红下降");
+  const [followUpAt, setFollowUpAt] = useState(toLocalInputValue(tomorrowAt(18)));
 
   const addCustomer = (event: FormEvent) => {
     event.preventDefault();
@@ -429,6 +547,32 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         balance: cardAmount,
         remainingTimes: cardTimes,
         serviceId: cardTimes > 0 ? cardServiceId : undefined,
+      }),
+    );
+  };
+
+  const rechargeCard = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.rechargeMemberCard(operationCardId, {
+        amount: rechargeAmount,
+        times: rechargeTimes,
+        note: "门店充值",
+      }),
+    );
+  };
+
+  const addServiceRecord = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.addServiceRecord({
+        customerId: recordCustomerId,
+        staffId: recordStaffId,
+        serviceId: recordServiceId,
+        skinCondition,
+        beforeNote: "到店皮肤检测",
+        afterNote,
+        nextFollowUpAt: followUpAt ? new Date(followUpAt).toISOString() : undefined,
       }),
     );
   };
@@ -451,6 +595,37 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>次数卡次数<input type="number" value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
           {cardTimes > 0 && <Select label="绑定项目" value={cardServiceId} onChange={setCardServiceId} options={data.services.map(optionOf)} />}
           <button className="primary-button">开卡</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<CreditCard size={18} />} title="卡项操作" action="充值/冻结/延期/转卡" />
+        <form className="form" onSubmit={rechargeCard}>
+          <Select label="会员卡" value={operationCardId} onChange={setOperationCardId} options={data.memberCards.map((card) => ({ value: card.id, label: `${nameOf(data.customers, card.customerId)} · ${card.name}` }))} />
+          <label>充值金额<input type="number" value={rechargeAmount} onChange={(event) => setRechargeAmount(Number(event.target.value))} /></label>
+          <label>充值次数<input type="number" value={rechargeTimes} onChange={(event) => setRechargeTimes(Number(event.target.value))} /></label>
+          <button className="primary-button">充值</button>
+        </form>
+        <div className="inline-actions">
+          <button onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "冻结", "门店冻结"))}>冻结</button>
+          <button onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "正常", "门店解冻"))}>解冻</button>
+        </div>
+        <div className="inline-form compact">
+          <label>延期至<input type="date" value={extendTo} onChange={(event) => setExtendTo(event.target.value)} /></label>
+          <button onClick={() => void runMutation(() => actions.extendMemberCard(operationCardId, extendTo, "客户延期"))}>延期</button>
+        </div>
+        <div className="inline-form compact">
+          <Select label="转给客户" value={transferToCustomerId} onChange={setTransferToCustomerId} options={data.customers.map(optionOf)} />
+          <button onClick={() => void runMutation(() => actions.transferMemberCard(operationCardId, transferToCustomerId, "客户转卡"))}>转卡</button>
+        </div>
+        <div className="divider" />
+        <PanelTitle icon={<ClipboardList size={18} />} title="服务档案" action="护理记录/回访" />
+        <form className="form" onSubmit={addServiceRecord}>
+          <Select label="客户" value={recordCustomerId} onChange={setRecordCustomerId} options={data.customers.map(optionOf)} />
+          <Select label="员工" value={recordStaffId} onChange={setRecordStaffId} options={data.staff.map(optionOf)} />
+          <Select label="项目" value={recordServiceId} onChange={setRecordServiceId} options={data.services.map(optionOf)} />
+          <label>皮肤情况<input value={skinCondition} onChange={(event) => setSkinCondition(event.target.value)} /></label>
+          <label>服务记录<textarea value={afterNote} onChange={(event) => setAfterNote(event.target.value)} /></label>
+          <label>下次回访<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></label>
+          <button className="primary-button">保存档案</button>
         </form>
       </section>
       <section className="panel wide">
@@ -503,6 +678,37 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             transaction.remainingTimesAfter,
             transaction.note,
             shortDate(transaction.createdAt),
+          ])}
+        />
+        <div className="divider" />
+        <PanelTitle icon={<ClipboardList size={18} />} title="护理档案" action={`${data.customerServiceRecords.length} 条`} />
+        <DataTable
+          columns={["客户", "员工", "项目", "皮肤情况", "服务记录", "时间"]}
+          rows={data.customerServiceRecords.map((record) => [
+            nameOf(data.customers, record.customerId),
+            nameOf(data.staff, record.staffId),
+            nameOf(data.services, record.serviceId),
+            record.skinCondition,
+            record.afterNote,
+            shortDate(record.createdAt),
+          ])}
+        />
+        <div className="divider" />
+        <PanelTitle icon={<ClipboardList size={18} />} title="客户跟进" action={`${data.customerFollowUps.length} 条`} />
+        <DataTable
+          columns={["客户", "员工", "方式", "计划时间", "状态", "备注", "操作"]}
+          rows={data.customerFollowUps.map((followUp) => [
+            nameOf(data.customers, followUp.customerId),
+            nameOf(data.staff, followUp.staffId),
+            followUp.method,
+            shortDate(followUp.dueAt),
+            <Badge key={`${followUp.id}-status`} text={followUp.status} />,
+            followUp.note,
+            followUp.status === "待跟进" ? (
+              <button key={`${followUp.id}-done`} onClick={() => void runMutation(() => actions.completeFollowUp(followUp.id))}>完成</button>
+            ) : (
+              "已完成"
+            ),
           ])}
         />
       </section>
@@ -593,10 +799,33 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [quantity, setQuantity] = useState(1);
   const [type, setType] = useState<InventoryLog["type"]>("入库");
+  const [supplierName, setSupplierName] = useState("本地耗材供应商");
+  const [supplierPhone, setSupplierPhone] = useState("13800000000");
+  const [supplierId, setSupplierId] = useState(data.suppliers[0]?.id ?? "");
+  const [purchaseProductId, setPurchaseProductId] = useState(data.products[0]?.id ?? "");
+  const [purchaseQuantity, setPurchaseQuantity] = useState(5);
+  const [unitCost, setUnitCost] = useState(68);
+  const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
+  const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
 
   const changeStock = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() => actions.adjustInventory({ productId, type, quantity }));
+  };
+
+  const addSupplier = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.addSupplier({ name: supplierName, phone: supplierPhone, contact: "采购联系人" }));
+  };
+
+  const receivePurchase = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.receivePurchaseOrder({ supplierId, productId: purchaseProductId, quantity: purchaseQuantity, unitCost }));
+  };
+
+  const createStocktake = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.createStocktake({ productId: stocktakeProductId, actualStock, reason: "门店盘点" }));
   };
 
   return (
@@ -608,6 +837,29 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           <Select label="操作类型" value={type} onChange={(value) => setType(value as InventoryLog["type"])} options={["入库", "报损", "盘点调整"].map((item) => ({ value: item, label: item }))} />
           <label>数量<input type="number" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
           <button className="primary-button">保存库存流水</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<Boxes size={18} />} title="供应商" action="采购基础资料" />
+        <form className="form" onSubmit={addSupplier}>
+          <label>供应商名称<input value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label>
+          <label>联系电话<input value={supplierPhone} onChange={(event) => setSupplierPhone(event.target.value)} /></label>
+          <button className="primary-button">新增供应商</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="采购入库" action="生成采购单" />
+        <form className="form" onSubmit={receivePurchase}>
+          <Select label="供应商" value={supplierId} onChange={setSupplierId} options={data.suppliers.map(optionOf)} />
+          <Select label="商品/耗材" value={purchaseProductId} onChange={setPurchaseProductId} options={data.products.map(optionOf)} />
+          <label>入库数量<input type="number" value={purchaseQuantity} onChange={(event) => setPurchaseQuantity(Number(event.target.value))} /></label>
+          <label>采购单价<input type="number" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label>
+          <button className="primary-button">确认入库</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<ClipboardList size={18} />} title="库存盘点" action="调整账实差异" />
+        <form className="form" onSubmit={createStocktake}>
+          <Select label="商品/耗材" value={stocktakeProductId} onChange={setStocktakeProductId} options={data.products.map(optionOf)} />
+          <label>实盘库存<input type="number" value={actualStock} onChange={(event) => setActualStock(Number(event.target.value))} /></label>
+          <button className="primary-button">提交盘点</button>
         </form>
       </section>
       <section className="panel wide">
@@ -625,6 +877,31 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
         <div className="divider" />
         <PanelTitle icon={<ClipboardList size={18} />} title="库存流水" action="自动记录" />
         <DataTable columns={["商品", "类型", "变动", "结余", "备注", "时间"]} rows={data.inventoryLogs.map((log) => [nameOf(data.products, log.productId), log.type, log.delta, log.stockAfter, log.note, shortDate(log.createdAt)])} />
+        <div className="divider" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="采购与盘点记录" action="P1 门店进销存" />
+        <div className="split-list">
+          <DataTable
+            columns={["供应商", "商品", "数量", "单价", "时间"]}
+            rows={data.purchaseOrders.map((order) => [
+              nameOf(data.suppliers, order.supplierId),
+              nameOf(data.products, order.productId),
+              order.quantity,
+              money(order.unitCost),
+              shortDate(order.createdAt),
+            ])}
+          />
+          <DataTable
+            columns={["商品", "账面", "实盘", "差异", "原因", "时间"]}
+            rows={data.stocktakes.map((stocktake) => [
+              nameOf(data.products, stocktake.productId),
+              stocktake.systemStock,
+              stocktake.actualStock,
+              stocktake.delta,
+              stocktake.reason,
+              shortDate(stocktake.createdAt),
+            ])}
+          />
+        </div>
       </section>
     </div>
   );
@@ -674,11 +951,13 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           businessDate={businessDate}
           setBusinessDate={setBusinessDate}
           onClose={() => void runMutation(() => actions.createDailyClose(businessDate))}
+          onReverse={() => void runMutation(() => actions.reverseDailyClose(businessDate))}
         />
         <DataTable
-          columns={["营业日", "实收", "退款", "订单", "微信", "会员卡", "提成", "时间"]}
+          columns={["营业日", "状态", "实收", "退款", "订单", "微信", "会员卡", "提成", "时间"]}
           rows={data.dailyCloses.map((item) => [
             item.businessDate,
+            <Badge key={`${item.id}-status`} text={item.status} tone={item.status === "已反结" ? "warn" : "ok"} />,
             money(item.revenue),
             money(item.refundAmount),
             item.orderCount,
@@ -693,14 +972,66 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   );
 }
 
+function Approvals({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  const [type, setType] = useState<"改价折扣" | "订单退款">("改价折扣");
+  const [targetId, setTargetId] = useState("manual");
+  const [amount, setAmount] = useState(100);
+  const [reason, setReason] = useState("门店例外处理");
+
+  const createApproval = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.createApproval({ type, targetId, amount, reason }));
+  };
+
+  return (
+    <div className="content-grid">
+      <section className="panel">
+        <PanelTitle icon={<ShieldCheck size={18} />} title="提交审批" action="改价/退款" />
+        <form className="form" onSubmit={createApproval}>
+          <Select label="审批类型" value={type} onChange={(value) => setType(value as "改价折扣" | "订单退款")} options={["改价折扣", "订单退款"].map((item) => ({ value: item, label: item }))} />
+          <label>关联对象<input value={targetId} onChange={(event) => setTargetId(event.target.value)} /></label>
+          <label>金额<input type="number" value={amount} onChange={(event) => setAmount(Number(event.target.value))} /></label>
+          <label>原因<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+          <button className="primary-button">提交审批</button>
+        </form>
+      </section>
+      <section className="panel wide">
+        <PanelTitle icon={<ShieldCheck size={18} />} title="审批列表" action={`${data.approvalRequests.length} 条`} />
+        <DataTable
+          columns={["类型", "对象", "金额", "原因", "申请人", "状态", "时间", "操作"]}
+          rows={data.approvalRequests.map((approval) => [
+            approval.type,
+            approval.targetId,
+            money(approval.amount),
+            approval.reason,
+            nameOf(data.staff, data.staff.find((staff) => staff.id === approval.requestedBy)?.id ?? "") || approval.requestedBy,
+            <Badge key={`${approval.id}-status`} text={approval.status} tone={approval.status === "已拒绝" ? "warn" : approval.status === "已通过" ? "ok" : undefined} />,
+            shortDate(approval.createdAt),
+            approval.status === "待审批" ? (
+              <div key={`${approval.id}-actions`} className="row-actions">
+                <button onClick={() => void runMutation(() => actions.decideApproval(approval.id, true))}>通过</button>
+                <button onClick={() => void runMutation(() => actions.decideApproval(approval.id, false))}>拒绝</button>
+              </div>
+            ) : (
+              approval.approvedAt ? shortDate(approval.approvedAt) : "已处理"
+            ),
+          ])}
+        />
+      </section>
+    </div>
+  );
+}
+
 function DailyCloseControl({
   businessDate,
   setBusinessDate,
   onClose,
+  onReverse,
 }: {
   businessDate: string;
   setBusinessDate: (value: string) => void;
   onClose: () => void;
+  onReverse: () => void;
 }) {
   return (
     <div className="inline-form">
@@ -709,6 +1040,7 @@ function DailyCloseControl({
         <input type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} />
       </label>
       <button onClick={onClose}>生成日结</button>
+      <button className="secondary-button" onClick={onReverse}>反结解锁</button>
     </div>
   );
 }

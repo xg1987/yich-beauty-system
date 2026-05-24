@@ -20,13 +20,16 @@ export function createApiClient(getToken: () => string | undefined) {
       collaboratorStaffIds?: string[];
       serviceId: string;
       productId?: string;
+      discountAmount?: number;
+      adjustmentReason?: string;
+      approvalId?: string;
       payMethod: Order["payMethod"];
       cardId?: string;
     }) => request<AppData>("/api/checkout", { method: "POST", body, token: getToken() }),
-    refundOrder: (orderId: string, reason: string, amount?: number) =>
+    refundOrder: (orderId: string, reason: string, amount?: number, approvalId?: string) =>
       request<AppData>(`/api/orders/${encodeURIComponent(orderId)}/refund`, {
         method: "POST",
-        body: { reason, amount },
+        body: { reason, amount, approvalId },
         token: getToken(),
       }),
     adjustInventory: (body: { productId: string; type: InventoryLog["type"]; quantity: number; note?: string }) =>
@@ -35,6 +38,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/appointments", { method: "POST", body, token: getToken() }),
     addStaffUnavailableSlot: (body: { staffId: string; startAt: string; endAt: string; reason: string }) =>
       request<AppData>("/api/staff-unavailable-slots", { method: "POST", body, token: getToken() }),
+    addStaffShift: (body: { staffId: string; startAt: string; endAt: string; note: string }) =>
+      request<AppData>("/api/staff-shifts", { method: "POST", body, token: getToken() }),
     updateAppointmentStatus: (id: string, status: Appointment["status"]) =>
       request<AppData>(`/api/appointments/${encodeURIComponent(id)}`, {
         method: "PATCH",
@@ -43,9 +48,7 @@ export function createApiClient(getToken: () => string | undefined) {
       }),
     addCustomer: (body: { name: string; phone: string }) =>
       request<AppData>("/api/customers", { method: "POST", body, token: getToken() }),
-    openMemberCard: (body: { customerId: string; name: string; balance: number; remainingTimes: number }) =>
-      request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
-    openProjectMemberCard: (body: { customerId: string; name: string; balance: number; remainingTimes: number; serviceId?: string }) =>
+    openMemberCard: (body: { customerId: string; name: string; balance: number; remainingTimes: number; serviceId?: string; serviceIds?: string[] }) =>
       request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
     refundMemberCard: (memberCardId: string, reason: string) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/refund`, {
@@ -53,13 +56,71 @@ export function createApiClient(getToken: () => string | undefined) {
         body: { reason },
         token: getToken(),
       }),
+    rechargeMemberCard: (memberCardId: string, body: { amount?: number; giftAmount?: number; times?: number; giftTimes?: number; note?: string }) =>
+      request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/recharge`, {
+        method: "POST",
+        body,
+        token: getToken(),
+      }),
+    updateMemberCardStatus: (memberCardId: string, status: "正常" | "冻结", reason: string) =>
+      request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/status`, {
+        method: "PATCH",
+        body: { status, reason },
+        token: getToken(),
+      }),
+    extendMemberCard: (memberCardId: string, expiresAt: string, reason: string) =>
+      request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/extend`, {
+        method: "PATCH",
+        body: { expiresAt, reason },
+        token: getToken(),
+      }),
+    transferMemberCard: (memberCardId: string, toCustomerId: string, reason: string) =>
+      request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/transfer`, {
+        method: "POST",
+        body: { toCustomerId, reason },
+        token: getToken(),
+      }),
+    createApproval: (body: { type: "改价折扣" | "订单退款"; targetId: string; amount: number; reason: string }) =>
+      request<AppData>("/api/approvals", { method: "POST", body, token: getToken() }),
+    decideApproval: (approvalId: string, approved: boolean) =>
+      request<AppData>(`/api/approvals/${encodeURIComponent(approvalId)}`, {
+        method: "PATCH",
+        body: { approved },
+        token: getToken(),
+      }),
+    addServiceRecord: (body: {
+      customerId: string;
+      staffId: string;
+      serviceId: string;
+      orderId?: string;
+      skinCondition?: string;
+      beforeNote?: string;
+      afterNote?: string;
+      nextFollowUpAt?: string;
+    }) => request<AppData>("/api/service-records", { method: "POST", body, token: getToken() }),
+    addFollowUp: (body: { customerId: string; staffId: string; dueAt: string; method: "电话" | "微信" | "到店"; note: string }) =>
+      request<AppData>("/api/follow-ups", { method: "POST", body, token: getToken() }),
+    completeFollowUp: (followUpId: string) =>
+      request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", token: getToken() }),
     addService: (body: { name: string; price: number; category?: string; duration?: number }) =>
       request<AppData>("/api/services", { method: "POST", body, token: getToken() }),
     addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; unit?: string }) =>
       request<AppData>("/api/products", { method: "POST", body, token: getToken() }),
+    addSupplier: (body: { name: string; phone?: string; contact?: string }) =>
+      request<AppData>("/api/suppliers", { method: "POST", body, token: getToken() }),
+    receivePurchaseOrder: (body: { supplierId: string; productId: string; quantity: number; unitCost: number }) =>
+      request<AppData>("/api/purchase-orders", { method: "POST", body, token: getToken() }),
+    createStocktake: (body: { productId: string; actualStock: number; reason: string }) =>
+      request<AppData>("/api/stocktakes", { method: "POST", body, token: getToken() }),
     settleCommissions: () => request<AppData>("/api/commissions/settle", { method: "POST", token: getToken() }),
     createDailyClose: (businessDate: string) =>
       request<AppData>("/api/daily-close", {
+        method: "POST",
+        body: { businessDate },
+        token: getToken(),
+      }),
+    reverseDailyClose: (businessDate: string) =>
+      request<AppData>("/api/daily-close/reverse", {
         method: "POST",
         body: { businessDate },
         token: getToken(),

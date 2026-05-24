@@ -1,9 +1,12 @@
 import { seedData } from "../domain/seed";
 import type {
   AppData,
+  ApprovalRequest,
   Appointment,
   Commission,
   Customer,
+  CustomerFollowUp,
+  CustomerServiceRecord,
   DailyClose,
   InventoryLog,
   MemberCard,
@@ -11,10 +14,14 @@ import type {
   OperationLog,
   Order,
   Product,
+  PurchaseOrder,
   Refund,
   Service,
   Staff,
+  StaffShift,
   StaffUnavailableSlot,
+  Stocktake,
+  Supplier,
 } from "../domain/types";
 import type { D1DatabaseBinding, D1PreparedStatement, D1Value } from "./d1Types";
 
@@ -27,6 +34,7 @@ const tableNames: TableName[] = [
   "products",
   "appointments",
   "staffUnavailableSlots",
+  "staffShifts",
   "memberCards",
   "orders",
   "refunds",
@@ -35,6 +43,12 @@ const tableNames: TableName[] = [
   "memberCardTransactions",
   "operationLogs",
   "dailyCloses",
+  "approvalRequests",
+  "customerServiceRecords",
+  "customerFollowUps",
+  "suppliers",
+  "purchaseOrders",
+  "stocktakes",
 ];
 
 export class D1BeautyDatabase {
@@ -62,6 +76,7 @@ export class D1BeautyDatabase {
         "SELECT * FROM staffUnavailableSlots ORDER BY startAt ASC",
         mapStaffUnavailableSlot,
       ),
+      staffShifts: await this.all("SELECT payload_json FROM staffShifts ORDER BY rowid DESC", mapJsonPayload<StaffShift>),
       memberCards: await this.all("SELECT * FROM memberCards ORDER BY rowid ASC", mapMemberCard),
       orders: await this.all("SELECT * FROM orders ORDER BY rowid DESC", mapOrder),
       refunds: await this.all("SELECT * FROM refunds ORDER BY rowid DESC", mapRefund),
@@ -73,6 +88,15 @@ export class D1BeautyDatabase {
       ),
       operationLogs: await this.all("SELECT * FROM operationLogs ORDER BY rowid DESC", mapOperationLog),
       dailyCloses: await this.all("SELECT * FROM dailyCloses ORDER BY businessDate DESC", mapDailyClose),
+      approvalRequests: await this.all("SELECT payload_json FROM approvalRequests ORDER BY rowid DESC", mapJsonPayload<ApprovalRequest>),
+      customerServiceRecords: await this.all(
+        "SELECT payload_json FROM customerServiceRecords ORDER BY rowid DESC",
+        mapJsonPayload<CustomerServiceRecord>,
+      ),
+      customerFollowUps: await this.all("SELECT payload_json FROM customerFollowUps ORDER BY rowid DESC", mapJsonPayload<CustomerFollowUp>),
+      suppliers: await this.all("SELECT payload_json FROM suppliers ORDER BY rowid DESC", mapJsonPayload<Supplier>),
+      purchaseOrders: await this.all("SELECT payload_json FROM purchaseOrders ORDER BY rowid DESC", mapJsonPayload<PurchaseOrder>),
+      stocktakes: await this.all("SELECT payload_json FROM stocktakes ORDER BY rowid DESC", mapJsonPayload<Stocktake>),
     };
   }
 
@@ -172,10 +196,12 @@ export class D1BeautyDatabase {
       );
     }
 
+    this.writeJsonTable(statements, "staffShifts", data.staffShifts);
+
     for (const card of data.memberCards) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCards (id, customerId, name, type, balance, remainingTimes, expiresAt, status, serviceId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCards (id, customerId, name, type, balance, remainingTimes, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             card.id,
             card.customerId,
@@ -186,6 +212,7 @@ export class D1BeautyDatabase {
             card.expiresAt,
             card.status,
             card.serviceId ?? null,
+            JSON.stringify(card.serviceIds ?? []),
           ],
         ),
       );
@@ -194,7 +221,7 @@ export class D1BeautyDatabase {
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.orderNo,
@@ -205,6 +232,9 @@ export class D1BeautyDatabase {
             order.cardId ?? null,
             order.totalAmount,
             order.paidAmount,
+            order.discountAmount ?? 0,
+            order.adjustmentReason ?? null,
+            order.approvalId ?? null,
             order.payMethod,
             order.status,
             order.createdAt,
@@ -290,7 +320,7 @@ export class D1BeautyDatabase {
     for (const close of data.dailyCloses) {
       statements.push(
         this.statement(
-          "INSERT INTO dailyCloses (id, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO dailyCloses (id, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             close.id,
             close.businessDate,
@@ -305,12 +335,28 @@ export class D1BeautyDatabase {
             close.commissionAmount,
             close.createdBy,
             close.createdAt,
+            close.status ?? "已锁定",
+            close.reversedBy ?? null,
+            close.reversedAt ?? null,
           ],
         ),
       );
     }
 
+    this.writeJsonTable(statements, "approvalRequests", data.approvalRequests);
+    this.writeJsonTable(statements, "customerServiceRecords", data.customerServiceRecords);
+    this.writeJsonTable(statements, "customerFollowUps", data.customerFollowUps);
+    this.writeJsonTable(statements, "suppliers", data.suppliers);
+    this.writeJsonTable(statements, "purchaseOrders", data.purchaseOrders);
+    this.writeJsonTable(statements, "stocktakes", data.stocktakes);
+
     return statements;
+  }
+
+  private writeJsonTable(statements: D1PreparedStatement[], tableName: string, rows: Array<{ id: string }>) {
+    for (const row of rows) {
+      statements.push(this.statement(`INSERT INTO ${tableName} (id, payload_json) VALUES (?, ?)`, [row.id, JSON.stringify(row)]));
+    }
   }
 
   private statement(query: string, values: D1Value[]) {
@@ -349,8 +395,12 @@ function mapStaffUnavailableSlot(row: unknown): StaffUnavailableSlot {
 }
 
 function mapMemberCard(row: unknown): MemberCard {
-  const value = row as MemberCard;
-  return { ...value, serviceId: value.serviceId ?? undefined };
+  const value = row as MemberCard & { serviceIds_json?: string };
+  return {
+    ...value,
+    serviceId: value.serviceId ?? undefined,
+    serviceIds: value.serviceIds_json ? (JSON.parse(value.serviceIds_json) as string[]) : undefined,
+  };
 }
 
 function mapOrder(row: unknown): Order {
@@ -359,6 +409,9 @@ function mapOrder(row: unknown): Order {
     ...value,
     productId: value.productId ?? undefined,
     cardId: value.cardId ?? undefined,
+    discountAmount: value.discountAmount ?? 0,
+    adjustmentReason: value.adjustmentReason ?? undefined,
+    approvalId: value.approvalId ?? undefined,
   };
 }
 
@@ -384,5 +437,15 @@ function mapOperationLog(row: unknown): OperationLog {
 }
 
 function mapDailyClose(row: unknown): DailyClose {
-  return row as DailyClose;
+  const value = row as DailyClose;
+  return {
+    ...value,
+    status: value.status ?? "已锁定",
+    reversedBy: value.reversedBy ?? undefined,
+    reversedAt: value.reversedAt ?? undefined,
+  };
+}
+
+function mapJsonPayload<T>(row: unknown): T {
+  return JSON.parse((row as { payload_json: string }).payload_json) as T;
 }

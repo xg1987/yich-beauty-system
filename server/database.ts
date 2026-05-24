@@ -4,9 +4,12 @@ import { DatabaseSync } from "node:sqlite";
 import { seedData } from "../src/domain/seed";
 import type {
   AppData,
+  ApprovalRequest,
   Appointment,
   Commission,
   Customer,
+  CustomerFollowUp,
+  CustomerServiceRecord,
   DailyClose,
   InventoryLog,
   MemberCard,
@@ -14,10 +17,14 @@ import type {
   OperationLog,
   Order,
   Product,
+  PurchaseOrder,
   Refund,
   Service,
   Staff,
+  StaffShift,
   StaffUnavailableSlot,
+  Stocktake,
+  Supplier,
 } from "../src/domain/types";
 
 const DEFAULT_DB_PATH = resolve("data/yich-system.sqlite");
@@ -31,6 +38,7 @@ const tableNames: TableName[] = [
   "products",
   "appointments",
   "staffUnavailableSlots",
+  "staffShifts",
   "memberCards",
   "orders",
   "refunds",
@@ -39,6 +47,12 @@ const tableNames: TableName[] = [
   "memberCardTransactions",
   "operationLogs",
   "dailyCloses",
+  "approvalRequests",
+  "customerServiceRecords",
+  "customerFollowUps",
+  "suppliers",
+  "purchaseOrders",
+  "stocktakes",
 ];
 
 export class BeautyDatabase {
@@ -88,6 +102,7 @@ export class BeautyDatabase {
         .prepare("SELECT * FROM staffUnavailableSlots ORDER BY startAt ASC")
         .all()
         .map(mapStaffUnavailableSlot),
+      staffShifts: this.db.prepare("SELECT payload_json FROM staffShifts ORDER BY rowid DESC").all().map(mapJsonPayload<StaffShift>),
       memberCards: this.db.prepare("SELECT * FROM memberCards ORDER BY rowid ASC").all().map(mapMemberCard),
       orders: this.db.prepare("SELECT * FROM orders ORDER BY rowid DESC").all().map(mapOrder),
       refunds: this.db.prepare("SELECT * FROM refunds ORDER BY rowid DESC").all().map(mapRefund),
@@ -99,6 +114,15 @@ export class BeautyDatabase {
         .map(mapMemberCardTransaction),
       operationLogs: this.db.prepare("SELECT * FROM operationLogs ORDER BY rowid DESC").all().map(mapOperationLog),
       dailyCloses: this.db.prepare("SELECT * FROM dailyCloses ORDER BY businessDate DESC").all().map(mapDailyClose),
+      approvalRequests: this.db.prepare("SELECT payload_json FROM approvalRequests ORDER BY rowid DESC").all().map(mapJsonPayload<ApprovalRequest>),
+      customerServiceRecords: this.db
+        .prepare("SELECT payload_json FROM customerServiceRecords ORDER BY rowid DESC")
+        .all()
+        .map(mapJsonPayload<CustomerServiceRecord>),
+      customerFollowUps: this.db.prepare("SELECT payload_json FROM customerFollowUps ORDER BY rowid DESC").all().map(mapJsonPayload<CustomerFollowUp>),
+      suppliers: this.db.prepare("SELECT payload_json FROM suppliers ORDER BY rowid DESC").all().map(mapJsonPayload<Supplier>),
+      purchaseOrders: this.db.prepare("SELECT payload_json FROM purchaseOrders ORDER BY rowid DESC").all().map(mapJsonPayload<PurchaseOrder>),
+      stocktakes: this.db.prepare("SELECT payload_json FROM stocktakes ORDER BY rowid DESC").all().map(mapJsonPayload<Stocktake>),
     };
   }
 
@@ -175,10 +199,12 @@ export class BeautyDatabase {
         .run(slot.id, slot.staffId, slot.startAt, slot.endAt, slot.reason, slot.createdBy, slot.createdAt);
     }
 
+    this.writeJsonTable("staffShifts", data.staffShifts);
+
     for (const card of data.memberCards) {
       this.db
         .prepare(
-          "INSERT INTO memberCards (id, customerId, name, type, balance, remainingTimes, expiresAt, status, serviceId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCards (id, customerId, name, type, balance, remainingTimes, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           card.id,
@@ -190,13 +216,14 @@ export class BeautyDatabase {
           card.expiresAt,
           card.status,
           card.serviceId ?? null,
+          JSON.stringify(card.serviceIds ?? []),
         );
     }
 
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -208,6 +235,9 @@ export class BeautyDatabase {
           order.cardId ?? null,
           order.totalAmount,
           order.paidAmount,
+          order.discountAmount ?? 0,
+          order.adjustmentReason ?? null,
+          order.approvalId ?? null,
           order.payMethod,
           order.status,
           order.createdAt,
@@ -275,7 +305,7 @@ export class BeautyDatabase {
     for (const close of data.dailyCloses) {
       this.db
         .prepare(
-          "INSERT INTO dailyCloses (id, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO dailyCloses (id, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           close.id,
@@ -291,7 +321,23 @@ export class BeautyDatabase {
           close.commissionAmount,
           close.createdBy,
           close.createdAt,
+          close.status ?? "已锁定",
+          close.reversedBy ?? null,
+          close.reversedAt ?? null,
         );
+    }
+
+    this.writeJsonTable("approvalRequests", data.approvalRequests);
+    this.writeJsonTable("customerServiceRecords", data.customerServiceRecords);
+    this.writeJsonTable("customerFollowUps", data.customerFollowUps);
+    this.writeJsonTable("suppliers", data.suppliers);
+    this.writeJsonTable("purchaseOrders", data.purchaseOrders);
+    this.writeJsonTable("stocktakes", data.stocktakes);
+  }
+
+  private writeJsonTable(tableName: string, rows: Array<{ id: string }>) {
+    for (const row of rows) {
+      this.db.prepare(`INSERT INTO ${tableName} (id, payload_json) VALUES (?, ?)`).run(row.id, JSON.stringify(row));
     }
   }
 
@@ -356,6 +402,11 @@ export class BeautyDatabase {
         createdAt TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS staffShifts (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS memberCards (
         id TEXT PRIMARY KEY,
         customerId TEXT NOT NULL,
@@ -365,7 +416,8 @@ export class BeautyDatabase {
         remainingTimes INTEGER NOT NULL,
         expiresAt TEXT NOT NULL,
         status TEXT NOT NULL,
-        serviceId TEXT
+        serviceId TEXT,
+        serviceIds_json TEXT
       );
 
       CREATE TABLE IF NOT EXISTS orders (
@@ -378,6 +430,9 @@ export class BeautyDatabase {
         cardId TEXT,
         totalAmount REAL NOT NULL,
         paidAmount REAL NOT NULL,
+        discountAmount REAL NOT NULL DEFAULT 0,
+        adjustmentReason TEXT,
+        approvalId TEXT,
         payMethod TEXT NOT NULL,
         status TEXT NOT NULL,
         createdAt TEXT NOT NULL
@@ -449,11 +504,51 @@ export class BeautyDatabase {
         memberCardAmount REAL NOT NULL,
         commissionAmount REAL NOT NULL,
         createdBy TEXT NOT NULL,
-        createdAt TEXT NOT NULL
+        createdAt TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT '已锁定',
+        reversedBy TEXT,
+        reversedAt TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS approvalRequests (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS customerServiceRecords (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS customerFollowUps (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS purchaseOrders (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS stocktakes (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
       );
     `);
 
     this.addColumnIfMissing("memberCards", "serviceId", "TEXT");
+    this.addColumnIfMissing("memberCards", "serviceIds_json", "TEXT");
+    this.addColumnIfMissing("orders", "discountAmount", "REAL NOT NULL DEFAULT 0");
+    this.addColumnIfMissing("orders", "adjustmentReason", "TEXT");
+    this.addColumnIfMissing("orders", "approvalId", "TEXT");
+    this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
+    this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
+    this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
   }
 
   private addColumnIfMissing(tableName: string, columnName: string, definition: string) {
@@ -495,8 +590,12 @@ function mapStaffUnavailableSlot(row: unknown): StaffUnavailableSlot {
 }
 
 function mapMemberCard(row: unknown): MemberCard {
-  const value = row as MemberCard;
-  return { ...value, serviceId: value.serviceId ?? undefined };
+  const value = row as MemberCard & { serviceIds_json?: string };
+  return {
+    ...value,
+    serviceId: value.serviceId ?? undefined,
+    serviceIds: value.serviceIds_json ? (JSON.parse(value.serviceIds_json) as string[]) : undefined,
+  };
 }
 
 function mapOrder(row: unknown): Order {
@@ -505,6 +604,9 @@ function mapOrder(row: unknown): Order {
     ...value,
     productId: value.productId ?? undefined,
     cardId: value.cardId ?? undefined,
+    discountAmount: value.discountAmount ?? 0,
+    adjustmentReason: value.adjustmentReason ?? undefined,
+    approvalId: value.approvalId ?? undefined,
   };
 }
 
@@ -530,5 +632,15 @@ function mapOperationLog(row: unknown): OperationLog {
 }
 
 function mapDailyClose(row: unknown): DailyClose {
-  return row as DailyClose;
+  const value = row as DailyClose;
+  return {
+    ...value,
+    status: value.status ?? "已锁定",
+    reversedBy: value.reversedBy ?? undefined,
+    reversedAt: value.reversedAt ?? undefined,
+  };
+}
+
+function mapJsonPayload<T>(row: unknown): T {
+  return JSON.parse((row as { payload_json: string }).payload_json) as T;
 }
