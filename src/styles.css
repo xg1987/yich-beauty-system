@@ -2164,7 +2164,7 @@ td {
 
 .action-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
 
@@ -3149,6 +3149,30 @@ html[data-theme="day"],
     linear-gradient(135deg, #45257f 0%, #6f42c1 48%, #b99555 100%),
     radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.28), transparent 30%);
   box-shadow: 0 22px 54px rgba(69, 37, 127, 0.24);
+}
+
+.theme-day .beauty-hero.role-hero-manager {
+  background:
+    linear-gradient(135deg, #4b2a88 0%, #7b4ed1 55%, #c59a5a 100%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.28), transparent 30%);
+}
+
+.theme-day .beauty-hero.role-hero-frontdesk {
+  background:
+    linear-gradient(135deg, #512b8c 0%, #8b5dd4 52%, #c06b88 100%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.26), transparent 30%);
+}
+
+.theme-day .beauty-hero.role-hero-therapist {
+  background:
+    linear-gradient(135deg, #442477 0%, #6f42c1 48%, #2f8a74 100%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.28), transparent 30%);
+}
+
+.theme-day .beauty-hero.role-hero-finance {
+  background:
+    linear-gradient(135deg, #34206b 0%, #6b3fba 48%, #a87942 100%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.26), transparent 30%);
 }
 
 .theme-day .admin-module-icon.rose,

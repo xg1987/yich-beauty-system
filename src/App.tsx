@@ -97,7 +97,7 @@ export default function App() {
   const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key));
   const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
   const activeWorkbar = workbarForView(activeView);
-  const notificationCount = notificationItems(data).filter((item) => item.count > 0).length;
+  const notificationCount = notificationItems(data).filter((item) => canAccessView(session, item.view) && item.count > 0).length;
   const navigate = (nextView: ViewKey, options?: { fromAdmin?: boolean }) => {
     setView(nextView);
     setNotificationPanelOpen(false);
@@ -130,7 +130,7 @@ export default function App() {
             <button className="account-avatar-button" aria-label="账号中心" onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
               <UserRound size={18} />
             </button>
-            {notificationPanelOpen && <NotificationPanel data={data} setView={navigate} onClose={() => setNotificationPanelOpen(false)} />}
+            {notificationPanelOpen && <NotificationPanel data={data} session={session} setView={navigate} onClose={() => setNotificationPanelOpen(false)} />}
             {accountMenuOpen && (
               <AccountMenu
                 session={session}
@@ -213,8 +213,8 @@ function notificationItems(data: AppData): Array<{ title: string; desc: string; 
   ];
 }
 
-function NotificationPanel({ data, setView, onClose }: { data: AppData; setView: (view: ViewKey) => void; onClose: () => void }) {
-  const items = notificationItems(data);
+function NotificationPanel({ data, session, setView, onClose }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void; onClose: () => void }) {
+  const items = notificationItems(data).filter((item) => canAccessView(session, item.view));
   return (
     <aside className="notification-panel">
       <div className="notification-head">
@@ -502,59 +502,68 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   const todayAppointmentsList = data.appointments
     .filter((item) => new Date(item.startAt).toDateString() === today.toDateString())
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
-  const todayAppointments = todayAppointmentsList.length;
+  const userStaffId = session.user.staffId;
+  const roleAppointmentsList = session.user.role === "therapist" && userStaffId
+    ? todayAppointmentsList.filter((item) => item.staffId === userStaffId)
+    : todayAppointmentsList;
+  const todayAppointments = roleAppointmentsList.length;
   const lowStock = data.products.filter((item) => item.stock <= item.warningStock);
   const pendingCommissions = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
   const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
-  const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
+  const followUps = data.customerFollowUps.filter((item) => item.status === "待跟进");
+  const roleFollowUps = session.user.role === "therapist" && userStaffId ? followUps.filter((item) => item.staffId === userStaffId) : followUps;
+  const pendingFollowUps = roleFollowUps.length;
   const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
   const todayRevenue = data.orders
     .filter((item) => new Date(item.createdAt).toDateString() === today.toDateString())
     .reduce((sum, item) => sum + item.paidAmount, 0);
-  const completedAppointments = todayAppointmentsList.filter((item) => item.status === "已完成").length;
-  const careList = data.customerFollowUps
-    .filter((item) => item.status === "待跟进")
+  const completedAppointments = roleAppointmentsList.filter((item) => item.status === "已完成").length;
+  const onlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理").length;
+  const myCommission = userStaffId ? data.commissions.filter((item) => item.staffId === userStaffId && item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0) : 0;
+  const careList = roleFollowUps
     .slice()
     .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
     .slice(0, 4);
+  const dashboardContent = roleDashboardContent({
+    activeCards,
+    completedAppointments,
+    lowStockCount: lowStock.length,
+    myCommission,
+    onlineRequests,
+    paidRevenue,
+    pendingApprovals,
+    pendingCommissions,
+    pendingFollowUps,
+    role: session.user.role,
+    todayAppointments,
+    todayRevenue,
+  });
+  const actionItems = dashboardContent.actions.filter((item) => canAccessView(session, item.view));
   const roleTasks = roleHomeCards(data, session);
 
   return (
     <div className="dashboard-page">
-      <section className="beauty-hero">
+      <section className={`beauty-hero role-hero-${session.user.role}`}>
         <div className="beauty-hero-copy">
           <span className="eyebrow"><Sparkles size={15} /> {session.user.roleName}工作台</span>
-          <h2>今日经营看板</h2>
-          <p>把预约、收银、客户跟进和库存预警放在同一个首屏，适合店长和老板快速判断今天要先处理什么。</p>
+          <h2>{dashboardContent.title}</h2>
+          <p>{dashboardContent.desc}</p>
         </div>
         <div className="hero-metrics">
-          <DashboardMetric icon={<CalendarDays size={18} />} label="今日预约" value={`${todayAppointments} 单`} hint={`已完成 ${completedAppointments} 单`} />
-          <DashboardMetric icon={<CreditCard size={18} />} label="今日实收" value={money(todayRevenue)} hint="当天收银汇总" />
-          <DashboardMetric icon={<HeartHandshake size={18} />} label="待跟进" value={`${pendingFollowUps} 位`} hint="客户关怀任务" />
+          {dashboardContent.metrics.map((item) => (
+            <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
+          ))}
         </div>
       </section>
 
       <section className="action-strip" aria-label="今日待办">
-        <button onClick={() => setView("appointments")}>
-          <CalendarDays size={18} />
-          <strong>{todayAppointments}</strong>
-          <span>今日预约</span>
-        </button>
-        <button onClick={() => setView("customers")}>
-          <HeartHandshake size={18} />
-          <strong>{pendingFollowUps}</strong>
-          <span>客户回访</span>
-        </button>
-        <button onClick={() => setView("inventory")}>
-          <PackagePlus size={18} />
-          <strong>{lowStock.length}</strong>
-          <span>低库存</span>
-        </button>
-        <button onClick={() => setView("approvals")}>
-          <ShieldCheck size={18} />
-          <strong>{pendingApprovals}</strong>
-          <span>待审批</span>
-        </button>
+        {actionItems.map((item) => (
+          <button key={item.label} onClick={() => setView(item.view)}>
+            {item.icon}
+            <strong>{item.value}</strong>
+            <span>{item.label}</span>
+          </button>
+        ))}
       </section>
 
       <section className="panel role-home dashboard-panel">
@@ -572,9 +581,9 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
 
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<CalendarDays size={18} />} title="今日服务动线" action="按到店时间" />
+          <PanelTitle icon={<CalendarDays size={18} />} title={dashboardContent.scheduleTitle} action="按到店时间" />
           <div className="timeline-list">
-            {todayAppointmentsList.slice(0, 5).map((item) => (
+            {roleAppointmentsList.slice(0, 5).map((item) => (
               <article key={item.id} className="timeline-item">
                 <time>{shortDate(item.startAt).split(" ")[1] ?? shortDate(item.startAt)}</time>
                 <div>
@@ -584,12 +593,12 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
                 <Badge text={item.status} tone={item.status === "已完成" ? "ok" : undefined} />
               </article>
             ))}
-            {todayAppointmentsList.length === 0 && <p className="empty">今日暂无预约，前台可从预约栏新增客户到店计划</p>}
+            {roleAppointmentsList.length === 0 && <p className="empty">{dashboardContent.emptySchedule}</p>}
           </div>
         </div>
 
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<HeartHandshake size={18} />} title="客户关怀" action={`${pendingFollowUps} 个待跟进`} />
+          <PanelTitle icon={<HeartHandshake size={18} />} title={dashboardContent.followTitle} action={`${pendingFollowUps} 个待跟进`} />
           <div className="care-list">
             {careList.map((item) => (
               <article key={item.id} className="care-item">
@@ -607,12 +616,11 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
 
       <section className="dashboard-columns lower">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营健康度" action="实时数据" />
+          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title={dashboardContent.healthTitle} action="实时数据" />
           <div className="health-grid">
-            <DashboardMetric icon={<CreditCard size={18} />} label="累计实收" value={money(paidRevenue)} hint="全部订单" />
-            <DashboardMetric icon={<BadgeCent size={18} />} label="待结提成" value={money(pendingCommissions)} hint="待财务结算" />
-            <DashboardMetric icon={<UsersRound size={18} />} label="有效会员卡" value={`${activeCards} 张`} hint={`${data.customers.length} 位客户`} />
-            <DashboardMetric icon={<PackagePlus size={18} />} label="库存预警" value={`${lowStock.length} 项`} hint="低于预警值" />
+            {dashboardContent.healthMetrics.map((item) => (
+              <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
+            ))}
           </div>
         </div>
 
@@ -625,6 +633,168 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
       </section>
     </div>
   );
+}
+
+type RoleDashboardInput = {
+  activeCards: number;
+  completedAppointments: number;
+  lowStockCount: number;
+  myCommission: number;
+  onlineRequests: number;
+  paidRevenue: number;
+  pendingApprovals: number;
+  pendingCommissions: number;
+  pendingFollowUps: number;
+  role: UserRole;
+  todayAppointments: number;
+  todayRevenue: number;
+};
+
+type RoleDashboardContent = {
+  title: string;
+  desc: string;
+  scheduleTitle: string;
+  emptySchedule: string;
+  followTitle: string;
+  healthTitle: string;
+  metrics: Array<{ icon: ReactNode; label: string; value: string; hint: string }>;
+  healthMetrics: Array<{ icon: ReactNode; label: string; value: string; hint: string }>;
+  actions: Array<{ icon: ReactNode; label: string; value: string; view: ViewKey }>;
+};
+
+function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
+  if (input.role === "therapist") {
+    return {
+      title: "我的服务工作台",
+      desc: "只聚焦今天分配给自己的预约、护理记录、客户回访和个人提成，美容师不用从全店数据里找任务。",
+      scheduleTitle: "我的今日预约",
+      emptySchedule: "今天暂无分配给你的预约",
+      followTitle: "我的客户回访",
+      healthTitle: "个人服务概览",
+      metrics: [
+        { icon: <CalendarDays size={18} />, label: "我的预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
+        { icon: <HeartHandshake size={18} />, label: "我的回访", value: `${input.pendingFollowUps} 位`, hint: "护理后跟进任务" },
+        { icon: <BadgeCent size={18} />, label: "个人提成", value: money(input.myCommission), hint: "服务提成累计" },
+      ],
+      healthMetrics: [
+        { icon: <CalendarDays size={18} />, label: "今日服务", value: `${input.todayAppointments} 单`, hint: `完成 ${input.completedAppointments} 单` },
+        { icon: <HeartHandshake size={18} />, label: "客户回访", value: `${input.pendingFollowUps} 位`, hint: "待跟进" },
+        { icon: <BadgeCent size={18} />, label: "累计提成", value: money(input.myCommission), hint: "个人业绩" },
+        { icon: <UsersRound size={18} />, label: "服务客户", value: `${input.pendingFollowUps + input.completedAppointments} 位`, hint: "今日相关客户" },
+      ],
+      actions: [
+        { icon: <CalendarDays size={18} />, label: "我的预约", value: `${input.todayAppointments}`, view: "appointments" },
+        { icon: <HeartHandshake size={18} />, label: "客户回访", value: `${input.pendingFollowUps}`, view: "customers" },
+        { icon: <BadgeCent size={18} />, label: "个人提成", value: money(input.myCommission), view: "staff" },
+      ],
+    };
+  }
+  if (input.role === "frontdesk") {
+    return {
+      title: "前台到店工作台",
+      desc: "把预约确认、线上到店申请、开单收银和客户建档放在首屏，前台按到店流程连续处理。",
+      scheduleTitle: "今日到店安排",
+      emptySchedule: "今日暂无预约，可从预约栏新增到店计划",
+      followTitle: "待联系客户",
+      healthTitle: "前台执行概览",
+      metrics: [
+        { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待确认到店" },
+        { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
+        { icon: <CreditCard size={18} />, label: "今日收银", value: money(input.todayRevenue), hint: "当天开单实收" },
+      ],
+      healthMetrics: [
+        { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待处理" },
+        { icon: <CalendarDays size={18} />, label: "到店安排", value: `${input.todayAppointments} 单`, hint: `完成 ${input.completedAppointments} 单` },
+        { icon: <CreditCard size={18} />, label: "今日收银", value: money(input.todayRevenue), hint: "收款核对" },
+        { icon: <UsersRound size={18} />, label: "会员资产", value: `${input.activeCards} 张`, hint: "有效卡项" },
+      ],
+      actions: [
+        { icon: <Share2 size={18} />, label: "线上预约", value: `${input.onlineRequests}`, view: "appointments" },
+        { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments}`, view: "appointments" },
+        { icon: <CreditCard size={18} />, label: "开单收银", value: "收银", view: "pos" },
+        { icon: <UsersRound size={18} />, label: "客户建档", value: "客户", view: "customers" },
+      ],
+    };
+  }
+  if (input.role === "finance") {
+    return {
+      title: "财务日结工作台",
+      desc: "围绕实收、退款、提成、日结锁账和审批风险组织数据，财务优先核对资金与结算。",
+      scheduleTitle: "今日收银关联服务",
+      emptySchedule: "今日暂无需要核对的到店服务",
+      followTitle: "财务相关待办",
+      healthTitle: "资金结算概览",
+      metrics: [
+        { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "当天收银汇总" },
+        { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "待财务结算" },
+        { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals} 单`, hint: "退款和改价风险" },
+      ],
+      healthMetrics: [
+        { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "收银流水" },
+        { icon: <ChartNoAxesColumnIncreasing size={18} />, label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
+        { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "员工结算" },
+        { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals} 单`, hint: "风险控制" },
+      ],
+      actions: [
+        { icon: <ChartNoAxesColumnIncreasing size={18} />, label: "财务报表", value: "报表", view: "reports" },
+        { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals}`, view: "approvals" },
+        { icon: <BadgeCent size={18} />, label: "提成结算", value: money(input.pendingCommissions), view: "staff" },
+        { icon: <CreditCard size={18} />, label: "收银流水", value: money(input.todayRevenue), view: "pos" },
+      ],
+    };
+  }
+  if (input.role === "manager") {
+    return {
+      title: "店长转化工作台",
+      desc: "店长首屏关注预约到店、客户回访、员工执行和库存预警，便于当天协调人效和转化。",
+      scheduleTitle: "今日服务动线",
+      emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",
+      followTitle: "客户关怀",
+      healthTitle: "门店执行概览",
+      metrics: [
+        { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
+        { icon: <HeartHandshake size={18} />, label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "客户关怀任务" },
+        { icon: <PackagePlus size={18} />, label: "库存预警", value: `${input.lowStockCount} 项`, hint: "耗材与商品" },
+      ],
+      healthMetrics: [
+        { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "当天收银" },
+        { icon: <CalendarDays size={18} />, label: "预约完成", value: `${input.completedAppointments}/${input.todayAppointments}`, hint: "今日服务" },
+        { icon: <HeartHandshake size={18} />, label: "待回访", value: `${input.pendingFollowUps} 位`, hint: "客户关怀" },
+        { icon: <PackagePlus size={18} />, label: "库存预警", value: `${input.lowStockCount} 项`, hint: "采购与盘点" },
+      ],
+      actions: [
+        { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments}`, view: "appointments" },
+        { icon: <HeartHandshake size={18} />, label: "客户回访", value: `${input.pendingFollowUps}`, view: "customers" },
+        { icon: <PackagePlus size={18} />, label: "低库存", value: `${input.lowStockCount}`, view: "inventory" },
+        { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals}`, view: "approvals" },
+      ],
+    };
+  }
+  return {
+    title: "老板经营看板",
+    desc: "老板首屏看现金流、客户资产、审批风险和库存风险，用一页判断门店今天是否健康。",
+    scheduleTitle: "今日服务动线",
+    emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",
+    followTitle: "客户关怀",
+    healthTitle: "经营健康度",
+    metrics: [
+      { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "当天收银汇总" },
+      { icon: <UsersRound size={18} />, label: "会员资产", value: `${input.activeCards} 张`, hint: "有效会员卡" },
+      { icon: <HeartHandshake size={18} />, label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "客户关怀任务" },
+    ],
+    healthMetrics: [
+      { icon: <CreditCard size={18} />, label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
+      { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "待财务结算" },
+      { icon: <UsersRound size={18} />, label: "有效会员卡", value: `${input.activeCards} 张`, hint: "客户资产" },
+      { icon: <PackagePlus size={18} />, label: "库存预警", value: `${input.lowStockCount} 项`, hint: "低于预警值" },
+    ],
+    actions: [
+      { icon: <ChartNoAxesColumnIncreasing size={18} />, label: "经营收入", value: money(input.paidRevenue), view: "reports" },
+      { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals}`, view: "approvals" },
+      { icon: <PackagePlus size={18} />, label: "低库存", value: `${input.lowStockCount}`, view: "inventory" },
+      { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), view: "staff" },
+    ],
+  };
 }
 
 function DashboardMetric({ icon, label, value, hint }: { icon: ReactNode; label: string; value: string; hint: string }) {
