@@ -5,4 +5,4 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "yich-beauty-db"
-database_id = "268ee18a-abad-4550-91c6-46c51b204015"
+database_id = "7939e88d-1606-4f10-a26f-c1276c7109f2"

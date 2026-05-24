@@ -9,7 +9,7 @@ Web 管理端运行在 Cloudflare Pages，后端 `/api/*` 通过 Pages Functions
 本项目已加入 Wrangler 和 Pages 配置：
 
 - 项目名：`yich-beauty-system`
-- 线上地址：`https://yich-beauty-system.pages.dev`
+- 线上地址：`https://yich-beauty-system-22u.pages.dev`
 - 构建命令：`npm run build`
 - 输出目录：`dist`
 - SPA 回退：`public/_redirects`
@@ -74,7 +74,7 @@ API_BASE_URL=http://localhost:8788 npm run verify:cloudflare-api
 ```bash
 npm run d1:migrate:remote
 npm run deploy:pages
-API_BASE_URL=https://yich-beauty-system.pages.dev npm run verify:cloudflare-api
+API_BASE_URL=https://yich-beauty-system-22u.pages.dev npm run verify:cloudflare-api
 ```
 
 Cloudflare 后端复用 `src/domain/business.ts` 的业务规则，D1 读写层在 `src/cloudflare/d1Database.ts`，入口在 `functions/api/[[path]].ts`。
