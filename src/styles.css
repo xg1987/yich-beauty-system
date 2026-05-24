@@ -682,6 +682,32 @@ td > button {
   color: #fff;
 }
 
+.order-record-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.order-record-shortcuts button {
+  min-height: 78px;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--ink);
+  text-align: left;
+}
+
+.order-record-shortcuts span,
+.order-record-shortcuts small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .inline-actions {
   display: flex;
   flex-wrap: wrap;
@@ -4305,6 +4331,10 @@ textarea,
   }
 
   .appointment-action-form {
+    grid-template-columns: 1fr;
+  }
+
+  .order-record-shortcuts {
     grid-template-columns: 1fr;
   }
 }

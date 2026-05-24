@@ -1363,18 +1363,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   }, [tagCustomerId, data.customers]);
 
   useEffect(() => {
-    if (!recordOrderId) return;
-    const order = data.orders.find((item) => item.id === recordOrderId);
-    if (!order) {
-      setRecordOrderId("");
-      return;
-    }
-    setRecordCustomerId(order.customerId);
-    setRecordStaffId(order.staffId);
-    setRecordServiceId(order.serviceId);
-  }, [recordOrderId, data.orders]);
-
-  useEffect(() => {
     if (recordOrderId && !data.orders.some((order) => order.id === recordOrderId && order.customerId === recordCustomerId)) {
       setRecordOrderId("");
     }
@@ -1531,11 +1519,60 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const customerTagOptions = allTags.map((tag) => ({ value: tag, label: tag }));
   const filteredCustomers = tagFilter ? data.customers.filter((customer) => customer.tags.includes(tagFilter)) : data.customers;
   const tagColorOf = (tagName: string) => data.tagDefinitions.find((tag) => tag.name === tagName)?.color ?? "#6d28d9";
+  const recordLinkedOrderIds = new Set(data.customerServiceRecords.map((record) => record.orderId).filter(Boolean));
+  const serviceProductSummary = (order: Order) => {
+    const service = data.services.find((item) => item.id === order.serviceId);
+    const consumables =
+      service?.consumables?.length
+        ? service.consumables
+        : service?.consumableProductId && service.consumableQty
+          ? [{ productId: service.consumableProductId, quantity: service.consumableQty }]
+          : [];
+    const serviceProducts = consumables
+      .filter((item) => item.productId && item.quantity > 0)
+      .map((item) => {
+        const product = data.products.find((productItem) => productItem.id === item.productId);
+        return product ? `${product.name} x${item.quantity}${product.unit}` : "";
+      })
+      .filter(Boolean);
+    const retailProduct = order.productId ? data.products.find((item) => item.id === order.productId) : undefined;
+    return [...serviceProducts, retailProduct ? `${retailProduct.name} x1${retailProduct.unit}` : undefined].filter(Boolean).join("、");
+  };
+  const cardConsumptionSummary = (order: Order) => {
+    const transaction = data.memberCardTransactions.find((item) => item.orderId === order.id && item.type === "消费");
+    if (!transaction) return "";
+    const card = data.memberCards.find((item) => item.id === transaction.memberCardId);
+    const amountText = transaction.amountDelta ? `${Math.abs(transaction.amountDelta)} 元` : "";
+    const timesText = transaction.timesDelta ? `${Math.abs(transaction.timesDelta)} 次` : "";
+    return `${card?.name ?? "会员卡"}扣${amountText || timesText}`;
+  };
+  const hydrateServiceRecordFromOrder = (orderId: string) => {
+    setRecordOrderId(orderId);
+    if (!orderId) return;
+    const order = data.orders.find((item) => item.id === orderId);
+    if (!order) return;
+    const serviceName = nameOf(data.services, order.serviceId);
+    const cardText = cardConsumptionSummary(order);
+    setRecordCustomerId(order.customerId);
+    setRecordStaffId(order.staffId);
+    setRecordServiceId(order.serviceId);
+    setSkinCondition("本次到店服务记录");
+    setBeforeNote(`${order.orderNo} 到店服务，支付方式：${order.payMethod}${cardText ? `，${cardText}` : ""}`);
+    setCareSteps(`完成${serviceName}服务流程`);
+    setProductsUsed(serviceProductSummary(order));
+    setAfterNote(`${serviceName}服务已完成`);
+    setCustomerFeedback("");
+    setNextCareAdvice(`根据${serviceName}项目周期安排下次护理`);
+    setFollowUpAt(toLocalInputValue(tomorrowAt(72)));
+  };
   const recordOrderOptions = [
     { value: "", label: "不关联订单" },
     ...data.orders
-      .filter((order) => order.customerId === recordCustomerId)
-      .map((order) => ({ value: order.id, label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}` })),
+      .filter((order) => order.customerId === recordCustomerId && !recordLinkedOrderIds.has(order.id) && order.status !== "已退款")
+      .map((order) => ({
+        value: order.id,
+        label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}${cardConsumptionSummary(order) ? ` · ${cardConsumptionSummary(order)}` : ""}`,
+      })),
   ];
   const projectScope = (serviceId?: string, serviceIds?: string[]) => {
     if (serviceIds?.length) return serviceIds.map((id) => nameOf(data.services, id)).join(" / ");
@@ -1700,9 +1737,21 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         </div>
         <div className="divider" />
         <PanelTitle icon={<ClipboardList size={18} />} title="服务档案" action="护理记录/回访" />
+        <div className="order-record-shortcuts">
+          {data.orders
+            .filter((order) => !recordLinkedOrderIds.has(order.id) && order.status !== "已退款")
+            .slice(0, 4)
+            .map((order) => (
+              <button type="button" key={order.id} onClick={() => hydrateServiceRecordFromOrder(order.id)}>
+                <strong>{order.orderNo}</strong>
+                <span>{nameOf(data.customers, order.customerId)} · {nameOf(data.services, order.serviceId)}</span>
+                <small>{cardConsumptionSummary(order) || order.payMethod}</small>
+              </button>
+            ))}
+        </div>
         <form className="form" onSubmit={addServiceRecord}>
           <Select label="客户" value={recordCustomerId} onChange={setRecordCustomerId} options={data.customers.map(optionOf)} />
-          <Select label="关联订单" value={recordOrderId} onChange={setRecordOrderId} options={recordOrderOptions} />
+          <Select label="关联订单" value={recordOrderId} onChange={hydrateServiceRecordFromOrder} options={recordOrderOptions} />
           <Select label="员工" value={recordStaffId} onChange={setRecordStaffId} options={data.staff.map(optionOf)} />
           <Select label="项目" value={recordServiceId} onChange={setRecordServiceId} options={data.services.map(optionOf)} />
           <label>皮肤情况<input value={skinCondition} onChange={(event) => setSkinCondition(event.target.value)} /></label>
@@ -1844,12 +1893,19 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         <div className="divider" />
         <PanelTitle icon={<ClipboardList size={18} />} title="护理档案" action={`${data.customerServiceRecords.length} 条`} />
         <DataTable
-          columns={["客户", "员工", "项目", "订单", "皮肤情况", "服务前", "护理步骤", "使用产品", "服务后", "客户反馈", "下次建议", "时间"]}
+          columns={["客户", "员工", "项目", "订单", "卡项消耗", "皮肤情况", "服务前", "护理步骤", "使用产品", "服务后", "客户反馈", "下次建议", "时间"]}
           rows={data.customerServiceRecords.map((record) => [
             nameOf(data.customers, record.customerId),
             nameOf(data.staff, record.staffId),
             nameOf(data.services, record.serviceId),
             record.orderId ? data.orders.find((order) => order.id === record.orderId)?.orderNo ?? record.orderId : "未关联",
+            record.memberCardTransactionId
+              ? (() => {
+                  const transaction = data.memberCardTransactions.find((item) => item.id === record.memberCardTransactionId);
+                  const card = transaction ? data.memberCards.find((item) => item.id === transaction.memberCardId) : undefined;
+                  return transaction ? `${card?.name ?? "会员卡"} · ${transaction.amountDelta ? `${Math.abs(transaction.amountDelta)} 元` : `${Math.abs(transaction.timesDelta)} 次`}` : "未扣卡";
+                })()
+              : "未扣卡",
             record.skinCondition,
             record.beforeNote,
             record.careSteps || "未记录",

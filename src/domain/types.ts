@@ -398,6 +398,7 @@ export type CustomerServiceRecord = {
   staffId: string;
   serviceId: string;
   orderId?: string;
+  memberCardTransactionId?: string;
   skinCondition: string;
   beforeNote: string;
   careSteps: string;

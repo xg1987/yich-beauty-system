@@ -2211,11 +2211,17 @@ export function addCustomerServiceRecord(
   const createdAt = (options.now ?? nowIso)();
   if (!data.customers.some((customer) => customer.id === input.customerId)) throw new Error("客户不存在");
   if (!data.staff.some((staff) => staff.id === input.staffId)) throw new Error("员工不存在");
-  if (!data.services.some((service) => service.id === input.serviceId)) throw new Error("服务项目不存在");
+  const service = data.services.find((item) => item.id === input.serviceId);
+  if (!service) throw new Error("服务项目不存在");
+  let memberCardTransactionId: string | undefined;
   if (input.orderId) {
     const order = data.orders.find((item) => item.id === input.orderId);
     if (!order) throw new Error("关联订单不存在");
     if (order.customerId !== input.customerId) throw new Error("关联订单不属于该客户");
+    if (order.staffId !== input.staffId || order.serviceId !== input.serviceId) throw new Error("服务记录与关联订单不一致");
+    if (order.status === "已退款") throw new Error("已全额退款订单不能生成服务记录");
+    if (data.customerServiceRecords.some((record) => record.orderId === order.id)) throw new Error("该订单已生成服务记录");
+    memberCardTransactionId = data.memberCardTransactions.find((transaction) => transaction.orderId === order.id && transaction.type === "消费")?.id;
   }
   const record: CustomerServiceRecord = {
     id: idFactory("sr"),
@@ -2223,10 +2229,17 @@ export function addCustomerServiceRecord(
     staffId: input.staffId,
     serviceId: input.serviceId,
     orderId: input.orderId,
+    memberCardTransactionId,
     skinCondition: input.skinCondition,
     beforeNote: input.beforeNote,
-    careSteps: input.careSteps ?? "",
-    productsUsed: input.productsUsed ?? "",
+    careSteps: input.careSteps ?? `完成${service.name}服务`,
+    productsUsed: input.productsUsed ?? serviceConsumables(service)
+      .map((item) => {
+        const product = data.products.find((productItem) => productItem.id === item.productId);
+        return product ? `${product.name} x${item.quantity}${product.unit}` : "";
+      })
+      .filter(Boolean)
+      .join("、"),
     afterNote: input.afterNote,
     customerFeedback: input.customerFeedback ?? "",
     nextCareAdvice: input.nextCareAdvice ?? "",

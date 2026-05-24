@@ -942,6 +942,24 @@ function card(data: AppData, cardId: string) {
   assert.equal(withRecord.customers.find((customer) => customer.id === "c1")?.lastVisit, fixedNow(), "service record should update last visit");
   assert.equal(withRecord.customerFollowUps[0].status, "待跟进", "service record should create follow-up");
   assert.match(withRecord.customerFollowUps[0].note, /加强保湿防晒/, "follow-up should use next care advice");
+  assert.throws(
+    () =>
+      addCustomerServiceRecord(
+        withRecord,
+        {
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          orderId: checkedOutForRecord.orders[0].id,
+          skinCondition: "敏感偏干",
+          beforeNote: "重复建档",
+          afterNote: "补水修护",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /已生成服务记录/,
+    "service record should reject duplicate order record",
+  );
 
   const completed = completeCustomerFollowUp(
     withRecord,
@@ -968,6 +986,34 @@ function card(data: AppData, cardId: string) {
     /关联订单不属于该客户/,
     "service record should reject an order from another customer",
   );
+
+  const cardCheckout = checkoutOrder(
+    cloneSeed(),
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "会员卡",
+      cardId: "m1",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const cardRecord = addCustomerServiceRecord(
+    cardCheckout,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      orderId: cardCheckout.orders[0].id,
+      skinCondition: "本次到店服务记录",
+      beforeNote: "会员卡扣费服务",
+      afterNote: "服务完成",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(cardRecord.customerServiceRecords[0].memberCardTransactionId, cardCheckout.memberCardTransactions[0].id, "service record should link member-card consumption");
+  assert.match(cardRecord.customerServiceRecords[0].careSteps, /小气泡/, "service record should derive default care steps from service");
+  assert.match(cardRecord.customerServiceRecords[0].productsUsed, /清洁精华液/, "service record should derive used products from service recipe");
 }
 
 {

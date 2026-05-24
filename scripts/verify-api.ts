@@ -627,6 +627,16 @@ try {
   assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 14, "inventory API should increase stock");
   assert.equal(afterInventory.inventoryLogs[0].note, "API 入库", "inventory API should persist note");
 
+  const afterRecordCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+  });
   const afterServiceRecord = await request<AppData>(baseUrl, "/api/service-records", {
     method: "POST",
     token: session.token,
@@ -634,7 +644,7 @@ try {
       customerId: "c1",
       staffId: "s2",
       serviceId: "v1",
-      orderId: afterCheckout.orders[0].id,
+      orderId: afterRecordCheckout.orders[0].id,
       skinCondition: "敏感偏干",
       beforeNote: "API 服务前",
       careSteps: "API 清洁、导入、修护",
@@ -646,12 +656,45 @@ try {
     },
   });
   assert.equal(afterServiceRecord.customerServiceRecords.length, 1, "service record API should create record");
-  assert.equal(afterServiceRecord.customerServiceRecords[0].orderId, afterCheckout.orders[0].id, "service record API should link order");
+  assert.equal(afterServiceRecord.customerServiceRecords[0].orderId, afterRecordCheckout.orders[0].id, "service record API should link order");
   assert.equal(afterServiceRecord.customerServiceRecords[0].careSteps, "API 清洁、导入、修护", "service record API should persist care steps");
   assert.equal(afterServiceRecord.customerServiceRecords[0].productsUsed, "API 清洁精华液", "service record API should persist products used");
   assert.equal(afterServiceRecord.customerServiceRecords[0].customerFeedback, "API 体验舒适", "service record API should persist customer feedback");
   assert.equal(afterServiceRecord.customerServiceRecords[0].nextCareAdvice, "API 加强保湿防晒", "service record API should persist next care advice");
   assert.match(afterServiceRecord.customerFollowUps[0].note, /API 加强保湿防晒/, "service record API follow-up should use next care advice");
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/service-records", {
+        method: "POST",
+        token: session.token,
+        body: {
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          orderId: afterRecordCheckout.orders[0].id,
+          skinCondition: "敏感偏干",
+          beforeNote: "API 重复建档",
+          afterNote: "API 服务后",
+        },
+      }),
+    /已生成服务记录/,
+    "service record API should reject duplicate order record",
+  );
+  const afterCardServiceRecord = await request<AppData>(baseUrl, "/api/service-records", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      orderId: afterCardCheckout.orders[0].id,
+      skinCondition: "会员卡到店服务",
+      beforeNote: "API 会员卡服务前",
+      afterNote: "API 会员卡服务后",
+    },
+  });
+  assert.equal(afterCardServiceRecord.customerServiceRecords[0].memberCardTransactionId, afterCardCheckout.memberCardTransactions[0].id, "service record API should link member-card consumption");
+  assert.match(afterCardServiceRecord.customerServiceRecords[0].productsUsed, /清洁精华液/, "service record API should derive used products");
   const followUpId = afterServiceRecord.customerFollowUps[0].id;
   const afterFollowUpDone = await request<AppData>(baseUrl, `/api/follow-ups/${followUpId}`, {
     method: "PATCH",
@@ -720,7 +763,7 @@ try {
   assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 9, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 10, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.ok(persistedData.distributionCommissions.length >= 1, "API data should persist distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
