@@ -518,6 +518,42 @@ function DashboardMetric({ icon, label, value, hint }: { icon: ReactNode; label:
   );
 }
 
+function PageHero({
+  icon,
+  eyebrow,
+  title,
+  desc,
+  stats,
+}: {
+  icon: ReactNode;
+  eyebrow: string;
+  title: string;
+  desc: string;
+  stats: Array<{ label: string; value: string; hint: string; icon: ReactNode }>;
+}) {
+  return (
+    <section className="page-hero">
+      <div className="page-hero-copy">
+        <span className="eyebrow">{icon} {eyebrow}</span>
+        <h2>{title}</h2>
+        <p>{desc}</p>
+      </div>
+      <div className="page-hero-stats">
+        {stats.map((item) => (
+          <div className="page-hero-stat" key={item.label}>
+            <span className="metric-icon">{item.icon}</span>
+            <div>
+              <small>{item.label}</small>
+              <strong>{item.value}</strong>
+              <em>{item.hint}</em>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function roleHomeCards(data: AppData, session: UserSession): Array<{ title: string; value: string; hint: string; view: ViewKey }> {
   const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
   const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
@@ -608,11 +644,28 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     );
   };
 
+  const today = new Date();
+  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
+  const pendingArrival = todayAppointments.filter((item) => item.status === "已确认" || item.status === "待确认").length;
+  const availableStaff = Math.max(0, data.staff.filter((staff) => staff.status === "active").length - data.staffUnavailableSlots.length);
+
   return (
-    <div className="content-grid">
-      <section className="panel">
-        <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="员工时间锁定" />
-        <form className="form" onSubmit={addAppointment}>
+    <div className="page-stack">
+      <PageHero
+        icon={<CalendarDays size={15} />}
+        eyebrow="预约管理"
+        title="今天谁来店、谁服务、哪个时间段可约"
+        desc="把新增预约、员工锁时和班次校验放在一个业务页里，前台可以先看今日节奏，再处理客户到店安排。"
+        stats={[
+          { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "当天服务计划", icon: <CalendarDays size={18} /> },
+          { label: "待到店", value: `${pendingArrival} 单`, hint: "需确认或接待", icon: <ClipboardList size={18} /> },
+          { label: "可服务员工", value: `${availableStaff} 人`, hint: "扣除锁定时段", icon: <UsersRound size={18} /> },
+        ]}
+      />
+      <div className="content-grid">
+        <section className="panel">
+          <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="员工时间锁定" />
+          <form className="form" onSubmit={addAppointment}>
           <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           <Select label="服务员工" value={staffId} onChange={setStaffId} options={data.staff.map(optionOf)} />
           <Select label="服务项目" value={serviceId} onChange={setServiceId} options={data.services.map(optionOf)} />
@@ -662,9 +715,9 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           </label>
           <button className="primary-button">保存班次</button>
         </form>
-      </section>
-      <section className="panel wide">
-        <PanelTitle icon={<ClipboardList size={18} />} title="预约列表" action="支持到店确认" />
+        </section>
+        <section className="panel wide">
+          <PanelTitle icon={<ClipboardList size={18} />} title="预约列表" action="支持到店确认" />
         <div className="card-list">
           {data.appointments.map((item) => (
             <article className="record-card" key={item.id}>
@@ -706,7 +759,8 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             shortDate(shift.createdAt),
           ])}
         />
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -729,6 +783,10 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const availableCards = data.memberCards.filter((item) => item.customerId === customerId && item.status === "正常");
   const total = calculateOrderTotal(data, serviceId, productId || undefined);
   const paidTotal = Math.max(0, total - discountAmount);
+  const today = new Date();
+  const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
+  const todayPaid = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
 
   const checkout = (event: FormEvent) => {
     event.preventDefault();
@@ -765,8 +823,20 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   };
 
   return (
-    <div className="content-grid">
-      <section className="panel">
+    <div className="page-stack">
+      <PageHero
+        icon={<CreditCard size={15} />}
+        eyebrow="开单收银"
+        title="先确认客户与项目，再完成收款和自动扣库存"
+        desc="收银页要服务高频操作：选客户、选项目、选员工、走支付，系统同步记录提成、会员卡和库存消耗。"
+        stats={[
+          { label: "当前应收", value: money(paidTotal), hint: "按已选项目计算", icon: <CreditCard size={18} /> },
+          { label: "今日收款", value: money(todayPaid), hint: `${todayOrders.length} 笔订单`, icon: <ChartNoAxesColumnIncreasing size={18} /> },
+          { label: "有效会员卡", value: `${activeCards} 张`, hint: "可用于卡扣", icon: <BadgeCent size={18} /> },
+        ]}
+      />
+      <div className="content-grid">
+        <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="快速开单" action="自动提成/扣库存" />
         <form className="form" onSubmit={checkout}>
           <Select label="客户" value={customerId} onChange={(value) => { setCustomerId(value); setCardId(""); }} options={data.customers.map(optionOf)} />
@@ -830,8 +900,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           </div>
           <button className="primary-button" disabled={payMethod === "会员卡" && !cardId}>完成收银</button>
         </form>
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<ClipboardList size={18} />} title="订单流水" action="最近订单" />
         <DataTable
           columns={["单号", "客户", "项目", "员工", "支付", "实收", "状态", "时间", "操作"]}
@@ -878,7 +948,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
             ),
           ])}
         />
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -949,9 +1020,28 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     );
   };
 
+  const activeCards = data.memberCards.filter((card) => card.status === "正常");
+  const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
+  const recentVisits = data.customers.filter((customer) => {
+    const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
+    return days <= 7;
+  }).length;
+
   return (
-    <div className="content-grid">
-      <section className="panel">
+    <div className="page-stack">
+      <PageHero
+        icon={<UsersRound size={15} />}
+        eyebrow="客户会员"
+        title="客户资产、会员卡和护理档案要在一个页面闭环"
+        desc="客户页不是简单通讯录，重点是沉淀会员资产、护理记录和回访计划，方便前台和美容师持续服务。"
+        stats={[
+          { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
+          { label: "有效卡项", value: `${activeCards.length} 张`, hint: "储值与次数卡", icon: <CreditCard size={18} /> },
+          { label: "待回访", value: `${pendingFollowUps} 条`, hint: "护理后跟进", icon: <HeartHandshake size={18} /> },
+        ]}
+      />
+      <div className="content-grid">
+        <section className="panel">
         <PanelTitle icon={<UsersRound size={18} />} title="新增客户" action="客户资产沉淀" />
         <form className="form" onSubmit={addCustomer}>
           <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
@@ -999,8 +1089,8 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>下次回访<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></label>
           <button className="primary-button">保存档案</button>
         </form>
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
         <DataTable
           columns={["客户", "手机", "等级", "标签", "最近到店", "卡项"]}
@@ -1083,7 +1173,8 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             ),
           ])}
         />
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1107,8 +1198,20 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   };
 
   return (
-    <div className="content-grid">
-      <section className="panel">
+    <div className="page-stack">
+      <PageHero
+        icon={<Sparkles size={15} />}
+        eyebrow="项目商品"
+        title="服务项目、商品和耗材资料统一维护"
+        desc="项目价格影响开单，耗材资料影响库存消耗，商品资料影响附加收银，基础资料要清晰稳定。"
+        stats={[
+          { label: "服务项目", value: `${data.services.length} 个`, hint: "可用于预约/开单", icon: <Sparkles size={18} /> },
+          { label: "商品耗材", value: `${data.products.length} 个`, hint: "库存资料", icon: <Boxes size={18} /> },
+          { label: "低库存", value: `${data.products.filter((item) => item.stock <= item.warningStock).length} 项`, hint: "需补货", icon: <PackagePlus size={18} /> },
+        ]}
+      />
+      <div className="content-grid">
+        <section className="panel">
         <PanelTitle icon={<Sparkles size={18} />} title="新增项目" action="服务目录" />
         <form className="form" onSubmit={addService}>
           <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
@@ -1122,14 +1225,15 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           <label>初始库存<input type="number" value={productStock} onChange={(event) => setProductStock(Number(event.target.value))} /></label>
           <button className="primary-button">保存商品</button>
         </form>
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<Sparkles size={18} />} title="项目与商品" action="价格/库存" />
         <div className="split-list">
           <DataTable columns={["项目", "分类", "价格", "时长"]} rows={data.services.map((item) => [item.name, item.category, money(item.price), `${item.duration} 分钟`])} />
           <DataTable columns={["商品", "类型", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.type === "sale" ? "销售商品" : "服务耗材", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
         </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1161,9 +1265,25 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account: inviteAccount, role: inviteRole }));
   };
 
+  const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
+  const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
+  const pendingCommission = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+
   return (
-    <div className="content-grid">
-      <section className="panel">
+    <div className="page-stack">
+      <PageHero
+        icon={<BadgeCent size={15} />}
+        eyebrow="员工提成"
+        title="员工档案、账号邀请和提成结算集中管理"
+        desc="店长和老板需要看到人员状态、账号开通和待结提成，员工则只看到自己的业绩与账号信息。"
+        stats={[
+          { label: "在职员工", value: `${activeStaff} 人`, hint: `${data.staff.length} 人档案`, icon: <UsersRound size={18} /> },
+          { label: "待加入账号", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
+          { label: "待结提成", value: money(pendingCommission), hint: "财务待处理", icon: <BadgeCent size={18} /> },
+        ]}
+      />
+      <div className="content-grid">
+        <section className="panel">
         <PanelTitle icon={<BadgeCent size={18} />} title="人员管理" action={canManageStaff ? "员工/账号/权限" : "个人视图"} />
         {canManageStaff ? (
           <>
@@ -1201,8 +1321,8 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             <span>账号：{session.user.account}</span>
           </div>
         )}
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<UsersRound size={18} />} title="员工档案" action={`${data.staff.length} 人`} />
         <DataTable
           columns={["员工", "岗位", "手机号", "状态", "账号", "底薪", "提成比例", "操作"]}
@@ -1256,7 +1376,8 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             shortDate(item.createdAt),
           ])}
         />
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1294,9 +1415,24 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
     void runMutation(() => actions.createStocktake({ productId: stocktakeProductId, actualStock, reason: "门店盘点" }));
   };
 
+  const lowStock = data.products.filter((item) => item.stock <= item.warningStock).length;
+  const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
+
   return (
-    <div className="content-grid">
-      <section className="panel">
+    <div className="page-stack">
+      <PageHero
+        icon={<Boxes size={15} />}
+        eyebrow="库存管理"
+        title="耗材、商品、采购和盘点要跟服务消耗对上"
+        desc="库存页突出低库存、采购入库和盘点差异，避免服务过程中耗材断档或账实不一致。"
+        stats={[
+          { label: "库存品项", value: `${data.products.length} 个`, hint: `合计库存 ${stockValue}`, icon: <Boxes size={18} /> },
+          { label: "低库存", value: `${lowStock} 项`, hint: "低于预警值", icon: <PackagePlus size={18} /> },
+          { label: "供应商", value: `${data.suppliers.length} 家`, hint: "采购基础资料", icon: <Building2 size={18} /> },
+        ]}
+      />
+      <div className="content-grid">
+        <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="库存操作" action="入库/报损/盘点" />
         <form className="form" onSubmit={changeStock}>
           <Select label="商品/耗材" value={productId} onChange={setProductId} options={data.products.map(optionOf)} />
@@ -1327,8 +1463,8 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>实盘库存<input type="number" value={actualStock} onChange={(event) => setActualStock(Number(event.target.value))} /></label>
           <button className="primary-button">提交盘点</button>
         </form>
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<Boxes size={18} />} title="库存列表" action="低库存自动标记" />
         <DataTable
           columns={["名称", "类型", "库存", "预警", "状态"]}
@@ -1368,7 +1504,8 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
             ])}
           />
         </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1382,12 +1519,24 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   }));
 
   return (
-    <div className="page-grid">
-      <StatCard title="实收现金流" value={money(summary.revenue)} hint={`退款 ${money(summary.refundAmount)}`} />
-      <StatCard title="项目服务数" value={`${summary.serviceCount} 单`} hint="已完成收银订单" />
-      <StatCard title="会员储值余额" value={money(summary.cardBalance)} hint="未消耗客户资产" />
-      <StatCard title="员工提成" value={money(summary.commission)} hint="服务提成合计" />
-      <section className="panel">
+    <div className="page-stack">
+      <PageHero
+        icon={<ChartNoAxesColumnIncreasing size={15} />}
+        eyebrow="报表分析"
+        title="老板看现金流，店长看转化，财务看日结"
+        desc="报表页把实收、退款、会员储值、提成和营业日锁账放在一起，支持门店做每日复盘。"
+        stats={[
+          { label: "实收现金流", value: money(summary.revenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
+          { label: "项目服务数", value: `${summary.serviceCount} 单`, hint: "已完成收银", icon: <Sparkles size={18} /> },
+          { label: "员工提成", value: money(summary.commission), hint: "服务提成合计", icon: <BadgeCent size={18} /> },
+        ]}
+      />
+      <div className="page-grid">
+        <StatCard title="实收现金流" value={money(summary.revenue)} hint={`退款 ${money(summary.refundAmount)}`} />
+        <StatCard title="项目服务数" value={`${summary.serviceCount} 单`} hint="已完成收银订单" />
+        <StatCard title="会员储值余额" value={money(summary.cardBalance)} hint="未消耗客户资产" />
+        <StatCard title="员工提成" value={money(summary.commission)} hint="服务提成合计" />
+        <section className="panel">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="实收拆分" />
         <div className="bar-list">
           {payMethods.map((item) => (
@@ -1398,8 +1547,8 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
             </div>
           ))}
         </div>
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action="核心指标" />
         <DataTable
           columns={["指标", "结果", "说明"]}
@@ -1410,8 +1559,8 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
             ["低库存项", `${summary.lowStockCount} 项`, "低于预警值"],
           ]}
         />
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<ClipboardList size={18} />} title="财务日结" action="营业日锁定记录" />
         <DailyCloseControl
           businessDate={businessDate}
@@ -1433,7 +1582,8 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
             shortDate(item.createdAt),
           ])}
         />
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1449,9 +1599,25 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
     void runMutation(() => actions.createApproval({ type, targetId, amount, reason }));
   };
 
+  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
+  const passedApprovals = data.approvalRequests.filter((item) => item.status === "已通过").length;
+  const rejectedApprovals = data.approvalRequests.filter((item) => item.status === "已拒绝").length;
+
   return (
-    <div className="content-grid">
-      <section className="panel">
+    <div className="page-stack">
+      <PageHero
+        icon={<ShieldCheck size={15} />}
+        eyebrow="审批中心"
+        title="改价、退款和例外处理必须留下审批痕迹"
+        desc="审批页要让老板和店长快速看到风险单据，前台提交后可以在同页跟踪处理结果。"
+        stats={[
+          { label: "待审批", value: `${pendingApprovals} 单`, hint: "需要处理", icon: <ShieldCheck size={18} /> },
+          { label: "已通过", value: `${passedApprovals} 单`, hint: "可用于业务", icon: <ClipboardList size={18} /> },
+          { label: "已拒绝", value: `${rejectedApprovals} 单`, hint: "风险拦截", icon: <LockKeyhole size={18} /> },
+        ]}
+      />
+      <div className="content-grid">
+        <section className="panel">
         <PanelTitle icon={<ShieldCheck size={18} />} title="提交审批" action="改价/退款" />
         <form className="form" onSubmit={createApproval}>
           <Select label="审批类型" value={type} onChange={(value) => setType(value as "改价折扣" | "订单退款")} options={["改价折扣", "订单退款"].map((item) => ({ value: item, label: item }))} />
@@ -1460,8 +1626,8 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>原因<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label>
           <button className="primary-button">提交审批</button>
         </form>
-      </section>
-      <section className="panel wide">
+        </section>
+        <section className="panel wide">
         <PanelTitle icon={<ShieldCheck size={18} />} title="审批列表" action={`${data.approvalRequests.length} 条`} />
         <DataTable
           columns={["类型", "对象", "金额", "原因", "申请人", "状态", "时间", "操作"]}
@@ -1483,7 +1649,8 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
             ),
           ])}
         />
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
