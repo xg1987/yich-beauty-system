@@ -90,7 +90,7 @@ export default function App() {
   const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key));
   const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
   const activeWorkbar = workbarForView(activeView);
-  const activeTitle = workbarItems.find((item) => item.key === activeWorkbar)?.label ?? navItems.find((item) => item.key === activeView)?.label;
+  const activeTitle = navItems.find((item) => item.key === activeView)?.label ?? workbarItems.find((item) => item.key === activeWorkbar)?.label;
 
   return (
     <div className={`app-shell theme-${themeMode}`}>

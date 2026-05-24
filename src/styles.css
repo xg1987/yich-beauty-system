@@ -2350,3 +2350,290 @@ td {
     min-height: 72px;
   }
 }
+
+/* Final admin shell pass: keep the bottom workbar; fix desktop content density only. */
+.app-shell {
+  grid-template-columns: 156px minmax(0, 1fr);
+  padding-bottom: 92px;
+}
+
+.sidebar {
+  padding: 20px 14px;
+  background: rgba(255, 250, 247, 0.96);
+  border-right: 1px solid rgba(188, 139, 126, 0.18);
+}
+
+.rail-admin {
+  padding: 0 2px 18px;
+  border-bottom: 0;
+  color: #312824;
+}
+
+.rail-admin span {
+  color: #b95c6c;
+}
+
+.sidebar-nav {
+  display: none;
+}
+
+.main {
+  width: 100%;
+  min-height: 100vh;
+  padding: 22px clamp(22px, 3vw, 44px) 34px;
+}
+
+.topbar {
+  position: sticky;
+  z-index: 30;
+  top: 0;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  width: min(1360px, 100%);
+  margin: 0 auto 18px;
+  padding: 0 0 14px;
+  background: linear-gradient(180deg, rgba(255, 250, 247, 0.96) 0%, rgba(255, 250, 247, 0.82) 72%, rgba(255, 250, 247, 0) 100%);
+  backdrop-filter: blur(10px);
+}
+
+.topbar-title {
+  position: static;
+  transform: none;
+  width: auto;
+  text-align: left;
+}
+
+.topbar-title p {
+  margin: 0 0 4px;
+  color: rgba(49, 40, 36, 0.52);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.topbar-title h1 {
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  opacity: 1;
+  color: #312824;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.topbar-actions {
+  grid-column: auto;
+}
+
+.content-grid {
+  width: min(1360px, 100%);
+  margin: 0 auto;
+  grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.content-grid > .panel.wide {
+  grid-column: auto;
+}
+
+.content-grid > .panel:first-child {
+  position: sticky;
+  top: 88px;
+  max-height: calc(100vh - 118px);
+  overflow: auto;
+}
+
+.content-grid > .panel:first-child::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content-grid > .panel:first-child::-webkit-scrollbar-thumb {
+  background: rgba(185, 92, 108, 0.22);
+  border-radius: 999px;
+}
+
+.page-grid,
+.dashboard-page,
+.admin-center-page {
+  width: min(1360px, 100%);
+  margin: 0 auto;
+}
+
+.panel,
+.stat-card,
+.quick-card,
+.record-card,
+.inventory-line,
+.settings-card,
+.sub-panel,
+.empty {
+  box-shadow: 0 10px 28px rgba(139, 91, 79, 0.06);
+}
+
+.panel {
+  background: rgba(255, 253, 250, 0.94);
+}
+
+.panel-title {
+  min-height: 28px;
+}
+
+.form {
+  gap: 11px;
+}
+
+input,
+select,
+textarea {
+  min-height: 40px;
+}
+
+.primary-button {
+  min-height: 42px;
+}
+
+.card-list {
+  max-height: 380px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.table-wrap {
+  border: 1px solid rgba(188, 139, 126, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.theme-night .sidebar {
+  background: #12110f;
+  border-right-color: rgba(255, 255, 255, 0.06);
+}
+
+.theme-night .rail-admin {
+  color: #f7efe8;
+}
+
+.theme-night .topbar {
+  background: linear-gradient(180deg, rgba(16, 15, 14, 0.96) 0%, rgba(16, 15, 14, 0.8) 72%, rgba(16, 15, 14, 0) 100%);
+}
+
+.theme-night .topbar-title h1 {
+  color: #f7efe8;
+}
+
+.theme-night .topbar-title p {
+  color: rgba(246, 240, 234, 0.52);
+}
+
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 132px minmax(0, 1fr);
+  }
+
+  .content-grid {
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    display: block;
+    padding-bottom: 86px;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .main {
+    min-height: auto;
+    padding: 18px 12px 18px;
+  }
+
+  .topbar {
+    position: static;
+    width: 100%;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  .topbar-title h1 {
+    font-size: 24px;
+  }
+
+  .content-grid,
+  .page-grid,
+  .dashboard-page,
+  .admin-center-page {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .content-grid > .panel:first-child {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .content-grid > .panel.wide,
+  .panel.wide,
+  .role-home {
+    grid-column: auto;
+  }
+
+  .workbar {
+    position: fixed;
+    z-index: 50;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    min-height: 66px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: center;
+    padding: 8px;
+    border: 1px solid rgba(188, 139, 126, 0.18);
+    border-radius: 18px;
+    background: rgba(255, 250, 247, 0.94);
+    box-shadow: 0 16px 40px rgba(139, 91, 79, 0.14);
+    backdrop-filter: blur(18px);
+  }
+
+  .workbar button {
+    min-width: 0;
+    min-height: 52px;
+    display: grid;
+    place-items: center;
+    gap: 4px;
+    border-radius: 14px;
+    background: transparent;
+    color: rgba(49, 40, 36, 0.62);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .workbar button.active,
+  .theme-day .workbar button.active,
+  .theme-night .workbar button.active {
+    width: auto;
+    height: 52px;
+    margin-top: 0;
+    border: 0;
+    background: #c96378;
+    color: #fff;
+    box-shadow: none;
+  }
+
+  .theme-night .workbar {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(18, 17, 15, 0.96);
+  }
+
+  .theme-night .workbar button {
+    color: rgba(246, 240, 234, 0.62);
+  }
+}
