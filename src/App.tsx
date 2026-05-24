@@ -112,7 +112,7 @@ export default function App() {
       <main className="main">
         <header className="topbar">
           <div className="topbar-title">
-            <p>一宸 YiCh</p>
+            <p>一宸 YiCh 美业门店系统</p>
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
@@ -282,10 +282,10 @@ function LoginScreen({
   const [mode, setMode] = useState<"login" | "register" | "join">("login");
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
-  const [storeName, setStoreName] = useState("一宸 YiCh 美学门店");
-  const [ownerName, setOwnerName] = useState("林老板");
-  const [phone, setPhone] = useState("13800000000");
-  const [address, setAddress] = useState("上海市静安区示例路 88 号");
+  const [storeName, setStoreName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [joinName, setJoinName] = useState("");
 
@@ -305,16 +305,14 @@ function LoginScreen({
   return (
     <div className="login-page">
       <section className="login-panel">
-        <div className="brand large">
-          <div className="brand-mark">D</div>
-          <div>
-            <strong>一宸 YiCh</strong>
-            <span>美业门店管理系统</span>
-          </div>
-        </div>
-        <h1>门店经营，从预约到财务一屏串起来</h1>
-        <p>预约、开单、会员、员工、库存、财务和经营分析统一管理。</p>
         <form className="login-card" onSubmit={submit}>
+          <div className="login-brand">
+            <div className="brand-mark">D</div>
+            <div>
+              <strong>一宸 YiCh 美业门店系统</strong>
+              <span>门店经营管理平台</span>
+            </div>
+          </div>
           <div className="segmented">
             <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>登录</button>
             <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>注册门店</button>
@@ -326,6 +324,7 @@ function LoginScreen({
               <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} /></label>
               <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
               <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+              <p className="register-note">预约、开单、会员、员工、库存、财务和经营分析统一管理。</p>
             </>
           )}
           {mode === "join" ? (
@@ -1255,16 +1254,16 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         icon={<BadgeCent size={15} />}
         eyebrow="员工提成"
         title="员工提成"
-        desc="管理员工档案、账号邀请、岗位权限与提成结算。"
+        desc="管理员工档案、邀请码、岗位权限与提成结算。"
         stats={[
           { label: "在职员工", value: `${activeStaff} 人`, hint: `${data.staff.length} 人档案`, icon: <UsersRound size={18} /> },
-          { label: "待加入账号", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
+          { label: "待加入员工", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
           { label: "待结提成", value: money(pendingCommission), hint: "财务待处理", icon: <BadgeCent size={18} /> },
         ]}
       />
       <div className="content-grid">
         <section className="panel">
-        <PanelTitle icon={<BadgeCent size={18} />} title="人员管理" action={canManageStaff ? "员工/账号/权限" : "个人视图"} />
+        <PanelTitle icon={<BadgeCent size={18} />} title="员工档案" action={canManageStaff ? "先建档，再邀请加入" : "个人视图"} />
         {canManageStaff ? (
           <>
             <form className="form" onSubmit={addStaff}>
@@ -1273,13 +1272,13 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
               <Select label="岗位" value={role} onChange={setRole} options={["店长", "美容师", "前台", "财务"].map((item) => ({ value: item, label: item }))} />
               <label>底薪<input type="number" value={baseSalary} onChange={(event) => setBaseSalary(Number(event.target.value))} /></label>
               <label>提成比例<input type="number" step="0.01" value={commissionRate} onChange={(event) => setCommissionRate(Number(event.target.value))} /></label>
-              <button className="primary-button">新增员工</button>
+              <button className="primary-button">保存员工档案</button>
             </form>
             <div className="divider" />
-            <PanelTitle icon={<LockKeyhole size={18} />} title="邀请账号" action="员工加入" />
+            <PanelTitle icon={<LockKeyhole size={18} />} title="邀请员工" action="邀请码加入" />
             <form className="form" onSubmit={createInvite}>
               <Select label="员工" value={inviteStaffId} onChange={setInviteStaffId} options={data.staff.map(optionOf)} />
-              <label>登录账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} /></label>
+              <label>员工手机号/账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} placeholder="员工加入后用于登录" /></label>
               <Select
                 label="账号角色"
                 value={inviteRole}
@@ -1327,7 +1326,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           ])}
         />
         <div className="divider" />
-        <PanelTitle icon={<LockKeyhole size={18} />} title="账号邀请" action={`${data.staffInvites.length} 条`} />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="邀请记录" action={`${data.staffInvites.length} 条`} />
         <DataTable
           columns={["员工", "账号", "角色", "状态", "邀请码", "创建时间"]}
           rows={data.staffInvites.map((invite) => [
@@ -1366,8 +1365,8 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [quantity, setQuantity] = useState(1);
   const [type, setType] = useState<InventoryLog["type"]>("入库");
-  const [supplierName, setSupplierName] = useState("本地耗材供应商");
-  const [supplierPhone, setSupplierPhone] = useState("13800000000");
+  const [supplierName, setSupplierName] = useState("");
+  const [supplierPhone, setSupplierPhone] = useState("");
   const [supplierId, setSupplierId] = useState(data.suppliers[0]?.id ?? "");
   const [purchaseProductId, setPurchaseProductId] = useState(data.products[0]?.id ?? "");
   const [purchaseQuantity, setPurchaseQuantity] = useState(5);
@@ -1675,14 +1674,14 @@ function SettingsView({ data, session, setView }: { data: AppData; session: User
     { title: "客户运营", desc: "新客登记、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
     { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "售后回访", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
-    { title: "部门管理", desc: "岗位、账号、邀请、权限分配", metric: `${activeStaff} 在职`, icon: Building2, tone: "violet", view: "staff" },
+    { title: "员工档案", desc: "岗位、底薪、提成比例、在职状态", metric: `${activeStaff} 在职`, icon: Building2, tone: "violet", view: "staff" },
     { title: "组织架构", desc: "老板、店长、前台、美容师、财务", metric: `${data.authUsers.length} 账号`, icon: Share2, tone: "teal", view: "staff" },
-    { title: "账号审批", desc: "注册审核、开屏授权、离职停用", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
+    { title: "邀请员工", desc: "为员工生成邀请码，加入后开通账号", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
     { title: "客户池", desc: "客户线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
     { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
     { title: "公告中心", desc: "全员通知、团队公告、个人推送", metric: "待接入", icon: Megaphone, tone: "rose", view: "settings" },
     { title: "产品管理", desc: "产品、类别、项目、耗材资料", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "catalog" },
-    { title: "佣金报表", desc: "按员工、项目、时间汇总", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
+    { title: "薪资提成", desc: "底薪、提成比例、项目提成结算", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
   ];
 
   return (
@@ -1695,10 +1694,6 @@ function SettingsView({ data, session, setView }: { data: AppData; session: User
           <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
           <h2>{session.user.name}</h2>
           <p>{session.user.account}</p>
-        </div>
-        <div className="admin-secret-card">
-          <span>当前权限</span>
-          <strong>{session.user.permissions.length} 项</strong>
         </div>
       </section>
 

@@ -3547,3 +3547,106 @@ html[data-theme="day"],
     font-size: 21px;
   }
 }
+
+/* Product polish: formal login, softer beauty-system radii, cleaner admin hero. */
+.login-panel {
+  width: min(430px, 100%);
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.login-card {
+  border-radius: 20px;
+}
+
+.login-brand {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 6px;
+}
+
+.login-brand strong,
+.login-brand span {
+  display: block;
+}
+
+.login-brand strong {
+  color: var(--yich-ink);
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.login-brand span {
+  margin-top: 4px;
+  color: var(--yich-muted);
+  font-size: 13px;
+}
+
+.register-note {
+  margin: -2px 0 2px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.admin-profile-hero {
+  grid-template-columns: auto minmax(0, 1fr);
+  border-radius: 24px;
+}
+
+.admin-avatar {
+  border-radius: 20px;
+}
+
+.page-hero,
+.beauty-hero {
+  border-radius: 24px;
+}
+
+.panel,
+.stat-card,
+.quick-card,
+.record-card,
+.settings-card,
+.sub-panel,
+.admin-code-panel,
+.admin-module-card,
+.notification-panel,
+.account-menu {
+  border-radius: 18px;
+}
+
+input,
+select,
+textarea,
+.primary-button,
+.secondary-button,
+.icon-button,
+.ghost-button,
+.segmented,
+.segmented button,
+.page-hero-stat,
+.dashboard-metric,
+.table-wrap {
+  border-radius: 14px;
+}
+
+@media (max-width: 900px) {
+  .login-panel {
+    width: 100%;
+  }
+
+  .admin-profile-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .page-hero,
+  .beauty-hero {
+    border-radius: 20px;
+  }
+}
