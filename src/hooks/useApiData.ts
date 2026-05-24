@@ -126,6 +126,7 @@ export function useApiData() {
     addFollowUp: client.addFollowUp,
     completeFollowUp: client.completeFollowUp,
     addService: client.addService,
+    updateServiceConsumables: client.updateServiceConsumables,
     addProduct: client.addProduct,
     addSupplier: client.addSupplier,
     receivePurchaseOrder: client.receivePurchaseOrder,

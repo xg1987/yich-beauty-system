@@ -29,7 +29,7 @@ import {
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { calculateOrderTotal, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, StoreProfile, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, StoreProfile, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 
@@ -1662,6 +1662,9 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   const [serviceDuration, setServiceDuration] = useState(60);
   const [serviceConsumableProductId, setServiceConsumableProductId] = useState("");
   const [serviceConsumableQty, setServiceConsumableQty] = useState(1);
+  const [recipeServiceId, setRecipeServiceId] = useState(data.services[0]?.id ?? "");
+  const [recipeProductId, setRecipeProductId] = useState(data.products.find((product) => product.type === "consumable")?.id ?? "");
+  const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
   const consumableOptions = data.products
@@ -1670,12 +1673,14 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
 
   const addService = (event: FormEvent) => {
     event.preventDefault();
+    const consumables = serviceConsumableProductId ? [{ productId: serviceConsumableProductId, quantity: serviceConsumableQty }] : [];
     void runMutation(() =>
       actions.addService({
         name: serviceName,
         price: servicePrice,
         category: "自定义项目",
         duration: serviceDuration,
+        consumables,
         consumableProductId: serviceConsumableProductId || undefined,
         consumableQty: serviceConsumableProductId ? serviceConsumableQty : undefined,
       }),
@@ -1683,6 +1688,21 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
     setServiceName("");
     setServiceConsumableProductId("");
     setServiceConsumableQty(1);
+  };
+
+  const selectedRecipeService = data.services.find((service) => service.id === recipeServiceId);
+  const recipeConsumables = serviceConsumablesOf(selectedRecipeService);
+  const addRecipeConsumable = (event: FormEvent) => {
+    event.preventDefault();
+    if (!recipeServiceId || !recipeProductId) return;
+    const nextConsumables = mergeConsumables([...recipeConsumables, { productId: recipeProductId, quantity: recipeQty }]);
+    void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
+  };
+
+  const removeRecipeConsumable = (productId: string) => {
+    const nextConsumables = recipeConsumables.filter((item) => item.productId !== productId);
+    if (nextConsumables.length === 0) return;
+    void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
   };
 
   const addProduct = (event: FormEvent) => {
@@ -1723,6 +1743,23 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           <button className="primary-button">保存项目</button>
         </form>
         <div className="divider" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="项目配方" action="多耗材自动扣库存" />
+        <form className="form" onSubmit={addRecipeConsumable}>
+          <Select label="服务项目" value={recipeServiceId} onChange={setRecipeServiceId} options={data.services.map(optionOf)} />
+          <Select label="耗材" value={recipeProductId} onChange={setRecipeProductId} options={consumableOptions.length ? consumableOptions : [{ value: "", label: "暂无耗材" }]} />
+          <label>单次用量<input type="number" min={0.01} step={0.01} value={recipeQty} onChange={(event) => setRecipeQty(Number(event.target.value))} /></label>
+          <button className="primary-button" disabled={!recipeServiceId || !recipeProductId}>加入配方</button>
+        </form>
+        <div className="recipe-list">
+          {recipeConsumables.map((item) => (
+            <div key={item.productId}>
+              <span>{nameOf(data.products, item.productId)} × {item.quantity}</span>
+              <button type="button" onClick={() => removeRecipeConsumable(item.productId)} disabled={recipeConsumables.length <= 1}>移除</button>
+            </div>
+          ))}
+          {recipeConsumables.length === 0 && <p className="empty">当前项目未配置耗材配方</p>}
+        </div>
+        <div className="divider" />
         <PanelTitle icon={<Boxes size={18} />} title="新增商品/耗材" action="库存资料" />
         <form className="form" onSubmit={addProduct}>
           <label>名称<input value={productName} onChange={(event) => setProductName(event.target.value)} required /></label>
@@ -1734,15 +1771,13 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         <PanelTitle icon={<Sparkles size={18} />} title="项目与商品" action="价格/库存" />
         <div className="split-list">
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "默认耗材"]}
+            columns={["项目", "分类", "价格", "时长", "耗材配方"]}
             rows={data.services.map((item) => [
               item.name,
               item.category,
               money(item.price),
               `${item.duration} 分钟`,
-              item.consumableProductId
-                ? `${nameOf(data.products, item.consumableProductId)} × ${item.consumableQty ?? 0}`
-                : "未配置",
+              serviceFormulaSummary(item, data.products),
             ])}
           />
           <DataTable columns={["商品", "类型", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.type === "sale" ? "销售商品" : "服务耗材", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
@@ -2470,6 +2505,30 @@ function InventoryLine({ product }: { product: Product }) {
       <span>{product.stock}{product.unit} / 预警 {product.warningStock}{product.unit}</span>
     </div>
   );
+}
+
+function serviceConsumablesOf(service?: Service): ServiceConsumable[] {
+  const consumables = service?.consumables?.filter((item) => item.productId && item.quantity > 0) ?? [];
+  if (consumables.length > 0) return consumables;
+  if (service?.consumableProductId && (service.consumableQty ?? 0) > 0) {
+    return [{ productId: service.consumableProductId, quantity: service.consumableQty ?? 0 }];
+  }
+  return [];
+}
+
+function mergeConsumables(consumables: ServiceConsumable[]) {
+  const merged = new Map<string, number>();
+  consumables.forEach((item) => {
+    if (!item.productId || item.quantity <= 0) return;
+    merged.set(item.productId, (merged.get(item.productId) ?? 0) + item.quantity);
+  });
+  return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
+}
+
+function serviceFormulaSummary(service: Service, products: Product[]) {
+  const consumables = serviceConsumablesOf(service);
+  if (consumables.length === 0) return "未配置";
+  return consumables.map((item) => `${nameOf(products, item.productId)} × ${item.quantity}`).join(" / ");
 }
 
 function optionOf(item: { id: string; name: string }) {

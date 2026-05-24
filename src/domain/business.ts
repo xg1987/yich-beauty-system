@@ -19,6 +19,8 @@ import type {
   PurchaseOrder,
   ReferralRelation,
   Refund,
+  Service,
+  ServiceConsumable,
   Staff,
   StaffInvite,
   StaffShift,
@@ -295,6 +297,15 @@ export function calculateOrderTotal(data: AppData, serviceId: string, productId?
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedProduct = data.products.find((item) => item.id === productId);
   return (selectedService?.price ?? 0) + (selectedProduct?.price ?? 0);
+}
+
+function serviceConsumables(service: Service): ServiceConsumable[] {
+  const consumables = service.consumables?.filter((item) => item.productId && item.quantity > 0) ?? [];
+  if (consumables.length > 0) return consumables;
+  if (service.consumableProductId && (service.consumableQty ?? 0) > 0) {
+    return [{ productId: service.consumableProductId, quantity: service.consumableQty ?? 0 }];
+  }
+  return [];
 }
 
 export function registerStore(
@@ -850,11 +861,22 @@ export function checkoutOrder(
     createdAt,
   };
 
+  const serviceConsumption = serviceConsumables(selectedService);
+  const consumptionByProduct = new Map<string, number>();
+  for (const item of serviceConsumption) {
+    consumptionByProduct.set(item.productId, (consumptionByProduct.get(item.productId) ?? 0) + item.quantity);
+  }
+  if (input.productId) consumptionByProduct.set(input.productId, (consumptionByProduct.get(input.productId) ?? 0) + 1);
+  for (const [productId, quantity] of consumptionByProduct) {
+    const product = data.products.find((item) => item.id === productId);
+    if (!product) throw new Error("耗材或商品不存在");
+    if (product.stock < quantity) throw new Error(`${product.name} 库存不足`);
+  }
+
   const products = data.products.map((product) => {
     let delta = 0;
-    if (product.id === selectedService.consumableProductId) delta -= selectedService.consumableQty ?? 0;
-    if (product.id === input.productId) delta -= 1;
-    return delta ? { ...product, stock: Math.max(0, product.stock + delta) } : product;
+    delta -= consumptionByProduct.get(product.id) ?? 0;
+    return delta ? { ...product, stock: product.stock + delta } : product;
   });
 
   const inventoryLogs: InventoryLog[] = [...data.inventoryLogs];
@@ -1045,7 +1067,9 @@ export function refundOrder(
   };
 
   if (isFullRefund) {
-    restoreProduct(service?.consumableProductId, service?.consumableQty ?? 0);
+    if (service) {
+      serviceConsumables(service).forEach((item) => restoreProduct(item.productId, item.quantity));
+    }
     restoreProduct(order.productId, order.productId ? 1 : 0);
   }
 

@@ -67,6 +67,13 @@ const afterService = await request<AppData>(baseUrl, "/api/services", {
 });
 const serviceId = afterService.services[0].id;
 
+const afterServiceRecipe = await request<AppData>(baseUrl, `/api/services/${serviceId}/consumables`, {
+  method: "PATCH",
+  token: ownerSession.token,
+  body: { consumables: [{ productId: "p1", quantity: 1 }] },
+});
+assert.deepEqual(afterServiceRecipe.services[0].consumables, [{ productId: "p1", quantity: 1 }], "D1 should persist service consumable recipe");
+
 const afterTherapistStaff = await request<AppData>(baseUrl, "/api/staff", {
   method: "POST",
   token: ownerSession.token,

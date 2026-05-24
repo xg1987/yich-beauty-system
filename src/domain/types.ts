@@ -79,12 +79,18 @@ export type Customer = {
   lastVisit: string;
 };
 
+export type ServiceConsumable = {
+  productId: string;
+  quantity: number;
+};
+
 export type Service = {
   id: string;
   name: string;
   category: string;
   price: number;
   duration: number;
+  consumables?: ServiceConsumable[];
   consumableProductId?: string;
   consumableQty?: number;
 };

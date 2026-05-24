@@ -99,6 +99,42 @@ function card(data: AppData, cardId: string) {
 }
 
 {
+  const recipeData = {
+    ...cloneSeed(),
+    services: [
+      {
+        id: "v_recipe",
+        name: "复合耗材护理",
+        category: "皮肤管理",
+        price: 520,
+        duration: 70,
+        consumables: [
+          { productId: "p1", quantity: 2 },
+          { productId: "p2", quantity: 0.5 },
+        ],
+      },
+      ...cloneSeed().services,
+    ],
+  };
+  const checkedOut = checkoutOrder(
+    recipeData,
+    { customerId: "c1", staffId: "s2", serviceId: "v_recipe", payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(checkedOut, "p1"), 16, "service recipe should consume first product");
+  assert.equal(productStock(checkedOut, "p2"), 11.5, "service recipe should consume second product");
+  assert.equal(checkedOut.inventoryLogs.filter((item) => item.type === "服务消耗").length, 2, "service recipe should log each consumable");
+
+  const refunded = refundOrder(
+    checkedOut,
+    { orderId: checkedOut.orders[0].id, reason: "配方项目退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(refunded, "p1"), 18, "recipe refund should restore first product");
+  assert.equal(productStock(refunded, "p2"), 12, "recipe refund should restore second product");
+}
+
+{
   const data = checkoutOrder(
     cloneSeed(),
     {

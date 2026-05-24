@@ -37,7 +37,7 @@ import {
   updateMemberCardStatus,
 } from "../src/domain/business";
 import type { Permission, UserSession } from "../src/domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, UserRole } from "../src/domain/types";
+import type { AppData, Appointment, InventoryLog, Order, ServiceConsumable, UserRole } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
 import { getSession, login } from "./auth";
 import { BeautyDatabase } from "./database";
@@ -714,27 +714,70 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/services") {
         requirePermission(session, "catalog:manage");
         const body = await readJson(request);
+        const consumables = optionalConsumables(body);
         const nextData = updateData(database, session, {
           action: "新增服务项目",
           targetType: "service",
           targetId: "latest",
           summary: `${session.user.name} 新增服务项目 ${requiredString(body, "name")}`,
-        }, (data) => ({
-          ...data,
-          services: [
-            {
-              id: makeId("v"),
-              name: requiredString(body, "name"),
-              category: optionalString(body, "category") ?? "自定义项目",
-              price: requiredNumber(body, "price"),
-              duration: optionalNumber(body, "duration") ?? 60,
-              consumableProductId: optionalString(body, "consumableProductId"),
-              consumableQty: optionalNumber(body, "consumableQty"),
-            },
-            ...data.services,
-          ],
-        }));
+        }, (data) => {
+          consumables.forEach((item) => {
+            const product = data.products.find((candidate) => candidate.id === item.productId && candidate.type === "consumable");
+            if (!product) throw new Error("耗材不存在");
+          });
+          return {
+            ...data,
+            services: [
+              {
+                id: makeId("v"),
+                name: requiredString(body, "name"),
+                category: optionalString(body, "category") ?? "自定义项目",
+                price: requiredNumber(body, "price"),
+                duration: optionalNumber(body, "duration") ?? 60,
+                consumables,
+                consumableProductId: consumables[0]?.productId ?? optionalString(body, "consumableProductId"),
+                consumableQty: consumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
+              },
+              ...data.services,
+            ],
+          };
+        });
         sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/services/") && url.pathname.endsWith("/consumables")) {
+        requirePermission(session, "catalog:manage");
+        const serviceId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        const consumables = optionalConsumables(body);
+        if (consumables.length === 0) throw new Error("至少配置一个耗材");
+        const nextData = updateData(database, session, {
+          action: "更新项目配方",
+          targetType: "service",
+          targetId: serviceId,
+          summary: `${session.user.name} 更新项目耗材配方`,
+        }, (data) => {
+          if (!data.services.some((service) => service.id === serviceId)) throw new Error("服务项目不存在");
+          consumables.forEach((item) => {
+            const product = data.products.find((candidate) => candidate.id === item.productId && candidate.type === "consumable");
+            if (!product) throw new Error("耗材不存在");
+          });
+          return {
+            ...data,
+            services: data.services.map((service) =>
+              service.id === serviceId
+                ? {
+                    ...service,
+                    consumables,
+                    consumableProductId: consumables[0]?.productId,
+                    consumableQty: consumables[0]?.quantity,
+                  }
+                : service,
+            ),
+          };
+        });
+        sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
 
@@ -1048,4 +1091,18 @@ function optionalStringArray(body: JsonBody, key: string) {
   const value = body[key];
   if (!Array.isArray(value)) return undefined;
   return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function optionalConsumables(body: JsonBody): ServiceConsumable[] {
+  const value = body.consumables;
+  if (!Array.isArray(value)) return [];
+  const merged = new Map<string, number>();
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const productId = (item as { productId?: unknown }).productId;
+    const quantity = (item as { quantity?: unknown }).quantity;
+    if (typeof productId !== "string" || productId.length === 0 || typeof quantity !== "number" || quantity <= 0) continue;
+    merged.set(productId, (merged.get(productId) ?? 0) + quantity);
+  }
+  return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
 }

@@ -92,6 +92,15 @@ try {
   });
   assert.equal(afterServiceWithConsumable.services[0].consumableProductId, "p1", "service API should persist consumable product");
   assert.equal(afterServiceWithConsumable.services[0].consumableQty, 2, "service API should persist consumable quantity");
+  const afterServiceRecipe = await request<AppData>(baseUrl, `/api/services/${afterServiceWithConsumable.services[0].id}/consumables`, {
+    method: "PATCH",
+    token: session.token,
+    body: { consumables: [{ productId: "p1", quantity: 2 }, { productId: "p2", quantity: 0.5 }] },
+  });
+  assert.deepEqual(afterServiceRecipe.services[0].consumables, [
+    { productId: "p1", quantity: 2 },
+    { productId: "p2", quantity: 0.5 },
+  ], "service recipe API should persist multiple consumables");
 
   const registeredSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
     method: "POST",

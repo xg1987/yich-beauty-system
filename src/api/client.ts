@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Service, StoreProfile, UserRole } from "../domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, UserRole } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -155,8 +155,14 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/follow-ups", { method: "POST", body, token: getToken() }),
     completeFollowUp: (followUpId: string) =>
       request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", token: getToken() }),
-    addService: (body: { name: string; price: number; category?: string; duration?: number; consumableProductId?: string; consumableQty?: number }) =>
+    addService: (body: { name: string; price: number; category?: string; duration?: number; consumables?: ServiceConsumable[]; consumableProductId?: string; consumableQty?: number }) =>
       request<AppData>("/api/services", { method: "POST", body, token: getToken() }),
+    updateServiceConsumables: (serviceId: string, consumables: ServiceConsumable[]) =>
+      request<AppData>(`/api/services/${encodeURIComponent(serviceId)}/consumables`, {
+        method: "PATCH",
+        body: { consumables },
+        token: getToken(),
+      }),
     addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; unit?: string }) =>
       request<AppData>("/api/products", { method: "POST", body, token: getToken() }),
     addSupplier: (body: { name: string; phone?: string; contact?: string }) =>

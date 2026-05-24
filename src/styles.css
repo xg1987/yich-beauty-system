@@ -4048,6 +4048,41 @@ html[data-theme="day"],
   margin-bottom: 12px;
 }
 
+.recipe-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.recipe-list > div {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 253, 250, 0.82);
+}
+
+.recipe-list span {
+  color: var(--yich-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.recipe-list button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 999px;
+  background: #fffdfa;
+  color: var(--yich-purple-deep);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .register-note {
   margin: -2px 0 2px;
   padding: 12px 14px;
