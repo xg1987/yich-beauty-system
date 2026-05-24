@@ -85,12 +85,18 @@ export type StaffInviteInput = {
   account: string;
   role: UserRole;
   createdBy: string;
+  validDays?: number;
 };
 
 export type JoinInviteInput = {
   inviteCode: string;
   name: string;
   password: string;
+};
+
+export type RevokeStaffInviteInput = {
+  inviteId: string;
+  revokedBy: string;
 };
 
 export type CheckoutInput = {
@@ -647,23 +653,52 @@ export function createStaffInvite(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
+  const validDays = input.validDays ?? 7;
+  const account = input.account.trim();
   const staff = data.staff.find((item) => item.id === input.staffId);
   if (!staff) throw new Error("员工不存在");
-  if (data.authUsers.some((user) => user.account === input.account)) throw new Error("登录账号已存在");
-  if (data.staffInvites.some((invite) => invite.account === input.account && invite.status === "待加入")) throw new Error("该账号已有待加入邀请");
+  if (!account) throw new Error("请输入员工登录账号");
+  if (validDays <= 0) throw new Error("邀请码有效期必须大于 0 天");
+  if (!["manager", "frontdesk", "therapist", "finance"].includes(input.role)) throw new Error("账号角色不正确");
+  if (staff.accountId || data.authUsers.some((user) => user.staffId === staff.id)) throw new Error("该员工已开通账号");
+  if (data.authUsers.some((user) => user.account === account)) throw new Error("登录账号已存在");
+  const hasActiveInvite = data.staffInvites.some((invite) => {
+    if (invite.status !== "待加入") return false;
+    if (invite.expiresAt && +new Date(invite.expiresAt) <= +new Date(createdAt)) return false;
+    return invite.account === account || invite.staffId === staff.id;
+  });
+  if (hasActiveInvite) throw new Error("该员工或账号已有待加入邀请");
   const invite: StaffInvite = {
     id: idFactory("si"),
     staffId: staff.id,
-    account: input.account,
+    account,
     role: input.role,
     status: "待加入",
     inviteCode: idFactory("join"),
     createdBy: input.createdBy,
     createdAt,
+    expiresAt: new Date(+new Date(createdAt) + validDays * 24 * 60 * 60 * 1000).toISOString(),
   };
   return {
     ...data,
     staffInvites: [invite, ...data.staffInvites],
+  };
+}
+
+export function revokeStaffInvite(
+  data: AppData,
+  input: RevokeStaffInviteInput,
+  options: { now?: () => string } = {},
+): AppData {
+  const revokedAt = (options.now ?? nowIso)();
+  const invite = data.staffInvites.find((item) => item.id === input.inviteId);
+  if (!invite) throw new Error("邀请不存在");
+  if (invite.status !== "待加入") throw new Error("只能作废待加入邀请");
+  return {
+    ...data,
+    staffInvites: data.staffInvites.map((item) =>
+      item.id === invite.id ? { ...item, status: "已作废", revokedAt, revokedBy: input.revokedBy } : item,
+    ),
   };
 }
 
@@ -674,10 +709,15 @@ export function joinStaffInvite(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  const invite = data.staffInvites.find((item) => item.inviteCode === input.inviteCode && item.status === "待加入");
+  const inviteCode = input.inviteCode.trim();
+  const invite = data.staffInvites.find((item) => item.inviteCode === inviteCode && item.status === "待加入");
   if (!invite) throw new Error("邀请不存在或已失效");
+  if (invite.expiresAt && +new Date(invite.expiresAt) <= +new Date(createdAt)) throw new Error("邀请码已过期");
   const staff = data.staff.find((item) => item.id === invite.staffId);
   if (!staff) throw new Error("员工不存在");
+  if (!input.name.trim()) throw new Error("请输入姓名");
+  if (!input.password) throw new Error("请输入密码");
+  if (staff.accountId || data.authUsers.some((user) => user.staffId === staff.id)) throw new Error("该员工已开通账号");
   if (data.authUsers.some((user) => user.account === invite.account)) throw new Error("登录账号已存在");
   const userId = idFactory("u");
   return {
@@ -685,7 +725,7 @@ export function joinStaffInvite(
     authUsers: [
       {
         id: userId,
-        name: input.name || staff.name,
+        name: input.name.trim() || staff.name,
         account: invite.account,
         password: input.password,
         role: invite.role,
@@ -696,7 +736,7 @@ export function joinStaffInvite(
       },
       ...data.authUsers,
     ],
-    staff: data.staff.map((item) => (item.id === staff.id ? { ...item, name: input.name || item.name, accountId: userId } : item)),
+    staff: data.staff.map((item) => (item.id === staff.id ? { ...item, name: input.name.trim() || item.name, accountId: userId } : item)),
     staffInvites: data.staffInvites.map((item) =>
       item.id === invite.id ? { ...item, status: "已加入", joinedAt: createdAt } : item,
     ),

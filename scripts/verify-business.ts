@@ -30,6 +30,7 @@ import {
   refundMemberCard,
   refundOrder,
   reportSummary,
+  revokeStaffInvite,
   reverseDailyClose,
   transferMemberCard,
   updateStaffMember,
@@ -86,10 +87,11 @@ function card(data: AppData, cardId: string) {
 
   const invited = createStaffInvite(
     withStaff,
-    { staffId: withStaff.staff[0].id, account: "therapist-new@test.local", role: "therapist", createdBy: "u_manager" },
+    { staffId: withStaff.staff[0].id, account: "therapist-new@test.local", role: "therapist", createdBy: "u_manager", validDays: 3 },
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(invited.staffInvites[0].status, "待加入", "staff invite should be pending");
+  assert.equal(invited.staffInvites[0].expiresAt, "2026-05-27T01:00:00.000Z", "staff invite should persist expiry");
   const joined = joinStaffInvite(
     invited,
     { inviteCode: invited.staffInvites[0].inviteCode, name: "新美容师", password: "secret" },
@@ -98,6 +100,30 @@ function card(data: AppData, cardId: string) {
   assert.equal(joined.staffInvites[0].status, "已加入", "staff invite should mark joined");
   assert.equal(joined.authUsers[0].account, "therapist-new@test.local", "staff invite should create login account");
   assert.equal(joined.staff[0].accountId, joined.authUsers[0].id, "joined account should bind to staff");
+
+  const expiredInvite = createStaffInvite(
+    withStaff,
+    { staffId: withStaff.staff[0].id, account: "expired-staff@test.local", role: "therapist", createdBy: "u_manager", validDays: 1 },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.throws(
+    () =>
+      joinStaffInvite(
+        expiredInvite,
+        { inviteCode: expiredInvite.staffInvites[0].inviteCode, name: "过期员工", password: "secret" },
+        { idFactory: testId, now: () => "2026-05-26T01:00:00.000Z" },
+      ),
+    /邀请码已过期/,
+    "staff invite should reject expired code",
+  );
+
+  const revoked = revokeStaffInvite(
+    expiredInvite,
+    { inviteId: expiredInvite.staffInvites[0].id, revokedBy: "u_manager" },
+    { now: fixedNow },
+  );
+  assert.equal(revoked.staffInvites[0].status, "已作废", "staff invite should be revocable");
+  assert.equal(revoked.staffInvites[0].revokedBy, "u_manager", "staff invite should preserve revoke operator");
 }
 
 {

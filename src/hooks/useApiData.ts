@@ -97,6 +97,7 @@ export function useApiData() {
     addStaff: client.addStaff,
     updateStaff: client.updateStaff,
     createStaffInvite: client.createStaffInvite,
+    revokeStaffInvite: client.revokeStaffInvite,
     updateOnlineStorefront: client.updateOnlineStorefront,
     convertOnlineBookingRequest: client.convertOnlineBookingRequest,
     checkout: client.checkout,

@@ -29,6 +29,7 @@ import {
   refundMemberCard,
   refundOrder,
   registerStore,
+  revokeStaffInvite,
   reverseDailyClose,
   transferMemberCard,
   upsertOnlineStorefront,
@@ -197,9 +198,22 @@ export function createApiServer(database = new BeautyDatabase()) {
           account: requiredString(body, "account"),
           role: requiredString(body, "role") as UserRole,
           createdBy: session.user.id,
+          validDays: optionalNumber(body, "validDays"),
         });
         database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/staff-invites/")) {
+        requirePermission(session, "staff:manage");
+        const inviteId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        const nextData = revokeStaffInvite(database.readData(), {
+          inviteId,
+          revokedBy: session.user.id,
+        });
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
 

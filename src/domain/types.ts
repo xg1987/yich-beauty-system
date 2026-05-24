@@ -66,7 +66,10 @@ export type StaffInvite = {
   inviteCode: string;
   createdBy: string;
   createdAt: string;
+  expiresAt?: string;
   joinedAt?: string;
+  revokedAt?: string;
+  revokedBy?: string;
 };
 
 export type Customer = {

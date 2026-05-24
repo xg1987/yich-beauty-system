@@ -136,8 +136,9 @@ const frontdeskStaffId = afterFrontdeskStaff.staff[0].id;
 const afterTherapistInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
   method: "POST",
   token: ownerSession.token,
-  body: { staffId: therapistStaffId, account: `cf-therapist-${runId}@test.local`, role: "therapist" },
+  body: { staffId: therapistStaffId, account: `cf-therapist-${runId}@test.local`, role: "therapist", validDays: 3 },
 });
+assert.ok(afterTherapistInvite.staffInvites[0].expiresAt, "D1 should persist staff invite expiry");
 const therapistSession = await request<{ token: string; user: { account: string } }>(baseUrl, "/api/auth/join-invite", {
   method: "POST",
   body: { inviteCode: afterTherapistInvite.staffInvites[0].inviteCode, name: `验证美容师 ${runId}`, password: "secret" },
@@ -147,12 +148,28 @@ assert.equal(therapistSession.user.account, `cf-therapist-${runId}@test.local`, 
 const afterFrontdeskInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
   method: "POST",
   token: ownerSession.token,
-  body: { staffId: frontdeskStaffId, account: `cf-frontdesk-${runId}@test.local`, role: "frontdesk" },
+  body: { staffId: frontdeskStaffId, account: `cf-frontdesk-${runId}@test.local`, role: "frontdesk", validDays: 7 },
 });
 const frontdeskSession = await request<{ token: string }>(baseUrl, "/api/auth/join-invite", {
   method: "POST",
   body: { inviteCode: afterFrontdeskInvite.staffInvites[0].inviteCode, name: `验证前台 ${runId}`, password: "secret" },
 });
+
+const afterRevocableStaff = await request<AppData>(baseUrl, "/api/staff", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证待作废员工 ${runId}`, phone: "13900000008", role: "前台", baseSalary: 5000, commissionRate: 0.04 },
+});
+const afterRevocableInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { staffId: afterRevocableStaff.staff[0].id, account: `cf-revoke-${runId}@test.local`, role: "frontdesk", validDays: 7 },
+});
+const afterInviteRevoked = await request<AppData>(baseUrl, `/api/staff-invites/${afterRevocableInvite.staffInvites[0].id}`, {
+  method: "PATCH",
+  token: ownerSession.token,
+});
+assert.equal(afterInviteRevoked.staffInvites.find((item) => item.id === afterRevocableInvite.staffInvites[0].id)?.status, "已作废", "D1 should revoke pending staff invite");
 await assert.rejects(
   () =>
     request<AppData>(baseUrl, "/api/inventory/adjust", {

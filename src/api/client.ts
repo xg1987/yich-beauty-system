@@ -25,8 +25,10 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
     updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>
       request<AppData>(`/api/staff/${encodeURIComponent(staffId)}`, { method: "PATCH", body, token: getToken() }),
-    createStaffInvite: (body: { staffId: string; account: string; role: UserRole }) =>
+    createStaffInvite: (body: { staffId: string; account: string; role: UserRole; validDays?: number }) =>
       request<AppData>("/api/staff-invites", { method: "POST", body, token: getToken() }),
+    revokeStaffInvite: (inviteId: string) =>
+      request<AppData>(`/api/staff-invites/${encodeURIComponent(inviteId)}`, { method: "PATCH", token: getToken() }),
     updateOnlineStorefront: (body: { shareCode: string; status?: "启用" | "停用"; headline: string; description: string; enabledServiceIds: string[] }) =>
       request<AppData>("/api/online-storefront", { method: "POST", body, token: getToken() }),
     convertOnlineBookingRequest: (requestId: string, staffId: string) =>

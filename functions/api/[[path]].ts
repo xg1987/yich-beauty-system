@@ -28,6 +28,7 @@ import {
   refundMemberCard,
   refundOrder,
   registerStore,
+  revokeStaffInvite,
   reverseDailyClose,
   transferMemberCard,
   upsertOnlineStorefront,
@@ -187,9 +188,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         account: requiredString(body, "account"),
         role: requiredString(body, "role") as UserRole,
         createdBy: session.user.id,
+        validDays: optionalNumber(body, "validDays"),
       });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/staff-invites/")) {
+      requirePermission(session, "staff:manage");
+      const inviteId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      const nextData = revokeStaffInvite(await database.readData(), {
+        inviteId,
+        revokedBy: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
     }
 
     if (context.request.method === "POST" && pathname === "/api/online-storefront") {

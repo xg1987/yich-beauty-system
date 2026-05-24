@@ -132,14 +132,31 @@ try {
   const afterInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
     method: "POST",
     token: session.token,
-    body: { staffId: apiStaffId, account: "api-staff@test.local", role: "therapist" },
+    body: { staffId: apiStaffId, account: "api-staff@test.local", role: "therapist", validDays: 3 },
   });
   assert.equal(afterInvite.staffInvites[0].status, "待加入", "staff invite API should create invite");
+  assert.ok(afterInvite.staffInvites[0].expiresAt, "staff invite API should persist expiry");
   const joinedSession = await request<{ token: string; user: { account: string; roleName: string } }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
     body: { inviteCode: afterInvite.staffInvites[0].inviteCode, name: "API 新美容师", password: "secret" },
   });
   assert.equal(joinedSession.user.account, "api-staff@test.local", "join invite API should login invited staff");
+
+  const afterRevocableStaff = await request<AppData>(baseUrl, "/api/staff", {
+    method: "POST",
+    token: session.token,
+    body: { name: "API 待作废员工", phone: "13900000008", role: "前台", baseSalary: 5000, commissionRate: 0.05 },
+  });
+  const afterRevocableInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
+    method: "POST",
+    token: session.token,
+    body: { staffId: afterRevocableStaff.staff[0].id, account: "api-revoke-staff@test.local", role: "frontdesk", validDays: 7 },
+  });
+  const afterInviteRevoked = await request<AppData>(baseUrl, `/api/staff-invites/${afterRevocableInvite.staffInvites[0].id}`, {
+    method: "PATCH",
+    token: session.token,
+  });
+  assert.equal(afterInviteRevoked.staffInvites.find((item) => item.id === afterRevocableInvite.staffInvites[0].id)?.status, "已作废", "staff invite API should revoke pending invite");
 
   const afterCustomer = await request<AppData>(baseUrl, "/api/customers", {
     method: "POST",

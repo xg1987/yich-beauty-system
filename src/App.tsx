@@ -1900,6 +1900,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const [inviteStaffId, setInviteStaffId] = useState(data.staff[0]?.id ?? "");
   const [inviteAccount, setInviteAccount] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("therapist");
+  const [inviteValidDays, setInviteValidDays] = useState(7);
 
   const settleAll = () => {
     void runMutation(actions.settleCommissions);
@@ -1918,13 +1919,22 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
 
   const createInvite = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account: inviteAccount, role: inviteRole }));
+    void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account: inviteAccount, role: inviteRole, validDays: inviteValidDays }));
   };
 
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingCommission = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
   const pendingDistributionCommission = data.distributionCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const inviteStaffOptions = data.staff
+    .filter((staff) => !staff.accountId && !data.authUsers.some((user) => user.staffId === staff.id))
+    .map(optionOf);
+
+  useEffect(() => {
+    if (!inviteStaffOptions.some((option) => option.value === inviteStaffId)) {
+      setInviteStaffId(inviteStaffOptions[0]?.value ?? "");
+    }
+  }, [inviteStaffId, inviteStaffOptions]);
   const salaryRows = data.staff.map((staff) => {
     const staffCommissions = data.commissions.filter((item) => item.staffId === staff.id && item.status !== "已冲销");
     const pending = staffCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
@@ -1967,7 +1977,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             <div className="divider" />
             <PanelTitle icon={<LockKeyhole size={18} />} title="邀请员工" action="邀请码加入" />
             <form className="form" onSubmit={createInvite}>
-              <Select label="员工" value={inviteStaffId} onChange={setInviteStaffId} options={data.staff.map(optionOf)} />
+              <Select label="员工" value={inviteStaffId} onChange={setInviteStaffId} options={inviteStaffOptions} />
               <label>员工手机号/账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} placeholder="确认邀请码后用于登录" /></label>
               <Select
                 label="账号角色"
@@ -1980,7 +1990,8 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
                   { value: "finance", label: "财务" },
                 ]}
               />
-              <button className="primary-button">生成邀请</button>
+              <label>有效期（天）<input type="number" min={1} value={inviteValidDays} onChange={(event) => setInviteValidDays(Number(event.target.value))} /></label>
+              <button className="primary-button" disabled={!inviteStaffId}>生成邀请</button>
             </form>
           </>
         ) : (
@@ -2031,14 +2042,20 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         <div className="divider" />
         <PanelTitle icon={<LockKeyhole size={18} />} title="邀请记录" action={`${data.staffInvites.length} 条`} />
         <DataTable
-          columns={["员工", "账号", "角色", "状态", "邀请码", "创建时间"]}
+          columns={["员工", "账号", "角色", "状态", "邀请码", "有效期", "加入时间", "操作"]}
           rows={data.staffInvites.map((invite) => [
             nameOf(data.staff, invite.staffId),
             invite.account,
             invite.role,
-            <Badge key={`${invite.id}-status`} text={invite.status} />,
+            <Badge key={`${invite.id}-status`} text={invite.status === "待加入" && invite.expiresAt && +new Date(invite.expiresAt) <= Date.now() ? "已过期" : invite.status} />,
             invite.inviteCode,
-            shortDate(invite.createdAt),
+            invite.expiresAt ? shortDate(invite.expiresAt) : "未设置",
+            invite.joinedAt ? shortDate(invite.joinedAt) : "-",
+            canManageStaff && invite.status === "待加入" ? (
+              <button key={`${invite.id}-revoke`} onClick={() => void runMutation(() => actions.revokeStaffInvite(invite.id))}>作废</button>
+            ) : (
+              invite.revokedAt ? shortDate(invite.revokedAt) : "-"
+            ),
           ])}
         />
         <div className="divider" />
