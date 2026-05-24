@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import type { AppData } from "../src/domain/types";
 
 const baseUrl = process.env.API_BASE_URL ?? "http://localhost:8788";
+const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const today = new Date().toISOString().slice(0, 10);
 
 const health = await request<{ ok: boolean; runtime?: string }>(baseUrl, "/api/health");
 assert.equal(health.ok, true, "health check should pass");
@@ -9,88 +11,129 @@ assert.equal(health.runtime, "cloudflare-d1", "Cloudflare API should report D1 r
 
 await assert.rejects(() => request<AppData>(baseUrl, "/api/data"), /请先登录/, "protected data endpoint should require login");
 
-const session = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
+const ownerSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
   method: "POST",
-  body: { account: "admin@demo.local", password: "yich-demo" },
+  body: {
+    storeName: `Cloudflare 正式验证门店 ${runId}`,
+    ownerName: "Cloudflare 店主",
+    phone: "13900000000",
+    address: "Cloudflare 地址",
+    account: `cf-owner-${runId}@test.local`,
+    password: "secret",
+  },
 });
-assert.equal(session.user.roleName, "店长", "login API should return role session");
+assert.equal(ownerSession.user.roleName, "老板", "D1 should register store and login owner");
 
-const afterResetStart = await request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token });
-assert.equal(afterResetStart.orders.length, 0, "reset should prepare deterministic D1 test state");
+await assert.rejects(
+  () => request<AppData>(baseUrl, "/api/reset", { method: "POST", token: ownerSession.token }),
+  /Not found/,
+  "formal Cloudflare API should not expose a reset endpoint",
+);
 
-const frontdeskSession = await request<{ token: string }>(baseUrl, "/api/auth/login", {
+await requestIfAvailable(baseUrl, "/api/daily-close/reverse", {
   method: "POST",
-  body: { account: "frontdesk@demo.local", password: "yich-demo" },
+  token: ownerSession.token,
+  body: { businessDate: today },
+});
+
+const initialData = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
+assert.ok(initialData.authUsers.every((user) => user.password === ""), "D1 API should not expose passwords");
+
+const afterCustomer = await request<AppData>(baseUrl, "/api/customers", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证客户 ${runId}`, phone: "13600000001" },
+});
+const customerId = afterCustomer.customers[0].id;
+
+const afterSecondCustomer = await request<AppData>(baseUrl, "/api/customers", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证转卡客户 ${runId}`, phone: "13600000002" },
+});
+const secondCustomerId = afterSecondCustomer.customers[0].id;
+
+const afterProduct = await request<AppData>(baseUrl, "/api/products", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证零售商品 ${runId}`, type: "sale", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8 },
+});
+const productId = afterProduct.products[0].id;
+
+const afterService = await request<AppData>(baseUrl, "/api/services", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证护理项目 ${runId}`, category: "皮肤管理", price: 398, duration: 60 },
+});
+const serviceId = afterService.services[0].id;
+
+const afterTherapistStaff = await request<AppData>(baseUrl, "/api/staff", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证美容师 ${runId}`, phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
+});
+const therapistStaffId = afterTherapistStaff.staff[0].id;
+
+const afterFrontdeskStaff = await request<AppData>(baseUrl, "/api/staff", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证前台 ${runId}`, phone: "13900000002", role: "前台", baseSalary: 5000, commissionRate: 0.04 },
+});
+const frontdeskStaffId = afterFrontdeskStaff.staff[0].id;
+
+const afterTherapistInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { staffId: therapistStaffId, account: `cf-therapist-${runId}@test.local`, role: "therapist" },
+});
+const therapistSession = await request<{ token: string; user: { account: string } }>(baseUrl, "/api/auth/join-invite", {
+  method: "POST",
+  body: { inviteCode: afterTherapistInvite.staffInvites[0].inviteCode, name: `验证美容师 ${runId}`, password: "secret" },
+});
+assert.equal(therapistSession.user.account, `cf-therapist-${runId}@test.local`, "D1 should join therapist invite");
+
+const afterFrontdeskInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { staffId: frontdeskStaffId, account: `cf-frontdesk-${runId}@test.local`, role: "frontdesk" },
+});
+const frontdeskSession = await request<{ token: string }>(baseUrl, "/api/auth/join-invite", {
+  method: "POST",
+  body: { inviteCode: afterFrontdeskInvite.staffInvites[0].inviteCode, name: `验证前台 ${runId}`, password: "secret" },
 });
 await assert.rejects(
   () =>
     request<AppData>(baseUrl, "/api/inventory/adjust", {
       method: "POST",
       token: frontdeskSession.token,
-      body: { productId: "p1", type: "入库", quantity: 1 },
+      body: { productId, type: "入库", quantity: 1 },
     }),
   /无权/,
   "frontdesk should not adjust inventory",
 );
 
-const initialData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-assert.equal(initialData.customers.length, 3, "D1 should seed demo customers");
-assert.ok(initialData.authUsers.every((user) => user.password === ""), "D1 API should not expose passwords");
-
-const registeredSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
-  method: "POST",
-  body: {
-    storeName: "Cloudflare 测试门店",
-    ownerName: "Cloudflare 老板",
-    phone: "13900000000",
-    address: "Cloudflare 地址",
-    account: "cf-boss@test.local",
-    password: "secret",
-  },
-});
-assert.equal(registeredSession.user.roleName, "老板", "D1 should register store and login owner");
-
-const afterStaff = await request<AppData>(baseUrl, "/api/staff", {
-  method: "POST",
-  token: session.token,
-  body: { name: "Cloudflare 新美容师", phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
-});
-const cloudflareStaffId = afterStaff.staff[0].id;
-assert.equal(afterStaff.staff[0].name, "Cloudflare 新美容师", "D1 should create staff");
-const afterInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
-  method: "POST",
-  token: session.token,
-  body: { staffId: cloudflareStaffId, account: "cf-staff@test.local", role: "therapist" },
-});
-assert.equal(afterInvite.staffInvites[0].status, "待加入", "D1 should create staff invite");
-const joinedSession = await request<{ token: string; user: { account: string } }>(baseUrl, "/api/auth/join-invite", {
-  method: "POST",
-  body: { inviteCode: afterInvite.staffInvites[0].inviteCode, name: "Cloudflare 新美容师", password: "secret" },
-});
-assert.equal(joinedSession.user.account, "cf-staff@test.local", "D1 should join staff invite");
-
+const unavailableDay = futureDay(20);
 const afterUnavailableSlot = await request<AppData>(baseUrl, "/api/staff-unavailable-slots", {
   method: "POST",
-  token: session.token,
+  token: ownerSession.token,
   body: {
-    staffId: "s3",
-    startAt: "2026-05-26T02:00:00.000Z",
-    endAt: "2026-05-26T03:00:00.000Z",
+    staffId: therapistStaffId,
+    startAt: `${unavailableDay}T02:00:00.000Z`,
+    endAt: `${unavailableDay}T03:00:00.000Z`,
     reason: "Cloudflare 员工培训",
   },
 });
-assert.equal(afterUnavailableSlot.staffUnavailableSlots[0].reason, "Cloudflare 员工培训", "D1 should persist unavailable slot");
-
+assert.equal(afterUnavailableSlot.staffUnavailableSlots[0].staffId, therapistStaffId, "D1 should persist unavailable slot");
 await assert.rejects(
   () =>
     request<AppData>(baseUrl, "/api/appointments", {
       method: "POST",
-      token: session.token,
+      token: ownerSession.token,
       body: {
-        customerId: "c1",
-        staffId: "s3",
-        serviceId: "v1",
-        startAt: "2026-05-26T02:15:00.000Z",
+        customerId,
+        staffId: therapistStaffId,
+        serviceId,
+        startAt: `${unavailableDay}T02:15:00.000Z`,
         note: "不可预约冲突",
       },
     }),
@@ -98,175 +141,162 @@ await assert.rejects(
   "Cloudflare appointment API should reject unavailable staff slots",
 );
 
+const shiftDay = futureDay(21);
 const afterShift = await request<AppData>(baseUrl, "/api/staff-shifts", {
   method: "POST",
-  token: session.token,
+  token: ownerSession.token,
   body: {
-    staffId: "s3",
-    startAt: "2026-05-28T02:00:00.000Z",
-    endAt: "2026-05-28T03:00:00.000Z",
+    staffId: therapistStaffId,
+    startAt: `${shiftDay}T02:00:00.000Z`,
+    endAt: `${shiftDay}T04:00:00.000Z`,
     note: "Cloudflare 早班",
   },
 });
-assert.equal(afterShift.staffShifts[0].note, "Cloudflare 早班", "D1 should persist staff shift");
+assert.equal(afterShift.staffShifts[0].staffId, therapistStaffId, "D1 should persist staff shift");
+await assert.rejects(
+  () =>
+    request<AppData>(baseUrl, "/api/appointments", {
+      method: "POST",
+      token: ownerSession.token,
+      body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T05:00:00.000Z`, note: "班次外预约" },
+    }),
+  /不在员工班次内/,
+  "Cloudflare appointment API should reject time outside shift",
+);
+
+const afterAppointment = await request<AppData>(baseUrl, "/api/appointments", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T02:00:00.000Z`, note: "Cloudflare 正常预约" },
+});
+assert.equal(afterAppointment.appointments[0].staffId, therapistStaffId, "D1 should create appointment inside shift");
 
 const afterApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
   method: "POST",
-  token: session.token,
+  token: ownerSession.token,
   body: { type: "改价折扣", targetId: "manual", amount: 50, reason: "Cloudflare 活动价" },
 });
 const discountApprovalId = afterApprovalRequest.approvalRequests[0].id;
 const afterApprovalDecision = await request<AppData>(baseUrl, `/api/approvals/${discountApprovalId}`, {
   method: "PATCH",
-  token: session.token,
+  token: ownerSession.token,
   body: { approved: true },
 });
 assert.equal(afterApprovalDecision.approvalRequests[0].status, "已通过", "D1 should approve requests");
 
-const afterDiscountCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",
-  token: session.token,
+  token: ownerSession.token,
   body: {
-    customerId: "c1",
-    staffId: "s2",
-    serviceId: "v1",
+    customerId,
+    staffId: therapistStaffId,
+    serviceId,
+    productId,
     payMethod: "微信",
     discountAmount: 50,
     adjustmentReason: "Cloudflare 活动价",
     approvalId: discountApprovalId,
   },
 });
-assert.equal(afterDiscountCheckout.orders[0].paidAmount, 348, "approved discount should persist in D1");
+const orderId = afterCheckout.orders[0].id;
+assert.equal(afterCheckout.orders[0].paidAmount, 547, "approved checkout should persist in D1");
+assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "checkout should create commission in D1");
 
-const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+const afterPartialRefund = await request<AppData>(baseUrl, `/api/orders/${orderId}/refund`, {
   method: "POST",
-  token: session.token,
-  body: {
-    customerId: "c1",
-    staffId: "s2",
-    collaboratorStaffIds: ["s1"],
-    serviceId: "v1",
-    productId: "p4",
-    payMethod: "微信",
-  },
-});
-assert.equal(afterCheckout.orders.length, 2, "checkout should create order in D1");
-assert.equal(afterCheckout.orders[0].totalAmount, 597, "checkout should calculate total");
-const splitCommissions = afterCheckout.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id);
-assert.equal(splitCommissions.length, 2, "checkout should split commissions in D1");
-assert.equal(splitCommissions.reduce((sum, item) => sum + item.amount, 0), 72, "split commissions should preserve total");
-
-const afterPartialRefund = await request<AppData>(baseUrl, `/api/orders/${afterCheckout.orders[0].id}/refund`, {
-  method: "POST",
-  token: session.token,
+  token: ownerSession.token,
   body: { reason: "Cloudflare 部分退款", amount: 100 },
 });
-const partialRefundOrder = afterPartialRefund.orders.find((item) => item.id === afterCheckout.orders[0].id);
-assert.ok(partialRefundOrder, "partial refund order should still exist");
-assert.equal(partialRefundOrder.status, "部分退款", "partial refund should persist order status");
-assert.equal(partialRefundOrder.paidAmount, 497, "partial refund should reduce paid amount");
-
-const afterCardCheckout = await request<AppData>(baseUrl, "/api/checkout", {
-  method: "POST",
-  token: session.token,
-  body: {
-    customerId: "c1",
-    staffId: "s2",
-    serviceId: "v1",
-    payMethod: "会员卡",
-    cardId: "m1",
-  },
-});
-assert.equal(afterCardCheckout.memberCardTransactions[0].type, "消费", "member card checkout should persist transaction");
+assert.equal(afterPartialRefund.orders.find((item) => item.id === orderId)?.status, "部分退款", "partial refund should persist order status");
 
 const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
   method: "POST",
-  token: session.token,
-  body: { customerId: "c2", name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0 },
+  token: ownerSession.token,
+  body: { customerId, name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0 },
 });
-const cloudflareCardId = afterOpenCard.memberCards[0].id;
-const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${cloudflareCardId}/recharge`, {
+const cardId = afterOpenCard.memberCards[0].id;
+const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/recharge`, {
   method: "POST",
-  token: session.token,
+  token: ownerSession.token,
   body: { amount: 100, note: "Cloudflare 充值" },
 });
-assert.equal(afterRecharge.memberCards.find((item) => item.id === cloudflareCardId)?.balance, 600, "D1 should persist recharge");
-const afterFreeze = await request<AppData>(baseUrl, `/api/member-cards/${cloudflareCardId}/status`, {
+assert.equal(afterRecharge.memberCards.find((item) => item.id === cardId)?.balance, 600, "D1 should persist recharge");
+const afterFreeze = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/status`, {
   method: "PATCH",
-  token: session.token,
+  token: ownerSession.token,
   body: { status: "冻结", reason: "Cloudflare 冻结" },
 });
-assert.equal(afterFreeze.memberCards.find((item) => item.id === cloudflareCardId)?.status, "冻结", "D1 should persist card status");
-const afterExtend = await request<AppData>(baseUrl, `/api/member-cards/${cloudflareCardId}/extend`, {
+assert.equal(afterFreeze.memberCards.find((item) => item.id === cardId)?.status, "冻结", "D1 should persist card status");
+const afterExtend = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/extend`, {
   method: "PATCH",
-  token: session.token,
+  token: ownerSession.token,
   body: { expiresAt: "2028-12-31", reason: "Cloudflare 延期" },
 });
-assert.equal(afterExtend.memberCards.find((item) => item.id === cloudflareCardId)?.expiresAt, "2028-12-31", "D1 should persist card extension");
+assert.equal(afterExtend.memberCards.find((item) => item.id === cardId)?.expiresAt, "2028-12-31", "D1 should persist card extension");
+const afterTransfer = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/transfer`, {
+  method: "POST",
+  token: ownerSession.token,
+  body: { toCustomerId: secondCustomerId, reason: "Cloudflare 转卡" },
+});
+assert.equal(afterTransfer.memberCards.find((item) => item.id === cardId)?.customerId, secondCustomerId, "D1 should persist card transfer");
 
 const afterServiceRecord = await request<AppData>(baseUrl, "/api/service-records", {
   method: "POST",
-  token: session.token,
+  token: ownerSession.token,
   body: {
-    customerId: "c1",
-    staffId: "s2",
-    serviceId: "v1",
+    customerId,
+    staffId: therapistStaffId,
+    serviceId,
+    orderId,
     skinCondition: "敏感偏干",
     afterNote: "Cloudflare 服务后",
-    nextFollowUpAt: "2026-05-29T10:00:00.000Z",
+    nextFollowUpAt: `${futureDay(22)}T10:00:00.000Z`,
   },
 });
-assert.equal(afterServiceRecord.customerServiceRecords.length, 1, "D1 should persist service record");
+assert.equal(afterServiceRecord.customerServiceRecords[0].staffId, therapistStaffId, "D1 should persist service record");
 const afterFollowUpDone = await request<AppData>(baseUrl, `/api/follow-ups/${afterServiceRecord.customerFollowUps[0].id}`, {
   method: "PATCH",
-  token: session.token,
+  token: ownerSession.token,
 });
 assert.equal(afterFollowUpDone.customerFollowUps[0].status, "已完成", "D1 should complete follow-up");
 
 const afterSupplier = await request<AppData>(baseUrl, "/api/suppliers", {
   method: "POST",
-  token: session.token,
-  body: { name: "Cloudflare 供应商", phone: "13800000000", contact: "王经理" },
+  token: ownerSession.token,
+  body: { name: `Cloudflare 供应商 ${runId}`, phone: "13800000000", contact: "王经理" },
 });
 const supplierId = afterSupplier.suppliers[0].id;
 const afterPurchase = await request<AppData>(baseUrl, "/api/purchase-orders", {
   method: "POST",
-  token: session.token,
-  body: { supplierId, productId: "p1", quantity: 3, unitCost: 60 },
+  token: ownerSession.token,
+  body: { supplierId, productId, quantity: 3, unitCost: 60 },
 });
 assert.equal(afterPurchase.inventoryLogs[0].type, "采购入库", "D1 should persist purchase inbound log");
 const afterStocktake = await request<AppData>(baseUrl, "/api/stocktakes", {
   method: "POST",
-  token: session.token,
-  body: { productId: "p1", actualStock: 20, reason: "Cloudflare 盘点" },
+  token: ownerSession.token,
+  body: { productId, actualStock: 20, reason: "Cloudflare 盘点" },
 });
 assert.equal(afterStocktake.stocktakes[0].actualStock, 20, "D1 should persist stocktake");
 
 const afterDailyClose = await request<AppData>(baseUrl, "/api/daily-close", {
   method: "POST",
-  token: session.token,
-  body: { businessDate: new Date().toISOString().slice(0, 10) },
+  token: ownerSession.token,
+  body: { businessDate: today },
 });
-assert.equal(afterDailyClose.dailyCloses.length, 1, "daily close should persist in D1");
+assert.equal(afterDailyClose.dailyCloses[0].status, "已锁定", "daily close should persist in D1");
 const afterReverseClose = await request<AppData>(baseUrl, "/api/daily-close/reverse", {
   method: "POST",
-  token: session.token,
-  body: { businessDate: new Date().toISOString().slice(0, 10) },
+  token: ownerSession.token,
+  body: { businessDate: today },
 });
 assert.equal(afterReverseClose.dailyCloses[0].status, "已反结", "reverse close should persist in D1");
 
-const therapistSession = await request<{ token: string }>(baseUrl, "/api/auth/login", {
-  method: "POST",
-  body: { account: "therapist@demo.local", password: "yich-demo" },
-});
 const therapistData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
-assert.ok(therapistData.orders.every((item) => item.staffId === "s2"), "therapist should only see own orders");
+assert.ok(therapistData.orders.every((item) => item.staffId === therapistStaffId), "therapist should only see own orders");
 assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
 
-const afterResetEnd = await request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token });
-assert.equal(afterResetEnd.orders.length, 0, "reset should clean D1 test data");
-
-console.log(`Cloudflare Workers + D1 API 验证通过：P1/P1.5 与移动响应式支撑链路已覆盖 ${baseUrl}`);
+console.log(`Cloudflare Workers + D1 API 验证通过：正式注册、邀请、权限、业务链路与无重置接口边界已覆盖 ${baseUrl}`);
 
 async function request<T>(baseUrl: string, path: string, options: { method?: string; body?: unknown; token?: string } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -277,13 +307,38 @@ async function request<T>(baseUrl: string, path: string, options: { method?: str
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  const data = (await response.json()) as T | { error: string };
+  const text = await response.text();
+  const data = text ? parseJson<T | { error: string }>(text) : undefined;
   if (!response.ok) {
     throw new Error(isErrorPayload(data) ? data.error : `HTTP ${response.status}`);
+  }
+  if (data === undefined) {
+    throw new Error("服务暂时不可用");
   }
   return data as T;
 }
 
+async function requestIfAvailable(baseUrl: string, path: string, options: { method?: string; body?: unknown; token?: string } = {}) {
+  try {
+    return await request<AppData>(baseUrl, path, options);
+  } catch {
+    return undefined;
+  }
+}
+
+function parseJson<T>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("服务返回异常");
+  }
+}
+
 function isErrorPayload(value: unknown): value is { error: string } {
   return typeof value === "object" && value !== null && "error" in value && typeof (value as { error: unknown }).error === "string";
+}
+
+function futureDay(offsetDays: number) {
+  const date = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
 }

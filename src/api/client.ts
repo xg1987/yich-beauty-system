@@ -17,7 +17,6 @@ export function createApiClient(getToken: () => string | undefined) {
     joinInvite: (body: { inviteCode: string; name: string; password: string }) =>
       request<UserSession>("/api/auth/join-invite", { method: "POST", body }),
     fetchData: () => request<AppData>("/api/data", { token: getToken() }),
-    resetData: () => request<AppData>("/api/reset", { method: "POST", token: getToken() }),
     addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>
       request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
     updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>
@@ -151,13 +150,25 @@ async function request<T>(
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  const payload = (await response.json()) as T | { error: string };
+  const text = await response.text();
+  const payload = text ? parseJson<T | { error: string }>(text) : undefined;
   if (!response.ok) {
     throw new Error(isErrorPayload(payload) ? payload.error : `HTTP ${response.status}`);
+  }
+  if (payload === undefined) {
+    throw new Error("服务暂时不可用，请稍后重试");
   }
   return payload as T;
 }
 
 function isErrorPayload(value: unknown): value is { error: string } {
   return typeof value === "object" && value !== null && "error" in value && typeof (value as { error: unknown }).error === "string";
+}
+
+function parseJson<T>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("服务返回异常，请稍后重试");
+  }
 }

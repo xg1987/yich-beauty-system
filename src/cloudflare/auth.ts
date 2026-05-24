@@ -3,6 +3,10 @@ import type { AuthUser } from "../domain/types";
 import type { D1DatabaseBinding } from "./d1Types";
 
 export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<UserSession> {
+  if (isLegacySampleCredential(account, password)) {
+    throw new Error("账号或密码不正确");
+  }
+
   const user = (await readAuthUsers(db)).find((item) => item.account === account && item.password === password && item.status === "active");
   if (!user) {
     throw new Error("账号或密码不正确");
@@ -27,10 +31,6 @@ export async function getSessionFromD1(db: D1DatabaseBinding, authorizationHeade
   return user ? buildSession(token, user) : undefined;
 }
 
-export function demoLoginAccounts(users: AuthUser[]) {
-  return users.filter((user) => user.status === "active").map(({ account, name, roleName }) => ({ account, name, roleName }));
-}
-
 async function readAuthUsers(db: D1DatabaseBinding) {
   const result = await db.prepare("SELECT payload_json FROM authUsers ORDER BY rowid ASC").all<{ payload_json: string }>();
   return (result.results ?? []).map((row) => JSON.parse(row.payload_json) as AuthUser);
@@ -49,4 +49,8 @@ function buildSession(token: string, user: AuthUser): UserSession {
       permissions: rolePermissions[user.role],
     },
   };
+}
+
+function isLegacySampleCredential(account: string, password: string) {
+  return account.endsWith("@demo.local") || password === "yich-demo";
 }

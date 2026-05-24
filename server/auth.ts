@@ -5,6 +5,10 @@ import type { AuthUser } from "../src/domain/types";
 const sessions = new Map<string, UserSession>();
 
 export function login(account: string, password: string, users: AuthUser[]): UserSession {
+  if (isLegacySampleCredential(account, password)) {
+    throw new Error("账号或密码不正确");
+  }
+
   const user = users.find((item) => item.account === account && item.password === password && item.status === "active");
   if (!user) {
     throw new Error("账号或密码不正确");
@@ -32,6 +36,6 @@ export function getSession(authorizationHeader: string | undefined): UserSession
   return token ? sessions.get(token) : undefined;
 }
 
-export function demoLoginAccounts(users: AuthUser[]) {
-  return users.filter((user) => user.status === "active").map(({ account, name, roleName }) => ({ account, name, roleName }));
+function isLegacySampleCredential(account: string, password: string) {
+  return account.endsWith("@demo.local") || password === "yich-demo";
 }

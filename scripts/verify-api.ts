@@ -5,10 +5,12 @@ import { join } from "node:path";
 import type { Server } from "node:http";
 import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
+import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
 
 const tempDir = mkdtempSync(join(tmpdir(), "beauty-api-"));
 const database = new BeautyDatabase(join(tempDir, "test.sqlite"));
+database.replaceData(testFixtureData);
 const server = createApiServer(database);
 
 try {
@@ -21,13 +23,13 @@ try {
 
   const session = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
     method: "POST",
-    body: { account: "admin@demo.local", password: "yich-demo" },
+    body: { account: "manager@test.local", password: "test-password" },
   });
   assert.equal(session.user.roleName, "店长", "login API should return role session");
 
   const frontdeskSession = await request<{ token: string }>(baseUrl, "/api/auth/login", {
     method: "POST",
-    body: { account: "frontdesk@demo.local", password: "yich-demo" },
+    body: { account: "frontdesk@test.local", password: "test-password" },
   });
   await assert.rejects(
     () =>
@@ -41,7 +43,7 @@ try {
   );
 
   const initialData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(initialData.customers.length, 3, "database should seed demo customers");
+  assert.equal(initialData.customers.length, 3, "test fixture should seed customers");
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
 
@@ -422,7 +424,7 @@ try {
 
   const therapistSession = await request<{ token: string }>(baseUrl, "/api/auth/login", {
     method: "POST",
-    body: { account: "therapist@demo.local", password: "yich-demo" },
+    body: { account: "therapist@test.local", password: "test-password" },
   });
   const therapistData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
   assert.ok(therapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments");
@@ -435,10 +437,13 @@ try {
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
 
-  const afterReset = await request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token });
-  assert.equal(afterReset.orders.length, 0, "reset API should clear generated orders");
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token }),
+    /Not found/,
+    "formal API should not expose a reset endpoint",
+  );
 
-  console.log("API/SQLite 验证通过：健康检查、注册/邀请、登录鉴权、人员管理、权限、客户、预约/班次、审批改价、开单、退款、卡项、档案跟进、进销存、日结反结、数据范围、持久化、重置。");
+  console.log("API/SQLite 验证通过：健康检查、注册/邀请、登录鉴权、人员管理、权限、客户、预约/班次、审批改价、开单、退款、卡项、档案跟进、进销存、日结反结、数据范围、持久化、正式接口边界。");
 } finally {
   await close(server);
   database.close();

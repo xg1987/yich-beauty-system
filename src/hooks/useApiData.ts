@@ -94,7 +94,6 @@ export function useApiData() {
   };
 
   const actions = {
-    resetData: client.resetData,
     addStaff: client.addStaff,
     updateStaff: client.updateStaff,
     createStaffInvite: client.createStaffInvite,

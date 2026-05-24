@@ -31,7 +31,7 @@ import {
 import type { Permission, UserSession } from "../src/domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, UserRole } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
-import { demoLoginAccounts, getSession, login } from "./auth";
+import { getSession, login } from "./auth";
 import { BeautyDatabase } from "./database";
 
 type JsonBody = Record<string, unknown>;
@@ -53,11 +53,6 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "GET" && url.pathname === "/api/health") {
         sendJson(response, 200, { ok: true, service: "yich-system-api" });
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/api/auth/demo-users") {
-        sendJson(response, 200, demoLoginAccounts(database.readData().authUsers));
         return;
       }
 
@@ -108,13 +103,6 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "GET" && url.pathname === "/api/data") {
         requirePermission(session, "dashboard:view");
-        sendJson(response, 200, scopeDataForSession(database.readData(), session));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/api/reset") {
-        requirePermission(session, "settings:view");
-        database.reset();
         sendJson(response, 200, scopeDataForSession(database.readData(), session));
         return;
       }

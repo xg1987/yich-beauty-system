@@ -27,10 +27,10 @@ import {
   updateStaffMember,
   updateMemberCardStatus,
 } from "../src/domain/business";
-import { seedData } from "../src/domain/seed";
+import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
 
-const cloneSeed = (): AppData => structuredClone(seedData);
+const cloneSeed = (): AppData => structuredClone(testFixtureData);
 const fixedNow = () => "2026-05-24T01:00:00.000Z";
 let idIndex = 0;
 const testId = (prefix: string) => `${prefix}_test_${++idIndex}`;

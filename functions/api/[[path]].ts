@@ -31,7 +31,7 @@ import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, UserRole } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
-import { demoLoginAccounts, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
+import { getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
 import type { D1DatabaseBinding } from "../../src/cloudflare/d1Types";
 
 type Env = {
@@ -55,10 +55,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname === "/api/health") {
       return sendJson(200, { ok: true, service: "yich-system-api", runtime: "cloudflare-d1" });
-    }
-
-    if (context.request.method === "GET" && pathname === "/api/auth/demo-users") {
-      return sendJson(200, demoLoginAccounts((await database.readData()).authUsers));
     }
 
     if (context.request.method === "POST" && pathname === "/api/auth/login") {
@@ -102,12 +98,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
-      return sendJson(200, scopeDataForSession(await database.readData(), session));
-    }
-
-    if (context.request.method === "POST" && pathname === "/api/reset") {
-      requirePermission(session, "settings:view");
-      await database.reset();
       return sendJson(200, scopeDataForSession(await database.readData(), session));
     }
 

@@ -46,7 +46,7 @@ export default function App() {
       <div className="loading-page">
         <div className="loading-card">
           <strong>正在连接门店数据</strong>
-          <span>{error ?? "请确认 API 服务已启动：npm run dev:api"}</span>
+          <span>{error ?? "正在连接服务，请稍后重试或联系管理员"}</span>
         </div>
       </div>
     );
@@ -80,12 +80,11 @@ export default function App() {
       <main className="main">
         <header className="topbar">
           <div>
-            <p>一宸 YiCh 美业管理系统 · 第一阶段 MVP</p>
+            <p>一宸 YiCh 美业管理系统</p>
             <h1>{navItems.find((item) => item.key === activeView)?.label}</h1>
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
-            <button className="ghost-button" onClick={() => void runMutation(actions.resetData)} disabled={loading}>重置演示数据</button>
             <button className="ghost-button" onClick={logout}>退出</button>
             <div className="user-chip">{session.user.name} · {session.user.roleName}</div>
           </div>
@@ -121,8 +120,8 @@ function LoginScreen({
   error?: string;
 }) {
   const [mode, setMode] = useState<"login" | "register" | "join">("login");
-  const [account, setAccount] = useState("admin@demo.local");
-  const [password, setPassword] = useState("yich-demo");
+  const [account, setAccount] = useState("");
+  const [password, setPassword] = useState("");
   const [storeName, setStoreName] = useState("一宸 YiCh 皮肤管理中心");
   const [ownerName, setOwnerName] = useState("林老板");
   const [phone, setPhone] = useState("13800000000");
@@ -150,11 +149,11 @@ function LoginScreen({
           <div className="brand-mark">D</div>
           <div>
             <strong>一宸 YiCh 美业管理系统</strong>
-            <span>单店经营闭环 MVP</span>
+            <span>门店经营管理平台</span>
           </div>
         </div>
         <h1>门店经营，从预约到财务一屏串起来</h1>
-        <p>当前版本包含 Web 管理后台的核心流程：客户、预约、开单、会员卡、库存、提成和报表。</p>
+        <p>预约、开单、会员、员工、库存、财务和经营分析统一管理。</p>
         <form className="login-card" onSubmit={submit}>
           <div className="segmented">
             <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>登录</button>
@@ -189,7 +188,6 @@ function LoginScreen({
             <LockKeyhole size={17} />
             {loading ? "处理中" : mode === "login" ? "进入系统" : mode === "register" ? "创建门店" : "加入门店"}
           </button>
-          <small>演示账号：admin@demo.local / yich-demo</small>
         </form>
       </section>
     </div>
@@ -871,7 +869,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const [baseSalary, setBaseSalary] = useState(6500);
   const [commissionRate, setCommissionRate] = useState(0.12);
   const [inviteStaffId, setInviteStaffId] = useState(data.staff[0]?.id ?? "");
-  const [inviteAccount, setInviteAccount] = useState("new-staff@demo.local");
+  const [inviteAccount, setInviteAccount] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("therapist");
 
   const settleAll = () => {
@@ -1129,7 +1127,7 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         </div>
       </section>
       <section className="panel wide">
-        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action="MVP 指标" />
+        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action="核心指标" />
         <DataTable
           columns={["指标", "结果", "说明"]}
           rows={[
@@ -1244,7 +1242,7 @@ function SettingsView({ data, session }: { data: AppData; session: UserSession }
   return (
     <div className="content-grid">
       <section className="panel">
-        <PanelTitle icon={<Settings size={18} />} title="门店资料" action="MVP 默认门店" />
+        <PanelTitle icon={<Settings size={18} />} title="门店资料" action="基础资料" />
         <div className="settings-card">
           <strong>一宸 YiCh 皮肤管理中心</strong>
           <span>营业时间：10:00 - 21:00</span>
