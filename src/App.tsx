@@ -1512,19 +1512,6 @@ function SettingsView({ data, session, setView }: { data: AppData; session: User
         </div>
       </section>
 
-      <section className="panel admin-permission-panel">
-        <PanelTitle icon={<LockKeyhole size={18} />} title="角色权限" action="权限边界" />
-        <DataTable
-          columns={["角色", "可用模块", "关键限制"]}
-          rows={[
-            ["老板", "全部模块", "可查看所有财务和设置"],
-            ["店长", "预约、开单、员工、库存、报表", "不可删除关键财务流水"],
-            ["前台", "预约、客户、开单", "退款和改价需审批"],
-            ["美容师", "今日预约、服务记录、个人提成", "只能查看授权客户"],
-            ["财务", "订单、支付、退款、报表", "不能修改服务项目"],
-          ]}
-        />
-      </section>
     </div>
   );
 }
