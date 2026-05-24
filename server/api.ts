@@ -7,6 +7,7 @@ import {
   addStaffMember,
   addSupplier,
   adjustInventory,
+  cleanupFormalData,
   convertOnlineBookingRequest,
   checkoutOrder,
   bindReferralRelation,
@@ -42,6 +43,7 @@ import {
   issueCustomerCoupon,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  previewFormalDataCleanup,
   updateTagDefinition,
   updateStaffMember,
   updateStoreProfile,
@@ -153,6 +155,36 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "GET" && url.pathname === "/api/data") {
         requirePermission(session, "dashboard:view");
         sendJson(response, 200, scopeDataForSession(database.readData(), session));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/data-quality") {
+        requirePermission(session, "settings:view");
+        sendJson(response, 200, previewFormalDataCleanup(database.readData()));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/data-quality/cleanup") {
+        requirePermission(session, "settings:view");
+        if (session.user.role !== "owner") {
+          sendJson(response, 403, { error: "只有老板账号可以清理正式库数据" });
+          return;
+        }
+        const body = await readJson(request);
+        if (requiredString(body, "confirm") !== "清理非正式数据") {
+          sendJson(response, 400, { error: "确认短语不正确" });
+          return;
+        }
+        const result = cleanupFormalData(database.readData());
+        const nextData = addOperationLog(result.data, {
+          userId: session.user.id,
+          action: "清理非正式数据",
+          targetType: "dataQuality",
+          targetId: "formal-cleanup",
+          summary: `${session.user.name} 清理巡检命中的非正式数据`,
+        });
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
 

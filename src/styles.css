@@ -4206,6 +4206,28 @@ html[data-theme="day"],
   font-size: 13px;
 }
 
+.cleanup-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cleanup-summary span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(109, 40, 217, 0.09);
+  color: var(--purple);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cleanup-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
 .online-store-actions a {
   min-width: 0;
   overflow: hidden;
@@ -4431,6 +4453,10 @@ textarea,
   }
 
   .store-profile-form {
+    grid-template-columns: 1fr;
+  }
+
+  .cleanup-form {
     grid-template-columns: 1fr;
   }
 

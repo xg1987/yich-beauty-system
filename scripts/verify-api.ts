@@ -848,6 +848,22 @@ try {
     "formal API should not expose a reset endpoint",
   );
 
+  const dataQuality = await request<{ issueCount: number; removalCounts: Array<{ scope: string; count: number }> }>(baseUrl, "/api/data-quality", { token: session.token });
+  assert.ok(dataQuality.issueCount > 0, "data quality API should preview fixture cleanup issues");
+  assert.ok(dataQuality.removalCounts.length > 0, "data quality API should include cleanup removal counts");
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/data-quality/cleanup", { method: "POST", token: registeredSession.token, body: { confirm: "错误确认" } }),
+    /确认短语不正确/,
+    "data cleanup API should require exact confirmation phrase",
+  );
+  const afterFormalCleanup = await request<AppData>(baseUrl, "/api/data-quality/cleanup", {
+    method: "POST",
+    token: registeredSession.token,
+    body: { confirm: "清理非正式数据" },
+  });
+  assert.ok(afterFormalCleanup.staff.every((staff) => !staff.name.includes("验证")), "data cleanup API should remove verification staff");
+  assert.ok(afterFormalCleanup.authUsers.every((user) => !user.account.includes("@test.local")), "data cleanup API should remove test accounts");
+
   console.log("API/SQLite 验证通过：健康检查、注册/邀请、登录鉴权、人员管理、权限、客户、预约/班次、审批改价、开单、退款、卡项、档案跟进、进销存、日结反结、数据范围、持久化、正式接口边界。");
 } finally {
   await close(server);

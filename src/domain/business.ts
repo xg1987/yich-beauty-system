@@ -9,6 +9,7 @@ import type {
   CustomerServiceRecord,
   DataQualityIssue,
   DataQualityReport,
+  DataCleanupReport,
   Commission,
   CommissionSettlement,
   DailyClose,
@@ -612,6 +613,64 @@ export function formalDataAudit(data: AppData): DataQualityReport {
   };
 }
 
+export function previewFormalDataCleanup(data: AppData): DataCleanupReport {
+  const dirty = collectDirtyIds(data);
+  return {
+    ...formalDataAudit(data),
+    removalCounts: cleanupRemovalCounts(dirty),
+  };
+}
+
+export function cleanupFormalData(data: AppData): { data: AppData; report: DataCleanupReport } {
+  const dirty = collectDirtyIds(data);
+  const cleanedData: AppData = {
+    ...data,
+    authUsers: data.authUsers.filter((item) => !dirty.authUserIds.has(item.id)),
+    staff: data.staff.filter((item) => !dirty.staffIds.has(item.id)),
+    staffInvites: data.staffInvites.filter((item) => !dirty.staffInviteIds.has(item.id)),
+    customers: data.customers.filter((item) => !dirty.customerIds.has(item.id)),
+    tagDefinitions: data.tagDefinitions.filter((item) => !dirty.tagIds.has(item.id)),
+    services: data.services.filter((item) => !dirty.serviceIds.has(item.id)),
+    products: data.products.filter((item) => !dirty.productIds.has(item.id)),
+    onlineStorefronts: data.onlineStorefronts.filter((item) => !dirty.onlineStorefrontIds.has(item.id)),
+    onlineBookingRequests: data.onlineBookingRequests.filter((item) => !dirty.onlineBookingRequestIds.has(item.id)),
+    appointments: data.appointments.filter((item) => !dirty.appointmentIds.has(item.id)),
+    staffUnavailableSlots: data.staffUnavailableSlots.filter((item) => !dirty.staffUnavailableSlotIds.has(item.id)),
+    staffShifts: data.staffShifts.filter((item) => !dirty.staffShiftIds.has(item.id)),
+    memberCards: data.memberCards.filter((item) => !dirty.memberCardIds.has(item.id)),
+    couponTemplates: data.couponTemplates.filter((item) => !dirty.couponTemplateIds.has(item.id)),
+    customerCoupons: data.customerCoupons.filter((item) => !dirty.customerCouponIds.has(item.id)),
+    marketingActivities: data.marketingActivities.filter((item) => !dirty.marketingActivityIds.has(item.id)),
+    activityParticipants: data.activityParticipants.filter((item) => !dirty.activityParticipantIds.has(item.id)),
+    distributors: data.distributors.filter((item) => !dirty.distributorIds.has(item.id)),
+    referralRelations: data.referralRelations.filter((item) => !dirty.referralRelationIds.has(item.id)),
+    orders: data.orders.filter((item) => !dirty.orderIds.has(item.id)),
+    refunds: data.refunds.filter((item) => !dirty.refundIds.has(item.id)),
+    commissions: data.commissions.filter((item) => !dirty.commissionIds.has(item.id)),
+    distributionCommissions: data.distributionCommissions.filter((item) => !dirty.distributionCommissionIds.has(item.id)),
+    commissionSettlements: data.commissionSettlements.filter((item) => !dirty.commissionSettlementIds.has(item.id)),
+    inventoryLogs: data.inventoryLogs.filter((item) => !dirty.inventoryLogIds.has(item.id)),
+    memberCardTransactions: data.memberCardTransactions.filter((item) => !dirty.memberCardTransactionIds.has(item.id)),
+    operationLogs: data.operationLogs.filter((item) => !dirty.operationLogIds.has(item.id)),
+    notifications: data.notifications.filter((item) => !dirty.notificationIds.has(item.id)),
+    dailyCloses: data.dailyCloses.filter((item) => !dirty.dailyCloseIds.has(item.id)),
+    approvalRequests: data.approvalRequests.filter((item) => !dirty.approvalRequestIds.has(item.id)),
+    customerServiceRecords: data.customerServiceRecords.filter((item) => !dirty.customerServiceRecordIds.has(item.id)),
+    customerFollowUps: data.customerFollowUps.filter((item) => !dirty.customerFollowUpIds.has(item.id)),
+    suppliers: data.suppliers.filter((item) => !dirty.supplierIds.has(item.id)),
+    purchaseOrders: data.purchaseOrders.filter((item) => !dirty.purchaseOrderIds.has(item.id)),
+    stocktakes: data.stocktakes.filter((item) => !dirty.stocktakeIds.has(item.id)),
+  };
+
+  return {
+    data: cleanedData,
+    report: {
+      ...formalDataAudit(cleanedData),
+      removalCounts: cleanupRemovalCounts(dirty),
+    },
+  };
+}
+
 function suspiciousReason(value: string) {
   const normalized = value.toLowerCase();
   if (value.includes("验证")) return "包含验证数据字样";
@@ -621,6 +680,235 @@ function suspiciousReason(value: string) {
   if (normalized.includes("@test.local")) return "使用测试账号域名";
   if (normalized.includes("cloudflare")) return "包含线上验证脚本字样";
   return "";
+}
+
+function collectDirtyIds(data: AppData) {
+  const dirty = {
+    authUserIds: new Set<string>(),
+    staffIds: new Set<string>(),
+    staffInviteIds: new Set<string>(),
+    customerIds: new Set<string>(),
+    tagIds: new Set<string>(),
+    serviceIds: new Set<string>(),
+    productIds: new Set<string>(),
+    onlineStorefrontIds: new Set<string>(),
+    onlineBookingRequestIds: new Set<string>(),
+    appointmentIds: new Set<string>(),
+    staffUnavailableSlotIds: new Set<string>(),
+    staffShiftIds: new Set<string>(),
+    memberCardIds: new Set<string>(),
+    couponTemplateIds: new Set<string>(),
+    customerCouponIds: new Set<string>(),
+    marketingActivityIds: new Set<string>(),
+    activityParticipantIds: new Set<string>(),
+    distributorIds: new Set<string>(),
+    referralRelationIds: new Set<string>(),
+    orderIds: new Set<string>(),
+    refundIds: new Set<string>(),
+    commissionIds: new Set<string>(),
+    distributionCommissionIds: new Set<string>(),
+    commissionSettlementIds: new Set<string>(),
+    inventoryLogIds: new Set<string>(),
+    memberCardTransactionIds: new Set<string>(),
+    operationLogIds: new Set<string>(),
+    notificationIds: new Set<string>(),
+    dailyCloseIds: new Set<string>(),
+    approvalRequestIds: new Set<string>(),
+    customerServiceRecordIds: new Set<string>(),
+    customerFollowUpIds: new Set<string>(),
+    supplierIds: new Set<string>(),
+    purchaseOrderIds: new Set<string>(),
+    stocktakeIds: new Set<string>(),
+  };
+
+  data.authUsers.forEach((item) => {
+    if (hasSuspiciousField(item.name, item.account)) dirty.authUserIds.add(item.id);
+  });
+  data.staff.forEach((item) => {
+    if (hasSuspiciousField(item.name, item.phone, item.role) || (item.accountId && dirty.authUserIds.has(item.accountId))) dirty.staffIds.add(item.id);
+  });
+  data.customers.forEach((item) => {
+    if (hasSuspiciousField(item.name, item.phone, item.source, ...item.tags)) dirty.customerIds.add(item.id);
+  });
+  data.tagDefinitions.forEach((item) => {
+    if (hasSuspiciousField(item.name)) dirty.tagIds.add(item.id);
+  });
+  data.products.forEach((item) => {
+    if (hasSuspiciousField(item.name, item.type)) dirty.productIds.add(item.id);
+  });
+  data.services.forEach((item) => {
+    if (
+      hasSuspiciousField(item.name, item.category) ||
+      (item.consumableProductId && dirty.productIds.has(item.consumableProductId)) ||
+      item.consumables?.some((consumable) => dirty.productIds.has(consumable.productId))
+    ) {
+      dirty.serviceIds.add(item.id);
+    }
+  });
+  data.onlineStorefronts.forEach((item) => {
+    if (hasSuspiciousField(item.shareCode, item.headline, item.description) || item.enabledServiceIds.some((serviceId) => dirty.serviceIds.has(serviceId))) {
+      dirty.onlineStorefrontIds.add(item.id);
+    }
+  });
+
+  let changed = true;
+  while (changed) {
+    const before = dirtySize(dirty);
+    data.staffInvites.forEach((item) => {
+      if (dirty.staffIds.has(item.staffId) || dirty.authUserIds.has(item.createdBy) || hasSuspiciousField(item.account, item.inviteCode)) dirty.staffInviteIds.add(item.id);
+    });
+    data.appointments.forEach((item) => {
+      if (dirty.customerIds.has(item.customerId) || dirty.staffIds.has(item.staffId) || dirty.serviceIds.has(item.serviceId) || hasSuspiciousField(item.note)) {
+        dirty.appointmentIds.add(item.id);
+      }
+    });
+    data.onlineBookingRequests.forEach((item) => {
+      if (
+        dirty.onlineStorefrontIds.has(item.storefrontId) ||
+        dirty.serviceIds.has(item.serviceId) ||
+        (item.appointmentId && dirty.appointmentIds.has(item.appointmentId)) ||
+        hasSuspiciousField(item.customerName, item.phone, item.note)
+      ) {
+        dirty.onlineBookingRequestIds.add(item.id);
+      }
+    });
+    data.staffUnavailableSlots.forEach((item) => {
+      if (dirty.staffIds.has(item.staffId) || dirty.authUserIds.has(item.createdBy) || hasSuspiciousField(item.reason)) dirty.staffUnavailableSlotIds.add(item.id);
+    });
+    data.staffShifts.forEach((item) => {
+      if (dirty.staffIds.has(item.staffId) || dirty.authUserIds.has(item.createdBy) || hasSuspiciousField(item.note)) dirty.staffShiftIds.add(item.id);
+    });
+    data.memberCards.forEach((item) => {
+      if (dirty.customerIds.has(item.customerId) || (item.serviceId && dirty.serviceIds.has(item.serviceId)) || item.serviceIds?.some((serviceId) => dirty.serviceIds.has(serviceId)) || hasSuspiciousField(item.name)) {
+        dirty.memberCardIds.add(item.id);
+      }
+    });
+    data.couponTemplates.forEach((item) => {
+      if ((item.serviceId && dirty.serviceIds.has(item.serviceId)) || hasSuspiciousField(item.name)) dirty.couponTemplateIds.add(item.id);
+    });
+    data.customerCoupons.forEach((item) => {
+      if (dirty.customerIds.has(item.customerId) || dirty.couponTemplateIds.has(item.templateId) || (item.usedOrderId && dirty.orderIds.has(item.usedOrderId)) || hasSuspiciousField(item.name)) {
+        dirty.customerCouponIds.add(item.id);
+      }
+    });
+    data.marketingActivities.forEach((item) => {
+      if (dirty.serviceIds.has(item.serviceId) || hasSuspiciousField(item.name)) dirty.marketingActivityIds.add(item.id);
+    });
+    data.distributors.forEach((item) => {
+      if ((item.customerId && dirty.customerIds.has(item.customerId)) || (item.staffId && dirty.staffIds.has(item.staffId)) || hasSuspiciousField(item.name, item.phone, item.inviteCode)) {
+        dirty.distributorIds.add(item.id);
+      }
+    });
+    data.referralRelations.forEach((item) => {
+      if (dirty.distributorIds.has(item.distributorId) || dirty.customerIds.has(item.customerId)) dirty.referralRelationIds.add(item.id);
+    });
+    data.orders.forEach((item) => {
+      if (
+        dirty.customerIds.has(item.customerId) ||
+        dirty.staffIds.has(item.staffId) ||
+        dirty.serviceIds.has(item.serviceId) ||
+        (item.productId && dirty.productIds.has(item.productId)) ||
+        (item.cardId && dirty.memberCardIds.has(item.cardId)) ||
+        (item.couponId && dirty.customerCouponIds.has(item.couponId)) ||
+        (item.activityId && dirty.marketingActivityIds.has(item.activityId)) ||
+        (item.distributorId && dirty.distributorIds.has(item.distributorId)) ||
+        (item.appointmentId && dirty.appointmentIds.has(item.appointmentId)) ||
+        hasSuspiciousField(item.orderNo, item.adjustmentReason ?? "")
+      ) {
+        dirty.orderIds.add(item.id);
+      }
+    });
+    data.activityParticipants.forEach((item) => {
+      if (dirty.marketingActivityIds.has(item.activityId) || dirty.customerIds.has(item.customerId) || (item.orderId && dirty.orderIds.has(item.orderId))) dirty.activityParticipantIds.add(item.id);
+    });
+    data.refunds.forEach((item) => {
+      if (dirty.orderIds.has(item.orderId) || dirty.authUserIds.has(item.createdBy) || hasSuspiciousField(item.reason)) dirty.refundIds.add(item.id);
+    });
+    data.commissions.forEach((item) => {
+      if (dirty.staffIds.has(item.staffId) || dirty.orderIds.has(item.orderId) || (item.settlementId && dirty.commissionSettlementIds.has(item.settlementId))) dirty.commissionIds.add(item.id);
+    });
+    data.distributionCommissions.forEach((item) => {
+      if (dirty.distributorIds.has(item.distributorId) || dirty.customerIds.has(item.customerId) || dirty.orderIds.has(item.orderId) || (item.settlementId && dirty.commissionSettlementIds.has(item.settlementId))) {
+        dirty.distributionCommissionIds.add(item.id);
+      }
+    });
+    data.commissionSettlements.forEach((item) => {
+      if (dirty.authUserIds.has(item.createdBy) || item.commissionIds.some((commissionId) => dirty.commissionIds.has(commissionId) || dirty.distributionCommissionIds.has(commissionId))) {
+        dirty.commissionSettlementIds.add(item.id);
+      }
+    });
+    data.inventoryLogs.forEach((item) => {
+      if (dirty.productIds.has(item.productId) || hasSuspiciousField(item.note)) dirty.inventoryLogIds.add(item.id);
+    });
+    data.memberCardTransactions.forEach((item) => {
+      if (dirty.memberCardIds.has(item.memberCardId) || (item.orderId && dirty.orderIds.has(item.orderId)) || hasSuspiciousField(item.note)) dirty.memberCardTransactionIds.add(item.id);
+    });
+    data.approvalRequests.forEach((item) => {
+      if (dirty.authUserIds.has(item.requestedBy) || (item.approvedBy && dirty.authUserIds.has(item.approvedBy)) || dirty.orderIds.has(item.targetId) || hasSuspiciousField(item.reason)) dirty.approvalRequestIds.add(item.id);
+    });
+    data.customerServiceRecords.forEach((item) => {
+      if (
+        dirty.customerIds.has(item.customerId) ||
+        dirty.staffIds.has(item.staffId) ||
+        dirty.serviceIds.has(item.serviceId) ||
+        (item.orderId && dirty.orderIds.has(item.orderId)) ||
+        (item.memberCardTransactionId && dirty.memberCardTransactionIds.has(item.memberCardTransactionId)) ||
+        hasSuspiciousField(item.skinCondition, item.beforeNote, item.careSteps, item.productsUsed, item.afterNote, item.customerFeedback, item.nextCareAdvice)
+      ) {
+        dirty.customerServiceRecordIds.add(item.id);
+      }
+    });
+    data.customerFollowUps.forEach((item) => {
+      if (dirty.customerIds.has(item.customerId) || dirty.staffIds.has(item.staffId) || hasSuspiciousField(item.note)) dirty.customerFollowUpIds.add(item.id);
+    });
+    data.suppliers.forEach((item) => {
+      if (hasSuspiciousField(item.name, item.phone, item.contact)) dirty.supplierIds.add(item.id);
+    });
+    data.purchaseOrders.forEach((item) => {
+      if (dirty.supplierIds.has(item.supplierId) || dirty.productIds.has(item.productId) || dirty.authUserIds.has(item.createdBy)) dirty.purchaseOrderIds.add(item.id);
+    });
+    data.stocktakes.forEach((item) => {
+      if (dirty.productIds.has(item.productId) || dirty.authUserIds.has(item.createdBy) || hasSuspiciousField(item.reason)) dirty.stocktakeIds.add(item.id);
+    });
+    data.operationLogs.forEach((item) => {
+      if (dirty.authUserIds.has(item.userId) || dirtyTarget(item.targetId, dirty) || hasSuspiciousField(item.action, item.summary, item.targetType)) dirty.operationLogIds.add(item.id);
+    });
+    data.notifications.forEach((item) => {
+      if ((item.staffId && dirty.staffIds.has(item.staffId)) || dirtyTarget(item.targetId, dirty) || hasSuspiciousField(item.title, item.desc, item.targetType)) dirty.notificationIds.add(item.id);
+    });
+    data.dailyCloses.forEach((item) => {
+      if (dirty.authUserIds.has(item.createdBy) || (item.reversedBy && dirty.authUserIds.has(item.reversedBy))) dirty.dailyCloseIds.add(item.id);
+    });
+    changed = dirtySize(dirty) !== before;
+  }
+
+  return dirty;
+}
+
+function cleanupRemovalCounts(dirty: ReturnType<typeof collectDirtyIds>) {
+  return [
+    { scope: "账号", count: dirty.authUserIds.size },
+    { scope: "员工", count: dirty.staffIds.size },
+    { scope: "客户", count: dirty.customerIds.size },
+    { scope: "项目", count: dirty.serviceIds.size },
+    { scope: "商品", count: dirty.productIds.size },
+    { scope: "预约", count: dirty.appointmentIds.size + dirty.onlineBookingRequestIds.size },
+    { scope: "订单与流水", count: dirty.orderIds.size + dirty.refundIds.size + dirty.memberCardTransactionIds.size + dirty.inventoryLogIds.size },
+    { scope: "提成与结算", count: dirty.commissionIds.size + dirty.distributionCommissionIds.size + dirty.commissionSettlementIds.size },
+    { scope: "其他关联记录", count: dirtySize(dirty) - dirty.authUserIds.size - dirty.staffIds.size - dirty.customerIds.size - dirty.serviceIds.size - dirty.productIds.size - dirty.appointmentIds.size - dirty.onlineBookingRequestIds.size - dirty.orderIds.size - dirty.refundIds.size - dirty.memberCardTransactionIds.size - dirty.inventoryLogIds.size - dirty.commissionIds.size - dirty.distributionCommissionIds.size - dirty.commissionSettlementIds.size },
+  ].filter((item) => item.count > 0);
+}
+
+function hasSuspiciousField(...values: string[]) {
+  return values.some((value) => Boolean(suspiciousReason(value)));
+}
+
+function dirtySize(dirty: Record<string, Set<string>>) {
+  return Object.values(dirty).reduce((sum, set) => sum + set.size, 0);
+}
+
+function dirtyTarget(targetId: string, dirty: ReturnType<typeof collectDirtyIds>) {
+  return Object.values(dirty).some((set) => set.has(targetId));
 }
 
 export function upsertOnlineStorefront(

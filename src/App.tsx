@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
-import { calculateOrderTotal, formalDataAudit, reportSummary } from "./domain/business";
+import { calculateOrderTotal, previewFormalDataCleanup, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
@@ -2887,11 +2887,12 @@ function SettingsView({
   const [onlineHeadline, setOnlineHeadline] = useState(onlineStorefront?.headline ?? "一宸 YiCh 美业门店系统");
   const [onlineDescription, setOnlineDescription] = useState(onlineStorefront?.description ?? "线上查看项目并提交到店预约意向");
   const [onlineServiceIds, setOnlineServiceIds] = useState<string[]>(onlineStorefront?.enabledServiceIds ?? data.services.slice(0, 3).map((service) => service.id));
+  const [cleanupConfirm, setCleanupConfirm] = useState("");
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
   const publicStoreUrl = `${window.location.origin}/store/${onlineShareCode || onlineStorefront?.shareCode || ""}`;
-  const dataQualityReport = formalDataAudit(data);
+  const dataQualityReport = previewFormalDataCleanup(data);
 
   useEffect(() => {
     setStoreName(store?.name ?? "");
@@ -2931,6 +2932,11 @@ function SettingsView({
         enabledServiceIds: onlineServiceIds,
       }),
     );
+  };
+
+  const cleanupData = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.cleanupFormalData(cleanupConfirm)).then(() => setCleanupConfirm(""));
   };
 
   const managementCards: Array<{
@@ -3045,6 +3051,22 @@ function SettingsView({
             "确认后清理或改名",
           ])}
         />
+        {dataQualityReport.removalCounts.length > 0 && (
+          <div className="cleanup-summary">
+            {dataQualityReport.removalCounts.map((item) => (
+              <span key={item.scope}>{item.scope} {item.count}</span>
+            ))}
+          </div>
+        )}
+        {session.user.role === "owner" && dataQualityReport.issueCount > 0 && (
+          <form className="cleanup-form" onSubmit={cleanupData}>
+            <label>
+              输入确认短语
+              <input value={cleanupConfirm} onChange={(event) => setCleanupConfirm(event.target.value)} placeholder="清理非正式数据" />
+            </label>
+            <button className="primary-button" disabled={cleanupConfirm !== "清理非正式数据"}>确认清理</button>
+          </form>
+        )}
         {dataQualityReport.issueCount > 12 && <p className="data-quality-copy">仅显示前 12 项，其余数据需通过清理脚本分批处理。</p>}
       </section>
 

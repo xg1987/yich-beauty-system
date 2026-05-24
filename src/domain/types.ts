@@ -478,6 +478,13 @@ export type DataQualityReport = {
   issues: DataQualityIssue[];
 };
 
+export type DataCleanupReport = DataQualityReport & {
+  removalCounts: Array<{
+    scope: string;
+    count: number;
+  }>;
+};
+
 export type AppData = {
   storeProfiles: StoreProfile[];
   onlineStorefronts: OnlineStorefront[];

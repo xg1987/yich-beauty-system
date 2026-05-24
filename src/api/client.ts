@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole } from "../domain/types";
+import type { AppData, Appointment, DataCleanupReport, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -21,6 +21,9 @@ export function createApiClient(getToken: () => string | undefined) {
     createPublicBookingRequest: (body: { shareCode: string; customerName: string; phone: string; serviceId: string; preferredAt: string; note?: string }) =>
       request<{ ok: boolean }>("/api/public/online-booking-requests", { method: "POST", body }),
     fetchData: () => request<AppData>("/api/data", { token: getToken() }),
+    fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
+    cleanupFormalData: (confirm: string) =>
+      request<AppData>("/api/data-quality/cleanup", { method: "POST", body: { confirm }, token: getToken() }),
     markNotificationRead: (notificationId: string) =>
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
     markAllNotificationsRead: () =>

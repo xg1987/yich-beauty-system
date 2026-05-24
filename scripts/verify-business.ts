@@ -25,9 +25,11 @@ import {
   issueCustomerCoupon,
   joinStaffInvite,
   addSystemNotification,
+  cleanupFormalData,
   formalDataAudit,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  previewFormalDataCleanup,
   receivePurchaseOrder,
   rechargeMemberCard,
   registerStore,
@@ -80,6 +82,21 @@ function card(data: AppData, cardId: string) {
     authUsers: [{ ...cloneSeed().authUsers[0], id: "u_dirty", account: "dirty@test.local" }, ...cloneSeed().authUsers],
   });
   assert.ok(pollutedReport.issueCount >= 2, "formal data audit should flag verification and test account data");
+  const preview = previewFormalDataCleanup({
+    ...cloneSeed(),
+    staff: [{ ...cloneSeed().staff[0], id: "s_dirty", name: "验证员工" }, ...cloneSeed().staff],
+    authUsers: [{ ...cloneSeed().authUsers[0], id: "u_dirty", account: "dirty@test.local", staffId: "s_dirty" }, ...cloneSeed().authUsers],
+  });
+  assert.ok(preview.removalCounts.some((item) => item.scope === "员工"), "formal cleanup preview should include staff removals");
+  const cleaned = cleanupFormalData({
+    ...cloneSeed(),
+    staff: [{ ...cloneSeed().staff[0], id: "s_dirty", name: "验证员工", accountId: "u_dirty" }, ...cloneSeed().staff],
+    authUsers: [{ ...cloneSeed().authUsers[0], id: "u_dirty", account: "dirty@test.local", staffId: "s_dirty" }, ...cloneSeed().authUsers],
+    appointments: [{ ...cloneSeed().appointments[0], id: "a_dirty", staffId: "s_dirty" }, ...cloneSeed().appointments],
+  });
+  assert.ok(!cleaned.data.staff.some((staff) => staff.id === "s_dirty"), "formal cleanup should remove dirty staff");
+  assert.ok(!cleaned.data.authUsers.some((user) => user.id === "u_dirty"), "formal cleanup should remove dirty account");
+  assert.ok(!cleaned.data.appointments.some((appointment) => appointment.id === "a_dirty"), "formal cleanup should remove dependent appointment");
 }
 
 {
