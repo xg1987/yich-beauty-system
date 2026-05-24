@@ -1,3 +1,8 @@
 name = "yich-beauty-system"
 compatibility_date = "2026-05-24"
 pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yich-beauty-db"
+database_id = "268ee18a-abad-4550-91c6-46c51b204015"

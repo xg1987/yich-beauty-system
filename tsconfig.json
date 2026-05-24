@@ -17,5 +17,5 @@
     "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["src", "server", "scripts"]
+  "include": ["src", "server", "scripts", "functions"]
 }

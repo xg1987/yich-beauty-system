@@ -10,10 +10,14 @@
     "build": "tsc --noEmit && vite build",
     "verify:business": "tsx scripts/verify-business.ts",
     "verify:api": "tsx scripts/verify-api.ts",
+    "verify:cloudflare-api": "tsx scripts/verify-cloudflare-api.ts",
     "preview": "vite preview --host 0.0.0.0",
     "cf:login": "wrangler login",
     "cf:whoami": "wrangler whoami",
-    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true --commit-hash local-first-stage --commit-message \"Deploy YiCh first-stage MVP\""
+    "d1:migrate:local": "wrangler d1 migrations apply yich-beauty-db --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply yich-beauty-db --remote",
+    "dev:cloudflare": "npm run build && wrangler pages dev dist --compatibility-date=2026-05-24",
+    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",

@@ -2,7 +2,7 @@
 
 ## 当前结论
 
-第一步先把 Web 管理端接入 Cloudflare Pages。当前后端使用 Node.js `node:sqlite` 和本地 SQLite 文件，不能直接部署到 Cloudflare Workers；如果后端也要完全跑在 Cloudflare，需要迁移为 Workers + D1。
+Web 管理端运行在 Cloudflare Pages，后端 `/api/*` 通过 Pages Functions 运行在 Cloudflare Workers runtime，数据存储使用 Cloudflare D1。
 
 ## Pages 部署
 
@@ -14,6 +14,8 @@
 - 输出目录：`dist`
 - SPA 回退：`public/_redirects`
 - 安全响应头：`public/_headers`
+- D1 绑定名：`DB`
+- D1 数据库：`yich-beauty-db`
 
 本机登录 Cloudflare：
 
@@ -36,21 +38,43 @@ npm run deploy:pages
 
 ## API 接入方式
 
-前端现在支持通过 `VITE_API_BASE_URL` 指向远程 API：
+线上环境使用同域 `/api/*`，由 Pages Functions 处理。前端仍支持通过 `VITE_API_BASE_URL` 指向外部 API：
 
 ```bash
 VITE_API_BASE_URL=https://api.yich.example.com
 ```
 
-本地开发时该变量留空，前端会继续走 Vite 代理的 `/api`。部署到 Cloudflare Pages 后，如果后端仍在 Node 服务器上，需要把 `VITE_API_BASE_URL` 设置为 Node API 的公网 HTTPS 地址。
+本地 Vite 开发时该变量留空，前端会继续走 Vite 代理的 `/api`；Cloudflare 部署时也留空，让页面直接请求同域 `/api`。
 
-## 后端上 Cloudflare 的下一步
+## D1 迁移
 
-Cloudflare 原生后端建议做成：
+本项目包含 D1 migration：
 
-- Cloudflare Workers：承载 `/api/*`
-- Cloudflare D1：替代本地 SQLite 文件
-- Wrangler D1 migrations：管理数据表
-- Pages 环境变量：绑定同域 API 或 Worker 路由
+```bash
+npm run d1:migrate:local
+npm run d1:migrate:remote
+```
 
-迁移时要把 `server/database.ts` 的 `node:sqlite` 读写层替换为 D1 binding，业务规则可继续复用 `src/domain/business.ts`。
+## 本地 Cloudflare runtime 验证
+
+```bash
+npm run build
+npm run d1:migrate:local
+npm run dev:cloudflare
+```
+
+另开终端验证：
+
+```bash
+API_BASE_URL=http://localhost:8788 npm run verify:cloudflare-api
+```
+
+## 线上验证
+
+```bash
+npm run d1:migrate:remote
+npm run deploy:pages
+API_BASE_URL=https://yich-beauty-system.pages.dev npm run verify:cloudflare-api
+```
+
+Cloudflare 后端复用 `src/domain/business.ts` 的业务规则，D1 读写层在 `src/cloudflare/d1Database.ts`，入口在 `functions/api/[[path]].ts`。
