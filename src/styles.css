@@ -2870,3 +2870,404 @@ html[data-theme="day"],
   color: #fff;
   box-shadow: 0 14px 32px rgba(150, 54, 77, 0.24);
 }
+
+/* YiCh final brand pass: topbar is logo-only, purple is the product primary color. */
+:root {
+  --yich-purple: #6f42c1;
+  --yich-purple-deep: #45257f;
+  --yich-purple-dark: #2f1b5f;
+  --yich-purple-soft: #efe8ff;
+  --yich-purple-line: rgba(111, 66, 193, 0.22);
+  --yich-gold: #b99555;
+  --yich-ink: #211a2d;
+  --yich-muted: #6e647d;
+  --yich-surface: #fffdfa;
+}
+
+html[data-theme="day"],
+.theme-day {
+  background:
+    radial-gradient(circle at 16% -8%, rgba(111, 66, 193, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 4%, rgba(185, 149, 85, 0.14), transparent 24%),
+    linear-gradient(180deg, #fbf8ff 0%, #f4edf9 52%, #f7efe8 100%);
+  color: var(--yich-ink);
+}
+
+.topbar {
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.topbar-title {
+  grid-column: 2;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 16px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 253, 250, 0.72);
+  box-shadow: 0 10px 26px rgba(69, 37, 127, 0.08);
+}
+
+.topbar-title p {
+  margin: 0;
+  color: var(--yich-purple-deep);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.topbar-title h1 {
+  display: none;
+}
+
+.topbar-actions {
+  grid-column: 3;
+  justify-self: end;
+  position: relative;
+}
+
+.theme-day .topbar {
+  background: linear-gradient(180deg, rgba(251, 248, 255, 0.98) 0%, rgba(251, 248, 255, 0.88) 74%, rgba(251, 248, 255, 0) 100%);
+}
+
+.theme-day .topbar-title {
+  border-color: rgba(111, 66, 193, 0.16);
+  background: rgba(255, 253, 250, 0.76);
+}
+
+.theme-day .topbar-title p {
+  color: var(--yich-purple-deep);
+  opacity: 1;
+}
+
+.theme-day .sidebar {
+  background: rgba(251, 248, 255, 0.96);
+  border-right-color: var(--yich-purple-line);
+}
+
+.theme-day .rail-admin {
+  color: var(--yich-ink);
+}
+
+.theme-day .rail-admin span {
+  color: var(--yich-purple);
+}
+
+.theme-day .brand-mark,
+.theme-day .account-avatar-large,
+.theme-day .metric-icon,
+.theme-day .health-grid .metric-icon {
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
+}
+
+.theme-day .panel,
+.theme-day .stat-card,
+.theme-day .quick-card,
+.theme-day .record-card,
+.theme-day .inventory-line,
+.theme-day .settings-card,
+.theme-day .sub-panel,
+.theme-day .empty,
+.theme-day .admin-code-panel,
+.theme-day .admin-module-card,
+.theme-day .theme-switch-panel,
+.theme-day .account-bind-list > div,
+.theme-day .dashboard-panel,
+.theme-day .action-strip button,
+.theme-day .timeline-item,
+.theme-day .care-item,
+.theme-day .health-grid .dashboard-metric {
+  border-color: rgba(111, 66, 193, 0.14);
+  background: rgba(255, 253, 250, 0.98);
+  box-shadow: 0 14px 34px rgba(69, 37, 127, 0.1);
+}
+
+.theme-day .panel-title h2,
+.theme-day .admin-code-panel h2,
+.theme-day .admin-section-title strong,
+.theme-day .admin-module-card strong,
+.theme-day .settings-card strong,
+.theme-day .record-card strong,
+.theme-day td,
+.theme-day .action-strip strong,
+.theme-day .timeline-item strong,
+.theme-day .care-item strong,
+.theme-day .health-grid .dashboard-metric strong {
+  color: var(--yich-ink);
+}
+
+.theme-day .panel-title span,
+.theme-day .stat-card span,
+.theme-day .stat-card small,
+.theme-day th,
+.theme-day label,
+.theme-day .record-card span,
+.theme-day .record-card small,
+.theme-day .inventory-line span,
+.theme-day .settings-card span,
+.theme-day .empty,
+.theme-day .quick-card small,
+.theme-day .admin-code-panel p,
+.theme-day .admin-section-title span,
+.theme-day .admin-module-card small,
+.theme-day .admin-module-card em,
+.theme-day .account-drawer-head span,
+.theme-day .theme-switch-panel span,
+.theme-day .account-bind-list span,
+.theme-day .action-strip span,
+.theme-day .timeline-item span,
+.theme-day .care-item span,
+.theme-day .care-item small,
+.theme-day .health-grid .dashboard-metric span:not(.metric-icon),
+.theme-day .health-grid .dashboard-metric small {
+  color: var(--yich-muted);
+}
+
+.theme-day input,
+.theme-day select,
+.theme-day textarea,
+.theme-day .theme-toggle button {
+  border-color: rgba(111, 66, 193, 0.18);
+  background: #fdfaff;
+  color: var(--yich-ink);
+}
+
+.theme-day input:focus,
+.theme-day select:focus,
+.theme-day textarea:focus {
+  border-color: var(--yich-purple);
+  box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.16);
+}
+
+.theme-day .primary-button,
+.theme-day .account-avatar-button,
+.theme-day .inline-form button,
+.theme-day .theme-toggle button.active {
+  background: linear-gradient(135deg, var(--yich-purple), var(--yich-purple-deep));
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(69, 37, 127, 0.22);
+}
+
+.theme-day .icon-button,
+.theme-day .ghost-button,
+.theme-day .user-chip,
+.theme-day .row-actions button,
+.theme-day .panel-title button,
+.theme-day td > button,
+.theme-day .table-action button,
+.theme-day .inline-actions button,
+.theme-day .secondary-button,
+.theme-day .sub-panel button {
+  border-color: rgba(111, 66, 193, 0.16);
+  background: #fffdfa;
+  color: var(--yich-ink);
+}
+
+.theme-day .admin-profile-hero,
+.theme-day .beauty-hero {
+  border-color: rgba(111, 66, 193, 0.16);
+  background:
+    linear-gradient(135deg, #45257f 0%, #6f42c1 48%, #b99555 100%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.28), transparent 30%);
+  box-shadow: 0 22px 54px rgba(69, 37, 127, 0.24);
+}
+
+.theme-day .admin-module-icon.rose,
+.theme-day .admin-module-icon.violet {
+  background: rgba(111, 66, 193, 0.14);
+  color: var(--yich-purple-deep);
+}
+
+.theme-day .admin-module-icon.teal {
+  background: rgba(45, 138, 116, 0.14);
+  color: #2d7c68;
+}
+
+.theme-day .admin-module-icon.amber {
+  background: rgba(185, 149, 85, 0.16);
+  color: #806032;
+}
+
+.theme-day .badge {
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
+}
+
+.theme-day .table-wrap {
+  border-color: rgba(111, 66, 193, 0.14);
+  background: rgba(255, 253, 250, 0.78);
+}
+
+.theme-day .workbar {
+  border-color: rgba(111, 66, 193, 0.18);
+  background: rgba(255, 253, 250, 0.96);
+  box-shadow: 0 -18px 42px rgba(69, 37, 127, 0.14);
+}
+
+.theme-day .workbar button {
+  color: rgba(33, 26, 45, 0.68);
+}
+
+.theme-day .workbar button.active {
+  background: linear-gradient(135deg, var(--yich-purple), var(--yich-purple-deep));
+  color: #fff;
+  box-shadow: 0 14px 34px rgba(69, 37, 127, 0.24);
+}
+
+.theme-day .action-strip svg,
+.theme-day .account-bind-list svg {
+  color: var(--yich-purple);
+}
+
+.notification-button {
+  position: relative;
+}
+
+.notification-button span {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+  border: 2px solid #fffdfa;
+  border-radius: 999px;
+  background: var(--yich-purple);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.notification-panel {
+  position: absolute;
+  z-index: 90;
+  top: calc(100% + 12px);
+  right: 48px;
+  width: min(360px, calc(100vw - 28px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 253, 250, 0.98);
+  box-shadow: 0 22px 60px rgba(39, 25, 69, 0.18);
+}
+
+.notification-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notification-head strong {
+  color: var(--yich-ink);
+  font-size: 16px;
+}
+
+.notification-list {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-list button {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 8px;
+  background: #fffdfa;
+  color: var(--yich-ink);
+  text-align: left;
+}
+
+.notification-list button svg {
+  color: var(--yich-purple);
+}
+
+.notification-list button.has-count {
+  background: linear-gradient(135deg, rgba(111, 66, 193, 0.1), rgba(185, 149, 85, 0.08));
+}
+
+.notification-list strong,
+.notification-list small {
+  display: block;
+}
+
+.notification-list small {
+  margin-top: 3px;
+  color: var(--yich-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.notification-list em {
+  min-width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.theme-night .topbar-title {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(20, 18, 16, 0.72);
+}
+
+.theme-night .topbar-title p {
+  color: #d7c3ff;
+}
+
+.theme-night .notification-panel {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #141210;
+}
+
+.theme-night .notification-head strong,
+.theme-night .notification-list button {
+  color: #f7efe8;
+}
+
+.theme-night .notification-list button {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1b1816;
+}
+
+.theme-night .notification-list button.has-count {
+  background: rgba(111, 66, 193, 0.18);
+}
+
+.theme-night .notification-list small {
+  color: rgba(246, 240, 234, 0.58);
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .topbar-title {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .topbar-actions {
+    grid-column: 2;
+  }
+
+  .notification-panel {
+    right: 0;
+  }
+}

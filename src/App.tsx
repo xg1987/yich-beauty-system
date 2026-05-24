@@ -65,6 +65,7 @@ export default function App() {
   const { data, session, loading, error, login, registerStore, joinInvite, authenticate, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem(THEME_KEY) === "night" ? "night" : "day"));
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export default function App() {
   const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key));
   const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
   const activeWorkbar = workbarForView(activeView);
-  const activeTitle = navItems.find((item) => item.key === activeView)?.label ?? workbarItems.find((item) => item.key === activeWorkbar)?.label;
+  const notificationCount = notificationItems(data).filter((item) => item.count > 0).length;
 
   return (
     <div className={`app-shell theme-${themeMode}`}>
@@ -107,14 +108,17 @@ export default function App() {
         <header className="topbar">
           <div className="topbar-title">
             <p>一宸 YiCh 美业管理系统</p>
-            <h1>{activeTitle}</h1>
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
-            <button className="icon-button" aria-label="通知"><Bell size={18} /></button>
+            <button className="icon-button notification-button" aria-label="通知" onClick={() => setNotificationPanelOpen((open) => !open)}>
+              <Bell size={18} />
+              {notificationCount > 0 && <span>{notificationCount}</span>}
+            </button>
             <button className="account-avatar-button" aria-label="账号中心" onClick={() => setAccountPanelOpen(true)}>
               <UserRound size={18} />
             </button>
+            {notificationPanelOpen && <NotificationPanel data={data} setView={setView} onClose={() => setNotificationPanelOpen(false)} />}
           </div>
         </header>
         {activeView === "dashboard" && <Dashboard data={data} session={session} setView={setView} />}
@@ -149,6 +153,67 @@ export default function App() {
         />
       )}
     </div>
+  );
+}
+
+function notificationItems(data: AppData): Array<{ title: string; desc: string; count: number; view: ViewKey; icon: typeof Bell }> {
+  const today = new Date();
+  return [
+    {
+      title: "今日预约",
+      desc: "查看待确认、到店和服务完成状态",
+      count: data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString()).length,
+      view: "appointments",
+      icon: CalendarDays,
+    },
+    {
+      title: "客户回访",
+      desc: "护理后跟进、微信或电话触达",
+      count: data.customerFollowUps.filter((item) => item.status === "待跟进").length,
+      view: "customers",
+      icon: HeartHandshake,
+    },
+    {
+      title: "库存预警",
+      desc: "低于预警值的耗材和商品",
+      count: data.products.filter((item) => item.stock <= item.warningStock).length,
+      view: "inventory",
+      icon: PackagePlus,
+    },
+    {
+      title: "待审批",
+      desc: "退款、改价和账号相关审批",
+      count: data.approvalRequests.filter((item) => item.status === "待审批").length,
+      view: "approvals",
+      icon: ShieldCheck,
+    },
+  ];
+}
+
+function NotificationPanel({ data, setView, onClose }: { data: AppData; setView: (view: ViewKey) => void; onClose: () => void }) {
+  const items = notificationItems(data);
+  return (
+    <aside className="notification-panel">
+      <div className="notification-head">
+        <strong>通知中心</strong>
+        <button className="icon-button" aria-label="关闭通知" onClick={onClose}><X size={16} /></button>
+      </div>
+      <div className="notification-list">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button key={item.title} className={item.count > 0 ? "has-count" : ""} onClick={() => { setView(item.view); onClose(); }}>
+              <Icon size={18} />
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.desc}</small>
+              </span>
+              <em>{item.count}</em>
+            </button>
+          );
+        })}
+      </div>
+    </aside>
   );
 }
 
