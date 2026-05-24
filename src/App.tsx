@@ -8,12 +8,14 @@ import {
   ClipboardList,
   CreditCard,
   Database,
+  Eye,
   Headphones,
   HeartHandshake,
   LayoutDashboard,
   LockKeyhole,
   Megaphone,
   MessageCircle,
+  Moon,
   Network,
   PackagePlus,
   RadioTower,
@@ -21,15 +23,22 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  Sun,
   UserRound,
   UsersRound,
+  X,
 } from "lucide-react";
-import { FormEvent, ReactNode, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { calculateOrderTotal, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, Product, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
+
+type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admin";
+type ThemeMode = "day" | "night";
+
+const THEME_KEY = "yich-system-theme";
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
   { key: "dashboard", label: "工作台", icon: LayoutDashboard },
@@ -44,9 +53,24 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "settings", label: "系统设置", icon: Settings },
 ];
 
+const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey }> = [
+  { key: "workbench", label: "工作台", icon: LayoutDashboard, view: "dashboard" },
+  { key: "appointments", label: "预约", icon: CalendarDays, view: "appointments" },
+  { key: "cashier", label: "收银", icon: CreditCard, view: "pos" },
+  { key: "customers", label: "客户", icon: UsersRound, view: "customers" },
+  { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
+];
+
 export default function App() {
   const { data, session, loading, error, login, registerStore, joinInvite, authenticate, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
+  const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem(THEME_KEY) === "night" ? "night" : "day"));
+
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, themeMode);
+    document.documentElement.dataset.theme = themeMode;
+  }, [themeMode]);
 
   if (!session) {
     return <LoginScreen onLogin={login} onRegister={registerStore} onJoin={joinInvite} authenticate={authenticate} loading={loading} error={error} />;
@@ -64,44 +88,33 @@ export default function App() {
   }
 
   const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key));
-  const mobileNavItems = ["dashboard", "appointments", "pos", "customers", "settings"]
-    .map((key) => visibleNavItems.find((item) => item.key === key))
-    .filter((item): item is (typeof visibleNavItems)[number] => Boolean(item));
   const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
+  const activeWorkbar = workbarForView(activeView);
+  const activeTitle = workbarItems.find((item) => item.key === activeWorkbar)?.label ?? navItems.find((item) => item.key === activeView)?.label;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell theme-${themeMode}`}>
       <aside className="sidebar">
-        <div className="brand">
+        <div className="rail-admin">
           <div className="brand-mark">D</div>
           <div>
-            <strong>一宸 YiCh</strong>
-            <span>门店经营系统</span>
+            <strong>管理后台</strong>
+            <span>Admin</span>
           </div>
         </div>
-        <nav>
-          {visibleNavItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.key} className={activeView === item.key ? "nav-item active" : "nav-item"} onClick={() => setView(item.key)}>
-                <Icon size={18} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
       </aside>
       <main className="main">
         <header className="topbar">
-          <div>
+          <div className="topbar-title">
             <p>一宸 YiCh 美业管理系统</p>
-            <h1>{navItems.find((item) => item.key === activeView)?.label}</h1>
+            <h1>{activeTitle}</h1>
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
             <button className="icon-button" aria-label="通知"><Bell size={18} /></button>
-            <button className="ghost-button" onClick={logout}>退出</button>
-            <div className="user-chip">{session.user.name} · {session.user.roleName}</div>
+            <button className="account-avatar-button" aria-label="账号中心" onClick={() => setAccountPanelOpen(true)}>
+              <UserRound size={18} />
+            </button>
           </div>
         </header>
         {activeView === "dashboard" && <Dashboard data={data} session={session} setView={setView} />}
@@ -115,17 +128,94 @@ export default function App() {
         {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "settings" && <SettingsView data={data} session={session} setView={setView} />}
       </main>
-      <nav className="mobile-bottom-nav" aria-label="移动端主导航">
-        {mobileNavItems.map((item) => {
+      <nav className="workbar" aria-label="主工作栏">
+        {workbarItems.filter((item) => canAccessView(session, item.view)).map((item) => {
           const Icon = item.icon;
           return (
-            <button key={item.key} className={activeView === item.key ? "active" : ""} onClick={() => setView(item.key)}>
+            <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => setView(item.view)}>
               <Icon size={18} />
-              <span>{item.label.replace("管理", "")}</span>
+              <span>{item.label}</span>
             </button>
           );
         })}
       </nav>
+      {accountPanelOpen && (
+        <AccountCenterPanel
+          session={session}
+          logout={logout}
+          onClose={() => setAccountPanelOpen(false)}
+          themeMode={themeMode}
+          setThemeMode={setThemeMode}
+        />
+      )}
+    </div>
+  );
+}
+
+function workbarForView(view: ViewKey): WorkbarKey {
+  if (view === "appointments") return "appointments";
+  if (view === "pos") return "cashier";
+  if (view === "customers") return "customers";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports"].includes(view)) return "admin";
+  return "workbench";
+}
+
+function AccountCenterPanel({
+  session,
+  logout,
+  onClose,
+  themeMode,
+  setThemeMode,
+}: {
+  session: UserSession;
+  logout: () => void;
+  onClose: () => void;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+}) {
+  return (
+    <div className="account-drawer-backdrop" onClick={onClose}>
+      <aside className="account-drawer" onClick={(event) => event.stopPropagation()}>
+        <div className="account-drawer-head">
+          <div className="account-avatar-large"><UserRound size={28} /></div>
+          <div>
+            <strong>{session.user.name}</strong>
+            <span>{session.user.roleName} · {session.user.account}</span>
+          </div>
+          <button className="icon-button" aria-label="关闭账号中心" onClick={onClose}><X size={18} /></button>
+        </div>
+        <section className="theme-switch-panel">
+          <div>
+            <strong>显示模式</strong>
+            <span>根据门店环境切换日间 / 夜间后台</span>
+          </div>
+          <div className="theme-toggle" role="group" aria-label="显示模式">
+            <button className={themeMode === "day" ? "active" : ""} type="button" onClick={() => setThemeMode("day")}>
+              <Sun size={16} />
+              日间
+            </button>
+            <button className={themeMode === "night" ? "active" : ""} type="button" onClick={() => setThemeMode("night")}>
+              <Moon size={16} />
+              夜间
+            </button>
+          </div>
+        </section>
+        <div className="account-form-grid">
+          <label>联系电话<input value="13827445244" readOnly /></label>
+          <label>绑定微信<input value="yichen_admin" readOnly /></label>
+          <label>新密码<input value="" readOnly type="password" placeholder="输入新密码" /></label>
+          <label>确认密码<input value="" readOnly type="password" placeholder="再次输入新密码" /></label>
+        </div>
+        <div className="account-bind-list">
+          <div><ShieldCheck size={18} /><span>账号权限</span><strong>{session.user.permissions.length} 项</strong></div>
+          <div><Eye size={18} /><span>登录安全</span><strong>密码登录</strong></div>
+          <div><MessageCircle size={18} /><span>消息绑定</span><strong>微信待确认</strong></div>
+        </div>
+        <div className="account-drawer-actions">
+          <button className="primary-button" type="button"><LockKeyhole size={16} /> 保存账号资料</button>
+          <button className="secondary-button" type="button" onClick={logout}>退出登录</button>
+        </div>
+      </aside>
     </div>
   );
 }
@@ -222,16 +312,68 @@ function LoginScreen({
 
 function Dashboard({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
   const paidRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
-  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
+  const today = new Date();
+  const todayAppointmentsList = data.appointments
+    .filter((item) => new Date(item.startAt).toDateString() === today.toDateString())
+    .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
+  const todayAppointments = todayAppointmentsList.length;
   const lowStock = data.products.filter((item) => item.stock <= item.warningStock);
   const pendingCommissions = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
+  const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
+  const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
+  const todayRevenue = data.orders
+    .filter((item) => new Date(item.createdAt).toDateString() === today.toDateString())
+    .reduce((sum, item) => sum + item.paidAmount, 0);
+  const completedAppointments = todayAppointmentsList.filter((item) => item.status === "已完成").length;
+  const careList = data.customerFollowUps
+    .filter((item) => item.status === "待跟进")
+    .slice()
+    .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
+    .slice(0, 4);
   const roleTasks = roleHomeCards(data, session);
 
   return (
-    <div className="page-grid">
-      <section className="panel wide role-home">
-        <PanelTitle icon={<LayoutDashboard size={18} />} title={`${session.user.roleName}工作台`} action="按角色聚焦" />
-        <div className="quick-grid">
+    <div className="dashboard-page">
+      <section className="beauty-hero">
+        <div className="beauty-hero-copy">
+          <span className="eyebrow"><Sparkles size={15} /> {session.user.roleName}工作台</span>
+          <h2>今日经营看板</h2>
+          <p>把预约、收银、客户跟进和库存预警放在同一个首屏，适合店长和老板快速判断今天要先处理什么。</p>
+        </div>
+        <div className="hero-metrics">
+          <DashboardMetric icon={<CalendarDays size={18} />} label="今日预约" value={`${todayAppointments} 单`} hint={`已完成 ${completedAppointments} 单`} />
+          <DashboardMetric icon={<CreditCard size={18} />} label="今日实收" value={money(todayRevenue)} hint="当天收银汇总" />
+          <DashboardMetric icon={<HeartHandshake size={18} />} label="待跟进" value={`${pendingFollowUps} 位`} hint="客户关怀任务" />
+        </div>
+      </section>
+
+      <section className="action-strip" aria-label="今日待办">
+        <button onClick={() => setView("appointments")}>
+          <CalendarDays size={18} />
+          <strong>{todayAppointments}</strong>
+          <span>今日预约</span>
+        </button>
+        <button onClick={() => setView("customers")}>
+          <HeartHandshake size={18} />
+          <strong>{pendingFollowUps}</strong>
+          <span>客户回访</span>
+        </button>
+        <button onClick={() => setView("inventory")}>
+          <PackagePlus size={18} />
+          <strong>{lowStock.length}</strong>
+          <span>低库存</span>
+        </button>
+        <button onClick={() => setView("approvals")}>
+          <ShieldCheck size={18} />
+          <strong>{pendingApprovals}</strong>
+          <span>待审批</span>
+        </button>
+      </section>
+
+      <section className="panel role-home dashboard-panel">
+        <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="按当前账号权限显示" />
+        <div className="quick-grid compact">
           {roleTasks.map((item) => (
             <button key={item.title} className="quick-card" onClick={() => setView(item.view)}>
               <strong>{item.value}</strong>
@@ -241,32 +383,73 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
           ))}
         </div>
       </section>
-      <StatCard title="累计实收" value={money(paidRevenue)} hint="收银订单实时汇总" />
-      <StatCard title="今日预约" value={`${todayAppointments} 单`} hint="含待确认和已到店" />
-      <StatCard title="待结算提成" value={money(pendingCommissions)} hint="按完成订单生成" />
-      <StatCard title="库存预警" value={`${lowStock.length} 项`} hint="低于预警值需补货" tone={lowStock.length ? "warn" : "ok"} />
-      <section className="panel wide">
-        <PanelTitle icon={<CalendarDays size={18} />} title="近期预约" action="按到店顺序" />
-        <DataTable
-          columns={["时间", "客户", "项目", "员工", "状态"]}
-          rows={data.appointments
-            .slice()
-            .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
-            .map((item) => [
-              shortDate(item.startAt),
-              nameOf(data.customers, item.customerId),
-              nameOf(data.services, item.serviceId),
-              nameOf(data.staff, item.staffId),
-              <Badge key={item.id} text={item.status} />,
-            ])}
-        />
-      </section>
-      <section className="panel">
-        <PanelTitle icon={<PackagePlus size={18} />} title="库存提醒" action="耗材优先" />
-        <div className="stack">
-          {lowStock.length === 0 ? <p className="empty">暂无低库存商品</p> : lowStock.map((item) => <InventoryLine key={item.id} product={item} />)}
+
+      <section className="dashboard-columns">
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<CalendarDays size={18} />} title="今日服务动线" action="按到店时间" />
+          <div className="timeline-list">
+            {todayAppointmentsList.slice(0, 5).map((item) => (
+              <article key={item.id} className="timeline-item">
+                <time>{shortDate(item.startAt).split(" ")[1] ?? shortDate(item.startAt)}</time>
+                <div>
+                  <strong>{nameOf(data.customers, item.customerId)}</strong>
+                  <span>{nameOf(data.services, item.serviceId)} · {nameOf(data.staff, item.staffId)}</span>
+                </div>
+                <Badge text={item.status} tone={item.status === "已完成" ? "ok" : undefined} />
+              </article>
+            ))}
+            {todayAppointmentsList.length === 0 && <p className="empty">今日暂无预约，前台可从预约栏新增客户到店计划</p>}
+          </div>
+        </div>
+
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<HeartHandshake size={18} />} title="客户关怀" action={`${pendingFollowUps} 个待跟进`} />
+          <div className="care-list">
+            {careList.map((item) => (
+              <article key={item.id} className="care-item">
+                <div>
+                  <strong>{nameOf(data.customers, item.customerId)}</strong>
+                  <span>{item.method} · {shortDate(item.dueAt)}</span>
+                </div>
+                <small>{item.note}</small>
+              </article>
+            ))}
+            {careList.length === 0 && <p className="empty">暂无待跟进客户</p>}
+          </div>
         </div>
       </section>
+
+      <section className="dashboard-columns lower">
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营健康度" action="实时数据" />
+          <div className="health-grid">
+            <DashboardMetric icon={<CreditCard size={18} />} label="累计实收" value={money(paidRevenue)} hint="全部订单" />
+            <DashboardMetric icon={<BadgeCent size={18} />} label="待结提成" value={money(pendingCommissions)} hint="待财务结算" />
+            <DashboardMetric icon={<UsersRound size={18} />} label="有效会员卡" value={`${activeCards} 张`} hint={`${data.customers.length} 位客户`} />
+            <DashboardMetric icon={<PackagePlus size={18} />} label="库存预警" value={`${lowStock.length} 项`} hint="低于预警值" />
+          </div>
+        </div>
+
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<PackagePlus size={18} />} title="耗材与商品提醒" action="低库存优先" />
+          <div className="stack">
+            {lowStock.length === 0 ? <p className="empty">暂无低库存商品</p> : lowStock.slice(0, 4).map((item) => <InventoryLine key={item.id} product={item} />)}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DashboardMetric({ icon, label, value, hint }: { icon: ReactNode; label: string; value: string; hint: string }) {
+  return (
+    <div className="dashboard-metric">
+      <span className="metric-icon">{icon}</span>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{hint}</small>
+      </div>
     </div>
   );
 }
