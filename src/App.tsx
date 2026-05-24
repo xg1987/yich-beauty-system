@@ -29,7 +29,7 @@ import {
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
 import { calculateOrderTotal, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 
@@ -2262,15 +2262,24 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
 
 function StaffCommissions({ data, session, actions, runMutation }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation }) {
   const canManageStaff = hasPermission(session, "staff:manage");
+  const staffRoleOptions = ["店长", "美容师", "前台", "财务"].map((item) => ({ value: item, label: item }));
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("美容师");
   const [baseSalary, setBaseSalary] = useState(6500);
   const [commissionRate, setCommissionRate] = useState(0.12);
+  const [editingStaffId, setEditingStaffId] = useState("");
+  const [editingName, setEditingName] = useState("");
+  const [editingPhone, setEditingPhone] = useState("");
+  const [editingRole, setEditingRole] = useState("美容师");
+  const [editingBaseSalary, setEditingBaseSalary] = useState(0);
+  const [editingCommissionRate, setEditingCommissionRate] = useState(0);
+  const [editingStatus, setEditingStatus] = useState<Staff["status"]>("active");
   const [inviteStaffId, setInviteStaffId] = useState(data.staff[0]?.id ?? "");
   const [inviteAccount, setInviteAccount] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("therapist");
   const [inviteValidDays, setInviteValidDays] = useState(7);
+  const editingStaff = data.staff.find((staff) => staff.id === editingStaffId);
 
   const settleAll = () => {
     void runMutation(actions.settleCommissions);
@@ -2287,9 +2296,45 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     setPhone("");
   };
 
+  const startEditStaff = (staff: Staff) => {
+    setEditingStaffId(staff.id);
+    setEditingName(staff.name);
+    setEditingPhone(staff.phone);
+    setEditingRole(staff.role);
+    setEditingBaseSalary(staff.baseSalary ?? 0);
+    setEditingCommissionRate(staff.commissionRate ?? 0);
+    setEditingStatus(staff.status);
+  };
+
+  const cancelEditStaff = () => {
+    setEditingStaffId("");
+    setEditingName("");
+    setEditingPhone("");
+    setEditingRole("美容师");
+    setEditingBaseSalary(0);
+    setEditingCommissionRate(0);
+    setEditingStatus("active");
+  };
+
+  const saveStaffEdit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingStaffId) return;
+    void runMutation(() =>
+      actions.updateStaff(editingStaffId, {
+        name: editingName,
+        phone: editingPhone,
+        role: editingRole,
+        baseSalary: editingBaseSalary,
+        commissionRate: editingCommissionRate,
+        status: editingStatus,
+      }),
+    ).then(cancelEditStaff);
+  };
+
   const createInvite = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account: inviteAccount, role: inviteRole, validDays: inviteValidDays }));
+    void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account: inviteAccount, role: inviteRole, validDays: inviteValidDays }))
+      .then(() => setInviteAccount(""));
   };
 
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
@@ -2343,7 +2388,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             <form className="form" onSubmit={addStaff}>
               <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
               <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
-              <Select label="岗位" value={role} onChange={setRole} options={["店长", "美容师", "前台", "财务"].map((item) => ({ value: item, label: item }))} />
+              <Select label="岗位" value={role} onChange={setRole} options={staffRoleOptions} />
               <label>底薪<input type="number" value={baseSalary} onChange={(event) => setBaseSalary(Number(event.target.value))} /></label>
               <label>提成比例<input type="number" step="0.01" value={commissionRate} onChange={(event) => setCommissionRate(Number(event.target.value))} /></label>
               <button className="primary-button">保存员工档案</button>
@@ -2378,6 +2423,32 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         </section>
         <section className="panel wide">
         <PanelTitle icon={<UsersRound size={18} />} title="员工档案" action={`${data.staff.length} 人`} />
+        {canManageStaff && editingStaff && (
+          <form className="staff-edit-form" onSubmit={saveStaffEdit}>
+            <div className="staff-edit-head">
+              <strong>编辑员工档案</strong>
+              <span>{editingStaff.name} · {data.authUsers.find((user) => user.staffId === editingStaff.id)?.account ?? "未开通账号"}</span>
+            </div>
+            <label>姓名<input value={editingName} onChange={(event) => setEditingName(event.target.value)} required /></label>
+            <label>手机号<input value={editingPhone} onChange={(event) => setEditingPhone(event.target.value)} required /></label>
+            <Select label="岗位" value={editingRole} onChange={setEditingRole} options={staffRoleOptions} />
+            <label>底薪<input type="number" min={0} value={editingBaseSalary} onChange={(event) => setEditingBaseSalary(Number(event.target.value))} /></label>
+            <label>提成比例<input type="number" min={0} step="0.01" value={editingCommissionRate} onChange={(event) => setEditingCommissionRate(Number(event.target.value))} /></label>
+            <Select
+              label="状态"
+              value={editingStatus}
+              onChange={(value) => setEditingStatus(value as Staff["status"])}
+              options={[
+                { value: "active", label: "在职" },
+                { value: "inactive", label: "停用" },
+              ]}
+            />
+            <div className="staff-edit-actions">
+              <button className="primary-button" type="submit">保存修改</button>
+              <button type="button" onClick={cancelEditStaff}>取消</button>
+            </div>
+          </form>
+        )}
         <DataTable
           columns={["员工", "岗位", "手机号", "状态", "账号", "底薪", "提成比例", "操作"]}
           rows={data.staff.map((staff) => [
@@ -2389,12 +2460,15 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             money(staff.baseSalary ?? 0),
             `${Math.round((staff.commissionRate ?? 0) * 100)}%`,
             canManageStaff ? (
-              <button
-                key={`${staff.id}-toggle`}
-                onClick={() => void runMutation(() => actions.updateStaff(staff.id, { status: staff.status === "active" ? "inactive" : "active" }))}
-              >
-                {staff.status === "active" ? "停用" : "启用"}
-              </button>
+              <div className="row-actions" key={`${staff.id}-actions`}>
+                <button type="button" onClick={() => startEditStaff(staff)}>编辑</button>
+                <button
+                  type="button"
+                  onClick={() => void runMutation(() => actions.updateStaff(staff.id, { status: staff.status === "active" ? "inactive" : "active" }))}
+                >
+                  {staff.status === "active" ? "停用" : "启用"}
+                </button>
+              </div>
             ) : (
               "仅查看"
             ),

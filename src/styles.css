@@ -659,6 +659,50 @@ td > button {
   margin-top: 10px;
 }
 
+.staff-edit-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(109, 40, 217, 0.06);
+}
+
+.staff-edit-head {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+}
+
+.staff-edit-head strong {
+  font-size: 17px;
+}
+
+.staff-edit-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.staff-edit-actions,
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staff-edit-actions {
+  align-self: end;
+}
+
+.staff-edit-actions button,
+.row-actions button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
 .appointment-action-form {
   grid-column: 1 / -1;
   display: grid;
@@ -1472,6 +1516,10 @@ td {
 
   .inline-form {
     display: grid;
+  }
+
+  .staff-edit-form {
+    grid-template-columns: 1fr;
   }
 }
 

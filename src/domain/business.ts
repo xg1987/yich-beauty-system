@@ -714,11 +714,19 @@ export function addStaffMember(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+  const role = input.role.trim();
+  if (!name) throw new Error("请输入员工姓名");
+  if (!phone) throw new Error("请输入员工手机号");
+  if (!role) throw new Error("请选择员工岗位");
+  if ((input.baseSalary ?? 0) < 0) throw new Error("底薪不能小于 0");
+  if ((input.commissionRate ?? 0) < 0) throw new Error("提成比例不能小于 0");
   const staff: Staff = {
     id: idFactory("s"),
-    name: input.name,
-    phone: input.phone,
-    role: input.role,
+    name,
+    phone,
+    role,
     status: "active",
     hiredAt: createdAt.slice(0, 10),
     baseSalary: input.baseSalary ?? 0,
@@ -729,15 +737,23 @@ export function addStaffMember(
 
 export function updateStaffMember(data: AppData, input: StaffUpdateInput): AppData {
   if (!data.staff.some((staff) => staff.id === input.staffId)) throw new Error("员工不存在");
+  const name = input.name?.trim();
+  const phone = input.phone?.trim();
+  const role = input.role?.trim();
+  if (input.name !== undefined && !name) throw new Error("请输入员工姓名");
+  if (input.phone !== undefined && !phone) throw new Error("请输入员工手机号");
+  if (input.role !== undefined && !role) throw new Error("请选择员工岗位");
+  if (input.baseSalary !== undefined && input.baseSalary < 0) throw new Error("底薪不能小于 0");
+  if (input.commissionRate !== undefined && input.commissionRate < 0) throw new Error("提成比例不能小于 0");
   return {
     ...data,
     staff: data.staff.map((staff) =>
       staff.id === input.staffId
         ? {
             ...staff,
-            name: input.name ?? staff.name,
-            phone: input.phone ?? staff.phone,
-            role: input.role ?? staff.role,
+            name: name ?? staff.name,
+            phone: phone ?? staff.phone,
+            role: role ?? staff.role,
             status: input.status ?? staff.status,
             baseSalary: input.baseSalary ?? staff.baseSalary,
             commissionRate: input.commissionRate ?? staff.commissionRate,

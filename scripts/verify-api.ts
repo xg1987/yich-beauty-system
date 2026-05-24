@@ -135,9 +135,12 @@ try {
   const afterStaffUpdate = await request<AppData>(baseUrl, `/api/staff/${apiStaffId}`, {
     method: "PATCH",
     token: session.token,
-    body: { status: "inactive", baseSalary: 6200 },
+    body: { name: "API 美容顾问", phone: "13900000009", role: "店长", status: "inactive", baseSalary: 6200, commissionRate: 0.18 },
   });
   assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.status, "inactive", "staff API should disable staff");
+  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.name, "API 美容顾问", "staff API should update staff name");
+  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.role, "店长", "staff API should update staff role");
+  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.commissionRate, 0.18, "staff API should update commission rate");
 
   const afterInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
     method: "POST",

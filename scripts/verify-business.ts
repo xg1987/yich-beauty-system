@@ -128,6 +128,21 @@ function card(data: AppData, cardId: string) {
   const updatedStaff = updateStaffMember(withStaff, { staffId: withStaff.staff[0].id, status: "inactive", baseSalary: 6200 });
   assert.equal(updatedStaff.staff[0].status, "inactive", "staff management should disable staff");
   assert.equal(updatedStaff.staff[0].baseSalary, 6200, "staff management should update salary");
+  const editedStaff = updateStaffMember(updatedStaff, {
+    staffId: updatedStaff.staff[0].id,
+    name: "新美容顾问",
+    phone: "13900000009",
+    role: "店长",
+    commissionRate: 0.18,
+  });
+  assert.equal(editedStaff.staff[0].name, "新美容顾问", "staff management should update name");
+  assert.equal(editedStaff.staff[0].role, "店长", "staff management should update role");
+  assert.equal(editedStaff.staff[0].commissionRate, 0.18, "staff management should update commission rate");
+  assert.throws(
+    () => updateStaffMember(editedStaff, { staffId: editedStaff.staff[0].id, phone: "" }),
+    /请输入员工手机号/,
+    "staff management should reject empty phone",
+  );
 
   const invited = createStaffInvite(
     withStaff,
