@@ -3,6 +3,7 @@ import type {
   AppData,
   ApprovalRequest,
   Appointment,
+  AuthUser,
   Commission,
   Customer,
   CustomerFollowUp,
@@ -18,9 +19,11 @@ import type {
   Refund,
   Service,
   Staff,
+  StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
   Stocktake,
+  StoreProfile,
   Supplier,
 } from "../domain/types";
 import type { D1DatabaseBinding, D1PreparedStatement, D1Value } from "./d1Types";
@@ -28,6 +31,9 @@ import type { D1DatabaseBinding, D1PreparedStatement, D1Value } from "./d1Types"
 type TableName = keyof AppData;
 
 const tableNames: TableName[] = [
+  "storeProfiles",
+  "authUsers",
+  "staffInvites",
   "staff",
   "customers",
   "services",
@@ -62,11 +68,25 @@ export class D1BeautyDatabase {
     const row = await this.db.prepare("SELECT COUNT(*) AS count FROM staff").first<{ count: number }>();
     if ((row?.count ?? 0) === 0) {
       await this.replaceData(seedData);
+      return;
+    }
+    const authRow = await this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").first<{ count: number }>();
+    if ((authRow?.count ?? 0) === 0) {
+      const currentData = await this.readData();
+      await this.replaceData({
+        ...currentData,
+        storeProfiles: seedData.storeProfiles,
+        authUsers: seedData.authUsers,
+        staff: currentData.staff.map((staff) => seedData.staff.find((seedStaff) => seedStaff.id === staff.id) ?? staff),
+      });
     }
   }
 
   async readData(): Promise<AppData> {
     return {
+      storeProfiles: await this.all("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC", mapJsonPayload<StoreProfile>),
+      authUsers: await this.all("SELECT payload_json FROM authUsers ORDER BY rowid ASC", mapJsonPayload<AuthUser>),
+      staffInvites: await this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>),
       staff: await this.all("SELECT * FROM staff ORDER BY rowid ASC", mapStaff),
       customers: await this.all("SELECT * FROM customers ORDER BY rowid ASC", mapCustomer),
       services: await this.all("SELECT * FROM services ORDER BY rowid ASC", mapService),
@@ -117,13 +137,21 @@ export class D1BeautyDatabase {
   private writeDataStatements(data: AppData) {
     const statements: D1PreparedStatement[] = [];
 
+    this.writeJsonTable(statements, "storeProfiles", data.storeProfiles);
+    this.writeJsonTable(statements, "authUsers", data.authUsers);
+    this.writeJsonTable(statements, "staffInvites", data.staffInvites);
+
     for (const staff of data.staff) {
-      statements.push(this.statement("INSERT INTO staff (id, name, phone, role, status) VALUES (?, ?, ?, ?, ?)", [
+      statements.push(this.statement("INSERT INTO staff (id, name, phone, role, status, accountId, hiredAt, baseSalary, commissionRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
         staff.id,
         staff.name,
         staff.phone,
         staff.role,
         staff.status,
+        staff.accountId ?? null,
+        staff.hiredAt ?? null,
+        staff.baseSalary ?? null,
+        staff.commissionRate ?? null,
       ]));
     }
 
@@ -365,7 +393,14 @@ export class D1BeautyDatabase {
 }
 
 function mapStaff(row: unknown): Staff {
-  return row as Staff;
+  const value = row as Staff;
+  return {
+    ...value,
+    accountId: value.accountId ?? undefined,
+    hiredAt: value.hiredAt ?? undefined,
+    baseSalary: value.baseSalary ?? undefined,
+    commissionRate: value.commissionRate ?? undefined,
+  };
 }
 
 function mapCustomer(row: unknown): Customer {

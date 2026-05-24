@@ -43,6 +43,46 @@ try {
   const initialData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(initialData.customers.length, 3, "database should seed demo customers");
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
+  assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
+
+  const registeredSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
+    method: "POST",
+    body: {
+      storeName: "API 测试门店",
+      ownerName: "API 老板",
+      phone: "13900000000",
+      address: "API 地址",
+      account: "api-boss@test.local",
+      password: "secret",
+    },
+  });
+  assert.equal(registeredSession.user.roleName, "老板", "register store API should login owner");
+
+  const afterStaff = await request<AppData>(baseUrl, "/api/staff", {
+    method: "POST",
+    token: session.token,
+    body: { name: "API 新美容师", phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
+  });
+  const apiStaffId = afterStaff.staff[0].id;
+  assert.equal(afterStaff.staff[0].name, "API 新美容师", "staff API should create staff");
+  const afterStaffUpdate = await request<AppData>(baseUrl, `/api/staff/${apiStaffId}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "inactive", baseSalary: 6200 },
+  });
+  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.status, "inactive", "staff API should disable staff");
+
+  const afterInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
+    method: "POST",
+    token: session.token,
+    body: { staffId: apiStaffId, account: "api-staff@test.local", role: "therapist" },
+  });
+  assert.equal(afterInvite.staffInvites[0].status, "待加入", "staff invite API should create invite");
+  const joinedSession = await request<{ token: string; user: { account: string; roleName: string } }>(baseUrl, "/api/auth/join-invite", {
+    method: "POST",
+    body: { inviteCode: afterInvite.staffInvites[0].inviteCode, name: "API 新美容师", password: "secret" },
+  });
+  assert.equal(joinedSession.user.account, "api-staff@test.local", "join invite API should login invited staff");
 
   const afterCustomer = await request<AppData>(baseUrl, "/api/customers", {
     method: "POST",
@@ -398,7 +438,7 @@ try {
   const afterReset = await request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token });
   assert.equal(afterReset.orders.length, 0, "reset API should clear generated orders");
 
-  console.log("API/SQLite 验证通过：健康检查、登录鉴权、权限、客户、预约/班次、审批改价、开单、退款、卡项、档案跟进、进销存、日结反结、数据范围、持久化、重置。");
+  console.log("API/SQLite 验证通过：健康检查、注册/邀请、登录鉴权、人员管理、权限、客户、预约/班次、审批改价、开单、退款、卡项、档案跟进、进销存、日结反结、数据范围、持久化、重置。");
 } finally {
   await close(server);
   database.close();

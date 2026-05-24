@@ -10,12 +10,51 @@ export type ViewKey =
   | "approvals"
   | "settings";
 
+export type UserRole = "owner" | "manager" | "frontdesk" | "therapist" | "finance";
+
+export type StoreProfile = {
+  id: string;
+  name: string;
+  phone: string;
+  address: string;
+  businessHours: string;
+  createdAt: string;
+};
+
 export type Staff = {
   id: string;
   name: string;
   phone: string;
   role: string;
   status: "active" | "inactive";
+  accountId?: string;
+  hiredAt?: string;
+  baseSalary?: number;
+  commissionRate?: number;
+};
+
+export type AuthUser = {
+  id: string;
+  name: string;
+  account: string;
+  password: string;
+  role: UserRole;
+  roleName: string;
+  staffId?: string;
+  status: "active" | "disabled";
+  createdAt: string;
+};
+
+export type StaffInvite = {
+  id: string;
+  staffId: string;
+  account: string;
+  role: UserRole;
+  status: "待加入" | "已加入" | "已作废";
+  inviteCode: string;
+  createdBy: string;
+  createdAt: string;
+  joinedAt?: string;
 };
 
 export type Customer = {
@@ -251,6 +290,9 @@ export type Stocktake = {
 };
 
 export type AppData = {
+  storeProfiles: StoreProfile[];
+  authUsers: AuthUser[];
+  staffInvites: StaffInvite[];
   staff: Staff[];
   customers: Customer[];
   services: Service[];

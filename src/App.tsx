@@ -16,7 +16,7 @@ import {
 import { FormEvent, ReactNode, useState } from "react";
 import { calculateOrderTotal, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, Product, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, Order, Product, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 
@@ -34,11 +34,11 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
 ];
 
 export default function App() {
-  const { data, session, loading, error, login, logout, runMutation, actions } = useApiData();
+  const { data, session, loading, error, login, registerStore, joinInvite, authenticate, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
 
   if (!session) {
-    return <LoginScreen onLogin={login} loading={loading} error={error} />;
+    return <LoginScreen onLogin={login} onRegister={registerStore} onJoin={joinInvite} authenticate={authenticate} loading={loading} error={error} />;
   }
 
   if (!data) {
@@ -90,7 +90,7 @@ export default function App() {
             <div className="user-chip">{session.user.name} · {session.user.roleName}</div>
           </div>
         </header>
-        {activeView === "dashboard" && <Dashboard data={data} />}
+        {activeView === "dashboard" && <Dashboard data={data} session={session} setView={setView} />}
         {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
@@ -105,13 +105,42 @@ export default function App() {
   );
 }
 
-function LoginScreen({ onLogin, loading, error }: { onLogin: (account: string, password: string) => Promise<void>; loading: boolean; error?: string }) {
+function LoginScreen({
+  onLogin,
+  onRegister,
+  onJoin,
+  authenticate,
+  loading,
+  error,
+}: {
+  onLogin: (account: string, password: string) => Promise<void>;
+  onRegister: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; password: string }) => Promise<UserSession>;
+  onJoin: (body: { inviteCode: string; name: string; password: string }) => Promise<UserSession>;
+  authenticate: (authAction: () => Promise<UserSession>) => Promise<void>;
+  loading: boolean;
+  error?: string;
+}) {
+  const [mode, setMode] = useState<"login" | "register" | "join">("login");
   const [account, setAccount] = useState("admin@demo.local");
   const [password, setPassword] = useState("yich-demo");
+  const [storeName, setStoreName] = useState("一宸 YiCh 皮肤管理中心");
+  const [ownerName, setOwnerName] = useState("林老板");
+  const [phone, setPhone] = useState("13800000000");
+  const [address, setAddress] = useState("上海市静安区示例路 88 号");
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinName, setJoinName] = useState("");
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void onLogin(account, password);
+    if (mode === "login") {
+      void onLogin(account, password);
+      return;
+    }
+    if (mode === "register") {
+      void authenticate(() => onRegister({ storeName, ownerName, phone, address, account, password }));
+      return;
+    }
+    void authenticate(() => onJoin({ inviteCode, name: joinName, password }));
   };
 
   return (
@@ -127,10 +156,30 @@ function LoginScreen({ onLogin, loading, error }: { onLogin: (account: string, p
         <h1>门店经营，从预约到财务一屏串起来</h1>
         <p>当前版本包含 Web 管理后台的核心流程：客户、预约、开单、会员卡、库存、提成和报表。</p>
         <form className="login-card" onSubmit={submit}>
-          <label>
-            账号
-            <input value={account} onChange={(event) => setAccount(event.target.value)} />
-          </label>
+          <div className="segmented">
+            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>登录</button>
+            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>注册门店</button>
+            <button type="button" className={mode === "join" ? "active" : ""} onClick={() => setMode("join")}>员工加入</button>
+          </div>
+          {mode === "register" && (
+            <>
+              <label>门店名称<input value={storeName} onChange={(event) => setStoreName(event.target.value)} /></label>
+              <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} /></label>
+              <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+              <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+            </>
+          )}
+          {mode === "join" ? (
+            <>
+              <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="由店长/老板在人员管理生成" /></label>
+              <label>姓名<input value={joinName} onChange={(event) => setJoinName(event.target.value)} /></label>
+            </>
+          ) : (
+            <label>
+              账号
+              <input value={account} onChange={(event) => setAccount(event.target.value)} />
+            </label>
+          )}
           <label>
             密码
             <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
@@ -138,7 +187,7 @@ function LoginScreen({ onLogin, loading, error }: { onLogin: (account: string, p
           {error && <p className="form-error">{error}</p>}
           <button className="primary-button" disabled={loading}>
             <LockKeyhole size={17} />
-            {loading ? "正在登录" : "进入演示系统"}
+            {loading ? "处理中" : mode === "login" ? "进入系统" : mode === "register" ? "创建门店" : "加入门店"}
           </button>
           <small>演示账号：admin@demo.local / yich-demo</small>
         </form>
@@ -147,14 +196,27 @@ function LoginScreen({ onLogin, loading, error }: { onLogin: (account: string, p
   );
 }
 
-function Dashboard({ data }: { data: AppData }) {
+function Dashboard({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
   const paidRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
   const lowStock = data.products.filter((item) => item.stock <= item.warningStock);
   const pendingCommissions = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const roleTasks = roleHomeCards(data, session);
 
   return (
     <div className="page-grid">
+      <section className="panel wide role-home">
+        <PanelTitle icon={<LayoutDashboard size={18} />} title={`${session.user.roleName}工作台`} action="按角色聚焦" />
+        <div className="quick-grid">
+          {roleTasks.map((item) => (
+            <button key={item.title} className="quick-card" onClick={() => setView(item.view)}>
+              <strong>{item.value}</strong>
+              <span>{item.title}</span>
+              <small>{item.hint}</small>
+            </button>
+          ))}
+        </div>
+      </section>
       <StatCard title="累计实收" value={money(paidRevenue)} hint="收银订单实时汇总" />
       <StatCard title="今日预约" value={`${todayAppointments} 单`} hint="含待确认和已到店" />
       <StatCard title="待结算提成" value={money(pendingCommissions)} hint="按完成订单生成" />
@@ -183,6 +245,45 @@ function Dashboard({ data }: { data: AppData }) {
       </section>
     </div>
   );
+}
+
+function roleHomeCards(data: AppData, session: UserSession): Array<{ title: string; value: string; hint: string; view: ViewKey }> {
+  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
+  const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
+  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
+  const lowStock = data.products.filter((item) => item.stock <= item.warningStock).length;
+  const revenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const myCommission = session.user.staffId
+    ? data.commissions.filter((item) => item.staffId === session.user.staffId).reduce((sum, item) => sum + item.amount, 0)
+    : 0;
+
+  if (session.user.role === "therapist") {
+    return [
+      { title: "我的预约", value: `${todayAppointments} 单`, hint: "今日服务安排", view: "appointments" },
+      { title: "待回访客户", value: `${pendingFollowUps} 位`, hint: "护理后跟进", view: "customers" },
+      { title: "个人提成", value: money(myCommission), hint: "服务业绩汇总", view: "staff" },
+    ];
+  }
+  if (session.user.role === "frontdesk") {
+    return [
+      { title: "今日预约", value: `${todayAppointments} 单`, hint: "确认到店与改约", view: "appointments" },
+      { title: "快速开单", value: "收银", hint: "办卡/消费/退款", view: "pos" },
+      { title: "客户会员", value: `${data.customers.length} 人`, hint: "建档与卡项", view: "customers" },
+    ];
+  }
+  if (session.user.role === "finance") {
+    return [
+      { title: "日结锁账", value: `${data.dailyCloses.length} 天`, hint: "收款渠道核对", view: "reports" },
+      { title: "待审批", value: `${pendingApprovals} 单`, hint: "退款与改价", view: "approvals" },
+      { title: "待结提成", value: money(data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0)), hint: "提成结算", view: "staff" },
+    ];
+  }
+  return [
+    { title: "经营收入", value: money(revenue), hint: "全店实收", view: "reports" },
+    { title: "待审批", value: `${pendingApprovals} 单`, hint: "风险控制", view: "approvals" },
+    { title: "人员管理", value: `${data.staff.length} 人`, hint: "账号/权限/提成", view: "staff" },
+    { title: "库存预警", value: `${lowStock} 项`, hint: "采购与盘点", view: "inventory" },
+  ];
 }
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
@@ -763,17 +864,111 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
 }
 
 function StaffCommissions({ data, session, actions, runMutation }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation }) {
+  const canManageStaff = hasPermission(session, "staff:manage");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("美容师");
+  const [baseSalary, setBaseSalary] = useState(6500);
+  const [commissionRate, setCommissionRate] = useState(0.12);
+  const [inviteStaffId, setInviteStaffId] = useState(data.staff[0]?.id ?? "");
+  const [inviteAccount, setInviteAccount] = useState("new-staff@demo.local");
+  const [inviteRole, setInviteRole] = useState<UserRole>("therapist");
+
   const settleAll = () => {
     void runMutation(actions.settleCommissions);
   };
 
+  const addStaff = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.addStaff({ name, phone, role, baseSalary, commissionRate }));
+    setName("");
+    setPhone("");
+  };
+
+  const createInvite = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account: inviteAccount, role: inviteRole }));
+  };
+
   return (
-    <div className="page-grid">
-      {data.staff.map((staff) => {
-        const amount = data.commissions.filter((item) => item.staffId === staff.id).reduce((sum, item) => sum + item.amount, 0);
-        return <StatCard key={staff.id} title={staff.name} value={money(amount)} hint={`${staff.role} · ${staff.phone}`} />;
-      })}
+    <div className="content-grid">
+      <section className="panel">
+        <PanelTitle icon={<BadgeCent size={18} />} title="人员管理" action={canManageStaff ? "员工/账号/权限" : "个人视图"} />
+        {canManageStaff ? (
+          <>
+            <form className="form" onSubmit={addStaff}>
+              <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
+              <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+              <Select label="岗位" value={role} onChange={setRole} options={["店长", "美容师", "前台", "财务"].map((item) => ({ value: item, label: item }))} />
+              <label>底薪<input type="number" value={baseSalary} onChange={(event) => setBaseSalary(Number(event.target.value))} /></label>
+              <label>提成比例<input type="number" step="0.01" value={commissionRate} onChange={(event) => setCommissionRate(Number(event.target.value))} /></label>
+              <button className="primary-button">新增员工</button>
+            </form>
+            <div className="divider" />
+            <PanelTitle icon={<LockKeyhole size={18} />} title="邀请账号" action="员工加入" />
+            <form className="form" onSubmit={createInvite}>
+              <Select label="员工" value={inviteStaffId} onChange={setInviteStaffId} options={data.staff.map(optionOf)} />
+              <label>登录账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} /></label>
+              <Select
+                label="账号角色"
+                value={inviteRole}
+                onChange={(value) => setInviteRole(value as UserRole)}
+                options={[
+                  { value: "manager", label: "店长" },
+                  { value: "frontdesk", label: "前台" },
+                  { value: "therapist", label: "美容师" },
+                  { value: "finance", label: "财务" },
+                ]}
+              />
+              <button className="primary-button">生成邀请</button>
+            </form>
+          </>
+        ) : (
+          <div className="settings-card compact">
+            <strong>{session.user.name}</strong>
+            <span>角色：{session.user.roleName}</span>
+            <span>账号：{session.user.account}</span>
+          </div>
+        )}
+      </section>
       <section className="panel wide">
+        <PanelTitle icon={<UsersRound size={18} />} title="员工档案" action={`${data.staff.length} 人`} />
+        <DataTable
+          columns={["员工", "岗位", "手机号", "状态", "账号", "底薪", "提成比例", "操作"]}
+          rows={data.staff.map((staff) => [
+            staff.name,
+            staff.role,
+            staff.phone,
+            <Badge key={`${staff.id}-status`} text={staff.status === "active" ? "在职" : "停用"} tone={staff.status === "active" ? "ok" : "warn"} />,
+            data.authUsers.find((user) => user.staffId === staff.id)?.account ?? "未开通",
+            money(staff.baseSalary ?? 0),
+            `${Math.round((staff.commissionRate ?? 0) * 100)}%`,
+            canManageStaff ? (
+              <button
+                key={`${staff.id}-toggle`}
+                onClick={() => void runMutation(() => actions.updateStaff(staff.id, { status: staff.status === "active" ? "inactive" : "active" }))}
+              >
+                {staff.status === "active" ? "停用" : "启用"}
+              </button>
+            ) : (
+              "仅查看"
+            ),
+          ])}
+        />
+        <div className="divider" />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="账号邀请" action={`${data.staffInvites.length} 条`} />
+        <DataTable
+          columns={["员工", "账号", "角色", "状态", "邀请码", "创建时间"]}
+          rows={data.staffInvites.map((invite) => [
+            nameOf(data.staff, invite.staffId),
+            invite.account,
+            invite.role,
+            <Badge key={`${invite.id}-status`} text={invite.status} />,
+            invite.inviteCode,
+            shortDate(invite.createdAt),
+          ])}
+        />
+        <div className="divider" />
         <PanelTitle
           icon={<BadgeCent size={18} />}
           title="提成记录"

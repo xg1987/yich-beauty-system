@@ -119,6 +119,29 @@ button:disabled {
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
 }
 
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.segmented button {
+  min-height: 36px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.segmented button.active {
+  background: var(--surface);
+  color: var(--purple-dark);
+  box-shadow: 0 8px 20px rgba(60, 42, 87, 0.08);
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -276,6 +299,43 @@ button:disabled {
 
 .panel.wide {
   grid-column: span 3;
+}
+
+.role-home {
+  grid-column: span 4;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quick-card {
+  min-height: 112px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--ink);
+  text-align: left;
+}
+
+.quick-card strong {
+  color: var(--purple-dark);
+  font-size: 24px;
+}
+
+.quick-card span {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.quick-card small {
+  color: var(--muted);
 }
 
 .stat-card {
@@ -664,12 +724,14 @@ td > button {
   }
 
   .sidebar {
-    position: static;
+    position: sticky;
+    z-index: 10;
     height: auto;
+    top: 0;
   }
 
   .sidebar nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .page-grid,
@@ -681,12 +743,63 @@ td > button {
   .panel.wide {
     grid-column: auto;
   }
+
+  .role-home {
+    grid-column: auto;
+  }
+
+  .quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
+  body {
+    background: var(--surface);
+  }
+
+  .app-shell {
+    display: block;
+    padding-bottom: 78px;
+  }
+
   .main,
   .login-page {
     padding: 16px;
+  }
+
+  .sidebar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    top: auto;
+    height: 72px;
+    padding: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .sidebar .brand {
+    display: none;
+  }
+
+  .sidebar nav {
+    height: 100%;
+    display: flex;
+    gap: 6px;
+    margin: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-item {
+    min-width: 78px;
+    min-height: 54px;
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
   }
 
   .topbar,
@@ -700,12 +813,28 @@ td > button {
     justify-content: flex-start;
   }
 
-  .sidebar nav {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .login-panel h1,
   .topbar h1 {
     font-size: 28px;
+  }
+
+  .topbar-actions,
+  .inline-form,
+  .table-action {
+    flex-wrap: wrap;
+  }
+
+  .quick-grid,
+  .check-group {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card {
+    min-height: 104px;
+  }
+
+  th,
+  td {
+    padding: 10px 9px;
   }
 }

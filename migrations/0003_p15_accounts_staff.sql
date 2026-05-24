@@ -1,0 +1,19 @@
+CREATE TABLE IF NOT EXISTS storeProfiles (
+  id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS authUsers (
+  id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS staffInvites (
+  id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL
+);
+
+ALTER TABLE staff ADD COLUMN accountId TEXT;
+ALTER TABLE staff ADD COLUMN hiredAt TEXT;
+ALTER TABLE staff ADD COLUMN baseSalary REAL;
+ALTER TABLE staff ADD COLUMN commissionRate REAL;

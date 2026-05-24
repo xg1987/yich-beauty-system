@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, InventoryLog, Order } from "../domain/types";
+import type { AppData, Appointment, InventoryLog, Order, UserRole } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -12,8 +12,18 @@ export function createApiClient(getToken: () => string | undefined) {
         method: "POST",
         body: { account, password },
       }),
+    registerStore: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; password: string }) =>
+      request<UserSession>("/api/auth/register-store", { method: "POST", body }),
+    joinInvite: (body: { inviteCode: string; name: string; password: string }) =>
+      request<UserSession>("/api/auth/join-invite", { method: "POST", body }),
     fetchData: () => request<AppData>("/api/data", { token: getToken() }),
     resetData: () => request<AppData>("/api/reset", { method: "POST", token: getToken() }),
+    addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>
+      request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
+    updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>
+      request<AppData>(`/api/staff/${encodeURIComponent(staffId)}`, { method: "PATCH", body, token: getToken() }),
+    createStaffInvite: (body: { staffId: string; account: string; role: UserRole }) =>
+      request<AppData>("/api/staff-invites", { method: "POST", body, token: getToken() }),
     checkout: (body: {
       customerId: string;
       staffId: string;

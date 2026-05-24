@@ -10,14 +10,52 @@ import type {
   Order,
   PurchaseOrder,
   Refund,
+  Staff,
+  StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
   Stocktake,
   Supplier,
+  UserRole,
 } from "./types";
 import { makeId, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
+
+export type RegisterStoreInput = {
+  storeName: string;
+  ownerName: string;
+  phone: string;
+  address?: string;
+  account: string;
+  password: string;
+};
+
+export type StaffInput = {
+  name: string;
+  phone: string;
+  role: string;
+  baseSalary?: number;
+  commissionRate?: number;
+};
+
+export type StaffUpdateInput = Partial<StaffInput> & {
+  staffId: string;
+  status?: Staff["status"];
+};
+
+export type StaffInviteInput = {
+  staffId: string;
+  account: string;
+  role: UserRole;
+  createdBy: string;
+};
+
+export type JoinInviteInput = {
+  inviteCode: string;
+  name: string;
+  password: string;
+};
 
 export type CheckoutInput = {
   customerId: string;
@@ -183,6 +221,177 @@ export function calculateOrderTotal(data: AppData, serviceId: string, productId?
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedProduct = data.products.find((item) => item.id === productId);
   return (selectedService?.price ?? 0) + (selectedProduct?.price ?? 0);
+}
+
+export function registerStore(
+  data: AppData,
+  input: RegisterStoreInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  if (data.authUsers.some((user) => user.account === input.account)) {
+    throw new Error("登录账号已存在");
+  }
+
+  const staffId = idFactory("s");
+  const ownerUserId = idFactory("u");
+  return {
+    ...data,
+    storeProfiles: [
+      {
+        id: data.storeProfiles[0]?.id ?? idFactory("store"),
+        name: input.storeName,
+        phone: input.phone,
+        address: input.address ?? "",
+        businessHours: "10:00 - 21:00",
+        createdAt,
+      },
+    ],
+    staff: [
+      {
+        id: staffId,
+        name: input.ownerName,
+        phone: input.phone,
+        role: "老板",
+        status: "active",
+        accountId: ownerUserId,
+        hiredAt: createdAt.slice(0, 10),
+        baseSalary: 0,
+        commissionRate: 0,
+      },
+      ...data.staff,
+    ],
+    authUsers: [
+      {
+        id: ownerUserId,
+        name: input.ownerName,
+        account: input.account,
+        password: input.password,
+        role: "owner",
+        roleName: roleNameOf("owner"),
+        staffId,
+        status: "active",
+        createdAt,
+      },
+      ...data.authUsers,
+    ],
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId: ownerUserId,
+        action: "注册门店",
+        targetType: "store",
+        targetId: data.storeProfiles[0]?.id ?? "store",
+        summary: `${input.storeName} 完成门店注册`,
+        createdAt,
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function addStaffMember(
+  data: AppData,
+  input: StaffInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const staff: Staff = {
+    id: idFactory("s"),
+    name: input.name,
+    phone: input.phone,
+    role: input.role,
+    status: "active",
+    hiredAt: createdAt.slice(0, 10),
+    baseSalary: input.baseSalary ?? 0,
+    commissionRate: input.commissionRate ?? 0,
+  };
+  return { ...data, staff: [staff, ...data.staff] };
+}
+
+export function updateStaffMember(data: AppData, input: StaffUpdateInput): AppData {
+  if (!data.staff.some((staff) => staff.id === input.staffId)) throw new Error("员工不存在");
+  return {
+    ...data,
+    staff: data.staff.map((staff) =>
+      staff.id === input.staffId
+        ? {
+            ...staff,
+            name: input.name ?? staff.name,
+            phone: input.phone ?? staff.phone,
+            role: input.role ?? staff.role,
+            status: input.status ?? staff.status,
+            baseSalary: input.baseSalary ?? staff.baseSalary,
+            commissionRate: input.commissionRate ?? staff.commissionRate,
+          }
+        : staff,
+    ),
+  };
+}
+
+export function createStaffInvite(
+  data: AppData,
+  input: StaffInviteInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const staff = data.staff.find((item) => item.id === input.staffId);
+  if (!staff) throw new Error("员工不存在");
+  if (data.authUsers.some((user) => user.account === input.account)) throw new Error("登录账号已存在");
+  if (data.staffInvites.some((invite) => invite.account === input.account && invite.status === "待加入")) throw new Error("该账号已有待加入邀请");
+  const invite: StaffInvite = {
+    id: idFactory("si"),
+    staffId: staff.id,
+    account: input.account,
+    role: input.role,
+    status: "待加入",
+    inviteCode: idFactory("join"),
+    createdBy: input.createdBy,
+    createdAt,
+  };
+  return {
+    ...data,
+    staffInvites: [invite, ...data.staffInvites],
+  };
+}
+
+export function joinStaffInvite(
+  data: AppData,
+  input: JoinInviteInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const invite = data.staffInvites.find((item) => item.inviteCode === input.inviteCode && item.status === "待加入");
+  if (!invite) throw new Error("邀请不存在或已失效");
+  const staff = data.staff.find((item) => item.id === invite.staffId);
+  if (!staff) throw new Error("员工不存在");
+  if (data.authUsers.some((user) => user.account === invite.account)) throw new Error("登录账号已存在");
+  const userId = idFactory("u");
+  return {
+    ...data,
+    authUsers: [
+      {
+        id: userId,
+        name: input.name || staff.name,
+        account: invite.account,
+        password: input.password,
+        role: invite.role,
+        roleName: roleNameOf(invite.role),
+        staffId: staff.id,
+        status: "active",
+        createdAt,
+      },
+      ...data.authUsers,
+    ],
+    staff: data.staff.map((item) => (item.id === staff.id ? { ...item, name: input.name || item.name, accountId: userId } : item)),
+    staffInvites: data.staffInvites.map((item) =>
+      item.id === invite.id ? { ...item, status: "已加入", joinedAt: createdAt } : item,
+    ),
+  };
 }
 
 export function checkoutOrder(
@@ -1259,4 +1468,15 @@ function assertBusinessDateOpen(data: AppData, businessDate: string) {
   if (data.dailyCloses.some((item) => item.businessDate === businessDate && item.status === "已锁定")) {
     throw new Error("该营业日已日结锁账");
   }
+}
+
+function roleNameOf(role: UserRole) {
+  const names: Record<UserRole, string> = {
+    owner: "老板",
+    manager: "店长",
+    frontdesk: "前台",
+    therapist: "美容师",
+    finance: "财务",
+  };
+  return names[role];
 }

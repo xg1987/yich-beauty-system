@@ -1,6 +1,7 @@
 import type { ViewKey } from "./types";
+import type { UserRole } from "./types";
 
-export type RoleKey = "owner" | "manager" | "frontdesk" | "therapist" | "finance";
+export type RoleKey = UserRole;
 
 export type Permission =
   | "dashboard:view"
@@ -9,6 +10,7 @@ export type Permission =
   | "customers:manage"
   | "catalog:manage"
   | "staff:view"
+  | "staff:manage"
   | "commissions:settle"
   | "inventory:manage"
   | "reports:view"
@@ -36,6 +38,7 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "customers:manage",
     "catalog:manage",
     "staff:view",
+    "staff:manage",
     "commissions:settle",
     "inventory:manage",
     "reports:view",
@@ -49,6 +52,7 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "customers:manage",
     "catalog:manage",
     "staff:view",
+    "staff:manage",
     "commissions:settle",
     "inventory:manage",
     "reports:view",

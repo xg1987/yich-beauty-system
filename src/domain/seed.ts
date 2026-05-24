@@ -2,10 +2,28 @@ import type { AppData } from "./types";
 import { nowIso, tomorrowAt } from "./utils";
 
 export const seedData: AppData = {
+  storeProfiles: [
+    {
+      id: "store1",
+      name: "一宸 YiCh 皮肤管理中心",
+      phone: "021-8888-0000",
+      address: "上海市静安区示例路 88 号",
+      businessHours: "10:00 - 21:00",
+      createdAt: nowIso(),
+    },
+  ],
+  authUsers: [
+    { id: "u_owner", name: "林老板", account: "owner@demo.local", password: "yich-demo", role: "owner", roleName: "老板", status: "active", createdAt: nowIso() },
+    { id: "u_manager", name: "林店长", account: "admin@demo.local", password: "yich-demo", role: "manager", roleName: "店长", staffId: "s1", status: "active", createdAt: nowIso() },
+    { id: "u_frontdesk", name: "阿宁", account: "frontdesk@demo.local", password: "yich-demo", role: "frontdesk", roleName: "前台", staffId: "s3", status: "active", createdAt: nowIso() },
+    { id: "u_therapist", name: "小雅", account: "therapist@demo.local", password: "yich-demo", role: "therapist", roleName: "美容师", staffId: "s2", status: "active", createdAt: nowIso() },
+    { id: "u_finance", name: "财务", account: "finance@demo.local", password: "yich-demo", role: "finance", roleName: "财务", status: "active", createdAt: nowIso() },
+  ],
+  staffInvites: [],
   staff: [
-    { id: "s1", name: "林店长", phone: "13800000001", role: "店长", status: "active" },
-    { id: "s2", name: "小雅", phone: "13800000002", role: "美容师", status: "active" },
-    { id: "s3", name: "阿宁", phone: "13800000003", role: "前台", status: "active" },
+    { id: "s1", name: "林店长", phone: "13800000001", role: "店长", status: "active", accountId: "u_manager", hiredAt: "2025-01-01", baseSalary: 9000, commissionRate: 0.12 },
+    { id: "s2", name: "小雅", phone: "13800000002", role: "美容师", status: "active", accountId: "u_therapist", hiredAt: "2025-03-01", baseSalary: 6500, commissionRate: 0.12 },
+    { id: "s3", name: "阿宁", phone: "13800000003", role: "前台", status: "active", accountId: "u_frontdesk", hiredAt: "2025-04-01", baseSalary: 6000, commissionRate: 0.04 },
   ],
   customers: [
     {

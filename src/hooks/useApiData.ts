@@ -37,6 +37,22 @@ export function useApiData() {
     }
   };
 
+  const authenticate = async (authAction: () => Promise<UserSession>) => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      const nextSession = await authAction();
+      localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+      setSession(nextSession);
+      const nextData = await createApiClient(() => nextSession.token).fetchData();
+      setData(nextData);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "认证失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem(SESSION_KEY);
     setSession(undefined);
@@ -79,6 +95,9 @@ export function useApiData() {
 
   const actions = {
     resetData: client.resetData,
+    addStaff: client.addStaff,
+    updateStaff: client.updateStaff,
+    createStaffInvite: client.createStaffInvite,
     checkout: client.checkout,
     refundOrder: client.refundOrder,
     adjustInventory: client.adjustInventory,
@@ -114,6 +133,9 @@ export function useApiData() {
     loading,
     error,
     login,
+    registerStore: client.registerStore,
+    joinInvite: client.joinInvite,
+    authenticate,
     logout,
     refreshData,
     runMutation,

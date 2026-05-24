@@ -6,6 +6,7 @@ import type {
   AppData,
   ApprovalRequest,
   Appointment,
+  AuthUser,
   Commission,
   Customer,
   CustomerFollowUp,
@@ -21,9 +22,11 @@ import type {
   Refund,
   Service,
   Staff,
+  StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
   Stocktake,
+  StoreProfile,
   Supplier,
 } from "../src/domain/types";
 
@@ -32,6 +35,9 @@ const DEFAULT_DB_PATH = resolve("data/yich-system.sqlite");
 type TableName = keyof AppData;
 
 const tableNames: TableName[] = [
+  "storeProfiles",
+  "authUsers",
+  "staffInvites",
   "staff",
   "customers",
   "services",
@@ -88,11 +94,24 @@ export class BeautyDatabase {
     const row = this.db.prepare("SELECT COUNT(*) AS count FROM staff").get() as { count: number };
     if (row.count === 0) {
       this.writeData(seedData);
+      return;
+    }
+    const authRow = this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").get() as { count: number };
+    if (authRow.count === 0) {
+      this.replaceData({
+        ...this.readData(),
+        storeProfiles: seedData.storeProfiles,
+        authUsers: seedData.authUsers,
+        staff: this.readData().staff.map((staff) => seedData.staff.find((seedStaff) => seedStaff.id === staff.id) ?? staff),
+      });
     }
   }
 
   readData(): AppData {
     return {
+      storeProfiles: this.db.prepare("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC").all().map(mapJsonPayload<StoreProfile>),
+      authUsers: this.db.prepare("SELECT payload_json FROM authUsers ORDER BY rowid ASC").all().map(mapJsonPayload<AuthUser>),
+      staffInvites: this.db.prepare("SELECT payload_json FROM staffInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StaffInvite>),
       staff: this.db.prepare("SELECT * FROM staff ORDER BY rowid ASC").all().map(mapStaff),
       customers: this.db.prepare("SELECT * FROM customers ORDER BY rowid ASC").all().map(mapCustomer),
       services: this.db.prepare("SELECT * FROM services ORDER BY rowid ASC").all().map(mapService),
@@ -141,10 +160,24 @@ export class BeautyDatabase {
   }
 
   private writeData(data: AppData) {
+    this.writeJsonTable("storeProfiles", data.storeProfiles);
+    this.writeJsonTable("authUsers", data.authUsers);
+    this.writeJsonTable("staffInvites", data.staffInvites);
+
     for (const staff of data.staff) {
       this.db
-        .prepare("INSERT INTO staff (id, name, phone, role, status) VALUES (?, ?, ?, ?, ?)")
-        .run(staff.id, staff.name, staff.phone, staff.role, staff.status);
+        .prepare("INSERT INTO staff (id, name, phone, role, status, accountId, hiredAt, baseSalary, commissionRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(
+          staff.id,
+          staff.name,
+          staff.phone,
+          staff.role,
+          staff.status,
+          staff.accountId ?? null,
+          staff.hiredAt ?? null,
+          staff.baseSalary ?? null,
+          staff.commissionRate ?? null,
+        );
     }
 
     for (const customer of data.customers) {
@@ -348,7 +381,26 @@ export class BeautyDatabase {
         name TEXT NOT NULL,
         phone TEXT NOT NULL,
         role TEXT NOT NULL,
-        status TEXT NOT NULL
+        status TEXT NOT NULL,
+        accountId TEXT,
+        hiredAt TEXT,
+        baseSalary REAL,
+        commissionRate REAL
+      );
+
+      CREATE TABLE IF NOT EXISTS storeProfiles (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS authUsers (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS staffInvites (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS customers (
@@ -542,6 +594,10 @@ export class BeautyDatabase {
     `);
 
     this.addColumnIfMissing("memberCards", "serviceId", "TEXT");
+    this.addColumnIfMissing("staff", "accountId", "TEXT");
+    this.addColumnIfMissing("staff", "hiredAt", "TEXT");
+    this.addColumnIfMissing("staff", "baseSalary", "REAL");
+    this.addColumnIfMissing("staff", "commissionRate", "REAL");
     this.addColumnIfMissing("memberCards", "serviceIds_json", "TEXT");
     this.addColumnIfMissing("orders", "discountAmount", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("orders", "adjustmentReason", "TEXT");
@@ -560,7 +616,14 @@ export class BeautyDatabase {
 }
 
 function mapStaff(row: unknown): Staff {
-  return row as Staff;
+  const value = row as Staff;
+  return {
+    ...value,
+    accountId: value.accountId ?? undefined,
+    hiredAt: value.hiredAt ?? undefined,
+    baseSalary: value.baseSalary ?? undefined,
+    commissionRate: value.commissionRate ?? undefined,
+  };
 }
 
 function mapCustomer(row: unknown): Customer {

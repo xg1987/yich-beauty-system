@@ -3,6 +3,7 @@ import {
   addOperationLog,
   addCustomerFollowUp,
   addCustomerServiceRecord,
+  addStaffMember,
   addSupplier,
   adjustInventory,
   checkoutOrder,
@@ -11,6 +12,7 @@ import {
   createDailyClose,
   createStaffShift,
   createStaffUnavailableSlot,
+  createStaffInvite,
   createStocktake,
   completeCustomerFollowUp,
   decideApprovalRequest,
@@ -19,12 +21,15 @@ import {
   rechargeMemberCard,
   refundMemberCard,
   refundOrder,
+  registerStore,
   reverseDailyClose,
   transferMemberCard,
+  joinStaffInvite,
+  updateStaffMember,
   updateMemberCardStatus,
 } from "../src/domain/business";
 import type { Permission, UserSession } from "../src/domain/auth";
-import type { AppData, Appointment, InventoryLog, Order } from "../src/domain/types";
+import type { AppData, Appointment, InventoryLog, Order, UserRole } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
 import { demoLoginAccounts, getSession, login } from "./auth";
 import { BeautyDatabase } from "./database";
@@ -52,13 +57,41 @@ export function createApiServer(database = new BeautyDatabase()) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/auth/demo-users") {
-        sendJson(response, 200, demoLoginAccounts());
+        sendJson(response, 200, demoLoginAccounts(database.readData().authUsers));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/auth/login") {
         const body = await readJson(request);
-        sendJson(response, 200, login(requiredString(body, "account"), requiredString(body, "password")));
+        sendJson(response, 200, login(requiredString(body, "account"), requiredString(body, "password"), database.readData().authUsers));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/auth/register-store") {
+        const body = await readJson(request);
+        const nextData = registerStore(database.readData(), {
+          storeName: requiredString(body, "storeName"),
+          ownerName: requiredString(body, "ownerName"),
+          phone: requiredString(body, "phone"),
+          address: optionalString(body, "address"),
+          account: requiredString(body, "account"),
+          password: requiredString(body, "password"),
+        });
+        database.replaceData(nextData);
+        sendJson(response, 201, login(requiredString(body, "account"), requiredString(body, "password"), nextData.authUsers));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/auth/join-invite") {
+        const body = await readJson(request);
+        const nextData = joinStaffInvite(database.readData(), {
+          inviteCode: requiredString(body, "inviteCode"),
+          name: requiredString(body, "name"),
+          password: requiredString(body, "password"),
+        });
+        database.replaceData(nextData);
+        const joinedUser = nextData.authUsers[0];
+        sendJson(response, 201, login(joinedUser.account, requiredString(body, "password"), nextData.authUsers));
         return;
       }
 
@@ -83,6 +116,71 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "settings:view");
         database.reset();
         sendJson(response, 200, scopeDataForSession(database.readData(), session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/staff") {
+        requirePermission(session, "staff:manage");
+        const body = await readJson(request);
+        const nextData = addOperationLog(
+          addStaffMember(database.readData(), {
+            name: requiredString(body, "name"),
+            phone: requiredString(body, "phone"),
+            role: requiredString(body, "role"),
+            baseSalary: optionalNumber(body, "baseSalary"),
+            commissionRate: optionalNumber(body, "commissionRate"),
+          }),
+          {
+            userId: session.user.id,
+            action: "新增员工",
+            targetType: "staff",
+            targetId: "latest",
+            summary: `${session.user.name} 新增员工 ${requiredString(body, "name")}`,
+          },
+        );
+        database.replaceData(nextData);
+        sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/staff/")) {
+        requirePermission(session, "staff:manage");
+        const staffId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        const body = await readJson(request);
+        const nextData = addOperationLog(
+          updateStaffMember(database.readData(), {
+            staffId,
+            name: optionalString(body, "name"),
+            phone: optionalString(body, "phone"),
+            role: optionalString(body, "role"),
+            status: optionalString(body, "status") as "active" | "inactive" | undefined,
+            baseSalary: optionalNumber(body, "baseSalary"),
+            commissionRate: optionalNumber(body, "commissionRate"),
+          }),
+          {
+            userId: session.user.id,
+            action: "更新员工",
+            targetType: "staff",
+            targetId: staffId,
+            summary: `${session.user.name} 更新员工资料`,
+          },
+        );
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/staff-invites") {
+        requirePermission(session, "staff:manage");
+        const body = await readJson(request);
+        const nextData = createStaffInvite(database.readData(), {
+          staffId: requiredString(body, "staffId"),
+          account: requiredString(body, "account"),
+          role: requiredString(body, "role") as UserRole,
+          createdBy: session.user.id,
+        });
+        database.replaceData(nextData);
+        sendJson(response, 201, scopeDataForSession(nextData, session));
         return;
       }
 
@@ -613,29 +711,35 @@ function requirePermission(session: UserSession, permission: Permission) {
 }
 
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
+  const sanitizedData = {
+    ...data,
+    authUsers: data.authUsers.map((user) => ({ ...user, password: "" })),
+  };
   if (session.user.role !== "therapist" || !session.user.staffId) {
-    return data;
+    return sanitizedData;
   }
 
   const staffId = session.user.staffId;
-  const appointments = data.appointments.filter((item) => item.staffId === staffId);
-  const orders = data.orders.filter((item) => item.staffId === staffId);
+  const appointments = sanitizedData.appointments.filter((item) => item.staffId === staffId);
+  const orders = sanitizedData.orders.filter((item) => item.staffId === staffId);
   const orderIds = new Set(orders.map((item) => item.id));
   const customerIds = new Set([...appointments.map((item) => item.customerId), ...orders.map((item) => item.customerId)]);
 
   return {
-    ...data,
-    customers: data.customers.filter((item) => customerIds.has(item.id)),
+    ...sanitizedData,
+    customers: sanitizedData.customers.filter((item) => customerIds.has(item.id)),
     appointments,
-    staffShifts: data.staffShifts.filter((item) => item.staffId === staffId),
-    staffUnavailableSlots: data.staffUnavailableSlots.filter((item) => item.staffId === staffId),
+    staffShifts: sanitizedData.staffShifts.filter((item) => item.staffId === staffId),
+    staffUnavailableSlots: sanitizedData.staffUnavailableSlots.filter((item) => item.staffId === staffId),
     orders,
-    refunds: data.refunds.filter((item) => orderIds.has(item.orderId)),
-    commissions: data.commissions.filter((item) => item.staffId === staffId),
+    refunds: sanitizedData.refunds.filter((item) => orderIds.has(item.orderId)),
+    commissions: sanitizedData.commissions.filter((item) => item.staffId === staffId),
     approvalRequests: [],
-    customerServiceRecords: data.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
-    customerFollowUps: data.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
-    operationLogs: data.operationLogs.filter((item) => item.userId === session.user.id),
+    authUsers: sanitizedData.authUsers.filter((item) => item.staffId === staffId || item.id === session.user.id),
+    staffInvites: [],
+    customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
+    customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
+    operationLogs: sanitizedData.operationLogs.filter((item) => item.userId === session.user.id),
     dailyCloses: [],
   };
 }

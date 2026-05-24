@@ -35,6 +35,39 @@ await assert.rejects(
 
 const initialData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
 assert.equal(initialData.customers.length, 3, "D1 should seed demo customers");
+assert.ok(initialData.authUsers.every((user) => user.password === ""), "D1 API should not expose passwords");
+
+const registeredSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
+  method: "POST",
+  body: {
+    storeName: "Cloudflare 测试门店",
+    ownerName: "Cloudflare 老板",
+    phone: "13900000000",
+    address: "Cloudflare 地址",
+    account: "cf-boss@test.local",
+    password: "secret",
+  },
+});
+assert.equal(registeredSession.user.roleName, "老板", "D1 should register store and login owner");
+
+const afterStaff = await request<AppData>(baseUrl, "/api/staff", {
+  method: "POST",
+  token: session.token,
+  body: { name: "Cloudflare 新美容师", phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
+});
+const cloudflareStaffId = afterStaff.staff[0].id;
+assert.equal(afterStaff.staff[0].name, "Cloudflare 新美容师", "D1 should create staff");
+const afterInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
+  method: "POST",
+  token: session.token,
+  body: { staffId: cloudflareStaffId, account: "cf-staff@test.local", role: "therapist" },
+});
+assert.equal(afterInvite.staffInvites[0].status, "待加入", "D1 should create staff invite");
+const joinedSession = await request<{ token: string; user: { account: string } }>(baseUrl, "/api/auth/join-invite", {
+  method: "POST",
+  body: { inviteCode: afterInvite.staffInvites[0].inviteCode, name: "Cloudflare 新美容师", password: "secret" },
+});
+assert.equal(joinedSession.user.account, "cf-staff@test.local", "D1 should join staff invite");
 
 const afterUnavailableSlot = await request<AppData>(baseUrl, "/api/staff-unavailable-slots", {
   method: "POST",
@@ -233,7 +266,7 @@ assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive 
 const afterResetEnd = await request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token });
 assert.equal(afterResetEnd.orders.length, 0, "reset should clean D1 test data");
 
-console.log(`Cloudflare Workers + D1 API 验证通过：P1 业务链路已覆盖 ${baseUrl}`);
+console.log(`Cloudflare Workers + D1 API 验证通过：P1/P1.5 与移动响应式支撑链路已覆盖 ${baseUrl}`);
 
 async function request<T>(baseUrl: string, path: string, options: { method?: string; body?: unknown; token?: string } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {

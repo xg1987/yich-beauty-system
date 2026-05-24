@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   addCustomerServiceRecord,
+  addStaffMember,
   addSupplier,
   adjustInventory,
   checkoutOrder,
@@ -8,18 +9,22 @@ import {
   createApprovalRequest,
   createDailyClose,
   createStaffShift,
+  createStaffInvite,
   createStaffUnavailableSlot,
   createStocktake,
   completeCustomerFollowUp,
   decideApprovalRequest,
   extendMemberCard,
+  joinStaffInvite,
   receivePurchaseOrder,
   rechargeMemberCard,
+  registerStore,
   refundMemberCard,
   refundOrder,
   reportSummary,
   reverseDailyClose,
   transferMemberCard,
+  updateStaffMember,
   updateMemberCardStatus,
 } from "../src/domain/business";
 import { seedData } from "../src/domain/seed";
@@ -40,6 +45,49 @@ function card(data: AppData, cardId: string) {
   const result = data.memberCards.find((item) => item.id === cardId);
   assert.ok(result, `missing card ${cardId}`);
   return result;
+}
+
+{
+  const registered = registerStore(
+    cloneSeed(),
+    {
+      storeName: "测试美业门店",
+      ownerName: "测试老板",
+      phone: "13900000000",
+      address: "测试地址",
+      account: "boss@test.local",
+      password: "secret",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(registered.storeProfiles[0].name, "测试美业门店", "store registration should update store profile");
+  assert.equal(registered.authUsers[0].role, "owner", "store registration should create owner account");
+  assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
+
+  const withStaff = addStaffMember(
+    cloneSeed(),
+    { name: "新美容师", phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(withStaff.staff[0].name, "新美容师", "staff management should create staff");
+  const updatedStaff = updateStaffMember(withStaff, { staffId: withStaff.staff[0].id, status: "inactive", baseSalary: 6200 });
+  assert.equal(updatedStaff.staff[0].status, "inactive", "staff management should disable staff");
+  assert.equal(updatedStaff.staff[0].baseSalary, 6200, "staff management should update salary");
+
+  const invited = createStaffInvite(
+    withStaff,
+    { staffId: withStaff.staff[0].id, account: "therapist-new@test.local", role: "therapist", createdBy: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(invited.staffInvites[0].status, "待加入", "staff invite should be pending");
+  const joined = joinStaffInvite(
+    invited,
+    { inviteCode: invited.staffInvites[0].inviteCode, name: "新美容师", password: "secret" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(joined.staffInvites[0].status, "已加入", "staff invite should mark joined");
+  assert.equal(joined.authUsers[0].account, "therapist-new@test.local", "staff invite should create login account");
+  assert.equal(joined.staff[0].accountId, joined.authUsers[0].id, "joined account should bind to staff");
 }
 
 {
@@ -559,4 +607,4 @@ function card(data: AppData, cardId: string) {
   assert.equal(productStock(adjusted, "p1"), 18, "inventory changes should be allowed after reverse close");
 }
 
-console.log("业务规则验证通过：P1 开单、审批、卡项、预约/班次、服务档案、回访、进销存、日结锁账/反结、退款、提成、报表。");
+console.log("业务规则验证通过：P1/P1.5 开单、审批、卡项、预约/班次、服务档案、回访、人员注册邀请、进销存、日结锁账/反结、退款、提成、报表。");
