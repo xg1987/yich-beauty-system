@@ -18,7 +18,6 @@ import {
   Moon,
   Network,
   PackagePlus,
-  RadioTower,
   Settings,
   Share2,
   ShieldCheck,
@@ -107,7 +106,7 @@ export default function App() {
       <main className="main">
         <header className="topbar">
           <div className="topbar-title">
-            <p>一宸 YiCh 美业管理系统</p>
+            <p>一宸 YiCh</p>
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
@@ -303,7 +302,7 @@ function LoginScreen({
   const [mode, setMode] = useState<"login" | "register" | "join">("login");
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
-  const [storeName, setStoreName] = useState("一宸 YiCh 皮肤管理中心");
+  const [storeName, setStoreName] = useState("一宸 YiCh 美学门店");
   const [ownerName, setOwnerName] = useState("林老板");
   const [phone, setPhone] = useState("13800000000");
   const [address, setAddress] = useState("上海市静安区示例路 88 号");
@@ -329,8 +328,8 @@ function LoginScreen({
         <div className="brand large">
           <div className="brand-mark">D</div>
           <div>
-            <strong>一宸 YiCh 美业管理系统</strong>
-            <span>门店经营管理平台</span>
+            <strong>一宸 YiCh</strong>
+            <span>美业门店管理系统</span>
           </div>
         </div>
         <h1>门店经营，从预约到财务一屏串起来</h1>
@@ -545,7 +544,7 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
   }
   if (session.user.role === "finance") {
     return [
-      { title: "日结锁账", value: `${data.dailyCloses.length} 天`, hint: "收款渠道核对", view: "reports" },
+      { title: "日结锁账", value: `${data.dailyCloses.length} 天`, hint: "支付流水核对", view: "reports" },
       { title: "待审批", value: `${pendingApprovals} 单`, hint: "退款与改价", view: "approvals" },
       { title: "待结提成", value: money(data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0)), hint: "提成结算", view: "staff" },
     ];
@@ -1526,17 +1525,17 @@ function SettingsView({ data, session, setView }: { data: AppData; session: User
     view: ViewKey;
   }> = [
     { title: "系统流程图", desc: "预约、开单、会员、库存、财务链路", metric: "全链路", icon: Network, tone: "rose", view: "dashboard" },
-    { title: "渠道人员", desc: "前台邀约、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: RadioTower, tone: "rose", view: "customers" },
-    { title: "销售人员", desc: "销售成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: UsersRound, tone: "violet", view: "reports" },
-    { title: "客服人员", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
+    { title: "客户运营", desc: "新客登记、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
+    { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "售后回访", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
     { title: "部门管理", desc: "岗位、账号、邀请、权限分配", metric: `${activeStaff} 在职`, icon: Building2, tone: "violet", view: "staff" },
     { title: "组织架构", desc: "老板、店长、前台、美容师、财务", metric: `${data.authUsers.length} 账号`, icon: Share2, tone: "teal", view: "staff" },
     { title: "账号审批", desc: "注册审核、开屏授权、离职停用", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
-    { title: "客户池", desc: "销售线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
-    { title: "跟进记录", desc: "按团队、销售查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
+    { title: "客户池", desc: "客户线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
+    { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
     { title: "公告中心", desc: "全员通知、团队公告、个人推送", metric: "待接入", icon: Megaphone, tone: "rose", view: "settings" },
     { title: "产品管理", desc: "产品、类别、项目、耗材资料", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "catalog" },
-    { title: "佣金报表", desc: "按销售员、产品、时间汇总", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
+    { title: "佣金报表", desc: "按员工、项目、时间汇总", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
   ];
 
   return (
@@ -1568,7 +1567,6 @@ function SettingsView({ data, session, setView }: { data: AppData; session: User
       <section className="admin-module-section">
         <div className="admin-section-title">
           <span>管理入口</span>
-          <strong>{store?.name ?? "一宸 YiCh 门店"}</strong>
         </div>
         <div className="admin-module-grid">
           {managementCards.map((item) => (

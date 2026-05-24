@@ -2900,22 +2900,22 @@ html[data-theme="day"],
 .topbar-title {
   grid-column: 2;
   justify-self: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 16px;
-  border: 1px solid rgba(111, 66, 193, 0.12);
-  border-radius: 999px;
-  background: rgba(255, 253, 250, 0.72);
-  box-shadow: 0 10px 26px rgba(69, 37, 127, 0.08);
+  display: block;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: center;
 }
 
 .topbar-title p {
   margin: 0;
   color: var(--yich-purple-deep);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 900;
+  letter-spacing: 0;
 }
 
 .topbar-title h1 {
@@ -2933,8 +2933,8 @@ html[data-theme="day"],
 }
 
 .theme-day .topbar-title {
-  border-color: rgba(111, 66, 193, 0.16);
-  background: rgba(255, 253, 250, 0.76);
+  border-color: transparent;
+  background: transparent;
 }
 
 .theme-day .topbar-title p {
@@ -3222,8 +3222,8 @@ html[data-theme="day"],
 }
 
 .theme-night .topbar-title {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(20, 18, 16, 0.72);
+  border-color: transparent;
+  background: transparent;
 }
 
 .theme-night .topbar-title p {

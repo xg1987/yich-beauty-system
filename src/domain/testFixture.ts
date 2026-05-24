@@ -5,7 +5,7 @@ export const testFixtureData: AppData = {
   storeProfiles: [
     {
       id: "store1",
-      name: "一宸 YiCh 皮肤管理中心",
+      name: "一宸 YiCh 美学门店",
       phone: "021-8888-0000",
       address: "上海市静安区示例路 88 号",
       businessHours: "10:00 - 21:00",
