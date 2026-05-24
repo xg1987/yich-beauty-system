@@ -2,6 +2,7 @@ import type { AppData } from "./types";
 
 export const seedData: AppData = {
   storeProfiles: [],
+  onlineStorefronts: [],
   authUsers: [],
   staffInvites: [],
   staff: [],
@@ -9,6 +10,7 @@ export const seedData: AppData = {
   services: [],
   products: [],
   appointments: [],
+  onlineBookingRequests: [],
   staffUnavailableSlots: [],
   staffShifts: [],
   memberCards: [],

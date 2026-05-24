@@ -12,6 +12,19 @@ export const testFixtureData: AppData = {
       createdAt: nowIso(),
     },
   ],
+  onlineStorefronts: [
+    {
+      id: "os1",
+      storeId: "store1",
+      shareCode: "yich-demo",
+      status: "启用",
+      headline: "一宸 YiCh 美业门店系统",
+      description: "线上查看项目并提交到店预约意向",
+      enabledServiceIds: ["v1", "v2", "v3"],
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    },
+  ],
   authUsers: [
     { id: "u_owner", name: "林老板", account: "owner@test.local", password: "test-password", role: "owner", roleName: "老板", status: "active", createdAt: nowIso() },
     { id: "u_manager", name: "林店长", account: "manager@test.local", password: "test-password", role: "manager", roleName: "店长", staffId: "s1", status: "active", createdAt: nowIso() },
@@ -93,6 +106,7 @@ export const testFixtureData: AppData = {
     { id: "a1", customerId: "c1", staffId: "s2", serviceId: "v1", startAt: tomorrowAt(10), status: "已确认", note: "做完需回访" },
     { id: "a2", customerId: "c3", staffId: "s1", serviceId: "v3", startAt: tomorrowAt(14), status: "待确认", note: "老客套餐咨询" },
   ],
+  onlineBookingRequests: [],
   staffUnavailableSlots: [],
   staffShifts: [
     { id: "ss1", staffId: "s1", startAt: tomorrowAt(9), endAt: tomorrowAt(21), note: "标准早晚班", createdBy: "u_manager", createdAt: nowIso() },

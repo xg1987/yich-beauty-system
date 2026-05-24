@@ -6,11 +6,13 @@ import {
   adjustInventory,
   bindReferralRelation,
   checkoutOrder,
+  convertOnlineBookingRequest,
   createAppointment,
   createApprovalRequest,
   createCouponTemplate,
   createDistributor,
   createDailyClose,
+  createOnlineBookingRequest,
   createMarketingActivity,
   createStaffShift,
   createStaffInvite,
@@ -31,6 +33,7 @@ import {
   transferMemberCard,
   updateStaffMember,
   updateMemberCardStatus,
+  upsertOnlineStorefront,
 } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
@@ -257,6 +260,44 @@ function card(data: AppData, cardId: string) {
     /不可预约/,
     "appointment creation should reject unavailable staff slot",
   );
+}
+
+{
+  const configured = upsertOnlineStorefront(
+    cloneSeed(),
+    {
+      shareCode: "yich-online",
+      status: "启用",
+      headline: "一宸线上预约",
+      description: "客户在线提交到店预约意向",
+      enabledServiceIds: ["v1"],
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(configured.onlineStorefronts[0].shareCode, "yich-online", "online storefront should save share code");
+
+  const requested = createOnlineBookingRequest(
+    configured,
+    {
+      shareCode: "yich-online",
+      customerName: "线上客户",
+      phone: "13700000009",
+      serviceId: "v1",
+      preferredAt: "2026-05-30T02:00:00.000Z",
+      note: "想咨询补水护理",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(requested.onlineBookingRequests[0].status, "待处理", "online booking request should be pending");
+
+  const converted = convertOnlineBookingRequest(
+    requested,
+    { requestId: requested.onlineBookingRequests[0].id, staffId: "s3", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(converted.onlineBookingRequests[0].status, "已转预约", "online booking request should convert to appointment");
+  assert.equal(converted.appointments[0].customerId, converted.customers[0].id, "converted appointment should bind new customer");
+  assert.equal(converted.customers[0].source, "线上预约", "converted online request should create sourced customer");
 }
 
 {
@@ -731,4 +772,4 @@ function card(data: AppData, cardId: string) {
   assert.equal(productStock(adjusted, "p1"), 18, "inventory changes should be allowed after reverse close");
 }
 
-console.log("业务规则验证通过：P1/P1.5 开单、审批、卡项、预约/班次、服务档案、回访、人员注册邀请、进销存、日结锁账/反结、退款、提成、报表。");
+console.log("业务规则验证通过：开单、审批、卡项、预约/班次、线上店铺、服务档案、回访、人员注册邀请、进销存、日结锁账/反结、退款、提成、报表。");

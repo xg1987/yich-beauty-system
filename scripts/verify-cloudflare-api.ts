@@ -74,6 +74,42 @@ const afterTherapistStaff = await request<AppData>(baseUrl, "/api/staff", {
 });
 const therapistStaffId = afterTherapistStaff.staff[0].id;
 
+const publicShareCode = `cf-${runId}`;
+const afterOnlineStorefront = await request<AppData>(baseUrl, "/api/online-storefront", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    shareCode: publicShareCode,
+    status: "启用",
+    headline: "Cloudflare 线上门店",
+    description: "Cloudflare 共享店铺验证",
+    enabledServiceIds: [serviceId],
+  },
+});
+assert.equal(afterOnlineStorefront.onlineStorefronts[0].shareCode, publicShareCode, "D1 should persist online storefront");
+const cloudflarePublicStore = await request<{ storefront: { shareCode: string }; services: Array<{ id: string }> }>(baseUrl, `/api/public/store/${publicShareCode}`);
+assert.equal(cloudflarePublicStore.storefront.shareCode, publicShareCode, "Cloudflare public store should be readable without login");
+assert.equal(cloudflarePublicStore.services[0].id, serviceId, "Cloudflare public store should expose configured service");
+await request<{ ok: boolean }>(baseUrl, "/api/public/online-booking-requests", {
+  method: "POST",
+  body: {
+    shareCode: publicShareCode,
+    customerName: `线上预约客户 ${runId}`,
+    phone: "13700000001",
+    serviceId,
+    preferredAt: `${futureDay(22)}T02:00:00.000Z`,
+    note: "Cloudflare 线上预约申请",
+  },
+});
+const afterOnlineRequest = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
+assert.equal(afterOnlineRequest.onlineBookingRequests[0].status, "待处理", "D1 should persist public online booking request");
+const afterOnlineConvert = await request<AppData>(baseUrl, `/api/online-booking-requests/${afterOnlineRequest.onlineBookingRequests[0].id}/convert`, {
+  method: "POST",
+  token: ownerSession.token,
+  body: { staffId: therapistStaffId },
+});
+assert.equal(afterOnlineConvert.onlineBookingRequests[0].status, "已转预约", "D1 should convert online request into appointment");
+
 const afterFrontdeskStaff = await request<AppData>(baseUrl, "/api/staff", {
   method: "POST",
   token: ownerSession.token,

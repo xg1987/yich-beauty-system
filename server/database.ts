@@ -21,6 +21,8 @@ import type {
   MemberCard,
   MemberCardTransaction,
   MarketingActivity,
+  OnlineBookingRequest,
+  OnlineStorefront,
   OperationLog,
   Order,
   Product,
@@ -43,6 +45,7 @@ type TableName = keyof AppData;
 
 const tableNames: TableName[] = [
   "storeProfiles",
+  "onlineStorefronts",
   "authUsers",
   "staffInvites",
   "staff",
@@ -50,6 +53,7 @@ const tableNames: TableName[] = [
   "services",
   "products",
   "appointments",
+  "onlineBookingRequests",
   "staffUnavailableSlots",
   "staffShifts",
   "memberCards",
@@ -124,6 +128,7 @@ export class BeautyDatabase {
   readData(): AppData {
     return {
       storeProfiles: this.db.prepare("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC").all().map(mapJsonPayload<StoreProfile>),
+      onlineStorefronts: this.db.prepare("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC").all().map(mapJsonPayload<OnlineStorefront>),
       authUsers: this.db.prepare("SELECT payload_json FROM authUsers ORDER BY rowid ASC").all().map(mapJsonPayload<AuthUser>),
       staffInvites: this.db.prepare("SELECT payload_json FROM staffInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StaffInvite>),
       staff: this.db.prepare("SELECT * FROM staff ORDER BY rowid ASC").all().map(mapStaff),
@@ -131,6 +136,7 @@ export class BeautyDatabase {
       services: this.db.prepare("SELECT * FROM services ORDER BY rowid ASC").all().map(mapService),
       products: this.db.prepare("SELECT * FROM products ORDER BY rowid ASC").all().map(mapProduct),
       appointments: this.db.prepare("SELECT * FROM appointments ORDER BY rowid ASC").all().map(mapAppointment),
+      onlineBookingRequests: this.db.prepare("SELECT payload_json FROM onlineBookingRequests ORDER BY rowid DESC").all().map(mapJsonPayload<OnlineBookingRequest>),
       staffUnavailableSlots: this.db
         .prepare("SELECT * FROM staffUnavailableSlots ORDER BY startAt ASC")
         .all()
@@ -182,6 +188,7 @@ export class BeautyDatabase {
 
   private writeData(data: AppData) {
     this.writeJsonTable("storeProfiles", data.storeProfiles);
+    this.writeJsonTable("onlineStorefronts", data.onlineStorefronts);
     this.writeJsonTable("authUsers", data.authUsers);
     this.writeJsonTable("staffInvites", data.staffInvites);
 
@@ -244,6 +251,8 @@ export class BeautyDatabase {
           appointment.note,
         );
     }
+
+    this.writeJsonTable("onlineBookingRequests", data.onlineBookingRequests);
 
     for (const slot of data.staffUnavailableSlots) {
       this.db
@@ -426,6 +435,11 @@ export class BeautyDatabase {
         payload_json TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS onlineStorefronts (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS authUsers (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
@@ -475,6 +489,11 @@ export class BeautyDatabase {
         startAt TEXT NOT NULL,
         status TEXT NOT NULL,
         note TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS onlineBookingRequests (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS staffUnavailableSlots (

@@ -6,9 +6,11 @@ import {
   addStaffMember,
   addSupplier,
   adjustInventory,
+  convertOnlineBookingRequest,
   checkoutOrder,
   bindReferralRelation,
   createAppointment,
+  createOnlineBookingRequest,
   createApprovalRequest,
   createCouponTemplate,
   createDistributor,
@@ -28,6 +30,7 @@ import {
   registerStore,
   reverseDailyClose,
   transferMemberCard,
+  upsertOnlineStorefront,
   joinStaffInvite,
   issueCustomerCoupon,
   updateStaffMember,
@@ -92,6 +95,27 @@ export function createApiServer(database = new BeautyDatabase()) {
         database.replaceData(nextData);
         const joinedUser = nextData.authUsers[0];
         sendJson(response, 201, login(joinedUser.account, requiredString(body, "password"), nextData.authUsers));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/api/public/store/")) {
+        const shareCode = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        sendJson(response, 200, publicStorePayload(database.readData(), shareCode));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/public/online-booking-requests") {
+        const body = await readJson(request);
+        const nextData = createOnlineBookingRequest(database.readData(), {
+          shareCode: requiredString(body, "shareCode"),
+          customerName: requiredString(body, "customerName"),
+          phone: requiredString(body, "phone"),
+          serviceId: requiredString(body, "serviceId"),
+          preferredAt: requiredString(body, "preferredAt"),
+          note: optionalString(body, "note") ?? "",
+        });
+        database.replaceData(nextData);
+        sendJson(response, 201, { ok: true });
         return;
       }
 
@@ -174,6 +198,27 @@ export function createApiServer(database = new BeautyDatabase()) {
         });
         database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/online-storefront") {
+        requirePermission(session, "settings:view");
+        const body = await readJson(request);
+        const nextData = updateData(database, session, {
+          action: "更新线上店铺",
+          targetType: "onlineStorefront",
+          targetId: "current",
+          summary: `${session.user.name} 更新线上店铺分享配置`,
+        }, (data) =>
+          upsertOnlineStorefront(data, {
+            shareCode: requiredString(body, "shareCode"),
+            status: optionalString(body, "status") as "启用" | "停用" | undefined,
+            headline: requiredString(body, "headline"),
+            description: optionalString(body, "description") ?? "",
+            enabledServiceIds: optionalStringArray(body, "enabledServiceIds") ?? [],
+          }),
+        );
+        sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
 
@@ -313,6 +358,20 @@ export function createApiServer(database = new BeautyDatabase()) {
           ...data,
           appointments: data.appointments.map((item) => (item.id === appointmentId ? { ...item, status } : item)),
         }));
+        sendJson(response, 200, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname.startsWith("/api/online-booking-requests/") && url.pathname.endsWith("/convert")) {
+        requirePermission(session, "appointments:manage");
+        const requestId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        const nextData = convertOnlineBookingRequest(database.readData(), {
+          requestId,
+          staffId: requiredString(body, "staffId"),
+          userId: session.user.id,
+        });
+        database.replaceData(nextData);
         sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
@@ -879,6 +938,17 @@ function requirePermission(session: UserSession, permission: Permission) {
   }
 }
 
+function publicStorePayload(data: AppData, shareCode: string) {
+  const storefront = data.onlineStorefronts.find((item) => item.shareCode === shareCode && item.status === "启用");
+  if (!storefront) throw new Error("线上店铺不存在或已停用");
+  const store = data.storeProfiles.find((item) => item.id === storefront.storeId) ?? data.storeProfiles[0];
+  return {
+    store,
+    storefront,
+    services: data.services.filter((service) => storefront.enabledServiceIds.includes(service.id)),
+  };
+}
+
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sanitizedData = {
     ...data,
@@ -892,6 +962,7 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const appointments = sanitizedData.appointments.filter((item) => item.staffId === staffId);
   const orders = sanitizedData.orders.filter((item) => item.staffId === staffId);
   const orderIds = new Set(orders.map((item) => item.id));
+  const appointmentIds = new Set(appointments.map((item) => item.id));
   const customerIds = new Set([...appointments.map((item) => item.customerId), ...orders.map((item) => item.customerId)]);
 
   return {
@@ -912,6 +983,8 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     approvalRequests: [],
     authUsers: sanitizedData.authUsers.filter((item) => item.staffId === staffId || item.id === session.user.id),
     staffInvites: [],
+    onlineStorefronts: [],
+    onlineBookingRequests: sanitizedData.onlineBookingRequests.filter((item) => item.appointmentId && appointmentIds.has(item.appointmentId)),
     distributionCommissions: sanitizedData.distributionCommissions.filter((item) => orderIds.has(item.orderId)),
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),

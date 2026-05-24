@@ -21,6 +21,18 @@ export type StoreProfile = {
   createdAt: string;
 };
 
+export type OnlineStorefront = {
+  id: string;
+  storeId: string;
+  shareCode: string;
+  status: "启用" | "停用";
+  headline: string;
+  description: string;
+  enabledServiceIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Staff = {
   id: string;
   name: string;
@@ -96,6 +108,20 @@ export type Appointment = {
   startAt: string;
   status: "待确认" | "已确认" | "已到店" | "已完成" | "已取消" | "爽约";
   note: string;
+};
+
+export type OnlineBookingRequest = {
+  id: string;
+  storefrontId: string;
+  customerName: string;
+  phone: string;
+  serviceId: string;
+  preferredAt: string;
+  note: string;
+  status: "待处理" | "已转预约" | "已关闭";
+  appointmentId?: string;
+  createdAt: string;
+  handledAt?: string;
 };
 
 export type StaffUnavailableSlot = {
@@ -381,6 +407,7 @@ export type Stocktake = {
 
 export type AppData = {
   storeProfiles: StoreProfile[];
+  onlineStorefronts: OnlineStorefront[];
   authUsers: AuthUser[];
   staffInvites: StaffInvite[];
   staff: Staff[];
@@ -388,6 +415,7 @@ export type AppData = {
   services: Service[];
   products: Product[];
   appointments: Appointment[];
+  onlineBookingRequests: OnlineBookingRequest[];
   staffUnavailableSlots: StaffUnavailableSlot[];
   staffShifts: StaffShift[];
   memberCards: MemberCard[];

@@ -3854,6 +3854,200 @@ html[data-theme="day"],
   text-underline-offset: 4px;
 }
 
+.public-store-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(22px, 5vw, 64px);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.2), transparent 24%),
+    radial-gradient(circle at 78% 24%, rgba(185, 149, 85, 0.2), transparent 26%),
+    linear-gradient(135deg, #2b1559 0%, #5730a5 50%, #6d45c4 100%);
+}
+
+.public-store-shell {
+  width: min(1120px, 100%);
+  display: grid;
+  gap: 18px;
+}
+
+.public-store-hero,
+.public-store-panel {
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 30px;
+  box-shadow: 0 30px 90px rgba(18, 7, 45, 0.28);
+  overflow: hidden;
+}
+
+.public-store-hero {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 42px;
+  color: #fff;
+  text-align: center;
+  background:
+    radial-gradient(circle at 28% 16%, rgba(255, 255, 255, 0.2), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
+  backdrop-filter: blur(16px);
+}
+
+.public-store-mark {
+  width: 72px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.public-store-hero span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.public-store-hero h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.public-store-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 16px;
+}
+
+.public-store-panel {
+  padding: clamp(20px, 4vw, 34px);
+  background: rgba(251, 248, 255, 0.98);
+}
+
+.public-store-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: 22px;
+  align-items: start;
+}
+
+.public-service-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.public-service-card {
+  min-height: 126px;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 253, 250, 0.96);
+  color: var(--yich-ink);
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(69, 37, 127, 0.08);
+}
+
+.public-service-card.active {
+  border-color: rgba(111, 66, 193, 0.36);
+  background: var(--yich-purple-soft);
+}
+
+.public-service-card strong {
+  font-size: 16px;
+}
+
+.public-service-card span {
+  color: var(--yich-muted);
+  font-size: 13px;
+}
+
+.public-service-card em {
+  color: var(--yich-purple-deep);
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.public-booking-form {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 22px;
+  background: #fffdfa;
+  box-shadow: 0 16px 36px rgba(69, 37, 127, 0.1);
+}
+
+.public-status {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.public-status.ok {
+  background: #edf9f3;
+  color: #16805d;
+}
+
+.public-status.error {
+  background: #fff1f3;
+  color: #9f1239;
+}
+
+.admin-online-panel {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 22px;
+  background: rgba(255, 253, 250, 0.98);
+  box-shadow: 0 14px 34px rgba(69, 37, 127, 0.1);
+}
+
+.online-store-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.online-store-form .check-group,
+.online-store-actions {
+  grid-column: 1 / -1;
+}
+
+.online-store-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.online-store-actions a {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--yich-purple-deep);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-request-toolbar {
+  margin-bottom: 12px;
+}
+
 .register-note {
   margin: -2px 0 2px;
   padding: 12px 14px;
@@ -3946,5 +4140,16 @@ textarea,
   .page-hero,
   .beauty-hero {
     border-radius: 20px;
+  }
+
+  .public-store-grid,
+  .public-service-grid,
+  .online-store-form {
+    grid-template-columns: 1fr;
+  }
+
+  .online-store-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

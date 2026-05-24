@@ -18,6 +18,8 @@ import type {
   MemberCard,
   MemberCardTransaction,
   MarketingActivity,
+  OnlineBookingRequest,
+  OnlineStorefront,
   OperationLog,
   Order,
   Product,
@@ -39,6 +41,7 @@ type TableName = keyof AppData;
 
 const tableNames: TableName[] = [
   "storeProfiles",
+  "onlineStorefronts",
   "authUsers",
   "staffInvites",
   "staff",
@@ -46,6 +49,7 @@ const tableNames: TableName[] = [
   "services",
   "products",
   "appointments",
+  "onlineBookingRequests",
   "staffUnavailableSlots",
   "staffShifts",
   "memberCards",
@@ -99,6 +103,7 @@ export class D1BeautyDatabase {
   async readData(): Promise<AppData> {
     return {
       storeProfiles: await this.all("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC", mapJsonPayload<StoreProfile>),
+      onlineStorefronts: await this.all("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC", mapJsonPayload<OnlineStorefront>),
       authUsers: await this.all("SELECT payload_json FROM authUsers ORDER BY rowid ASC", mapJsonPayload<AuthUser>),
       staffInvites: await this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>),
       staff: await this.all("SELECT * FROM staff ORDER BY rowid ASC", mapStaff),
@@ -106,6 +111,7 @@ export class D1BeautyDatabase {
       services: await this.all("SELECT * FROM services ORDER BY rowid ASC", mapService),
       products: await this.all("SELECT * FROM products ORDER BY rowid ASC", mapProduct),
       appointments: await this.all("SELECT * FROM appointments ORDER BY rowid ASC", mapAppointment),
+      onlineBookingRequests: await this.all("SELECT payload_json FROM onlineBookingRequests ORDER BY rowid DESC", mapJsonPayload<OnlineBookingRequest>),
       staffUnavailableSlots: await this.all(
         "SELECT * FROM staffUnavailableSlots ORDER BY startAt ASC",
         mapStaffUnavailableSlot,
@@ -159,6 +165,7 @@ export class D1BeautyDatabase {
     const statements: D1PreparedStatement[] = [];
 
     this.writeJsonTable(statements, "storeProfiles", data.storeProfiles);
+    this.writeJsonTable(statements, "onlineStorefronts", data.onlineStorefronts);
     this.writeJsonTable(statements, "authUsers", data.authUsers);
     this.writeJsonTable(statements, "staffInvites", data.staffInvites);
 
@@ -235,6 +242,8 @@ export class D1BeautyDatabase {
         ]),
       );
     }
+
+    this.writeJsonTable(statements, "onlineBookingRequests", data.onlineBookingRequests);
 
     for (const slot of data.staffUnavailableSlots) {
       statements.push(

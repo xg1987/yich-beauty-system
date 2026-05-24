@@ -29,7 +29,7 @@ import {
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { calculateOrderTotal, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, Product, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, StoreProfile, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 
@@ -61,7 +61,7 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
 ];
 
 export default function App() {
-  const { data, session, loading, error, login, registerStore, joinInvite, authenticate, logout, runMutation, actions } = useApiData();
+  const { data, session, loading, error, login, registerStore, joinInvite, fetchPublicStore, createPublicBookingRequest, authenticate, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
@@ -72,6 +72,11 @@ export default function App() {
     localStorage.setItem(THEME_KEY, themeMode);
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);
+
+  const publicStoreMatch = window.location.pathname.match(/^\/store\/([^/]+)/);
+  if (publicStoreMatch) {
+    return <PublicStorePage shareCode={decodeURIComponent(publicStoreMatch[1])} fetchPublicStore={fetchPublicStore} createPublicBookingRequest={createPublicBookingRequest} />;
+  }
 
   if (!session) {
     return <LoginScreen onLogin={login} onRegister={registerStore} onJoin={joinInvite} authenticate={authenticate} loading={loading} error={error} />;
@@ -149,7 +154,7 @@ export default function App() {
         {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "settings" && <SettingsView data={data} session={session} setView={(nextView) => navigate(nextView, { fromAdmin: true })} />}
+        {activeView === "settings" && <SettingsView data={data} session={session} actions={actions} runMutation={runMutation} setView={(nextView) => navigate(nextView, { fromAdmin: true })} />}
       </main>
       <nav className="workbar" aria-label="主工作栏">
         {workbarItems.filter((item) => canAccessView(session, item.view)).map((item) => {
@@ -196,6 +201,13 @@ function notificationItems(data: AppData): Array<{ title: string; desc: string; 
       count: data.approvalRequests.filter((item) => item.status === "待审批").length,
       view: "approvals",
       icon: ShieldCheck,
+    },
+    {
+      title: "线上预约",
+      desc: "客户从共享店铺提交的到店意向",
+      count: data.onlineBookingRequests.filter((item) => item.status === "待处理").length,
+      view: "appointments",
+      icon: Share2,
     },
   ];
 }
@@ -262,6 +274,123 @@ function AccountMenu({
         <span>退出登录</span>
       </button>
     </aside>
+  );
+}
+
+function PublicStorePage({
+  shareCode,
+  fetchPublicStore,
+  createPublicBookingRequest,
+}: {
+  shareCode: string;
+  fetchPublicStore: (shareCode: string) => Promise<{ store?: StoreProfile; storefront: OnlineStorefront; services: Service[] }>;
+  createPublicBookingRequest: (body: { shareCode: string; customerName: string; phone: string; serviceId: string; preferredAt: string; note?: string }) => Promise<{ ok: boolean }>;
+}) {
+  const [payload, setPayload] = useState<{ store?: StoreProfile; storefront: OnlineStorefront; services: Service[] }>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [customerName, setCustomerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [preferredAt, setPreferredAt] = useState(toLocalInputValue(tomorrowAt(14)));
+  const [note, setNote] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(undefined);
+    void fetchPublicStore(shareCode)
+      .then((nextPayload) => {
+        if (!alive) return;
+        setPayload(nextPayload);
+        setServiceId(nextPayload.services[0]?.id ?? "");
+      })
+      .catch((caught) => {
+        if (!alive) return;
+        setError(caught instanceof Error ? caught.message : "线上店铺加载失败");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [fetchPublicStore, shareCode]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setError(undefined);
+    setSubmitted(false);
+    void createPublicBookingRequest({
+      shareCode,
+      customerName,
+      phone,
+      serviceId,
+      preferredAt: new Date(preferredAt).toISOString(),
+      note,
+    })
+      .then(() => {
+        setSubmitted(true);
+        setCustomerName("");
+        setPhone("");
+        setNote("");
+      })
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "提交预约意向失败"));
+  };
+
+  const services = payload?.services ?? [];
+  const selectedService = services.find((item) => item.id === serviceId);
+
+  return (
+    <div className="public-store-page">
+      <main className="public-store-shell">
+        <section className="public-store-hero">
+          <div className="public-store-mark">D</div>
+          <span>{payload?.store?.name ?? "一宸 YiCh"}</span>
+          <h1>{payload?.storefront.headline ?? "一宸 YiCh 美业门店系统"}</h1>
+          <p>{payload?.storefront.description ?? "门店经营管理平台"}</p>
+        </section>
+        <section className="public-store-panel">
+          {loading && <p className="empty">正在加载线上店铺</p>}
+          {error && <p className="public-status error">{error}</p>}
+          {!loading && !error && payload && (
+            <div className="public-store-grid">
+              <div>
+                <PanelTitle icon={<Sparkles size={18} />} title="线上项目" action={`${services.length} 项开放预约`} />
+                <div className="public-service-grid">
+                  {services.map((service) => (
+                    <button
+                      type="button"
+                      key={service.id}
+                      className={`public-service-card ${service.id === serviceId ? "active" : ""}`}
+                      onClick={() => setServiceId(service.id)}
+                    >
+                      <strong>{service.name}</strong>
+                      <span>{service.category} · {service.duration} 分钟</span>
+                      <em>{money(service.price)}</em>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <form className="public-booking-form" onSubmit={submit}>
+                <PanelTitle icon={<CalendarDays size={18} />} title="到店预约意向" action={selectedService ? money(selectedService.price) : undefined} />
+                {submitted && <p className="public-status ok">预约意向已提交，门店会尽快联系确认到店时间。</p>}
+                <label>姓名<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="请输入到店人姓名" /></label>
+                <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于门店联系确认" /></label>
+                <Select label="预约项目" value={serviceId} onChange={setServiceId} options={services.map(optionOf)} />
+                <label>期望到店时间<input type="datetime-local" value={preferredAt} onChange={(event) => setPreferredAt(event.target.value)} /></label>
+                <label>备注<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="例如皮肤状态、想咨询的问题" /></label>
+                <button className="primary-button" disabled={!serviceId}>
+                  <LockKeyhole size={17} />
+                  提交预约意向
+                </button>
+              </form>
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
   );
 }
 
@@ -601,6 +730,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const [shiftStartAt, setShiftStartAt] = useState(toLocalInputValue(tomorrowAt(9)));
   const [shiftEndAt, setShiftEndAt] = useState(toLocalInputValue(tomorrowAt(21)));
   const [shiftNote, setShiftNote] = useState("正常班");
+  const [onlineRequestStaffId, setOnlineRequestStaffId] = useState(data.staff[0]?.id ?? "");
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
@@ -640,6 +770,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const pendingArrival = todayAppointments.filter((item) => item.status === "已确认" || item.status === "待确认").length;
   const availableStaff = Math.max(0, data.staff.filter((staff) => staff.status === "active").length - data.staffUnavailableSlots.length);
+  const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
 
   return (
     <div className="page-stack">
@@ -651,6 +782,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         stats={[
           { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "当天服务计划", icon: <CalendarDays size={18} /> },
           { label: "待到店", value: `${pendingArrival} 单`, hint: "需确认或接待", icon: <ClipboardList size={18} /> },
+          { label: "线上申请", value: `${pendingOnlineRequests.length} 单`, hint: "共享店铺提交", icon: <Share2 size={18} /> },
           { label: "可服务员工", value: `${availableStaff} 人`, hint: "扣除锁定时段", icon: <UsersRound size={18} /> },
         ]}
       />
@@ -709,6 +841,29 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         </form>
         </section>
         <section className="panel wide">
+          <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${pendingOnlineRequests.length} 个待处理`} />
+        <div className="inline-form online-request-toolbar">
+          <Select label="转预约员工" value={onlineRequestStaffId} onChange={setOnlineRequestStaffId} options={data.staff.map(optionOf)} />
+        </div>
+        <div className="card-list">
+          {data.onlineBookingRequests.map((request) => (
+            <article className="record-card" key={request.id}>
+              <div>
+                <strong>{request.customerName} · {request.phone}</strong>
+                <span>{shortDate(request.preferredAt)} · {nameOf(data.services, request.serviceId)}</span>
+                {request.note && <small>{request.note}</small>}
+              </div>
+              <div className="row-actions">
+                <Badge text={request.status} tone={request.status === "已转预约" ? "ok" : request.status === "已关闭" ? "warn" : undefined} />
+                {request.status === "待处理" && (
+                  <button onClick={() => void runMutation(() => actions.convertOnlineBookingRequest(request.id, onlineRequestStaffId))}>转预约</button>
+                )}
+              </div>
+            </article>
+          ))}
+          {data.onlineBookingRequests.length === 0 && <p className="empty">暂无线上预约申请</p>}
+        </div>
+        <div className="divider" />
           <PanelTitle icon={<ClipboardList size={18} />} title="预约列表" action="支持到店确认" />
         <div className="card-list">
           {data.appointments.map((item) => (
@@ -2065,11 +2220,52 @@ function DailyCloseControl({
   );
 }
 
-function SettingsView({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
+function SettingsView({
+  data,
+  session,
+  actions,
+  runMutation,
+  setView,
+}: {
+  data: AppData;
+  session: UserSession;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  setView: (view: ViewKey) => void;
+}) {
   const store = data.storeProfiles[0];
+  const onlineStorefront = data.onlineStorefronts[0];
+  const [onlineShareCode, setOnlineShareCode] = useState(onlineStorefront?.shareCode ?? "yich-store");
+  const [onlineStatus, setOnlineStatus] = useState<OnlineStorefront["status"]>(onlineStorefront?.status ?? "启用");
+  const [onlineHeadline, setOnlineHeadline] = useState(onlineStorefront?.headline ?? "一宸 YiCh 美业门店系统");
+  const [onlineDescription, setOnlineDescription] = useState(onlineStorefront?.description ?? "线上查看项目并提交到店预约意向");
+  const [onlineServiceIds, setOnlineServiceIds] = useState<string[]>(onlineStorefront?.enabledServiceIds ?? data.services.slice(0, 3).map((service) => service.id));
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
+  const publicStoreUrl = `${window.location.origin}/store/${onlineShareCode || onlineStorefront?.shareCode || ""}`;
+
+  useEffect(() => {
+    setOnlineShareCode(onlineStorefront?.shareCode ?? "yich-store");
+    setOnlineStatus(onlineStorefront?.status ?? "启用");
+    setOnlineHeadline(onlineStorefront?.headline ?? "一宸 YiCh 美业门店系统");
+    setOnlineDescription(onlineStorefront?.description ?? "线上查看项目并提交到店预约意向");
+    setOnlineServiceIds(onlineStorefront?.enabledServiceIds ?? data.services.slice(0, 3).map((service) => service.id));
+  }, [onlineStorefront?.id, onlineStorefront?.updatedAt, data.services.length]);
+
+  const saveOnlineStorefront = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.updateOnlineStorefront({
+        shareCode: onlineShareCode.trim(),
+        status: onlineStatus,
+        headline: onlineHeadline.trim(),
+        description: onlineDescription.trim(),
+        enabledServiceIds: onlineServiceIds,
+      }),
+    );
+  };
+
   const managementCards: Array<{
     title: string;
     desc: string;
@@ -2087,7 +2283,7 @@ function SettingsView({ data, session, setView }: { data: AppData; session: User
     { title: "邀请员工", desc: "为员工生成邀请码，加入后开通账号", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
     { title: "客户池", desc: "客户线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
     { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
-    { title: "公告中心", desc: "全员通知、团队公告、个人推送", metric: "待接入", icon: Megaphone, tone: "rose", view: "settings" },
+    { title: "线上店铺", desc: "项目展示、共享链接、线上预约申请", metric: `${data.onlineBookingRequests.filter((item) => item.status === "待处理").length} 申请`, icon: Megaphone, tone: "rose", view: "settings" },
     { title: "产品管理", desc: "产品、类别、项目、耗材资料", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "catalog" },
     { title: "薪资提成", desc: "底薪、提成比例、项目提成结算", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
   ];
@@ -2112,6 +2308,41 @@ function SettingsView({ data, session, setView }: { data: AppData; session: User
         </div>
         <input value={store?.phone ?? ""} readOnly aria-label="管理员联系信号" />
         <button className="primary-button" type="button"><LockKeyhole size={16} /> 保存</button>
+      </section>
+
+      <section className="admin-online-panel">
+        <PanelTitle icon={<Share2 size={18} />} title="线上店铺" action={onlineStorefront?.status ?? "未配置"} />
+        <form className="online-store-form" onSubmit={saveOnlineStorefront}>
+          <label>
+            分享码
+            <input value={onlineShareCode} onChange={(event) => setOnlineShareCode(event.target.value)} placeholder="例如 yich-store" />
+          </label>
+          <label>
+            状态
+            <select value={onlineStatus} onChange={(event) => setOnlineStatus(event.target.value as OnlineStorefront["status"])}>
+              <option value="启用">启用</option>
+              <option value="停用">停用</option>
+            </select>
+          </label>
+          <label>
+            页面标题
+            <input value={onlineHeadline} onChange={(event) => setOnlineHeadline(event.target.value)} />
+          </label>
+          <label>
+            页面说明
+            <input value={onlineDescription} onChange={(event) => setOnlineDescription(event.target.value)} />
+          </label>
+          <CheckboxGroup
+            label="线上展示项目"
+            values={onlineServiceIds}
+            onChange={setOnlineServiceIds}
+            options={data.services.map(optionOf)}
+          />
+          <div className="online-store-actions">
+            <a href={publicStoreUrl} target="_blank" rel="noreferrer">{publicStoreUrl}</a>
+            <button className="primary-button" type="submit"><LockKeyhole size={16} /> 保存线上店铺</button>
+          </div>
+        </form>
       </section>
 
       <section className="admin-module-section">

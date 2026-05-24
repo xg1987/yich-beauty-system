@@ -47,6 +47,44 @@ try {
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
 
+  const publicStore = await request<{ storefront: { shareCode: string }; services: Array<{ id: string }> }>(baseUrl, "/api/public/store/yich-demo");
+  assert.equal(publicStore.storefront.shareCode, "yich-demo", "public store API should expose enabled storefront");
+  assert.ok(publicStore.services.some((service) => service.id === "v1"), "public store API should expose enabled services");
+
+  await request<{ ok: boolean }>(baseUrl, "/api/public/online-booking-requests", {
+    method: "POST",
+    body: {
+      shareCode: "yich-demo",
+      customerName: "API 线上客户",
+      phone: "13700000008",
+      serviceId: "v1",
+      preferredAt: "2026-05-30T02:00:00.000Z",
+      note: "线上预约申请",
+    },
+  });
+  const afterPublicRequest = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.equal(afterPublicRequest.onlineBookingRequests[0].status, "待处理", "public booking request should be visible to manager");
+  const afterPublicConvert = await request<AppData>(baseUrl, `/api/online-booking-requests/${afterPublicRequest.onlineBookingRequests[0].id}/convert`, {
+    method: "POST",
+    token: session.token,
+    body: { staffId: "s3" },
+  });
+  assert.equal(afterPublicConvert.onlineBookingRequests[0].status, "已转预约", "online booking request API should convert to appointment");
+  assert.equal(afterPublicConvert.customers[0].source, "线上预约", "converted online request should create customer source");
+
+  const afterOnlineStorefront = await request<AppData>(baseUrl, "/api/online-storefront", {
+    method: "POST",
+    token: session.token,
+    body: {
+      shareCode: "api-online-store",
+      status: "启用",
+      headline: "API 线上门店",
+      description: "API 共享店铺",
+      enabledServiceIds: ["v1", "v2"],
+    },
+  });
+  assert.equal(afterOnlineStorefront.onlineStorefronts[0].shareCode, "api-online-store", "online storefront API should update share code");
+
   const afterServiceWithConsumable = await request<AppData>(baseUrl, "/api/services", {
     method: "POST",
     token: session.token,

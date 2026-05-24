@@ -6,8 +6,10 @@ import {
   addSupplier,
   adjustInventory,
   bindReferralRelation,
+  convertOnlineBookingRequest,
   checkoutOrder,
   createAppointment,
+  createOnlineBookingRequest,
   createApprovalRequest,
   createCouponTemplate,
   createDistributor,
@@ -27,6 +29,7 @@ import {
   registerStore,
   reverseDailyClose,
   transferMemberCard,
+  upsertOnlineStorefront,
   joinStaffInvite,
   issueCustomerCoupon,
   updateStaffMember,
@@ -90,6 +93,25 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
       await database.replaceData(nextData);
       return sendJson(201, await loginWithD1(context.env.DB, nextData.authUsers[0].account, requiredString(body, "password")));
+    }
+
+    if (context.request.method === "GET" && pathname.startsWith("/api/public/store/")) {
+      const shareCode = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      return sendJson(200, publicStorePayload(await database.readData(), shareCode));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/public/online-booking-requests") {
+      const body = await readJson(context.request);
+      const nextData = createOnlineBookingRequest(await database.readData(), {
+        shareCode: requiredString(body, "shareCode"),
+        customerName: requiredString(body, "customerName"),
+        phone: requiredString(body, "phone"),
+        serviceId: requiredString(body, "serviceId"),
+        preferredAt: requiredString(body, "preferredAt"),
+        note: optionalString(body, "note") ?? "",
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, { ok: true });
     }
 
     const session = await getSessionFromD1(context.env.DB, context.request.headers.get("Authorization"));
@@ -166,6 +188,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/online-storefront") {
+      requirePermission(session, "settings:view");
+      const body = await readJson(context.request);
+      const nextData = updateData(await database.readData(), session, {
+        action: "更新线上店铺",
+        targetType: "onlineStorefront",
+        targetId: "current",
+        summary: `${session.user.name} 更新线上店铺分享配置`,
+      }, (data) =>
+        upsertOnlineStorefront(data, {
+          shareCode: requiredString(body, "shareCode"),
+          status: optionalString(body, "status") as "启用" | "停用" | undefined,
+          headline: requiredString(body, "headline"),
+          description: optionalString(body, "description") ?? "",
+          enabledServiceIds: optionalStringArray(body, "enabledServiceIds") ?? [],
+        }),
+      );
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
     }
 
     if (context.request.method === "POST" && pathname === "/api/checkout") {
@@ -299,6 +342,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         ...data,
         appointments: data.appointments.map((item) => (item.id === appointmentId ? { ...item, status } : item)),
       }));
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname.startsWith("/api/online-booking-requests/") && pathname.endsWith("/convert")) {
+      requirePermission(session, "appointments:manage");
+      const requestId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = convertOnlineBookingRequest(await database.readData(), {
+        requestId,
+        staffId: requiredString(body, "staffId"),
+        userId: session.user.id,
+      });
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }
@@ -837,6 +893,17 @@ function requirePermission(session: UserSession, permission: Permission) {
   }
 }
 
+function publicStorePayload(data: AppData, shareCode: string) {
+  const storefront = data.onlineStorefronts.find((item) => item.shareCode === shareCode && item.status === "启用");
+  if (!storefront) throw new Error("线上店铺不存在或已停用");
+  const store = data.storeProfiles.find((item) => item.id === storefront.storeId) ?? data.storeProfiles[0];
+  return {
+    store,
+    storefront,
+    services: data.services.filter((service) => storefront.enabledServiceIds.includes(service.id)),
+  };
+}
+
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sanitizedData = {
     ...data,
@@ -850,6 +917,7 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const appointments = sanitizedData.appointments.filter((item) => item.staffId === staffId);
   const orders = sanitizedData.orders.filter((item) => item.staffId === staffId);
   const orderIds = new Set(orders.map((item) => item.id));
+  const appointmentIds = new Set(appointments.map((item) => item.id));
   const customerIds = new Set([...appointments.map((item) => item.customerId), ...orders.map((item) => item.customerId)]);
 
   return {
@@ -870,6 +938,8 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     approvalRequests: [],
     authUsers: sanitizedData.authUsers.filter((item) => item.staffId === staffId || item.id === session.user.id),
     staffInvites: [],
+    onlineStorefronts: [],
+    onlineBookingRequests: sanitizedData.onlineBookingRequests.filter((item) => item.appointmentId && appointmentIds.has(item.appointmentId)),
     distributionCommissions: sanitizedData.distributionCommissions.filter((item) => orderIds.has(item.orderId)),
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),

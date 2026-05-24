@@ -12,6 +12,8 @@ import type {
   InventoryLog,
   MemberCardTransaction,
   MarketingActivity,
+  OnlineBookingRequest,
+  OnlineStorefront,
   OperationLog,
   Order,
   PurchaseOrder,
@@ -49,6 +51,29 @@ export type StaffInput = {
 export type StaffUpdateInput = Partial<StaffInput> & {
   staffId: string;
   status?: Staff["status"];
+};
+
+export type OnlineStorefrontInput = {
+  shareCode: string;
+  status?: OnlineStorefront["status"];
+  headline: string;
+  description: string;
+  enabledServiceIds: string[];
+};
+
+export type OnlineBookingRequestInput = {
+  shareCode: string;
+  customerName: string;
+  phone: string;
+  serviceId: string;
+  preferredAt: string;
+  note?: string;
+};
+
+export type ConvertOnlineBookingInput = {
+  requestId: string;
+  staffId: string;
+  userId: string;
 };
 
 export type StaffInviteInput = {
@@ -336,6 +361,133 @@ export function registerStore(
         createdAt,
       },
       ...data.operationLogs,
+    ],
+  };
+}
+
+export function upsertOnlineStorefront(
+  data: AppData,
+  input: OnlineStorefrontInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const updatedAt = (options.now ?? nowIso)();
+  const store = data.storeProfiles[0];
+  if (!store) throw new Error("请先完成门店注册");
+  if (!/^[a-zA-Z0-9-]{4,32}$/.test(input.shareCode)) throw new Error("分享码只能包含字母、数字和短横线，长度 4-32 位");
+  if (input.enabledServiceIds.length === 0) throw new Error("至少选择一个线上展示项目");
+  const enabledServiceIds = Array.from(new Set(input.enabledServiceIds));
+  if (!enabledServiceIds.every((serviceId) => data.services.some((service) => service.id === serviceId))) {
+    throw new Error("线上项目不存在");
+  }
+
+  const current = data.onlineStorefronts[0];
+  const storefront: OnlineStorefront = {
+    id: current?.id ?? idFactory("os"),
+    storeId: store.id,
+    shareCode: input.shareCode,
+    status: input.status ?? current?.status ?? "启用",
+    headline: input.headline,
+    description: input.description,
+    enabledServiceIds,
+    createdAt: current?.createdAt ?? updatedAt,
+    updatedAt,
+  };
+  return {
+    ...data,
+    onlineStorefronts: [storefront],
+  };
+}
+
+export function createOnlineBookingRequest(
+  data: AppData,
+  input: OnlineBookingRequestInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const storefront = data.onlineStorefronts.find((item) => item.shareCode === input.shareCode && item.status === "启用");
+  if (!storefront) throw new Error("线上店铺不存在或已停用");
+  if (!input.customerName.trim()) throw new Error("请输入姓名");
+  if (!input.phone.trim()) throw new Error("请输入手机号");
+  if (!storefront.enabledServiceIds.includes(input.serviceId)) throw new Error("该项目暂未开放线上预约");
+  if (+new Date(input.preferredAt) <= +new Date(createdAt)) throw new Error("预约意向时间必须晚于当前时间");
+
+  const request: OnlineBookingRequest = {
+    id: idFactory("obr"),
+    storefrontId: storefront.id,
+    customerName: input.customerName.trim(),
+    phone: input.phone.trim(),
+    serviceId: input.serviceId,
+    preferredAt: input.preferredAt,
+    note: input.note ?? "",
+    status: "待处理",
+    createdAt,
+  };
+  return {
+    ...data,
+    onlineBookingRequests: [request, ...data.onlineBookingRequests],
+  };
+}
+
+export function convertOnlineBookingRequest(
+  data: AppData,
+  input: ConvertOnlineBookingInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const handledAt = (options.now ?? nowIso)();
+  const request = data.onlineBookingRequests.find((item) => item.id === input.requestId);
+  if (!request) throw new Error("线上预约申请不存在");
+  if (request.status !== "待处理") throw new Error("该线上预约申请已处理");
+
+  let nextData = data;
+  let customer = nextData.customers.find((item) => item.phone === request.phone);
+  if (!customer) {
+    customer = {
+      id: idFactory("c"),
+      name: request.customerName,
+      phone: request.phone,
+      level: "普通会员",
+      source: "线上预约",
+      tags: ["线上预约"],
+      lastVisit: handledAt,
+    };
+    nextData = {
+      ...nextData,
+      customers: [customer, ...nextData.customers],
+    };
+  }
+
+  nextData = createAppointment(
+    nextData,
+    {
+      customerId: customer.id,
+      staffId: input.staffId,
+      serviceId: request.serviceId,
+      startAt: request.preferredAt,
+      note: request.note ? `线上预约：${request.note}` : "线上预约",
+    },
+    { idFactory, now: () => handledAt },
+  );
+  const appointmentId = nextData.appointments[0].id;
+
+  return {
+    ...nextData,
+    onlineBookingRequests: nextData.onlineBookingRequests.map((item) =>
+      item.id === request.id ? { ...item, status: "已转预约", appointmentId, handledAt } : item,
+    ),
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId: input.userId,
+        action: "线上预约转预约",
+        targetType: "onlineBookingRequest",
+        targetId: request.id,
+        summary: `${request.customerName} 线上预约已转为门店预约`,
+        createdAt: handledAt,
+      },
+      ...nextData.operationLogs,
     ],
   };
 }
