@@ -376,7 +376,11 @@ export type CustomerServiceRecord = {
   orderId?: string;
   skinCondition: string;
   beforeNote: string;
+  careSteps: string;
+  productsUsed: string;
   afterNote: string;
+  customerFeedback: string;
+  nextCareAdvice: string;
   nextFollowUpAt?: string;
   createdAt: string;
 };

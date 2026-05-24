@@ -376,11 +376,22 @@ const afterServiceRecord = await request<AppData>(baseUrl, "/api/service-records
     serviceId,
     orderId,
     skinCondition: "敏感偏干",
+    beforeNote: "Cloudflare 服务前",
+    careSteps: "Cloudflare 清洁、导入、修护",
+    productsUsed: "Cloudflare 清洁精华液",
     afterNote: "Cloudflare 服务后",
+    customerFeedback: "Cloudflare 体验舒适",
+    nextCareAdvice: "Cloudflare 加强保湿防晒",
     nextFollowUpAt: `${futureDay(22)}T10:00:00.000Z`,
   },
 });
 assert.equal(afterServiceRecord.customerServiceRecords[0].staffId, therapistStaffId, "D1 should persist service record");
+assert.equal(afterServiceRecord.customerServiceRecords[0].orderId, orderId, "D1 should persist service record order link");
+assert.equal(afterServiceRecord.customerServiceRecords[0].careSteps, "Cloudflare 清洁、导入、修护", "D1 should persist service record care steps");
+assert.equal(afterServiceRecord.customerServiceRecords[0].productsUsed, "Cloudflare 清洁精华液", "D1 should persist service record products used");
+assert.equal(afterServiceRecord.customerServiceRecords[0].customerFeedback, "Cloudflare 体验舒适", "D1 should persist service record feedback");
+assert.equal(afterServiceRecord.customerServiceRecords[0].nextCareAdvice, "Cloudflare 加强保湿防晒", "D1 should persist service record next advice");
+assert.match(afterServiceRecord.customerFollowUps[0].note, /Cloudflare 加强保湿防晒/, "D1 service record follow-up should use next care advice");
 const afterFollowUpDone = await request<AppData>(baseUrl, `/api/follow-ups/${afterServiceRecord.customerFollowUps[0].id}`, {
   method: "PATCH",
   token: ownerSession.token,

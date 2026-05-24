@@ -775,21 +775,43 @@ function card(data: AppData, cardId: string) {
 }
 
 {
-  const withRecord = addCustomerServiceRecord(
+  const checkedOutForRecord = checkoutOrder(
     cloneSeed(),
     {
       customerId: "c1",
       staffId: "s2",
       serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const withRecord = addCustomerServiceRecord(
+    checkedOutForRecord,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      orderId: checkedOutForRecord.orders[0].id,
       skinCondition: "敏感偏干",
       beforeNote: "轻微泛红",
+      careSteps: "清洁、导入、修护",
+      productsUsed: "清洁精华液",
       afterNote: "补水修护",
+      customerFeedback: "体验舒适",
+      nextCareAdvice: "加强保湿防晒",
       nextFollowUpAt: "2026-05-26T10:00:00.000Z",
     },
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(withRecord.customerServiceRecords.length, 1, "service record should be created");
+  assert.equal(withRecord.customerServiceRecords[0].orderId, checkedOutForRecord.orders[0].id, "service record should link order");
+  assert.equal(withRecord.customerServiceRecords[0].careSteps, "清洁、导入、修护", "service record should persist care steps");
+  assert.equal(withRecord.customerServiceRecords[0].productsUsed, "清洁精华液", "service record should persist products used");
+  assert.equal(withRecord.customerServiceRecords[0].customerFeedback, "体验舒适", "service record should persist customer feedback");
+  assert.equal(withRecord.customerServiceRecords[0].nextCareAdvice, "加强保湿防晒", "service record should persist next care advice");
+  assert.equal(withRecord.customers.find((customer) => customer.id === "c1")?.lastVisit, fixedNow(), "service record should update last visit");
   assert.equal(withRecord.customerFollowUps[0].status, "待跟进", "service record should create follow-up");
+  assert.match(withRecord.customerFollowUps[0].note, /加强保湿防晒/, "follow-up should use next care advice");
 
   const completed = completeCustomerFollowUp(
     withRecord,
@@ -797,6 +819,25 @@ function card(data: AppData, cardId: string) {
     { now: fixedNow },
   );
   assert.equal(completed.customerFollowUps[0].status, "已完成", "follow-up should be completed");
+
+  assert.throws(
+    () =>
+      addCustomerServiceRecord(
+        checkedOutForRecord,
+        {
+          customerId: "c2",
+          staffId: "s2",
+          serviceId: "v1",
+          orderId: checkedOutForRecord.orders[0].id,
+          skinCondition: "敏感偏干",
+          beforeNote: "轻微泛红",
+          afterNote: "补水修护",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /关联订单不属于该客户/,
+    "service record should reject an order from another customer",
+  );
 }
 
 {

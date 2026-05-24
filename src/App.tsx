@@ -1189,8 +1189,14 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [recordCustomerId, setRecordCustomerId] = useState(data.customers[0]?.id ?? "");
   const [recordStaffId, setRecordStaffId] = useState(data.staff[1]?.id ?? data.staff[0]?.id ?? "");
   const [recordServiceId, setRecordServiceId] = useState(data.services[0]?.id ?? "");
+  const [recordOrderId, setRecordOrderId] = useState("");
   const [skinCondition, setSkinCondition] = useState("敏感偏干");
+  const [beforeNote, setBeforeNote] = useState("到店皮肤检测");
+  const [careSteps, setCareSteps] = useState("清洁、导入、修护、保湿");
+  const [productsUsed, setProductsUsed] = useState("清洁精华液、修护护理包");
   const [afterNote, setAfterNote] = useState("补水修护后泛红下降");
+  const [customerFeedback, setCustomerFeedback] = useState("体验舒适，接受下次护理建议");
+  const [nextCareAdvice, setNextCareAdvice] = useState("7 天内加强保湿防晒，下次复查泛红情况");
   const [followUpAt, setFollowUpAt] = useState(toLocalInputValue(tomorrowAt(18)));
   const [tagCustomerId, setTagCustomerId] = useState(data.customers[0]?.id ?? "");
   const [customerLevel, setCustomerLevel] = useState(data.customers[0]?.level ?? "普通会员");
@@ -1229,6 +1235,24 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     setCustomerSource(customer.source);
     setCustomerTags(customer.tags);
   }, [tagCustomerId, data.customers]);
+
+  useEffect(() => {
+    if (!recordOrderId) return;
+    const order = data.orders.find((item) => item.id === recordOrderId);
+    if (!order) {
+      setRecordOrderId("");
+      return;
+    }
+    setRecordCustomerId(order.customerId);
+    setRecordStaffId(order.staffId);
+    setRecordServiceId(order.serviceId);
+  }, [recordOrderId, data.orders]);
+
+  useEffect(() => {
+    if (recordOrderId && !data.orders.some((order) => order.id === recordOrderId && order.customerId === recordCustomerId)) {
+      setRecordOrderId("");
+    }
+  }, [recordCustomerId, recordOrderId, data.orders]);
 
   const addCustomer = (event: FormEvent) => {
     event.preventDefault();
@@ -1279,9 +1303,14 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         customerId: recordCustomerId,
         staffId: recordStaffId,
         serviceId: recordServiceId,
+        orderId: recordOrderId || undefined,
         skinCondition,
-        beforeNote: "到店皮肤检测",
+        beforeNote,
+        careSteps,
+        productsUsed,
         afterNote,
+        customerFeedback,
+        nextCareAdvice,
         nextFollowUpAt: followUpAt ? new Date(followUpAt).toISOString() : undefined,
       }),
     );
@@ -1376,6 +1405,12 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const customerTagOptions = allTags.map((tag) => ({ value: tag, label: tag }));
   const filteredCustomers = tagFilter ? data.customers.filter((customer) => customer.tags.includes(tagFilter)) : data.customers;
   const tagColorOf = (tagName: string) => data.tagDefinitions.find((tag) => tag.name === tagName)?.color ?? "#6d28d9";
+  const recordOrderOptions = [
+    { value: "", label: "不关联订单" },
+    ...data.orders
+      .filter((order) => order.customerId === recordCustomerId)
+      .map((order) => ({ value: order.id, label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}` })),
+  ];
   const projectScope = (serviceId?: string, serviceIds?: string[]) => {
     if (serviceIds?.length) return serviceIds.map((id) => nameOf(data.services, id)).join(" / ");
     return serviceId ? nameOf(data.services, serviceId) : "通用";
@@ -1541,10 +1576,16 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         <PanelTitle icon={<ClipboardList size={18} />} title="服务档案" action="护理记录/回访" />
         <form className="form" onSubmit={addServiceRecord}>
           <Select label="客户" value={recordCustomerId} onChange={setRecordCustomerId} options={data.customers.map(optionOf)} />
+          <Select label="关联订单" value={recordOrderId} onChange={setRecordOrderId} options={recordOrderOptions} />
           <Select label="员工" value={recordStaffId} onChange={setRecordStaffId} options={data.staff.map(optionOf)} />
           <Select label="项目" value={recordServiceId} onChange={setRecordServiceId} options={data.services.map(optionOf)} />
           <label>皮肤情况<input value={skinCondition} onChange={(event) => setSkinCondition(event.target.value)} /></label>
-          <label>服务记录<textarea value={afterNote} onChange={(event) => setAfterNote(event.target.value)} /></label>
+          <label>服务前记录<textarea value={beforeNote} onChange={(event) => setBeforeNote(event.target.value)} /></label>
+          <label>护理步骤<textarea value={careSteps} onChange={(event) => setCareSteps(event.target.value)} /></label>
+          <label>使用产品/耗材<textarea value={productsUsed} onChange={(event) => setProductsUsed(event.target.value)} /></label>
+          <label>服务后记录<textarea value={afterNote} onChange={(event) => setAfterNote(event.target.value)} /></label>
+          <label>客户反馈<textarea value={customerFeedback} onChange={(event) => setCustomerFeedback(event.target.value)} /></label>
+          <label>下次护理建议<textarea value={nextCareAdvice} onChange={(event) => setNextCareAdvice(event.target.value)} /></label>
           <label>下次回访<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></label>
           <button className="primary-button">保存档案</button>
         </form>
@@ -1677,13 +1718,19 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         <div className="divider" />
         <PanelTitle icon={<ClipboardList size={18} />} title="护理档案" action={`${data.customerServiceRecords.length} 条`} />
         <DataTable
-          columns={["客户", "员工", "项目", "皮肤情况", "服务记录", "时间"]}
+          columns={["客户", "员工", "项目", "订单", "皮肤情况", "服务前", "护理步骤", "使用产品", "服务后", "客户反馈", "下次建议", "时间"]}
           rows={data.customerServiceRecords.map((record) => [
             nameOf(data.customers, record.customerId),
             nameOf(data.staff, record.staffId),
             nameOf(data.services, record.serviceId),
+            record.orderId ? data.orders.find((order) => order.id === record.orderId)?.orderNo ?? record.orderId : "未关联",
             record.skinCondition,
+            record.beforeNote,
+            record.careSteps || "未记录",
+            record.productsUsed || "未记录",
             record.afterNote,
+            record.customerFeedback || "未记录",
+            record.nextCareAdvice || "未记录",
             shortDate(record.createdAt),
           ])}
         />

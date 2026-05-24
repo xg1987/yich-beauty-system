@@ -258,7 +258,11 @@ export type CustomerServiceRecordInput = {
   orderId?: string;
   skinCondition: string;
   beforeNote: string;
+  careSteps?: string;
+  productsUsed?: string;
   afterNote: string;
+  customerFeedback?: string;
+  nextCareAdvice?: string;
   nextFollowUpAt?: string;
 };
 
@@ -1967,6 +1971,14 @@ export function addCustomerServiceRecord(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
+  if (!data.customers.some((customer) => customer.id === input.customerId)) throw new Error("客户不存在");
+  if (!data.staff.some((staff) => staff.id === input.staffId)) throw new Error("员工不存在");
+  if (!data.services.some((service) => service.id === input.serviceId)) throw new Error("服务项目不存在");
+  if (input.orderId) {
+    const order = data.orders.find((item) => item.id === input.orderId);
+    if (!order) throw new Error("关联订单不存在");
+    if (order.customerId !== input.customerId) throw new Error("关联订单不属于该客户");
+  }
   const record: CustomerServiceRecord = {
     id: idFactory("sr"),
     customerId: input.customerId,
@@ -1975,7 +1987,11 @@ export function addCustomerServiceRecord(
     orderId: input.orderId,
     skinCondition: input.skinCondition,
     beforeNote: input.beforeNote,
+    careSteps: input.careSteps ?? "",
+    productsUsed: input.productsUsed ?? "",
     afterNote: input.afterNote,
+    customerFeedback: input.customerFeedback ?? "",
+    nextCareAdvice: input.nextCareAdvice ?? "",
     nextFollowUpAt: input.nextFollowUpAt,
     createdAt,
   };
@@ -1986,7 +2002,7 @@ export function addCustomerServiceRecord(
         staffId: input.staffId,
         dueAt: input.nextFollowUpAt,
         method: "微信",
-        note: `服务后回访：${input.afterNote}`,
+        note: `服务后回访：${input.nextCareAdvice || input.afterNote}`,
         status: "待跟进",
         createdAt,
       }
@@ -1994,6 +2010,7 @@ export function addCustomerServiceRecord(
   return {
     ...data,
     customerServiceRecords: [record, ...data.customerServiceRecords],
+    customers: data.customers.map((customer) => (customer.id === input.customerId ? { ...customer, lastVisit: createdAt } : customer)),
     customerFollowUps: followUp ? [followUp, ...data.customerFollowUps] : data.customerFollowUps,
   };
 }

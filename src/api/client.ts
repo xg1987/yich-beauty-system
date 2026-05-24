@@ -152,7 +152,11 @@ export function createApiClient(getToken: () => string | undefined) {
       orderId?: string;
       skinCondition?: string;
       beforeNote?: string;
+      careSteps?: string;
+      productsUsed?: string;
       afterNote?: string;
+      customerFeedback?: string;
+      nextCareAdvice?: string;
       nextFollowUpAt?: string;
     }) => request<AppData>("/api/service-records", { method: "POST", body, token: getToken() }),
     addFollowUp: (body: { customerId: string; staffId: string; dueAt: string; method: "电话" | "微信" | "到店"; note: string }) =>

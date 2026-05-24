@@ -544,13 +544,24 @@ try {
       customerId: "c1",
       staffId: "s2",
       serviceId: "v1",
+      orderId: afterCheckout.orders[0].id,
       skinCondition: "敏感偏干",
       beforeNote: "API 服务前",
+      careSteps: "API 清洁、导入、修护",
+      productsUsed: "API 清洁精华液",
       afterNote: "API 服务后",
+      customerFeedback: "API 体验舒适",
+      nextCareAdvice: "API 加强保湿防晒",
       nextFollowUpAt: "2026-05-29T10:00:00.000Z",
     },
   });
   assert.equal(afterServiceRecord.customerServiceRecords.length, 1, "service record API should create record");
+  assert.equal(afterServiceRecord.customerServiceRecords[0].orderId, afterCheckout.orders[0].id, "service record API should link order");
+  assert.equal(afterServiceRecord.customerServiceRecords[0].careSteps, "API 清洁、导入、修护", "service record API should persist care steps");
+  assert.equal(afterServiceRecord.customerServiceRecords[0].productsUsed, "API 清洁精华液", "service record API should persist products used");
+  assert.equal(afterServiceRecord.customerServiceRecords[0].customerFeedback, "API 体验舒适", "service record API should persist customer feedback");
+  assert.equal(afterServiceRecord.customerServiceRecords[0].nextCareAdvice, "API 加强保湿防晒", "service record API should persist next care advice");
+  assert.match(afterServiceRecord.customerFollowUps[0].note, /API 加强保湿防晒/, "service record API follow-up should use next care advice");
   const followUpId = afterServiceRecord.customerFollowUps[0].id;
   const afterFollowUpDone = await request<AppData>(baseUrl, `/api/follow-ups/${followUpId}`, {
     method: "PATCH",

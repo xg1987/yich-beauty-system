@@ -721,7 +721,11 @@ export function createApiServer(database = new BeautyDatabase()) {
           orderId: optionalString(body, "orderId"),
           skinCondition: optionalString(body, "skinCondition") ?? "",
           beforeNote: optionalString(body, "beforeNote") ?? "",
+          careSteps: optionalString(body, "careSteps"),
+          productsUsed: optionalString(body, "productsUsed"),
           afterNote: optionalString(body, "afterNote") ?? "",
+          customerFeedback: optionalString(body, "customerFeedback"),
+          nextCareAdvice: optionalString(body, "nextCareAdvice"),
           nextFollowUpAt: optionalString(body, "nextFollowUpAt"),
         });
         database.replaceData(nextData);
