@@ -154,6 +154,18 @@ try {
   });
   assert.equal(afterCustomerTags.customers[0].level, "VIP", "customer API should update member level");
   assert.deepEqual(afterCustomerTags.customers[0].tags, ["敏感肌", "高消费"], "customer API should update tags");
+  const afterTag = await request<AppData>(baseUrl, "/api/tags", {
+    method: "POST",
+    token: session.token,
+    body: { name: "API 熟客", scope: "客户", color: "#db2777" },
+  });
+  assert.equal(afterTag.tagDefinitions[0].name, "API 熟客", "tag API should create tag definition");
+  const afterTagStatus = await request<AppData>(baseUrl, `/api/tags/${afterTag.tagDefinitions[0].id}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "停用" },
+  });
+  assert.equal(afterTagStatus.tagDefinitions[0].status, "停用", "tag API should update tag status");
   const conflictStartAt = initialData.appointments.find((appointment) => appointment.staffId === "s2")?.startAt;
   assert.ok(conflictStartAt, "test fixture should include existing therapist appointment");
 

@@ -19,6 +19,7 @@ import {
   createStaffUnavailableSlot,
   createStocktake,
   completeCustomerFollowUp,
+  createTagDefinition,
   decideApprovalRequest,
   extendMemberCard,
   issueCustomerCoupon,
@@ -32,6 +33,7 @@ import {
   reverseDailyClose,
   transferMemberCard,
   updateStaffMember,
+  updateTagDefinition,
   updateMemberCardStatus,
   upsertOnlineStorefront,
 } from "../src/domain/business";
@@ -96,6 +98,30 @@ function card(data: AppData, cardId: string) {
   assert.equal(joined.staffInvites[0].status, "已加入", "staff invite should mark joined");
   assert.equal(joined.authUsers[0].account, "therapist-new@test.local", "staff invite should create login account");
   assert.equal(joined.staff[0].accountId, joined.authUsers[0].id, "joined account should bind to staff");
+}
+
+{
+  const withTag = createTagDefinition(
+    cloneSeed(),
+    { name: "  熟客  ", scope: "客户", color: "#db2777" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(withTag.tagDefinitions[0].name, "熟客", "tag management should create normalized tag");
+  assert.equal(withTag.tagDefinitions[0].scope, "客户", "tag management should persist scope");
+  assert.equal(withTag.tagDefinitions[0].color, "#db2777", "tag management should persist color");
+  assert.throws(
+    () => createTagDefinition(withTag, { name: "熟客", scope: "客户" }, { idFactory: testId, now: fixedNow }),
+    /标签已存在/,
+    "tag management should reject duplicate tags in the same scope",
+  );
+
+  const assigned = {
+    ...withTag,
+    customers: withTag.customers.map((customer) => (customer.id === "c1" ? { ...customer, tags: [...customer.tags, "熟客"] } : customer)),
+  };
+  const renamed = updateTagDefinition(assigned, { tagId: withTag.tagDefinitions[0].id, name: "稳定复购", status: "停用" });
+  assert.equal(renamed.tagDefinitions[0].status, "停用", "tag management should update status");
+  assert.ok(renamed.customers.find((customer) => customer.id === "c1")?.tags.includes("稳定复购"), "renaming a tag should update customer tags");
 }
 
 {

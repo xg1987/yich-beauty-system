@@ -67,6 +67,15 @@ export const testFixtureData: AppData = {
       lastVisit: nowIso(),
     },
   ],
+  tagDefinitions: [
+    { id: "tag1", name: "敏感肌", scope: "客户", color: "#7c3aed", status: "启用", createdAt: nowIso() },
+    { id: "tag2", name: "高复购", scope: "客户", color: "#db2777", status: "启用", createdAt: nowIso() },
+    { id: "tag3", name: "新客", scope: "客户", color: "#0d9488", status: "启用", createdAt: nowIso() },
+    { id: "tag4", name: "高消费", scope: "客户", color: "#b45309", status: "启用", createdAt: nowIso() },
+    { id: "tag5", name: "皮肤管理", scope: "项目", color: "#6d28d9", status: "启用", createdAt: nowIso() },
+    { id: "tag6", name: "SPA养生", scope: "项目", color: "#be185d", status: "启用", createdAt: nowIso() },
+    { id: "tag7", name: "手法稳定", scope: "员工", color: "#047857", status: "启用", createdAt: nowIso() },
+  ],
   services: [
     {
       id: "v1",

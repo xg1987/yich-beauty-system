@@ -37,6 +37,7 @@ import type {
   Stocktake,
   StoreProfile,
   Supplier,
+  TagDefinition,
 } from "../src/domain/types";
 
 const DEFAULT_DB_PATH = resolve("data/yich-system.sqlite");
@@ -50,6 +51,7 @@ const tableNames: TableName[] = [
   "staffInvites",
   "staff",
   "customers",
+  "tagDefinitions",
   "services",
   "products",
   "appointments",
@@ -133,6 +135,7 @@ export class BeautyDatabase {
       staffInvites: this.db.prepare("SELECT payload_json FROM staffInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StaffInvite>),
       staff: this.db.prepare("SELECT * FROM staff ORDER BY rowid ASC").all().map(mapStaff),
       customers: this.db.prepare("SELECT * FROM customers ORDER BY rowid ASC").all().map(mapCustomer),
+      tagDefinitions: this.db.prepare("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC").all().map(mapJsonPayload<TagDefinition>),
       services: this.db.prepare("SELECT * FROM services ORDER BY rowid ASC").all().map(mapService),
       products: this.db.prepare("SELECT * FROM products ORDER BY rowid ASC").all().map(mapProduct),
       appointments: this.db.prepare("SELECT * FROM appointments ORDER BY rowid ASC").all().map(mapAppointment),
@@ -213,6 +216,8 @@ export class BeautyDatabase {
         .prepare("INSERT INTO customers (id, name, phone, level, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .run(customer.id, customer.name, customer.phone, customer.level, customer.source, JSON.stringify(customer.tags), customer.lastVisit);
     }
+
+    this.writeJsonTable("tagDefinitions", data.tagDefinitions);
 
     for (const service of data.services) {
       this.db
@@ -458,6 +463,11 @@ export class BeautyDatabase {
         source TEXT NOT NULL,
         tags_json TEXT NOT NULL,
         lastVisit TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS tagDefinitions (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS services (

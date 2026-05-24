@@ -26,10 +26,10 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
 import { calculateOrderTotal, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, StoreProfile, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, StoreProfile, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 
@@ -38,6 +38,7 @@ type ThemeMode = "day" | "night";
 type CardType = "储值卡" | "次数卡" | "套餐卡";
 
 const THEME_KEY = "yich-system-theme";
+const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
   { key: "dashboard", label: "工作台", icon: LayoutDashboard },
@@ -1194,7 +1195,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [tagCustomerId, setTagCustomerId] = useState(data.customers[0]?.id ?? "");
   const [customerLevel, setCustomerLevel] = useState(data.customers[0]?.level ?? "普通会员");
   const [customerSource, setCustomerSource] = useState(data.customers[0]?.source ?? "门店登记");
-  const [customerTags, setCustomerTags] = useState(data.customers[0]?.tags.join("，") ?? "新客");
+  const [customerTags, setCustomerTags] = useState<string[]>(data.customers[0]?.tags ?? []);
+  const [tagName, setTagName] = useState("");
+  const [tagScope, setTagScope] = useState<TagScope>("客户");
+  const [tagColor, setTagColor] = useState(tagColorOptions[0]);
   const [tagFilter, setTagFilter] = useState("");
   const [couponName, setCouponName] = useState("新客护理满减券");
   const [couponAmount, setCouponAmount] = useState(50);
@@ -1223,7 +1227,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     if (!customer) return;
     setCustomerLevel(customer.level);
     setCustomerSource(customer.source);
-    setCustomerTags(customer.tags.join("，"));
+    setCustomerTags(customer.tags);
   }, [tagCustomerId, data.customers]);
 
   const addCustomer = (event: FormEvent) => {
@@ -1289,9 +1293,15 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
       actions.updateCustomer(tagCustomerId, {
         level: customerLevel,
         source: customerSource,
-        tags: parseTags(customerTags),
+        tags: customerTags,
       }),
     );
+  };
+
+  const createTag = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.createTag({ name: tagName, scope: tagScope, color: tagColor }));
+    setTagName("");
   };
 
   const createCoupon = (event: FormEvent) => {
@@ -1358,8 +1368,14 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
 
   const activeCards = data.memberCards.filter((card) => card.status === "正常");
   const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
-  const allTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
+  const existingCustomerTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
+  const activeCustomerTagNames = data.tagDefinitions
+    .filter((tag) => tag.scope === "客户" && tag.status === "启用")
+    .map((tag) => tag.name);
+  const allTags = Array.from(new Set([...activeCustomerTagNames, ...existingCustomerTags])).filter(Boolean);
+  const customerTagOptions = allTags.map((tag) => ({ value: tag, label: tag }));
   const filteredCustomers = tagFilter ? data.customers.filter((customer) => customer.tags.includes(tagFilter)) : data.customers;
+  const tagColorOf = (tagName: string) => data.tagDefinitions.find((tag) => tag.name === tagName)?.color ?? "#6d28d9";
   const projectScope = (serviceId?: string, serviceIds?: string[]) => {
     if (serviceIds?.length) return serviceIds.map((id) => nameOf(data.services, id)).join(" / ");
     return serviceId ? nameOf(data.services, serviceId) : "通用";
@@ -1395,12 +1411,47 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <button className="primary-button">保存客户</button>
         </form>
         <div className="divider" />
+        <PanelTitle icon={<Megaphone size={18} />} title="标签管理" action={`${data.tagDefinitions.length} 个标签`} />
+        <form className="form" onSubmit={createTag}>
+          <label>标签名称<input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="如：敏感肌 / 高消费 / 高复购" required /></label>
+          <Select label="标签分类" value={tagScope} onChange={(value) => setTagScope(value as TagScope)} options={["客户", "项目", "员工"].map((item) => ({ value: item, label: item }))} />
+          <fieldset className="color-group">
+            <legend>标签颜色</legend>
+            {tagColorOptions.map((color) => (
+              <button
+                aria-label={color}
+                className={tagColor === color ? "active" : ""}
+                key={color}
+                onClick={() => setTagColor(color)}
+                style={{ background: color }}
+                type="button"
+              />
+            ))}
+          </fieldset>
+          <button className="primary-button">新增标签</button>
+        </form>
+        <div className="tag-admin-list">
+          {data.tagDefinitions.length === 0 ? (
+            <p className="empty">暂无正式标签，可先新增客户标签</p>
+          ) : (
+            data.tagDefinitions.map((tag) => (
+              <div className="tag-admin-row" key={tag.id}>
+                <span className="tag-pill" style={{ "--tag-color": tag.color } as CSSProperties}>{tag.name}</span>
+                <small>{tag.scope} · {tag.status}</small>
+                <button type="button" onClick={() => void runMutation(() => actions.updateTag(tag.id, { status: tag.status === "启用" ? "停用" : "启用" }))}>
+                  {tag.status === "启用" ? "停用" : "启用"}
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="divider" />
         <PanelTitle icon={<UsersRound size={18} />} title="客户标签" action="分层筛选" />
         <form className="form" onSubmit={updateCustomerTags}>
           <Select label="客户" value={tagCustomerId} onChange={setTagCustomerId} options={data.customers.map(optionOf)} />
           <label>会员等级<input value={customerLevel} onChange={(event) => setCustomerLevel(event.target.value)} placeholder="普通会员 / VIP / 黑金会员" /></label>
           <label>客户来源<input value={customerSource} onChange={(event) => setCustomerSource(event.target.value)} placeholder="门店登记 / 抖音 / 转介绍" /></label>
-          <label>客户标签<input value={customerTags} onChange={(event) => setCustomerTags(event.target.value)} placeholder="敏感肌，老客户，高消费" /></label>
+          <CheckboxGroup label="客户标签" values={customerTags} onChange={setCustomerTags} options={customerTagOptions} />
           <button className="primary-button">保存标签</button>
         </form>
         <div className="divider" />
@@ -1512,7 +1563,11 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             customer.name,
             customer.phone,
             customer.level,
-            customer.tags.join(" / "),
+            <span className="tag-cell" key={`${customer.id}-tags`}>
+              {customer.tags.length === 0 ? "无标签" : customer.tags.map((tag) => (
+                <span className="tag-pill" key={tag} style={{ "--tag-color": tagColorOf(tag) } as CSSProperties}>{tag}</span>
+              ))}
+            </span>,
             shortDate(customer.lastVisit),
             data.memberCards
               .filter((card) => card.customerId === customer.id)

@@ -108,6 +108,8 @@ export function useApiData() {
     updateAppointmentStatus: client.updateAppointmentStatus,
     addCustomer: client.addCustomer,
     updateCustomer: client.updateCustomer,
+    createTag: client.createTag,
+    updateTag: client.updateTag,
     openMemberCard: client.openMemberCard,
     createCouponTemplate: client.createCouponTemplate,
     issueCustomerCoupon: client.issueCustomerCoupon,

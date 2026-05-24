@@ -79,6 +79,17 @@ export type Customer = {
   lastVisit: string;
 };
 
+export type TagScope = "客户" | "项目" | "员工";
+
+export type TagDefinition = {
+  id: string;
+  name: string;
+  scope: TagScope;
+  color: string;
+  status: "启用" | "停用";
+  createdAt: string;
+};
+
 export type ServiceConsumable = {
   productId: string;
   quantity: number;
@@ -418,6 +429,7 @@ export type AppData = {
   staffInvites: StaffInvite[];
   staff: Staff[];
   customers: Customer[];
+  tagDefinitions: TagDefinition[];
   services: Service[];
   products: Product[];
   appointments: Appointment[];

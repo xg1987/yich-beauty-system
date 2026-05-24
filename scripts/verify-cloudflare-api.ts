@@ -53,6 +53,13 @@ const afterSecondCustomer = await request<AppData>(baseUrl, "/api/customers", {
 });
 const secondCustomerId = afterSecondCustomer.customers[0].id;
 
+const afterTag = await request<AppData>(baseUrl, "/api/tags", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证标签 ${runId}`, scope: "客户", color: "#6d28d9" },
+});
+assert.equal(afterTag.tagDefinitions[0].name, `验证标签 ${runId}`, "D1 should persist tag definition");
+
 const afterProduct = await request<AppData>(baseUrl, "/api/products", {
   method: "POST",
   token: ownerSession.token,

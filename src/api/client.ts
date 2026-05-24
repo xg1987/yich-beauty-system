@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, UserRole } from "../domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -74,6 +74,10 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/customers", { method: "POST", body, token: getToken() }),
     updateCustomer: (customerId: string, body: { name?: string; phone?: string; level?: string; source?: string; tags?: string[] }) =>
       request<AppData>(`/api/customers/${encodeURIComponent(customerId)}`, { method: "PATCH", body, token: getToken() }),
+    createTag: (body: { name: string; scope: TagScope; color?: string }) =>
+      request<AppData>("/api/tags", { method: "POST", body, token: getToken() }),
+    updateTag: (tagId: string, body: { name?: string; color?: string; status?: TagDefinition["status"] }) =>
+      request<AppData>(`/api/tags/${encodeURIComponent(tagId)}`, { method: "PATCH", body, token: getToken() }),
     openMemberCard: (body: {
       customerId: string;
       name: string;

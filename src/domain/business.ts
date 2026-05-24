@@ -27,6 +27,8 @@ import type {
   StaffUnavailableSlot,
   Stocktake,
   Supplier,
+  TagDefinition,
+  TagScope,
   UserRole,
 } from "./types";
 import { makeId, nowIso } from "./utils";
@@ -293,10 +295,80 @@ export type StocktakeInput = {
   userId: string;
 };
 
+export type TagDefinitionInput = {
+  name: string;
+  scope: TagScope;
+  color?: string;
+};
+
+export type TagDefinitionUpdateInput = {
+  tagId: string;
+  name?: string;
+  color?: string;
+  status?: TagDefinition["status"];
+};
+
 export function calculateOrderTotal(data: AppData, serviceId: string, productId?: string) {
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedProduct = data.products.find((item) => item.id === productId);
   return (selectedService?.price ?? 0) + (selectedProduct?.price ?? 0);
+}
+
+export function createTagDefinition(
+  data: AppData,
+  input: TagDefinitionInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const name = normalizeTagName(input.name);
+  if (!name) throw new Error("请输入标签名称");
+  if (!["客户", "项目", "员工"].includes(input.scope)) throw new Error("标签分类不正确");
+  if (data.tagDefinitions.some((tag) => tag.scope === input.scope && tag.name === name)) {
+    throw new Error("同分类下标签已存在");
+  }
+  const tag: TagDefinition = {
+    id: (options.idFactory ?? makeId)("tag"),
+    name,
+    scope: input.scope,
+    color: normalizeTagColor(input.color),
+    status: "启用",
+    createdAt: (options.now ?? nowIso)(),
+  };
+  return { ...data, tagDefinitions: [tag, ...data.tagDefinitions] };
+}
+
+export function updateTagDefinition(data: AppData, input: TagDefinitionUpdateInput): AppData {
+  const target = data.tagDefinitions.find((tag) => tag.id === input.tagId);
+  if (!target) throw new Error("标签不存在");
+  const nextName = input.name === undefined ? target.name : normalizeTagName(input.name);
+  if (!nextName) throw new Error("请输入标签名称");
+  if (
+    data.tagDefinitions.some(
+      (tag) => tag.id !== target.id && tag.scope === target.scope && tag.name === nextName,
+    )
+  ) {
+    throw new Error("同分类下标签已存在");
+  }
+
+  return {
+    ...data,
+    tagDefinitions: data.tagDefinitions.map((tag) =>
+      tag.id === target.id
+        ? {
+            ...tag,
+            name: nextName,
+            color: input.color === undefined ? tag.color : normalizeTagColor(input.color),
+            status: normalizeTagStatus(input.status) ?? tag.status,
+          }
+        : tag,
+    ),
+    customers:
+      nextName === target.name
+        ? data.customers
+        : data.customers.map((customer) => ({
+            ...customer,
+            tags: customer.tags.map((tagName) => (tagName === target.name ? nextName : tagName)),
+          })),
+  };
 }
 
 function serviceConsumables(service: Service): ServiceConsumable[] {
@@ -306,6 +378,23 @@ function serviceConsumables(service: Service): ServiceConsumable[] {
     return [{ productId: service.consumableProductId, quantity: service.consumableQty ?? 0 }];
   }
   return [];
+}
+
+function normalizeTagName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeTagColor(value?: string) {
+  const fallback = "#6d28d9";
+  if (!value) return fallback;
+  const color = value.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
+}
+
+function normalizeTagStatus(value?: TagDefinition["status"]) {
+  if (value === undefined) return undefined;
+  if (value === "启用" || value === "停用") return value;
+  throw new Error("标签状态不正确");
 }
 
 export function registerStore(

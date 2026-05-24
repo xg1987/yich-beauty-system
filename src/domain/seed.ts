@@ -7,6 +7,7 @@ export const seedData: AppData = {
   staffInvites: [],
   staff: [],
   customers: [],
+  tagDefinitions: [],
   services: [],
   products: [],
   appointments: [],

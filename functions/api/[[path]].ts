@@ -14,6 +14,7 @@ import {
   createCouponTemplate,
   createDistributor,
   createMarketingActivity,
+  createTagDefinition,
   createDailyClose,
   createStaffShift,
   createStaffUnavailableSlot,
@@ -32,11 +33,12 @@ import {
   upsertOnlineStorefront,
   joinStaffInvite,
   issueCustomerCoupon,
+  updateTagDefinition,
   updateStaffMember,
   updateMemberCardStatus,
 } from "../../src/domain/business";
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, ServiceConsumable, UserRole } from "../../src/domain/types";
+import type { AppData, Appointment, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
 import { getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
@@ -413,6 +415,46 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ),
         };
       });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/tags") {
+      requirePermission(session, "customers:manage");
+      const body = await readJson(context.request);
+      const nextData = updateData(await database.readData(), session, {
+        action: "新增标签",
+        targetType: "tag",
+        targetId: "latest",
+        summary: `${session.user.name} 新增${requiredString(body, "scope")}标签 ${requiredString(body, "name")}`,
+      }, (data) =>
+        createTagDefinition(data, {
+          name: requiredString(body, "name"),
+          scope: requiredString(body, "scope") as TagScope,
+          color: optionalString(body, "color"),
+        }),
+      );
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/tags/")) {
+      requirePermission(session, "customers:manage");
+      const tagId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      const body = await readJson(context.request);
+      const nextData = updateData(await database.readData(), session, {
+        action: "更新标签",
+        targetType: "tag",
+        targetId: tagId,
+        summary: `${session.user.name} 更新标签`,
+      }, (data) =>
+        updateTagDefinition(data, {
+          tagId,
+          name: optionalString(body, "name"),
+          color: optionalString(body, "color"),
+          status: optionalString(body, "status") as "启用" | "停用" | undefined,
+        }),
+      );
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }

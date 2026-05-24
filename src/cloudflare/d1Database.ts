@@ -34,6 +34,7 @@ import type {
   Stocktake,
   StoreProfile,
   Supplier,
+  TagDefinition,
 } from "../domain/types";
 import type { D1DatabaseBinding, D1PreparedStatement, D1Value } from "./d1Types";
 
@@ -46,6 +47,7 @@ const tableNames: TableName[] = [
   "staffInvites",
   "staff",
   "customers",
+  "tagDefinitions",
   "services",
   "products",
   "appointments",
@@ -108,6 +110,7 @@ export class D1BeautyDatabase {
       staffInvites: await this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>),
       staff: await this.all("SELECT * FROM staff ORDER BY rowid ASC", mapStaff),
       customers: await this.all("SELECT * FROM customers ORDER BY rowid ASC", mapCustomer),
+      tagDefinitions: await this.all("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC", mapJsonPayload<TagDefinition>),
       services: await this.all("SELECT * FROM services ORDER BY rowid ASC", mapService),
       products: await this.all("SELECT * FROM products ORDER BY rowid ASC", mapProduct),
       appointments: await this.all("SELECT * FROM appointments ORDER BY rowid ASC", mapAppointment),
@@ -196,6 +199,8 @@ export class D1BeautyDatabase {
         ]),
       );
     }
+
+    this.writeJsonTable(statements, "tagDefinitions", data.tagDefinitions);
 
     for (const service of data.services) {
       statements.push(

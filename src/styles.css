@@ -4083,6 +4083,88 @@ html[data-theme="day"],
   font-weight: 700;
 }
 
+.color-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 0 0;
+  border: 0;
+}
+
+.color-group legend {
+  width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.color-group button {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(111, 66, 193, 0.16);
+}
+
+.color-group button.active {
+  box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.24);
+}
+
+.tag-admin-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tag-admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.tag-admin-row small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tag-admin-row button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 999px;
+  background: white;
+  color: var(--yich-purple-deep);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tag-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-pill {
+  --tag-color: var(--yich-purple);
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tag-color) 13%, white);
+  color: var(--tag-color);
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
 .register-note {
   margin: -2px 0 2px;
   padding: 12px 14px;
