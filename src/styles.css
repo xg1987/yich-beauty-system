@@ -3865,6 +3865,17 @@ html[data-theme="day"],
   border-radius: 24px;
 }
 
+@media (min-width: 1680px) {
+  .main > .topbar,
+  .main > .content-grid,
+  .main > .page-grid,
+  .main > .dashboard-page,
+  .main > .admin-center-page,
+  .main > .page-stack {
+    transform: translateX(-78px);
+  }
+}
+
 .panel,
 .stat-card,
 .quick-card,
