@@ -246,6 +246,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           couponId: optionalString(body, "couponId"),
           activityId: optionalString(body, "activityId"),
           distributorId: optionalString(body, "distributorId"),
+          appointmentId: optionalString(body, "appointmentId"),
           payMethod: requiredString(body, "payMethod") as Order["payMethod"],
           cardId: optionalString(body, "cardId"),
         }),

@@ -725,6 +725,53 @@ try {
   assert.ok(persistedData.distributionCommissions.length >= 1, "API data should persist distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
 
+  const afterArrivedAppointment = await request<AppData>(baseUrl, "/api/appointments", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c1",
+      staffId: "s3",
+      serviceId: "v1",
+      startAt: "2026-05-25T08:00:00.000Z",
+      note: "API 预约收银",
+    },
+  });
+  const checkoutAppointmentId = afterArrivedAppointment.appointments[0].id;
+  await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(checkoutAppointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已到店" },
+  });
+  const afterAppointmentCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c1",
+      staffId: "s3",
+      serviceId: "v1",
+      appointmentId: checkoutAppointmentId,
+      payMethod: "微信",
+    },
+  });
+  assert.equal(afterAppointmentCheckout.orders[0].appointmentId, checkoutAppointmentId, "checkout API should link arrived appointment");
+  assert.equal(afterAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已完成", "checkout API should complete appointment");
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/checkout", {
+        method: "POST",
+        token: session.token,
+        body: {
+          customerId: "c1",
+          staffId: "s3",
+          serviceId: "v2",
+          appointmentId: checkoutAppointmentId,
+          payMethod: "微信",
+        },
+      }),
+    /只有已到店预约可以直接收银|收银信息与预约不一致/,
+    "checkout API should reject invalid appointment checkout",
+  );
+
   await assert.rejects(
     () => request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token }),
     /Not found/,

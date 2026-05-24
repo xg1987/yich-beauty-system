@@ -691,6 +691,55 @@ function card(data: AppData, cardId: string) {
   );
   const canceled = updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已取消", reason: "客户临时取消" }, { now: fixedNow });
   assert.equal(canceled.appointments[0].cancelReason, "客户临时取消", "canceling should keep cancel reason");
+
+  assert.throws(
+    () =>
+      checkoutOrder(
+        data,
+        {
+          customerId: data.appointments[0].customerId,
+          staffId: data.appointments[0].staffId,
+          serviceId: data.appointments[0].serviceId,
+          appointmentId: data.appointments[0].id,
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /只有已到店预约可以直接收银/,
+    "appointment checkout should require arrived appointment",
+  );
+
+  const arrivedForCheckout = updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已到店" }, { now: fixedNow });
+  const appointmentCheckout = checkoutOrder(
+    arrivedForCheckout,
+    {
+      customerId: data.appointments[0].customerId,
+      staffId: data.appointments[0].staffId,
+      serviceId: data.appointments[0].serviceId,
+      appointmentId: data.appointments[0].id,
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(appointmentCheckout.orders[0].appointmentId, data.appointments[0].id, "checkout should link source appointment");
+  assert.equal(appointmentCheckout.appointments[0].status, "已完成", "checkout should complete source appointment");
+  assert.equal(appointmentCheckout.appointments[0].completedAt, fixedNow(), "checkout should stamp appointment completion");
+  assert.throws(
+    () =>
+      checkoutOrder(
+        arrivedForCheckout,
+        {
+          customerId: data.appointments[0].customerId,
+          staffId: data.appointments[0].staffId,
+          serviceId: "v2",
+          appointmentId: data.appointments[0].id,
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /收银信息与预约不一致/,
+    "appointment checkout should reject mismatched service",
+  );
 }
 
 {

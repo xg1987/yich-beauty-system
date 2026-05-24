@@ -274,6 +274,7 @@ export type Order = {
   couponId?: string;
   activityId?: string;
   distributorId?: string;
+  appointmentId?: string;
   payMethod: "现金" | "微信" | "支付宝" | "银行卡" | "会员卡";
   status: "已支付" | "部分退款" | "已退款";
   createdAt: string;

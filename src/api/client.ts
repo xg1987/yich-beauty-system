@@ -49,6 +49,7 @@ export function createApiClient(getToken: () => string | undefined) {
       couponId?: string;
       activityId?: string;
       distributorId?: string;
+      appointmentId?: string;
       payMethod: Order["payMethod"];
       cardId?: string;
     }) => request<AppData>("/api/checkout", { method: "POST", body, token: getToken() }),

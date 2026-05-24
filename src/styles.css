@@ -395,6 +395,17 @@ button:disabled {
   gap: 12px;
 }
 
+.form-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 8px;
+  background: #f3eefb;
+  color: var(--purple-dark);
+  font-size: 13px;
+  font-weight: 650;
+}
+
 label {
   display: grid;
   gap: 7px;

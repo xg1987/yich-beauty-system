@@ -114,6 +114,7 @@ export type CheckoutInput = {
   couponId?: string;
   activityId?: string;
   distributorId?: string;
+  appointmentId?: string;
   payMethod: Order["payMethod"];
   cardId?: string;
 };
@@ -963,6 +964,21 @@ export function checkoutOrder(
   }
 
   assertBusinessDateOpen(data, currentTime().slice(0, 10));
+  const appointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
+  if (input.appointmentId && !appointment) {
+    throw new Error("预约不存在");
+  }
+  if (appointment) {
+    if (appointment.status !== "已到店") {
+      throw new Error("只有已到店预约可以直接收银");
+    }
+    if (appointment.customerId !== input.customerId || appointment.staffId !== input.staffId || appointment.serviceId !== input.serviceId) {
+      throw new Error("收银信息与预约不一致");
+    }
+    if (data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款")) {
+      throw new Error("该预约已完成收银");
+    }
+  }
 
   const selectedCard = input.payMethod === "会员卡"
     ? data.memberCards.find((item) => item.id === input.cardId && item.customerId === input.customerId)
@@ -1037,6 +1053,7 @@ export function checkoutOrder(
     couponId: selectedCoupon?.id,
     activityId: selectedActivity?.id,
     distributorId: selectedDistributor?.id,
+    appointmentId: appointment?.id,
     payMethod: input.payMethod,
     status: "已支付",
     createdAt,
@@ -1194,6 +1211,11 @@ export function checkoutOrder(
         )
       : data.customerCoupons,
     customers: data.customers.map((customer) => (customer.id === input.customerId ? { ...customer, lastVisit: createdAt } : customer)),
+    appointments: appointment
+      ? data.appointments.map((item) =>
+          item.id === appointment.id ? { ...item, status: "已完成", completedAt: createdAt, updatedAt: createdAt } : item,
+        )
+      : data.appointments,
     commissions: [...commissions, ...data.commissions],
     distributionCommissions: distributionCommission ? [distributionCommission, ...data.distributionCommissions] : data.distributionCommissions,
   };

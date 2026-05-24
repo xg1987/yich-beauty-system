@@ -1000,6 +1000,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
 }
 
 function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  const [appointmentId, setAppointmentId] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [staffId, setStaffId] = useState(data.staff[1]?.id ?? data.staff[0]?.id ?? "");
@@ -1048,6 +1049,28 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayPaid = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
   const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
+  const arrivedAppointments = data.appointments.filter(
+    (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
+  );
+
+  const clearAppointment = () => {
+    setAppointmentId("");
+  };
+
+  const useAppointmentForCheckout = (id: string) => {
+    setAppointmentId(id);
+    if (!id) return;
+    const appointment = data.appointments.find((item) => item.id === id);
+    if (!appointment) return;
+    setCustomerId(appointment.customerId);
+    setStaffId(appointment.staffId);
+    setServiceId(appointment.serviceId);
+    setCollaboratorStaffIds([]);
+    setCardId("");
+    setCouponId("");
+    setActivityId("");
+    setDistributorId("");
+  };
 
   const checkout = (event: FormEvent) => {
     event.preventDefault();
@@ -1064,10 +1087,12 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         couponId: couponId || undefined,
         activityId: activityId || undefined,
         distributorId: distributorId || undefined,
+        appointmentId: appointmentId || undefined,
         payMethod,
         cardId: payMethod === "会员卡" ? cardId : undefined,
       }),
     );
+    setAppointmentId("");
     setProductId("");
     setCollaboratorStaffIds([]);
     setDiscountAmount(0);
@@ -1106,12 +1131,26 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="快速开单" action="自动提成/扣库存" />
         <form className="form" onSubmit={checkout}>
-          <Select label="客户" value={customerId} onChange={(value) => { setCustomerId(value); setCardId(""); setCouponId(""); setDistributorId(""); }} options={data.customers.map(optionOf)} />
-          <Select label="服务项目" value={serviceId} onChange={(value) => { setServiceId(value); setCouponId(""); setActivityId(""); }} options={data.services.map(optionOf)} />
+          <Select
+            label="到店预约"
+            value={appointmentId}
+            onChange={useAppointmentForCheckout}
+            options={[
+              { value: "", label: arrivedAppointments.length ? "手工开单，不关联预约" : "暂无待收银到店预约" },
+              ...arrivedAppointments.map((appointment) => ({
+                value: appointment.id,
+                label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`,
+              })),
+            ]}
+          />
+          {appointmentId && <p className="form-note">已带入预约信息，收银完成后预约会自动标记为已完成。</p>}
+          <Select label="客户" value={customerId} onChange={(value) => { clearAppointment(); setCustomerId(value); setCardId(""); setCouponId(""); setDistributorId(""); }} options={data.customers.map(optionOf)} />
+          <Select label="服务项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); setCouponId(""); setActivityId(""); }} options={data.services.map(optionOf)} />
           <Select
             label="服务员工"
             value={staffId}
             onChange={(value) => {
+              clearAppointment();
               setStaffId(value);
               setCollaboratorStaffIds((previous) => previous.filter((id) => id !== value));
             }}
@@ -1206,13 +1245,14 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         </section>
         <section className="panel wide">
         <PanelTitle icon={<ClipboardList size={18} />} title="订单流水" action="最近订单" />
-        <DataTable
-          columns={["单号", "客户", "项目", "员工", "支付", "实收", "状态", "时间", "操作"]}
+          <DataTable
+          columns={["单号", "客户", "项目", "员工", "来源", "支付", "实收", "状态", "时间", "操作"]}
           rows={data.orders.map((order) => [
             order.orderNo,
             nameOf(data.customers, order.customerId),
             nameOf(data.services, order.serviceId),
             nameOf(data.staff, order.staffId),
+            order.appointmentId ? "预约到店" : "手工开单",
             order.payMethod,
             `${money(order.paidAmount)}${order.discountAmount ? ` / 优惠${money(order.discountAmount)}` : ""}`,
             <Badge key={`${order.id}-status`} text={order.status} tone={order.status === "已退款" ? "warn" : "ok"} />,

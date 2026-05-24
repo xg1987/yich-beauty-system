@@ -308,7 +308,7 @@ export class BeautyDatabase {
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, activityId, distributorId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, activityId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -326,6 +326,7 @@ export class BeautyDatabase {
           order.couponId ?? null,
           order.activityId ?? null,
           order.distributorId ?? null,
+          order.appointmentId ?? null,
           order.payMethod,
           order.status,
           order.createdAt,
@@ -601,6 +602,7 @@ export class BeautyDatabase {
         couponId TEXT,
         activityId TEXT,
         distributorId TEXT,
+        appointmentId TEXT,
         payMethod TEXT NOT NULL,
         status TEXT NOT NULL,
         createdAt TEXT NOT NULL
@@ -734,6 +736,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "couponId", "TEXT");
     this.addColumnIfMissing("orders", "activityId", "TEXT");
     this.addColumnIfMissing("orders", "distributorId", "TEXT");
+    this.addColumnIfMissing("orders", "appointmentId", "TEXT");
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("commissions", "settledAt", "TEXT");
     this.addColumnIfMissing("commissions", "settlementId", "TEXT");
@@ -825,6 +828,7 @@ function mapOrder(row: unknown): Order {
     couponId: value.couponId ?? undefined,
     activityId: value.activityId ?? undefined,
     distributorId: value.distributorId ?? undefined,
+    appointmentId: value.appointmentId ?? undefined,
   };
 }
 

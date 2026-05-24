@@ -301,7 +301,7 @@ export class D1BeautyDatabase {
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, activityId, distributorId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, activityId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.orderNo,
@@ -318,6 +318,7 @@ export class D1BeautyDatabase {
             order.couponId ?? null,
             order.activityId ?? null,
             order.distributorId ?? null,
+            order.appointmentId ?? null,
             order.payMethod,
             order.status,
             order.createdAt,
@@ -521,6 +522,7 @@ function mapOrder(row: unknown): Order {
     couponId: value.couponId ?? undefined,
     activityId: value.activityId ?? undefined,
     distributorId: value.distributorId ?? undefined,
+    appointmentId: value.appointmentId ?? undefined,
   };
 }
 
