@@ -41,6 +41,7 @@ import {
   transferMemberCard,
   updateAppointmentStatus,
   updateStaffMember,
+  updateStoreProfile,
   updateTagDefinition,
   updateMemberCardStatus,
   upsertOnlineStorefront,
@@ -104,6 +105,19 @@ function card(data: AppData, cardId: string) {
   assert.equal(registered.storeProfiles[0].name, "测试美业门店", "store registration should update store profile");
   assert.equal(registered.authUsers[0].role, "owner", "store registration should create owner account");
   assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
+  const updatedStore = updateStoreProfile(registered, {
+    name: "测试皮肤管理中心",
+    phone: "13900000002",
+    address: "测试新地址",
+    businessHours: "09:30 - 22:00",
+  });
+  assert.equal(updatedStore.storeProfiles[0].name, "测试皮肤管理中心", "store profile should update store name");
+  assert.equal(updatedStore.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile should update business hours");
+  assert.throws(
+    () => updateStoreProfile(updatedStore, { name: "", phone: "13900000002", address: "测试新地址", businessHours: "09:30 - 22:00" }),
+    /请输入门店名称/,
+    "store profile should reject empty store name",
+  );
 
   const withStaff = addStaffMember(
     cloneSeed(),

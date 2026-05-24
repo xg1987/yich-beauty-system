@@ -43,6 +43,7 @@ import {
   markNotificationRead,
   updateTagDefinition,
   updateStaffMember,
+  updateStoreProfile,
   updateMemberCardStatus,
 } from "../../src/domain/business";
 import type { Permission, UserSession } from "../../src/domain/auth";
@@ -160,6 +161,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         role: session.user.role,
         staffId: session.user.staffId,
       });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname === "/api/store-profile") {
+      requirePermission(session, "settings:view");
+      const body = await readJson(context.request);
+      const nextData = addOperationLog(
+        updateStoreProfile(await database.readData(), {
+          name: requiredString(body, "name"),
+          phone: requiredString(body, "phone"),
+          address: optionalString(body, "address") ?? "",
+          businessHours: requiredString(body, "businessHours"),
+        }),
+        {
+          userId: session.user.id,
+          action: "更新门店资料",
+          targetType: "store",
+          targetId: "primary",
+          summary: `${session.user.name} 更新门店基础资料`,
+        },
+      );
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }

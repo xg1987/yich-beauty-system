@@ -96,6 +96,7 @@ export function useApiData() {
   const actions = {
     addStaff: client.addStaff,
     updateStaff: client.updateStaff,
+    updateStoreProfile: client.updateStoreProfile,
     createStaffInvite: client.createStaffInvite,
     revokeStaffInvite: client.revokeStaffInvite,
     updateOnlineStorefront: client.updateOnlineStorefront,

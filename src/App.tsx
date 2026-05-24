@@ -2804,6 +2804,10 @@ function SettingsView({
 }) {
   const store = data.storeProfiles[0];
   const onlineStorefront = data.onlineStorefronts[0];
+  const [storeName, setStoreName] = useState(store?.name ?? "");
+  const [storePhone, setStorePhone] = useState(store?.phone ?? "");
+  const [storeAddress, setStoreAddress] = useState(store?.address ?? "");
+  const [businessHours, setBusinessHours] = useState(store?.businessHours ?? "10:00 - 21:00");
   const [onlineShareCode, setOnlineShareCode] = useState(onlineStorefront?.shareCode ?? "yich-store");
   const [onlineStatus, setOnlineStatus] = useState<OnlineStorefront["status"]>(onlineStorefront?.status ?? "启用");
   const [onlineHeadline, setOnlineHeadline] = useState(onlineStorefront?.headline ?? "一宸 YiCh 美业门店系统");
@@ -2815,12 +2819,31 @@ function SettingsView({
   const publicStoreUrl = `${window.location.origin}/store/${onlineShareCode || onlineStorefront?.shareCode || ""}`;
 
   useEffect(() => {
+    setStoreName(store?.name ?? "");
+    setStorePhone(store?.phone ?? "");
+    setStoreAddress(store?.address ?? "");
+    setBusinessHours(store?.businessHours ?? "10:00 - 21:00");
+  }, [store?.id, store?.name, store?.phone, store?.address, store?.businessHours]);
+
+  useEffect(() => {
     setOnlineShareCode(onlineStorefront?.shareCode ?? "yich-store");
     setOnlineStatus(onlineStorefront?.status ?? "启用");
     setOnlineHeadline(onlineStorefront?.headline ?? "一宸 YiCh 美业门店系统");
     setOnlineDescription(onlineStorefront?.description ?? "线上查看项目并提交到店预约意向");
     setOnlineServiceIds(onlineStorefront?.enabledServiceIds ?? data.services.slice(0, 3).map((service) => service.id));
   }, [onlineStorefront?.id, onlineStorefront?.updatedAt, data.services.length]);
+
+  const saveStoreProfile = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.updateStoreProfile({
+        name: storeName.trim(),
+        phone: storePhone.trim(),
+        address: storeAddress.trim(),
+        businessHours: businessHours.trim(),
+      }),
+    );
+  };
 
   const saveOnlineStorefront = (event: FormEvent) => {
     event.preventDefault();
@@ -2871,12 +2894,29 @@ function SettingsView({
       </section>
 
       <section className="admin-code-panel">
-        <div>
-          <h2>管理员系统信号</h2>
-          <p>员工出问题加这个微信咨询，留空则隐藏客服入口</p>
+        <div className="admin-code-copy">
+          <h2>门店资料</h2>
+          <p>这里维护门店对内资料和线上门店展示的基础信息</p>
         </div>
-        <input value={store?.phone ?? ""} readOnly aria-label="管理员联系信号" />
-        <button className="primary-button" type="button"><LockKeyhole size={16} /> 保存</button>
+        <form className="store-profile-form" onSubmit={saveStoreProfile}>
+          <label>
+            门店名称
+            <input value={storeName} onChange={(event) => setStoreName(event.target.value)} placeholder="例如 一宸 YiCh 皮肤管理中心" />
+          </label>
+          <label>
+            联系电话
+            <input value={storePhone} onChange={(event) => setStorePhone(event.target.value)} placeholder="门店联系电话" />
+          </label>
+          <label>
+            门店地址
+            <input value={storeAddress} onChange={(event) => setStoreAddress(event.target.value)} placeholder="门店详细地址" />
+          </label>
+          <label>
+            营业时间
+            <input value={businessHours} onChange={(event) => setBusinessHours(event.target.value)} placeholder="10:00 - 21:00" />
+          </label>
+          <button className="primary-button" type="submit"><LockKeyhole size={16} /> 保存门店资料</button>
+        </form>
       </section>
 
       <section className="admin-online-panel">

@@ -25,6 +25,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
     markAllNotificationsRead: () =>
       request<AppData>("/api/notifications/read-all", { method: "POST", token: getToken() }),
+    updateStoreProfile: (body: { name: string; phone: string; address: string; businessHours: string }) =>
+      request<AppData>("/api/store-profile", { method: "PATCH", body, token: getToken() }),
     addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>
       request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
     updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>

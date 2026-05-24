@@ -1231,12 +1231,27 @@ td {
 
 .admin-code-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 1fr) auto;
-  gap: 12px;
-  align-items: end;
-  padding: 18px;
+  gap: 16px;
+  padding: 20px;
   border-radius: 8px;
   background: #1b1816;
+}
+
+.admin-code-copy {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.store-profile-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.store-profile-form .primary-button {
+  align-self: end;
 }
 
 .admin-code-panel h2,
@@ -4350,6 +4365,14 @@ textarea,
   }
 
   .admin-profile-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-code-copy {
+    display: grid;
+  }
+
+  .store-profile-form {
     grid-template-columns: 1fr;
   }
 

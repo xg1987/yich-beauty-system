@@ -49,6 +49,13 @@ export type RegisterStoreInput = {
   password: string;
 };
 
+export type StoreProfileInput = {
+  name: string;
+  phone: string;
+  address: string;
+  businessHours: string;
+};
+
 export type StaffInput = {
   name: string;
   phone: string;
@@ -543,6 +550,32 @@ export function registerStore(
         createdAt,
       },
       ...data.operationLogs,
+    ],
+  };
+}
+
+export function updateStoreProfile(data: AppData, input: StoreProfileInput): AppData {
+  const current = data.storeProfiles[0];
+  if (!current) throw new Error("请先完成门店注册");
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+  const address = input.address.trim();
+  const businessHours = input.businessHours.trim();
+  if (!name) throw new Error("请输入门店名称");
+  if (!phone) throw new Error("请输入门店电话");
+  if (!businessHours) throw new Error("请输入营业时间");
+
+  return {
+    ...data,
+    storeProfiles: [
+      {
+        ...current,
+        name,
+        phone,
+        address,
+        businessHours,
+      },
+      ...data.storeProfiles.slice(1),
     ],
   };
 }

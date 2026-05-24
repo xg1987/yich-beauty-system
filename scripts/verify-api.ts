@@ -47,6 +47,14 @@ try {
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
 
+  const afterStoreProfile = await request<AppData>(baseUrl, "/api/store-profile", {
+    method: "PATCH",
+    token: session.token,
+    body: { name: "API 皮肤管理中心", phone: "13900000002", address: "API 新地址", businessHours: "09:30 - 22:00" },
+  });
+  assert.equal(afterStoreProfile.storeProfiles[0].name, "API 皮肤管理中心", "store profile API should update store name");
+  assert.equal(afterStoreProfile.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile API should update business hours");
+
   const publicStore = await request<{ storefront: { shareCode: string }; services: Array<{ id: string }> }>(baseUrl, "/api/public/store/yich-demo");
   assert.equal(publicStore.storefront.shareCode, "yich-demo", "public store API should expose enabled storefront");
   assert.ok(publicStore.services.some((service) => service.id === "v1"), "public store API should expose enabled services");
