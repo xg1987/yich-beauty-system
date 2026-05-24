@@ -768,13 +768,23 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [discountAmount, setDiscountAmount] = useState(0);
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [approvalId, setApprovalId] = useState("");
+  const [couponId, setCouponId] = useState("");
   const [approvalReason, setApprovalReason] = useState("客户活动价");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
 
   const availableCards = data.memberCards.filter((item) => item.customerId === customerId && item.status === "正常");
   const total = calculateOrderTotal(data, serviceId, productId || undefined);
-  const paidTotal = Math.max(0, total - discountAmount);
+  const availableCoupons = data.customerCoupons.filter((coupon) =>
+    coupon.customerId === customerId &&
+    coupon.status === "未使用" &&
+    +new Date(coupon.expiresAt) >= Date.now() &&
+    (!coupon.serviceId || coupon.serviceId === serviceId) &&
+    total >= coupon.minSpend,
+  );
+  const selectedCoupon = availableCoupons.find((coupon) => coupon.id === couponId);
+  const couponDiscount = selectedCoupon?.amount ?? 0;
+  const paidTotal = Math.max(0, total - discountAmount - couponDiscount);
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayPaid = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
@@ -792,6 +802,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         discountAmount: discountAmount || undefined,
         adjustmentReason: adjustmentReason || undefined,
         approvalId: approvalId || undefined,
+        couponId: couponId || undefined,
         payMethod,
         cardId: payMethod === "会员卡" ? cardId : undefined,
       }),
@@ -801,6 +812,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setDiscountAmount(0);
     setAdjustmentReason("");
     setApprovalId("");
+    setCouponId("");
   };
 
   const requestDiscountApproval = () => {
@@ -831,8 +843,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="快速开单" action="自动提成/扣库存" />
         <form className="form" onSubmit={checkout}>
-          <Select label="客户" value={customerId} onChange={(value) => { setCustomerId(value); setCardId(""); }} options={data.customers.map(optionOf)} />
-          <Select label="服务项目" value={serviceId} onChange={setServiceId} options={data.services.map(optionOf)} />
+          <Select label="客户" value={customerId} onChange={(value) => { setCustomerId(value); setCardId(""); setCouponId(""); }} options={data.customers.map(optionOf)} />
+          <Select label="服务项目" value={serviceId} onChange={(value) => { setServiceId(value); setCouponId(""); }} options={data.services.map(optionOf)} />
           <Select
             label="服务员工"
             value={staffId}
@@ -866,6 +878,15 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
             改价原因
             <input value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="如老客维护、活动价" />
           </label>
+          <Select
+            label="营销券"
+            value={couponId}
+            onChange={setCouponId}
+            options={[
+              { value: "", label: "不使用营销券" },
+              ...availableCoupons.map((coupon) => ({ value: coupon.id, label: `${coupon.name} · 抵扣${money(coupon.amount)} · 满${money(coupon.minSpend)}` })),
+            ]}
+          />
           {discountAmount > 0 && (
             <div className="sub-panel">
               <label>
@@ -889,6 +910,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           <div className="checkout-total">
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
+            {selectedCoupon && <small>已用营销券抵扣 {money(couponDiscount)}</small>}
           </div>
           <button className="primary-button" disabled={payMethod === "会员卡" && !cardId}>完成收银</button>
         </form>
@@ -972,6 +994,13 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [customerSource, setCustomerSource] = useState(data.customers[0]?.source ?? "门店登记");
   const [customerTags, setCustomerTags] = useState(data.customers[0]?.tags.join("，") ?? "新客");
   const [tagFilter, setTagFilter] = useState("");
+  const [couponName, setCouponName] = useState("新客护理满减券");
+  const [couponAmount, setCouponAmount] = useState(50);
+  const [couponMinSpend, setCouponMinSpend] = useState(300);
+  const [couponServiceId, setCouponServiceId] = useState("");
+  const [couponValidDays, setCouponValidDays] = useState(30);
+  const [issueCouponCustomerId, setIssueCouponCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [issueCouponTemplateId, setIssueCouponTemplateId] = useState(data.couponTemplates[0]?.id ?? "");
 
   useEffect(() => {
     const customer = data.customers.find((item) => item.id === tagCustomerId);
@@ -1049,6 +1078,29 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     );
   };
 
+  const createCoupon = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.createCouponTemplate({
+        name: couponName,
+        amount: couponAmount,
+        minSpend: couponMinSpend,
+        serviceId: couponServiceId || undefined,
+        validDays: couponValidDays,
+      }),
+    );
+  };
+
+  const issueCoupon = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.issueCustomerCoupon({
+        templateId: issueCouponTemplateId,
+        customerId: issueCouponCustomerId,
+      }),
+    );
+  };
+
   const activeCards = data.memberCards.filter((card) => card.status === "正常");
   const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
   const allTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
@@ -1061,6 +1113,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
   }).length;
+  const activeCoupons = data.customerCoupons.filter((coupon) => coupon.status === "未使用").length;
 
   return (
     <div className="page-stack">
@@ -1072,7 +1125,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         stats={[
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
           { label: "有效卡项", value: `${activeCards.length} 张`, hint: "储值与次数卡", icon: <CreditCard size={18} /> },
-          { label: "待回访", value: `${pendingFollowUps} 条`, hint: "护理后跟进", icon: <HeartHandshake size={18} /> },
+          { label: "营销券", value: `${activeCoupons} 张`, hint: "未使用客户券", icon: <BadgeCent size={18} /> },
         ]}
       />
       <div className="content-grid">
@@ -1091,6 +1144,21 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>客户来源<input value={customerSource} onChange={(event) => setCustomerSource(event.target.value)} placeholder="门店登记 / 抖音 / 转介绍" /></label>
           <label>客户标签<input value={customerTags} onChange={(event) => setCustomerTags(event.target.value)} placeholder="敏感肌，老客户，高消费" /></label>
           <button className="primary-button">保存标签</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<BadgeCent size={18} />} title="营销发券" action="活动券/客户券" />
+        <form className="form" onSubmit={createCoupon}>
+          <label>券名称<input value={couponName} onChange={(event) => setCouponName(event.target.value)} /></label>
+          <label>抵扣金额<input type="number" value={couponAmount} onChange={(event) => setCouponAmount(Number(event.target.value))} /></label>
+          <label>使用门槛<input type="number" value={couponMinSpend} onChange={(event) => setCouponMinSpend(Number(event.target.value))} /></label>
+          <Select label="适用项目" value={couponServiceId} onChange={setCouponServiceId} options={[{ value: "", label: "全项目通用" }, ...data.services.map(optionOf)]} />
+          <label>有效天数<input type="number" value={couponValidDays} onChange={(event) => setCouponValidDays(Number(event.target.value))} /></label>
+          <button className="primary-button">创建券模板</button>
+        </form>
+        <form className="form compact-form" onSubmit={issueCoupon}>
+          <Select label="发放客户" value={issueCouponCustomerId} onChange={setIssueCouponCustomerId} options={data.customers.map(optionOf)} />
+          <Select label="券模板" value={issueCouponTemplateId} onChange={setIssueCouponTemplateId} options={data.couponTemplates.map(optionOf)} />
+          <button className="primary-button" disabled={!issueCouponTemplateId}>发放给客户</button>
         </form>
         <div className="divider" />
         <PanelTitle icon={<CreditCard size={18} />} title="开卡/办卡" action="储值或次数" />
@@ -1181,6 +1249,20 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             ) : (
               "已处理"
             ),
+          ])}
+        />
+        <div className="divider" />
+        <PanelTitle icon={<BadgeCent size={18} />} title="客户营销券" action="发放/核销状态" />
+        <DataTable
+          columns={["客户", "券名称", "抵扣", "门槛", "适用项目", "状态", "到期"]}
+          rows={data.customerCoupons.map((coupon) => [
+            nameOf(data.customers, coupon.customerId),
+            coupon.name,
+            money(coupon.amount),
+            money(coupon.minSpend),
+            coupon.serviceId ? nameOf(data.services, coupon.serviceId) : "通用",
+            <Badge key={`${coupon.id}-status`} text={coupon.status} tone={coupon.status === "未使用" ? "ok" : "warn"} />,
+            shortDate(coupon.expiresAt),
           ])}
         />
         <div className="divider" />

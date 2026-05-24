@@ -12,6 +12,8 @@ export const seedData: AppData = {
   staffUnavailableSlots: [],
   staffShifts: [],
   memberCards: [],
+  couponTemplates: [],
+  customerCoupons: [],
   orders: [],
   refunds: [],
   commissions: [],

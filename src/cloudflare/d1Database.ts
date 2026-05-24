@@ -5,7 +5,9 @@ import type {
   Appointment,
   AuthUser,
   Commission,
+  CouponTemplate,
   Customer,
+  CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
   DailyClose,
@@ -42,6 +44,8 @@ const tableNames: TableName[] = [
   "staffUnavailableSlots",
   "staffShifts",
   "memberCards",
+  "couponTemplates",
+  "customerCoupons",
   "orders",
   "refunds",
   "commissions",
@@ -98,6 +102,8 @@ export class D1BeautyDatabase {
       ),
       staffShifts: await this.all("SELECT payload_json FROM staffShifts ORDER BY rowid DESC", mapJsonPayload<StaffShift>),
       memberCards: await this.all("SELECT * FROM memberCards ORDER BY rowid ASC", mapMemberCard),
+      couponTemplates: await this.all("SELECT payload_json FROM couponTemplates ORDER BY rowid DESC", mapJsonPayload<CouponTemplate>),
+      customerCoupons: await this.all("SELECT payload_json FROM customerCoupons ORDER BY rowid DESC", mapJsonPayload<CustomerCoupon>),
       orders: await this.all("SELECT * FROM orders ORDER BY rowid DESC", mapOrder),
       refunds: await this.all("SELECT * FROM refunds ORDER BY rowid DESC", mapRefund),
       commissions: await this.all("SELECT * FROM commissions ORDER BY rowid DESC", mapCommission),
@@ -246,10 +252,13 @@ export class D1BeautyDatabase {
       );
     }
 
+    this.writeJsonTable(statements, "couponTemplates", data.couponTemplates);
+    this.writeJsonTable(statements, "customerCoupons", data.customerCoupons);
+
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.orderNo,
@@ -263,6 +272,7 @@ export class D1BeautyDatabase {
             order.discountAmount ?? 0,
             order.adjustmentReason ?? null,
             order.approvalId ?? null,
+            order.couponId ?? null,
             order.payMethod,
             order.status,
             order.createdAt,
@@ -447,6 +457,7 @@ function mapOrder(row: unknown): Order {
     discountAmount: value.discountAmount ?? 0,
     adjustmentReason: value.adjustmentReason ?? undefined,
     approvalId: value.approvalId ?? undefined,
+    couponId: value.couponId ?? undefined,
   };
 }
 

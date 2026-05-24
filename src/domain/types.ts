@@ -131,6 +131,33 @@ export type MemberCard = {
   serviceIds?: string[];
 };
 
+export type CouponTemplate = {
+  id: string;
+  name: string;
+  type: "满减券";
+  amount: number;
+  minSpend: number;
+  serviceId?: string;
+  validDays: number;
+  status: "启用" | "停用";
+  createdAt: string;
+};
+
+export type CustomerCoupon = {
+  id: string;
+  templateId: string;
+  customerId: string;
+  name: string;
+  amount: number;
+  minSpend: number;
+  serviceId?: string;
+  status: "未使用" | "已使用" | "已过期" | "已作废";
+  issuedAt: string;
+  expiresAt: string;
+  usedOrderId?: string;
+  usedAt?: string;
+};
+
 export type Order = {
   id: string;
   orderNo: string;
@@ -144,6 +171,7 @@ export type Order = {
   discountAmount: number;
   adjustmentReason?: string;
   approvalId?: string;
+  couponId?: string;
   payMethod: "现金" | "微信" | "支付宝" | "银行卡" | "会员卡";
   status: "已支付" | "部分退款" | "已退款";
   createdAt: string;
@@ -301,6 +329,8 @@ export type AppData = {
   staffUnavailableSlots: StaffUnavailableSlot[];
   staffShifts: StaffShift[];
   memberCards: MemberCard[];
+  couponTemplates: CouponTemplate[];
+  customerCoupons: CustomerCoupon[];
   orders: Order[];
   refunds: Refund[];
   commissions: Commission[];

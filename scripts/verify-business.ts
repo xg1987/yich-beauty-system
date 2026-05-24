@@ -7,6 +7,7 @@ import {
   checkoutOrder,
   createAppointment,
   createApprovalRequest,
+  createCouponTemplate,
   createDailyClose,
   createStaffShift,
   createStaffInvite,
@@ -15,6 +16,7 @@ import {
   completeCustomerFollowUp,
   decideApprovalRequest,
   extendMemberCard,
+  issueCustomerCoupon,
   joinStaffInvite,
   receivePurchaseOrder,
   rechargeMemberCard,
@@ -315,6 +317,39 @@ function card(data: AppData, cardId: string) {
   assert.equal(card(refundedCard, "m1").balance, 0, "member card refund should clear balance");
   assert.equal(refundedCard.memberCardTransactions[0].type, "退卡", "member card refund should write card transaction");
   assert.equal(refundedCard.operationLogs[0].action, "会员退卡", "member card refund should write operation log");
+}
+
+{
+  const templateData = createCouponTemplate(
+    cloneSeed(),
+    { name: "老客护理券", amount: 60, minSpend: 300, serviceId: "v1", validDays: 15 },
+    { idFactory: testId, now: fixedNow },
+  );
+  const issuedData = issueCustomerCoupon(
+    templateData,
+    { templateId: templateData.couponTemplates[0].id, customerId: "c1" },
+    { idFactory: testId, now: fixedNow },
+  );
+  const checkedOut = checkoutOrder(
+    issuedData,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+      couponId: issuedData.customerCoupons[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOut.orders[0].paidAmount, 338, "customer coupon should reduce checkout paid amount");
+  assert.equal(checkedOut.orders[0].couponId, issuedData.customerCoupons[0].id, "order should keep coupon source");
+  assert.equal(checkedOut.customerCoupons[0].status, "已使用", "checkout should mark coupon used");
+  const refunded = refundOrder(
+    checkedOut,
+    { orderId: checkedOut.orders[0].id, reason: "撤销订单", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(refunded.customerCoupons[0].status, "未使用", "full refund should restore used coupon");
 }
 
 {

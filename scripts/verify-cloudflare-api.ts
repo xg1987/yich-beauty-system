@@ -184,6 +184,25 @@ const afterApprovalDecision = await request<AppData>(baseUrl, `/api/approvals/${
 });
 assert.equal(afterApprovalDecision.approvalRequests[0].status, "已通过", "D1 should approve requests");
 
+const afterCouponTemplate = await request<AppData>(baseUrl, "/api/coupon-templates", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: "Cloudflare 新客券", amount: 50, minSpend: 300, serviceId, validDays: 20 },
+});
+const afterIssueCoupon = await request<AppData>(baseUrl, "/api/customer-coupons", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { templateId: afterCouponTemplate.couponTemplates[0].id, customerId },
+});
+const cloudflareCouponId = afterIssueCoupon.customerCoupons[0].id;
+const afterCouponCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { customerId, staffId: therapistStaffId, serviceId, payMethod: "微信", couponId: cloudflareCouponId },
+});
+assert.equal(afterCouponCheckout.orders[0].paidAmount, 348, "D1 should persist coupon checkout discount");
+assert.equal(afterCouponCheckout.customerCoupons.find((item) => item.id === cloudflareCouponId)?.status, "已使用", "D1 should mark coupon used");
+
 const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",
   token: ownerSession.token,

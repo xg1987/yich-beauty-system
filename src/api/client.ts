@@ -32,6 +32,7 @@ export function createApiClient(getToken: () => string | undefined) {
       discountAmount?: number;
       adjustmentReason?: string;
       approvalId?: string;
+      couponId?: string;
       payMethod: Order["payMethod"];
       cardId?: string;
     }) => request<AppData>("/api/checkout", { method: "POST", body, token: getToken() }),
@@ -69,6 +70,10 @@ export function createApiClient(getToken: () => string | undefined) {
       serviceIds?: string[];
     }) =>
       request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
+    createCouponTemplate: (body: { name: string; amount: number; minSpend: number; serviceId?: string; validDays: number }) =>
+      request<AppData>("/api/coupon-templates", { method: "POST", body, token: getToken() }),
+    issueCustomerCoupon: (body: { templateId: string; customerId: string }) =>
+      request<AppData>("/api/customer-coupons", { method: "POST", body, token: getToken() }),
     refundMemberCard: (memberCardId: string, reason: string) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/refund`, {
         method: "POST",

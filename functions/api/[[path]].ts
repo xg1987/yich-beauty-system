@@ -8,6 +8,7 @@ import {
   checkoutOrder,
   createAppointment,
   createApprovalRequest,
+  createCouponTemplate,
   createDailyClose,
   createStaffShift,
   createStaffUnavailableSlot,
@@ -24,6 +25,7 @@ import {
   reverseDailyClose,
   transferMemberCard,
   joinStaffInvite,
+  issueCustomerCoupon,
   updateStaffMember,
   updateMemberCardStatus,
 } from "../../src/domain/business";
@@ -176,6 +178,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           discountAmount: optionalNumber(body, "discountAmount"),
           adjustmentReason: optionalString(body, "adjustmentReason"),
           approvalId: optionalString(body, "approvalId"),
+          couponId: optionalString(body, "couponId"),
           payMethod: requiredString(body, "payMethod") as Order["payMethod"],
           cardId: optionalString(body, "cardId"),
         }),
@@ -406,6 +409,49 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ...data.memberCardTransactions,
         ],
       }));
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/coupon-templates") {
+      requirePermission(session, "customers:manage");
+      const body = await readJson(context.request);
+      const nextData = addOperationLog(
+        createCouponTemplate(await database.readData(), {
+          name: requiredString(body, "name"),
+          amount: requiredNumber(body, "amount"),
+          minSpend: requiredNumber(body, "minSpend"),
+          serviceId: optionalString(body, "serviceId"),
+          validDays: requiredNumber(body, "validDays"),
+        }),
+        {
+          userId: session.user.id,
+          action: "创建营销券",
+          targetType: "couponTemplate",
+          targetId: "latest",
+          summary: `${session.user.name} 创建营销券 ${requiredString(body, "name")}`,
+        },
+      );
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/customer-coupons") {
+      requirePermission(session, "customers:manage");
+      const body = await readJson(context.request);
+      const nextData = addOperationLog(
+        issueCustomerCoupon(await database.readData(), {
+          templateId: requiredString(body, "templateId"),
+          customerId: requiredString(body, "customerId"),
+        }),
+        {
+          userId: session.user.id,
+          action: "客户发券",
+          targetType: "customerCoupon",
+          targetId: "latest",
+          summary: `${session.user.name} 给客户发放营销券`,
+        },
+      );
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
     }
@@ -725,6 +771,8 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     orders,
     refunds: sanitizedData.refunds.filter((item) => orderIds.has(item.orderId)),
     commissions: sanitizedData.commissions.filter((item) => item.staffId === staffId),
+    couponTemplates: [],
+    customerCoupons: sanitizedData.customerCoupons.filter((item) => customerIds.has(item.customerId)),
     approvalRequests: [],
     authUsers: sanitizedData.authUsers.filter((item) => item.staffId === staffId || item.id === session.user.id),
     staffInvites: [],

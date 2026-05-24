@@ -1,6 +1,8 @@
 import type {
   AppData,
   ApprovalRequest,
+  CouponTemplate,
+  CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
   DailyClose,
@@ -66,8 +68,22 @@ export type CheckoutInput = {
   discountAmount?: number;
   adjustmentReason?: string;
   approvalId?: string;
+  couponId?: string;
   payMethod: Order["payMethod"];
   cardId?: string;
+};
+
+export type CouponTemplateInput = {
+  name: string;
+  amount: number;
+  minSpend: number;
+  serviceId?: string;
+  validDays: number;
+};
+
+export type IssueCouponInput = {
+  templateId: string;
+  customerId: string;
 };
 
 export type InventoryAdjustmentInput = {
@@ -394,6 +410,63 @@ export function joinStaffInvite(
   };
 }
 
+export function createCouponTemplate(
+  data: AppData,
+  input: CouponTemplateInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  if (input.amount <= 0) throw new Error("券面额必须大于 0");
+  if (input.minSpend < 0) throw new Error("使用门槛不能小于 0");
+  if (input.amount >= input.minSpend && input.minSpend > 0) throw new Error("券面额不能大于等于使用门槛");
+  if (input.validDays <= 0) throw new Error("有效天数必须大于 0");
+  const template: CouponTemplate = {
+    id: idFactory("cp"),
+    name: input.name,
+    type: "满减券",
+    amount: input.amount,
+    minSpend: input.minSpend,
+    serviceId: input.serviceId,
+    validDays: input.validDays,
+    status: "启用",
+    createdAt,
+  };
+  return {
+    ...data,
+    couponTemplates: [template, ...data.couponTemplates],
+  };
+}
+
+export function issueCustomerCoupon(
+  data: AppData,
+  input: IssueCouponInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const issuedAt = (options.now ?? nowIso)();
+  const template = data.couponTemplates.find((item) => item.id === input.templateId && item.status === "启用");
+  if (!template) throw new Error("优惠券模板不存在或已停用");
+  if (!data.customers.some((item) => item.id === input.customerId)) throw new Error("客户不存在");
+  const expiresAt = new Date(+new Date(issuedAt) + template.validDays * 86400000).toISOString();
+  const coupon: CustomerCoupon = {
+    id: idFactory("cc"),
+    templateId: template.id,
+    customerId: input.customerId,
+    name: template.name,
+    amount: template.amount,
+    minSpend: template.minSpend,
+    serviceId: template.serviceId,
+    status: "未使用",
+    issuedAt,
+    expiresAt,
+  };
+  return {
+    ...data,
+    customerCoupons: [coupon, ...data.customerCoupons],
+  };
+}
+
 export function checkoutOrder(
   data: AppData,
   input: CheckoutInput,
@@ -409,13 +482,12 @@ export function checkoutOrder(
 
   assertBusinessDateOpen(data, currentTime().slice(0, 10));
 
+  const selectedCard = input.payMethod === "会员卡"
+    ? data.memberCards.find((item) => item.id === input.cardId && item.customerId === input.customerId)
+    : undefined;
   if (input.payMethod === "会员卡") {
-    const selectedCard = data.memberCards.find((item) => item.id === input.cardId && item.customerId === input.customerId);
     if (!selectedCard || selectedCard.status !== "正常") {
       throw new Error("请选择有效会员卡");
-    }
-    if (selectedCard.type === "储值卡" && selectedCard.balance < calculateOrderTotal(data, input.serviceId, input.productId)) {
-      throw new Error("会员卡余额不足");
     }
     if (selectedCard.type !== "储值卡" && selectedCard.remainingTimes <= 0) {
       throw new Error("会员卡次数不足");
@@ -430,15 +502,24 @@ export function checkoutOrder(
 
   const total = calculateOrderTotal(data, input.serviceId, input.productId);
   const discountAmount = input.discountAmount ?? 0;
-  if (discountAmount < 0 || discountAmount >= total) {
+  if (discountAmount < 0) {
     throw new Error("折扣金额无效");
   }
   if (discountAmount > 0 && !hasApprovedRequest(data, input.approvalId, "改价折扣", discountAmount)) {
     throw new Error("改价折扣需要审批通过");
   }
-  const paidAmount = total - discountAmount;
   const orderId = idFactory("o");
   const createdAt = currentTime();
+  const selectedCoupon = input.couponId ? data.customerCoupons.find((item) => item.id === input.couponId) : undefined;
+  const couponDiscount = selectedCoupon ? validateCustomerCoupon(selectedCoupon, input.customerId, input.serviceId, total, createdAt) : 0;
+  const totalDiscount = discountAmount + couponDiscount;
+  if (totalDiscount >= total) {
+    throw new Error("优惠金额无效");
+  }
+  const paidAmount = total - totalDiscount;
+  if (selectedCard?.type === "储值卡" && selectedCard.balance < paidAmount) {
+    throw new Error("会员卡余额不足");
+  }
   const order: Order = {
     id: orderId,
     orderNo: `SO${Date.now().toString().slice(-8)}`,
@@ -449,9 +530,12 @@ export function checkoutOrder(
     cardId: input.payMethod === "会员卡" ? input.cardId : undefined,
     totalAmount: total,
     paidAmount,
-    discountAmount,
-    adjustmentReason: input.adjustmentReason,
+    discountAmount: totalDiscount,
+    adjustmentReason: selectedCoupon
+      ? [input.adjustmentReason, `营销券：${selectedCoupon.name}`].filter(Boolean).join("；")
+      : input.adjustmentReason,
     approvalId: input.approvalId,
+    couponId: selectedCoupon?.id,
     payMethod: input.payMethod,
     status: "已支付",
     createdAt,
@@ -517,6 +601,11 @@ export function checkoutOrder(
     inventoryLogs,
     orders: [order, ...data.orders],
     memberCardTransactions,
+    customerCoupons: selectedCoupon
+      ? data.customerCoupons.map((coupon) =>
+          coupon.id === selectedCoupon.id ? { ...coupon, status: "已使用", usedOrderId: orderId, usedAt: createdAt } : coupon,
+        )
+      : data.customerCoupons,
     customers: data.customers.map((customer) => (customer.id === input.customerId ? { ...customer, lastVisit: createdAt } : customer)),
     commissions: [
       ...commissionStaffIds.map((staffId, index) => ({
@@ -648,6 +737,13 @@ export function refundOrder(
           }
         : item,
     ),
+    customerCoupons: isFullRefund && order.couponId
+      ? data.customerCoupons.map((coupon) =>
+          coupon.id === order.couponId
+            ? { ...coupon, status: "未使用", usedOrderId: undefined, usedAt: undefined }
+            : coupon,
+        )
+      : data.customerCoupons,
     commissions: data.commissions.map((item) =>
       item.orderId === order.id
         ? {
@@ -1466,6 +1562,15 @@ export function reportSummary(data: AppData) {
 function hasApprovedRequest(data: AppData, approvalId: string | undefined, type: ApprovalRequest["type"], amount: number) {
   if (!approvalId) return false;
   return data.approvalRequests.some((item) => item.id === approvalId && item.type === type && item.status === "已通过" && item.amount >= amount);
+}
+
+function validateCustomerCoupon(coupon: CustomerCoupon, customerId: string, serviceId: string, total: number, createdAt: string) {
+  if (coupon.customerId !== customerId) throw new Error("优惠券不属于当前客户");
+  if (coupon.status !== "未使用") throw new Error("优惠券不可用");
+  if (+new Date(coupon.expiresAt) < +new Date(createdAt)) throw new Error("优惠券已过期");
+  if (coupon.serviceId && coupon.serviceId !== serviceId) throw new Error("优惠券不可用于当前项目");
+  if (total < coupon.minSpend) throw new Error("订单金额未达到优惠券门槛");
+  return coupon.amount;
 }
 
 function assertBusinessDateOpen(data: AppData, businessDate: string) {

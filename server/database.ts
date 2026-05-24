@@ -8,7 +8,9 @@ import type {
   Appointment,
   AuthUser,
   Commission,
+  CouponTemplate,
   Customer,
+  CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
   DailyClose,
@@ -46,6 +48,8 @@ const tableNames: TableName[] = [
   "staffUnavailableSlots",
   "staffShifts",
   "memberCards",
+  "couponTemplates",
+  "customerCoupons",
   "orders",
   "refunds",
   "commissions",
@@ -123,6 +127,8 @@ export class BeautyDatabase {
         .map(mapStaffUnavailableSlot),
       staffShifts: this.db.prepare("SELECT payload_json FROM staffShifts ORDER BY rowid DESC").all().map(mapJsonPayload<StaffShift>),
       memberCards: this.db.prepare("SELECT * FROM memberCards ORDER BY rowid ASC").all().map(mapMemberCard),
+      couponTemplates: this.db.prepare("SELECT payload_json FROM couponTemplates ORDER BY rowid DESC").all().map(mapJsonPayload<CouponTemplate>),
+      customerCoupons: this.db.prepare("SELECT payload_json FROM customerCoupons ORDER BY rowid DESC").all().map(mapJsonPayload<CustomerCoupon>),
       orders: this.db.prepare("SELECT * FROM orders ORDER BY rowid DESC").all().map(mapOrder),
       refunds: this.db.prepare("SELECT * FROM refunds ORDER BY rowid DESC").all().map(mapRefund),
       commissions: this.db.prepare("SELECT * FROM commissions ORDER BY rowid DESC").all().map(mapCommission),
@@ -253,10 +259,13 @@ export class BeautyDatabase {
         );
     }
 
+    this.writeJsonTable("couponTemplates", data.couponTemplates);
+    this.writeJsonTable("customerCoupons", data.customerCoupons);
+
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -271,6 +280,7 @@ export class BeautyDatabase {
           order.discountAmount ?? 0,
           order.adjustmentReason ?? null,
           order.approvalId ?? null,
+          order.couponId ?? null,
           order.payMethod,
           order.status,
           order.createdAt,
@@ -472,6 +482,16 @@ export class BeautyDatabase {
         serviceIds_json TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS couponTemplates (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS customerCoupons (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
         orderNo TEXT NOT NULL,
@@ -485,6 +505,7 @@ export class BeautyDatabase {
         discountAmount REAL NOT NULL DEFAULT 0,
         adjustmentReason TEXT,
         approvalId TEXT,
+        couponId TEXT,
         payMethod TEXT NOT NULL,
         status TEXT NOT NULL,
         createdAt TEXT NOT NULL
@@ -602,6 +623,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "discountAmount", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("orders", "adjustmentReason", "TEXT");
     this.addColumnIfMissing("orders", "approvalId", "TEXT");
+    this.addColumnIfMissing("orders", "couponId", "TEXT");
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
@@ -670,6 +692,7 @@ function mapOrder(row: unknown): Order {
     discountAmount: value.discountAmount ?? 0,
     adjustmentReason: value.adjustmentReason ?? undefined,
     approvalId: value.approvalId ?? undefined,
+    couponId: value.couponId ?? undefined,
   };
 }
 
