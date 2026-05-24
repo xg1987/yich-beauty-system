@@ -179,12 +179,31 @@ function card(data: AppData, cardId: string) {
   assert.equal(productStock(data, "p4"), 23, "retail product stock should decrease");
   assert.equal(data.inventoryLogs.length, 2, "service and retail stock changes should both log");
   assert.equal(data.commissions[0].amount, 72, "commission should be 12 percent rounded");
+  assert.equal(data.commissions[0].rate, 0.12, "commission should persist staff commission rate");
   assert.equal(data.operationLogs.length, 0, "pure business checkout should not require operation log");
 
   const summary = reportSummary(data);
   assert.equal(summary.revenue, 597, "report revenue should match paid amount");
   assert.equal(summary.serviceCount, 1, "report service count should track paid orders");
   assert.equal(summary.commission, 72, "report commission should aggregate commission records");
+}
+
+{
+  const customRateData = checkoutOrder(
+    {
+      ...cloneSeed(),
+      staff: cloneSeed().staff.map((staff) => (staff.id === "s2" ? { ...staff, commissionRate: 0.2 } : staff)),
+    },
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(customRateData.commissions[0].rate, 0.2, "commission should use staff profile commission rate");
+  assert.equal(customRateData.commissions[0].amount, 80, "custom staff rate should change commission amount");
 }
 
 {

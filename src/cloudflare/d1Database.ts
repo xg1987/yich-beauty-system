@@ -332,13 +332,14 @@ export class D1BeautyDatabase {
     for (const commission of data.commissions) {
       statements.push(
         this.statement(
-          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, amount, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, rate, amount, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             commission.id,
             commission.staffId,
             commission.orderId,
             commission.type,
             commission.baseAmount,
+            commission.rate ?? 0,
             commission.amount,
             commission.status,
             commission.createdAt,
@@ -505,7 +506,8 @@ function mapRefund(row: unknown): Refund {
 }
 
 function mapCommission(row: unknown): Commission {
-  return row as Commission;
+  const value = row as Commission;
+  return { ...value, rate: value.rate ?? 0 };
 }
 
 function mapInventoryLog(row: unknown): InventoryLog {

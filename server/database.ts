@@ -331,7 +331,7 @@ export class BeautyDatabase {
     for (const commission of data.commissions) {
       this.db
         .prepare(
-          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, amount, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, rate, amount, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           commission.id,
@@ -339,6 +339,7 @@ export class BeautyDatabase {
           commission.orderId,
           commission.type,
           commission.baseAmount,
+          commission.rate ?? 0,
           commission.amount,
           commission.status,
           commission.createdAt,
@@ -591,6 +592,7 @@ export class BeautyDatabase {
         orderId TEXT NOT NULL,
         type TEXT NOT NULL,
         baseAmount REAL NOT NULL,
+        rate REAL NOT NULL DEFAULT 0,
         amount REAL NOT NULL,
         status TEXT NOT NULL,
         createdAt TEXT NOT NULL
@@ -705,6 +707,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "couponId", "TEXT");
     this.addColumnIfMissing("orders", "activityId", "TEXT");
     this.addColumnIfMissing("orders", "distributorId", "TEXT");
+    this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
@@ -784,7 +787,8 @@ function mapRefund(row: unknown): Refund {
 }
 
 function mapCommission(row: unknown): Commission {
-  return row as Commission;
+  const value = row as Commission;
+  return { ...value, rate: value.rate ?? 0 };
 }
 
 function mapInventoryLog(row: unknown): InventoryLog {

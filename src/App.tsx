@@ -1878,6 +1878,17 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingCommission = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
   const pendingDistributionCommission = data.distributionCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const salaryRows = data.staff.map((staff) => {
+    const staffCommissions = data.commissions.filter((item) => item.staffId === staff.id && item.status !== "已冲销");
+    const pending = staffCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+    const settled = staffCommissions.filter((item) => item.status === "已结算").reduce((sum, item) => sum + item.amount, 0);
+    return {
+      staff,
+      pending,
+      settled,
+      expected: (staff.baseSalary ?? 0) + pending + settled,
+    };
+  });
 
   return (
     <div className="page-stack">
@@ -1958,6 +1969,19 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           ])}
         />
         <div className="divider" />
+        <PanelTitle icon={<HeartHandshake size={18} />} title="薪资汇总" action="底薪 + 提成" />
+        <DataTable
+          columns={["员工", "岗位", "底薪", "待结提成", "已结提成", "预计薪资"]}
+          rows={salaryRows.map((row) => [
+            row.staff.name,
+            row.staff.role,
+            money(row.staff.baseSalary ?? 0),
+            money(row.pending),
+            money(row.settled),
+            money(row.expected),
+          ])}
+        />
+        <div className="divider" />
         <PanelTitle icon={<LockKeyhole size={18} />} title="邀请记录" action={`${data.staffInvites.length} 条`} />
         <DataTable
           columns={["员工", "账号", "角色", "状态", "邀请码", "创建时间"]}
@@ -1977,11 +2001,12 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           action={hasPermission(session, "commissions:settle") ? <button onClick={settleAll}>全部结算</button> : "仅查看"}
         />
         <DataTable
-          columns={["员工", "类型", "计算基数", "提成", "状态", "时间"]}
+          columns={["员工", "类型", "计算基数", "比例", "提成", "状态", "时间"]}
           rows={data.commissions.map((item) => [
             nameOf(data.staff, item.staffId),
             item.type,
             money(item.baseAmount),
+            `${Math.round((item.rate ?? 0) * 100)}%`,
             money(item.amount),
             <Badge key={item.id} text={item.status} />,
             shortDate(item.createdAt),

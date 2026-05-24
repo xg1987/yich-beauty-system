@@ -320,6 +320,7 @@ const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
 const orderId = afterCheckout.orders[0].id;
 assert.equal(afterCheckout.orders[0].paidAmount, 547, "approved checkout should persist in D1");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "checkout should create commission in D1");
+assert.equal(afterCheckout.commissions.find((item) => item.orderId === orderId)?.rate, 0.1, "D1 should persist staff commission rate");
 
 const afterPartialRefund = await request<AppData>(baseUrl, `/api/orders/${orderId}/refund`, {
   method: "POST",

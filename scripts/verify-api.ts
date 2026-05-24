@@ -381,6 +381,7 @@ try {
   assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 14, "checkout API should consume service stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 23, "checkout API should consume retail stock");
   assert.equal(afterCheckout.commissions[0].amount, 72, "checkout API should create commission");
+  assert.equal(afterCheckout.commissions[0].rate, 0.12, "checkout API should persist staff commission rate");
   assert.equal(afterCheckout.operationLogs[0].action, "开单收银", "checkout API should write operation log");
 
   const afterRefund = await request<AppData>(baseUrl, `/api/orders/${afterCheckout.orders[0].id}/refund`, {

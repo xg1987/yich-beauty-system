@@ -397,6 +397,10 @@ function normalizeTagStatus(value?: TagDefinition["status"]) {
   throw new Error("标签状态不正确");
 }
 
+function staffCommissionRate(data: AppData, staffId: string) {
+  return data.staff.find((staff) => staff.id === staffId)?.commissionRate ?? 0;
+}
+
 export function registerStore(
   data: AppData,
   input: RegisterStoreInput,
@@ -1029,9 +1033,8 @@ export function checkoutOrder(
       ]
     : data.activityParticipants;
 
-  const commissionTotal = Math.round(paidAmount * 0.12);
   const commissionStaffIds = uniqueIds([input.staffId, ...(input.collaboratorStaffIds ?? [])]);
-  const commissionAmounts = splitAmount(commissionTotal, commissionStaffIds.length);
+  const commissionBaseAmounts = splitAmount(Math.round(paidAmount), commissionStaffIds.length);
   const shouldCreateReferralRelation =
     selectedDistributor && !existingReferral && !data.referralRelations.some((item) => item.customerId === input.customerId && item.status === "有效");
   const referralRelations = shouldCreateReferralRelation
@@ -1083,8 +1086,9 @@ export function checkoutOrder(
         staffId,
         orderId,
         type: "服务提成" as const,
-        baseAmount: Math.round(paidAmount / commissionStaffIds.length),
-        amount: commissionAmounts[index],
+        baseAmount: commissionBaseAmounts[index],
+        rate: staffCommissionRate(data, staffId),
+        amount: Math.round(commissionBaseAmounts[index] * staffCommissionRate(data, staffId)),
         status: "待结算" as const,
         createdAt,
       })),

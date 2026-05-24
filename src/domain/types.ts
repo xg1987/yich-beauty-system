@@ -275,6 +275,7 @@ export type Commission = {
   orderId: string;
   type: "服务提成" | "销售提成";
   baseAmount: number;
+  rate: number;
   amount: number;
   status: "待结算" | "已结算" | "已冲销";
   createdAt: string;
