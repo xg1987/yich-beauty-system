@@ -28,11 +28,13 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  SystemNotification,
   Stocktake,
   Supplier,
   TagDefinition,
   TagScope,
   UserRole,
+  ViewKey,
 } from "./types";
 import { makeId, nowIso } from "./utils";
 
@@ -199,6 +201,27 @@ export type OperationLogInput = {
   targetType: string;
   targetId: string;
   summary: string;
+};
+
+export type NotificationInput = {
+  title: string;
+  desc: string;
+  view: ViewKey;
+  targetType: string;
+  targetId: string;
+  audienceRoles: UserRole[];
+  staffId?: string;
+};
+
+export type NotificationReadInput = {
+  notificationId: string;
+  userId: string;
+};
+
+export type NotificationReadAllInput = {
+  userId: string;
+  role: UserRole;
+  staffId?: string;
 };
 
 export type AppointmentInput = {
@@ -1686,6 +1709,60 @@ export function addOperationLog(
     ...data,
     operationLogs: [operationLog, ...data.operationLogs],
   };
+}
+
+export function addSystemNotification(
+  data: AppData,
+  input: NotificationInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const currentTime = options.now ?? nowIso;
+  const notification: SystemNotification = {
+    id: idFactory("ntf"),
+    title: input.title,
+    desc: input.desc,
+    view: input.view,
+    targetType: input.targetType,
+    targetId: input.targetId,
+    audienceRoles: input.audienceRoles,
+    staffId: input.staffId,
+    readByUserIds: [],
+    createdAt: currentTime(),
+  };
+
+  return {
+    ...data,
+    notifications: [notification, ...(data.notifications ?? [])],
+  };
+}
+
+export function markNotificationRead(data: AppData, input: NotificationReadInput): AppData {
+  return {
+    ...data,
+    notifications: (data.notifications ?? []).map((notification) =>
+      notification.id === input.notificationId && !notification.readByUserIds.includes(input.userId)
+        ? { ...notification, readByUserIds: [input.userId, ...notification.readByUserIds] }
+        : notification,
+    ),
+  };
+}
+
+export function markAllVisibleNotificationsRead(data: AppData, input: NotificationReadAllInput): AppData {
+  return {
+    ...data,
+    notifications: (data.notifications ?? []).map((notification) =>
+      notificationVisibleTo(notification, input.role, input.staffId) && !notification.readByUserIds.includes(input.userId)
+        ? { ...notification, readByUserIds: [input.userId, ...notification.readByUserIds] }
+        : notification,
+    ),
+  };
+}
+
+function notificationVisibleTo(notification: SystemNotification, role: UserRole, staffId?: string) {
+  if (!notification.audienceRoles.includes(role)) return false;
+  if (role === "therapist" && notification.staffId) return notification.staffId === staffId;
+  return true;
 }
 
 export function createAppointment(

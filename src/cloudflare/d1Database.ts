@@ -32,6 +32,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  SystemNotification,
   Stocktake,
   StoreProfile,
   Supplier,
@@ -70,6 +71,7 @@ const tableNames: TableName[] = [
   "inventoryLogs",
   "memberCardTransactions",
   "operationLogs",
+  "notifications",
   "dailyCloses",
   "approvalRequests",
   "customerServiceRecords",
@@ -140,6 +142,7 @@ export class D1BeautyDatabase {
         mapMemberCardTransaction,
       ),
       operationLogs: await this.all("SELECT * FROM operationLogs ORDER BY rowid DESC", mapOperationLog),
+      notifications: await this.all("SELECT payload_json FROM notifications ORDER BY rowid DESC", mapJsonPayload<SystemNotification>),
       dailyCloses: await this.all("SELECT * FROM dailyCloses ORDER BY businessDate DESC", mapDailyClose),
       approvalRequests: await this.all("SELECT payload_json FROM approvalRequests ORDER BY rowid DESC", mapJsonPayload<ApprovalRequest>),
       customerServiceRecords: await this.all(
@@ -406,6 +409,8 @@ export class D1BeautyDatabase {
         ),
       );
     }
+
+    this.writeJsonTable(statements, "notifications", data.notifications ?? []);
 
     for (const close of data.dailyCloses) {
       statements.push(

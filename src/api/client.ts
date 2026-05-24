@@ -21,6 +21,10 @@ export function createApiClient(getToken: () => string | undefined) {
     createPublicBookingRequest: (body: { shareCode: string; customerName: string; phone: string; serviceId: string; preferredAt: string; note?: string }) =>
       request<{ ok: boolean }>("/api/public/online-booking-requests", { method: "POST", body }),
     fetchData: () => request<AppData>("/api/data", { token: getToken() }),
+    markNotificationRead: (notificationId: string) =>
+      request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
+    markAllNotificationsRead: () =>
+      request<AppData>("/api/notifications/read-all", { method: "POST", token: getToken() }),
     addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>
       request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
     updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>

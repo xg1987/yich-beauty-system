@@ -138,6 +138,8 @@ export function useApiData() {
     settleCommissions: client.settleCommissions,
     createDailyClose: client.createDailyClose,
     reverseDailyClose: client.reverseDailyClose,
+    markNotificationRead: client.markNotificationRead,
+    markAllNotificationsRead: client.markAllNotificationsRead,
   };
 
   return {

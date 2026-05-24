@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import {
   addOperationLog,
+  addSystemNotification,
   addCustomerFollowUp,
   addCustomerServiceRecord,
   addStaffMember,
@@ -39,6 +40,8 @@ import {
   upsertOnlineStorefront,
   joinStaffInvite,
   issueCustomerCoupon,
+  markAllVisibleNotificationsRead,
+  markNotificationRead,
   updateTagDefinition,
   updateStaffMember,
   updateMemberCardStatus,
@@ -113,13 +116,22 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "POST" && url.pathname === "/api/public/online-booking-requests") {
         const body = await readJson(request);
-        const nextData = createOnlineBookingRequest(database.readData(), {
+        const requestedData = createOnlineBookingRequest(database.readData(), {
           shareCode: requiredString(body, "shareCode"),
           customerName: requiredString(body, "customerName"),
           phone: requiredString(body, "phone"),
           serviceId: requiredString(body, "serviceId"),
           preferredAt: requiredString(body, "preferredAt"),
           note: optionalString(body, "note") ?? "",
+        });
+        const bookingRequest = requestedData.onlineBookingRequests[0];
+        const nextData = addSystemNotification(requestedData, {
+          title: "新的线上预约申请",
+          desc: `${bookingRequest.customerName} 提交了到店预约意向`,
+          view: "appointments",
+          targetType: "onlineBookingRequest",
+          targetId: bookingRequest.id,
+          audienceRoles: ["owner", "manager", "frontdesk"],
         });
         database.replaceData(nextData);
         sendJson(response, 201, { ok: true });
@@ -140,6 +152,25 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "GET" && url.pathname === "/api/data") {
         requirePermission(session, "dashboard:view");
         sendJson(response, 200, scopeDataForSession(database.readData(), session));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/notifications/") && url.pathname.endsWith("/read")) {
+        const notificationId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const nextData = markNotificationRead(database.readData(), { notificationId, userId: session.user.id });
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/notifications/read-all") {
+        const nextData = markAllVisibleNotificationsRead(database.readData(), {
+          userId: session.user.id,
+          role: session.user.role,
+          staffId: session.user.staffId,
+        });
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
 
@@ -294,7 +325,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/inventory/adjust") {
         requirePermission(session, "inventory:manage");
         const body = await readJson(request);
-        const nextData = addOperationLog(
+        const adjustedData = addOperationLog(
           adjustInventory(database.readData(), {
             productId: requiredString(body, "productId"),
             type: requiredString(body, "type") as InventoryLog["type"],
@@ -309,6 +340,17 @@ export function createApiServer(database = new BeautyDatabase()) {
             summary: `${session.user.name} ${requiredString(body, "type")} ${requiredNumber(body, "quantity")}`,
           },
         );
+        const product = adjustedData.products.find((item) => item.id === requiredString(body, "productId"));
+        const nextData = product && product.stock <= product.warningStock
+          ? addSystemNotification(adjustedData, {
+              title: "库存低于预警值",
+              desc: `${product.name} 当前库存 ${product.stock}${product.unit}`,
+              view: "inventory",
+              targetType: "product",
+              targetId: product.id,
+              audienceRoles: ["owner", "manager"],
+            })
+          : adjustedData;
         database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
         return;
@@ -317,7 +359,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/appointments") {
         requirePermission(session, "appointments:manage");
         const body = await readJson(request);
-        const nextData = updateData(database, session, {
+        const appointedData = updateData(database, session, {
           action: "新增预约",
           targetType: "appointment",
           targetId: "latest",
@@ -331,6 +373,19 @@ export function createApiServer(database = new BeautyDatabase()) {
             note: optionalString(body, "note") ?? "",
           }),
         );
+        const appointment = appointedData.appointments[0];
+        const customer = appointedData.customers.find((item) => item.id === appointment.customerId);
+        const service = appointedData.services.find((item) => item.id === appointment.serviceId);
+        const nextData = addSystemNotification(appointedData, {
+          title: "新的到店预约",
+          desc: `${customer?.name ?? "客户"} · ${service?.name ?? "项目"} · ${shortTimeText(appointment.startAt)}`,
+          view: "appointments",
+          targetType: "appointment",
+          targetId: appointment.id,
+          audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
+          staffId: appointment.staffId,
+        });
+        database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
         return;
       }
@@ -723,12 +778,21 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/approvals") {
         requirePermission(session, "pos:manage");
         const body = await readJson(request);
-        const nextData = createApprovalRequest(database.readData(), {
+        const approvalData = createApprovalRequest(database.readData(), {
           type: requiredString(body, "type") as "改价折扣" | "订单退款",
           targetId: requiredString(body, "targetId"),
           requestedBy: session.user.id,
           amount: requiredNumber(body, "amount"),
           reason: optionalString(body, "reason") ?? "门店审批",
+        });
+        const approval = approvalData.approvalRequests[0];
+        const nextData = addSystemNotification(approvalData, {
+          title: "新的审批待处理",
+          desc: `${approval.type} · ${approval.reason}`,
+          view: "approvals",
+          targetType: "approvalRequest",
+          targetId: approval.id,
+          audienceRoles: ["owner", "manager", "finance"],
         });
         database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
@@ -752,7 +816,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/service-records") {
         requirePermission(session, "customers:manage");
         const body = await readJson(request);
-        const nextData = addCustomerServiceRecord(database.readData(), {
+        const recordData = addCustomerServiceRecord(database.readData(), {
           customerId: requiredString(body, "customerId"),
           staffId: requiredString(body, "staffId"),
           serviceId: requiredString(body, "serviceId"),
@@ -765,6 +829,17 @@ export function createApiServer(database = new BeautyDatabase()) {
           customerFeedback: optionalString(body, "customerFeedback"),
           nextCareAdvice: optionalString(body, "nextCareAdvice"),
           nextFollowUpAt: optionalString(body, "nextFollowUpAt"),
+        });
+        const followUp = recordData.customerFollowUps[0];
+        const customer = recordData.customers.find((item) => item.id === followUp.customerId);
+        const nextData = addSystemNotification(recordData, {
+          title: "服务后回访待跟进",
+          desc: `${customer?.name ?? "客户"} · ${shortTimeText(followUp.dueAt)} · ${followUp.method}`,
+          view: "customers",
+          targetType: "customerFollowUp",
+          targetId: followUp.id,
+          audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
+          staffId: followUp.staffId,
         });
         database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
@@ -1067,10 +1142,17 @@ function publicStorePayload(data: AppData, shareCode: string) {
   };
 }
 
+function shortTimeText(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sanitizedData = {
     ...data,
     authUsers: data.authUsers.map((user) => ({ ...user, password: "" })),
+    notifications: (data.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
   };
   if (session.user.role !== "therapist" || !session.user.staffId) {
     return sanitizedData;
@@ -1107,11 +1189,18 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     operationLogs: sanitizedData.operationLogs.filter((item) => item.userId === session.user.id),
+    notifications: sanitizedData.notifications.filter((item) => !item.staffId || item.staffId === staffId),
     commissionSettlements: sanitizedData.commissionSettlements.filter((item) =>
       item.commissionIds.some((commissionId) => sanitizedData.commissions.some((commission) => commission.id === commissionId && commission.staffId === staffId)),
     ),
     dailyCloses: [],
   };
+}
+
+function notificationVisibleToSession(notification: AppData["notifications"][number], session: UserSession) {
+  if (!notification.audienceRoles.includes(session.user.role)) return false;
+  if (session.user.role === "therapist" && notification.staffId) return notification.staffId === session.user.staffId;
+  return true;
 }
 
 async function readJson(request: IncomingMessage): Promise<JsonBody> {

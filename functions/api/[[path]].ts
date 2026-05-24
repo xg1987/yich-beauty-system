@@ -1,5 +1,6 @@
 import {
   addOperationLog,
+  addSystemNotification,
   addCustomerFollowUp,
   addCustomerServiceRecord,
   addStaffMember,
@@ -38,6 +39,8 @@ import {
   upsertOnlineStorefront,
   joinStaffInvite,
   issueCustomerCoupon,
+  markAllVisibleNotificationsRead,
+  markNotificationRead,
   updateTagDefinition,
   updateStaffMember,
   updateMemberCardStatus,
@@ -109,13 +112,22 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/public/online-booking-requests") {
       const body = await readJson(context.request);
-      const nextData = createOnlineBookingRequest(await database.readData(), {
+      const requestedData = createOnlineBookingRequest(await database.readData(), {
         shareCode: requiredString(body, "shareCode"),
         customerName: requiredString(body, "customerName"),
         phone: requiredString(body, "phone"),
         serviceId: requiredString(body, "serviceId"),
         preferredAt: requiredString(body, "preferredAt"),
         note: optionalString(body, "note") ?? "",
+      });
+      const bookingRequest = requestedData.onlineBookingRequests[0];
+      const nextData = addSystemNotification(requestedData, {
+        title: "新的线上预约申请",
+        desc: `${bookingRequest.customerName} 提交了到店预约意向`,
+        view: "appointments",
+        targetType: "onlineBookingRequest",
+        targetId: bookingRequest.id,
+        audienceRoles: ["owner", "manager", "frontdesk"],
       });
       await database.replaceData(nextData);
       return sendJson(201, { ok: true });
@@ -133,6 +145,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
       return sendJson(200, scopeDataForSession(await database.readData(), session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) {
+      const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const nextData = markNotificationRead(await database.readData(), { notificationId, userId: session.user.id });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/notifications/read-all") {
+      const nextData = markAllVisibleNotificationsRead(await database.readData(), {
+        userId: session.user.id,
+        role: session.user.role,
+        staffId: session.user.staffId,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff") {
@@ -280,7 +309,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/inventory/adjust") {
       requirePermission(session, "inventory:manage");
       const body = await readJson(context.request);
-      const nextData = addOperationLog(
+      const adjustedData = addOperationLog(
         adjustInventory(await database.readData(), {
           productId: requiredString(body, "productId"),
           type: requiredString(body, "type") as InventoryLog["type"],
@@ -295,6 +324,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} ${requiredString(body, "type")} ${requiredNumber(body, "quantity")}`,
         },
       );
+      const product = adjustedData.products.find((item) => item.id === requiredString(body, "productId"));
+      const nextData = product && product.stock <= product.warningStock
+        ? addSystemNotification(adjustedData, {
+            title: "库存低于预警值",
+            desc: `${product.name} 当前库存 ${product.stock}${product.unit}`,
+            view: "inventory",
+            targetType: "product",
+            targetId: product.id,
+            audienceRoles: ["owner", "manager"],
+          })
+        : adjustedData;
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
     }
@@ -302,7 +342,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/appointments") {
       requirePermission(session, "appointments:manage");
       const body = await readJson(context.request);
-      const nextData = updateData(await database.readData(), session, {
+      const appointedData = updateData(await database.readData(), session, {
         action: "新增预约",
         targetType: "appointment",
         targetId: "latest",
@@ -316,6 +356,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           note: optionalString(body, "note") ?? "",
         }),
       );
+      const appointment = appointedData.appointments[0];
+      const customer = appointedData.customers.find((item) => item.id === appointment.customerId);
+      const service = appointedData.services.find((item) => item.id === appointment.serviceId);
+      const nextData = addSystemNotification(appointedData, {
+        title: "新的到店预约",
+        desc: `${customer?.name ?? "客户"} · ${service?.name ?? "项目"} · ${shortTimeText(appointment.startAt)}`,
+        view: "appointments",
+        targetType: "appointment",
+        targetId: appointment.id,
+        audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
+        staffId: appointment.staffId,
+      });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
     }
@@ -684,12 +736,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/approvals") {
       requirePermission(session, "pos:manage");
       const body = await readJson(context.request);
-      const nextData = createApprovalRequest(await database.readData(), {
+      const approvalData = createApprovalRequest(await database.readData(), {
         type: requiredString(body, "type") as "改价折扣" | "订单退款",
         targetId: requiredString(body, "targetId"),
         requestedBy: session.user.id,
         amount: requiredNumber(body, "amount"),
         reason: optionalString(body, "reason") ?? "门店审批",
+      });
+      const approval = approvalData.approvalRequests[0];
+      const nextData = addSystemNotification(approvalData, {
+        title: "新的审批待处理",
+        desc: `${approval.type} · ${approval.reason}`,
+        view: "approvals",
+        targetType: "approvalRequest",
+        targetId: approval.id,
+        audienceRoles: ["owner", "manager", "finance"],
       });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
@@ -711,7 +772,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/service-records") {
       requirePermission(session, "customers:manage");
       const body = await readJson(context.request);
-      const nextData = addCustomerServiceRecord(await database.readData(), {
+      const recordData = addCustomerServiceRecord(await database.readData(), {
         customerId: requiredString(body, "customerId"),
         staffId: requiredString(body, "staffId"),
         serviceId: requiredString(body, "serviceId"),
@@ -724,6 +785,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         customerFeedback: optionalString(body, "customerFeedback"),
         nextCareAdvice: optionalString(body, "nextCareAdvice"),
         nextFollowUpAt: optionalString(body, "nextFollowUpAt"),
+      });
+      const followUp = recordData.customerFollowUps[0];
+      const customer = recordData.customers.find((item) => item.id === followUp.customerId);
+      const nextData = addSystemNotification(recordData, {
+        title: "服务后回访待跟进",
+        desc: `${customer?.name ?? "客户"} · ${shortTimeText(followUp.dueAt)} · ${followUp.method}`,
+        view: "customers",
+        targetType: "customerFollowUp",
+        targetId: followUp.id,
+        audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
+        staffId: followUp.staffId,
       });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
@@ -1021,10 +1093,17 @@ function publicStorePayload(data: AppData, shareCode: string) {
   };
 }
 
+function shortTimeText(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sanitizedData = {
     ...data,
     authUsers: data.authUsers.map((user) => ({ ...user, password: "" })),
+    notifications: (data.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
   };
   if (session.user.role !== "therapist" || !session.user.staffId) {
     return sanitizedData;
@@ -1061,11 +1140,18 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     operationLogs: sanitizedData.operationLogs.filter((item) => item.userId === session.user.id),
+    notifications: sanitizedData.notifications.filter((item) => !item.staffId || item.staffId === staffId),
     commissionSettlements: sanitizedData.commissionSettlements.filter((item) =>
       item.commissionIds.some((commissionId) => sanitizedData.commissions.some((commission) => commission.id === commissionId && commission.staffId === staffId)),
     ),
     dailyCloses: [],
   };
+}
+
+function notificationVisibleToSession(notification: AppData["notifications"][number], session: UserSession) {
+  if (!notification.audienceRoles.includes(session.user.role)) return false;
+  if (session.user.role === "therapist" && notification.staffId) return notification.staffId === session.user.staffId;
+  return true;
 }
 
 async function readJson(request: Request): Promise<JsonBody> {

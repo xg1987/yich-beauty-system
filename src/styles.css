@@ -3270,6 +3270,17 @@ html[data-theme="day"],
   font-size: 16px;
 }
 
+.notification-head > button:not(.icon-button) {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 8px;
+  background: var(--yich-purple-soft);
+  color: var(--yich-purple-deep);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .notification-list {
   display: grid;
   gap: 8px;
@@ -3295,6 +3306,10 @@ html[data-theme="day"],
 
 .notification-list button.has-count {
   background: linear-gradient(135deg, rgba(111, 66, 193, 0.1), rgba(185, 149, 85, 0.08));
+}
+
+.notification-list button.is-read {
+  opacity: 0.72;
 }
 
 .notification-list strong,

@@ -24,6 +24,9 @@ import {
   extendMemberCard,
   issueCustomerCoupon,
   joinStaffInvite,
+  addSystemNotification,
+  markAllVisibleNotificationsRead,
+  markNotificationRead,
   receivePurchaseOrder,
   rechargeMemberCard,
   registerStore,
@@ -60,6 +63,29 @@ function card(data: AppData, cardId: string) {
   const result = data.memberCards.find((item) => item.id === cardId);
   assert.ok(result, `missing card ${cardId}`);
   return result;
+}
+
+{
+  const withNotification = addSystemNotification(
+    cloneSeed(),
+    {
+      title: "新的到店预约",
+      desc: "周女士提交到店预约",
+      view: "appointments",
+      targetType: "appointment",
+      targetId: "a1",
+      audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
+      staffId: "s2",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(withNotification.notifications[0].readByUserIds.length, 0, "notification should start unread");
+  const oneRead = markNotificationRead(withNotification, { notificationId: withNotification.notifications[0].id, userId: "u_manager" });
+  assert.deepEqual(oneRead.notifications[0].readByUserIds, ["u_manager"], "notification should mark one user read");
+  const allRead = markAllVisibleNotificationsRead(withNotification, { userId: "u_therapist", role: "therapist", staffId: "s2" });
+  assert.ok(allRead.notifications[0].readByUserIds.includes("u_therapist"), "target staff should mark visible notifications read");
+  const hiddenRead = markAllVisibleNotificationsRead(withNotification, { userId: "u_other", role: "therapist", staffId: "s9" });
+  assert.ok(!hiddenRead.notifications[0].readByUserIds.includes("u_other"), "unrelated therapist should not read hidden notification");
 }
 
 {

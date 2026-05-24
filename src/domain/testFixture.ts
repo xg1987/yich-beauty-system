@@ -215,6 +215,7 @@ export const testFixtureData: AppData = {
   inventoryLogs: [],
   memberCardTransactions: [],
   operationLogs: [],
+  notifications: [],
   dailyCloses: [],
   approvalRequests: [],
   customerServiceRecords: [],

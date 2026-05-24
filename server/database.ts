@@ -35,6 +35,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  SystemNotification,
   Stocktake,
   StoreProfile,
   Supplier,
@@ -74,6 +75,7 @@ const tableNames: TableName[] = [
   "inventoryLogs",
   "memberCardTransactions",
   "operationLogs",
+  "notifications",
   "dailyCloses",
   "approvalRequests",
   "customerServiceRecords",
@@ -165,6 +167,7 @@ export class BeautyDatabase {
         .all()
         .map(mapMemberCardTransaction),
       operationLogs: this.db.prepare("SELECT * FROM operationLogs ORDER BY rowid DESC").all().map(mapOperationLog),
+      notifications: this.db.prepare("SELECT payload_json FROM notifications ORDER BY rowid DESC").all().map(mapJsonPayload<SystemNotification>),
       dailyCloses: this.db.prepare("SELECT * FROM dailyCloses ORDER BY businessDate DESC").all().map(mapDailyClose),
       approvalRequests: this.db.prepare("SELECT payload_json FROM approvalRequests ORDER BY rowid DESC").all().map(mapJsonPayload<ApprovalRequest>),
       customerServiceRecords: this.db
@@ -396,6 +399,8 @@ export class BeautyDatabase {
         )
         .run(log.id, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt);
     }
+
+    this.writeJsonTable("notifications", data.notifications ?? []);
 
     for (const close of data.dailyCloses) {
       this.db
@@ -672,6 +677,11 @@ export class BeautyDatabase {
         targetId TEXT NOT NULL,
         summary TEXT NOT NULL,
         createdAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS dailyCloses (

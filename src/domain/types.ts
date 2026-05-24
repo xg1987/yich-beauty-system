@@ -360,6 +360,19 @@ export type OperationLog = {
   createdAt: string;
 };
 
+export type SystemNotification = {
+  id: string;
+  title: string;
+  desc: string;
+  view: ViewKey;
+  targetType: string;
+  targetId: string;
+  audienceRoles: UserRole[];
+  staffId?: string;
+  readByUserIds: string[];
+  createdAt: string;
+};
+
 export type DailyClose = {
   id: string;
   businessDate: string;
@@ -481,6 +494,7 @@ export type AppData = {
   inventoryLogs: InventoryLog[];
   memberCardTransactions: MemberCardTransaction[];
   operationLogs: OperationLog[];
+  notifications: SystemNotification[];
   dailyCloses: DailyClose[];
   approvalRequests: ApprovalRequest[];
   customerServiceRecords: CustomerServiceRecord[];

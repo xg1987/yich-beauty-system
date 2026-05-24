@@ -29,7 +29,7 @@ import {
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
 import { calculateOrderTotal, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, StoreProfile, TagScope, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 
@@ -97,7 +97,7 @@ export default function App() {
   const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key));
   const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
   const activeWorkbar = workbarForView(activeView);
-  const notificationCount = notificationItems(data).filter((item) => canAccessView(session, item.view) && item.count > 0).length;
+  const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
   const navigate = (nextView: ViewKey, options?: { fromAdmin?: boolean }) => {
     setView(nextView);
     setNotificationPanelOpen(false);
@@ -130,7 +130,16 @@ export default function App() {
             <button className="account-avatar-button" aria-label="账号中心" onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
               <UserRound size={18} />
             </button>
-            {notificationPanelOpen && <NotificationPanel data={data} session={session} setView={navigate} onClose={() => setNotificationPanelOpen(false)} />}
+            {notificationPanelOpen && (
+              <NotificationPanel
+                data={data}
+                session={session}
+                actions={actions}
+                runMutation={runMutation}
+                setView={navigate}
+                onClose={() => setNotificationPanelOpen(false)}
+              />
+            )}
             {accountMenuOpen && (
               <AccountMenu
                 session={session}
@@ -172,69 +181,78 @@ export default function App() {
   );
 }
 
-function notificationItems(data: AppData): Array<{ title: string; desc: string; count: number; view: ViewKey; icon: typeof Bell }> {
-  const today = new Date();
-  return [
-    {
-      title: "今日预约",
-      desc: "查看待确认、到店和服务完成状态",
-      count: data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString()).length,
-      view: "appointments",
-      icon: CalendarDays,
-    },
-    {
-      title: "客户回访",
-      desc: "护理后跟进、微信或电话触达",
-      count: data.customerFollowUps.filter((item) => item.status === "待跟进").length,
-      view: "customers",
-      icon: HeartHandshake,
-    },
-    {
-      title: "库存预警",
-      desc: "低于预警值的耗材和商品",
-      count: data.products.filter((item) => item.stock <= item.warningStock).length,
-      view: "inventory",
-      icon: PackagePlus,
-    },
-    {
-      title: "待审批",
-      desc: "退款、改价和账号相关审批",
-      count: data.approvalRequests.filter((item) => item.status === "待审批").length,
-      view: "approvals",
-      icon: ShieldCheck,
-    },
-    {
-      title: "线上预约",
-      desc: "客户从共享店铺提交的到店意向",
-      count: data.onlineBookingRequests.filter((item) => item.status === "待处理").length,
-      view: "appointments",
-      icon: Share2,
-    },
-  ];
+function visibleNotifications(data: AppData, session: UserSession) {
+  return (data.notifications ?? [])
+    .filter((item) => item.audienceRoles.includes(session.user.role))
+    .filter((item) => session.user.role !== "therapist" || !item.staffId || item.staffId === session.user.staffId)
+    .filter((item) => canAccessView(session, item.view))
+    .slice()
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }
 
-function NotificationPanel({ data, session, setView, onClose }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void; onClose: () => void }) {
-  const items = notificationItems(data).filter((item) => canAccessView(session, item.view));
+function notificationIcon(view: ViewKey) {
+  if (view === "appointments") return CalendarDays;
+  if (view === "customers") return HeartHandshake;
+  if (view === "inventory") return PackagePlus;
+  if (view === "approvals") return ShieldCheck;
+  if (view === "pos") return CreditCard;
+  if (view === "reports") return ChartNoAxesColumnIncreasing;
+  return Bell;
+}
+
+function NotificationPanel({
+  data,
+  session,
+  actions,
+  runMutation,
+  setView,
+  onClose,
+}: {
+  data: AppData;
+  session: UserSession;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  setView: (view: ViewKey) => void;
+  onClose: () => void;
+}) {
+  const items = visibleNotifications(data, session);
+  const unreadCount = items.filter((item) => !item.readByUserIds.includes(session.user.id)).length;
+  const openNotification = (item: SystemNotification) => {
+    const alreadyRead = item.readByUserIds.includes(session.user.id);
+    if (!alreadyRead) {
+      void runMutation(() => actions.markNotificationRead(item.id));
+    }
+    setView(item.view);
+    onClose();
+  };
+  const markAllRead = () => {
+    if (unreadCount === 0) return;
+    void runMutation(() => actions.markAllNotificationsRead());
+  };
   return (
     <aside className="notification-panel">
       <div className="notification-head">
         <strong>通知中心</strong>
+        {unreadCount > 0 && <button type="button" onClick={markAllRead}>全部已读</button>}
         <button className="icon-button" aria-label="关闭通知" onClick={onClose}><X size={16} /></button>
       </div>
       <div className="notification-list">
         {items.map((item) => {
-          const Icon = item.icon;
+          const Icon = notificationIcon(item.view);
+          const unread = !item.readByUserIds.includes(session.user.id);
           return (
-            <button key={item.title} className={item.count > 0 ? "has-count" : ""} onClick={() => { setView(item.view); onClose(); }}>
+            <button key={item.id} className={unread ? "has-count" : "is-read"} onClick={() => openNotification(item)}>
               <Icon size={18} />
               <span>
                 <strong>{item.title}</strong>
                 <small>{item.desc}</small>
+                <small>{shortDate(item.createdAt)}</small>
               </span>
-              <em>{item.count}</em>
+              <em>{unread ? "新" : "已读"}</em>
             </button>
           );
         })}
+        {items.length === 0 && <p className="empty">暂无通知</p>}
       </div>
     </aside>
   );

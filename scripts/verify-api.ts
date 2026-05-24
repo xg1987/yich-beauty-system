@@ -64,6 +64,8 @@ try {
   });
   const afterPublicRequest = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(afterPublicRequest.onlineBookingRequests[0].status, "待处理", "public booking request should be visible to manager");
+  assert.equal(afterPublicRequest.notifications[0].targetType, "onlineBookingRequest", "public booking should create a notification");
+  assert.equal(afterPublicRequest.notifications[0].view, "appointments", "public booking notification should route to appointments");
   const afterPublicConvert = await request<AppData>(baseUrl, `/api/online-booking-requests/${afterPublicRequest.onlineBookingRequests[0].id}/convert`, {
     method: "POST",
     token: session.token,
@@ -216,6 +218,12 @@ try {
   });
   assert.equal(afterAppointment.appointments[0].status, "待确认", "appointment API should create pending appointment");
   const appointmentId = afterAppointment.appointments[0].id;
+  assert.equal(afterAppointment.notifications[0].targetId, appointmentId, "appointment API should create a target notification");
+  const afterNotificationRead = await request<AppData>(baseUrl, `/api/notifications/${afterAppointment.notifications[0].id}/read`, {
+    method: "PATCH",
+    token: session.token,
+  });
+  assert.ok(afterNotificationRead.notifications.find((item) => item.id === afterAppointment.notifications[0].id)?.readByUserIds.includes("u_manager"), "notification API should mark one item read");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
@@ -348,6 +356,8 @@ try {
     body: { type: "改价折扣", targetId: "manual", amount: 50, reason: "API 活动价" },
   });
   const discountApprovalId = afterApprovalRequest.approvalRequests[0].id;
+  assert.equal(afterApprovalRequest.notifications[0].targetId, discountApprovalId, "approval request should create notification");
+  assert.ok(afterApprovalRequest.notifications[0].audienceRoles.includes("finance"), "approval notification should include finance");
   const afterApprovalDecision = await request<AppData>(baseUrl, `/api/approvals/${discountApprovalId}`, {
     method: "PATCH",
     token: session.token,
@@ -662,6 +672,12 @@ try {
   assert.equal(afterServiceRecord.customerServiceRecords[0].customerFeedback, "API 体验舒适", "service record API should persist customer feedback");
   assert.equal(afterServiceRecord.customerServiceRecords[0].nextCareAdvice, "API 加强保湿防晒", "service record API should persist next care advice");
   assert.match(afterServiceRecord.customerFollowUps[0].note, /API 加强保湿防晒/, "service record API follow-up should use next care advice");
+  assert.equal(afterServiceRecord.notifications[0].targetId, afterServiceRecord.customerFollowUps[0].id, "service record should create follow-up notification");
+  const afterAllNotificationsRead = await request<AppData>(baseUrl, "/api/notifications/read-all", {
+    method: "POST",
+    token: session.token,
+  });
+  assert.ok(afterAllNotificationsRead.notifications.every((item) => item.readByUserIds.includes("u_manager")), "notification API should mark visible notifications read");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, "/api/service-records", {

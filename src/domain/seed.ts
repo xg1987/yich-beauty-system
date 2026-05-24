@@ -29,6 +29,7 @@ export const seedData: AppData = {
   inventoryLogs: [],
   memberCardTransactions: [],
   operationLogs: [],
+  notifications: [],
   dailyCloses: [],
   approvalRequests: [],
   customerServiceRecords: [],
