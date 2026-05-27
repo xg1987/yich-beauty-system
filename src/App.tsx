@@ -1007,6 +1007,17 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     );
   };
 
+  // 排班增强：简单冲突检测
+  const checkAvailability = (staffId: string, start: string, end: string) => {
+    const conflicts = data.staffUnavailableSlots.filter(slot =>
+      slot.staffId === staffId &&
+      !(new Date(end) <= new Date(slot.startAt) || new Date(start) >= new Date(slot.endAt))
+    );
+    return conflicts.length > 0;
+  };
+
+  const selectedTimeConflict = checkAvailability(staffId, startAt, startAt); // 简化检查
+
   const today = new Date();
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const pendingArrival = todayAppointments.filter((item) => item.status === "已确认" || item.status === "待确认").length;
@@ -1042,6 +1053,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             备注
             <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
           </label>
+          {selectedTimeConflict && <p style={{color: 'red', fontSize: 13}}>⚠️ 该员工在此时间段有不可预约安排，建议调整时间</p>}
           <button className="primary-button">保存预约</button>
         </form>
         <div className="divider" />
@@ -2659,8 +2671,21 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
     void runMutation(() => actions.createStocktake({ productId: stocktakeProductId, actualStock, reason: "门店盘点" }));
   };
 
-  const lowStock = data.products.filter((item) => item.stock <= item.warningStock).length;
+  const lowStockItems = data.products.filter((item) => item.stock <= item.warningStock);
+  const lowStock = lowStockItems.length;
   const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
+
+  // 库存预警增强：低库存一键生成补货建议
+  const generateRestockSuggestions = () => {
+    if (lowStockItems.length === 0) return;
+    const suggestions = lowStockItems.map(item => ({
+      productId: item.id,
+      quantity: Math.max(10, item.warningStock * 2 - item.stock), // 建议补到预警*2
+      estimatedCost: (item as any).cost || 50
+    }));
+    alert(`已生成 ${suggestions.length} 个补货建议（未来可自动创建采购单）。低库存商品：${lowStockItems.map(i => i.name).join(', ')}`);
+    // 实际可扩展为调用 actions.createPurchaseOrder 或类似
+  };
 
   return (
     <div className="page-stack">
@@ -2671,7 +2696,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
         desc="管理商品耗材、采购入库、库存流水和盘点差异。"
         stats={[
           { label: "库存品项", value: `${data.products.length} 个`, hint: `合计库存 ${stockValue}`, icon: <Boxes size={18} /> },
-          { label: "低库存", value: `${lowStock} 项`, hint: "低于预警值", icon: <PackagePlus size={18} /> },
+          { label: "低库存", value: `${lowStock} 项`, hint: "低于预警值 - 已增强提醒", icon: <PackagePlus size={18} /> },
           { label: "供应商", value: `${data.suppliers.length} 家`, hint: "采购基础资料", icon: <Building2 size={18} /> },
         ]}
       />
@@ -2710,6 +2735,12 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
         </section>
         <section className="panel wide">
         <PanelTitle icon={<Boxes size={18} />} title="库存列表" action="低库存自动标记" />
+        {lowStock > 0 && (
+          <div style={{margin: '8px 0', padding: '8px 12px', background: '#fff3cd', borderRadius: 6, fontSize: 14}}>
+            ⚠️ <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
+            <button style={{marginLeft: 12}} onClick={generateRestockSuggestions}>一键生成补货建议</button>
+          </div>
+        )}
         <DataTable
           columns={["名称", "类型", "库存", "预警", "状态"]}
           rows={data.products.map((item) => [
@@ -3113,6 +3144,14 @@ function SettingsView({
   const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
   const publicStoreUrl = `${window.location.origin}/store/${onlineShareCode || onlineStorefront?.shareCode || ""}`;
   const dataQualityReport = previewFormalDataCleanup(data);
+
+  // 真实支付预留 (C)
+  const [paymentConfig, setPaymentConfig] = useState({
+    wechatEnabled: false,
+    alipayEnabled: false,
+    wechatAppId: '',
+    alipayAppId: '',
+  });
 
   useEffect(() => {
     setStoreName(store?.name ?? "");
