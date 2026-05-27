@@ -50,6 +50,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "inventory", label: "库存管理", icon: Boxes },
   { key: "reports", label: "报表分析", icon: ChartNoAxesColumnIncreasing },
   { key: "approvals", label: "审批中心", icon: ShieldCheck },
+  { key: "logs", label: "操作日志", icon: ClipboardList },
   { key: "settings", label: "系统设置", icon: Settings },
 ];
 
@@ -164,6 +165,7 @@ export default function App() {
         {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "logs" && <OperationLogs data={data} session={session} />}
         {activeView === "settings" && <SettingsView data={data} session={session} actions={actions} runMutation={runMutation} setView={(nextView) => navigate(nextView, { fromAdmin: true })} />}
       </main>
       <nav className="workbar" aria-label="主工作栏">
@@ -262,7 +264,7 @@ function workbarForView(view: ViewKey): WorkbarKey {
   if (view === "appointments") return "appointments";
   if (view === "pos") return "cashier";
   if (view === "customers") return "customers";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs"].includes(view)) return "admin";
   return "workbench";
 }
 
@@ -292,6 +294,9 @@ function AccountMenu({
         <LogOut size={17} />
         <span>退出登录</span>
       </button>
+      <div className="account-menu-version">
+        v{import.meta.env.PACKAGE_VERSION ?? "0.1.0"}
+      </div>
     </aside>
   );
 }
@@ -1245,6 +1250,61 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setAppointmentId("");
   };
 
+  // 打印小票功能
+  const printReceipt = (order: Order) => {
+    const customer = data.customers.find((c) => c.id === order.customerId);
+    const service = data.services.find((s) => s.id === order.serviceId);
+    const staff = data.staff.find((s) => s.id === order.staffId);
+    const product = order.productId ? data.products.find((p) => p.id === order.productId) : null;
+
+    const printContent = `
+      <div style="font-family: monospace; padding: 20px; max-width: 300px; margin: 0 auto;">
+        <h2 style="text-align: center; margin: 0;">${data.storeProfiles[0]?.name || '一宸美业'}</h2>
+        <p style="text-align: center; margin: 4px 0; font-size: 12px;">${data.storeProfiles[0]?.phone || ''}</p>
+        <hr />
+        <p>订单号: ${order.orderNo}</p>
+        <p>时间: ${new Date(order.createdAt).toLocaleString('zh-CN')}</p>
+        <p>客户: ${customer?.name || ''} (${customer?.phone || ''})</p>
+        <p>服务: ${service?.name || ''}</p>
+        ${product ? `<p>商品: ${product.name} ×1</p>` : ''}
+        <p>服务人员: ${staff?.name || ''}</p>
+        <hr />
+        <p>原价: ¥${order.totalAmount}</p>
+        ${order.discountAmount ? `<p>折扣: -¥${order.discountAmount}</p>` : ''}
+        <p><strong>实付: ¥${order.paidAmount}</strong></p>
+        <p>支付方式: ${order.payMethod}</p>
+        <hr />
+        <p style="text-align: center; font-size: 12px;">感谢您的光临！</p>
+        <p style="text-align: center; font-size: 11px;">${new Date().toLocaleDateString()}</p>
+      </div>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head><title>收银小票</title></head>
+          <body>${printContent}</body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 300);
+    } else {
+      // Fallback: use a hidden div
+      const printDiv = document.createElement('div');
+      printDiv.innerHTML = printContent;
+      printDiv.style.position = 'absolute';
+      printDiv.style.left = '-9999px';
+      document.body.appendChild(printDiv);
+      window.print();
+      document.body.removeChild(printDiv);
+    }
+  };
+
   const useAppointmentForCheckout = (id: string) => {
     setAppointmentId(id);
     if (!id) return;
@@ -2123,6 +2183,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           ])}
         />
         </section>
+
       </div>
     </div>
   );
@@ -2701,6 +2762,34 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
     amount: data.orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + order.paidAmount, 0),
   }));
 
+  // 员工业绩排行 (B feature)
+  const staffPerformance = data.staff
+    .map((staff) => {
+      const staffOrders = data.orders.filter((o) => o.staffId === staff.id);
+      const revenue = staffOrders.reduce((sum, o) => sum + o.paidAmount, 0);
+      const commissions = data.commissions.filter((c) => c.staffId === staff.id).reduce((sum, c) => sum + (c.amount || 0), 0);
+      return { staff, revenue, commissions, orderCount: staffOrders.length };
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 8);
+
+  // 会员分析 (B feature)
+  const totalCardBalance = data.memberCards.reduce((sum, card) => sum + (card.balance || 0), 0);
+  const activeMembers = data.memberCards.filter((c) => c.status === "正常").length;
+  const newCustomersThisMonth = data.customers.filter((c) => {
+    const created = new Date(c.lastVisit || Date.now());
+    const now = new Date();
+    return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
+  }).length;
+
+  // 额外：Top 服务项目排行 (B 深化)
+  const serviceRevenue = data.services.map(service => {
+    const revenue = data.orders
+      .filter(o => o.serviceId === service.id)
+      .reduce((sum, o) => sum + o.paidAmount, 0);
+    return { name: service.name, revenue };
+  }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+
   return (
     <div className="page-stack">
       <PageHero
@@ -2767,6 +2856,44 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
             shortDate(item.createdAt),
           ])}
         />
+        </section>
+
+        {/* 员工业绩排行 (B) */}
+        <section className="panel wide">
+          <PanelTitle icon={<BadgeCent size={18} />} title="员工业绩排行" action="按实收排序" />
+          <DataTable
+            columns={["员工", "角色", "订单数", "实收业绩", "提成合计"]}
+            rows={staffPerformance.map((item) => [
+              item.staff.name,
+              item.staff.role,
+              item.orderCount,
+              money(item.revenue),
+              money(item.commissions),
+            ])}
+          />
+        </section>
+
+        {/* 会员分析 (B) */}
+        <section className="panel wide">
+          <PanelTitle icon={<UsersRound size={18} />} title="会员分析" action="客户资产概览" />
+          <DataTable
+            columns={["指标", "数值", "说明"]}
+            rows={[
+              ["有效会员卡", `${activeMembers} 张`, "当前正常状态"],
+              ["会员卡总余额", money(totalCardBalance), "客户未消耗储值"],
+              ["本月新增客户", `${newCustomersThisMonth} 人`, "按最近到店时间"],
+              ["客户总数", `${data.customers.length} 人`, "累计建档"],
+            ]}
+          />
+        </section>
+
+        {/* Top 服务项目排行 (B 深化) */}
+        <section className="panel wide">
+          <PanelTitle icon={<Sparkles size={18} />} title="热门项目排行" action="按实收" />
+          <DataTable
+            columns={["项目", "实收金额"]}
+            rows={serviceRevenue.map(s => [s.name, money(s.revenue)])}
+          />
         </section>
       </div>
     </div>
@@ -2859,6 +2986,99 @@ function DailyCloseControl({
       </label>
       <button onClick={onClose}>生成日结</button>
       <button className="secondary-button" onClick={onReverse}>反结解锁</button>
+    </div>
+  );
+}
+
+function OperationLogs({ data, session }: { data: AppData; session: UserSession }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+
+  const logs = [...(data.operationLogs ?? [])]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .filter((log) => {
+      const matchesSearch =
+        !searchTerm ||
+        log.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.action.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesAction = !actionFilter || log.action === actionFilter;
+      return matchesSearch && matchesAction;
+    });
+
+  const uniqueActions = Array.from(new Set((data.operationLogs ?? []).map((l) => l.action)));
+
+  const exportLogs = () => {
+    const csv = [
+      ["时间", "操作人", "动作", "对象类型", "摘要"].join(","),
+      ...logs.map((log) =>
+        [
+          log.createdAt,
+          nameOf(data.staff, data.authUsers.find((u) => u.id === log.userId)?.staffId ?? "") || "系统",
+          log.action,
+          log.targetType,
+          `"${log.summary.replace(/"/g, '""')}"`,
+        ].join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `操作日志_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+  };
+
+  return (
+    <div className="page-stack">
+      <PageHero
+        icon={<ClipboardList size={15} />}
+        eyebrow="系统审计"
+        title="操作日志"
+        desc="查看系统中所有关键操作记录（开单、退款、改价、会员变更等）。"
+        stats={[
+          { label: "总记录数", value: `${data.operationLogs?.length ?? 0} 条`, hint: "已记录操作", icon: <ClipboardList size={18} /> },
+        ]}
+      />
+
+      <div className="panel">
+        <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="text"
+            placeholder="搜索操作内容或动作..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ flex: 1, minWidth: "240px" }}
+          />
+          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+            <option value="">所有动作</option>
+            {uniqueActions.map((action) => (
+              <option key={action} value={action}>{action}</option>
+            ))}
+          </select>
+          <button onClick={exportLogs}>导出 CSV</button>
+        </div>
+
+        {logs.length === 0 ? (
+          <p className="empty">暂无操作记录</p>
+        ) : (
+          <DataTable
+            columns={["时间", "操作人", "动作", "对象类型", "摘要"]}
+            rows={logs.slice(0, 100).map((log) => [
+              shortDate(log.createdAt),
+              nameOf(data.staff, data.authUsers.find((u) => u.id === log.userId)?.staffId ?? "") || "系统",
+              log.action,
+              log.targetType,
+              log.summary,
+            ])}
+          />
+        )}
+
+        {logs.length > 100 && (
+          <p style={{ marginTop: "12px", color: "var(--yich-muted)", fontSize: "13px" }}>
+            仅显示最近 100 条记录
+          </p>
+        )}
+      </div>
     </div>
   );
 }

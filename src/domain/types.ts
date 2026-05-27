@@ -8,6 +8,7 @@ export type ViewKey =
   | "inventory"
   | "reports"
   | "approvals"
+  | "logs"
   | "settings";
 
 export type UserRole = "owner" | "manager" | "frontdesk" | "therapist" | "finance";

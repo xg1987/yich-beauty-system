@@ -49,6 +49,10 @@ import {
   updateStoreProfile,
   updateMemberCardStatus,
 } from "../src/domain/business";
+import { hashPassword } from "../src/lib/password";
+
+// Read version from package.json (Node.js ESM)
+import pkg from "../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../src/domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
@@ -73,41 +77,72 @@ export function createApiServer(database = new BeautyDatabase()) {
       const url = new URL(request.url ?? "/", "http://localhost");
 
       if (request.method === "GET" && url.pathname === "/api/health") {
-        sendJson(response, 200, { ok: true, service: "yich-system-api" });
+        sendJson(response, 200, {
+          ok: true,
+          service: "yich-system-api",
+          version: pkg.version,
+        });
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/auth/login") {
         const body = await readJson(request);
-        sendJson(response, 200, login(requiredString(body, "account"), requiredString(body, "password"), database.readData().authUsers));
+        const account = requiredString(body, "account");
+        const plainPassword = requiredString(body, "password");
+
+        const loginResult = await login(account, plainPassword, database.readData().authUsers);
+
+        // Auto-migrate legacy plaintext password to bcrypt hash on successful login
+        if (loginResult.needsPasswordMigration && loginResult.userIdNeedingMigration) {
+          const currentData = database.readData();
+          const hashed = await hashPassword(plainPassword);
+          const migratedUsers = currentData.authUsers.map((u) =>
+            u.id === loginResult.userIdNeedingMigration ? { ...u, password: hashed } : u
+          );
+          const migratedData = { ...currentData, authUsers: migratedUsers };
+          database.replaceData(migratedData);
+        }
+
+        sendJson(response, 200, loginResult.session);
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/auth/register-store") {
         const body = await readJson(request);
+        const plainPassword = requiredString(body, "password");
+        const hashedPassword = await hashPassword(plainPassword);
+
         const nextData = registerStore(database.readData(), {
           storeName: requiredString(body, "storeName"),
           ownerName: requiredString(body, "ownerName"),
           phone: requiredString(body, "phone"),
           address: optionalString(body, "address"),
           account: requiredString(body, "account"),
-          password: requiredString(body, "password"),
+          password: hashedPassword,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, login(requiredString(body, "account"), requiredString(body, "password"), nextData.authUsers));
+
+        // New registration is always hashed, no legacy migration needed
+        const loginResult = await login(requiredString(body, "account"), plainPassword, nextData.authUsers);
+        sendJson(response, 201, loginResult.session);
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/auth/join-invite") {
         const body = await readJson(request);
+        const plainPassword = requiredString(body, "password");
+        const hashedPassword = await hashPassword(plainPassword);
+
         const nextData = joinStaffInvite(database.readData(), {
           inviteCode: requiredString(body, "inviteCode"),
           name: requiredString(body, "name"),
-          password: requiredString(body, "password"),
+          password: hashedPassword,
         });
         database.replaceData(nextData);
-        const joinedUser = nextData.authUsers[0];
-        sendJson(response, 201, login(joinedUser.account, requiredString(body, "password"), nextData.authUsers));
+
+        const joinedUser = nextData.authUsers.find((u) => u.account) ?? nextData.authUsers[0];
+        const loginResult = await login(joinedUser.account, plainPassword, nextData.authUsers);
+        sendJson(response, 201, loginResult.session);
         return;
       }
 

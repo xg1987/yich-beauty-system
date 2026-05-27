@@ -3526,6 +3526,19 @@ html[data-theme="day"],
   color: #c82333;
 }
 
+.account-menu-version {
+  padding: 8px 18px 12px;
+  font-size: 11px;
+  color: var(--yich-muted);
+  text-align: right;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  margin-top: 4px;
+}
+
+.theme-night .account-menu-version {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
 .back-to-admin {
   width: fit-content;
   min-height: 36px;

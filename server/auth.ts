@@ -1,16 +1,31 @@
 import { randomUUID } from "node:crypto";
 import { rolePermissions, type UserSession } from "../src/domain/auth";
 import type { AuthUser } from "../src/domain/types";
+import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../src/lib/password";
 
 const sessions = new Map<string, UserSession>();
 
-export function login(account: string, password: string, users: AuthUser[]): UserSession {
+export type LoginResult = {
+  session: UserSession;
+  /** Whether the stored password was still plaintext and should be migrated */
+  needsPasswordMigration: boolean;
+  /** The user id that needs migration (only meaningful when needsPasswordMigration = true) */
+  userIdNeedingMigration?: string;
+};
+
+export async function login(account: string, password: string, users: AuthUser[]): Promise<LoginResult> {
   if (isLegacySampleCredential(account, password)) {
     throw new Error("账号或密码不正确");
   }
 
-  const user = users.find((item) => item.account === account && item.password === password && item.status === "active");
+  const user = users.find((item) => item.account === account && item.status === "active");
   if (!user) {
+    throw new Error("账号或密码不正确");
+  }
+
+  const { ok, needsMigration } = await verifyPasswordWithLegacySupport(password, user.password);
+
+  if (!ok) {
     throw new Error("账号或密码不正确");
   }
 
@@ -28,7 +43,12 @@ export function login(account: string, password: string, users: AuthUser[]): Use
   };
 
   sessions.set(session.token, session);
-  return session;
+
+  return {
+    session,
+    needsPasswordMigration: needsMigration,
+    userIdNeedingMigration: needsMigration ? user.id : undefined,
+  };
 }
 
 export function getSession(authorizationHeader: string | undefined): UserSession | undefined {
@@ -39,3 +59,6 @@ export function getSession(authorizationHeader: string | undefined): UserSession
 function isLegacySampleCredential(account: string, password: string) {
   return account.endsWith("@demo.local") || password === "yich-demo";
 }
+
+/** Helper for callers that want to know if a stored password is still legacy plaintext */
+export { isLegacyPlaintextPassword };

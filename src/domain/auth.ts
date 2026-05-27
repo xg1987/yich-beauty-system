@@ -74,6 +74,7 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   inventory: "inventory:manage",
   reports: "reports:view",
   approvals: "approvals:manage",
+  logs: "settings:view",
   settings: "settings:view",
 };
 

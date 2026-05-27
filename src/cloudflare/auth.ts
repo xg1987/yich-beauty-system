@@ -1,23 +1,45 @@
 import { rolePermissions, type UserSession } from "../domain/auth";
 import type { AuthUser } from "../domain/types";
 import type { D1DatabaseBinding } from "./d1Types";
+import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../lib/password";
 
-export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<UserSession> {
+export type LoginResult = {
+  session: UserSession;
+  /** Whether the stored password was still plaintext and should be migrated */
+  needsPasswordMigration: boolean;
+  /** The user id that needs migration (only meaningful when needsPasswordMigration = true) */
+  userIdNeedingMigration?: string;
+};
+
+export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<LoginResult> {
   if (isLegacySampleCredential(account, password)) {
     throw new Error("账号或密码不正确");
   }
 
-  const user = (await readAuthUsers(db)).find((item) => item.account === account && item.password === password && item.status === "active");
+  const users = await readAuthUsers(db);
+  const user = users.find((item) => item.account === account && item.status === "active");
   if (!user) {
     throw new Error("账号或密码不正确");
   }
 
-  const session = buildSession(crypto.randomUUID(), user);
+  const { ok, needsMigration } = await verifyPasswordWithLegacySupport(password, user.password);
+  if (!ok) {
+    throw new Error("账号或密码不正确");
+  }
+
+  const token = crypto.randomUUID();
+  const session = buildSession(token, user);
+
   await db
     .prepare("INSERT INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)")
-    .bind(session.token, user.id, new Date().toISOString())
+    .bind(token, user.id, new Date().toISOString())
     .run();
-  return session;
+
+  return {
+    session,
+    needsPasswordMigration: needsMigration,
+    userIdNeedingMigration: needsMigration ? user.id : undefined,
+  };
 }
 
 export async function getSessionFromD1(db: D1DatabaseBinding, authorizationHeader: string | null): Promise<UserSession | undefined> {
@@ -54,3 +76,6 @@ function buildSession(token: string, user: AuthUser): UserSession {
 function isLegacySampleCredential(account: string, password: string) {
   return account.endsWith("@demo.local") || password === "yich-demo";
 }
+
+/** Helper for callers that want to know if a stored password is still legacy plaintext */
+export { isLegacyPlaintextPassword };

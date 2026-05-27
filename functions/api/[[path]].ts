@@ -48,6 +48,10 @@ import {
   updateStoreProfile,
   updateMemberCardStatus,
 } from "../../src/domain/business";
+import { hashPassword } from "../../src/lib/password";
+
+// Read version from package.json at runtime (works in Cloudflare Workers)
+import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
@@ -75,37 +79,68 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const pathname = url.pathname;
 
     if (context.request.method === "GET" && pathname === "/api/health") {
-      return sendJson(200, { ok: true, service: "yich-system-api", runtime: "cloudflare-d1" });
+      return sendJson(200, {
+        ok: true,
+        service: "yich-system-api",
+        version: pkg.version,
+        runtime: "cloudflare-d1",
+      });
     }
 
     if (context.request.method === "POST" && pathname === "/api/auth/login") {
       const body = await readJson(context.request);
-      return sendJson(200, await loginWithD1(context.env.DB, requiredString(body, "account"), requiredString(body, "password")));
+      const account = requiredString(body, "account");
+      const plainPassword = requiredString(body, "password");
+
+      const loginResult = await loginWithD1(context.env.DB, account, plainPassword);
+
+      // Auto-migrate legacy plaintext password to secure hash
+      if (loginResult.needsPasswordMigration && loginResult.userIdNeedingMigration) {
+        const currentData = await database.readData();
+        const hashed = await hashPassword(plainPassword);
+        const migratedUsers = currentData.authUsers.map((u) =>
+          u.id === loginResult.userIdNeedingMigration ? { ...u, password: hashed } : u
+        );
+        await database.replaceData({ ...currentData, authUsers: migratedUsers });
+      }
+
+      return sendJson(200, loginResult.session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/auth/register-store") {
       const body = await readJson(context.request);
+      const plainPassword = requiredString(body, "password");
+      const hashedPassword = await hashPassword(plainPassword);
+
       const nextData = registerStore(await database.readData(), {
         storeName: requiredString(body, "storeName"),
         ownerName: requiredString(body, "ownerName"),
         phone: requiredString(body, "phone"),
         address: optionalString(body, "address"),
         account: requiredString(body, "account"),
-        password: requiredString(body, "password"),
+        password: hashedPassword,
       });
       await database.replaceData(nextData);
-      return sendJson(201, await loginWithD1(context.env.DB, requiredString(body, "account"), requiredString(body, "password")));
+
+      const loginResult = await loginWithD1(context.env.DB, requiredString(body, "account"), plainPassword);
+      return sendJson(201, loginResult.session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/auth/join-invite") {
       const body = await readJson(context.request);
+      const plainPassword = requiredString(body, "password");
+      const hashedPassword = await hashPassword(plainPassword);
+
       const nextData = joinStaffInvite(await database.readData(), {
         inviteCode: requiredString(body, "inviteCode"),
         name: requiredString(body, "name"),
-        password: requiredString(body, "password"),
+        password: hashedPassword,
       });
       await database.replaceData(nextData);
-      return sendJson(201, await loginWithD1(context.env.DB, nextData.authUsers[0].account, requiredString(body, "password")));
+
+      const joinedUser = nextData.authUsers.find((u) => u.account) ?? nextData.authUsers[0];
+      const loginResult = await loginWithD1(context.env.DB, joinedUser.account, plainPassword);
+      return sendJson(201, loginResult.session);
     }
 
     if (context.request.method === "GET" && pathname.startsWith("/api/public/store/")) {
