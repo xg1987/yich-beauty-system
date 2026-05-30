@@ -305,6 +305,8 @@ function PlatformAdminShell({
           <SettingsView
             session={session}
             setView={openView}
+            returnView={activeView}
+            backLabel="返回管理中心"
             updateProfile={updateAccountProfile}
             themeMode={platformThemeMode}
             setThemeMode={setPlatformThemeMode}
@@ -3015,12 +3017,16 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
 function SettingsView({
   session,
   setView,
+  returnView = "dashboard",
+  backLabel = "返回管理中心",
   updateProfile,
   themeMode,
   setThemeMode,
 }: {
   session: UserSession;
   setView: (view: ViewKey) => void;
+  returnView?: ViewKey;
+  backLabel?: string;
   updateProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
@@ -3065,7 +3071,7 @@ function SettingsView({
   return (
     <div className="settings-profile-page">
       <header className="settings-profile-title">
-        <button type="button" aria-label="返回工作台" onClick={() => setView("dashboard")}>
+        <button type="button" aria-label={backLabel} title={backLabel} onClick={() => setView(returnView)}>
           <ArrowLeft size={22} />
         </button>
         <h1>系统设置</h1>
