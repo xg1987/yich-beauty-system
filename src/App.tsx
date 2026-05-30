@@ -264,7 +264,7 @@ function ManagementCenter({
   const systemInviteCode = DEFAULT_OWNER_INVITE_CODE;
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
-  const [inviteVisible, setInviteVisible] = useState(false);
+  const [inviteVisible, setInviteVisible] = useState(true);
   const [inviteCopied, setInviteCopied] = useState(false);
 
   const copyInviteCode = () => {
@@ -301,9 +301,6 @@ function ManagementCenter({
       </section>
 
       <section className="admin-invite-section" aria-label="系统邀请码">
-        <div className="admin-invite-heading">
-          <span>系统邀请码</span>
-        </div>
         <div className="admin-invite-card">
           <span>邀请码</span>
           <div className="admin-invite-code">
@@ -315,7 +312,7 @@ function ManagementCenter({
               <Copy size={17} />
             </button>
           </div>
-          {inviteCopied && <small>已复制</small>}
+          {inviteCopied && <small className="admin-invite-copied">已复制</small>}
         </div>
       </section>
 
