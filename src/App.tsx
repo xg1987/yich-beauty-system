@@ -243,11 +243,17 @@ function PlatformAdminShell({
           </div>
         </header>
         {(activeView === "dashboard" || activeView === "settings") && (
-          <PlatformAdminView data={data} session={session} actions={actions} runMutation={runMutation} />
+          <PlatformAdminView data={data} session={session} actions={actions} runMutation={runMutation} setView={openView} />
         )}
         {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />}
+        {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "logs" && <OperationLogs data={data} session={session} />}
       </main>
       <nav className="workbar" aria-label="主工作栏">
         {workbarItems.map((item) => {
@@ -269,11 +275,13 @@ function PlatformAdminView({
   session,
   actions,
   runMutation,
+  setView,
 }: {
   data: AppData;
   session: UserSession;
   actions: ApiActions;
   runMutation: RunMutation;
+  setView: (view: ViewKey) => void;
 }) {
   const [storeName, setStoreName] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -284,6 +292,31 @@ function PlatformAdminView({
   const pendingOwnerInvites = (data.storeOwnerInvites ?? []).filter((invite) => invite.status === "待加入").length;
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
+  const pendingAppointments = data.appointments.filter((appointment) => ["待确认", "已确认", "已到店"].includes(appointment.status)).length;
+  const pendingSignatures = (data.customerSignatures ?? []).filter((signature) => signature.status === "待签名").length;
+  const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
+
+  const managementCards: Array<{
+    title: string;
+    desc: string;
+    metric: string;
+    icon: typeof LayoutDashboard;
+    tone: "rose" | "violet" | "teal" | "amber";
+    view: ViewKey;
+  }> = [
+    { title: "老板邀请", desc: "生成门店老板邀请码，开通门店账号", metric: `${pendingOwnerInvites} 待加入`, icon: LockKeyhole, tone: "violet", view: "settings" },
+    { title: "门店列表", desc: "查看已开通门店和老板账号", metric: `${data.storeProfiles.length} 家`, icon: Building2, tone: "teal", view: "settings" },
+    { title: "预约管理", desc: "查看预约、排班和到店确认", metric: `${pendingAppointments} 待处理`, icon: CalendarDays, tone: "rose", view: "appointments" },
+    { title: "开单收银", desc: "前台营业、支付记录和退款", metric: `${data.orders.length} 订单`, icon: CreditCard, tone: "amber", view: "pos" },
+    { title: "客户会员", desc: "客户档案、卡项、服务记录和签名", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
+    { title: "客户签名", desc: "客户确认服务记录和消费内容", metric: `${pendingSignatures} 待签`, icon: ClipboardList, tone: "teal", view: "customers" },
+    { title: "人员账号", desc: "主管、员工、前台账号和邀请码", metric: `${data.authUsers.length} 账号`, icon: ShieldCheck, tone: "violet", view: "staff" },
+    { title: "项目商品", desc: "服务项目、产品和耗材资料", metric: `${data.services.length + data.products.length} 项`, icon: Sparkles, tone: "rose", view: "catalog" },
+    { title: "库存管理", desc: "入库、盘点、预警和库存流水", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "inventory" },
+    { title: "审批中心", desc: "改价和退款审批", metric: `${pendingApprovals} 待审`, icon: ShieldCheck, tone: "violet", view: "approvals" },
+    { title: "报表分析", desc: "营收、提成、日结和经营概览", metric: money(data.orders.reduce((sum, order) => sum + order.paidAmount, 0)), icon: ChartNoAxesColumnIncreasing, tone: "teal", view: "reports" },
+    { title: "操作日志", desc: "查看关键操作和数据变化", metric: `${data.operationLogs.length} 条`, icon: ClipboardList, tone: "amber", view: "logs" },
+  ];
 
   const createOwnerInvite = (event: FormEvent) => {
     event.preventDefault();
@@ -374,6 +407,17 @@ function PlatformAdminView({
           />
         </section>
       </div>
+
+      <section className="admin-module-section">
+        <div className="admin-section-title">
+          <span>快捷入口</span>
+        </div>
+        <div className="admin-module-grid">
+          {managementCards.map((item) => (
+            <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view)} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
