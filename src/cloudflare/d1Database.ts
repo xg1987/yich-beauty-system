@@ -6,10 +6,7 @@ import type {
   AuthUser,
   Commission,
   CommissionSettlement,
-  ActivityParticipant,
-  CouponTemplate,
   Customer,
-  CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
   DailyClose,
@@ -18,7 +15,6 @@ import type {
   InventoryLog,
   MemberCard,
   MemberCardTransaction,
-  MarketingActivity,
   OnlineBookingRequest,
   OnlineStorefront,
   OperationLog,
@@ -57,10 +53,6 @@ const tableNames: TableName[] = [
   "staffUnavailableSlots",
   "staffShifts",
   "memberCards",
-  "couponTemplates",
-  "customerCoupons",
-  "marketingActivities",
-  "activityParticipants",
   "distributors",
   "referralRelations",
   "orders",
@@ -125,10 +117,6 @@ export class D1BeautyDatabase {
       ),
       staffShifts: await this.all("SELECT payload_json FROM staffShifts ORDER BY rowid DESC", mapJsonPayload<StaffShift>),
       memberCards: await this.all("SELECT * FROM memberCards ORDER BY rowid ASC", mapMemberCard),
-      couponTemplates: await this.all("SELECT payload_json FROM couponTemplates ORDER BY rowid DESC", mapJsonPayload<CouponTemplate>),
-      customerCoupons: await this.all("SELECT payload_json FROM customerCoupons ORDER BY rowid DESC", mapJsonPayload<CustomerCoupon>),
-      marketingActivities: await this.all("SELECT payload_json FROM marketingActivities ORDER BY rowid DESC", mapJsonPayload<MarketingActivity>),
-      activityParticipants: await this.all("SELECT payload_json FROM activityParticipants ORDER BY rowid DESC", mapJsonPayload<ActivityParticipant>),
       distributors: await this.all("SELECT payload_json FROM distributors ORDER BY rowid DESC", mapJsonPayload<Distributor>),
       referralRelations: await this.all("SELECT payload_json FROM referralRelations ORDER BY rowid DESC", mapJsonPayload<ReferralRelation>),
       orders: await this.all("SELECT * FROM orders ORDER BY rowid DESC", mapOrder),
@@ -294,17 +282,13 @@ export class D1BeautyDatabase {
       );
     }
 
-    this.writeJsonTable(statements, "couponTemplates", data.couponTemplates);
-    this.writeJsonTable(statements, "customerCoupons", data.customerCoupons);
-    this.writeJsonTable(statements, "marketingActivities", data.marketingActivities);
-    this.writeJsonTable(statements, "activityParticipants", data.activityParticipants);
     this.writeJsonTable(statements, "distributors", data.distributors);
     this.writeJsonTable(statements, "referralRelations", data.referralRelations);
 
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, activityId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.orderNo,
@@ -318,8 +302,6 @@ export class D1BeautyDatabase {
             order.discountAmount ?? 0,
             order.adjustmentReason ?? null,
             order.approvalId ?? null,
-            order.couponId ?? null,
-            order.activityId ?? null,
             order.distributorId ?? null,
             order.appointmentId ?? null,
             order.payMethod,
@@ -524,8 +506,6 @@ function mapOrder(row: unknown): Order {
     discountAmount: value.discountAmount ?? 0,
     adjustmentReason: value.adjustmentReason ?? undefined,
     approvalId: value.approvalId ?? undefined,
-    couponId: value.couponId ?? undefined,
-    activityId: value.activityId ?? undefined,
     distributorId: value.distributorId ?? undefined,
     appointmentId: value.appointmentId ?? undefined,
   };

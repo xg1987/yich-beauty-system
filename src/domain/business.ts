@@ -1,10 +1,7 @@
 import type {
   AppData,
   ApprovalRequest,
-  ActivityParticipant,
   Appointment,
-  CouponTemplate,
-  CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
   DataQualityIssue,
@@ -17,7 +14,6 @@ import type {
   Distributor,
   InventoryLog,
   MemberCardTransaction,
-  MarketingActivity,
   OnlineBookingRequest,
   OnlineStorefront,
   OperationLog,
@@ -123,36 +119,10 @@ export type CheckoutInput = {
   discountAmount?: number;
   adjustmentReason?: string;
   approvalId?: string;
-  couponId?: string;
-  activityId?: string;
   distributorId?: string;
   appointmentId?: string;
   payMethod: Order["payMethod"];
   cardId?: string;
-};
-
-export type CouponTemplateInput = {
-  name: string;
-  amount: number;
-  minSpend: number;
-  serviceId?: string;
-  validDays: number;
-};
-
-export type IssueCouponInput = {
-  templateId: string;
-  customerId: string;
-};
-
-export type MarketingActivityInput = {
-  name: string;
-  type: MarketingActivity["type"];
-  serviceId: string;
-  activityPrice: number;
-  groupSize?: number;
-  quota: number;
-  startsAt: string;
-  endsAt: string;
 };
 
 export type DistributorInput = {
@@ -638,10 +608,6 @@ export function cleanupFormalData(data: AppData): { data: AppData; report: DataC
     staffUnavailableSlots: data.staffUnavailableSlots.filter((item) => !dirty.staffUnavailableSlotIds.has(item.id)),
     staffShifts: data.staffShifts.filter((item) => !dirty.staffShiftIds.has(item.id)),
     memberCards: data.memberCards.filter((item) => !dirty.memberCardIds.has(item.id)),
-    couponTemplates: data.couponTemplates.filter((item) => !dirty.couponTemplateIds.has(item.id)),
-    customerCoupons: data.customerCoupons.filter((item) => !dirty.customerCouponIds.has(item.id)),
-    marketingActivities: data.marketingActivities.filter((item) => !dirty.marketingActivityIds.has(item.id)),
-    activityParticipants: data.activityParticipants.filter((item) => !dirty.activityParticipantIds.has(item.id)),
     distributors: data.distributors.filter((item) => !dirty.distributorIds.has(item.id)),
     referralRelations: data.referralRelations.filter((item) => !dirty.referralRelationIds.has(item.id)),
     orders: data.orders.filter((item) => !dirty.orderIds.has(item.id)),
@@ -697,10 +663,6 @@ function collectDirtyIds(data: AppData) {
     staffUnavailableSlotIds: new Set<string>(),
     staffShiftIds: new Set<string>(),
     memberCardIds: new Set<string>(),
-    couponTemplateIds: new Set<string>(),
-    customerCouponIds: new Set<string>(),
-    marketingActivityIds: new Set<string>(),
-    activityParticipantIds: new Set<string>(),
     distributorIds: new Set<string>(),
     referralRelationIds: new Set<string>(),
     orderIds: new Set<string>(),
@@ -783,17 +745,6 @@ function collectDirtyIds(data: AppData) {
         dirty.memberCardIds.add(item.id);
       }
     });
-    data.couponTemplates.forEach((item) => {
-      if ((item.serviceId && dirty.serviceIds.has(item.serviceId)) || hasSuspiciousField(item.name)) dirty.couponTemplateIds.add(item.id);
-    });
-    data.customerCoupons.forEach((item) => {
-      if (dirty.customerIds.has(item.customerId) || dirty.couponTemplateIds.has(item.templateId) || (item.usedOrderId && dirty.orderIds.has(item.usedOrderId)) || hasSuspiciousField(item.name)) {
-        dirty.customerCouponIds.add(item.id);
-      }
-    });
-    data.marketingActivities.forEach((item) => {
-      if (dirty.serviceIds.has(item.serviceId) || hasSuspiciousField(item.name)) dirty.marketingActivityIds.add(item.id);
-    });
     data.distributors.forEach((item) => {
       if ((item.customerId && dirty.customerIds.has(item.customerId)) || (item.staffId && dirty.staffIds.has(item.staffId)) || hasSuspiciousField(item.name, item.phone, item.inviteCode)) {
         dirty.distributorIds.add(item.id);
@@ -809,17 +760,12 @@ function collectDirtyIds(data: AppData) {
         dirty.serviceIds.has(item.serviceId) ||
         (item.productId && dirty.productIds.has(item.productId)) ||
         (item.cardId && dirty.memberCardIds.has(item.cardId)) ||
-        (item.couponId && dirty.customerCouponIds.has(item.couponId)) ||
-        (item.activityId && dirty.marketingActivityIds.has(item.activityId)) ||
         (item.distributorId && dirty.distributorIds.has(item.distributorId)) ||
         (item.appointmentId && dirty.appointmentIds.has(item.appointmentId)) ||
         hasSuspiciousField(item.orderNo, item.adjustmentReason ?? "")
       ) {
         dirty.orderIds.add(item.id);
       }
-    });
-    data.activityParticipants.forEach((item) => {
-      if (dirty.marketingActivityIds.has(item.activityId) || dirty.customerIds.has(item.customerId) || (item.orderId && dirty.orderIds.has(item.orderId))) dirty.activityParticipantIds.add(item.id);
     });
     data.refunds.forEach((item) => {
       if (dirty.orderIds.has(item.orderId) || dirty.authUserIds.has(item.createdBy) || hasSuspiciousField(item.reason)) dirty.refundIds.add(item.id);
@@ -1191,97 +1137,6 @@ export function joinStaffInvite(
   };
 }
 
-export function createCouponTemplate(
-  data: AppData,
-  input: CouponTemplateInput,
-  options: { idFactory?: IdFactory; now?: () => string } = {},
-): AppData {
-  const idFactory = options.idFactory ?? makeId;
-  const createdAt = (options.now ?? nowIso)();
-  if (input.amount <= 0) throw new Error("券面额必须大于 0");
-  if (input.minSpend < 0) throw new Error("使用门槛不能小于 0");
-  if (input.amount >= input.minSpend && input.minSpend > 0) throw new Error("券面额不能大于等于使用门槛");
-  if (input.validDays <= 0) throw new Error("有效天数必须大于 0");
-  const template: CouponTemplate = {
-    id: idFactory("cp"),
-    name: input.name,
-    type: "满减券",
-    amount: input.amount,
-    minSpend: input.minSpend,
-    serviceId: input.serviceId,
-    validDays: input.validDays,
-    status: "启用",
-    createdAt,
-  };
-  return {
-    ...data,
-    couponTemplates: [template, ...data.couponTemplates],
-  };
-}
-
-export function issueCustomerCoupon(
-  data: AppData,
-  input: IssueCouponInput,
-  options: { idFactory?: IdFactory; now?: () => string } = {},
-): AppData {
-  const idFactory = options.idFactory ?? makeId;
-  const issuedAt = (options.now ?? nowIso)();
-  const template = data.couponTemplates.find((item) => item.id === input.templateId && item.status === "启用");
-  if (!template) throw new Error("优惠券模板不存在或已停用");
-  if (!data.customers.some((item) => item.id === input.customerId)) throw new Error("客户不存在");
-  const expiresAt = new Date(+new Date(issuedAt) + template.validDays * 86400000).toISOString();
-  const coupon: CustomerCoupon = {
-    id: idFactory("cc"),
-    templateId: template.id,
-    customerId: input.customerId,
-    name: template.name,
-    amount: template.amount,
-    minSpend: template.minSpend,
-    serviceId: template.serviceId,
-    status: "未使用",
-    issuedAt,
-    expiresAt,
-  };
-  return {
-    ...data,
-    customerCoupons: [coupon, ...data.customerCoupons],
-  };
-}
-
-export function createMarketingActivity(
-  data: AppData,
-  input: MarketingActivityInput,
-  options: { idFactory?: IdFactory; now?: () => string } = {},
-): AppData {
-  const idFactory = options.idFactory ?? makeId;
-  const createdAt = (options.now ?? nowIso)();
-  const service = data.services.find((item) => item.id === input.serviceId);
-  if (!service) throw new Error("服务项目不存在");
-  if (input.activityPrice <= 0 || input.activityPrice >= service.price) throw new Error("活动价必须低于项目原价");
-  if (input.quota <= 0) throw new Error("活动名额必须大于 0");
-  if (+new Date(input.endsAt) <= +new Date(input.startsAt)) throw new Error("活动结束时间必须晚于开始时间");
-  if (input.type === "拼团" && (!input.groupSize || input.groupSize < 2)) throw new Error("拼团人数至少 2 人");
-
-  const activity: MarketingActivity = {
-    id: idFactory("ma"),
-    name: input.name,
-    type: input.type,
-    serviceId: input.serviceId,
-    activityPrice: input.activityPrice,
-    groupSize: input.type === "拼团" ? input.groupSize : undefined,
-    quota: input.quota,
-    soldCount: 0,
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
-    status: "进行中",
-    createdAt,
-  };
-  return {
-    ...data,
-    marketingActivities: [activity, ...data.marketingActivities],
-  };
-}
-
 export function createDistributor(
   data: AppData,
   input: DistributorInput,
@@ -1410,16 +1265,12 @@ export function checkoutOrder(
     throw new Error("改价折扣需要审批通过");
   }
   const orderId = idFactory("o");
-  const createdAt = currentTime();
-  const selectedActivity = input.activityId ? data.marketingActivities.find((item) => item.id === input.activityId) : undefined;
-  const activityDiscount = selectedActivity ? validateMarketingActivity(selectedActivity, input.serviceId, selectedService.price, createdAt) : 0;
-  const selectedCoupon = input.couponId ? data.customerCoupons.find((item) => item.id === input.couponId) : undefined;
-  const couponDiscount = selectedCoupon ? validateCustomerCoupon(selectedCoupon, input.customerId, input.serviceId, total, createdAt) : 0;
-  const totalDiscount = activityDiscount + discountAmount + couponDiscount;
+  const totalDiscount = discountAmount;
   if (totalDiscount >= total) {
     throw new Error("优惠金额无效");
   }
   const paidAmount = total - totalDiscount;
+  const createdAt = currentTime();
   if (selectedCard?.type === "储值卡" && selectedCard.balance < paidAmount) {
     throw new Error("会员卡余额不足");
   }
@@ -1447,14 +1298,8 @@ export function checkoutOrder(
     totalAmount: total,
     paidAmount,
     discountAmount: totalDiscount,
-    adjustmentReason: [
-      selectedActivity ? `${selectedActivity.type}活动：${selectedActivity.name}` : undefined,
-      selectedCoupon ? `营销券：${selectedCoupon.name}` : undefined,
-      input.adjustmentReason,
-    ].filter(Boolean).join("；") || undefined,
+    adjustmentReason: input.adjustmentReason,
     approvalId: input.approvalId,
-    couponId: selectedCoupon?.id,
-    activityId: selectedActivity?.id,
     distributorId: selectedDistributor?.id,
     appointmentId: appointment?.id,
     payMethod: input.payMethod,
@@ -1521,26 +1366,6 @@ export function checkoutOrder(
           ...data.memberCardTransactions,
         ]
       : data.memberCardTransactions;
-  const marketingActivities = selectedActivity
-    ? data.marketingActivities.map((activity) =>
-        activity.id === selectedActivity.id ? { ...activity, soldCount: activity.soldCount + 1 } : activity,
-      )
-    : data.marketingActivities;
-  const activityParticipants: ActivityParticipant[] = selectedActivity
-    ? [
-        {
-          id: idFactory("ap"),
-          activityId: selectedActivity.id,
-          customerId: input.customerId,
-          orderId,
-          status: "已核销",
-          joinedAt: createdAt,
-          checkedAt: createdAt,
-        },
-        ...data.activityParticipants,
-      ]
-    : data.activityParticipants;
-
   const selectedProduct = input.productId ? data.products.find((item) => item.id === input.productId) : undefined;
   const productCommissionBase = selectedProduct ? Math.round(paidAmount * (selectedProduct.price / total)) : 0;
   const serviceCommissionBase = Math.round(paidAmount) - productCommissionBase;
@@ -1605,14 +1430,7 @@ export function checkoutOrder(
     inventoryLogs,
     orders: [order, ...data.orders],
     memberCardTransactions,
-    marketingActivities,
-    activityParticipants,
     referralRelations,
-    customerCoupons: selectedCoupon
-      ? data.customerCoupons.map((coupon) =>
-          coupon.id === selectedCoupon.id ? { ...coupon, status: "已使用", usedOrderId: orderId, usedAt: createdAt } : coupon,
-        )
-      : data.customerCoupons,
     customers: data.customers.map((customer) => (customer.id === input.customerId ? { ...customer, lastVisit: createdAt } : customer)),
     appointments: appointment
       ? data.appointments.map((item) =>
@@ -1740,23 +1558,6 @@ export function refundOrder(
           }
         : item,
     ),
-    customerCoupons: isFullRefund && order.couponId
-      ? data.customerCoupons.map((coupon) =>
-          coupon.id === order.couponId
-            ? { ...coupon, status: "未使用", usedOrderId: undefined, usedAt: undefined }
-            : coupon,
-        )
-      : data.customerCoupons,
-    marketingActivities: isFullRefund && order.activityId
-      ? data.marketingActivities.map((activity) =>
-          activity.id === order.activityId ? { ...activity, soldCount: Math.max(0, activity.soldCount - 1) } : activity,
-        )
-      : data.marketingActivities,
-    activityParticipants: isFullRefund && order.activityId
-      ? data.activityParticipants.map((participant) =>
-          participant.orderId === order.id ? { ...participant, status: "已取消", checkedAt: undefined } : participant,
-        )
-      : data.activityParticipants,
     commissions: data.commissions.map((item) =>
       item.orderId === order.id
         ? {
@@ -2841,25 +2642,6 @@ export function reportSummary(data: AppData) {
 function hasApprovedRequest(data: AppData, approvalId: string | undefined, type: ApprovalRequest["type"], amount: number) {
   if (!approvalId) return false;
   return data.approvalRequests.some((item) => item.id === approvalId && item.type === type && item.status === "已通过" && item.amount >= amount);
-}
-
-function validateCustomerCoupon(coupon: CustomerCoupon, customerId: string, serviceId: string, total: number, createdAt: string) {
-  if (coupon.customerId !== customerId) throw new Error("优惠券不属于当前客户");
-  if (coupon.status !== "未使用") throw new Error("优惠券不可用");
-  if (+new Date(coupon.expiresAt) < +new Date(createdAt)) throw new Error("优惠券已过期");
-  if (coupon.serviceId && coupon.serviceId !== serviceId) throw new Error("优惠券不可用于当前项目");
-  if (total < coupon.minSpend) throw new Error("订单金额未达到优惠券门槛");
-  return coupon.amount;
-}
-
-function validateMarketingActivity(activity: MarketingActivity, serviceId: string, servicePrice: number, createdAt: string) {
-  if (activity.status !== "进行中") throw new Error("活动不可用");
-  if (activity.serviceId !== serviceId) throw new Error("活动不可用于当前项目");
-  if (+new Date(activity.startsAt) > +new Date(createdAt) || +new Date(activity.endsAt) < +new Date(createdAt)) {
-    throw new Error("活动不在有效时间内");
-  }
-  if (activity.soldCount >= activity.quota) throw new Error("活动名额已满");
-  return servicePrice - activity.activityPrice;
 }
 
 function assertBusinessDateOpen(data: AppData, businessDate: string) {

@@ -55,8 +55,6 @@ export function createApiClient(getToken: () => string | undefined) {
       discountAmount?: number;
       adjustmentReason?: string;
       approvalId?: string;
-      couponId?: string;
-      activityId?: string;
       distributorId?: string;
       appointmentId?: string;
       payMethod: Order["payMethod"];
@@ -106,20 +104,6 @@ export function createApiClient(getToken: () => string | undefined) {
       serviceIds?: string[];
     }) =>
       request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
-    createCouponTemplate: (body: { name: string; amount: number; minSpend: number; serviceId?: string; validDays: number }) =>
-      request<AppData>("/api/coupon-templates", { method: "POST", body, token: getToken() }),
-    issueCustomerCoupon: (body: { templateId: string; customerId: string }) =>
-      request<AppData>("/api/customer-coupons", { method: "POST", body, token: getToken() }),
-    createMarketingActivity: (body: {
-      name: string;
-      type: "拼团" | "秒杀";
-      serviceId: string;
-      activityPrice: number;
-      groupSize?: number;
-      quota: number;
-      startsAt: string;
-      endsAt: string;
-    }) => request<AppData>("/api/marketing-activities", { method: "POST", body, token: getToken() }),
     createDistributor: (body: { type: "客户" | "员工"; customerId?: string; staffId?: string; name?: string; phone?: string; rate: number }) =>
       request<AppData>("/api/distributors", { method: "POST", body, token: getToken() }),
     bindReferralRelation: (body: { distributorId: string; customerId: string; source?: "手工绑定" | "邀请码" }) =>

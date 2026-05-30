@@ -9,11 +9,9 @@ import {
   convertOnlineBookingRequest,
   createAppointment,
   createApprovalRequest,
-  createCouponTemplate,
   createDistributor,
   createDailyClose,
   createOnlineBookingRequest,
-  createMarketingActivity,
   createStaffShift,
   createStaffInvite,
   createStaffUnavailableSlot,
@@ -22,7 +20,6 @@ import {
   createTagDefinition,
   decideApprovalRequest,
   extendMemberCard,
-  issueCustomerCoupon,
   joinStaffInvite,
   addSystemNotification,
   cleanupFormalData,
@@ -620,77 +617,6 @@ function card(data: AppData, cardId: string) {
 }
 
 {
-  const activityData = createMarketingActivity(
-    cloneSeed(),
-    {
-      name: "小气泡秒杀",
-      type: "秒杀",
-      serviceId: "v1",
-      activityPrice: 298,
-      quota: 10,
-      startsAt: "2026-05-23T00:00:00.000Z",
-      endsAt: "2026-05-25T00:00:00.000Z",
-    },
-    { idFactory: testId, now: fixedNow },
-  );
-  const checkedOut = checkoutOrder(
-    activityData,
-    {
-      customerId: "c1",
-      staffId: "s2",
-      serviceId: "v1",
-      payMethod: "微信",
-      activityId: activityData.marketingActivities[0].id,
-    },
-    { idFactory: testId, now: fixedNow },
-  );
-  assert.equal(checkedOut.orders[0].paidAmount, 298, "marketing activity should apply activity price");
-  assert.equal(checkedOut.orders[0].activityId, activityData.marketingActivities[0].id, "order should keep activity source");
-  assert.equal(checkedOut.marketingActivities[0].soldCount, 1, "activity checkout should consume quota");
-  assert.equal(checkedOut.activityParticipants[0].status, "已核销", "activity checkout should create checked participant");
-  const refunded = refundOrder(
-    checkedOut,
-    { orderId: checkedOut.orders[0].id, reason: "撤销活动订单", userId: "u_manager" },
-    { idFactory: testId, now: fixedNow },
-  );
-  assert.equal(refunded.marketingActivities[0].soldCount, 0, "full refund should restore activity quota");
-  assert.equal(refunded.activityParticipants[0].status, "已取消", "full refund should cancel activity participant");
-}
-
-{
-  const templateData = createCouponTemplate(
-    cloneSeed(),
-    { name: "老客护理券", amount: 60, minSpend: 300, serviceId: "v1", validDays: 15 },
-    { idFactory: testId, now: fixedNow },
-  );
-  const issuedData = issueCustomerCoupon(
-    templateData,
-    { templateId: templateData.couponTemplates[0].id, customerId: "c1" },
-    { idFactory: testId, now: fixedNow },
-  );
-  const checkedOut = checkoutOrder(
-    issuedData,
-    {
-      customerId: "c1",
-      staffId: "s2",
-      serviceId: "v1",
-      payMethod: "微信",
-      couponId: issuedData.customerCoupons[0].id,
-    },
-    { idFactory: testId, now: fixedNow },
-  );
-  assert.equal(checkedOut.orders[0].paidAmount, 338, "customer coupon should reduce checkout paid amount");
-  assert.equal(checkedOut.orders[0].couponId, issuedData.customerCoupons[0].id, "order should keep coupon source");
-  assert.equal(checkedOut.customerCoupons[0].status, "已使用", "checkout should mark coupon used");
-  const refunded = refundOrder(
-    checkedOut,
-    { orderId: checkedOut.orders[0].id, reason: "撤销订单", userId: "u_manager" },
-    { idFactory: testId, now: fixedNow },
-  );
-  assert.equal(refunded.customerCoupons[0].status, "未使用", "full refund should restore used coupon");
-}
-
-{
   assert.throws(
     () =>
       checkoutOrder(
@@ -898,7 +824,7 @@ function card(data: AppData, cardId: string) {
           serviceId: "v1",
           payMethod: "微信",
           discountAmount: 50,
-          adjustmentReason: "活动价",
+          adjustmentReason: "会员维护价",
         },
         { idFactory: testId, now: fixedNow },
       ),
@@ -908,7 +834,7 @@ function card(data: AppData, cardId: string) {
 
   const requested = createApprovalRequest(
     cloneSeed(),
-    { type: "改价折扣", targetId: "manual", requestedBy: "u_frontdesk", amount: 50, reason: "活动价" },
+    { type: "改价折扣", targetId: "manual", requestedBy: "u_frontdesk", amount: 50, reason: "会员维护价" },
     { idFactory: testId, now: fixedNow },
   );
   const approved = decideApprovalRequest(
@@ -924,7 +850,7 @@ function card(data: AppData, cardId: string) {
       serviceId: "v1",
       payMethod: "微信",
       discountAmount: 50,
-      adjustmentReason: "活动价",
+      adjustmentReason: "会员维护价",
       approvalId: approved.approvalRequests[0].id,
     },
     { idFactory: testId, now: fixedNow },

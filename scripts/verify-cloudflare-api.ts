@@ -249,7 +249,7 @@ assert.equal(afterAppointment.appointments[0].staffId, therapistStaffId, "D1 sho
 const afterApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
   method: "POST",
   token: ownerSession.token,
-  body: { type: "改价折扣", targetId: "manual", amount: 50, reason: "Cloudflare 活动价" },
+  body: { type: "改价折扣", targetId: "manual", amount: 50, reason: "Cloudflare 会员维护价" },
 });
 const discountApprovalId = afterApprovalRequest.approvalRequests[0].id;
 const afterApprovalDecision = await request<AppData>(baseUrl, `/api/approvals/${discountApprovalId}`, {
@@ -258,47 +258,6 @@ const afterApprovalDecision = await request<AppData>(baseUrl, `/api/approvals/${
   body: { approved: true },
 });
 assert.equal(afterApprovalDecision.approvalRequests[0].status, "已通过", "D1 should approve requests");
-
-const afterCouponTemplate = await request<AppData>(baseUrl, "/api/coupon-templates", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { name: "Cloudflare 新客券", amount: 50, minSpend: 300, serviceId, validDays: 20 },
-});
-const afterIssueCoupon = await request<AppData>(baseUrl, "/api/customer-coupons", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { templateId: afterCouponTemplate.couponTemplates[0].id, customerId },
-});
-const cloudflareCouponId = afterIssueCoupon.customerCoupons[0].id;
-const afterCouponCheckout = await request<AppData>(baseUrl, "/api/checkout", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { customerId, staffId: therapistStaffId, serviceId, payMethod: "微信", couponId: cloudflareCouponId },
-});
-assert.equal(afterCouponCheckout.orders[0].paidAmount, 348, "D1 should persist coupon checkout discount");
-assert.equal(afterCouponCheckout.customerCoupons.find((item) => item.id === cloudflareCouponId)?.status, "已使用", "D1 should mark coupon used");
-
-const afterMarketingActivity = await request<AppData>(baseUrl, "/api/marketing-activities", {
-  method: "POST",
-  token: ownerSession.token,
-  body: {
-    name: "Cloudflare 小气泡秒杀",
-    type: "秒杀",
-    serviceId,
-    activityPrice: 298,
-    quota: 10,
-    startsAt: `${today}T00:00:00.000Z`,
-    endsAt: `${futureDay(2)}T00:00:00.000Z`,
-  },
-});
-const cloudflareActivityId = afterMarketingActivity.marketingActivities[0].id;
-const afterActivityCheckout = await request<AppData>(baseUrl, "/api/checkout", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { customerId, staffId: therapistStaffId, serviceId, payMethod: "微信", activityId: cloudflareActivityId },
-});
-assert.equal(afterActivityCheckout.orders[0].paidAmount, 298, "D1 should persist activity checkout price");
-assert.equal(afterActivityCheckout.marketingActivities.find((item) => item.id === cloudflareActivityId)?.soldCount, 1, "D1 should consume activity quota");
 
 const afterDistributor = await request<AppData>(baseUrl, "/api/distributors", {
   method: "POST",
@@ -337,7 +296,7 @@ const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     productId,
     payMethod: "微信",
     discountAmount: 50,
-    adjustmentReason: "Cloudflare 活动价",
+    adjustmentReason: "Cloudflare 会员维护价",
     approvalId: discountApprovalId,
   },
 });

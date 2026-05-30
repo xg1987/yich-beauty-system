@@ -14,9 +14,7 @@ import {
   createAppointment,
   createOnlineBookingRequest,
   createApprovalRequest,
-  createCouponTemplate,
   createDistributor,
-  createMarketingActivity,
   createTagDefinition,
   createDailyClose,
   createStaffShift,
@@ -40,7 +38,6 @@ import {
   transferMemberCard,
   upsertOnlineStorefront,
   joinStaffInvite,
-  issueCustomerCoupon,
   markAllVisibleNotificationsRead,
   markNotificationRead,
   previewFormalDataCleanup,
@@ -377,8 +374,6 @@ export function createApiServer(database = new BeautyDatabase()) {
             discountAmount: optionalNumber(body, "discountAmount"),
             adjustmentReason: optionalString(body, "adjustmentReason"),
             approvalId: optionalString(body, "approvalId"),
-            couponId: optionalString(body, "couponId"),
-            activityId: optionalString(body, "activityId"),
             distributorId: optionalString(body, "distributorId"),
             appointmentId: optionalString(body, "appointmentId"),
             payMethod: requiredString(body, "payMethod") as Order["payMethod"],
@@ -713,78 +708,6 @@ export function createApiServer(database = new BeautyDatabase()) {
             ...data.memberCardTransactions,
           ],
         }));
-        sendJson(response, 201, scopeDataForSession(nextData, session));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/api/coupon-templates") {
-        requirePermission(session, "customers:manage");
-        const body = await readJson(request);
-        const nextData = addOperationLog(
-          createCouponTemplate(database.readData(), {
-            name: requiredString(body, "name"),
-            amount: requiredNumber(body, "amount"),
-            minSpend: requiredNumber(body, "minSpend"),
-            serviceId: optionalString(body, "serviceId"),
-            validDays: requiredNumber(body, "validDays"),
-          }),
-          {
-            userId: session.user.id,
-            action: "创建营销券",
-            targetType: "couponTemplate",
-            targetId: "latest",
-            summary: `${session.user.name} 创建营销券 ${requiredString(body, "name")}`,
-          },
-        );
-        database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/api/customer-coupons") {
-        requirePermission(session, "customers:manage");
-        const body = await readJson(request);
-        const nextData = addOperationLog(
-          issueCustomerCoupon(database.readData(), {
-            templateId: requiredString(body, "templateId"),
-            customerId: requiredString(body, "customerId"),
-          }),
-          {
-            userId: session.user.id,
-            action: "客户发券",
-            targetType: "customerCoupon",
-            targetId: "latest",
-            summary: `${session.user.name} 给客户发放营销券`,
-          },
-        );
-        database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/api/marketing-activities") {
-        requirePermission(session, "customers:manage");
-        const body = await readJson(request);
-        const nextData = addOperationLog(
-          createMarketingActivity(database.readData(), {
-            name: requiredString(body, "name"),
-            type: requiredString(body, "type") as "拼团" | "秒杀",
-            serviceId: requiredString(body, "serviceId"),
-            activityPrice: requiredNumber(body, "activityPrice"),
-            groupSize: optionalNumber(body, "groupSize"),
-            quota: requiredNumber(body, "quota"),
-            startsAt: requiredString(body, "startsAt"),
-            endsAt: requiredString(body, "endsAt"),
-          }),
-          {
-            userId: session.user.id,
-            action: "创建营销活动",
-            targetType: "marketingActivity",
-            targetId: "latest",
-            summary: `${session.user.name} 创建营销活动 ${requiredString(body, "name")}`,
-          },
-        );
-        database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
         return;
       }
@@ -1265,10 +1188,6 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     orders,
     refunds: sanitizedData.refunds.filter((item) => orderIds.has(item.orderId)),
     commissions: sanitizedData.commissions.filter((item) => item.staffId === staffId),
-    couponTemplates: [],
-    customerCoupons: sanitizedData.customerCoupons.filter((item) => customerIds.has(item.customerId)),
-    marketingActivities: sanitizedData.marketingActivities.filter((item) => orders.some((order) => order.activityId === item.id)),
-    activityParticipants: sanitizedData.activityParticipants.filter((item) => customerIds.has(item.customerId)),
     distributors: sanitizedData.distributors.filter((item) => item.staffId === staffId || orders.some((order) => order.distributorId === item.id)),
     referralRelations: sanitizedData.referralRelations.filter((item) => customerIds.has(item.customerId)),
     approvalRequests: [],

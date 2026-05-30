@@ -9,10 +9,7 @@ import type {
   AuthUser,
   Commission,
   CommissionSettlement,
-  ActivityParticipant,
-  CouponTemplate,
   Customer,
-  CustomerCoupon,
   CustomerFollowUp,
   CustomerServiceRecord,
   DailyClose,
@@ -21,7 +18,6 @@ import type {
   InventoryLog,
   MemberCard,
   MemberCardTransaction,
-  MarketingActivity,
   OnlineBookingRequest,
   OnlineStorefront,
   OperationLog,
@@ -61,10 +57,6 @@ const tableNames: TableName[] = [
   "staffUnavailableSlots",
   "staffShifts",
   "memberCards",
-  "couponTemplates",
-  "customerCoupons",
-  "marketingActivities",
-  "activityParticipants",
   "distributors",
   "referralRelations",
   "orders",
@@ -150,10 +142,6 @@ export class BeautyDatabase {
         .map(mapStaffUnavailableSlot),
       staffShifts: this.db.prepare("SELECT payload_json FROM staffShifts ORDER BY rowid DESC").all().map(mapJsonPayload<StaffShift>),
       memberCards: this.db.prepare("SELECT * FROM memberCards ORDER BY rowid ASC").all().map(mapMemberCard),
-      couponTemplates: this.db.prepare("SELECT payload_json FROM couponTemplates ORDER BY rowid DESC").all().map(mapJsonPayload<CouponTemplate>),
-      customerCoupons: this.db.prepare("SELECT payload_json FROM customerCoupons ORDER BY rowid DESC").all().map(mapJsonPayload<CustomerCoupon>),
-      marketingActivities: this.db.prepare("SELECT payload_json FROM marketingActivities ORDER BY rowid DESC").all().map(mapJsonPayload<MarketingActivity>),
-      activityParticipants: this.db.prepare("SELECT payload_json FROM activityParticipants ORDER BY rowid DESC").all().map(mapJsonPayload<ActivityParticipant>),
       distributors: this.db.prepare("SELECT payload_json FROM distributors ORDER BY rowid DESC").all().map(mapJsonPayload<Distributor>),
       referralRelations: this.db.prepare("SELECT payload_json FROM referralRelations ORDER BY rowid DESC").all().map(mapJsonPayload<ReferralRelation>),
       orders: this.db.prepare("SELECT * FROM orders ORDER BY rowid DESC").all().map(mapOrder),
@@ -301,17 +289,13 @@ export class BeautyDatabase {
         );
     }
 
-    this.writeJsonTable("couponTemplates", data.couponTemplates);
-    this.writeJsonTable("customerCoupons", data.customerCoupons);
-    this.writeJsonTable("marketingActivities", data.marketingActivities);
-    this.writeJsonTable("activityParticipants", data.activityParticipants);
     this.writeJsonTable("distributors", data.distributors);
     this.writeJsonTable("referralRelations", data.referralRelations);
 
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, couponId, activityId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -326,8 +310,6 @@ export class BeautyDatabase {
           order.discountAmount ?? 0,
           order.adjustmentReason ?? null,
           order.approvalId ?? null,
-          order.couponId ?? null,
-          order.activityId ?? null,
           order.distributorId ?? null,
           order.appointmentId ?? null,
           order.payMethod,
@@ -561,26 +543,6 @@ export class BeautyDatabase {
         serviceIds_json TEXT
       );
 
-      CREATE TABLE IF NOT EXISTS couponTemplates (
-        id TEXT PRIMARY KEY,
-        payload_json TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS customerCoupons (
-        id TEXT PRIMARY KEY,
-        payload_json TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS marketingActivities (
-        id TEXT PRIMARY KEY,
-        payload_json TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS activityParticipants (
-        id TEXT PRIMARY KEY,
-        payload_json TEXT NOT NULL
-      );
-
       CREATE TABLE IF NOT EXISTS distributors (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
@@ -604,8 +566,6 @@ export class BeautyDatabase {
         discountAmount REAL NOT NULL DEFAULT 0,
         adjustmentReason TEXT,
         approvalId TEXT,
-        couponId TEXT,
-        activityId TEXT,
         distributorId TEXT,
         appointmentId TEXT,
         payMethod TEXT NOT NULL,
@@ -743,8 +703,6 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "discountAmount", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("orders", "adjustmentReason", "TEXT");
     this.addColumnIfMissing("orders", "approvalId", "TEXT");
-    this.addColumnIfMissing("orders", "couponId", "TEXT");
-    this.addColumnIfMissing("orders", "activityId", "TEXT");
     this.addColumnIfMissing("orders", "distributorId", "TEXT");
     this.addColumnIfMissing("orders", "appointmentId", "TEXT");
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
@@ -835,8 +793,6 @@ function mapOrder(row: unknown): Order {
     discountAmount: value.discountAmount ?? 0,
     adjustmentReason: value.adjustmentReason ?? undefined,
     approvalId: value.approvalId ?? undefined,
-    couponId: value.couponId ?? undefined,
-    activityId: value.activityId ?? undefined,
     distributorId: value.distributorId ?? undefined,
     appointmentId: value.appointmentId ?? undefined,
   };

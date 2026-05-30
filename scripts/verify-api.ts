@@ -12,6 +12,8 @@ const tempDir = mkdtempSync(join(tmpdir(), "beauty-api-"));
 const database = new BeautyDatabase(join(tempDir, "test.sqlite"));
 database.replaceData(testFixtureData);
 const server = createApiServer(database);
+const futureDate = (daysFromNow: number) => new Date(Date.now() + daysFromNow * 86400000).toISOString().slice(0, 10);
+const futureIso = (daysFromNow: number, time: string) => `${futureDate(daysFromNow)}T${time}:00.000Z`;
 
 try {
   const baseUrl = await listen(server);
@@ -66,7 +68,7 @@ try {
       customerName: "API 线上客户",
       phone: "13700000008",
       serviceId: "v1",
-      preferredAt: "2026-05-30T02:00:00.000Z",
+      preferredAt: futureIso(30, "02:00"),
       note: "线上预约申请",
     },
   });
@@ -223,7 +225,7 @@ try {
       customerId: "c1",
       staffId: "s3",
       serviceId: "v1",
-      startAt: "2026-05-25T02:00:00.000Z",
+      startAt: futureIso(31, "02:00"),
       note: "API 预约",
     },
   });
@@ -271,7 +273,7 @@ try {
       customerId: "c1",
       staffId: "s3",
       serviceId: "v1",
-      startAt: "2026-05-25T05:00:00.000Z",
+      startAt: futureIso(32, "05:00"),
       note: "API 改约测试",
     },
   });
@@ -282,7 +284,7 @@ try {
     body: {
       staffId: "s3",
       serviceId: "v2",
-      startAt: "2026-05-25T06:00:00.000Z",
+      startAt: futureIso(32, "06:00"),
       note: "API 已改约",
     },
   });
@@ -310,8 +312,8 @@ try {
     token: session.token,
     body: {
       staffId: "s3",
-      startAt: "2026-05-26T02:00:00.000Z",
-      endAt: "2026-05-26T03:00:00.000Z",
+      startAt: futureIso(33, "02:00"),
+      endAt: futureIso(33, "03:00"),
       reason: "API 员工培训",
     },
   });
@@ -325,7 +327,7 @@ try {
           customerId: "c1",
           staffId: "s3",
           serviceId: "v1",
-          startAt: "2026-05-26T02:15:00.000Z",
+          startAt: futureIso(33, "02:15"),
           note: "不可预约冲突",
         },
       }),
@@ -338,8 +340,8 @@ try {
     token: session.token,
     body: {
       staffId: "s3",
-      startAt: "2026-05-28T02:00:00.000Z",
-      endAt: "2026-05-28T03:00:00.000Z",
+      startAt: futureIso(34, "02:00"),
+      endAt: futureIso(34, "03:00"),
       note: "API 早班",
     },
   });
@@ -353,7 +355,7 @@ try {
           customerId: "c1",
           staffId: "s3",
           serviceId: "v1",
-          startAt: "2026-05-28T04:00:00.000Z",
+          startAt: futureIso(34, "04:00"),
           note: "班次外预约",
         },
       }),
@@ -364,7 +366,7 @@ try {
   const afterApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
     method: "POST",
     token: session.token,
-    body: { type: "改价折扣", targetId: "manual", amount: 50, reason: "API 活动价" },
+    body: { type: "改价折扣", targetId: "manual", amount: 50, reason: "API 会员维护价" },
   });
   const discountApprovalId = afterApprovalRequest.approvalRequests[0].id;
   assert.equal(afterApprovalRequest.notifications[0].targetId, discountApprovalId, "approval request should create notification");
@@ -375,61 +377,6 @@ try {
     body: { approved: true },
   });
   assert.equal(afterApprovalDecision.approvalRequests[0].status, "已通过", "approval API should approve request");
-
-  const afterCouponTemplate = await request<AppData>(baseUrl, "/api/coupon-templates", {
-    method: "POST",
-    token: session.token,
-    body: { name: "API 新客券", amount: 50, minSpend: 300, serviceId: "v1", validDays: 20 },
-  });
-  assert.equal(afterCouponTemplate.couponTemplates[0].name, "API 新客券", "coupon template API should create template");
-  const afterIssueCoupon = await request<AppData>(baseUrl, "/api/customer-coupons", {
-    method: "POST",
-    token: session.token,
-    body: { templateId: afterCouponTemplate.couponTemplates[0].id, customerId: "c2" },
-  });
-  const apiCouponId = afterIssueCoupon.customerCoupons[0].id;
-  const afterCouponCheckout = await request<AppData>(baseUrl, "/api/checkout", {
-    method: "POST",
-    token: session.token,
-    body: {
-      customerId: "c2",
-      staffId: "s2",
-      serviceId: "v1",
-      payMethod: "微信",
-      couponId: apiCouponId,
-    },
-  });
-  assert.equal(afterCouponCheckout.orders[0].paidAmount, 348, "coupon checkout should reduce paid amount");
-  assert.equal(afterCouponCheckout.customerCoupons.find((item) => item.id === apiCouponId)?.status, "已使用", "coupon checkout should mark coupon used");
-
-  const afterMarketingActivity = await request<AppData>(baseUrl, "/api/marketing-activities", {
-    method: "POST",
-    token: session.token,
-    body: {
-      name: "API 小气泡秒杀",
-      type: "秒杀",
-      serviceId: "v1",
-      activityPrice: 298,
-      quota: 10,
-      startsAt: "2026-05-23T00:00:00.000Z",
-      endsAt: "2026-05-25T00:00:00.000Z",
-    },
-  });
-  const apiActivityId = afterMarketingActivity.marketingActivities[0].id;
-  const afterActivityCheckout = await request<AppData>(baseUrl, "/api/checkout", {
-    method: "POST",
-    token: session.token,
-    body: {
-      customerId: "c2",
-      staffId: "s2",
-      serviceId: "v1",
-      payMethod: "微信",
-      activityId: apiActivityId,
-    },
-  });
-  assert.equal(afterActivityCheckout.orders[0].paidAmount, 298, "activity checkout should apply activity price");
-  assert.equal(afterActivityCheckout.marketingActivities.find((item) => item.id === apiActivityId)?.soldCount, 1, "activity checkout should consume quota");
-  assert.equal(afterActivityCheckout.activityParticipants[0].status, "已核销", "activity checkout should create participant");
 
   const afterDistributor = await request<AppData>(baseUrl, "/api/distributors", {
     method: "POST",
@@ -466,7 +413,7 @@ try {
       serviceId: "v1",
       payMethod: "微信",
       discountAmount: 50,
-      adjustmentReason: "API 活动价",
+      adjustmentReason: "API 会员维护价",
       approvalId: discountApprovalId,
     },
   });
@@ -484,9 +431,9 @@ try {
       payMethod: "微信",
     },
   });
-  assert.equal(afterCheckout.orders.length, 5, "checkout API should create another order");
+  assert.equal(afterCheckout.orders.length, 3, "checkout API should create another order");
   assert.equal(afterCheckout.orders[0].totalAmount, 597, "checkout API should calculate total");
-  assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 14, "checkout API should consume service stock");
+  assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 16, "checkout API should consume service stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 23, "checkout API should consume retail stock");
   const checkoutCommissions = afterCheckout.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id);
   assert.equal(checkoutCommissions.length, 2, "checkout API should create service and sales commissions");
@@ -504,7 +451,7 @@ try {
   assert.ok(refundedOrder, "refunded order should still exist");
   assert.equal(refundedOrder.status, "已退款", "refund API should update order status");
   assert.equal(afterRefund.refunds[0].amount, 597, "refund API should write refund record");
-  assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 15, "refund API should restore service stock");
+  assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 17, "refund API should restore service stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p4")?.stock, 24, "refund API should restore retail stock");
   assert.ok(afterRefund.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id).every((item) => item.status === "已冲销"), "refund API should reverse commission");
   assert.ok(afterRefund.distributionCommissions.some((item) => item.status === "待结算"), "unrelated distribution commission should remain pending");
@@ -645,7 +592,7 @@ try {
     token: session.token,
     body: { productId: "p1", type: "入库", quantity: 2, note: "API 入库" },
   });
-  assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 14, "inventory API should increase stock");
+  assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 16, "inventory API should increase stock");
   assert.equal(afterInventory.inventoryLogs[0].note, "API 入库", "inventory API should persist note");
 
   const afterRecordCheckout = await request<AppData>(baseUrl, "/api/checkout", {
@@ -673,7 +620,7 @@ try {
       afterNote: "API 服务后",
       customerFeedback: "API 体验舒适",
       nextCareAdvice: "API 加强保湿防晒",
-      nextFollowUpAt: "2026-05-29T10:00:00.000Z",
+      nextFollowUpAt: futureIso(35, "10:00"),
     },
   });
   assert.equal(afterServiceRecord.customerServiceRecords.length, 1, "service record API should create record");
@@ -790,7 +737,7 @@ try {
   assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 10, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 8, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.ok(persistedData.distributionCommissions.length >= 1, "API data should persist distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
@@ -802,7 +749,7 @@ try {
       customerId: "c1",
       staffId: "s3",
       serviceId: "v1",
-      startAt: "2026-05-25T08:00:00.000Z",
+      startAt: futureIso(36, "08:00"),
       note: "API 预约收银",
     },
   });

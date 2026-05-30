@@ -1216,40 +1216,17 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [discountAmount, setDiscountAmount] = useState(0);
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [approvalId, setApprovalId] = useState("");
-  const [couponId, setCouponId] = useState("");
-  const [activityId, setActivityId] = useState("");
   const [distributorId, setDistributorId] = useState("");
-  const [approvalReason, setApprovalReason] = useState("客户活动价");
+  const [approvalReason, setApprovalReason] = useState("客户维护价");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
 
   const availableCards = data.memberCards.filter((item) => item.customerId === customerId && item.status === "正常");
   const total = calculateOrderTotal(data, serviceId, productId || undefined);
-  const activeActivities = data.marketingActivities.filter((activity) =>
-    activity.serviceId === serviceId &&
-    activity.status === "进行中" &&
-    +new Date(activity.startsAt) <= Date.now() &&
-    +new Date(activity.endsAt) >= Date.now() &&
-    activity.soldCount < activity.quota,
-  );
-  const selectedActivity = activeActivities.find((activity) => activity.id === activityId);
-  const activityDiscount = selectedActivity
-    ? Math.max(0, (data.services.find((service) => service.id === serviceId)?.price ?? 0) - selectedActivity.activityPrice)
-    : 0;
-  const activityTotal = total - activityDiscount;
-  const availableCoupons = data.customerCoupons.filter((coupon) =>
-    coupon.customerId === customerId &&
-    coupon.status === "未使用" &&
-    +new Date(coupon.expiresAt) >= Date.now() &&
-    (!coupon.serviceId || coupon.serviceId === serviceId) &&
-    activityTotal >= coupon.minSpend,
-  );
-  const selectedCoupon = availableCoupons.find((coupon) => coupon.id === couponId);
-  const couponDiscount = selectedCoupon?.amount ?? 0;
   const customerReferral = data.referralRelations.find((relation) => relation.customerId === customerId && relation.status === "有效");
   const activeDistributors = data.distributors.filter((distributor) => distributor.status === "启用" && distributor.customerId !== customerId);
   const selectedDistributor = data.distributors.find((distributor) => distributor.id === (distributorId || customerReferral?.distributorId));
-  const paidTotal = Math.max(0, activityTotal - discountAmount - couponDiscount);
+  const paidTotal = Math.max(0, total - discountAmount);
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayPaid = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
@@ -1327,8 +1304,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setServiceId(appointment.serviceId);
     setCollaboratorStaffIds([]);
     setCardId("");
-    setCouponId("");
-    setActivityId("");
     setDistributorId("");
   };
 
@@ -1344,8 +1319,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         discountAmount: discountAmount || undefined,
         adjustmentReason: adjustmentReason || undefined,
         approvalId: approvalId || undefined,
-        couponId: couponId || undefined,
-        activityId: activityId || undefined,
         distributorId: distributorId || undefined,
         appointmentId: appointmentId || undefined,
         payMethod,
@@ -1358,8 +1331,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setDiscountAmount(0);
     setAdjustmentReason("");
     setApprovalId("");
-    setCouponId("");
-    setActivityId("");
     setDistributorId("");
   };
 
@@ -1404,8 +1375,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
             ]}
           />
           {appointmentId && <p className="form-note">已带入预约信息，收银完成后预约会自动标记为已完成。</p>}
-          <Select label="客户" value={customerId} onChange={(value) => { clearAppointment(); setCustomerId(value); setCardId(""); setCouponId(""); setDistributorId(""); }} options={data.customers.map(optionOf)} />
-          <Select label="服务项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); setCouponId(""); setActivityId(""); }} options={data.services.map(optionOf)} />
+          <Select label="客户" value={customerId} onChange={(value) => { clearAppointment(); setCustomerId(value); setCardId(""); setDistributorId(""); }} options={data.customers.map(optionOf)} />
+          <Select label="服务项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); }} options={data.services.map(optionOf)} />
           <Select
             label="服务员工"
             value={staffId}
@@ -1424,18 +1395,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           />
           <Select label="附加商品" value={productId} onChange={setProductId} options={[{ value: "", label: "不销售商品" }, ...data.products.filter((item) => item.type === "sale").map(optionOf)]} />
           <Select label="支付方式" value={payMethod} onChange={(value) => setPayMethod(value as Order["payMethod"])} options={["微信", "支付宝", "现金", "银行卡", "会员卡"].map((item) => ({ value: item, label: item }))} />
-          <Select
-            label="拼团/秒杀"
-            value={activityId}
-            onChange={(value) => { setActivityId(value); setCouponId(""); }}
-            options={[
-              { value: "", label: "不使用活动价" },
-              ...activeActivities.map((activity) => ({
-                value: activity.id,
-                label: `${activity.type} · ${activity.name} · ${money(activity.activityPrice)} · 剩${activity.quota - activity.soldCount}`,
-              })),
-            ]}
-          />
           <Select
             label="分销归属"
             value={distributorId}
@@ -1462,17 +1421,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           </label>
           <label>
             改价原因
-            <input value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="如老客维护、活动价" />
+            <input value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="如老客维护、会员权益" />
           </label>
-          <Select
-            label="营销券"
-            value={couponId}
-            onChange={setCouponId}
-            options={[
-              { value: "", label: "不使用营销券" },
-              ...availableCoupons.map((coupon) => ({ value: coupon.id, label: `${coupon.name} · 抵扣${money(coupon.amount)} · 满${money(coupon.minSpend)}` })),
-            ]}
-          />
           {discountAmount > 0 && (
             <div className="sub-panel">
               <label>
@@ -1496,8 +1446,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           <div className="checkout-total">
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
-            {selectedActivity && <small>已用{selectedActivity.type}活动价优惠 {money(activityDiscount)}</small>}
-            {selectedCoupon && <small>已用营销券抵扣 {money(couponDiscount)}</small>}
             {selectedDistributor && <small>分销归属：{selectedDistributor.name}，成交后生成 {Math.round(selectedDistributor.rate * 100)}% 分销佣金</small>}
           </div>
           <button className="primary-button" disabled={payMethod === "会员卡" && !cardId}>完成收银</button>
@@ -1592,21 +1540,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [tagScope, setTagScope] = useState<TagScope>("客户");
   const [tagColor, setTagColor] = useState(tagColorOptions[0]);
   const [tagFilter, setTagFilter] = useState("");
-  const [couponName, setCouponName] = useState("新客护理满减券");
-  const [couponAmount, setCouponAmount] = useState(50);
-  const [couponMinSpend, setCouponMinSpend] = useState(300);
-  const [couponServiceId, setCouponServiceId] = useState("");
-  const [couponValidDays, setCouponValidDays] = useState(30);
-  const [issueCouponCustomerId, setIssueCouponCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [issueCouponTemplateId, setIssueCouponTemplateId] = useState(data.couponTemplates[0]?.id ?? "");
-  const [activityName, setActivityName] = useState("小气泡双人拼团");
-  const [activityType, setActivityType] = useState<"拼团" | "秒杀">("拼团");
-  const [activityServiceId, setActivityServiceId] = useState(data.services[0]?.id ?? "");
-  const [activityPrice, setActivityPrice] = useState(298);
-  const [activityGroupSize, setActivityGroupSize] = useState(2);
-  const [activityQuota, setActivityQuota] = useState(20);
-  const [activityStartsAt, setActivityStartsAt] = useState(toLocalInputValue(new Date().toISOString()));
-  const [activityEndsAt, setActivityEndsAt] = useState(toLocalInputValue(tomorrowAt(7 * 24)));
   const [distributorType, setDistributorType] = useState<"客户" | "员工">("客户");
   const [distributorCustomerId, setDistributorCustomerId] = useState(data.customers[0]?.id ?? "");
   const [distributorStaffId, setDistributorStaffId] = useState(data.staff[0]?.id ?? "");
@@ -1707,45 +1640,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     setTagName("");
   };
 
-  const createCoupon = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.createCouponTemplate({
-        name: couponName,
-        amount: couponAmount,
-        minSpend: couponMinSpend,
-        serviceId: couponServiceId || undefined,
-        validDays: couponValidDays,
-      }),
-    );
-  };
-
-  const issueCoupon = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.issueCustomerCoupon({
-        templateId: issueCouponTemplateId,
-        customerId: issueCouponCustomerId,
-      }),
-    );
-  };
-
-  const createActivity = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.createMarketingActivity({
-        name: activityName,
-        type: activityType,
-        serviceId: activityServiceId,
-        activityPrice,
-        groupSize: activityType === "拼团" ? activityGroupSize : undefined,
-        quota: activityQuota,
-        startsAt: new Date(activityStartsAt).toISOString(),
-        endsAt: new Date(activityEndsAt).toISOString(),
-      }),
-    );
-  };
-
   const createDistributor = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() =>
@@ -1842,8 +1736,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
   }).length;
-  const activeCoupons = data.customerCoupons.filter((coupon) => coupon.status === "未使用").length;
-  const runningActivities = data.marketingActivities.filter((activity) => activity.status === "进行中").length;
   const activeDistributorCount = data.distributors.filter((distributor) => distributor.status === "启用").length;
 
   return (
@@ -1856,8 +1748,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         stats={[
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
           { label: "有效卡项", value: `${activeCards.length} 张`, hint: "储值与次数卡", icon: <CreditCard size={18} /> },
-          { label: "营销券", value: `${activeCoupons} 张`, hint: "未使用客户券", icon: <BadgeCent size={18} /> },
-          { label: "分销员", value: `${activeDistributorCount} 个`, hint: `${runningActivities} 个活动`, icon: <Share2 size={18} /> },
+          { label: "分销员", value: `${activeDistributorCount} 个`, hint: "推荐归属", icon: <Share2 size={18} /> },
         ]}
       />
       <div className="content-grid">
@@ -1912,37 +1803,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <CheckboxGroup label="客户标签" values={customerTags} onChange={setCustomerTags} options={customerTagOptions} />
           <button className="primary-button">保存标签</button>
         </form>
-        <div className="divider" />
-        <PanelTitle icon={<BadgeCent size={18} />} title="营销发券" action="活动券/客户券" />
-        <form className="form" onSubmit={createCoupon}>
-          <label>券名称<input value={couponName} onChange={(event) => setCouponName(event.target.value)} /></label>
-          <label>抵扣金额<input type="number" value={couponAmount} onChange={(event) => setCouponAmount(Number(event.target.value))} /></label>
-          <label>使用门槛<input type="number" value={couponMinSpend} onChange={(event) => setCouponMinSpend(Number(event.target.value))} /></label>
-          <Select label="适用项目" value={couponServiceId} onChange={setCouponServiceId} options={[{ value: "", label: "全项目通用" }, ...data.services.map(optionOf)]} />
-          <label>有效天数<input type="number" value={couponValidDays} onChange={(event) => setCouponValidDays(Number(event.target.value))} /></label>
-          <button className="primary-button">创建券模板</button>
-        </form>
-        <form className="form compact-form" onSubmit={issueCoupon}>
-          <Select label="发放客户" value={issueCouponCustomerId} onChange={setIssueCouponCustomerId} options={data.customers.map(optionOf)} />
-          <Select label="券模板" value={issueCouponTemplateId} onChange={setIssueCouponTemplateId} options={data.couponTemplates.map(optionOf)} />
-          <button className="primary-button" disabled={!issueCouponTemplateId}>发放给客户</button>
-        </form>
-        <div className="divider" />
-        <PanelTitle icon={<Sparkles size={18} />} title="拼团/秒杀" action="活动价核销" />
-        <form className="form" onSubmit={createActivity}>
-          <label>活动名称<input value={activityName} onChange={(event) => setActivityName(event.target.value)} /></label>
-          <Select label="活动类型" value={activityType} onChange={(value) => setActivityType(value as "拼团" | "秒杀")} options={["拼团", "秒杀"].map((item) => ({ value: item, label: item }))} />
-          <Select label="活动项目" value={activityServiceId} onChange={setActivityServiceId} options={data.services.map(optionOf)} />
-          <label>活动价<input type="number" value={activityPrice} onChange={(event) => setActivityPrice(Number(event.target.value))} /></label>
-          {activityType === "拼团" && (
-            <label>成团人数<input type="number" value={activityGroupSize} onChange={(event) => setActivityGroupSize(Number(event.target.value))} /></label>
-          )}
-          <label>活动名额<input type="number" value={activityQuota} onChange={(event) => setActivityQuota(Number(event.target.value))} /></label>
-          <label>开始时间<input type="datetime-local" value={activityStartsAt} onChange={(event) => setActivityStartsAt(event.target.value)} /></label>
-          <label>结束时间<input type="datetime-local" value={activityEndsAt} onChange={(event) => setActivityEndsAt(event.target.value)} /></label>
-          <button className="primary-button">创建活动</button>
-        </form>
-        <div className="divider" />
         <PanelTitle icon={<Share2 size={18} />} title="分销设置" action="推荐归属/成交佣金" />
         <form className="form" onSubmit={createDistributor}>
           <Select label="分销员类型" value={distributorType} onChange={(value) => setDistributorType(value as "客户" | "员工")} options={["客户", "员工"].map((item) => ({ value: item, label: item }))} />
@@ -2072,47 +1932,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             ),
           ])}
         />
-        <div className="divider" />
-        <PanelTitle icon={<BadgeCent size={18} />} title="客户营销券" action="发放/核销状态" />
-        <DataTable
-          columns={["客户", "券名称", "抵扣", "门槛", "适用项目", "状态", "到期"]}
-          rows={data.customerCoupons.map((coupon) => [
-            nameOf(data.customers, coupon.customerId),
-            coupon.name,
-            money(coupon.amount),
-            money(coupon.minSpend),
-            coupon.serviceId ? nameOf(data.services, coupon.serviceId) : "通用",
-            <Badge key={`${coupon.id}-status`} text={coupon.status} tone={coupon.status === "未使用" ? "ok" : "warn"} />,
-            shortDate(coupon.expiresAt),
-          ])}
-        />
-        <div className="divider" />
-        <PanelTitle icon={<Sparkles size={18} />} title="拼团秒杀活动" action="活动价/名额" />
-        <DataTable
-          columns={["活动", "类型", "项目", "活动价", "名额", "状态", "时间"]}
-          rows={data.marketingActivities.map((activity) => [
-            activity.name,
-            activity.type,
-            nameOf(data.services, activity.serviceId),
-            money(activity.activityPrice),
-            `${activity.soldCount}/${activity.quota}${activity.groupSize ? ` · ${activity.groupSize}人成团` : ""}`,
-            <Badge key={`${activity.id}-status`} text={activity.status} tone={activity.status === "进行中" ? "ok" : "warn"} />,
-            `${shortDate(activity.startsAt)} - ${shortDate(activity.endsAt)}`,
-          ])}
-        />
-        <div className="divider" />
-        <PanelTitle icon={<Sparkles size={18} />} title="活动核销记录" action={`${data.activityParticipants.length} 条`} />
-        <DataTable
-          columns={["客户", "活动", "订单", "状态", "时间"]}
-          rows={data.activityParticipants.map((participant) => [
-            nameOf(data.customers, participant.customerId),
-            nameOf(data.marketingActivities, participant.activityId),
-            participant.orderId ? data.orders.find((order) => order.id === participant.orderId)?.orderNo ?? participant.orderId : "未下单",
-            <Badge key={`${participant.id}-status`} text={participant.status} tone={participant.status === "已核销" ? "ok" : "warn"} />,
-            shortDate(participant.joinedAt),
-          ])}
-        />
-        <div className="divider" />
         <PanelTitle icon={<Share2 size={18} />} title="分销关系" action={`${data.distributors.length} 个分销员`} />
         <DataTable
           columns={["分销员", "类型", "手机号", "比例", "邀请码", "状态"]}
