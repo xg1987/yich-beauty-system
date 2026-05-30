@@ -3,6 +3,8 @@ import {
   addSystemNotification,
   addCustomerFollowUp,
   addCustomerServiceRecord,
+  createCustomerSignature,
+  signCustomerSignature,
   addStaffMember,
   addSupplier,
   adjustInventory,
@@ -50,7 +52,7 @@ import { hashPassword } from "../../src/lib/password";
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
+import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
 import { getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
@@ -166,6 +168,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
       await database.replaceData(nextData);
       return sendJson(201, { ok: true });
+    }
+
+    if (context.request.method === "GET" && pathname.startsWith("/api/public/customer-signatures/")) {
+      const token = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      return sendJson(200, publicSignaturePayload(await database.readData(), token));
+    }
+
+    if (context.request.method === "POST" && pathname.startsWith("/api/public/customer-signatures/") && pathname.endsWith("/sign")) {
+      const token = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = signCustomerSignature(await database.readData(), {
+        token,
+        signerName: requiredString(body, "signerName"),
+        signatureText: requiredString(body, "signatureText"),
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, publicSignaturePayload(nextData, token));
     }
 
     const session = await getSessionFromD1(context.env.DB, context.request.headers.get("Authorization"));
@@ -813,6 +832,22 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(201, scopeDataForSession(nextData, session));
     }
 
+    if (context.request.method === "POST" && pathname === "/api/customer-signatures") {
+      requirePermission(session, "customers:manage");
+      const body = await readJson(context.request);
+      const nextData = createCustomerSignature(await database.readData(), {
+        customerId: requiredString(body, "customerId"),
+        serviceRecordId: optionalString(body, "serviceRecordId"),
+        orderId: optionalString(body, "orderId"),
+        title: optionalString(body, "title"),
+        content: optionalString(body, "content"),
+        requestedBy: session.user.id,
+        validDays: optionalNumber(body, "validDays"),
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
     if (context.request.method === "POST" && pathname === "/api/follow-ups") {
       requirePermission(session, "customers:manage");
       const body = await readJson(context.request);
@@ -1105,6 +1140,55 @@ function publicStorePayload(data: AppData, shareCode: string) {
   };
 }
 
+function publicSignaturePayload(data: AppData, token: string) {
+  const signature = (data.customerSignatures ?? []).find((item) => item.token === token);
+  if (!signature) throw new Error("签名链接不存在");
+  const customer = data.customers.find((item) => item.id === signature.customerId);
+  const order = signature.orderId ? data.orders.find((item) => item.id === signature.orderId) : undefined;
+  const serviceRecord = signature.serviceRecordId ? data.customerServiceRecords.find((item) => item.id === signature.serviceRecordId) : undefined;
+  return {
+    signature: sanitizePublicSignature(signature),
+    customer: customer ? { id: customer.id, name: customer.name, phone: customer.phone.replace(/^(\d{3})\d+(\d{4})$/, "$1****$2") } : undefined,
+    order: order
+      ? {
+          id: order.id,
+          orderNo: order.orderNo,
+          paidAmount: order.paidAmount,
+          payMethod: order.payMethod,
+          createdAt: order.createdAt,
+          serviceName: data.services.find((item) => item.id === order.serviceId)?.name ?? "",
+        }
+      : undefined,
+    serviceRecord: serviceRecord
+      ? {
+          id: serviceRecord.id,
+          skinCondition: serviceRecord.skinCondition,
+          careSteps: serviceRecord.careSteps,
+          afterNote: serviceRecord.afterNote,
+          nextCareAdvice: serviceRecord.nextCareAdvice,
+          createdAt: serviceRecord.createdAt,
+          serviceName: data.services.find((item) => item.id === serviceRecord.serviceId)?.name ?? "",
+          staffName: data.staff.find((item) => item.id === serviceRecord.staffId)?.name ?? "",
+        }
+      : undefined,
+  };
+}
+
+function sanitizePublicSignature(signature: CustomerSignature) {
+  return {
+    id: signature.id,
+    token: signature.token,
+    title: signature.title,
+    content: signature.content,
+    status: signature.status,
+    createdAt: signature.createdAt,
+    expiresAt: signature.expiresAt,
+    signerName: signature.signerName,
+    signatureText: signature.signatureText,
+    signedAt: signature.signedAt,
+  };
+}
+
 function shortTimeText(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -1146,6 +1230,7 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     onlineBookingRequests: sanitizedData.onlineBookingRequests.filter((item) => item.appointmentId && appointmentIds.has(item.appointmentId)),
     distributionCommissions: sanitizedData.distributionCommissions.filter((item) => orderIds.has(item.orderId)),
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
+    customerSignatures: (sanitizedData.customerSignatures ?? []).filter((item) => customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     operationLogs: sanitizedData.operationLogs.filter((item) => item.userId === session.user.id),
     notifications: sanitizedData.notifications.filter((item) => !item.staffId || item.staffId === staffId),

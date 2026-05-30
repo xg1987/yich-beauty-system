@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
+import type { PublicCustomerSignaturePayload } from "./api/client";
 import { calculateOrderTotal, previewFormalDataCleanup, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
@@ -46,7 +47,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "pos", label: "开单收银", icon: CreditCard },
   { key: "customers", label: "客户会员", icon: UsersRound },
   { key: "catalog", label: "项目商品", icon: Sparkles },
-  { key: "staff", label: "员工提成", icon: BadgeCent },
+  { key: "staff", label: "人员账号", icon: BadgeCent },
   { key: "inventory", label: "库存管理", icon: Boxes },
   { key: "reports", label: "报表分析", icon: ChartNoAxesColumnIncreasing },
   { key: "approvals", label: "审批中心", icon: ShieldCheck },
@@ -63,7 +64,7 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
 ];
 
 export default function App() {
-  const { data, session, loading, error, login, registerStore, joinInvite, fetchPublicStore, createPublicBookingRequest, authenticate, logout, runMutation, actions } = useApiData();
+  const { data, session, loading, error, login, registerStore, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
@@ -78,6 +79,17 @@ export default function App() {
   const publicStoreMatch = window.location.pathname.match(/^\/store\/([^/]+)/);
   if (publicStoreMatch) {
     return <PublicStorePage shareCode={decodeURIComponent(publicStoreMatch[1])} fetchPublicStore={fetchPublicStore} createPublicBookingRequest={createPublicBookingRequest} />;
+  }
+
+  const publicSignatureMatch = window.location.pathname.match(/^\/signature\/([^/]+)/);
+  if (publicSignatureMatch) {
+    return (
+      <CustomerSignaturePage
+        token={decodeURIComponent(publicSignatureMatch[1])}
+        fetchSignature={fetchPublicCustomerSignature}
+        signSignature={signPublicCustomerSignature}
+      />
+    );
   }
 
   if (!session) {
@@ -418,6 +430,115 @@ function PublicStorePage({
   );
 }
 
+function CustomerSignaturePage({
+  token,
+  fetchSignature,
+  signSignature,
+}: {
+  token: string;
+  fetchSignature: (token: string) => Promise<PublicCustomerSignaturePayload>;
+  signSignature: (token: string, body: { signerName: string; signatureText: string }) => Promise<PublicCustomerSignaturePayload>;
+}) {
+  const [payload, setPayload] = useState<PublicCustomerSignaturePayload>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [signerName, setSignerName] = useState("");
+  const [signatureText, setSignatureText] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(undefined);
+    void fetchSignature(token)
+      .then((nextPayload) => {
+        if (!alive) return;
+        setPayload(nextPayload);
+        setSignerName(nextPayload.customer?.name ?? "");
+      })
+      .catch((caught) => {
+        if (!alive) return;
+        setError(caught instanceof Error ? caught.message : "签名链接加载失败");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [fetchSignature, token]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setError(undefined);
+    void signSignature(token, { signerName, signatureText })
+      .then(setPayload)
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "签名提交失败"));
+  };
+
+  const signature = payload?.signature;
+  const isSigned = signature?.status === "已签名";
+
+  return (
+    <div className="public-store-page signature-page">
+      <main className="public-store-shell">
+        <section className="public-store-hero signature-hero">
+          <div className="public-store-mark">D</div>
+          <span>客户确认签名</span>
+          <h1>{signature?.title ?? "客户服务确认"}</h1>
+          <p>{payload?.customer ? `${payload.customer.name} · ${payload.customer.phone}` : "请核对服务内容后签名确认"}</p>
+        </section>
+        <section className="public-store-panel">
+          {loading && <p className="empty">正在加载签名内容</p>}
+          {error && <p className="public-status error">{error}</p>}
+          {!loading && payload && signature && (
+            <div className="signature-grid">
+              <section className="signature-detail">
+                <PanelTitle icon={<ClipboardList size={18} />} title="确认内容" action={signature.status} />
+                <p>{signature.content}</p>
+                {payload.order && (
+                  <div className="signature-info-list">
+                    <span>订单：{payload.order.orderNo}</span>
+                    <span>项目：{payload.order.serviceName}</span>
+                    <span>实收：{money(payload.order.paidAmount)} · {payload.order.payMethod}</span>
+                  </div>
+                )}
+                {payload.serviceRecord && (
+                  <div className="signature-info-list">
+                    <span>服务：{payload.serviceRecord.serviceName}</span>
+                    <span>员工：{payload.serviceRecord.staffName}</span>
+                    <span>护理步骤：{payload.serviceRecord.careSteps || "已完成服务流程"}</span>
+                    <span>服务后：{payload.serviceRecord.afterNote || "无补充"}</span>
+                    <span>下次建议：{payload.serviceRecord.nextCareAdvice || "无补充"}</span>
+                  </div>
+                )}
+                {signature.expiresAt && <small>有效期至：{shortDate(signature.expiresAt)}</small>}
+              </section>
+              <form className="public-booking-form signature-form" onSubmit={submit}>
+                <PanelTitle icon={<LockKeyhole size={18} />} title={isSigned ? "已完成签名" : "签名确认"} action={signature.signedAt ? shortDate(signature.signedAt) : undefined} />
+                {isSigned ? (
+                  <div className="signed-box">
+                    <strong>{signature.signatureText}</strong>
+                    <span>{signature.signerName} · {signature.signedAt ? shortDate(signature.signedAt) : ""}</span>
+                  </div>
+                ) : (
+                  <>
+                    <label>签名人姓名<input value={signerName} onChange={(event) => setSignerName(event.target.value)} /></label>
+                    <label>签名确认<input value={signatureText} onChange={(event) => setSignatureText(event.target.value)} placeholder="请填写本人姓名或确认文字" /></label>
+                    <button className="primary-button">
+                      <LockKeyhole size={17} />
+                      确认签名
+                    </button>
+                  </>
+                )}
+              </form>
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
 function LoginScreen({
   onLogin,
   onRegister,
@@ -476,8 +597,8 @@ function LoginScreen({
           </div>
           <form className={`login-card login-card-${mode}`} onSubmit={submit}>
             <div className="login-card-head">
-              <strong>{mode === "login" ? "登录系统" : mode === "register" ? "注册门店" : "邀请码加入"}</strong>
-              <span>{mode === "login" ? "使用门店账号进入工作台" : mode === "register" ? "创建老板账号并开通门店" : "邀请码由老板或店长在人员管理中生成"}</span>
+              <strong>{mode === "login" ? "登录系统" : mode === "register" ? "老板开店" : "邀请码加入"}</strong>
+              <span>{mode === "login" ? "使用账号进入对应工作台" : mode === "register" ? "创建门店和老板账号" : "邀请码由老板或主管在人员管理中生成"}</span>
             </div>
             {mode === "register" && (
               <>
@@ -485,7 +606,7 @@ function LoginScreen({
                 <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} /></label>
                 <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
                 <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
-                <p className="register-note">预约、开单、会员、员工、库存、财务和经营分析统一管理。</p>
+                <p className="register-note">基础版先覆盖预约、开单、客户、员工、库存和经营看板。</p>
               </>
             )}
             {mode === "join" ? (
@@ -688,8 +809,8 @@ type RoleDashboardContent = {
 function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   if (input.role === "therapist") {
     return {
-      title: "我的服务工作台",
-      desc: "只聚焦今天分配给自己的预约、护理记录、客户回访和个人提成，美容师不用从全店数据里找任务。",
+      title: "员工服务工作台",
+      desc: "只聚焦今天分配给自己的预约、护理记录、客户回访和个人提成，员工不用从全店数据里找任务。",
       scheduleTitle: "我的今日预约",
       emptySchedule: "今天暂无分配给你的预约",
       followTitle: "我的客户回访",
@@ -768,8 +889,8 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   }
   if (input.role === "manager") {
     return {
-      title: "店长转化工作台",
-      desc: "店长首屏关注预约到店、客户回访、员工执行和库存预警，便于当天协调人效和转化。",
+      title: "主管运营工作台",
+      desc: "主管首屏关注预约到店、客户回访、员工执行和库存预警，便于当天协调人效和转化。",
       scheduleTitle: "今日服务动线",
       emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",
       followTitle: "客户关怀",
@@ -1546,6 +1667,12 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [distributorRate, setDistributorRate] = useState(0.08);
   const [referralDistributorId, setReferralDistributorId] = useState(data.distributors[0]?.id ?? "");
   const [referralCustomerId, setReferralCustomerId] = useState(data.customers[1]?.id ?? data.customers[0]?.id ?? "");
+  const [signatureCustomerId, setSignatureCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [signatureRecordId, setSignatureRecordId] = useState("");
+  const [signatureOrderId, setSignatureOrderId] = useState("");
+  const [signatureTitle, setSignatureTitle] = useState("客户服务确认签名");
+  const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务、消费记录和服务档案内容无误。");
+  const [signatureValidDays, setSignatureValidDays] = useState(7);
 
   useEffect(() => {
     const customer = data.customers.find((item) => item.id === tagCustomerId);
@@ -1663,6 +1790,20 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     );
   };
 
+  const createSignature = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.createCustomerSignature({
+        customerId: signatureCustomerId,
+        serviceRecordId: signatureRecordId || undefined,
+        orderId: signatureOrderId || undefined,
+        title: signatureTitle,
+        content: signatureContent,
+        validDays: signatureValidDays,
+      }),
+    );
+  };
+
   const activeCards = data.memberCards.filter((card) => card.status === "正常");
   const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
   const existingCustomerTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
@@ -1728,6 +1869,25 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}${cardConsumptionSummary(order) ? ` · ${cardConsumptionSummary(order)}` : ""}`,
       })),
   ];
+  const signatureRecordOptions = [
+    { value: "", label: "不关联服务档案" },
+    ...data.customerServiceRecords
+      .filter((record) => record.customerId === signatureCustomerId)
+      .map((record) => ({
+        value: record.id,
+        label: `${nameOf(data.services, record.serviceId)} · ${shortDate(record.createdAt)}`,
+      })),
+  ];
+  const signatureOrderOptions = [
+    { value: "", label: "不关联订单" },
+    ...data.orders
+      .filter((order) => order.customerId === signatureCustomerId && order.status !== "已退款")
+      .map((order) => ({
+        value: order.id,
+        label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}`,
+      })),
+  ];
+  const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
   const projectScope = (serviceId?: string, serviceIds?: string[]) => {
     if (serviceIds?.length) return serviceIds.map((id) => nameOf(data.services, id)).join(" / ");
     return serviceId ? nameOf(data.services, serviceId) : "通用";
@@ -1884,6 +2044,17 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>下次回访<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></label>
           <button className="primary-button">保存档案</button>
         </form>
+        <div className="divider" />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="客户签名" action="生成确认链接" />
+        <form className="form" onSubmit={createSignature}>
+          <Select label="客户" value={signatureCustomerId} onChange={(value) => { setSignatureCustomerId(value); setSignatureRecordId(""); setSignatureOrderId(""); }} options={data.customers.map(optionOf)} />
+          <Select label="关联档案" value={signatureRecordId} onChange={setSignatureRecordId} options={signatureRecordOptions} />
+          <Select label="关联订单" value={signatureOrderId} onChange={setSignatureOrderId} options={signatureOrderOptions} />
+          <label>签名标题<input value={signatureTitle} onChange={(event) => setSignatureTitle(event.target.value)} /></label>
+          <label>确认内容<textarea value={signatureContent} onChange={(event) => setSignatureContent(event.target.value)} /></label>
+          <label>有效期（天）<input type="number" min={1} value={signatureValidDays} onChange={(event) => setSignatureValidDays(Number(event.target.value))} /></label>
+          <button className="primary-button" disabled={!signatureCustomerId}>生成客户签名链接</button>
+        </form>
         </section>
         <section className="panel wide">
         <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${filteredCustomers.length}/${data.customers.length} 位客户`} />
@@ -1993,6 +2164,25 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             record.customerFeedback || "未记录",
             record.nextCareAdvice || "未记录",
             shortDate(record.createdAt),
+          ])}
+        />
+        <div className="divider" />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="签名记录" action={`${data.customerSignatures?.length ?? 0} 条`} />
+        <DataTable
+          columns={["客户", "标题", "状态", "签名链接", "签名人", "创建/签名时间"]}
+          rows={(data.customerSignatures ?? []).map((signature) => [
+            nameOf(data.customers, signature.customerId),
+            signature.title,
+            <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+            signature.status === "待签名" ? (
+              <a key={`${signature.id}-link`} href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
+                打开签名页
+              </a>
+            ) : (
+              "已完成"
+            ),
+            signature.signerName ?? "-",
+            `${shortDate(signature.createdAt)}${signature.signedAt ? ` / ${shortDate(signature.signedAt)}` : ""}`,
           ])}
         />
         <div className="divider" />
@@ -2154,16 +2344,16 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
 
 function StaffCommissions({ data, session, actions, runMutation }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation }) {
   const canManageStaff = hasPermission(session, "staff:manage");
-  const staffRoleOptions = ["店长", "美容师", "前台", "财务"].map((item) => ({ value: item, label: item }));
+  const staffRoleOptions = ["主管", "员工", "前台"].map((item) => ({ value: item, label: item }));
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState("美容师");
+  const [role, setRole] = useState("员工");
   const [baseSalary, setBaseSalary] = useState(6500);
   const [commissionRate, setCommissionRate] = useState(0.12);
   const [editingStaffId, setEditingStaffId] = useState("");
   const [editingName, setEditingName] = useState("");
   const [editingPhone, setEditingPhone] = useState("");
-  const [editingRole, setEditingRole] = useState("美容师");
+  const [editingRole, setEditingRole] = useState("员工");
   const [editingBaseSalary, setEditingBaseSalary] = useState(0);
   const [editingCommissionRate, setEditingCommissionRate] = useState(0);
   const [editingStatus, setEditingStatus] = useState<Staff["status"]>("active");
@@ -2202,7 +2392,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     setEditingStaffId("");
     setEditingName("");
     setEditingPhone("");
-    setEditingRole("美容师");
+    setEditingRole("员工");
     setEditingBaseSalary(0);
     setEditingCommissionRate(0);
     setEditingStatus("active");
@@ -2262,9 +2452,9 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     <div className="page-stack">
       <PageHero
         icon={<BadgeCent size={15} />}
-        eyebrow="员工提成"
-        title="员工提成"
-        desc="管理员工档案、邀请码、岗位权限与提成结算。"
+        eyebrow="人员账号"
+        title="人员账号"
+        desc="管理员工档案、邀请码、岗位权限与基础提成。"
         stats={[
           { label: "在职员工", value: `${activeStaff} 人`, hint: `${data.staff.length} 人档案`, icon: <UsersRound size={18} /> },
           { label: "待加入员工", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
@@ -2295,10 +2485,9 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
                 value={inviteRole}
                 onChange={(value) => setInviteRole(value as UserRole)}
                 options={[
-                  { value: "manager", label: "店长" },
+                  { value: "manager", label: "主管" },
                   { value: "frontdesk", label: "前台" },
-                  { value: "therapist", label: "美容师" },
-                  { value: "finance", label: "财务" },
+                  { value: "therapist", label: "员工" },
                 ]}
               />
               <label>有效期（天）<input type="number" min={1} value={inviteValidDays} onChange={(event) => setInviteValidDays(Number(event.target.value))} /></label>
@@ -3025,12 +3214,12 @@ function SettingsView({
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "系统流程图", desc: "预约、开单、会员、库存、财务链路", metric: "全链路", icon: Network, tone: "rose", view: "dashboard" },
+    { title: "系统流程图", desc: "预约、开单、客户、人员、库存链路", metric: "基础版", icon: Network, tone: "rose", view: "dashboard" },
     { title: "客户运营", desc: "新客登记、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
     { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "售后回访", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
     { title: "员工档案", desc: "岗位、底薪、提成比例、在职状态", metric: `${activeStaff} 在职`, icon: Building2, tone: "violet", view: "staff" },
-    { title: "组织架构", desc: "老板、店长、前台、美容师、财务", metric: `${data.authUsers.length} 账号`, icon: Share2, tone: "teal", view: "staff" },
+    { title: "组织架构", desc: "老板、主管、员工、前台", metric: `${data.authUsers.length} 账号`, icon: Share2, tone: "teal", view: "staff" },
     { title: "邀请员工", desc: "为员工生成邀请码，加入后开通账号", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
     { title: "客户池", desc: "客户线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
     { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },

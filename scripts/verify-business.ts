@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   addCustomerServiceRecord,
+  createCustomerSignature,
   addStaffMember,
   addSupplier,
   adjustInventory,
@@ -21,6 +22,7 @@ import {
   decideApprovalRequest,
   extendMemberCard,
   joinStaffInvite,
+  signCustomerSignature,
   addSystemNotification,
   cleanupFormalData,
   formalDataAudit,
@@ -151,22 +153,22 @@ function card(data: AppData, cardId: string) {
 
   const withStaff = addStaffMember(
     cloneSeed(),
-    { name: "新美容师", phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
+    { name: "新员工", phone: "13900000001", role: "员工", baseSalary: 6000, commissionRate: 0.1 },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(withStaff.staff[0].name, "新美容师", "staff management should create staff");
+  assert.equal(withStaff.staff[0].name, "新员工", "staff management should create staff");
   const updatedStaff = updateStaffMember(withStaff, { staffId: withStaff.staff[0].id, status: "inactive", baseSalary: 6200 });
   assert.equal(updatedStaff.staff[0].status, "inactive", "staff management should disable staff");
   assert.equal(updatedStaff.staff[0].baseSalary, 6200, "staff management should update salary");
   const editedStaff = updateStaffMember(updatedStaff, {
     staffId: updatedStaff.staff[0].id,
-    name: "新美容顾问",
+    name: "新主管",
     phone: "13900000009",
-    role: "店长",
+    role: "主管",
     commissionRate: 0.18,
   });
-  assert.equal(editedStaff.staff[0].name, "新美容顾问", "staff management should update name");
-  assert.equal(editedStaff.staff[0].role, "店长", "staff management should update role");
+  assert.equal(editedStaff.staff[0].name, "新主管", "staff management should update name");
+  assert.equal(editedStaff.staff[0].role, "主管", "staff management should update role");
   assert.equal(editedStaff.staff[0].commissionRate, 0.18, "staff management should update commission rate");
   assert.throws(
     () => updateStaffMember(editedStaff, { staffId: editedStaff.staff[0].id, phone: "" }),
@@ -183,7 +185,7 @@ function card(data: AppData, cardId: string) {
   assert.equal(invited.staffInvites[0].expiresAt, "2026-05-27T01:00:00.000Z", "staff invite should persist expiry");
   const joined = joinStaffInvite(
     invited,
-    { inviteCode: invited.staffInvites[0].inviteCode, name: "新美容师", password: "secret" },
+        { inviteCode: invited.staffInvites[0].inviteCode, name: "新员工", password: "secret" },
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(joined.staffInvites[0].status, "已加入", "staff invite should mark joined");
@@ -956,6 +958,26 @@ function card(data: AppData, cardId: string) {
   assert.equal(withRecord.customers.find((customer) => customer.id === "c1")?.lastVisit, fixedNow(), "service record should update last visit");
   assert.equal(withRecord.customerFollowUps[0].status, "待跟进", "service record should create follow-up");
   assert.match(withRecord.customerFollowUps[0].note, /加强保湿防晒/, "follow-up should use next care advice");
+  const withSignature = createCustomerSignature(
+    withRecord,
+    {
+      customerId: "c1",
+      serviceRecordId: withRecord.customerServiceRecords[0].id,
+      orderId: checkedOutForRecord.orders[0].id,
+      requestedBy: "u_frontdesk",
+      validDays: 3,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(withSignature.customerSignatures[0].status, "待签名", "customer signature should start pending");
+  assert.equal(withSignature.customerSignatures[0].expiresAt, "2026-05-27T01:00:00.000Z", "customer signature should persist expiry");
+  const signed = signCustomerSignature(
+    withSignature,
+    { token: withSignature.customerSignatures[0].token, signerName: "周女士", signatureText: "周女士确认" },
+    { now: fixedNow },
+  );
+  assert.equal(signed.customerSignatures[0].status, "已签名", "customer signature should be signed");
+  assert.equal(signed.customerSignatures[0].signerName, "周女士", "customer signature should persist signer");
   assert.throws(
     () =>
       addCustomerServiceRecord(
@@ -1084,4 +1106,4 @@ function card(data: AppData, cardId: string) {
   assert.equal(productStock(adjusted, "p1"), 18, "inventory changes should be allowed after reverse close");
 }
 
-console.log("业务规则验证通过：开单、审批、卡项、预约/班次、线上店铺、服务档案、回访、人员注册邀请、进销存、日结锁账/反结、退款、提成、报表。");
+console.log("业务规则验证通过：开单、审批、卡项、预约/班次、线上店铺、服务档案、客户签名、回访、人员注册邀请、进销存、日结锁账/反结、退款、提成、报表。");

@@ -4181,6 +4181,62 @@ html[data-theme="day"],
   color: #9f1239;
 }
 
+.signature-page {
+  background:
+    linear-gradient(135deg, rgba(11, 98, 110, 0.92), rgba(43, 21, 89, 0.9)),
+    #0f766e;
+}
+
+.signature-hero {
+  min-height: 220px;
+}
+
+.signature-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: 18px;
+  align-items: start;
+}
+
+.signature-detail {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(13, 148, 136, 0.18);
+  border-radius: 22px;
+  background: #fffdfa;
+  box-shadow: 0 16px 36px rgba(15, 118, 110, 0.1);
+}
+
+.signature-detail p {
+  margin: 0;
+  color: var(--yich-ink);
+  line-height: 1.65;
+}
+
+.signature-info-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(13, 148, 136, 0.08);
+  color: var(--yich-ink);
+  font-size: 14px;
+}
+
+.signed-box {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  background: #edf9f3;
+  color: #166534;
+}
+
+.signed-box strong {
+  font-size: 24px;
+}
+
 .admin-online-panel {
   display: grid;
   gap: 14px;
@@ -4480,6 +4536,7 @@ textarea,
 
   .public-store-grid,
   .public-service-grid,
+  .signature-grid,
   .online-store-form {
     grid-template-columns: 1fr;
   }

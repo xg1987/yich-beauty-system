@@ -3,6 +3,7 @@ import type {
   ApprovalRequest,
   Appointment,
   CustomerFollowUp,
+  CustomerSignature,
   CustomerServiceRecord,
   DataQualityIssue,
   DataQualityReport,
@@ -291,6 +292,22 @@ export type CustomerServiceRecordInput = {
   customerFeedback?: string;
   nextCareAdvice?: string;
   nextFollowUpAt?: string;
+};
+
+export type CustomerSignatureInput = {
+  customerId: string;
+  serviceRecordId?: string;
+  orderId?: string;
+  title?: string;
+  content?: string;
+  requestedBy: string;
+  validDays?: number;
+};
+
+export type CustomerSignatureSubmitInput = {
+  token: string;
+  signerName: string;
+  signatureText: string;
 };
 
 export type CustomerFollowUpInput = {
@@ -2524,6 +2541,74 @@ export function addCustomerServiceRecord(
   };
 }
 
+export function createCustomerSignature(
+  data: AppData,
+  input: CustomerSignatureInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const validDays = input.validDays ?? 7;
+  const customer = data.customers.find((item) => item.id === input.customerId);
+  if (!customer) throw new Error("客户不存在");
+  if (!input.requestedBy) throw new Error("签名发起人不存在");
+  if (validDays <= 0) throw new Error("签名链接有效期必须大于 0 天");
+  if (input.serviceRecordId && !data.customerServiceRecords.some((record) => record.id === input.serviceRecordId && record.customerId === customer.id)) {
+    throw new Error("服务档案不存在或不属于该客户");
+  }
+  if (input.orderId && !data.orders.some((order) => order.id === input.orderId && order.customerId === customer.id)) {
+    throw new Error("订单不存在或不属于该客户");
+  }
+  const signature: CustomerSignature = {
+    id: idFactory("sig"),
+    token: idFactory("sign"),
+    customerId: customer.id,
+    serviceRecordId: input.serviceRecordId,
+    orderId: input.orderId,
+    title: input.title?.trim() || "客户服务确认签名",
+    content: input.content?.trim() || `${customer.name} 确认本次到店服务、消费记录和服务档案内容无误。`,
+    status: "待签名",
+    requestedBy: input.requestedBy,
+    createdAt,
+    expiresAt: new Date(+new Date(createdAt) + validDays * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  return {
+    ...data,
+    customerSignatures: [signature, ...(data.customerSignatures ?? [])],
+  };
+}
+
+export function signCustomerSignature(
+  data: AppData,
+  input: CustomerSignatureSubmitInput,
+  options: { now?: () => string } = {},
+): AppData {
+  const signedAt = (options.now ?? nowIso)();
+  const token = input.token.trim();
+  const signerName = input.signerName.trim();
+  const signatureText = input.signatureText.trim();
+  const signature = (data.customerSignatures ?? []).find((item) => item.token === token);
+  if (!signature) throw new Error("签名链接不存在");
+  if (signature.status !== "待签名") throw new Error("签名链接已失效");
+  if (signature.expiresAt && +new Date(signature.expiresAt) <= +new Date(signedAt)) throw new Error("签名链接已过期");
+  if (!signerName) throw new Error("请输入签名人姓名");
+  if (!signatureText) throw new Error("请输入签名确认内容");
+  return {
+    ...data,
+    customerSignatures: (data.customerSignatures ?? []).map((item) =>
+      item.id === signature.id
+        ? {
+            ...item,
+            status: "已签名",
+            signerName,
+            signatureText,
+            signedAt,
+          }
+        : item,
+    ),
+  };
+}
+
 export function addCustomerFollowUp(
   data: AppData,
   input: CustomerFollowUpInput,
@@ -2653,9 +2738,9 @@ function assertBusinessDateOpen(data: AppData, businessDate: string) {
 function roleNameOf(role: UserRole) {
   const names: Record<UserRole, string> = {
     owner: "老板",
-    manager: "店长",
+    manager: "主管",
     frontdesk: "前台",
-    therapist: "美容师",
+    therapist: "员工",
     finance: "财务",
   };
   return names[role];

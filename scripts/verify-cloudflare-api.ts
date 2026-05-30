@@ -90,7 +90,7 @@ assert.deepEqual(afterServiceRecipe.services[0].consumables, [{ productId: "p1",
 const afterTherapistStaff = await request<AppData>(baseUrl, "/api/staff", {
   method: "POST",
   token: ownerSession.token,
-  body: { name: `验证美容师 ${runId}`, phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
+  body: { name: `验证员工 ${runId}`, phone: "13900000001", role: "员工", baseSalary: 6000, commissionRate: 0.1 },
 });
 const therapistStaffId = afterTherapistStaff.staff[0].id;
 
@@ -147,7 +147,7 @@ const afterTherapistInvite = await request<AppData>(baseUrl, "/api/staff-invites
 assert.ok(afterTherapistInvite.staffInvites[0].expiresAt, "D1 should persist staff invite expiry");
 const therapistSession = await request<{ token: string; user: { account: string } }>(baseUrl, "/api/auth/join-invite", {
   method: "POST",
-  body: { inviteCode: afterTherapistInvite.staffInvites[0].inviteCode, name: `验证美容师 ${runId}`, password: "secret" },
+  body: { inviteCode: afterTherapistInvite.staffInvites[0].inviteCode, name: `验证员工 ${runId}`, password: "secret" },
 });
 assert.equal(therapistSession.user.account, `cf-therapist-${runId}@test.local`, "D1 should join therapist invite");
 
@@ -377,6 +377,28 @@ assert.equal(afterServiceRecord.customerServiceRecords[0].productsUsed, "Cloudfl
 assert.equal(afterServiceRecord.customerServiceRecords[0].customerFeedback, "Cloudflare 体验舒适", "D1 should persist service record feedback");
 assert.equal(afterServiceRecord.customerServiceRecords[0].nextCareAdvice, "Cloudflare 加强保湿防晒", "D1 should persist service record next advice");
 assert.match(afterServiceRecord.customerFollowUps[0].note, /Cloudflare 加强保湿防晒/, "D1 service record follow-up should use next care advice");
+const afterSignature = await request<AppData>(baseUrl, "/api/customer-signatures", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    customerId,
+    serviceRecordId: afterServiceRecord.customerServiceRecords[0].id,
+    orderId,
+    title: "Cloudflare 客户确认",
+    content: "Cloudflare 确认内容",
+    validDays: 3,
+  },
+});
+assert.equal(afterSignature.customerSignatures[0].status, "待签名", "D1 should create customer signature");
+const publicSignature = await request<{ signature: { status: string }; customer: { phone: string } }>(baseUrl, `/api/public/customer-signatures/${afterSignature.customerSignatures[0].token}`);
+assert.equal(publicSignature.signature.status, "待签名", "D1 public signature should be readable");
+assert.match(publicSignature.customer.phone, /\*\*\*\*/, "D1 public signature should mask phone");
+const signedSignature = await request<{ signature: { status: string; signerName: string } }>(baseUrl, `/api/public/customer-signatures/${afterSignature.customerSignatures[0].token}/sign`, {
+  method: "POST",
+  body: { signerName: "验证客户", signatureText: "验证客户确认" },
+});
+assert.equal(signedSignature.signature.status, "已签名", "D1 public signature should be signable");
+assert.equal(signedSignature.signature.signerName, "验证客户", "D1 public signature should persist signer");
 const afterFollowUpDone = await request<AppData>(baseUrl, `/api/follow-ups/${afterServiceRecord.customerFollowUps[0].id}`, {
   method: "PATCH",
   token: ownerSession.token,

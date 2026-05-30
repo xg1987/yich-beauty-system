@@ -27,7 +27,7 @@ try {
     method: "POST",
     body: { account: "manager@test.local", password: "test-password" },
   });
-  assert.equal(session.user.roleName, "店长", "login API should return role session");
+  assert.equal(session.user.roleName, "主管", "login API should return role session");
 
   const frontdeskSession = await request<{ token: string }>(baseUrl, "/api/auth/login", {
     method: "POST",
@@ -130,18 +130,18 @@ try {
   const afterStaff = await request<AppData>(baseUrl, "/api/staff", {
     method: "POST",
     token: session.token,
-    body: { name: "API 新美容师", phone: "13900000001", role: "美容师", baseSalary: 6000, commissionRate: 0.1 },
+    body: { name: "API 新员工", phone: "13900000001", role: "员工", baseSalary: 6000, commissionRate: 0.1 },
   });
   const apiStaffId = afterStaff.staff[0].id;
-  assert.equal(afterStaff.staff[0].name, "API 新美容师", "staff API should create staff");
+  assert.equal(afterStaff.staff[0].name, "API 新员工", "staff API should create staff");
   const afterStaffUpdate = await request<AppData>(baseUrl, `/api/staff/${apiStaffId}`, {
     method: "PATCH",
     token: session.token,
-    body: { name: "API 美容顾问", phone: "13900000009", role: "店长", status: "inactive", baseSalary: 6200, commissionRate: 0.18 },
+    body: { name: "API 主管", phone: "13900000009", role: "主管", status: "inactive", baseSalary: 6200, commissionRate: 0.18 },
   });
   assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.status, "inactive", "staff API should disable staff");
-  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.name, "API 美容顾问", "staff API should update staff name");
-  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.role, "店长", "staff API should update staff role");
+  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.name, "API 主管", "staff API should update staff name");
+  assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.role, "主管", "staff API should update staff role");
   assert.equal(afterStaffUpdate.staff.find((item) => item.id === apiStaffId)?.commissionRate, 0.18, "staff API should update commission rate");
 
   const afterInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
@@ -153,7 +153,7 @@ try {
   assert.ok(afterInvite.staffInvites[0].expiresAt, "staff invite API should persist expiry");
   const joinedSession = await request<{ token: string; user: { account: string; roleName: string } }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
-    body: { inviteCode: afterInvite.staffInvites[0].inviteCode, name: "API 新美容师", password: "secret" },
+    body: { inviteCode: afterInvite.staffInvites[0].inviteCode, name: "API 新员工", password: "secret" },
   });
   assert.equal(joinedSession.user.account, "api-staff@test.local", "join invite API should login invited staff");
 
@@ -631,6 +631,29 @@ try {
   assert.equal(afterServiceRecord.customerServiceRecords[0].nextCareAdvice, "API 加强保湿防晒", "service record API should persist next care advice");
   assert.match(afterServiceRecord.customerFollowUps[0].note, /API 加强保湿防晒/, "service record API follow-up should use next care advice");
   assert.equal(afterServiceRecord.notifications[0].targetId, afterServiceRecord.customerFollowUps[0].id, "service record should create follow-up notification");
+  const afterSignature = await request<AppData>(baseUrl, "/api/customer-signatures", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c1",
+      serviceRecordId: afterServiceRecord.customerServiceRecords[0].id,
+      orderId: afterRecordCheckout.orders[0].id,
+      title: "API 客户服务确认",
+      content: "API 确认内容",
+      validDays: 3,
+    },
+  });
+  assert.equal(afterSignature.customerSignatures[0].status, "待签名", "customer signature API should create pending signature");
+  const signatureToken = afterSignature.customerSignatures[0].token;
+  const publicSignature = await request<{ signature: { status: string }; customer: { phone: string } }>(baseUrl, `/api/public/customer-signatures/${signatureToken}`);
+  assert.equal(publicSignature.signature.status, "待签名", "public signature API should expose pending signature");
+  assert.match(publicSignature.customer.phone, /\*\*\*\*/, "public signature API should mask phone");
+  const signedSignature = await request<{ signature: { status: string; signerName: string } }>(baseUrl, `/api/public/customer-signatures/${signatureToken}/sign`, {
+    method: "POST",
+    body: { signerName: "周女士", signatureText: "周女士确认" },
+  });
+  assert.equal(signedSignature.signature.status, "已签名", "public signature API should sign signature");
+  assert.equal(signedSignature.signature.signerName, "周女士", "public signature API should persist signer");
   const afterAllNotificationsRead = await request<AppData>(baseUrl, "/api/notifications/read-all", {
     method: "POST",
     token: session.token,
@@ -811,7 +834,7 @@ try {
   assert.ok(afterFormalCleanup.staff.every((staff) => !staff.name.includes("验证")), "data cleanup API should remove verification staff");
   assert.ok(afterFormalCleanup.authUsers.every((user) => !user.account.includes("@test.local")), "data cleanup API should remove test accounts");
 
-  console.log("API/SQLite 验证通过：健康检查、注册/邀请、登录鉴权、人员管理、权限、客户、预约/班次、审批改价、开单、退款、卡项、档案跟进、进销存、日结反结、数据范围、持久化、正式接口边界。");
+  console.log("API/SQLite 验证通过：健康检查、注册/邀请、登录鉴权、人员管理、权限、客户、预约/班次、审批改价、开单、退款、卡项、档案跟进、客户签名、进销存、日结反结、数据范围、持久化、正式接口边界。");
 } finally {
   await close(server);
   database.close();

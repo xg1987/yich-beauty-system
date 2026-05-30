@@ -1,7 +1,23 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, DataCleanupReport, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole } from "../domain/types";
+import type { AppData, Appointment, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+export type PublicCustomerSignaturePayload = {
+  signature: Pick<CustomerSignature, "id" | "token" | "title" | "content" | "status" | "createdAt" | "expiresAt" | "signerName" | "signatureText" | "signedAt">;
+  customer?: { id: string; name: string; phone: string };
+  order?: { id: string; orderNo: string; paidAmount: number; payMethod: Order["payMethod"]; createdAt: string; serviceName: string };
+  serviceRecord?: {
+    id: string;
+    skinCondition: string;
+    careSteps: string;
+    afterNote: string;
+    nextCareAdvice: string;
+    createdAt: string;
+    serviceName: string;
+    staffName: string;
+  };
+};
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
@@ -20,6 +36,10 @@ export function createApiClient(getToken: () => string | undefined) {
       request<{ store?: StoreProfile; storefront: OnlineStorefront; services: Service[] }>(`/api/public/store/${encodeURIComponent(shareCode)}`),
     createPublicBookingRequest: (body: { shareCode: string; customerName: string; phone: string; serviceId: string; preferredAt: string; note?: string }) =>
       request<{ ok: boolean }>("/api/public/online-booking-requests", { method: "POST", body }),
+    fetchPublicCustomerSignature: (token: string) =>
+      request<PublicCustomerSignaturePayload>(`/api/public/customer-signatures/${encodeURIComponent(token)}`),
+    signPublicCustomerSignature: (token: string, body: { signerName: string; signatureText: string }) =>
+      request<PublicCustomerSignaturePayload>(`/api/public/customer-signatures/${encodeURIComponent(token)}/sign`, { method: "POST", body }),
     fetchData: () => request<AppData>("/api/data", { token: getToken() }),
     fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
     cleanupFormalData: (confirm: string) =>
@@ -161,6 +181,8 @@ export function createApiClient(getToken: () => string | undefined) {
       nextCareAdvice?: string;
       nextFollowUpAt?: string;
     }) => request<AppData>("/api/service-records", { method: "POST", body, token: getToken() }),
+    createCustomerSignature: (body: { customerId: string; serviceRecordId?: string; orderId?: string; title?: string; content?: string; validDays?: number }) =>
+      request<AppData>("/api/customer-signatures", { method: "POST", body, token: getToken() }),
     addFollowUp: (body: { customerId: string; staffId: string; dueAt: string; method: "电话" | "微信" | "到店"; note: string }) =>
       request<AppData>("/api/follow-ups", { method: "POST", body, token: getToken() }),
     completeFollowUp: (followUpId: string) =>

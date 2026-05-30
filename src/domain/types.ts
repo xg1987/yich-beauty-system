@@ -370,6 +370,23 @@ export type CustomerServiceRecord = {
   createdAt: string;
 };
 
+export type CustomerSignature = {
+  id: string;
+  token: string;
+  customerId: string;
+  serviceRecordId?: string;
+  orderId?: string;
+  title: string;
+  content: string;
+  status: "待签名" | "已签名" | "已作废";
+  requestedBy: string;
+  createdAt: string;
+  expiresAt?: string;
+  signerName?: string;
+  signatureText?: string;
+  signedAt?: string;
+};
+
 export type CustomerFollowUp = {
   id: string;
   customerId: string;
@@ -461,6 +478,7 @@ export type AppData = {
   dailyCloses: DailyClose[];
   approvalRequests: ApprovalRequest[];
   customerServiceRecords: CustomerServiceRecord[];
+  customerSignatures: CustomerSignature[];
   customerFollowUps: CustomerFollowUp[];
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];

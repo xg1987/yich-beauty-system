@@ -11,6 +11,7 @@ import type {
   CommissionSettlement,
   Customer,
   CustomerFollowUp,
+  CustomerSignature,
   CustomerServiceRecord,
   DailyClose,
   DistributionCommission,
@@ -71,6 +72,7 @@ const tableNames: TableName[] = [
   "dailyCloses",
   "approvalRequests",
   "customerServiceRecords",
+  "customerSignatures",
   "customerFollowUps",
   "suppliers",
   "purchaseOrders",
@@ -162,6 +164,7 @@ export class BeautyDatabase {
         .prepare("SELECT payload_json FROM customerServiceRecords ORDER BY rowid DESC")
         .all()
         .map(mapJsonPayload<CustomerServiceRecord>),
+      customerSignatures: this.db.prepare("SELECT payload_json FROM customerSignatures ORDER BY rowid DESC").all().map(mapJsonPayload<CustomerSignature>),
       customerFollowUps: this.db.prepare("SELECT payload_json FROM customerFollowUps ORDER BY rowid DESC").all().map(mapJsonPayload<CustomerFollowUp>),
       suppliers: this.db.prepare("SELECT payload_json FROM suppliers ORDER BY rowid DESC").all().map(mapJsonPayload<Supplier>),
       purchaseOrders: this.db.prepare("SELECT payload_json FROM purchaseOrders ORDER BY rowid DESC").all().map(mapJsonPayload<PurchaseOrder>),
@@ -411,6 +414,7 @@ export class BeautyDatabase {
 
     this.writeJsonTable("approvalRequests", data.approvalRequests);
     this.writeJsonTable("customerServiceRecords", data.customerServiceRecords);
+    this.writeJsonTable("customerSignatures", data.customerSignatures ?? []);
     this.writeJsonTable("customerFollowUps", data.customerFollowUps);
     this.writeJsonTable("suppliers", data.suppliers);
     this.writeJsonTable("purchaseOrders", data.purchaseOrders);
@@ -669,6 +673,11 @@ export class BeautyDatabase {
       );
 
       CREATE TABLE IF NOT EXISTS customerServiceRecords (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS customerSignatures (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
       );

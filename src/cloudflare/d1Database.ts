@@ -8,6 +8,7 @@ import type {
   CommissionSettlement,
   Customer,
   CustomerFollowUp,
+  CustomerSignature,
   CustomerServiceRecord,
   DailyClose,
   DistributionCommission,
@@ -67,6 +68,7 @@ const tableNames: TableName[] = [
   "dailyCloses",
   "approvalRequests",
   "customerServiceRecords",
+  "customerSignatures",
   "customerFollowUps",
   "suppliers",
   "purchaseOrders",
@@ -137,6 +139,7 @@ export class D1BeautyDatabase {
         "SELECT payload_json FROM customerServiceRecords ORDER BY rowid DESC",
         mapJsonPayload<CustomerServiceRecord>,
       ),
+      customerSignatures: await this.all("SELECT payload_json FROM customerSignatures ORDER BY rowid DESC", mapJsonPayload<CustomerSignature>),
       customerFollowUps: await this.all("SELECT payload_json FROM customerFollowUps ORDER BY rowid DESC", mapJsonPayload<CustomerFollowUp>),
       suppliers: await this.all("SELECT payload_json FROM suppliers ORDER BY rowid DESC", mapJsonPayload<Supplier>),
       purchaseOrders: await this.all("SELECT payload_json FROM purchaseOrders ORDER BY rowid DESC", mapJsonPayload<PurchaseOrder>),
@@ -422,6 +425,7 @@ export class D1BeautyDatabase {
 
     this.writeJsonTable(statements, "approvalRequests", data.approvalRequests);
     this.writeJsonTable(statements, "customerServiceRecords", data.customerServiceRecords);
+    this.writeJsonTable(statements, "customerSignatures", data.customerSignatures ?? []);
     this.writeJsonTable(statements, "customerFollowUps", data.customerFollowUps);
     this.writeJsonTable(statements, "suppliers", data.suppliers);
     this.writeJsonTable(statements, "purchaseOrders", data.purchaseOrders);
