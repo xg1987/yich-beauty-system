@@ -111,20 +111,11 @@ export class BeautyDatabase {
   }
 
   seedIfEmpty() {
-    const row = this.db.prepare("SELECT COUNT(*) AS count FROM staff").get() as { count: number };
-    if (row.count === 0) {
+    const authRow = this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").get() as { count: number };
+    if (authRow.count === 0) {
       this.replaceData(seedData);
       this.ensureDefaultSuperadmin();
       return;
-    }
-    const authRow = this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").get() as { count: number };
-    if (authRow.count === 0) {
-      this.replaceData({
-        ...this.readData(),
-        storeProfiles: seedData.storeProfiles,
-        authUsers: seedData.authUsers,
-        staff: this.readData().staff.map((staff) => seedData.staff.find((seedStaff) => seedStaff.id === staff.id) ?? staff),
-      });
     }
     this.ensureDefaultSuperadmin();
   }

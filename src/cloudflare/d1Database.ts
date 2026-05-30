@@ -85,21 +85,11 @@ export class D1BeautyDatabase {
   }
 
   async seedIfEmpty() {
-    const row = await this.db.prepare("SELECT COUNT(*) AS count FROM staff").first<{ count: number }>();
-    if ((row?.count ?? 0) === 0) {
+    const authRow = await this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").first<{ count: number }>();
+    if ((authRow?.count ?? 0) === 0) {
       await this.replaceData(seedData);
       await this.ensureDefaultSuperadmin();
       return;
-    }
-    const authRow = await this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").first<{ count: number }>();
-    if ((authRow?.count ?? 0) === 0) {
-      const currentData = await this.readData();
-      await this.replaceData({
-        ...currentData,
-        storeProfiles: seedData.storeProfiles,
-        authUsers: seedData.authUsers,
-        staff: currentData.staff.map((staff) => seedData.staff.find((seedStaff) => seedStaff.id === staff.id) ?? staff),
-      });
     }
     await this.ensureDefaultSuperadmin();
   }
