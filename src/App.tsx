@@ -58,8 +58,6 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "appointments", label: "预约管理", icon: CalendarDays },
   { key: "pos", label: "开单收银", icon: CreditCard },
   { key: "customers", label: "客户会员", icon: UsersRound },
-  { key: "catalog", label: "项目商品", icon: Sparkles },
-  { key: "staff", label: "人员账号", icon: BadgeCent },
   { key: "inventory", label: "库存管理", icon: Boxes },
   { key: "reports", label: "报表分析", icon: ChartNoAxesColumnIncreasing },
   { key: "approvals", label: "审批中心", icon: ShieldCheck },
@@ -329,7 +327,6 @@ function PlatformAdminView({
   setView: (view: ViewKey) => void;
 }) {
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
-  const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingAppointments = data.appointments.filter((appointment) => ["待确认", "已确认", "已到店"].includes(appointment.status)).length;
   const pendingSignatures = (data.customerSignatures ?? []).filter((signature) => signature.status === "待签名").length;
   const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
@@ -348,8 +345,6 @@ function PlatformAdminView({
     { title: "开单收银", desc: "前台营业、支付记录和退款", metric: `${data.orders.length} 订单`, icon: CreditCard, tone: "amber", view: "pos" },
     { title: "客户会员", desc: "客户档案、卡项、服务记录和签名", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
     { title: "客户签名", desc: "客户确认服务记录和消费内容", metric: `${pendingSignatures} 待签`, icon: ClipboardList, tone: "teal", view: "customers" },
-    { title: "人员账号", desc: "主管、员工、前台账号和邀请码", metric: `${data.authUsers.length} 账号`, icon: ShieldCheck, tone: "violet", view: "staff" },
-    { title: "项目商品", desc: "服务项目、产品和耗材资料", metric: `${data.services.length + data.products.length} 项`, icon: Sparkles, tone: "rose", view: "catalog" },
     { title: "库存管理", desc: "入库、盘点、预警和库存流水", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "inventory" },
     { title: "审批中心", desc: "改价和退款审批", metric: `${pendingApprovals} 待审`, icon: ShieldCheck, tone: "violet", view: "approvals" },
     { title: "报表分析", desc: "营收、提成、日结和经营概览", metric: money(data.orders.reduce((sum, order) => sum + order.paidAmount, 0)), icon: ChartNoAxesColumnIncreasing, tone: "teal", view: "reports" },
@@ -382,7 +377,6 @@ function PlatformAdminView({
         <div className="page-hero-stats">
           <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
           <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="通过邀请开通" />
-          <StatCard title="人员档案" value={`${activeStaff} 人`} hint="全局基础数据" />
         </div>
       </section>
 
@@ -597,7 +591,6 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       actions: [
         { icon: <CalendarDays size={18} />, label: "我的预约", value: `${input.todayAppointments}`, view: "appointments" },
         { icon: <HeartHandshake size={18} />, label: "客户回访", value: `${input.pendingFollowUps}`, view: "customers" },
-        { icon: <BadgeCent size={18} />, label: "个人提成", value: money(input.myCommission), view: "staff" },
       ],
     };
   }
@@ -650,7 +643,6 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       actions: [
         { icon: <ChartNoAxesColumnIncreasing size={18} />, label: "财务报表", value: "报表", view: "reports" },
         { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals}`, view: "approvals" },
-        { icon: <BadgeCent size={18} />, label: "提成结算", value: money(input.pendingCommissions), view: "staff" },
         { icon: <CreditCard size={18} />, label: "收银流水", value: money(input.todayRevenue), view: "pos" },
       ],
     };
@@ -704,7 +696,6 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       { icon: <ChartNoAxesColumnIncreasing size={18} />, label: "经营收入", value: money(input.paidRevenue), view: "reports" },
       { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals}`, view: "approvals" },
       { icon: <PackagePlus size={18} />, label: "低库存", value: `${input.lowStockCount}`, view: "inventory" },
-      { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), view: "staff" },
     ],
   };
 }
@@ -736,7 +727,6 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
     return [
       { title: "我的预约", value: `${todayAppointments} 单`, hint: "今日服务安排", view: "appointments" },
       { title: "待回访客户", value: `${pendingFollowUps} 位`, hint: "护理后跟进", view: "customers" },
-      { title: "个人提成", value: money(myCommission), hint: "服务业绩汇总", view: "staff" },
     ];
   }
   if (session.user.role === "frontdesk") {
@@ -750,13 +740,13 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
     return [
       { title: "日结锁账", value: `${data.dailyCloses.length} 天`, hint: "支付流水核对", view: "reports" },
       { title: "待审批", value: `${pendingApprovals} 单`, hint: "退款与改价", view: "approvals" },
-      { title: "待结提成", value: money(data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0)), hint: "提成结算", view: "staff" },
+      { title: "收银流水", value: money(revenue), hint: "支付记录", view: "pos" },
     ];
   }
   return [
     { title: "经营收入", value: money(revenue), hint: "全店实收", view: "reports" },
     { title: "待审批", value: `${pendingApprovals} 单`, hint: "风险控制", view: "approvals" },
-    { title: "人员管理", value: `${data.staff.length} 人`, hint: "账号/权限/提成", view: "staff" },
+    { title: "客户会员", value: `${data.customers.length} 人`, hint: "客户资产", view: "customers" },
     { title: "库存预警", value: `${lowStock} 项`, hint: "采购与盘点", view: "inventory" },
   ];
 }
@@ -2863,20 +2853,12 @@ function SettingsView({
   session: UserSession;
   setView: (view: ViewKey) => void;
 }) {
-  const pendingInviteList = data.staffInvites
-    .filter((invite) => invite.status === "待加入")
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const pendingInvites = pendingInviteList.length;
-  const primaryInvite = pendingInviteList[0];
+  const systemInviteCode = DEFAULT_OWNER_INVITE_CODE;
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
   const copyInviteCode = () => {
-    if (!primaryInvite) {
-      setView("staff");
-      return;
-    }
-    void navigator.clipboard?.writeText(primaryInvite.inviteCode);
+    void navigator.clipboard?.writeText(systemInviteCode);
     setInviteCopied(true);
     window.setTimeout(() => setInviteCopied(false), 1400);
   };
@@ -2891,13 +2873,8 @@ function SettingsView({
     { title: "客户运营", desc: "新客登记、客户来源、转化跟进", icon: UsersRound, tone: "rose", view: "customers" },
     { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "售后回访", desc: "回访任务、服务记录、售后触达", icon: Headphones, tone: "teal", view: "customers" },
-    { title: "员工档案", desc: "岗位、底薪、提成比例、在职状态", icon: Building2, tone: "violet", view: "staff" },
-    { title: "组织架构", desc: "老板、主管、员工、前台", icon: Share2, tone: "teal", view: "staff" },
-    { title: "邀请员工", desc: "邀请码发放、账号开通、加入记录", icon: ShieldCheck, tone: "violet", view: "staff" },
     { title: "客户池", desc: "客户线索、会员资产、客户标签", icon: Database, tone: "violet", view: "customers" },
     { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", icon: MessageCircle, tone: "violet", view: "approvals" },
-    { title: "产品管理", desc: "产品、类别、项目、耗材资料", icon: Boxes, tone: "amber", view: "catalog" },
-    { title: "薪资提成", desc: "底薪、提成比例、项目提成结算", icon: HeartHandshake, tone: "teal", view: "staff" },
   ];
 
   return (
@@ -2911,18 +2888,25 @@ function SettingsView({
           <h2>{session.user.name}</h2>
           <p>系统管理员 · {session.user.account}</p>
         </div>
+      </section>
+
+      <section className="admin-invite-section">
+        <div className="admin-invite-copy">
+          <span>系统邀请码</span>
+          <strong>系统自动生成</strong>
+        </div>
         <div className="admin-invite-card">
           <span>邀请码</span>
           <div className="admin-invite-code">
-            <strong>{primaryInvite ? (inviteVisible ? primaryInvite.inviteCode : "••••••") : "待生成"}</strong>
-            <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} disabled={!primaryInvite} onClick={() => setInviteVisible((visible) => !visible)}>
+            <strong>{inviteVisible ? systemInviteCode : "••••••"}</strong>
+            <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)}>
               {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
             <button type="button" aria-label="复制邀请码" onClick={copyInviteCode}>
               <Copy size={17} />
             </button>
           </div>
-          <small>{primaryInvite ? `${pendingInvites} 个待加入 · ${inviteCopied ? "已复制" : "可复制给员工"}` : "进入人员账号生成"}</small>
+          <small>{inviteCopied ? "已复制" : "复制后发给需要加入系统的人"}</small>
         </div>
       </section>
 
