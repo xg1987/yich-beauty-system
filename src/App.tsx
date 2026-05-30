@@ -301,6 +301,9 @@ function ManagementCenter({
       </section>
 
       <section className="admin-invite-section" aria-label="系统邀请码">
+        <div className="admin-invite-heading">
+          <span>系统邀请码</span>
+        </div>
         <div className="admin-invite-card">
           <span>邀请码</span>
           <div className="admin-invite-code">

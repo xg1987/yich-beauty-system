@@ -41,7 +41,7 @@ import { makeId, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
 
-export const DEFAULT_OWNER_INVITE_CODE = "YICH-OWNER";
+export const DEFAULT_OWNER_INVITE_CODE = "YC8M6P";
 
 export type RegisterStoreInput = {
   storeName: string;

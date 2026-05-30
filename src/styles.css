@@ -4753,8 +4753,8 @@ textarea,
 }
 
 .admin-center-page:not(.platform-admin-page) {
-  width: min(100%, 1040px);
-  max-width: 1040px;
+  width: min(1360px, 100%);
+  max-width: 1360px;
   margin-top: 40px;
   gap: 18px;
 }
@@ -4769,8 +4769,9 @@ textarea,
   background:
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 122px),
     radial-gradient(circle at 84% 18%, rgba(255, 255, 255, 0.18), transparent 30%),
-    linear-gradient(135deg, #8f1f2b 0%, #9b2432 58%, #7b1c28 100%);
-  box-shadow: 0 24px 54px rgba(93, 24, 35, 0.2);
+    radial-gradient(circle at 88% 20%, rgba(185, 149, 85, 0.2), transparent 30%),
+    linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
+  box-shadow: 0 24px 54px rgba(69, 37, 127, 0.2);
 }
 
 .admin-hero-pattern {
@@ -4802,7 +4803,10 @@ textarea,
 }
 
 .admin-invite-section {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(320px, 480px);
+  align-items: center;
+  gap: 18px;
   padding: 18px 22px;
   border: 1px solid rgba(111, 66, 193, 0.1);
   border-radius: 22px;
@@ -4819,7 +4823,7 @@ textarea,
 }
 
 .admin-invite-card {
-  width: min(100%, 720px);
+  width: 100%;
   min-height: 80px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -5296,6 +5300,7 @@ textarea,
   position: relative;
   display: flex;
   align-items: center;
+  gap: 16px;
 }
 
 .platform-admin-page .admin-profile-hero {
