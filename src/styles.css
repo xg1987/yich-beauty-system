@@ -4752,6 +4752,7 @@ textarea,
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  position: relative;
   min-height: 170px;
   grid-template-columns: auto minmax(0, 1fr);
   padding: 28px;
@@ -4762,6 +4763,23 @@ textarea,
     radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.3), transparent 30%),
     linear-gradient(135deg, #51268e 0%, #7037b9 55%, #a07351 100%);
   box-shadow: 0 24px 58px rgba(69, 37, 127, 0.2);
+}
+
+.admin-hero-pattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 10px 10px, #fff 1.2px, transparent 1.4px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.7) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45) 1px, transparent 1px);
+  background-size: 28px 28px, 122px 100%, 100% 48px;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-profile-hero > :not(.admin-hero-pattern) {
+  position: relative;
+  z-index: 1;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-avatar {
@@ -4777,42 +4795,63 @@ textarea,
 
 .admin-invite-section {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
   align-items: center;
-  gap: 22px;
-  padding: 22px;
-  border: 1px solid rgba(111, 66, 193, 0.12);
-  border-radius: 22px;
-  background: rgba(255, 253, 250, 0.96);
-  box-shadow: 0 18px 46px rgba(69, 37, 127, 0.08);
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(109, 40, 217, 0.07), rgba(255, 253, 250, 0.98) 38%, rgba(109, 40, 217, 0.06)),
+    rgba(255, 253, 250, 0.96);
+  box-shadow: 0 18px 44px rgba(69, 37, 127, 0.1);
 }
 
 .admin-invite-copy {
   display: grid;
-  gap: 8px;
+  gap: 9px;
+  padding: 4px 2px 4px 4px;
 }
 
-.admin-invite-copy span {
-  color: rgba(38, 30, 58, 0.58);
-  font-size: 13px;
-  font-weight: 850;
+.admin-invite-kicker {
+  width: fit-content;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(109, 40, 217, 0.13);
+  border-radius: 999px;
+  background: rgba(109, 40, 217, 0.08);
+  color: var(--yich-purple-deep);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .admin-invite-copy strong {
   color: var(--yich-ink);
-  font-size: 24px;
+  font-size: clamp(22px, 2.2vw, 30px);
   font-weight: 950;
   letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.admin-invite-copy p {
+  max-width: 56ch;
+  margin: 0;
+  color: rgba(38, 30, 58, 0.62);
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .admin-invite-card {
-  min-height: 84px;
+  min-height: 126px;
   display: grid;
   align-content: center;
-  gap: 10px;
-  padding: 16px 18px;
+  gap: 12px;
+  padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 16px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.78);
   font-size: 13px;
@@ -4823,9 +4862,10 @@ textarea,
 .admin-invite-section .admin-invite-card {
   border-color: rgba(255, 255, 255, 0.2);
   background:
-    radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.22), transparent 32%),
-    linear-gradient(135deg, #51268e 0%, #6d28d9 62%, #9a6c4d 100%);
-  box-shadow: 0 16px 34px rgba(69, 37, 127, 0.18);
+    radial-gradient(circle at 86% 16%, rgba(255, 255, 255, 0.25), transparent 30%),
+    radial-gradient(circle at 18% 86%, rgba(255, 255, 255, 0.12), transparent 28%),
+    linear-gradient(135deg, #4b2187 0%, #6d28d9 58%, #9a6c4d 100%);
+  box-shadow: 0 18px 38px rgba(69, 37, 127, 0.2);
 }
 
 .admin-invite-card > span,
@@ -4846,19 +4886,19 @@ textarea,
 
 .admin-invite-code strong {
   color: #fff;
-  font-size: 26px;
+  font-size: clamp(26px, 2.8vw, 36px);
   letter-spacing: 2px;
   line-height: 1;
   white-space: nowrap;
 }
 
 .admin-invite-code button {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.82);
 }

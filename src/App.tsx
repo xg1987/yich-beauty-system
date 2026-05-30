@@ -3024,20 +3024,25 @@ function SettingsView({
   return (
     <div className="admin-center-page">
       <section className="admin-profile-hero">
+        <div className="admin-hero-pattern" aria-hidden="true" />
         <div className="admin-avatar">
           <UserRound size={34} />
         </div>
         <div className="admin-profile-copy">
-          <span className="admin-role-pill"><ShieldCheck size={14} /> 系统管理员</span>
+          <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
           <h2>{session.user.name}</h2>
-          <p>系统管理员 · {session.user.account}</p>
+          <p>{session.user.roleName} · {session.user.account}</p>
         </div>
       </section>
 
       <section className="admin-invite-section">
         <div className="admin-invite-copy">
-          <span>系统邀请码</span>
-          <strong>系统自动生成</strong>
+          <div className="admin-invite-kicker">
+            <UsersRound size={16} />
+            <span>系统邀请码</span>
+          </div>
+          <strong>邀请新成员加入门店</strong>
+          <p>邀请码由系统自动生成，复制后发给员工，对方在登录页选择“邀请码加入”即可进入门店。</p>
         </div>
         <div className="admin-invite-card">
           <span>邀请码</span>
@@ -3050,7 +3055,7 @@ function SettingsView({
               <Copy size={17} />
             </button>
           </div>
-          <small>{inviteCopied ? "已复制" : "复制后发给需要加入系统的人"}</small>
+          <small>{inviteCopied ? "已复制" : "仅用于门店成员加入"}</small>
         </div>
       </section>
 
