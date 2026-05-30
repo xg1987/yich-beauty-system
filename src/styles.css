@@ -5307,9 +5307,17 @@ textarea,
 }
 
 .main:has(.admin-center-page:not(.platform-admin-page)) > .topbar {
-  width: min(1040px, 100%);
-  margin-right: auto;
-  margin-left: auto;
+  width: 100%;
+  max-width: none;
+  margin-right: 0;
+  margin-left: 0;
+  transform: none;
+}
+
+.main:has(.admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
+  grid-column: 3;
+  justify-self: end;
+  margin-right: clamp(16px, 3vw, 56px);
 }
 
 .platform-admin-page .admin-profile-hero {
