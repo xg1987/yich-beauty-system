@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
 import type { PublicCustomerSignaturePayload } from "./api/client";
-import { calculateOrderTotal, previewFormalDataCleanup, reportSummary } from "./domain/business";
+import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, previewFormalDataCleanup, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
@@ -283,13 +283,6 @@ function PlatformAdminView({
   runMutation: RunMutation;
   setView: (view: ViewKey) => void;
 }) {
-  const [storeName, setStoreName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [account, setAccount] = useState("");
-  const [validDays, setValidDays] = useState(7);
-  const pendingOwnerInvites = (data.storeOwnerInvites ?? []).filter((invite) => invite.status === "待加入").length;
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingAppointments = data.appointments.filter((appointment) => ["待确认", "已确认", "已到店"].includes(appointment.status)).length;
@@ -304,7 +297,7 @@ function PlatformAdminView({
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "老板邀请", desc: "生成门店老板邀请码，开通门店账号", metric: `${pendingOwnerInvites} 待加入`, icon: LockKeyhole, tone: "violet", view: "settings" },
+    { title: "老板邀请", desc: "固定邀请码开通门店老板账号", metric: DEFAULT_OWNER_INVITE_CODE, icon: LockKeyhole, tone: "violet", view: "settings" },
     { title: "门店列表", desc: "查看已开通门店和老板账号", metric: `${data.storeProfiles.length} 家`, icon: Building2, tone: "teal", view: "settings" },
     { title: "预约管理", desc: "查看预约、排班和到店确认", metric: `${pendingAppointments} 待处理`, icon: CalendarDays, tone: "rose", view: "appointments" },
     { title: "开单收银", desc: "前台营业、支付记录和退款", metric: `${data.orders.length} 订单`, icon: CreditCard, tone: "amber", view: "pos" },
@@ -317,27 +310,6 @@ function PlatformAdminView({
     { title: "报表分析", desc: "营收、提成、日结和经营概览", metric: money(data.orders.reduce((sum, order) => sum + order.paidAmount, 0)), icon: ChartNoAxesColumnIncreasing, tone: "teal", view: "reports" },
     { title: "操作日志", desc: "查看关键操作和数据变化", metric: `${data.operationLogs.length} 条`, icon: ClipboardList, tone: "amber", view: "logs" },
   ];
-
-  const createOwnerInvite = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.createStoreOwnerInvite({
-        storeName,
-        ownerName,
-        phone,
-        address,
-        account,
-        validDays,
-      }),
-    ).then(() => {
-      setStoreName("");
-      setOwnerName("");
-      setPhone("");
-      setAddress("");
-      setAccount("");
-      setValidDays(7);
-    });
-  };
 
   return (
     <div className="admin-center-page platform-admin-page">
@@ -356,28 +328,23 @@ function PlatformAdminView({
         <div>
           <span className="eyebrow"><Building2 size={15} /> 基础版 Admin</span>
           <h1>门店老板邀请码</h1>
-          <p>Admin 先创建老板邀请码，老板再通过登录页的邀请码入口注册门店账号。</p>
+          <p>Admin 提供固定老板邀请码，老板通过登录页的邀请码入口注册门店账号。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
           <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="通过邀请开通" />
-          <StatCard title="待加入" value={`${pendingOwnerInvites} 个`} hint="老板邀请码" tone={pendingOwnerInvites > 0 ? "warn" : undefined} />
+          <StatCard title="固定邀请码" value={DEFAULT_OWNER_INVITE_CODE} hint="老板注册入口" />
           <StatCard title="人员档案" value={`${activeStaff} 人`} hint="全局基础数据" />
         </div>
       </section>
 
       <div className="content-grid">
-        <section className="panel">
-          <PanelTitle icon={<LockKeyhole size={18} />} title="邀请门店老板" action="老板通过邀请码注册" />
-          <form className="form" onSubmit={createOwnerInvite}>
-            <label>门店名称<input value={storeName} onChange={(event) => setStoreName(event.target.value)} required /></label>
-            <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} required /></label>
-            <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
-            <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
-            <label>老板登录账号<input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
-            <label>有效期（天）<input type="number" min={1} value={validDays} onChange={(event) => setValidDays(Number(event.target.value))} /></label>
-            <button className="primary-button"><LockKeyhole size={17} /> 生成老板邀请码</button>
-          </form>
+        <section className="panel owner-code-panel">
+          <PanelTitle icon={<LockKeyhole size={18} />} title="老板固定邀请码" action="登录页使用" />
+          <div className="owner-code-box">
+            <span>{DEFAULT_OWNER_INVITE_CODE}</span>
+            <small>老板在登录页选择“邀请码加入”，输入该邀请码后填写门店和账号资料。</small>
+          </div>
         </section>
 
         <section className="panel wide">
@@ -774,7 +741,7 @@ function LoginScreen({
   error,
 }: {
   onLogin: (account: string, password: string) => Promise<void>;
-  onJoin: (body: { inviteCode: string; name: string; password: string }) => Promise<UserSession>;
+  onJoin: (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }) => Promise<UserSession>;
   authenticate: (authAction: () => Promise<UserSession>) => Promise<void>;
   loading: boolean;
   error?: string;
@@ -784,6 +751,11 @@ function LoginScreen({
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [joinName, setJoinName] = useState("");
+  const [joinStoreName, setJoinStoreName] = useState("");
+  const [joinPhone, setJoinPhone] = useState("");
+  const [joinAddress, setJoinAddress] = useState("");
+  const [joinAccount, setJoinAccount] = useState("");
+  const isOwnerInvite = inviteCode.trim().toUpperCase() === DEFAULT_OWNER_INVITE_CODE;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -791,7 +763,17 @@ function LoginScreen({
       void onLogin(account.trim(), password);
       return;
     }
-    void authenticate(() => onJoin({ inviteCode, name: joinName, password }));
+    void authenticate(() =>
+      onJoin({
+        inviteCode,
+        name: joinName,
+        password,
+        storeName: isOwnerInvite ? joinStoreName : undefined,
+        phone: isOwnerInvite ? joinPhone : undefined,
+        address: isOwnerInvite ? joinAddress : undefined,
+        account: isOwnerInvite ? joinAccount : undefined,
+      }),
+    );
   };
 
   return (
@@ -815,12 +797,20 @@ function LoginScreen({
           <form className={`login-card login-card-${mode}`} onSubmit={submit}>
             <div className="login-card-head">
               <strong>{mode === "login" ? "登录系统" : "邀请码加入"}</strong>
-              <span>{mode === "login" ? "Admin、老板、主管、员工和前台统一登录" : "老板邀请码由 Admin 生成，员工邀请码由老板或主管生成"}</span>
+              <span>{mode === "login" ? "Admin、老板、主管、员工和前台统一登录" : "老板使用固定 Admin 邀请码，员工邀请码由老板或主管生成"}</span>
             </div>
             {mode === "join" ? (
               <>
                 <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" /></label>
                 <label>姓名<input value={joinName} onChange={(event) => setJoinName(event.target.value)} placeholder="请输入姓名" /></label>
+                {isOwnerInvite && (
+                  <>
+                    <label>门店名称<input value={joinStoreName} onChange={(event) => setJoinStoreName(event.target.value)} placeholder="请输入门店名称" required /></label>
+                    <label>联系电话<input value={joinPhone} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required /></label>
+                    <label>门店地址<input value={joinAddress} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" /></label>
+                    <label>老板登录账号<input value={joinAccount} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
+                  </>
+                )}
               </>
             ) : (
               <label>

@@ -30,7 +30,7 @@ export function createApiClient(getToken: () => string | undefined) {
       }),
     registerStore: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; password: string }) =>
       request<UserSession>("/api/auth/register-store", { method: "POST", body }),
-    joinInvite: (body: { inviteCode: string; name: string; password: string }) =>
+    joinInvite: (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }) =>
       request<UserSession>("/api/auth/join-invite", { method: "POST", body }),
     fetchPublicStore: (shareCode: string) =>
       request<{ store?: StoreProfile; storefront: OnlineStorefront; services: Service[] }>(`/api/public/store/${encodeURIComponent(shareCode)}`),

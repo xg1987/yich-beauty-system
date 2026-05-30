@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Server } from "node:http";
 import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
+import { DEFAULT_OWNER_INVITE_CODE } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
 
@@ -54,22 +55,17 @@ try {
     body: { account: "admin@test.local", password: "test-password" },
   });
   assert.equal(adminSession.user.roleName, "Admin", "admin login should return platform admin session");
-  const afterOwnerInvite = await request<AppData>(baseUrl, "/api/store-owner-invites", {
+  const invitedOwnerSession = await request<{ token: string; user: { roleName: string; account: string } }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
-    token: adminSession.token,
     body: {
+      inviteCode: DEFAULT_OWNER_INVITE_CODE,
+      name: "API 老板",
       storeName: "API 邀请门店",
-      ownerName: "API 老板",
       phone: "13900001111",
       address: "API 邀请地址",
       account: "api-invited-owner@test.local",
-      validDays: 5,
+      password: "secret",
     },
-  });
-  assert.equal(afterOwnerInvite.storeOwnerInvites[0].status, "待加入", "admin API should create owner invite");
-  const invitedOwnerSession = await request<{ token: string; user: { roleName: string; account: string } }>(baseUrl, "/api/auth/join-invite", {
-    method: "POST",
-    body: { inviteCode: afterOwnerInvite.storeOwnerInvites[0].inviteCode, name: "API 老板", password: "secret" },
   });
   assert.equal(invitedOwnerSession.user.roleName, "老板", "owner invite should join as owner");
   assert.equal(invitedOwnerSession.user.account, "api-invited-owner@test.local", "owner invite should login configured account");

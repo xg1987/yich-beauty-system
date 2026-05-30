@@ -139,10 +139,14 @@ export function createApiServer(database = new BeautyDatabase()) {
           inviteCode,
           name: requiredString(body, "name"),
           password: hashedPassword,
+          storeName: optionalString(body, "storeName"),
+          phone: optionalString(body, "phone"),
+          address: optionalString(body, "address"),
+          account: optionalString(body, "account"),
         });
         database.replaceData(nextData);
 
-        const joinedAccount = accountForInvite(nextData, inviteCode);
+        const joinedAccount = accountForInvite(nextData, inviteCode, optionalString(body, "account"));
         if (!joinedAccount) throw new Error("邀请账号不存在");
         const loginResult = await login(joinedAccount, plainPassword, nextData.authUsers);
         sendJson(response, 201, loginResult.session);

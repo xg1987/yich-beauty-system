@@ -4634,6 +4634,35 @@ textarea,
   min-height: 116px;
 }
 
+.owner-code-panel {
+  align-self: start;
+}
+
+.owner-code-box {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(111, 66, 193, 0.1), rgba(13, 148, 136, 0.08)),
+    #fffdfa;
+}
+
+.owner-code-box span {
+  display: block;
+  color: var(--yich-purple-deep);
+  font-size: clamp(32px, 4vw, 52px);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.owner-code-box small {
+  color: var(--yich-muted);
+  line-height: 1.65;
+}
+
 @media (max-width: 900px) {
   .platform-admin-shell .platform-admin-main {
     width: min(100% - 28px, 720px);
