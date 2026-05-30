@@ -4765,18 +4765,12 @@ textarea,
   line-height: 1.1;
 }
 
-.admin-hero-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.admin-hero-metrics span {
-  min-height: 74px;
+.admin-invite-card {
+  min-height: 96px;
   display: grid;
   align-content: center;
-  gap: 5px;
-  padding: 14px;
+  gap: 11px;
+  padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.12);
@@ -4786,10 +4780,66 @@ textarea,
   backdrop-filter: blur(16px);
 }
 
-.admin-hero-metrics strong {
+.admin-invite-card > span,
+.admin-invite-card small {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.admin-invite-card small {
+  font-size: 12px;
+}
+
+.admin-invite-code {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-invite-code strong {
   color: #fff;
-  font-size: 25px;
+  font-size: 26px;
+  letter-spacing: 2px;
   line-height: 1;
+  white-space: nowrap;
+}
+
+.admin-invite-code button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-invite-code button:disabled {
+  opacity: 0.45;
+}
+
+.admin-center-footer {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 22px 24px;
+  border: 1px solid rgba(111, 66, 193, 0.13);
+  border-radius: 22px;
+  background: rgba(246, 241, 234, 0.72);
+  text-align: center;
+}
+
+.admin-center-footer strong {
+  color: #9c2230;
+  font-size: 16px;
+  font-weight: 950;
+  letter-spacing: 2px;
+}
+
+.admin-center-footer span {
+  color: rgba(38, 30, 58, 0.62);
+  font-size: 13px;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-section-title span {
@@ -4840,7 +4890,7 @@ textarea,
     padding: 24px;
   }
 
-  .admin-hero-metrics {
+  .admin-invite-card {
     grid-column: 1 / -1;
   }
 }
@@ -4848,7 +4898,11 @@ textarea,
 @media (max-width: 620px) {
   .admin-center-page:not(.platform-admin-page) .admin-profile-hero,
   .admin-center-page:not(.platform-admin-page) .admin-module-grid,
-  .admin-hero-metrics {
+  .admin-invite-code {
     grid-template-columns: 1fr;
+  }
+
+  .admin-invite-code button {
+    width: 100%;
   }
 }

@@ -6,8 +6,11 @@ import {
   CalendarDays,
   ChartNoAxesColumnIncreasing,
   ClipboardList,
+  Copy,
   CreditCard,
   Database,
+  Eye,
+  EyeOff,
   ArrowLeft,
   Headphones,
   HeartHandshake,
@@ -2861,8 +2864,24 @@ function SettingsView({
   setView: (view: ViewKey) => void;
 }) {
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
-  const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
+  const pendingInviteList = data.staffInvites
+    .filter((invite) => invite.status === "待加入")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const pendingInvites = pendingInviteList.length;
+  const primaryInvite = pendingInviteList[0];
   const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  const copyInviteCode = () => {
+    if (!primaryInvite) {
+      setView("staff");
+      return;
+    }
+    void navigator.clipboard?.writeText(primaryInvite.inviteCode);
+    setInviteCopied(true);
+    window.setTimeout(() => setInviteCopied(false), 1400);
+  };
 
   const managementCards: Array<{
     title: string;
@@ -2895,10 +2914,18 @@ function SettingsView({
           <h2>{session.user.name}</h2>
           <p>{session.user.account}</p>
         </div>
-        <div className="admin-hero-metrics">
-          <span><strong>{data.customers.length}</strong>客户</span>
-          <span><strong>{data.orders.length}</strong>订单</span>
-          <span><strong>{activeStaff}</strong>员工</span>
+        <div className="admin-invite-card">
+          <span>员工邀请码</span>
+          <div className="admin-invite-code">
+            <strong>{primaryInvite ? (inviteVisible ? primaryInvite.inviteCode : "••••••") : "待生成"}</strong>
+            <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} disabled={!primaryInvite} onClick={() => setInviteVisible((visible) => !visible)}>
+              {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+            <button type="button" aria-label="复制邀请码" onClick={copyInviteCode}>
+              <Copy size={17} />
+            </button>
+          </div>
+          <small>{primaryInvite ? `${pendingInvites} 个待加入 · ${inviteCopied ? "已复制" : "可复制给员工"}` : "进入人员账号生成"}</small>
         </div>
       </section>
 
@@ -2911,6 +2938,11 @@ function SettingsView({
             <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view)} />
           ))}
         </div>
+      </section>
+
+      <section className="admin-center-footer">
+        <strong>管客 · 管店 · 管账</strong>
+        <span>预约、开单、会员、库存和财务数据统一沉淀。</span>
       </section>
 
     </div>
