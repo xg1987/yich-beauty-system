@@ -5551,3 +5551,51 @@ textarea,
   background: rgba(250, 248, 245, 0.86);
   color: #1d1717;
 }
+
+/* Workbench layout lock: keep every signed-in business page on one width system. */
+:root {
+  --yich-workbench-width: 1360px;
+}
+
+.app-shell:not(.platform-admin-shell) .main > .topbar {
+  width: 100%;
+  max-width: none;
+  margin-right: 0;
+  margin-left: 0;
+  transform: none;
+}
+
+.app-shell:not(.platform-admin-shell) .main > .topbar .topbar-actions {
+  grid-column: 3;
+  justify-self: end;
+  margin-right: clamp(16px, 3vw, 56px);
+}
+
+.app-shell:not(.platform-admin-shell) .main > .content-grid,
+.app-shell:not(.platform-admin-shell) .main > .page-grid,
+.app-shell:not(.platform-admin-shell) .main > .dashboard-page,
+.app-shell:not(.platform-admin-shell) .main > .admin-center-page:not(.platform-admin-page),
+.app-shell:not(.platform-admin-shell) .main > .page-stack {
+  width: min(var(--yich-workbench-width), 100%);
+  max-width: var(--yich-workbench-width);
+  margin-right: auto;
+  margin-left: auto;
+  transform: none;
+}
+
+.app-shell:not(.platform-admin-shell) .page-stack > .content-grid,
+.app-shell:not(.platform-admin-shell) .page-stack > .page-grid {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 1680px) {
+  .app-shell:not(.platform-admin-shell) .main > .topbar,
+  .app-shell:not(.platform-admin-shell) .main > .content-grid,
+  .app-shell:not(.platform-admin-shell) .main > .page-grid,
+  .app-shell:not(.platform-admin-shell) .main > .dashboard-page,
+  .app-shell:not(.platform-admin-shell) .main > .admin-center-page,
+  .app-shell:not(.platform-admin-shell) .main > .page-stack {
+    transform: none;
+  }
+}
