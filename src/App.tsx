@@ -223,6 +223,10 @@ function PlatformAdminShell({
   actions: ApiActions;
   runMutation: RunMutation;
 }) {
+  const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const activeWorkbar = workbarForView(activeView);
+  const openView = (nextView: ViewKey) => setActiveView(nextView);
+
   return (
     <div className="app-shell theme-day platform-admin-shell">
       <main className="main platform-admin-main">
@@ -238,8 +242,24 @@ function PlatformAdminShell({
             </button>
           </div>
         </header>
-        <PlatformAdminView data={data} session={session} actions={actions} runMutation={runMutation} />
+        {(activeView === "dashboard" || activeView === "settings") && (
+          <PlatformAdminView data={data} session={session} actions={actions} runMutation={runMutation} />
+        )}
+        {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
+        {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
       </main>
+      <nav className="workbar" aria-label="主工作栏">
+        {workbarItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => openView(item.view)}>
+              <Icon size={18} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
