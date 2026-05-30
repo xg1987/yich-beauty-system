@@ -10,6 +10,8 @@ import {
   CreditCard,
   Database,
   ArrowLeft,
+  Eye,
+  EyeOff,
   HeartHandshake,
   LayoutDashboard,
   LockKeyhole,
@@ -259,40 +261,61 @@ function ManagementCenter({
   session: UserSession;
   setView: (view: ViewKey, options?: { fromAdmin?: boolean }) => void;
 }) {
-  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
-  const lowStock = data.products.filter((item) => item.stock <= item.warningStock).length;
-  const pendingCommissions = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
-  const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
-  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
-  const baseModuleCards = [
-    { title: "项目商品", desc: "服务项目、商品资料、耗材配置", metric: `${data.services.length + data.products.length} 项`, icon: PackagePlus, tone: "violet", view: "catalog" },
-    { title: "员工提成", desc: "员工服务提成与结算记录", metric: money(pendingCommissions), icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "库存管理", desc: "库存预警、采购入库、盘点记录", metric: `${lowStock} 项预警`, icon: Boxes, tone: "teal", view: "inventory" },
-    { title: "报表分析", desc: "经营收入、会员资产、财务日结", metric: money(totalRevenue), icon: ChartNoAxesColumnIncreasing, tone: "rose", view: "reports" },
-    { title: "审批中心", desc: "退款、改价、卡项异常审批", metric: `${pendingApprovals} 单待审`, icon: ShieldCheck, tone: "violet", view: "approvals" },
-    { title: "操作日志", desc: "关键业务动作与风险追踪", metric: `${data.operationLogs.length} 条`, icon: ClipboardList, tone: "amber", view: "logs" },
+  const systemInviteCode = DEFAULT_OWNER_INVITE_CODE;
+  const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
+  const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  const copyInviteCode = () => {
+    void navigator.clipboard?.writeText(systemInviteCode);
+    setInviteCopied(true);
+    window.setTimeout(() => setInviteCopied(false), 1400);
+  };
+
+  const managementCards = [
+    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "settings" },
+    { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "rose", view: "approvals" },
+    { title: "数据总览", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "操作审计", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
   ] satisfies Array<{
     title: string;
     desc: string;
-    metric: string;
     icon: typeof LayoutDashboard;
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }>;
-  const moduleCards = baseModuleCards.filter((item) => canAccessView(session, item.view));
 
   return (
-    <div className="admin-center-page platform-admin-page">
-      <section className="page-hero platform-admin-readonly-hero">
-        <div>
-          <span className="eyebrow"><Settings size={15} /> 管理中心</span>
-          <h1>门店管理入口</h1>
-          <p>预约、项目、员工、库存、报表、审批集中管理。</p>
+    <div className="admin-center-page">
+      <section className="admin-profile-hero">
+        <div className="admin-hero-pattern" aria-hidden="true" />
+        <div className="admin-avatar">
+          <UserAvatar avatarUrl={session.user.avatarUrl} size={78} />
         </div>
-        <div className="page-hero-stats">
-          <StatCard title="客户会员" value={`${data.customers.length} 人`} hint="客户资产" />
-          <StatCard title="今日预约" value={`${todayAppointments} 单`} hint="到店安排" />
-          <StatCard title="经营收入" value={money(totalRevenue)} hint="收银汇总" />
+        <div className="admin-profile-copy">
+          <span className="admin-role-pill"><ShieldCheck size={14} /> {displayRole}</span>
+          <h2>{displayName}</h2>
+          <p>{displayRole} · {session.user.account}</p>
+        </div>
+      </section>
+
+      <section className="admin-invite-section" aria-label="系统邀请码">
+        <div className="admin-invite-heading">
+          <span>系统邀请码</span>
+        </div>
+        <div className="admin-invite-card">
+          <span>邀请码</span>
+          <div className="admin-invite-code">
+            <strong>{inviteVisible ? systemInviteCode : "••••••"}</strong>
+            <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)}>
+              {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+            <button type="button" aria-label="复制邀请码" onClick={copyInviteCode}>
+              <Copy size={17} />
+            </button>
+          </div>
+          {inviteCopied && <small>已复制</small>}
         </div>
       </section>
 
@@ -301,7 +324,7 @@ function ManagementCenter({
           <span>管理入口</span>
         </div>
         <div className="admin-module-grid">
-          {moduleCards.map((item) => (
+          {managementCards.filter((item) => canAccessView(session, item.view)).map((item) => (
             <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view, { fromAdmin: true })} />
           ))}
         </div>
