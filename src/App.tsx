@@ -2907,12 +2907,12 @@ function SettingsView({
           <UserRound size={34} />
         </div>
         <div className="admin-profile-copy">
-          <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
+          <span className="admin-role-pill"><ShieldCheck size={14} /> 系统管理员</span>
           <h2>{session.user.name}</h2>
-          <p>{session.user.account}</p>
+          <p>系统管理员 · {session.user.account}</p>
         </div>
         <div className="admin-invite-card">
-          <span>员工邀请码</span>
+          <span>邀请码</span>
           <div className="admin-invite-code">
             <strong>{primaryInvite ? (inviteVisible ? primaryInvite.inviteCode : "••••••") : "待生成"}</strong>
             <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} disabled={!primaryInvite} onClick={() => setInviteVisible((visible) => !visible)}>

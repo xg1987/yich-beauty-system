@@ -4739,6 +4739,7 @@ textarea,
 .admin-center-page:not(.platform-admin-page) {
   width: min(100%, 1060px);
   max-width: 1060px;
+  margin-top: 42px;
   gap: 22px;
 }
 
@@ -4881,6 +4882,10 @@ textarea,
 }
 
 @media (max-width: 900px) {
+  .admin-center-page:not(.platform-admin-page) {
+    margin-top: 24px;
+  }
+
   .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
     grid-template-columns: auto minmax(0, 1fr);
     padding: 24px;
