@@ -274,8 +274,15 @@ function ManagementCenter({
   };
 
   const managementCards = [
+    { title: "预约管理", desc: "到店预约 / 改约取消", icon: CalendarDays, tone: "violet", view: "appointments" },
+    { title: "开单收银", desc: "服务开单 / 收款退款", icon: CreditCard, tone: "rose", view: "pos" },
+    { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
+    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
+    { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "库存管理", desc: "库存预警 / 采购盘点", icon: Boxes, tone: "teal", view: "inventory" },
+    { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "审批中心", desc: "退款改价 / 关键审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "settings" },
-    { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "数据总览", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "操作审计", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
   ] satisfies Array<{
