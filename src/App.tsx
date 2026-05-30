@@ -2863,13 +2863,11 @@ function SettingsView({
   session: UserSession;
   setView: (view: ViewKey) => void;
 }) {
-  const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingInviteList = data.staffInvites
     .filter((invite) => invite.status === "待加入")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const pendingInvites = pendingInviteList.length;
   const primaryInvite = pendingInviteList[0];
-  const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
@@ -2886,21 +2884,20 @@ function SettingsView({
   const managementCards: Array<{
     title: string;
     desc: string;
-    metric: string;
     icon: typeof LayoutDashboard;
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "客户运营", desc: "新客登记、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
-    { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "售后回访", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
-    { title: "员工档案", desc: "岗位、底薪、提成比例、在职状态", metric: `${activeStaff} 在职`, icon: Building2, tone: "violet", view: "staff" },
-    { title: "组织架构", desc: "老板、主管、员工、前台", metric: `${data.authUsers.length} 账号`, icon: Share2, tone: "teal", view: "staff" },
-    { title: "邀请员工", desc: "为员工生成邀请码，加入后开通账号", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
-    { title: "客户池", desc: "客户线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
-    { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
-    { title: "产品管理", desc: "产品、类别、项目、耗材资料", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "catalog" },
-    { title: "薪资提成", desc: "底薪、提成比例、项目提成结算", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
+    { title: "客户运营", desc: "新客登记、客户来源、转化跟进", icon: UsersRound, tone: "rose", view: "customers" },
+    { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "售后回访", desc: "回访任务、服务记录、售后触达", icon: Headphones, tone: "teal", view: "customers" },
+    { title: "员工档案", desc: "岗位、底薪、提成比例、在职状态", icon: Building2, tone: "violet", view: "staff" },
+    { title: "组织架构", desc: "老板、主管、员工、前台", icon: Share2, tone: "teal", view: "staff" },
+    { title: "邀请员工", desc: "邀请码发放、账号开通、加入记录", icon: ShieldCheck, tone: "violet", view: "staff" },
+    { title: "客户池", desc: "客户线索、会员资产、客户标签", icon: Database, tone: "violet", view: "customers" },
+    { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", icon: MessageCircle, tone: "violet", view: "approvals" },
+    { title: "产品管理", desc: "产品、类别、项目、耗材资料", icon: Boxes, tone: "amber", view: "catalog" },
+    { title: "薪资提成", desc: "底薪、提成比例、项目提成结算", icon: HeartHandshake, tone: "teal", view: "staff" },
   ];
 
   return (
@@ -2953,7 +2950,7 @@ function AdminCenterCard({
   item,
   onClick,
 }: {
-  item: { title: string; desc: string; metric: string; icon: typeof LayoutDashboard; tone: "rose" | "violet" | "teal" | "amber" };
+  item: { title: string; desc: string; icon: typeof LayoutDashboard; tone: "rose" | "violet" | "teal" | "amber" };
   onClick: () => void;
 }) {
   const Icon = item.icon;
@@ -2962,7 +2959,6 @@ function AdminCenterCard({
       <span className={`admin-module-icon ${item.tone}`}><Icon size={22} /></span>
       <strong>{item.title}</strong>
       <small>{item.desc}</small>
-      <em>{item.metric}</em>
     </button>
   );
 }

@@ -4737,21 +4737,22 @@ textarea,
 }
 
 .admin-center-page:not(.platform-admin-page) {
-  width: min(100%, 1120px);
-  max-width: 1120px;
-  gap: 24px;
+  width: min(100%, 1060px);
+  max-width: 1060px;
+  gap: 22px;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
-  min-height: 188px;
-  grid-template-columns: auto minmax(0, 1fr) minmax(220px, 300px);
-  padding: 34px;
+  min-height: 170px;
+  grid-template-columns: auto minmax(0, 1fr) minmax(240px, 300px);
+  padding: 28px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 28px;
+  border-radius: 24px;
   background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 122px),
     radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.3), transparent 30%),
-    linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #b99555 100%);
-  box-shadow: 0 28px 70px rgba(69, 37, 127, 0.22);
+    linear-gradient(135deg, #51268e 0%, #7037b9 55%, #a07351 100%);
+  box-shadow: 0 24px 58px rgba(69, 37, 127, 0.2);
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-avatar {
@@ -4766,13 +4767,13 @@ textarea,
 }
 
 .admin-invite-card {
-  min-height: 96px;
+  min-height: 84px;
   display: grid;
   align-content: center;
-  gap: 11px;
-  padding: 18px;
+  gap: 10px;
+  padding: 16px 18px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 20px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.78);
   font-size: 13px;
@@ -4850,17 +4851,17 @@ textarea,
 
 .admin-center-page:not(.platform-admin-page) .admin-module-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-module-card {
-  min-height: 148px;
-  padding: 20px;
-  border: 1px solid rgba(111, 66, 193, 0.13);
-  border-radius: 22px;
-  background: rgba(255, 253, 250, 0.98);
+  min-height: 126px;
+  padding: 18px;
+  border: 1px solid rgba(129, 94, 78, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 253, 250, 0.96);
   color: var(--yich-ink);
-  box-shadow: 0 18px 44px rgba(69, 37, 127, 0.1);
+  box-shadow: 0 14px 34px rgba(69, 37, 127, 0.08);
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-module-card:hover {
@@ -4870,18 +4871,13 @@ textarea,
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-module-card strong {
-  font-size: 17px;
+  font-size: 16px;
   color: var(--yich-ink);
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-module-card small {
   min-height: 40px;
   color: rgba(38, 30, 58, 0.62);
-}
-
-.admin-center-page:not(.platform-admin-page) .admin-module-card em {
-  color: var(--yich-purple);
-  font-weight: 900;
 }
 
 @media (max-width: 900px) {
