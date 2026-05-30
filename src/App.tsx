@@ -4,7 +4,6 @@ import {
   Boxes,
   Building2,
   CalendarDays,
-  Camera,
   ChartNoAxesColumnIncreasing,
   ClipboardList,
   CreditCard,
@@ -13,7 +12,6 @@ import {
   Headphones,
   HeartHandshake,
   LayoutDashboard,
-  LogOut,
   LockKeyhole,
   Megaphone,
   MessageCircle,
@@ -25,10 +23,12 @@ import {
   Sparkles,
   UserRound,
   UsersRound,
-  X,
 } from "lucide-react";
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
 import type { PublicCustomerSignaturePayload } from "./api/client";
+import { AccountMenu } from "./components/business/AccountMenu";
+import { NotificationPanel, visibleNotifications } from "./components/business/NotificationPanel";
+import { UserAvatar } from "./components/business/UserAvatar";
 import { PageHero } from "./components/layout/PageHero";
 import { PanelTitle } from "./components/layout/PanelTitle";
 import { StatCard } from "./components/layout/StatCard";
@@ -38,7 +38,7 @@ import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, previewFormalDataCleanup, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 
@@ -396,169 +396,12 @@ function PlatformAdminView({
   );
 }
 
-function visibleNotifications(data: AppData, session: UserSession) {
-  return (data.notifications ?? [])
-    .filter((item) => item.audienceRoles.includes(session.user.role))
-    .filter((item) => session.user.role !== "therapist" || !item.staffId || item.staffId === session.user.staffId)
-    .filter((item) => canAccessView(session, item.view))
-    .slice()
-    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-}
-
-function notificationIcon(view: ViewKey) {
-  if (view === "appointments") return CalendarDays;
-  if (view === "customers") return HeartHandshake;
-  if (view === "inventory") return PackagePlus;
-  if (view === "approvals") return ShieldCheck;
-  if (view === "pos") return CreditCard;
-  if (view === "reports") return ChartNoAxesColumnIncreasing;
-  return Bell;
-}
-
-function NotificationPanel({
-  data,
-  session,
-  actions,
-  runMutation,
-  setView,
-  onClose,
-}: {
-  data: AppData;
-  session: UserSession;
-  actions: ApiActions;
-  runMutation: RunMutation;
-  setView: (view: ViewKey) => void;
-  onClose: () => void;
-}) {
-  const items = visibleNotifications(data, session);
-  const unreadCount = items.filter((item) => !item.readByUserIds.includes(session.user.id)).length;
-  const openNotification = (item: SystemNotification) => {
-    const alreadyRead = item.readByUserIds.includes(session.user.id);
-    if (!alreadyRead) {
-      void runMutation(() => actions.markNotificationRead(item.id));
-    }
-    setView(item.view);
-    onClose();
-  };
-  const markAllRead = () => {
-    if (unreadCount === 0) return;
-    void runMutation(() => actions.markAllNotificationsRead());
-  };
-  return (
-    <aside className="notification-panel">
-      <div className="notification-head">
-        <strong>通知中心</strong>
-        {unreadCount > 0 && <button type="button" onClick={markAllRead}>全部已读</button>}
-        <button className="icon-button" aria-label="关闭通知" onClick={onClose}><X size={16} /></button>
-      </div>
-      <div className="notification-list">
-        {items.map((item) => {
-          const Icon = notificationIcon(item.view);
-          const unread = !item.readByUserIds.includes(session.user.id);
-          return (
-            <button key={item.id} className={unread ? "has-count" : "is-read"} onClick={() => openNotification(item)}>
-              <Icon size={18} />
-              <span>
-                <strong>{item.title}</strong>
-                <small>{item.desc}</small>
-                <small>{shortDate(item.createdAt)}</small>
-              </span>
-              <em>{unread ? "新" : "已读"}</em>
-            </button>
-          );
-        })}
-        {items.length === 0 && <p className="empty">暂无通知</p>}
-      </div>
-    </aside>
-  );
-}
-
 function workbarForView(view: ViewKey): WorkbarKey {
   if (view === "appointments") return "appointments";
   if (view === "pos") return "cashier";
   if (view === "customers") return "customers";
   if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs"].includes(view)) return "admin";
   return "workbench";
-}
-
-function AccountMenu({
-  session,
-  logout,
-  updateProfile,
-  openSettings,
-}: {
-  session: UserSession;
-  logout: () => void;
-  updateProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
-  openSettings: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [profileName, setProfileName] = useState(session.user.name);
-  const [avatarUrl, setAvatarUrl] = useState(session.user.avatarUrl ?? "");
-
-  useEffect(() => {
-    setProfileName(session.user.name);
-    setAvatarUrl(session.user.avatarUrl ?? "");
-  }, [session.user.name, session.user.avatarUrl]);
-
-  const saveProfile = (event: FormEvent) => {
-    event.preventDefault();
-    void updateProfile({ name: profileName, avatarUrl }).then(() => setEditing(false));
-  };
-
-  const uploadAvatar = (file: File | undefined) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setAvatarUrl(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
-  };
-
-  return (
-    <aside className="account-menu" aria-label="账号菜单">
-      <div className="account-menu-user">
-        <div className="account-menu-avatar"><UserAvatar avatarUrl={avatarUrl} size={22} /></div>
-        <div>
-          <strong>{session.user.name}</strong>
-          <span>{session.user.roleName}</span>
-        </div>
-      </div>
-      {editing && (
-        <form className="account-profile-form" onSubmit={saveProfile}>
-          <label>
-            显示名称
-            <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
-          </label>
-          <label className="avatar-upload-control">
-            <Camera size={16} />
-            <span>上传头像</span>
-            <input type="file" accept="image/*" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
-          </label>
-          {avatarUrl && <button type="button" onClick={() => setAvatarUrl("")}>移除头像</button>}
-          <button type="submit">保存资料</button>
-        </form>
-      )}
-      <button type="button" onClick={() => setEditing((open) => !open)}>
-        <UserRound size={17} />
-        <span>个人资料</span>
-      </button>
-      <button type="button" onClick={openSettings}>
-        <Settings size={17} />
-        <span>系统设置</span>
-      </button>
-      <button className="danger" type="button" onClick={logout}>
-        <LogOut size={17} />
-        <span>退出登录</span>
-      </button>
-      <div className="account-menu-version">
-        v{import.meta.env.PACKAGE_VERSION ?? "0.1.0"}
-      </div>
-    </aside>
-  );
-}
-
-function UserAvatar({ avatarUrl, size }: { avatarUrl?: string; size: number }) {
-  if (avatarUrl) return <img src={avatarUrl} alt="" />;
-  return <UserRound size={size} />;
 }
 
 function PublicStorePage({
