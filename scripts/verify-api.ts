@@ -120,7 +120,7 @@ try {
       shareCode: "api-online-store",
       status: "启用",
       headline: "API 线上门店",
-      description: "API 共享店铺",
+      description: "API 线上预约",
       enabledServiceIds: ["v1", "v2"],
     },
   });

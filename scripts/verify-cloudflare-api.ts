@@ -102,7 +102,7 @@ const afterOnlineStorefront = await request<AppData>(baseUrl, "/api/online-store
     shareCode: publicShareCode,
     status: "启用",
     headline: "Cloudflare 线上门店",
-    description: "Cloudflare 共享店铺验证",
+    description: "Cloudflare 线上预约验证",
     enabledServiceIds: [serviceId],
   },
 });

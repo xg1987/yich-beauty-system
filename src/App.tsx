@@ -369,7 +369,7 @@ function PlatformAdminView({
 
       <section className="page-hero">
         <div>
-          <span className="eyebrow"><Building2 size={15} /> 基础版 Admin</span>
+          <span className="eyebrow"><Building2 size={15} /> 平台 Admin</span>
           <h1>门店老板邀请码</h1>
           <p>Admin 提供固定老板邀请码，老板通过登录页的邀请码入口注册门店账号。</p>
           <div className="admin-owner-code">
@@ -885,7 +885,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         stats={[
           { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "当天服务计划", icon: <CalendarDays size={18} /> },
           { label: "待到店", value: `${pendingArrival} 单`, hint: "需确认或接待", icon: <ClipboardList size={18} /> },
-          { label: "线上申请", value: `${pendingOnlineRequests.length} 单`, hint: "共享店铺提交", icon: <Share2 size={18} /> },
+          { label: "线上申请", value: `${pendingOnlineRequests.length} 单`, hint: "线上预约提交", icon: <Share2 size={18} /> },
           { label: "可服务员工", value: `${availableStaff} 人`, hint: "扣除锁定时段", icon: <UsersRound size={18} /> },
         ]}
       />
@@ -1689,7 +1689,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         <form className="form" onSubmit={updateCustomerTags}>
           <Select label="客户" value={tagCustomerId} onChange={setTagCustomerId} options={data.customers.map(optionOf)} />
           <label>会员等级<input value={customerLevel} onChange={(event) => setCustomerLevel(event.target.value)} placeholder="普通会员 / VIP / 黑金会员" /></label>
-          <label>客户来源<input value={customerSource} onChange={(event) => setCustomerSource(event.target.value)} placeholder="门店登记 / 抖音 / 转介绍" /></label>
+          <label>客户来源<input value={customerSource} onChange={(event) => setCustomerSource(event.target.value)} placeholder="门店登记 / 转介绍 / 线上预约" /></label>
           <CheckboxGroup label="客户标签" values={customerTags} onChange={setCustomerTags} options={customerTagOptions} />
           <button className="primary-button">保存标签</button>
         </form>
@@ -2883,14 +2883,6 @@ function SettingsView({
   const publicStoreUrl = `${window.location.origin}/store/${onlineShareCode || onlineStorefront?.shareCode || ""}`;
   const dataQualityReport = previewFormalDataCleanup(data);
 
-  // 真实支付预留 (C)
-  const [paymentConfig, setPaymentConfig] = useState({
-    wechatEnabled: false,
-    alipayEnabled: false,
-    wechatAppId: '',
-    alipayAppId: '',
-  });
-
   useEffect(() => {
     setStoreName(store?.name ?? "");
     setStorePhone(store?.phone ?? "");
@@ -2944,7 +2936,7 @@ function SettingsView({
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "系统流程图", desc: "预约、开单、客户、人员、库存链路", metric: "基础版", icon: Network, tone: "rose", view: "dashboard" },
+    { title: "系统流程图", desc: "预约、开单、客户、人员、库存链路", metric: "已启用", icon: Network, tone: "rose", view: "dashboard" },
     { title: "客户运营", desc: "新客登记、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
     { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "售后回访", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
@@ -2953,7 +2945,7 @@ function SettingsView({
     { title: "邀请员工", desc: "为员工生成邀请码，加入后开通账号", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
     { title: "客户池", desc: "客户线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
     { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
-    { title: "线上店铺", desc: "项目展示、共享链接、线上预约申请", metric: `${data.onlineBookingRequests.filter((item) => item.status === "待处理").length} 申请`, icon: Megaphone, tone: "rose", view: "settings" },
+    { title: "线上店铺", desc: "项目展示、公开链接、线上预约申请", metric: `${data.onlineBookingRequests.filter((item) => item.status === "待处理").length} 申请`, icon: Megaphone, tone: "rose", view: "settings" },
     { title: "产品管理", desc: "产品、类别、项目、耗材资料", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "catalog" },
     { title: "薪资提成", desc: "底薪、提成比例、项目提成结算", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
   ];

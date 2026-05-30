@@ -55,7 +55,7 @@ export const testFixtureData: AppData = {
       name: "陈女士",
       phone: "13600000002",
       level: "普通会员",
-      source: "抖音",
+      source: "线上预约",
       tags: ["新客"],
       lastVisit: tomorrowAt(-24),
     },
