@@ -5555,6 +5555,8 @@ textarea,
 /* Workbench layout lock: keep every signed-in business page on one width system. */
 :root {
   --yich-workbench-width: 1360px;
+  --yich-workbench-sidebar-width: 156px;
+  --yich-workbench-visual-offset: 0px;
 }
 
 .app-shell:not(.platform-admin-shell) .main > .topbar {
@@ -5580,7 +5582,7 @@ textarea,
   max-width: var(--yich-workbench-width);
   margin-right: auto;
   margin-left: auto;
-  transform: none;
+  transform: translateX(var(--yich-workbench-visual-offset));
 }
 
 .app-shell:not(.platform-admin-shell) .page-stack > .content-grid,
@@ -5590,11 +5592,28 @@ textarea,
 }
 
 @media (min-width: 1680px) {
-  .app-shell:not(.platform-admin-shell) .main > .topbar,
+  :root {
+    --yich-workbench-visual-offset: calc(var(--yich-workbench-sidebar-width) / -2);
+  }
+
   .app-shell:not(.platform-admin-shell) .main > .content-grid,
   .app-shell:not(.platform-admin-shell) .main > .page-grid,
   .app-shell:not(.platform-admin-shell) .main > .dashboard-page,
   .app-shell:not(.platform-admin-shell) .main > .admin-center-page,
+  .app-shell:not(.platform-admin-shell) .main > .page-stack {
+    transform: translateX(var(--yich-workbench-visual-offset));
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --yich-workbench-visual-offset: 0px;
+  }
+
+  .app-shell:not(.platform-admin-shell) .main > .content-grid,
+  .app-shell:not(.platform-admin-shell) .main > .page-grid,
+  .app-shell:not(.platform-admin-shell) .main > .dashboard-page,
+  .app-shell:not(.platform-admin-shell) .main > .admin-center-page:not(.platform-admin-page),
   .app-shell:not(.platform-admin-shell) .main > .page-stack {
     transform: none;
   }
