@@ -3454,23 +3454,23 @@ html[data-theme="day"],
 .account-menu {
   position: absolute;
   z-index: 95;
-  top: calc(100% + 12px);
+  top: calc(100% + 10px);
   right: 0;
-  width: 300px;
+  width: 224px;
   overflow: hidden;
-  border: 1px solid rgba(111, 66, 193, 0.1);
-  border-radius: 8px;
+  border: 1px solid rgba(84, 38, 68, 0.06);
+  border-radius: 14px;
   background: rgba(255, 253, 250, 0.98);
-  box-shadow: 0 22px 60px rgba(39, 25, 69, 0.16);
+  box-shadow: 0 20px 46px rgba(40, 28, 28, 0.16);
 }
 
 .account-menu-user {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 16px 18px;
-  background: rgba(248, 244, 239, 0.72);
+  padding: 18px 18px 16px;
+  background: rgba(248, 244, 239, 0.78);
 }
 
 .account-menu-avatar {
@@ -3550,14 +3550,17 @@ html[data-theme="day"],
 }
 
 .account-menu-user strong {
-  color: var(--yich-ink);
+  color: #18131c;
   font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .account-menu-user span {
   margin-top: 3px;
-  color: var(--yich-muted);
+  color: #4f4658;
   font-size: 12px;
+  font-weight: 700;
 }
 
 .account-menu button {
@@ -3568,15 +3571,20 @@ html[data-theme="day"],
   gap: 12px;
   padding: 0 18px;
   border: 0;
-  border-top: 1px solid rgba(111, 66, 193, 0.08);
+  border-top: 1px solid rgba(84, 38, 68, 0.05);
   background: transparent;
-  color: var(--yich-ink);
-  font-weight: 800;
+  color: #18131c;
+  font-weight: 900;
   text-align: left;
 }
 
 .account-menu button svg {
-  color: var(--yich-muted);
+  color: #6e6471;
+}
+
+.account-menu-chevron {
+  margin-left: auto;
+  color: rgba(80, 70, 84, 0.32) !important;
 }
 
 .account-menu button.danger {
@@ -4934,4 +4942,574 @@ textarea,
   .admin-invite-code button {
     width: 100%;
   }
+}
+
+.settings-profile-page {
+  width: min(920px, 100%);
+  display: grid;
+  gap: 28px;
+  margin: 18px auto 64px;
+}
+
+.settings-profile-title {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.settings-profile-title button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6f6663;
+}
+
+.settings-profile-title h1 {
+  margin: 0;
+  color: #941f2a;
+  font-size: 30px;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.settings-contact-card {
+  min-height: 118px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(129, 54, 55, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 253, 250, 0.98);
+  box-shadow: 0 16px 34px rgba(68, 49, 45, 0.08);
+}
+
+.settings-contact-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.settings-contact-copy svg {
+  margin-top: 2px;
+  color: #a01f2e;
+}
+
+.settings-contact-copy strong,
+.settings-contact-copy span {
+  display: block;
+}
+
+.settings-contact-copy strong {
+  color: #1e1717;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.settings-contact-copy span {
+  margin-top: 8px;
+  color: #584d4d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.settings-wechat-line {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.settings-wechat-line span {
+  color: #6b6161;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.settings-wechat-line strong {
+  color: #1f1717;
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.settings-wechat-line button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(160, 31, 46, 0.08);
+  color: #a01f2e;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.settings-profile-layout {
+  display: grid;
+  grid-template-columns: 258px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.settings-profile-nav {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-profile-nav button {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 253, 250, 0.92);
+  color: #695d5b;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.settings-profile-nav button.active {
+  background: #971f2c;
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(151, 31, 44, 0.2);
+}
+
+.settings-profile-card {
+  min-height: 560px;
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  padding: 36px 34px 32px;
+  border: 1px solid rgba(129, 54, 55, 0.06);
+  border-radius: 22px;
+  background: rgba(255, 253, 250, 0.98);
+  box-shadow: 0 16px 34px rgba(68, 49, 45, 0.08);
+}
+
+.settings-avatar-editor {
+  width: fit-content;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin: 0 auto 2px;
+  color: #574d4d;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.settings-avatar-frame {
+  width: 112px !important;
+  height: 112px !important;
+  display: grid;
+  place-items: center;
+  border: 4px solid #fff;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(151, 31, 44, 0.08);
+  color: #971f2c;
+  box-shadow: 0 16px 28px rgba(54, 39, 36, 0.12);
+}
+
+.settings-avatar-frame img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.settings-avatar-editor input {
+  display: none;
+}
+
+.settings-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.settings-profile-card label {
+  color: #514849;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.settings-profile-card input,
+.settings-profile-card textarea {
+  margin-top: 9px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #181313;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+.settings-profile-card input {
+  min-height: 48px;
+}
+
+.settings-profile-card textarea {
+  min-height: 98px;
+  padding-top: 16px;
+  line-height: 1.65;
+}
+
+.settings-static-panel {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.settings-static-panel strong {
+  color: #201819;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.settings-static-panel span {
+  color: #5d5352;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.settings-mode-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-mode-toggle button {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: rgba(151, 31, 44, 0.08);
+  color: #971f2c;
+  font-weight: 900;
+}
+
+.settings-mode-toggle button.active {
+  background: #971f2c;
+  color: #fff;
+}
+
+.settings-save-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.settings-save-row .primary-button {
+  min-width: 158px;
+  background: #971f2c;
+  box-shadow: 0 12px 24px rgba(151, 31, 44, 0.2);
+}
+
+.account-menu {
+  border-radius: 14px;
+}
+
+.theme-day .account-avatar-button,
+.account-avatar-button {
+  background: #971f2c;
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(151, 31, 44, 0.22);
+}
+
+.account-avatar-button[aria-expanded="true"],
+.account-avatar-button:focus-visible {
+  outline: 2px solid #2f80ff;
+  outline-offset: 2px;
+}
+
+.notification-button svg {
+  color: #971f2c;
+}
+
+@media (max-width: 900px) {
+  .settings-profile-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-profile-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .settings-profile-page {
+    margin-top: 8px;
+  }
+
+  .settings-contact-card,
+  .settings-profile-card {
+    padding: 20px;
+  }
+
+  .settings-wechat-line,
+  .settings-field-grid,
+  .settings-profile-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-save-row {
+    justify-content: stretch;
+  }
+}
+
+/* Reference admin pass: red profile hero, account dropdown, and settings page. */
+.topbar-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.platform-admin-page .admin-profile-hero {
+  width: min(1040px, 100%);
+  min-height: 132px;
+  margin: 28px auto 22px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  padding: 26px 34px;
+  border: 0;
+  border-radius: 20px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.065) 0 1px, transparent 1px 122px),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.075) 0 2px, transparent 2px 32px),
+    linear-gradient(135deg, #971f2c 0%, #9f2330 58%, #8b1d29 100%);
+  color: #fffaf4;
+  box-shadow: 0 22px 52px rgba(93, 24, 35, 0.18);
+}
+
+.platform-admin-page .admin-profile-hero .admin-hero-pattern {
+  display: none;
+}
+
+.platform-admin-page .admin-profile-hero > :not(.admin-hero-pattern) {
+  position: relative;
+  z-index: 1;
+}
+
+.platform-admin-page .admin-profile-hero .admin-avatar {
+  width: 82px;
+  height: 82px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.34);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.platform-admin-page .admin-profile-hero .admin-avatar img,
+.platform-admin-page .admin-profile-hero .admin-avatar > * {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.platform-admin-page .admin-profile-hero .admin-role-pill {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.platform-admin-page .admin-profile-hero .admin-profile-copy h2 {
+  margin: 9px 0 5px;
+  color: #fff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 31px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+}
+
+.platform-admin-page .admin-profile-hero .admin-profile-copy p {
+  color: rgba(255, 250, 244, 0.82);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.icon-button.notification-button {
+  width: 42px;
+  min-height: 42px;
+  border: 0;
+  background: rgba(255, 253, 250, 0.96);
+  color: #971f2c;
+  box-shadow: 0 12px 28px rgba(69, 37, 127, 0.08);
+}
+
+.icon-button.notification-button svg {
+  color: #971f2c;
+  stroke-width: 2;
+}
+
+.account-avatar-button {
+  width: 46px;
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  background: #9a1f2c;
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(151, 31, 44, 0.28);
+}
+
+.account-avatar-button[aria-expanded="true"],
+.account-avatar-button:focus-visible {
+  outline: 2px solid #2f80ff;
+  outline-offset: 2px;
+}
+
+.account-menu {
+  top: calc(100% + 12px);
+  right: 0;
+  width: 224px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  background: #fffdfb;
+  box-shadow: 0 24px 52px rgba(28, 22, 19, 0.18);
+}
+
+.account-menu-user {
+  min-height: 72px;
+  padding: 16px 18px;
+  background: #faf7f3;
+}
+
+.account-menu-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(151, 31, 44, 0.08);
+}
+
+.account-menu-user strong {
+  color: #1d1717;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.account-menu-user span {
+  color: #6b6260;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.account-menu button {
+  min-height: 58px;
+  padding: 0 18px;
+  border-top: 1px solid rgba(90, 48, 48, 0.055);
+  color: #1d1717;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.account-menu button svg {
+  color: #6d6461;
+}
+
+.account-menu button.danger,
+.account-menu button.danger svg {
+  color: #c51f2d;
+}
+
+.account-menu-chevron {
+  margin-left: auto;
+  color: rgba(95, 85, 82, 0.32) !important;
+}
+
+.settings-profile-page {
+  width: min(960px, 100%);
+  gap: 30px;
+  margin: 12px auto 78px;
+}
+
+.settings-profile-title {
+  gap: 18px;
+}
+
+.settings-profile-title button {
+  width: 42px;
+  height: 42px;
+  color: #6e6461;
+}
+
+.settings-profile-title h1 {
+  color: #941f2a;
+  font-size: 31px;
+  font-weight: 950;
+}
+
+.settings-contact-card {
+  padding: 22px;
+  border: 0;
+  border-radius: 22px;
+  background: #fffdfb;
+  box-shadow: 0 16px 36px rgba(68, 49, 45, 0.08);
+}
+
+.settings-contact-copy strong {
+  color: #1f1818;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.settings-wechat-line {
+  min-height: 44px;
+  border-radius: 14px;
+  background: rgba(249, 247, 244, 0.82);
+}
+
+.settings-profile-nav button {
+  min-height: 58px;
+  border-radius: 14px;
+  background: #fffdfb;
+  color: #6d6260;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.settings-profile-nav button.active {
+  background: #971f2c;
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(151, 31, 44, 0.22);
+}
+
+.settings-profile-card {
+  min-height: 560px;
+  border: 0;
+  border-radius: 22px;
+  background: #fffdfb;
+  box-shadow: 0 16px 36px rgba(68, 49, 45, 0.08);
+}
+
+.settings-profile-card input,
+.settings-profile-card textarea {
+  background: rgba(250, 248, 245, 0.86);
+  color: #1d1717;
 }

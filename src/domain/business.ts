@@ -1321,7 +1321,7 @@ export function joinStoreOwnerInvite(
         action: "老板邀请码注册",
         targetType: "store",
         targetId: storeId,
-        summary: `${storeName} 通过 Admin 邀请码开通老板账号`,
+        summary: `${storeName} 通过系统邀请码开通老板账号`,
         createdAt,
       },
       ...data.operationLogs,
@@ -2931,7 +2931,7 @@ function assertBusinessDateOpen(data: AppData, businessDate: string) {
 
 function roleNameOf(role: UserRole) {
   const names: Record<UserRole, string> = {
-    superadmin: "Admin",
+    superadmin: "系统管理员",
     owner: "老板",
     manager: "主管",
     frontdesk: "前台",

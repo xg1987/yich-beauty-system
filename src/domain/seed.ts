@@ -10,7 +10,7 @@ export const seedData: AppData = {
       account: "admin@yich.local",
       password: "admin123456",
       role: "superadmin",
-      roleName: "Admin",
+      roleName: "系统管理员",
       status: "active",
       createdAt: "2026-05-30T00:00:00.000Z",
     },

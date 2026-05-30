@@ -9,14 +9,14 @@ import {
   Copy,
   CreditCard,
   Database,
-  Eye,
-  EyeOff,
   ArrowLeft,
   HeartHandshake,
   LayoutDashboard,
   LockKeyhole,
   Megaphone,
+  MessageCircle,
   PackagePlus,
+  Save,
   Settings,
   Share2,
   ShieldCheck,
@@ -154,7 +154,7 @@ export default function App() {
           <div className="brand-mark">D</div>
           <div>
             <strong>管理后台</strong>
-            <span>Admin</span>
+            <span>admin</span>
           </div>
         </div>
       </aside>
@@ -169,7 +169,7 @@ export default function App() {
               <Bell size={18} />
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
-            <button className="account-avatar-button" aria-label="账号中心" onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
+            <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
               <UserAvatar avatarUrl={session.user.avatarUrl} size={18} />
             </button>
             {notificationPanelOpen && (
@@ -186,7 +186,6 @@ export default function App() {
               <AccountMenu
                 session={session}
                 logout={logout}
-                updateProfile={updateAccountProfile}
                 openSettings={() => navigate("settings")}
               />
             )}
@@ -208,7 +207,15 @@ export default function App() {
         {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "logs" && <OperationLogs data={data} session={session} />}
-        {activeView === "settings" && <SettingsView data={data} session={session} setView={(nextView) => navigate(nextView, { fromAdmin: true })} />}
+        {activeView === "settings" && (
+          <SettingsView
+            session={session}
+            setView={(nextView) => navigate(nextView, { fromAdmin: true })}
+            updateProfile={updateAccountProfile}
+            themeMode={themeMode}
+            setThemeMode={setThemeMode}
+          />
+        )}
       </main>
       <nav className="workbar" aria-label="主工作栏">
         {workbarItems.filter((item) => canAccessView(session, item.view)).map((item) => {
@@ -245,9 +252,12 @@ function PlatformAdminShell({
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
+  const [platformThemeMode, setPlatformThemeMode] = useState<ThemeMode>("day");
   const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
   const openView = (nextView: ViewKey) => {
     setActiveView(platformAdminItems.some((item) => item.view === nextView) ? nextView : "dashboard");
+    setAccountSettingsOpen(false);
     setNotificationPanelOpen(false);
     setAccountMenuOpen(false);
   };
@@ -257,16 +267,15 @@ function PlatformAdminShell({
       <main className="main platform-admin-main">
         <header className="topbar">
           <div className="topbar-title">
-            <p>一宸 YiCh 平台 Admin</p>
+            <p>一宸 YiCh 美业门店系统</p>
           </div>
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
-            <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
             <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
               <Bell size={18} />
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
-            <button className="account-avatar-button" aria-label="账号中心" onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
+            <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
               <UserAvatar avatarUrl={session.user.avatarUrl} size={18} />
             </button>
             {notificationPanelOpen && (
@@ -283,16 +292,31 @@ function PlatformAdminShell({
               <AccountMenu
                 session={session}
                 logout={logout}
-                updateProfile={updateAccountProfile}
-                openSettings={() => openView("settings")}
+                openSettings={() => {
+                  setAccountSettingsOpen(true);
+                  setAccountMenuOpen(false);
+                  setNotificationPanelOpen(false);
+                }}
               />
             )}
           </div>
         </header>
-        {activeView === "dashboard" && <PlatformAdminView data={data} session={session} setView={openView} />}
-        {activeView === "settings" && <PlatformAccountAdminView data={data} />}
-        {activeView === "reports" && <PlatformDataReadOnlyView data={data} />}
-        {activeView === "logs" && <PlatformAuditReadOnlyView data={data} />}
+        {accountSettingsOpen ? (
+          <SettingsView
+            session={session}
+            setView={openView}
+            updateProfile={updateAccountProfile}
+            themeMode={platformThemeMode}
+            setThemeMode={setPlatformThemeMode}
+          />
+        ) : (
+          <>
+            {activeView === "dashboard" && <PlatformAdminView data={data} session={session} setView={openView} />}
+            {activeView === "settings" && <PlatformAccountAdminView data={data} />}
+            {activeView === "reports" && <PlatformDataReadOnlyView data={data} />}
+            {activeView === "logs" && <PlatformAuditReadOnlyView data={data} />}
+          </>
+        )}
       </main>
       <nav className="workbar" aria-label="主工作栏">
         {platformAdminItems.map((item) => {
@@ -322,6 +346,7 @@ function PlatformAdminView({
   const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const activeAccounts = data.authUsers.filter((user) => user.status === "active").length;
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const adminName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
 
   const managementCards: Array<{
     title: string;
@@ -340,21 +365,22 @@ function PlatformAdminView({
   return (
     <div className="admin-center-page platform-admin-page">
       <section className="admin-profile-hero">
+        <i className="admin-hero-pattern" aria-hidden="true" />
         <div className="admin-avatar">
-          <ShieldCheck size={34} />
+          <UserAvatar avatarUrl={session.user.avatarUrl} size={78} />
         </div>
         <div className="admin-profile-copy">
-          <span className="admin-role-pill"><ShieldCheck size={14} /> 平台管理</span>
-          <h2>{session.user.name}</h2>
-          <p>{session.user.account}</p>
+          <span className="admin-role-pill"><ShieldCheck size={14} /> 系统管理员</span>
+          <h2>{adminName}</h2>
+          <p>系统管理员 · {session.user.account}</p>
         </div>
       </section>
 
       <section className="page-hero">
         <div>
-          <span className="eyebrow"><Building2 size={15} /> 平台 Admin</span>
+          <span className="eyebrow"><Building2 size={15} /> 平台管理</span>
           <h1>账号管理与数据查看</h1>
-          <p>Admin 只负责平台账号、门店状态、权限边界和数据巡检，不录入客户资料，不处理预约、开单和产品库存。</p>
+          <p>管理员只负责平台账号、门店状态、权限边界和数据巡检，不录入客户资料，不处理预约、开单和产品库存。</p>
           <div className="admin-owner-code">
             <span>系统自动邀请码</span>
             <strong>{DEFAULT_OWNER_INVITE_CODE}</strong>
@@ -369,7 +395,7 @@ function PlatformAdminView({
 
       <section className="admin-module-section">
         <div className="admin-section-title">
-          <span>Admin 入口</span>
+        <span>管理入口</span>
         </div>
         <div className="admin-module-grid">
           {managementCards.map((item) => (
@@ -403,10 +429,10 @@ function PlatformAccountAdminView({ data }: { data: AppData }) {
         <div>
           <span className="eyebrow"><UsersRound size={15} /> 平台账号</span>
           <h1>账号管理</h1>
-          <p>Admin 只查看和管理账号边界；客户资料、服务记录和开单数据由门店端的店长、前台和员工维护。</p>
+          <p>管理员只查看和管理账号边界；客户资料、服务记录和开单数据由门店端的店长、前台和员工维护。</p>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="Admin" value={`${adminAccounts.length} 个`} hint="平台管理员" />
+          <StatCard title="系统管理员" value={`${adminAccounts.length} 个`} hint="平台管理员" />
           <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="门店负责人" />
           <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店工作台成员" />
         </div>
@@ -420,7 +446,7 @@ function PlatformAccountAdminView({ data }: { data: AppData }) {
             rows={data.authUsers.map((user) => [
               user.name,
               user.account,
-              user.roleName,
+              user.role === "superadmin" ? "系统管理员" : user.roleName,
               <Badge key={`${user.id}-status`} text={user.status === "active" ? "启用" : "停用"} tone={user.status === "active" ? "ok" : "warn"} />,
               shortDate(user.createdAt),
             ])}
@@ -511,7 +537,7 @@ function PlatformAuditReadOnlyView({ data }: { data: AppData }) {
         <div>
           <span className="eyebrow"><ClipboardList size={15} /> 系统审计</span>
           <h1>审计日志</h1>
-          <p>记录平台和门店关键动作，Admin 用于追踪风险，不在这里直接修改客户或订单数据。</p>
+          <p>记录平台和门店关键动作，管理员用于追踪风险，不在这里直接修改客户或订单数据。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="日志数" value={`${data.operationLogs.length} 条`} hint="关键操作记录" />
@@ -2987,80 +3013,161 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
 }
 
 function SettingsView({
-  data,
   session,
   setView,
+  updateProfile,
+  themeMode,
+  setThemeMode,
 }: {
-  data: AppData;
   session: UserSession;
   setView: (view: ViewKey) => void;
+  updateProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
 }) {
-  const systemInviteCode = DEFAULT_OWNER_INVITE_CODE;
-  const [inviteVisible, setInviteVisible] = useState(false);
-  const [inviteCopied, setInviteCopied] = useState(false);
+  const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
+  const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
+  const [activePanel, setActivePanel] = useState<"profile" | "security" | "appearance" | "notice">("profile");
+  const [profileName, setProfileName] = useState(displayName);
+  const [avatarUrl, setAvatarUrl] = useState(session.user.avatarUrl ?? "");
+  const [signature, setSignature] = useState("以诚待人，以礼从商。传递华夏智慧，服务雅士人生。");
+  const [copiedWechat, setCopiedWechat] = useState(false);
+  const [saved, setSaved] = useState(false);
 
-  const copyInviteCode = () => {
-    void navigator.clipboard?.writeText(systemInviteCode);
-    setInviteCopied(true);
-    window.setTimeout(() => setInviteCopied(false), 1400);
+  const uploadAvatar = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAvatarUrl(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(file);
   };
 
-  const managementCards: Array<{
-    title: string;
-    desc: string;
-    icon: typeof LayoutDashboard;
-    tone: "rose" | "violet" | "teal" | "amber";
-    view: ViewKey;
-  }> = [
-    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "settings" },
-    { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "rose", view: "approvals" },
-    { title: "数据总览", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "操作审计", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
-  ];
+  const copyWechat = () => {
+    void navigator.clipboard?.writeText("yichen_admin");
+    setCopiedWechat(true);
+    window.setTimeout(() => setCopiedWechat(false), 1400);
+  };
+
+  const saveSettings = (event: FormEvent) => {
+    event.preventDefault();
+    void updateProfile({ name: profileName.trim() || displayName, avatarUrl }).then(() => {
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1400);
+    });
+  };
+
+  const settingTabs = [
+    { key: "profile", label: "个人信息", icon: UserRound },
+    { key: "security", label: "账户与安全", icon: LockKeyhole },
+    { key: "appearance", label: "外观模式", icon: Sparkles },
+    { key: "notice", label: "推送通知", icon: Bell },
+  ] as const;
 
   return (
-    <div className="admin-center-page">
-      <section className="admin-profile-hero">
-        <div className="admin-hero-pattern" aria-hidden="true" />
-        <div className="admin-avatar">
-          <UserRound size={34} />
+    <div className="settings-profile-page">
+      <header className="settings-profile-title">
+        <button type="button" aria-label="返回工作台" onClick={() => setView("dashboard")}>
+          <ArrowLeft size={22} />
+        </button>
+        <h1>系统设置</h1>
+      </header>
+
+      <section className="settings-contact-card">
+        <div className="settings-contact-copy">
+          <MessageCircle size={18} />
+          <div>
+            <strong>联系管理员</strong>
+            <span>系统使用问题 · 账号问题 · 业务问题 都可以加管理员微信咨询</span>
+          </div>
         </div>
-        <div className="admin-profile-copy">
-          <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
-          <h2>{session.user.name}</h2>
-          <p>{session.user.roleName} · {session.user.account}</p>
+        <div className="settings-wechat-line">
+          <span>微信号</span>
+          <strong>yichen_admin</strong>
+          <button type="button" onClick={copyWechat}>
+            <Copy size={16} />
+            {copiedWechat ? "已复制" : "复制"}
+          </button>
         </div>
       </section>
 
-      <section className="admin-invite-section" aria-label="系统邀请码">
-        <div className="admin-invite-heading">
-          <span>系统邀请码</span>
-        </div>
-        <div className="admin-invite-card">
-          <span>邀请码</span>
-          <div className="admin-invite-code">
-            <strong>{inviteVisible ? systemInviteCode : "••••••"}</strong>
-            <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)}>
-              {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-            <button type="button" aria-label="复制邀请码" onClick={copyInviteCode}>
-              <Copy size={17} />
+      <div className="settings-profile-layout">
+        <nav className="settings-profile-nav" aria-label="系统设置分类">
+          {settingTabs.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={activePanel === item.key ? "active" : ""}
+                onClick={() => setActivePanel(item.key)}
+              >
+                <Icon size={20} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <form className="settings-profile-card" onSubmit={saveSettings}>
+          <label className="settings-avatar-editor">
+            <span className="settings-avatar-frame">
+              <UserAvatar avatarUrl={avatarUrl} size={52} />
+            </span>
+            <span>点击更换头像</span>
+            <input type="file" accept="image/*" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+          </label>
+
+          {activePanel === "profile" && (
+            <>
+              <div className="settings-field-grid">
+                <label>
+                  真实姓名
+                  <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
+                </label>
+                <label>
+                  职位
+                  <input value={displayRole} readOnly />
+                </label>
+              </div>
+              <label className="settings-signature-field">
+                个性签名
+                <textarea value={signature} onChange={(event) => setSignature(event.target.value)} />
+              </label>
+            </>
+          )}
+
+          {activePanel === "security" && (
+            <div className="settings-static-panel">
+              <strong>账户与安全</strong>
+              <span>账号：{session.user.account}</span>
+              <span>角色：{displayRole}</span>
+            </div>
+          )}
+
+          {activePanel === "appearance" && (
+            <div className="settings-static-panel">
+              <strong>外观模式</strong>
+              <div className="settings-mode-toggle">
+                <button type="button" className={themeMode === "day" ? "active" : ""} onClick={() => setThemeMode("day")}>日间模式</button>
+                <button type="button" className={themeMode === "night" ? "active" : ""} onClick={() => setThemeMode("night")}>夜间模式</button>
+              </div>
+            </div>
+          )}
+
+          {activePanel === "notice" && (
+            <div className="settings-static-panel">
+              <strong>推送通知</strong>
+              <span>预约、审批、库存预警会在顶部通知中显示。</span>
+            </div>
+          )}
+
+          <div className="settings-save-row">
+            <button className="primary-button" type="submit">
+              <Save size={18} />
+              {saved ? "已保存" : "保存设置"}
             </button>
           </div>
-          {inviteCopied && <small>已复制</small>}
-        </div>
-      </section>
-
-      <section className="admin-module-section">
-        <div className="admin-section-title">
-          <span>管理入口</span>
-        </div>
-        <div className="admin-module-grid">
-          {managementCards.map((item) => (
-            <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view)} />
-          ))}
-        </div>
-      </section>
+        </form>
+      </div>
     </div>
   );
 }
