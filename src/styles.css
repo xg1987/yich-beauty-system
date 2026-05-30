@@ -4673,6 +4673,43 @@ textarea,
   margin: 0;
 }
 
+.platform-page-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 20px 0 22px;
+}
+
+.platform-page-title button {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(70, 53, 65, 0.78);
+  cursor: pointer;
+}
+
+.platform-page-title button:hover,
+.platform-page-title button:focus-visible {
+  background: rgba(109, 40, 217, 0.08);
+  color: var(--yich-purple-deep);
+  outline: none;
+}
+
+.platform-page-title h1 {
+  margin: 0;
+  color: #9f1f2d;
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 950;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
 .platform-admin-page .admin-profile-hero,
 .platform-admin-page .page-hero,
 .platform-admin-page .content-grid {

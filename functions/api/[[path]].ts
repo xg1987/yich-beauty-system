@@ -201,6 +201,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(401, { error: "请先登录" });
     }
 
+    if (session.user.role === "superadmin" && isSuperadminBusinessWrite(context.request.method, pathname)) {
+      return sendJson(403, { error: "超级管理员端仅允许只读查看，业务写入请使用门店角色账号" });
+    }
+
     if (context.request.method === "GET" && pathname === "/api/auth/me") {
       return sendJson(200, session);
     }
@@ -1175,6 +1179,14 @@ function requirePermission(session: UserSession, permission: Permission) {
   if (!session.user.permissions.includes(permission)) {
     throw new Error("当前角色无权执行此操作");
   }
+}
+
+function isSuperadminBusinessWrite(method: string, pathname: string) {
+  if (method === "GET" || method === "HEAD") return false;
+  if (method === "PATCH" && pathname === "/api/account-profile") return false;
+  if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
+  if (method === "POST" && pathname === "/api/notifications/read-all") return false;
+  return true;
 }
 
 function publicStorePayload(data: AppData, shareCode: string) {
