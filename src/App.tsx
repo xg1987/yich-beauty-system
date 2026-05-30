@@ -15,7 +15,6 @@ import {
   LockKeyhole,
   Megaphone,
   MessageCircle,
-  Network,
   PackagePlus,
   Settings,
   Share2,
@@ -35,9 +34,9 @@ import { Badge } from "./components/ui/Badge";
 import { CheckboxGroup } from "./components/ui/CheckboxGroup";
 import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
-import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, previewFormalDataCleanup, reportSummary } from "./domain/business";
+import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, Order, Product, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
@@ -203,7 +202,7 @@ export default function App() {
         {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
         {activeView === "logs" && <OperationLogs data={data} session={session} />}
-        {activeView === "settings" && <SettingsView data={data} session={session} actions={actions} runMutation={runMutation} setView={(nextView) => navigate(nextView, { fromAdmin: true })} />}
+        {activeView === "settings" && <SettingsView data={data} session={session} setView={(nextView) => navigate(nextView, { fromAdmin: true })} />}
       </main>
       <nav className="workbar" aria-label="主工作栏">
         {workbarItems.filter((item) => canAccessView(session, item.view)).map((item) => {
@@ -2855,78 +2854,15 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
 function SettingsView({
   data,
   session,
-  actions,
-  runMutation,
   setView,
 }: {
   data: AppData;
   session: UserSession;
-  actions: ApiActions;
-  runMutation: RunMutation;
   setView: (view: ViewKey) => void;
 }) {
-  const store = data.storeProfiles[0];
-  const onlineStorefront = data.onlineStorefronts[0];
-  const [storeName, setStoreName] = useState(store?.name ?? "");
-  const [storePhone, setStorePhone] = useState(store?.phone ?? "");
-  const [storeAddress, setStoreAddress] = useState(store?.address ?? "");
-  const [businessHours, setBusinessHours] = useState(store?.businessHours ?? "10:00 - 21:00");
-  const [onlineShareCode, setOnlineShareCode] = useState(onlineStorefront?.shareCode ?? "yich-store");
-  const [onlineStatus, setOnlineStatus] = useState<OnlineStorefront["status"]>(onlineStorefront?.status ?? "启用");
-  const [onlineHeadline, setOnlineHeadline] = useState(onlineStorefront?.headline ?? "一宸 YiCh 美业门店系统");
-  const [onlineDescription, setOnlineDescription] = useState(onlineStorefront?.description ?? "线上查看项目并提交到店预约意向");
-  const [onlineServiceIds, setOnlineServiceIds] = useState<string[]>(onlineStorefront?.enabledServiceIds ?? data.services.slice(0, 3).map((service) => service.id));
-  const [cleanupConfirm, setCleanupConfirm] = useState("");
   const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
-  const publicStoreUrl = `${window.location.origin}/store/${onlineShareCode || onlineStorefront?.shareCode || ""}`;
-  const dataQualityReport = previewFormalDataCleanup(data);
-
-  useEffect(() => {
-    setStoreName(store?.name ?? "");
-    setStorePhone(store?.phone ?? "");
-    setStoreAddress(store?.address ?? "");
-    setBusinessHours(store?.businessHours ?? "10:00 - 21:00");
-  }, [store?.id, store?.name, store?.phone, store?.address, store?.businessHours]);
-
-  useEffect(() => {
-    setOnlineShareCode(onlineStorefront?.shareCode ?? "yich-store");
-    setOnlineStatus(onlineStorefront?.status ?? "启用");
-    setOnlineHeadline(onlineStorefront?.headline ?? "一宸 YiCh 美业门店系统");
-    setOnlineDescription(onlineStorefront?.description ?? "线上查看项目并提交到店预约意向");
-    setOnlineServiceIds(onlineStorefront?.enabledServiceIds ?? data.services.slice(0, 3).map((service) => service.id));
-  }, [onlineStorefront?.id, onlineStorefront?.updatedAt, data.services.length]);
-
-  const saveStoreProfile = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.updateStoreProfile({
-        name: storeName.trim(),
-        phone: storePhone.trim(),
-        address: storeAddress.trim(),
-        businessHours: businessHours.trim(),
-      }),
-    );
-  };
-
-  const saveOnlineStorefront = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.updateOnlineStorefront({
-        shareCode: onlineShareCode.trim(),
-        status: onlineStatus,
-        headline: onlineHeadline.trim(),
-        description: onlineDescription.trim(),
-        enabledServiceIds: onlineServiceIds,
-      }),
-    );
-  };
-
-  const cleanupData = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() => actions.cleanupFormalData(cleanupConfirm)).then(() => setCleanupConfirm(""));
-  };
 
   const managementCards: Array<{
     title: string;
@@ -2936,7 +2872,6 @@ function SettingsView({
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "系统流程图", desc: "预约、开单、客户、人员、库存链路", metric: "已启用", icon: Network, tone: "rose", view: "dashboard" },
     { title: "客户运营", desc: "新客登记、客户来源、转化跟进", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
     { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", metric: `${data.orders.length} 订单`, icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "售后回访", desc: "回访任务、服务记录、售后触达", metric: `${data.customerFollowUps.length} 回访`, icon: Headphones, tone: "teal", view: "customers" },
@@ -2945,7 +2880,6 @@ function SettingsView({
     { title: "邀请员工", desc: "为员工生成邀请码，加入后开通账号", metric: `${pendingInvites} 待加入`, icon: ShieldCheck, tone: "violet", view: "staff" },
     { title: "客户池", desc: "客户线索、会员资产、客户标签", metric: `${data.memberCards.length} 卡项`, icon: Database, tone: "violet", view: "customers" },
     { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", metric: `${pendingApprovals} 审批`, icon: MessageCircle, tone: "violet", view: "approvals" },
-    { title: "线上店铺", desc: "项目展示、公开链接、线上预约申请", metric: `${data.onlineBookingRequests.filter((item) => item.status === "待处理").length} 申请`, icon: Megaphone, tone: "rose", view: "settings" },
     { title: "产品管理", desc: "产品、类别、项目、耗材资料", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "catalog" },
     { title: "薪资提成", desc: "底薪、提成比例、项目提成结算", metric: money(data.commissions.reduce((sum, item) => sum + item.amount, 0)), icon: HeartHandshake, tone: "teal", view: "staff" },
   ];
@@ -2961,102 +2895,11 @@ function SettingsView({
           <h2>{session.user.name}</h2>
           <p>{session.user.account}</p>
         </div>
-      </section>
-
-      <section className="admin-code-panel">
-        <div className="admin-code-copy">
-          <h2>门店资料</h2>
-          <p>这里维护门店对内资料和线上门店展示的基础信息</p>
+        <div className="admin-hero-metrics">
+          <span><strong>{data.customers.length}</strong>客户</span>
+          <span><strong>{data.orders.length}</strong>订单</span>
+          <span><strong>{activeStaff}</strong>员工</span>
         </div>
-        <form className="store-profile-form" onSubmit={saveStoreProfile}>
-          <label>
-            门店名称
-            <input value={storeName} onChange={(event) => setStoreName(event.target.value)} placeholder="例如 一宸 YiCh 皮肤管理中心" />
-          </label>
-          <label>
-            联系电话
-            <input value={storePhone} onChange={(event) => setStorePhone(event.target.value)} placeholder="门店联系电话" />
-          </label>
-          <label>
-            门店地址
-            <input value={storeAddress} onChange={(event) => setStoreAddress(event.target.value)} placeholder="门店详细地址" />
-          </label>
-          <label>
-            营业时间
-            <input value={businessHours} onChange={(event) => setBusinessHours(event.target.value)} placeholder="10:00 - 21:00" />
-          </label>
-          <button className="primary-button" type="submit"><LockKeyhole size={16} /> 保存门店资料</button>
-        </form>
-      </section>
-
-      <section className="admin-online-panel">
-        <PanelTitle icon={<Share2 size={18} />} title="线上店铺" action={onlineStorefront?.status ?? "未配置"} />
-        <form className="online-store-form" onSubmit={saveOnlineStorefront}>
-          <label>
-            分享码
-            <input value={onlineShareCode} onChange={(event) => setOnlineShareCode(event.target.value)} placeholder="例如 yich-store" />
-          </label>
-          <label>
-            状态
-            <select value={onlineStatus} onChange={(event) => setOnlineStatus(event.target.value as OnlineStorefront["status"])}>
-              <option value="启用">启用</option>
-              <option value="停用">停用</option>
-            </select>
-          </label>
-          <label>
-            页面标题
-            <input value={onlineHeadline} onChange={(event) => setOnlineHeadline(event.target.value)} />
-          </label>
-          <label>
-            页面说明
-            <input value={onlineDescription} onChange={(event) => setOnlineDescription(event.target.value)} />
-          </label>
-          <CheckboxGroup
-            label="线上展示项目"
-            values={onlineServiceIds}
-            onChange={setOnlineServiceIds}
-            options={data.services.map(optionOf)}
-          />
-          <div className="online-store-actions">
-            <a href={publicStoreUrl} target="_blank" rel="noreferrer">{publicStoreUrl}</a>
-            <button className="primary-button" type="submit"><LockKeyhole size={16} /> 保存线上店铺</button>
-          </div>
-        </form>
-      </section>
-
-      <section className="admin-online-panel data-quality-panel">
-        <PanelTitle
-          icon={<ShieldCheck size={18} />}
-          title="数据巡检"
-          action={dataQualityReport.issueCount > 0 ? `${dataQualityReport.issueCount} 项需处理` : "状态正常"}
-        />
-        <p className="data-quality-copy">只做识别和提示，不自动删除正式库数据。需要清理时先确认范围，再执行迁移。</p>
-        <DataTable
-          columns={["模块", "数据", "问题", "处理建议"]}
-          rows={dataQualityReport.issues.slice(0, 12).map((issue) => [
-            issue.scope,
-            issue.name,
-            `${issue.reason} · ${issue.detail}`,
-            "确认后清理或改名",
-          ])}
-        />
-        {dataQualityReport.removalCounts.length > 0 && (
-          <div className="cleanup-summary">
-            {dataQualityReport.removalCounts.map((item) => (
-              <span key={item.scope}>{item.scope} {item.count}</span>
-            ))}
-          </div>
-        )}
-        {session.user.role === "owner" && dataQualityReport.issueCount > 0 && (
-          <form className="cleanup-form" onSubmit={cleanupData}>
-            <label>
-              输入确认短语
-              <input value={cleanupConfirm} onChange={(event) => setCleanupConfirm(event.target.value)} placeholder="清理非正式数据" />
-            </label>
-            <button className="primary-button" disabled={cleanupConfirm !== "清理非正式数据"}>确认清理</button>
-          </form>
-        )}
-        {dataQualityReport.issueCount > 12 && <p className="data-quality-copy">仅显示前 12 项，其余数据需通过清理脚本分批处理。</p>}
       </section>
 
       <section className="admin-module-section">

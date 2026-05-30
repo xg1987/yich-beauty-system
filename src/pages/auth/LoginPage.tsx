@@ -63,7 +63,6 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
           <form className={`login-card login-card-${mode}`} onSubmit={submit}>
             <div className="login-card-head">
               <strong>{mode === "login" ? "登录系统" : "邀请码加入"}</strong>
-              <span>{mode === "login" ? "Admin、老板、主管、员工和前台统一登录" : "老板使用固定 Admin 邀请码，员工邀请码由老板或主管生成"}</span>
             </div>
             {mode === "join" ? (
               <>
