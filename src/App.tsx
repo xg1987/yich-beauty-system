@@ -29,6 +29,13 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
 import type { PublicCustomerSignaturePayload } from "./api/client";
+import { PageHero } from "./components/layout/PageHero";
+import { PanelTitle } from "./components/layout/PanelTitle";
+import { StatCard } from "./components/layout/StatCard";
+import { Badge } from "./components/ui/Badge";
+import { CheckboxGroup } from "./components/ui/CheckboxGroup";
+import { DataTable } from "./components/ui/DataTable";
+import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, previewFormalDataCleanup, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, OnlineStorefront, Order, Product, Service, ServiceConsumable, Staff, StoreProfile, SystemNotification, TagScope, UserRole, ViewKey } from "./domain/types";
@@ -1196,42 +1203,6 @@ function DashboardMetric({ icon, label, value, hint }: { icon: ReactNode; label:
         <small>{hint}</small>
       </div>
     </div>
-  );
-}
-
-function PageHero({
-  icon,
-  eyebrow,
-  title,
-  desc,
-  stats,
-}: {
-  icon: ReactNode;
-  eyebrow: string;
-  title: string;
-  desc: string;
-  stats: Array<{ label: string; value: string; hint: string; icon: ReactNode }>;
-}) {
-  return (
-    <section className="page-hero">
-      <div className="page-hero-copy">
-        <span className="eyebrow">{icon} {eyebrow}</span>
-        <h2>{title}</h2>
-        <p>{desc}</p>
-      </div>
-      <div className="page-hero-stats">
-        {stats.map((item) => (
-          <div className="page-hero-stat" key={item.label}>
-            <span className="metric-icon">{item.icon}</span>
-            <div>
-              <small>{item.label}</small>
-              <strong>{item.value}</strong>
-              <em>{item.hint}</em>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -3616,94 +3587,10 @@ function AdminCenterCard({
 }
 
 
-function StatCard({ title, value, hint, tone }: { title: string; value: string; hint: string; tone?: "ok" | "warn" }) {
-  return (
-    <section className={`stat-card ${tone ?? ""}`}>
-      <span>{title}</span>
-      <strong>{value}</strong>
-      <small>{hint}</small>
-    </section>
-  );
-}
-
-function PanelTitle({ icon, title, action }: { icon: ReactNode; title: string; action?: ReactNode }) {
-  return (
-    <div className="panel-title">
-      <div>{icon}<h2>{title}</h2></div>
-      {action && <span>{action}</span>}
-    </div>
-  );
-}
-
-function DataTable({ columns, rows }: { columns: string[]; rows: ReactNode[][] }) {
-  if (rows.length === 0) return <p className="empty">暂无数据</p>;
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
-  return (
-    <label>
-      {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </label>
-  );
-}
-
-function CheckboxGroup({
-  label,
-  values,
-  onChange,
-  options,
-}: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  options: Array<{ value: string; label: string }>;
-}) {
-  const toggle = (value: string) => {
-    onChange(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
-  };
-
-  return (
-    <fieldset className="check-group">
-      <legend>{label}</legend>
-      {options.length === 0 ? (
-        <span>暂无可选项</span>
-      ) : (
-        options.map((option) => (
-          <label key={option.value}>
-            <input type="checkbox" checked={values.includes(option.value)} onChange={() => toggle(option.value)} />
-            {option.label}
-          </label>
-        ))
-      )}
-    </fieldset>
-  );
-}
-
 function appointmentTone(appointment: Appointment): "ok" | "warn" | undefined {
   if (appointment.status === "已到店" || appointment.status === "已完成") return "ok";
   if (appointment.status === "已取消" || appointment.status === "爽约") return "warn";
   return undefined;
-}
-
-function Badge({ text, tone }: { text: string; tone?: "ok" | "warn" }) {
-  return <span className={`badge ${tone ?? ""}`}>{text}</span>;
 }
 
 function InventoryLine({ product }: { product: Product }) {
