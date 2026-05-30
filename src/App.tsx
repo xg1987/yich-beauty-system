@@ -83,6 +83,7 @@ export default function App() {
   const [view, setView] = useState<ViewKey>("dashboard");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminBackVisible, setAdminBackVisible] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem(THEME_KEY) === "night" ? "night" : "day"));
 
@@ -128,9 +129,16 @@ export default function App() {
   const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
   const navigate = (nextView: ViewKey, options?: { fromAdmin?: boolean }) => {
     setView(nextView);
+    setAccountSettingsOpen(false);
     setNotificationPanelOpen(false);
     setAccountMenuOpen(false);
     setAdminBackVisible(Boolean(options?.fromAdmin && nextView !== "settings"));
+  };
+  const returnFromAccountSettings = (nextView: ViewKey) => {
+    setView(nextView);
+    setAccountSettingsOpen(false);
+    setNotificationPanelOpen(false);
+    setAccountMenuOpen(false);
   };
 
   if (session.user.role === "superadmin") {
@@ -186,35 +194,45 @@ export default function App() {
               <AccountMenu
                 session={session}
                 logout={logout}
-                openSettings={() => navigate("settings")}
+                openSettings={() => {
+                  setAccountSettingsOpen(true);
+                  setAccountMenuOpen(false);
+                  setNotificationPanelOpen(false);
+                }}
               />
             )}
           </div>
         </header>
-        {adminBackVisible && activeView !== "settings" && (
+        {!accountSettingsOpen && adminBackVisible && activeView !== "settings" && (
           <button className="back-to-admin" type="button" onClick={() => navigate("settings")}>
             <ArrowLeft size={16} />
             返回管理中心
           </button>
         )}
-        {activeView === "dashboard" && <Dashboard data={data} session={session} setView={navigate} />}
-        {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />}
-        {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "logs" && <OperationLogs data={data} session={session} />}
-        {activeView === "settings" && (
+        {accountSettingsOpen ? (
           <SettingsView
             session={session}
-            setView={(nextView) => navigate(nextView, { fromAdmin: true })}
+            setView={returnFromAccountSettings}
+            returnView={activeView}
+            backLabel="返回管理中心"
             updateProfile={updateAccountProfile}
             themeMode={themeMode}
             setThemeMode={setThemeMode}
           />
+        ) : (
+          <>
+            {activeView === "dashboard" && <Dashboard data={data} session={session} setView={navigate} />}
+            {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />}
+            {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "logs" && <OperationLogs data={data} session={session} />}
+            {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
+          </>
         )}
       </main>
       <nav className="workbar" aria-label="主工作栏">
@@ -228,6 +246,66 @@ export default function App() {
           );
         })}
       </nav>
+    </div>
+  );
+}
+
+function ManagementCenter({
+  data,
+  session,
+  setView,
+}: {
+  data: AppData;
+  session: UserSession;
+  setView: (view: ViewKey, options?: { fromAdmin?: boolean }) => void;
+}) {
+  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
+  const lowStock = data.products.filter((item) => item.stock <= item.warningStock).length;
+  const pendingCommissions = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
+  const baseModuleCards = [
+    { title: "项目商品", desc: "服务项目、商品资料、耗材配置", metric: `${data.services.length + data.products.length} 项`, icon: PackagePlus, tone: "violet", view: "catalog" },
+    { title: "员工提成", desc: "员工服务提成与结算记录", metric: money(pendingCommissions), icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "库存管理", desc: "库存预警、采购入库、盘点记录", metric: `${lowStock} 项预警`, icon: Boxes, tone: "teal", view: "inventory" },
+    { title: "报表分析", desc: "经营收入、会员资产、财务日结", metric: money(totalRevenue), icon: ChartNoAxesColumnIncreasing, tone: "rose", view: "reports" },
+    { title: "审批中心", desc: "退款、改价、卡项异常审批", metric: `${pendingApprovals} 单待审`, icon: ShieldCheck, tone: "violet", view: "approvals" },
+    { title: "操作日志", desc: "关键业务动作与风险追踪", metric: `${data.operationLogs.length} 条`, icon: ClipboardList, tone: "amber", view: "logs" },
+  ] satisfies Array<{
+    title: string;
+    desc: string;
+    metric: string;
+    icon: typeof LayoutDashboard;
+    tone: "rose" | "violet" | "teal" | "amber";
+    view: ViewKey;
+  }>;
+  const moduleCards = baseModuleCards.filter((item) => canAccessView(session, item.view));
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><Settings size={15} /> 管理中心</span>
+          <h1>门店管理入口</h1>
+          <p>预约、项目、员工、库存、报表、审批集中管理。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="客户会员" value={`${data.customers.length} 人`} hint="客户资产" />
+          <StatCard title="今日预约" value={`${todayAppointments} 单`} hint="到店安排" />
+          <StatCard title="经营收入" value={money(totalRevenue)} hint="收银汇总" />
+        </div>
+      </section>
+
+      <section className="admin-module-section">
+        <div className="admin-section-title">
+          <span>管理入口</span>
+        </div>
+        <div className="admin-module-grid">
+          {moduleCards.map((item) => (
+            <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view, { fromAdmin: true })} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
