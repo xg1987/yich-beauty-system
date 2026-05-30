@@ -12,12 +12,10 @@ import {
   Eye,
   EyeOff,
   ArrowLeft,
-  Headphones,
   HeartHandshake,
   LayoutDashboard,
   LockKeyhole,
   Megaphone,
-  MessageCircle,
   PackagePlus,
   Settings,
   Share2,
@@ -3014,11 +3012,10 @@ function SettingsView({
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "客户运营", desc: "新客登记、客户来源、转化跟进", icon: UsersRound, tone: "rose", view: "customers" },
-    { title: "门店业绩", desc: "项目成交、协作服务、业绩归因", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "售后回访", desc: "回访任务、服务记录、售后触达", icon: Headphones, tone: "teal", view: "customers" },
-    { title: "客户池", desc: "客户线索、会员资产、客户标签", icon: Database, tone: "violet", view: "customers" },
-    { title: "跟进记录", desc: "按团队、顾问查看客户跟进内容", icon: MessageCircle, tone: "violet", view: "approvals" },
+    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "settings" },
+    { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "rose", view: "approvals" },
+    { title: "数据总览", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "操作审计", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
   ];
 
   return (
@@ -3035,14 +3032,9 @@ function SettingsView({
         </div>
       </section>
 
-      <section className="admin-invite-section">
-        <div className="admin-invite-copy">
-          <div className="admin-invite-kicker">
-            <UsersRound size={16} />
-            <span>系统邀请码</span>
-          </div>
-          <strong>邀请新成员加入门店</strong>
-          <p>邀请码由系统自动生成，复制后发给员工，对方在登录页选择“邀请码加入”即可进入门店。</p>
+      <section className="admin-invite-section" aria-label="系统邀请码">
+        <div className="admin-invite-heading">
+          <span>系统邀请码</span>
         </div>
         <div className="admin-invite-card">
           <span>邀请码</span>
@@ -3055,7 +3047,7 @@ function SettingsView({
               <Copy size={17} />
             </button>
           </div>
-          <small>{inviteCopied ? "已复制" : "仅用于门店成员加入"}</small>
+          {inviteCopied && <small>已复制</small>}
         </div>
       </section>
 
@@ -3069,12 +3061,6 @@ function SettingsView({
           ))}
         </div>
       </section>
-
-      <section className="admin-center-footer">
-        <strong>管客 · 管店 · 管账</strong>
-        <span>预约、开单、会员、库存和财务数据统一沉淀。</span>
-      </section>
-
     </div>
   );
 }

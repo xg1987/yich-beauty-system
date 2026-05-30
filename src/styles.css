@@ -4745,24 +4745,24 @@ textarea,
 }
 
 .admin-center-page:not(.platform-admin-page) {
-  width: min(100%, 1060px);
-  max-width: 1060px;
-  margin-top: 42px;
-  gap: 22px;
+  width: min(100%, 1040px);
+  max-width: 1040px;
+  margin-top: 40px;
+  gap: 18px;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
   position: relative;
-  min-height: 170px;
+  min-height: 162px;
   grid-template-columns: auto minmax(0, 1fr);
-  padding: 28px;
+  padding: 28px 34px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 24px;
+  border-radius: 20px;
   background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 122px),
-    radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.3), transparent 30%),
-    linear-gradient(135deg, #51268e 0%, #7037b9 55%, #a07351 100%);
-  box-shadow: 0 24px 58px rgba(69, 37, 127, 0.2);
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 122px),
+    radial-gradient(circle at 84% 18%, rgba(255, 255, 255, 0.18), transparent 30%),
+    linear-gradient(135deg, #8f1f2b 0%, #9b2432 58%, #7b1c28 100%);
+  box-shadow: 0 24px 54px rgba(93, 24, 35, 0.2);
 }
 
 .admin-hero-pattern {
@@ -4783,89 +4783,52 @@ textarea,
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-avatar {
-  width: 86px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.14);
+  width: 84px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
-  font-size: clamp(28px, 3vw, 42px);
+  font-size: clamp(30px, 3vw, 42px);
   line-height: 1.1;
 }
 
 .admin-invite-section {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-columns: minmax(150px, 1fr) minmax(300px, 380px);
   align-items: center;
-  gap: 18px;
-  padding: 20px;
-  border: 1px solid rgba(111, 66, 193, 0.14);
-  border-radius: 24px;
-  background:
-    linear-gradient(135deg, rgba(109, 40, 217, 0.07), rgba(255, 253, 250, 0.98) 38%, rgba(109, 40, 217, 0.06)),
-    rgba(255, 253, 250, 0.96);
-  box-shadow: 0 18px 44px rgba(69, 37, 127, 0.1);
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid rgba(142, 31, 43, 0.09);
+  border-radius: 18px;
+  background: rgba(255, 253, 250, 0.94);
+  box-shadow: 0 18px 42px rgba(64, 34, 82, 0.08);
 }
 
-.admin-invite-copy {
-  display: grid;
-  gap: 9px;
-  padding: 4px 2px 4px 4px;
-}
-
-.admin-invite-kicker {
-  width: fit-content;
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px solid rgba(109, 40, 217, 0.13);
-  border-radius: 999px;
-  background: rgba(109, 40, 217, 0.08);
+.admin-invite-heading span {
+  display: block;
+  margin: 0;
   color: var(--yich-purple-deep);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
 }
 
-.admin-invite-copy strong {
-  color: var(--yich-ink);
-  font-size: clamp(22px, 2.2vw, 30px);
-  font-weight: 950;
-  letter-spacing: 0;
-  line-height: 1.12;
-}
-
-.admin-invite-copy p {
-  max-width: 56ch;
-  margin: 0;
-  color: rgba(38, 30, 58, 0.62);
-  font-size: 13px;
-  line-height: 1.65;
-}
-
 .admin-invite-card {
-  min-height: 126px;
+  min-height: 76px;
   display: grid;
-  align-content: center;
-  gap: 12px;
-  padding: 20px;
+  grid-template-columns: auto minmax(130px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 90% 15%, rgba(255, 255, 255, 0.2), transparent 30%),
+    linear-gradient(135deg, #5b21a4 0%, #6d28d9 62%, #8b2030 100%);
   color: rgba(255, 255, 255, 0.78);
   font-size: 13px;
   font-weight: 800;
-  backdrop-filter: blur(16px);
-}
-
-.admin-invite-section .admin-invite-card {
-  border-color: rgba(255, 255, 255, 0.2);
-  background:
-    radial-gradient(circle at 86% 16%, rgba(255, 255, 255, 0.25), transparent 30%),
-    radial-gradient(circle at 18% 86%, rgba(255, 255, 255, 0.12), transparent 28%),
-    linear-gradient(135deg, #4b2187 0%, #6d28d9 58%, #9a6c4d 100%);
-  box-shadow: 0 18px 38px rgba(69, 37, 127, 0.2);
+  box-shadow: 0 16px 32px rgba(69, 37, 127, 0.18);
 }
 
 .admin-invite-card > span,
@@ -4875,6 +4838,7 @@ textarea,
 
 .admin-invite-card small {
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .admin-invite-code {
@@ -4886,7 +4850,7 @@ textarea,
 
 .admin-invite-code strong {
   color: #fff;
-  font-size: clamp(26px, 2.8vw, 36px);
+  font-size: clamp(22px, 2vw, 30px);
   letter-spacing: 2px;
   line-height: 1;
   white-space: nowrap;
@@ -4905,29 +4869,6 @@ textarea,
 
 .admin-invite-code button:disabled {
   opacity: 0.45;
-}
-
-.admin-center-footer {
-  display: grid;
-  place-items: center;
-  gap: 8px;
-  padding: 22px 24px;
-  border: 1px solid rgba(111, 66, 193, 0.13);
-  border-radius: 22px;
-  background: rgba(246, 241, 234, 0.72);
-  text-align: center;
-}
-
-.admin-center-footer strong {
-  color: #9c2230;
-  font-size: 16px;
-  font-weight: 950;
-  letter-spacing: 2px;
-}
-
-.admin-center-footer span {
-  color: rgba(38, 30, 58, 0.62);
-  font-size: 13px;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-section-title span {
@@ -4980,15 +4921,12 @@ textarea,
   .admin-invite-section {
     grid-template-columns: 1fr;
   }
-
-  .admin-invite-card {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 620px) {
   .admin-center-page:not(.platform-admin-page) .admin-profile-hero,
   .admin-center-page:not(.platform-admin-page) .admin-module-grid,
+  .admin-invite-card,
   .admin-invite-code {
     grid-template-columns: 1fr;
   }
