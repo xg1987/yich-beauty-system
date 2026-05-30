@@ -297,7 +297,7 @@ function PlatformAdminView({
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "老板邀请", desc: "固定邀请码开通门店老板账号", metric: DEFAULT_OWNER_INVITE_CODE, icon: LockKeyhole, tone: "violet", view: "settings" },
+    { title: "老板邀请", desc: "固定邀请码开通门店老板账号", metric: "登录页使用", icon: LockKeyhole, tone: "violet", view: "settings" },
     { title: "门店列表", desc: "查看已开通门店和老板账号", metric: `${data.storeProfiles.length} 家`, icon: Building2, tone: "teal", view: "settings" },
     { title: "预约管理", desc: "查看预约、排班和到店确认", metric: `${pendingAppointments} 待处理`, icon: CalendarDays, tone: "rose", view: "appointments" },
     { title: "开单收银", desc: "前台营业、支付记录和退款", metric: `${data.orders.length} 订单`, icon: CreditCard, tone: "amber", view: "pos" },
@@ -329,51 +329,17 @@ function PlatformAdminView({
           <span className="eyebrow"><Building2 size={15} /> 基础版 Admin</span>
           <h1>门店老板邀请码</h1>
           <p>Admin 提供固定老板邀请码，老板通过登录页的邀请码入口注册门店账号。</p>
+          <div className="admin-owner-code">
+            <span>固定邀请码</span>
+            <strong>{DEFAULT_OWNER_INVITE_CODE}</strong>
+          </div>
         </div>
         <div className="page-hero-stats">
           <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
           <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="通过邀请开通" />
-          <StatCard title="固定邀请码" value={DEFAULT_OWNER_INVITE_CODE} hint="老板注册入口" />
           <StatCard title="人员档案" value={`${activeStaff} 人`} hint="全局基础数据" />
         </div>
       </section>
-
-      <div className="content-grid">
-        <section className="panel owner-code-panel">
-          <PanelTitle icon={<LockKeyhole size={18} />} title="老板固定邀请码" action="登录页使用" />
-          <div className="owner-code-box">
-            <span>{DEFAULT_OWNER_INVITE_CODE}</span>
-            <small>老板在登录页选择“邀请码加入”，输入该邀请码后填写门店和账号资料。</small>
-          </div>
-        </section>
-
-        <section className="panel wide">
-          <PanelTitle icon={<Building2 size={18} />} title="门店列表" action={`${data.storeProfiles.length} 家`} />
-          <DataTable
-            columns={["门店", "电话", "地址", "创建时间"]}
-            rows={data.storeProfiles.map((store) => [
-              store.name,
-              store.phone,
-              store.address || "-",
-              shortDate(store.createdAt),
-            ])}
-          />
-          <div className="divider" />
-          <PanelTitle icon={<LockKeyhole size={18} />} title="老板邀请记录" action={`${data.storeOwnerInvites?.length ?? 0} 条`} />
-          <DataTable
-            columns={["门店", "老板", "账号", "状态", "邀请码", "有效期", "加入时间"]}
-            rows={(data.storeOwnerInvites ?? []).map((invite) => [
-              invite.storeName,
-              invite.ownerName,
-              invite.account,
-              <Badge key={`${invite.id}-status`} text={invite.status === "待加入" && invite.expiresAt && +new Date(invite.expiresAt) <= Date.now() ? "已过期" : invite.status} />,
-              invite.inviteCode,
-              invite.expiresAt ? shortDate(invite.expiresAt) : "未设置",
-              invite.joinedAt ? shortDate(invite.joinedAt) : "-",
-            ])}
-          />
-        </section>
-      </div>
 
       <section className="admin-module-section">
         <div className="admin-section-title">
