@@ -4753,8 +4753,8 @@ textarea,
 }
 
 .admin-center-page:not(.platform-admin-page) {
-  width: min(1360px, 100%);
-  max-width: 1360px;
+  width: min(1040px, 100%);
+  max-width: 1040px;
   margin-top: 40px;
   gap: 18px;
 }
@@ -5297,13 +5297,19 @@ textarea,
 
 /* Reference admin pass: red profile hero, account dropdown, and settings page. */
 .topbar-actions {
-  position: fixed;
-  top: 34px;
-  right: clamp(24px, 4vw, 64px);
+  position: relative;
+  top: auto;
+  right: auto;
   z-index: 90;
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.main:has(.admin-center-page:not(.platform-admin-page)) > .topbar {
+  width: min(1040px, 100%);
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .platform-admin-page .admin-profile-hero {
