@@ -56,6 +56,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/staff/${encodeURIComponent(staffId)}`, { method: "PATCH", body, token: getToken() }),
     createStaffInvite: (body: { staffId: string; account: string; role: UserRole; validDays?: number }) =>
       request<AppData>("/api/staff-invites", { method: "POST", body, token: getToken() }),
+    createStoreOwnerInvite: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; validDays?: number }) =>
+      request<AppData>("/api/store-owner-invites", { method: "POST", body, token: getToken() }),
     revokeStaffInvite: (inviteId: string) =>
       request<AppData>(`/api/staff-invites/${encodeURIComponent(inviteId)}`, { method: "PATCH", token: getToken() }),
     updateOnlineStorefront: (body: { shareCode: string; status?: "启用" | "停用"; headline: string; description: string; enabledServiceIds: string[] }) =>

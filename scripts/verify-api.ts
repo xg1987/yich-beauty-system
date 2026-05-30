@@ -49,6 +49,31 @@ try {
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
 
+  const adminSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
+    method: "POST",
+    body: { account: "admin@test.local", password: "test-password" },
+  });
+  assert.equal(adminSession.user.roleName, "Admin", "admin login should return platform admin session");
+  const afterOwnerInvite = await request<AppData>(baseUrl, "/api/store-owner-invites", {
+    method: "POST",
+    token: adminSession.token,
+    body: {
+      storeName: "API 邀请门店",
+      ownerName: "API 老板",
+      phone: "13900001111",
+      address: "API 邀请地址",
+      account: "api-invited-owner@test.local",
+      validDays: 5,
+    },
+  });
+  assert.equal(afterOwnerInvite.storeOwnerInvites[0].status, "待加入", "admin API should create owner invite");
+  const invitedOwnerSession = await request<{ token: string; user: { roleName: string; account: string } }>(baseUrl, "/api/auth/join-invite", {
+    method: "POST",
+    body: { inviteCode: afterOwnerInvite.storeOwnerInvites[0].inviteCode, name: "API 老板", password: "secret" },
+  });
+  assert.equal(invitedOwnerSession.user.roleName, "老板", "owner invite should join as owner");
+  assert.equal(invitedOwnerSession.user.account, "api-invited-owner@test.local", "owner invite should login configured account");
+
   const afterStoreProfile = await request<AppData>(baseUrl, "/api/store-profile", {
     method: "PATCH",
     token: session.token,

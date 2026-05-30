@@ -31,6 +31,7 @@ export type UserSession = {
 };
 
 export const rolePermissions: Record<RoleKey, Permission[]> = {
+  superadmin: ["dashboard:view", "staff:view", "staff:manage", "reports:view", "settings:view"],
   owner: [
     "dashboard:view",
     "appointments:manage",

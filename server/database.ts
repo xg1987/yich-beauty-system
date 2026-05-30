@@ -32,6 +32,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  StoreOwnerInvite,
   SystemNotification,
   Stocktake,
   StoreProfile,
@@ -48,6 +49,7 @@ const tableNames: TableName[] = [
   "onlineStorefronts",
   "authUsers",
   "staffInvites",
+  "storeOwnerInvites",
   "staff",
   "customers",
   "tagDefinitions",
@@ -111,7 +113,8 @@ export class BeautyDatabase {
   seedIfEmpty() {
     const row = this.db.prepare("SELECT COUNT(*) AS count FROM staff").get() as { count: number };
     if (row.count === 0) {
-      this.writeData(seedData);
+      this.replaceData(seedData);
+      this.ensureDefaultSuperadmin();
       return;
     }
     const authRow = this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").get() as { count: number };
@@ -123,6 +126,7 @@ export class BeautyDatabase {
         staff: this.readData().staff.map((staff) => seedData.staff.find((seedStaff) => seedStaff.id === staff.id) ?? staff),
       });
     }
+    this.ensureDefaultSuperadmin();
   }
 
   readData(): AppData {
@@ -131,6 +135,7 @@ export class BeautyDatabase {
       onlineStorefronts: this.db.prepare("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC").all().map(mapJsonPayload<OnlineStorefront>),
       authUsers: this.db.prepare("SELECT payload_json FROM authUsers ORDER BY rowid ASC").all().map(mapJsonPayload<AuthUser>),
       staffInvites: this.db.prepare("SELECT payload_json FROM staffInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StaffInvite>),
+      storeOwnerInvites: this.db.prepare("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StoreOwnerInvite>),
       staff: this.db.prepare("SELECT * FROM staff ORDER BY rowid ASC").all().map(mapStaff),
       customers: this.db.prepare("SELECT * FROM customers ORDER BY rowid ASC").all().map(mapCustomer),
       tagDefinitions: this.db.prepare("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC").all().map(mapJsonPayload<TagDefinition>),
@@ -191,6 +196,7 @@ export class BeautyDatabase {
     this.writeJsonTable("onlineStorefronts", data.onlineStorefronts);
     this.writeJsonTable("authUsers", data.authUsers);
     this.writeJsonTable("staffInvites", data.staffInvites);
+    this.writeJsonTable("storeOwnerInvites", data.storeOwnerInvites ?? []);
 
     for (const staff of data.staff) {
       this.db
@@ -457,6 +463,11 @@ export class BeautyDatabase {
       );
 
       CREATE TABLE IF NOT EXISTS staffInvites (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS storeOwnerInvites (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
       );
@@ -734,6 +745,17 @@ export class BeautyDatabase {
     if (!columns.some((column) => column.name === columnName)) {
       this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
     }
+  }
+
+  private ensureDefaultSuperadmin() {
+    const data = this.readData();
+    if (data.authUsers.some((user) => user.role === "superadmin")) return;
+    const admin = seedData.authUsers.find((user) => user.role === "superadmin");
+    if (!admin) return;
+    this.replaceData({
+      ...data,
+      authUsers: [admin, ...data.authUsers],
+    });
   }
 }
 

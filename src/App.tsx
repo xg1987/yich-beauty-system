@@ -64,7 +64,7 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
 ];
 
 export default function App() {
-  const { data, session, loading, error, login, registerStore, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, logout, runMutation, actions } = useApiData();
+  const { data, session, loading, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
@@ -93,7 +93,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <LoginScreen onLogin={login} onRegister={registerStore} onJoin={joinInvite} authenticate={authenticate} loading={loading} error={error} />;
+    return <LoginScreen onLogin={login} onJoin={joinInvite} authenticate={authenticate} loading={loading} error={error} />;
   }
 
   if (!data) {
@@ -117,6 +117,19 @@ export default function App() {
     setAccountMenuOpen(false);
     setAdminBackVisible(Boolean(options?.fromAdmin && nextView !== "settings"));
   };
+
+  if (session.user.role === "superadmin") {
+    return (
+      <PlatformAdminShell
+        data={data}
+        session={session}
+        error={error}
+        logout={logout}
+        actions={actions}
+        runMutation={runMutation}
+      />
+    );
+  }
 
   return (
     <div className={`app-shell theme-${themeMode}`}>
@@ -191,6 +204,156 @@ export default function App() {
           );
         })}
       </nav>
+    </div>
+  );
+}
+
+function PlatformAdminShell({
+  data,
+  session,
+  error,
+  logout,
+  actions,
+  runMutation,
+}: {
+  data: AppData;
+  session: UserSession;
+  error?: string;
+  logout: () => void;
+  actions: ApiActions;
+  runMutation: RunMutation;
+}) {
+  return (
+    <div className="app-shell theme-day platform-admin-shell">
+      <main className="main platform-admin-main">
+        <header className="topbar">
+          <div className="topbar-title">
+            <p>一宸 YiCh 平台 Admin</p>
+          </div>
+          <div className="topbar-actions">
+            {error && <span className="error-chip">{error}</span>}
+            <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
+            <button className="icon-button" aria-label="退出登录" onClick={logout}>
+              <LogOut size={18} />
+            </button>
+          </div>
+        </header>
+        <PlatformAdminView data={data} session={session} actions={actions} runMutation={runMutation} />
+      </main>
+    </div>
+  );
+}
+
+function PlatformAdminView({
+  data,
+  session,
+  actions,
+  runMutation,
+}: {
+  data: AppData;
+  session: UserSession;
+  actions: ApiActions;
+  runMutation: RunMutation;
+}) {
+  const [storeName, setStoreName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [account, setAccount] = useState("");
+  const [validDays, setValidDays] = useState(7);
+  const pendingOwnerInvites = (data.storeOwnerInvites ?? []).filter((invite) => invite.status === "待加入").length;
+  const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
+  const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
+
+  const createOwnerInvite = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.createStoreOwnerInvite({
+        storeName,
+        ownerName,
+        phone,
+        address,
+        account,
+        validDays,
+      }),
+    ).then(() => {
+      setStoreName("");
+      setOwnerName("");
+      setPhone("");
+      setAddress("");
+      setAccount("");
+      setValidDays(7);
+    });
+  };
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      <section className="admin-profile-hero">
+        <div className="admin-avatar">
+          <ShieldCheck size={34} />
+        </div>
+        <div className="admin-profile-copy">
+          <span className="admin-role-pill"><ShieldCheck size={14} /> 平台管理</span>
+          <h2>{session.user.name}</h2>
+          <p>{session.user.account}</p>
+        </div>
+      </section>
+
+      <section className="page-hero">
+        <div>
+          <span className="eyebrow"><Building2 size={15} /> 基础版 Admin</span>
+          <h1>门店老板邀请码</h1>
+          <p>Admin 先创建老板邀请码，老板再通过登录页的邀请码入口注册门店账号。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
+          <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="通过邀请开通" />
+          <StatCard title="待加入" value={`${pendingOwnerInvites} 个`} hint="老板邀请码" tone={pendingOwnerInvites > 0 ? "warn" : undefined} />
+          <StatCard title="人员档案" value={`${activeStaff} 人`} hint="全局基础数据" />
+        </div>
+      </section>
+
+      <div className="content-grid">
+        <section className="panel">
+          <PanelTitle icon={<LockKeyhole size={18} />} title="邀请门店老板" action="老板通过邀请码注册" />
+          <form className="form" onSubmit={createOwnerInvite}>
+            <label>门店名称<input value={storeName} onChange={(event) => setStoreName(event.target.value)} required /></label>
+            <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} required /></label>
+            <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+            <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+            <label>老板登录账号<input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
+            <label>有效期（天）<input type="number" min={1} value={validDays} onChange={(event) => setValidDays(Number(event.target.value))} /></label>
+            <button className="primary-button"><LockKeyhole size={17} /> 生成老板邀请码</button>
+          </form>
+        </section>
+
+        <section className="panel wide">
+          <PanelTitle icon={<Building2 size={18} />} title="门店列表" action={`${data.storeProfiles.length} 家`} />
+          <DataTable
+            columns={["门店", "电话", "地址", "创建时间"]}
+            rows={data.storeProfiles.map((store) => [
+              store.name,
+              store.phone,
+              store.address || "-",
+              shortDate(store.createdAt),
+            ])}
+          />
+          <div className="divider" />
+          <PanelTitle icon={<LockKeyhole size={18} />} title="老板邀请记录" action={`${data.storeOwnerInvites?.length ?? 0} 条`} />
+          <DataTable
+            columns={["门店", "老板", "账号", "状态", "邀请码", "有效期", "加入时间"]}
+            rows={(data.storeOwnerInvites ?? []).map((invite) => [
+              invite.storeName,
+              invite.ownerName,
+              invite.account,
+              <Badge key={`${invite.id}-status`} text={invite.status === "待加入" && invite.expiresAt && +new Date(invite.expiresAt) <= Date.now() ? "已过期" : invite.status} />,
+              invite.inviteCode,
+              invite.expiresAt ? shortDate(invite.expiresAt) : "未设置",
+              invite.joinedAt ? shortDate(invite.joinedAt) : "-",
+            ])}
+          />
+        </section>
+      </div>
     </div>
   );
 }
@@ -541,26 +704,20 @@ function CustomerSignaturePage({
 
 function LoginScreen({
   onLogin,
-  onRegister,
   onJoin,
   authenticate,
   loading,
   error,
 }: {
   onLogin: (account: string, password: string) => Promise<void>;
-  onRegister: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; password: string }) => Promise<UserSession>;
   onJoin: (body: { inviteCode: string; name: string; password: string }) => Promise<UserSession>;
   authenticate: (authAction: () => Promise<UserSession>) => Promise<void>;
   loading: boolean;
   error?: string;
 }) {
-  const [mode, setMode] = useState<"login" | "register" | "join">("login");
+  const [mode, setMode] = useState<"login" | "join">("login");
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
-  const [storeName, setStoreName] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [joinName, setJoinName] = useState("");
 
@@ -568,10 +725,6 @@ function LoginScreen({
     event.preventDefault();
     if (mode === "login") {
       void onLogin(account.trim(), password);
-      return;
-    }
-    if (mode === "register") {
-      void authenticate(() => onRegister({ storeName, ownerName, phone, address, account, password }));
       return;
     }
     void authenticate(() => onJoin({ inviteCode, name: joinName, password }));
@@ -597,18 +750,9 @@ function LoginScreen({
           </div>
           <form className={`login-card login-card-${mode}`} onSubmit={submit}>
             <div className="login-card-head">
-              <strong>{mode === "login" ? "登录系统" : mode === "register" ? "老板开店" : "邀请码加入"}</strong>
-              <span>{mode === "login" ? "使用账号进入对应工作台" : mode === "register" ? "创建门店和老板账号" : "邀请码由老板或主管在人员管理中生成"}</span>
+              <strong>{mode === "login" ? "登录系统" : "邀请码加入"}</strong>
+              <span>{mode === "login" ? "Admin、老板、主管、员工和前台统一登录" : "老板邀请码由 Admin 生成，员工邀请码由老板或主管生成"}</span>
             </div>
-            {mode === "register" && (
-              <>
-                <label>门店名称<input value={storeName} onChange={(event) => setStoreName(event.target.value)} /></label>
-                <label>老板姓名<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} /></label>
-                <label>联系电话<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
-                <label>门店地址<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
-                <p className="register-note">基础版先覆盖预约、开单、客户、员工、库存和经营看板。</p>
-              </>
-            )}
             {mode === "join" ? (
               <>
                 <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" /></label>
@@ -627,7 +771,7 @@ function LoginScreen({
             {error && <p className="form-error">{error}</p>}
             <button className="primary-button" disabled={loading}>
               <LockKeyhole size={17} />
-              {loading ? "处理中" : mode === "login" ? "进入系统" : mode === "register" ? "创建门店" : "加入门店"}
+              {loading ? "处理中" : mode === "login" ? "进入系统" : "加入门店"}
             </button>
             <div className="login-card-links">
               {mode !== "login" && <button type="button" onClick={() => setMode("login")}>返回登录</button>}

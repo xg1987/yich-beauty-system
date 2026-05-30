@@ -7,6 +7,7 @@ import {
   signCustomerSignature,
   addStaffMember,
   addSupplier,
+  accountForInvite,
   adjustInventory,
   bindReferralRelation,
   cleanupFormalData,
@@ -21,6 +22,7 @@ import {
   createStaffShift,
   createStaffUnavailableSlot,
   createStaffInvite,
+  createStoreOwnerInvite,
   createStocktake,
   completeCustomerFollowUp,
   decideApprovalRequest,
@@ -38,7 +40,7 @@ import {
   updateAppointmentStatus,
   transferMemberCard,
   upsertOnlineStorefront,
-  joinStaffInvite,
+  joinInviteByCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
   previewFormalDataCleanup,
@@ -129,16 +131,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const body = await readJson(context.request);
       const plainPassword = requiredString(body, "password");
       const hashedPassword = await hashPassword(plainPassword);
+      const inviteCode = requiredString(body, "inviteCode");
 
-      const nextData = joinStaffInvite(await database.readData(), {
-        inviteCode: requiredString(body, "inviteCode"),
+      const nextData = joinInviteByCode(await database.readData(), {
+        inviteCode,
         name: requiredString(body, "name"),
         password: hashedPassword,
       });
       await database.replaceData(nextData);
 
-      const joinedUser = nextData.authUsers.find((u) => u.account) ?? nextData.authUsers[0];
-      const loginResult = await loginWithD1(context.env.DB, joinedUser.account, plainPassword);
+      const joinedAccount = accountForInvite(nextData, inviteCode);
+      if (!joinedAccount) throw new Error("邀请账号不存在");
+      const loginResult = await loginWithD1(context.env.DB, joinedAccount, plainPassword);
       return sendJson(201, loginResult.session);
     }
 
@@ -322,6 +326,24 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: requiredString(body, "staffId"),
         account: requiredString(body, "account"),
         role: requiredString(body, "role") as UserRole,
+        createdBy: session.user.id,
+        validDays: optionalNumber(body, "validDays"),
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/store-owner-invites") {
+      if (session.user.role !== "superadmin") {
+        throw new Error("只有平台 Admin 可以邀请门店老板");
+      }
+      const body = await readJson(context.request);
+      const nextData = createStoreOwnerInvite(await database.readData(), {
+        storeName: requiredString(body, "storeName"),
+        ownerName: requiredString(body, "ownerName"),
+        phone: requiredString(body, "phone"),
+        address: optionalString(body, "address"),
+        account: requiredString(body, "account"),
         createdBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });

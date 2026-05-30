@@ -100,6 +100,7 @@ export function useApiData() {
     fetchDataQuality: client.fetchDataQuality,
     cleanupFormalData: client.cleanupFormalData,
     createStaffInvite: client.createStaffInvite,
+    createStoreOwnerInvite: client.createStoreOwnerInvite,
     revokeStaffInvite: client.revokeStaffInvite,
     updateOnlineStorefront: client.updateOnlineStorefront,
     convertOnlineBookingRequest: client.convertOnlineBookingRequest,

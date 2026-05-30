@@ -11,7 +11,7 @@ export type ViewKey =
   | "logs"
   | "settings";
 
-export type UserRole = "owner" | "manager" | "frontdesk" | "therapist" | "finance";
+export type UserRole = "superadmin" | "owner" | "manager" | "frontdesk" | "therapist" | "finance";
 
 export type StoreProfile = {
   id: string;
@@ -63,6 +63,23 @@ export type StaffInvite = {
   staffId: string;
   account: string;
   role: UserRole;
+  status: "待加入" | "已加入" | "已作废";
+  inviteCode: string;
+  createdBy: string;
+  createdAt: string;
+  expiresAt?: string;
+  joinedAt?: string;
+  revokedAt?: string;
+  revokedBy?: string;
+};
+
+export type StoreOwnerInvite = {
+  id: string;
+  storeName: string;
+  ownerName: string;
+  phone: string;
+  address?: string;
+  account: string;
   status: "待加入" | "已加入" | "已作废";
   inviteCode: string;
   createdBy: string;
@@ -454,6 +471,7 @@ export type AppData = {
   onlineStorefronts: OnlineStorefront[];
   authUsers: AuthUser[];
   staffInvites: StaffInvite[];
+  storeOwnerInvites: StoreOwnerInvite[];
   staff: Staff[];
   customers: Customer[];
   tagDefinitions: TagDefinition[];

@@ -15,6 +15,7 @@ import {
   createOnlineBookingRequest,
   createStaffShift,
   createStaffInvite,
+  createStoreOwnerInvite,
   createStaffUnavailableSlot,
   createStocktake,
   completeCustomerFollowUp,
@@ -22,6 +23,7 @@ import {
   decideApprovalRequest,
   extendMemberCard,
   joinStaffInvite,
+  joinInviteByCode,
   signCustomerSignature,
   addSystemNotification,
   cleanupFormalData,
@@ -137,6 +139,28 @@ function card(data: AppData, cardId: string) {
   assert.equal(registered.storeProfiles[0].name, "测试美业门店", "store registration should update store profile");
   assert.equal(registered.authUsers[0].role, "owner", "store registration should create owner account");
   assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
+  const ownerInvited = createStoreOwnerInvite(
+    cloneSeed(),
+    {
+      storeName: "邀请制门店",
+      ownerName: "邀请老板",
+      phone: "13900001111",
+      address: "邀请地址",
+      account: "invited-owner@test.local",
+      createdBy: "u_superadmin",
+      validDays: 5,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(ownerInvited.storeOwnerInvites[0].status, "待加入", "owner invite should be pending");
+  const ownerJoined = joinInviteByCode(
+    ownerInvited,
+    { inviteCode: ownerInvited.storeOwnerInvites[0].inviteCode, name: "邀请老板", password: "secret" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(ownerJoined.authUsers[0].role, "owner", "owner invite should create owner account");
+  assert.equal(ownerJoined.storeProfiles[0].name, "邀请制门店", "owner invite should create store");
+  assert.equal(ownerJoined.storeOwnerInvites[0].status, "已加入", "owner invite should mark joined");
   const updatedStore = updateStoreProfile(registered, {
     name: "测试皮肤管理中心",
     phone: "13900000002",

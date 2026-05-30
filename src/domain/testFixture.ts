@@ -26,6 +26,7 @@ export const testFixtureData: AppData = {
     },
   ],
   authUsers: [
+    { id: "u_superadmin", name: "平台管理员", account: "admin@test.local", password: "test-password", role: "superadmin", roleName: "Admin", status: "active", createdAt: nowIso() },
     { id: "u_owner", name: "林老板", account: "owner@test.local", password: "test-password", role: "owner", roleName: "老板", status: "active", createdAt: nowIso() },
     { id: "u_manager", name: "林主管", account: "manager@test.local", password: "test-password", role: "manager", roleName: "主管", staffId: "s1", status: "active", createdAt: nowIso() },
     { id: "u_frontdesk", name: "阿宁", account: "frontdesk@test.local", password: "test-password", role: "frontdesk", roleName: "前台", staffId: "s3", status: "active", createdAt: nowIso() },
@@ -33,6 +34,7 @@ export const testFixtureData: AppData = {
     { id: "u_finance", name: "财务", account: "finance@test.local", password: "test-password", role: "finance", roleName: "财务", status: "active", createdAt: nowIso() },
   ],
   staffInvites: [],
+  storeOwnerInvites: [],
   staff: [
     { id: "s1", name: "林主管", phone: "13800000001", role: "主管", status: "active", accountId: "u_manager", hiredAt: "2025-01-01", baseSalary: 9000, commissionRate: 0.12 },
     { id: "s2", name: "小雅", phone: "13800000002", role: "员工", status: "active", accountId: "u_therapist", hiredAt: "2025-03-01", baseSalary: 6500, commissionRate: 0.12 },

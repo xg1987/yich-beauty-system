@@ -3,8 +3,20 @@ import type { AppData } from "./types";
 export const seedData: AppData = {
   storeProfiles: [],
   onlineStorefronts: [],
-  authUsers: [],
+  authUsers: [
+    {
+      id: "u_superadmin",
+      name: "平台管理员",
+      account: "admin@yich.local",
+      password: "admin123456",
+      role: "superadmin",
+      roleName: "Admin",
+      status: "active",
+      createdAt: "2026-05-30T00:00:00.000Z",
+    },
+  ],
   staffInvites: [],
+  storeOwnerInvites: [],
   staff: [],
   customers: [],
   tagDefinitions: [],

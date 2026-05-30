@@ -29,6 +29,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  StoreOwnerInvite,
   SystemNotification,
   Stocktake,
   StoreProfile,
@@ -44,6 +45,7 @@ const tableNames: TableName[] = [
   "onlineStorefronts",
   "authUsers",
   "staffInvites",
+  "storeOwnerInvites",
   "staff",
   "customers",
   "tagDefinitions",
@@ -86,6 +88,7 @@ export class D1BeautyDatabase {
     const row = await this.db.prepare("SELECT COUNT(*) AS count FROM staff").first<{ count: number }>();
     if ((row?.count ?? 0) === 0) {
       await this.replaceData(seedData);
+      await this.ensureDefaultSuperadmin();
       return;
     }
     const authRow = await this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").first<{ count: number }>();
@@ -98,6 +101,7 @@ export class D1BeautyDatabase {
         staff: currentData.staff.map((staff) => seedData.staff.find((seedStaff) => seedStaff.id === staff.id) ?? staff),
       });
     }
+    await this.ensureDefaultSuperadmin();
   }
 
   async readData(): Promise<AppData> {
@@ -106,6 +110,7 @@ export class D1BeautyDatabase {
       onlineStorefronts: await this.all("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC", mapJsonPayload<OnlineStorefront>),
       authUsers: await this.all("SELECT payload_json FROM authUsers ORDER BY rowid ASC", mapJsonPayload<AuthUser>),
       staffInvites: await this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>),
+      storeOwnerInvites: await this.all("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC", mapJsonPayload<StoreOwnerInvite>),
       staff: await this.all("SELECT * FROM staff ORDER BY rowid ASC", mapStaff),
       customers: await this.all("SELECT * FROM customers ORDER BY rowid ASC", mapCustomer),
       tagDefinitions: await this.all("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC", mapJsonPayload<TagDefinition>),
@@ -168,6 +173,7 @@ export class D1BeautyDatabase {
     this.writeJsonTable(statements, "onlineStorefronts", data.onlineStorefronts);
     this.writeJsonTable(statements, "authUsers", data.authUsers);
     this.writeJsonTable(statements, "staffInvites", data.staffInvites);
+    this.writeJsonTable(statements, "storeOwnerInvites", data.storeOwnerInvites ?? []);
 
     for (const staff of data.staff) {
       statements.push(this.statement("INSERT INTO staff (id, name, phone, role, status, accountId, hiredAt, baseSalary, commissionRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
@@ -438,6 +444,17 @@ export class D1BeautyDatabase {
     for (const row of rows) {
       statements.push(this.statement(`INSERT INTO ${tableName} (id, payload_json) VALUES (?, ?)`, [row.id, JSON.stringify(row)]));
     }
+  }
+
+  private async ensureDefaultSuperadmin() {
+    const data = await this.readData();
+    if (data.authUsers.some((user) => user.role === "superadmin")) return;
+    const admin = seedData.authUsers.find((user) => user.role === "superadmin");
+    if (!admin) return;
+    await this.replaceData({
+      ...data,
+      authUsers: [admin, ...data.authUsers],
+    });
   }
 
   private statement(query: string, values: D1Value[]) {

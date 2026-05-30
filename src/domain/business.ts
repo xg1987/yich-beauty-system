@@ -28,6 +28,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  StoreOwnerInvite,
   SystemNotification,
   Stocktake,
   Supplier,
@@ -96,6 +97,16 @@ export type StaffInviteInput = {
   staffId: string;
   account: string;
   role: UserRole;
+  createdBy: string;
+  validDays?: number;
+};
+
+export type StoreOwnerInviteInput = {
+  storeName: string;
+  ownerName: string;
+  phone: string;
+  address?: string;
+  account: string;
   createdBy: string;
   validDays?: number;
 };
@@ -1096,6 +1107,49 @@ export function createStaffInvite(
   };
 }
 
+export function createStoreOwnerInvite(
+  data: AppData,
+  input: StoreOwnerInviteInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const validDays = input.validDays ?? 7;
+  const storeName = input.storeName.trim();
+  const ownerName = input.ownerName.trim();
+  const phone = input.phone.trim();
+  const account = input.account.trim();
+  if (!storeName) throw new Error("请输入门店名称");
+  if (!ownerName) throw new Error("请输入老板姓名");
+  if (!phone) throw new Error("请输入联系电话");
+  if (!account) throw new Error("请输入老板登录账号");
+  if (validDays <= 0) throw new Error("邀请码有效期必须大于 0 天");
+  if (data.authUsers.some((user) => user.account === account)) throw new Error("登录账号已存在");
+  const hasActiveInvite = (data.storeOwnerInvites ?? []).some((invite) => {
+    if (invite.status !== "待加入") return false;
+    if (invite.expiresAt && +new Date(invite.expiresAt) <= +new Date(createdAt)) return false;
+    return invite.account === account || invite.storeName === storeName;
+  });
+  if (hasActiveInvite) throw new Error("该门店或账号已有待加入邀请");
+  const invite: StoreOwnerInvite = {
+    id: idFactory("oi"),
+    storeName,
+    ownerName,
+    phone,
+    address: input.address?.trim() || undefined,
+    account,
+    status: "待加入",
+    inviteCode: idFactory("boss"),
+    createdBy: input.createdBy,
+    createdAt,
+    expiresAt: new Date(+new Date(createdAt) + validDays * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  return {
+    ...data,
+    storeOwnerInvites: [invite, ...(data.storeOwnerInvites ?? [])],
+  };
+}
+
 export function revokeStaffInvite(
   data: AppData,
   input: RevokeStaffInviteInput,
@@ -1152,6 +1206,100 @@ export function joinStaffInvite(
       item.id === invite.id ? { ...item, status: "已加入", joinedAt: createdAt } : item,
     ),
   };
+}
+
+export function joinStoreOwnerInvite(
+  data: AppData,
+  input: JoinInviteInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const inviteCode = input.inviteCode.trim();
+  const invite = (data.storeOwnerInvites ?? []).find((item) => item.inviteCode === inviteCode && item.status === "待加入");
+  if (!invite) throw new Error("邀请不存在或已失效");
+  if (invite.expiresAt && +new Date(invite.expiresAt) <= +new Date(createdAt)) throw new Error("邀请码已过期");
+  if (!input.name.trim()) throw new Error("请输入姓名");
+  if (!input.password) throw new Error("请输入密码");
+  if (data.authUsers.some((user) => user.account === invite.account)) throw new Error("登录账号已存在");
+  const storeId = idFactory("store");
+  const staffId = idFactory("s");
+  const userId = idFactory("u");
+  const ownerName = input.name.trim() || invite.ownerName;
+  return {
+    ...data,
+    storeProfiles: [
+      {
+        id: storeId,
+        name: invite.storeName,
+        phone: invite.phone,
+        address: invite.address ?? "",
+        businessHours: "10:00 - 21:00",
+        createdAt,
+      },
+      ...data.storeProfiles,
+    ],
+    staff: [
+      {
+        id: staffId,
+        name: ownerName,
+        phone: invite.phone,
+        role: "老板",
+        status: "active",
+        accountId: userId,
+        hiredAt: createdAt.slice(0, 10),
+        baseSalary: 0,
+        commissionRate: 0,
+      },
+      ...data.staff,
+    ],
+    authUsers: [
+      {
+        id: userId,
+        name: ownerName,
+        account: invite.account,
+        password: input.password,
+        role: "owner",
+        roleName: roleNameOf("owner"),
+        staffId,
+        status: "active",
+        createdAt,
+      },
+      ...data.authUsers,
+    ],
+    storeOwnerInvites: (data.storeOwnerInvites ?? []).map((item) =>
+      item.id === invite.id ? { ...item, status: "已加入", joinedAt: createdAt } : item,
+    ),
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId,
+        action: "老板邀请码注册",
+        targetType: "store",
+        targetId: storeId,
+        summary: `${invite.storeName} 通过 Admin 邀请开通老板账号`,
+        createdAt,
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function joinInviteByCode(
+  data: AppData,
+  input: JoinInviteInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const inviteCode = input.inviteCode.trim();
+  if ((data.storeOwnerInvites ?? []).some((item) => item.inviteCode === inviteCode && item.status === "待加入")) {
+    return joinStoreOwnerInvite(data, input, options);
+  }
+  return joinStaffInvite(data, input, options);
+}
+
+export function accountForInvite(data: AppData, inviteCode: string) {
+  return (data.storeOwnerInvites ?? []).find((item) => item.inviteCode === inviteCode)?.account
+    ?? data.staffInvites.find((item) => item.inviteCode === inviteCode)?.account;
 }
 
 export function createDistributor(
@@ -2737,6 +2885,7 @@ function assertBusinessDateOpen(data: AppData, businessDate: string) {
 
 function roleNameOf(role: UserRole) {
   const names: Record<UserRole, string> = {
+    superadmin: "Admin",
     owner: "老板",
     manager: "主管",
     frontdesk: "前台",
