@@ -3456,7 +3456,7 @@ html[data-theme="day"],
   z-index: 95;
   top: calc(100% + 12px);
   right: 0;
-  width: 260px;
+  width: 300px;
   overflow: hidden;
   border: 1px solid rgba(111, 66, 193, 0.1);
   border-radius: 8px;
@@ -3483,9 +3483,70 @@ html[data-theme="day"],
   color: var(--yich-purple-deep);
 }
 
+.account-avatar-button img,
+.account-menu-avatar img,
+.admin-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .account-menu-user strong,
 .account-menu-user span {
   display: block;
+}
+
+.account-profile-form {
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px 16px;
+  border-top: 1px solid rgba(111, 66, 193, 0.08);
+}
+
+.account-profile-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--yich-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.account-profile-form input[type="text"],
+.account-profile-form input:not([type]) {
+  width: 100%;
+  height: 38px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fffdfa;
+  color: var(--yich-ink);
+}
+
+.avatar-upload-control {
+  min-height: 42px;
+  display: flex !important;
+  grid-template-columns: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px !important;
+  border: 1px dashed rgba(111, 66, 193, 0.28);
+  border-radius: 8px;
+  color: var(--yich-purple-deep) !important;
+  cursor: pointer;
+}
+
+.avatar-upload-control input {
+  display: none;
+}
+
+.account-profile-form button {
+  min-height: 40px;
+  justify-content: center;
+  border-radius: 8px;
+  border-top: 0;
+  background: rgba(111, 66, 193, 0.1);
 }
 
 .account-menu-user strong {

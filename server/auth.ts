@@ -29,18 +29,7 @@ export async function login(account: string, password: string, users: AuthUser[]
     throw new Error("账号或密码不正确");
   }
 
-  const session: UserSession = {
-    token: randomUUID(),
-    user: {
-      id: user.id,
-      name: user.name,
-      account: user.account,
-      role: user.role,
-      roleName: user.roleName,
-      staffId: user.staffId,
-      permissions: rolePermissions[user.role],
-    },
-  };
+  const session = buildSession(randomUUID(), user);
 
   sessions.set(session.token, session);
 
@@ -54,6 +43,28 @@ export async function login(account: string, password: string, users: AuthUser[]
 export function getSession(authorizationHeader: string | undefined): UserSession | undefined {
   const token = authorizationHeader?.replace(/^Bearer\s+/i, "");
   return token ? sessions.get(token) : undefined;
+}
+
+export function refreshSessionUser(token: string, user: AuthUser): UserSession {
+  const session = buildSession(token, user);
+  sessions.set(token, session);
+  return session;
+}
+
+export function buildSession(token: string, user: AuthUser): UserSession {
+  return {
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      account: user.account,
+      avatarUrl: user.avatarUrl,
+      role: user.role,
+      roleName: user.roleName,
+      staffId: user.staffId,
+      permissions: rolePermissions[user.role],
+    },
+  };
 }
 
 function isLegacySampleCredential(account: string, password: string) {

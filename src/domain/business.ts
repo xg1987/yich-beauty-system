@@ -128,6 +128,12 @@ export type RevokeStaffInviteInput = {
   revokedBy: string;
 };
 
+export type AccountProfileInput = {
+  userId: string;
+  name: string;
+  avatarUrl?: string;
+};
+
 export type CheckoutInput = {
   customerId: string;
   staffId: string;
@@ -1071,6 +1077,30 @@ export function updateStaffMember(data: AppData, input: StaffUpdateInput): AppDa
           }
         : staff,
     ),
+  };
+}
+
+export function updateAccountProfile(data: AppData, input: AccountProfileInput): AppData {
+  const user = data.authUsers.find((item) => item.id === input.userId);
+  if (!user) throw new Error("账号不存在");
+  const name = input.name.trim();
+  const avatarUrl = input.avatarUrl?.trim();
+  if (!name) throw new Error("请输入姓名");
+  if (avatarUrl && !avatarUrl.startsWith("data:image/")) throw new Error("头像格式不正确");
+  return {
+    ...data,
+    authUsers: data.authUsers.map((item) =>
+      item.id === input.userId
+        ? {
+            ...item,
+            name,
+            avatarUrl: avatarUrl || undefined,
+          }
+        : item,
+    ),
+    staff: user.staffId
+      ? data.staff.map((staff) => (staff.id === user.staffId ? { ...staff, name } : staff))
+      : data.staff,
   };
 }
 

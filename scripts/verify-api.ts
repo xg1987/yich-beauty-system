@@ -55,6 +55,14 @@ try {
     body: { account: "admin@test.local", password: "test-password" },
   });
   assert.equal(adminSession.user.roleName, "Admin", "admin login should return platform admin session");
+  const afterAccountProfile = await request<{ session: { user: { name: string; avatarUrl?: string } }; data: AppData }>(baseUrl, "/api/account-profile", {
+    method: "PATCH",
+    token: adminSession.token,
+    body: { name: "API 管理员", avatarUrl: "data:image/png;base64,AA==" },
+  });
+  assert.equal(afterAccountProfile.session.user.name, "API 管理员", "account profile API should update session name");
+  assert.equal(afterAccountProfile.session.user.avatarUrl, "data:image/png;base64,AA==", "account profile API should update session avatar");
+  assert.equal(afterAccountProfile.data.authUsers.find((user) => user.id === "u_superadmin")?.name, "API 管理员", "account profile API should persist user name");
   const invitedOwnerSession = await request<{ token: string; user: { roleName: string; account: string } }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
     body: {

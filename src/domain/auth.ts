@@ -23,6 +23,7 @@ export type UserSession = {
     id: string;
     name: string;
     account: string;
+    avatarUrl?: string;
     role: RoleKey;
     roleName: string;
     staffId?: string;

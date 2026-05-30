@@ -93,6 +93,23 @@ export function useApiData() {
     }
   };
 
+  const updateAccountProfile = async (body: { name: string; avatarUrl?: string }) => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      const result = await client.updateAccountProfile(body);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(result.session));
+      setSession(result.session);
+      setData(result.data);
+      return result;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "账号资料保存失败");
+      throw caught;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const actions = {
     addStaff: client.addStaff,
     updateStaff: client.updateStaff,
@@ -157,6 +174,7 @@ export function useApiData() {
     fetchPublicCustomerSignature: client.fetchPublicCustomerSignature,
     signPublicCustomerSignature: client.signPublicCustomerSignature,
     authenticate,
+    updateAccountProfile,
     logout,
     refreshData,
     runMutation,

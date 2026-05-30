@@ -4,6 +4,7 @@ import {
   Boxes,
   Building2,
   CalendarDays,
+  Camera,
   ChartNoAxesColumnIncreasing,
   ClipboardList,
   CreditCard,
@@ -64,7 +65,7 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
 ];
 
 export default function App() {
-  const { data, session, loading, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, logout, runMutation, actions } = useApiData();
+  const { data, session, loading, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, updateAccountProfile, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
@@ -127,6 +128,7 @@ export default function App() {
         logout={logout}
         actions={actions}
         runMutation={runMutation}
+        updateAccountProfile={updateAccountProfile}
       />
     );
   }
@@ -154,7 +156,7 @@ export default function App() {
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
             <button className="account-avatar-button" aria-label="账号中心" onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserRound size={18} />
+              <UserAvatar avatarUrl={session.user.avatarUrl} size={18} />
             </button>
             {notificationPanelOpen && (
               <NotificationPanel
@@ -170,6 +172,7 @@ export default function App() {
               <AccountMenu
                 session={session}
                 logout={logout}
+                updateProfile={updateAccountProfile}
                 openSettings={() => navigate("settings")}
               />
             )}
@@ -215,6 +218,7 @@ function PlatformAdminShell({
   logout,
   actions,
   runMutation,
+  updateAccountProfile,
 }: {
   data: AppData;
   session: UserSession;
@@ -222,10 +226,18 @@ function PlatformAdminShell({
   logout: () => void;
   actions: ApiActions;
   runMutation: RunMutation;
+  updateAccountProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
 }) {
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const activeWorkbar = workbarForView(activeView);
-  const openView = (nextView: ViewKey) => setActiveView(nextView);
+  const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
+  const openView = (nextView: ViewKey) => {
+    setActiveView(nextView);
+    setNotificationPanelOpen(false);
+    setAccountMenuOpen(false);
+  };
 
   return (
     <div className="app-shell theme-day platform-admin-shell">
@@ -237,9 +249,31 @@ function PlatformAdminShell({
           <div className="topbar-actions">
             {error && <span className="error-chip">{error}</span>}
             <span className="admin-role-pill"><ShieldCheck size={14} /> {session.user.roleName}</span>
-            <button className="icon-button" aria-label="退出登录" onClick={logout}>
-              <LogOut size={18} />
+            <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
+              <Bell size={18} />
+              {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
+            <button className="account-avatar-button" aria-label="账号中心" onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
+              <UserAvatar avatarUrl={session.user.avatarUrl} size={18} />
+            </button>
+            {notificationPanelOpen && (
+              <NotificationPanel
+                data={data}
+                session={session}
+                actions={actions}
+                runMutation={runMutation}
+                setView={openView}
+                onClose={() => setNotificationPanelOpen(false)}
+              />
+            )}
+            {accountMenuOpen && (
+              <AccountMenu
+                session={session}
+                logout={logout}
+                updateProfile={updateAccountProfile}
+                openSettings={() => openView("settings")}
+              />
+            )}
           </div>
         </header>
         {(activeView === "dashboard" || activeView === "settings") && (
@@ -443,21 +477,63 @@ function workbarForView(view: ViewKey): WorkbarKey {
 function AccountMenu({
   session,
   logout,
+  updateProfile,
   openSettings,
 }: {
   session: UserSession;
   logout: () => void;
+  updateProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
   openSettings: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [profileName, setProfileName] = useState(session.user.name);
+  const [avatarUrl, setAvatarUrl] = useState(session.user.avatarUrl ?? "");
+
+  useEffect(() => {
+    setProfileName(session.user.name);
+    setAvatarUrl(session.user.avatarUrl ?? "");
+  }, [session.user.name, session.user.avatarUrl]);
+
+  const saveProfile = (event: FormEvent) => {
+    event.preventDefault();
+    void updateProfile({ name: profileName, avatarUrl }).then(() => setEditing(false));
+  };
+
+  const uploadAvatar = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAvatarUrl(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(file);
+  };
+
   return (
     <aside className="account-menu" aria-label="账号菜单">
       <div className="account-menu-user">
-        <div className="account-menu-avatar"><UserRound size={22} /></div>
+        <div className="account-menu-avatar"><UserAvatar avatarUrl={avatarUrl} size={22} /></div>
         <div>
           <strong>{session.user.name}</strong>
           <span>{session.user.roleName}</span>
         </div>
       </div>
+      {editing && (
+        <form className="account-profile-form" onSubmit={saveProfile}>
+          <label>
+            显示名称
+            <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
+          </label>
+          <label className="avatar-upload-control">
+            <Camera size={16} />
+            <span>上传头像</span>
+            <input type="file" accept="image/*" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+          </label>
+          {avatarUrl && <button type="button" onClick={() => setAvatarUrl("")}>移除头像</button>}
+          <button type="submit">保存资料</button>
+        </form>
+      )}
+      <button type="button" onClick={() => setEditing((open) => !open)}>
+        <UserRound size={17} />
+        <span>个人资料</span>
+      </button>
       <button type="button" onClick={openSettings}>
         <Settings size={17} />
         <span>系统设置</span>
@@ -471,6 +547,11 @@ function AccountMenu({
       </div>
     </aside>
   );
+}
+
+function UserAvatar({ avatarUrl, size }: { avatarUrl?: string; size: number }) {
+  if (avatarUrl) return <img src={avatarUrl} alt="" />;
+  return <UserRound size={size} />;
 }
 
 function PublicStorePage({

@@ -46,6 +46,7 @@ import {
   previewFormalDataCleanup,
   updateTagDefinition,
   updateStaffMember,
+  updateAccountProfile,
   updateStoreProfile,
   updateMemberCardStatus,
 } from "../../src/domain/business";
@@ -57,7 +58,7 @@ import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
-import { getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
+import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
 import type { D1DatabaseBinding } from "../../src/cloudflare/d1Types";
 
 type Env = {
@@ -202,6 +203,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname === "/api/auth/me") {
       return sendJson(200, session);
+    }
+
+    if (context.request.method === "PATCH" && pathname === "/api/account-profile") {
+      const body = await readJson(context.request);
+      const updatedData = updateAccountProfile(await database.readData(), {
+        userId: session.user.id,
+        name: requiredString(body, "name"),
+        avatarUrl: optionalString(body, "avatarUrl"),
+      });
+      const nextData = addOperationLog(updatedData, {
+        userId: session.user.id,
+        action: "更新账号资料",
+        targetType: "authUser",
+        targetId: session.user.id,
+        summary: `${requiredString(body, "name")} 更新账号资料`,
+      });
+      await database.replaceData(nextData);
+      const updatedUser = nextData.authUsers.find((user) => user.id === session.user.id);
+      if (!updatedUser) throw new Error("账号不存在");
+      const nextSession = buildSession(session.token, updatedUser);
+      return sendJson(200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) });
     }
 
     if (context.request.method === "GET" && pathname === "/api/data") {

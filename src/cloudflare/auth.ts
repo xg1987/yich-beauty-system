@@ -58,13 +58,14 @@ async function readAuthUsers(db: D1DatabaseBinding) {
   return (result.results ?? []).map((row) => JSON.parse(row.payload_json) as AuthUser);
 }
 
-function buildSession(token: string, user: AuthUser): UserSession {
+export function buildSession(token: string, user: AuthUser): UserSession {
   return {
     token,
     user: {
       id: user.id,
       name: user.name,
       account: user.account,
+      avatarUrl: user.avatarUrl,
       role: user.role,
       roleName: user.roleName,
       staffId: user.staffId,

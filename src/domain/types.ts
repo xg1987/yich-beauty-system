@@ -51,6 +51,7 @@ export type AuthUser = {
   name: string;
   account: string;
   password: string;
+  avatarUrl?: string;
   role: UserRole;
   roleName: string;
   staffId?: string;

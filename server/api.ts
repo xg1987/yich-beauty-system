@@ -47,6 +47,7 @@ import {
   previewFormalDataCleanup,
   updateTagDefinition,
   updateStaffMember,
+  updateAccountProfile,
   updateStoreProfile,
   updateMemberCardStatus,
 } from "../src/domain/business";
@@ -57,7 +58,7 @@ import pkg from "../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../src/domain/auth";
 import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
-import { getSession, login } from "./auth";
+import { getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase } from "./database";
 
 type JsonBody = Record<string, unknown>;
@@ -210,6 +211,28 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "GET" && url.pathname === "/api/auth/me") {
         sendJson(response, 200, session);
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname === "/api/account-profile") {
+        const body = await readJson(request);
+        const updatedData = updateAccountProfile(database.readData(), {
+          userId: session.user.id,
+          name: requiredString(body, "name"),
+          avatarUrl: optionalString(body, "avatarUrl"),
+        });
+        const nextData = addOperationLog(updatedData, {
+          userId: session.user.id,
+          action: "更新账号资料",
+          targetType: "authUser",
+          targetId: session.user.id,
+          summary: `${requiredString(body, "name")} 更新账号资料`,
+        });
+        database.replaceData(nextData);
+        const updatedUser = nextData.authUsers.find((user) => user.id === session.user.id);
+        if (!updatedUser) throw new Error("账号不存在");
+        const nextSession = refreshSessionUser(session.token, updatedUser);
+        sendJson(response, 200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) });
         return;
       }
 

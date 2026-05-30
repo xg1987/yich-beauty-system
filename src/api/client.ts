@@ -44,6 +44,8 @@ export function createApiClient(getToken: () => string | undefined) {
     fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
     cleanupFormalData: (confirm: string) =>
       request<AppData>("/api/data-quality/cleanup", { method: "POST", body: { confirm }, token: getToken() }),
+    updateAccountProfile: (body: { name: string; avatarUrl?: string }) =>
+      request<{ session: UserSession; data: AppData }>("/api/account-profile", { method: "PATCH", body, token: getToken() }),
     markNotificationRead: (notificationId: string) =>
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
     markAllNotificationsRead: () =>
