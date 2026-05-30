@@ -73,6 +73,13 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
+const platformAdminItems: Array<{ view: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
+  { view: "dashboard", label: "总览", icon: LayoutDashboard },
+  { view: "settings", label: "账号", icon: UsersRound },
+  { view: "reports", label: "数据", icon: ChartNoAxesColumnIncreasing },
+  { view: "logs", label: "审计", icon: ClipboardList },
+];
+
 export default function App() {
   const { data, session, loading, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, updateAccountProfile, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
@@ -240,10 +247,9 @@ function PlatformAdminShell({
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const activeWorkbar = workbarForView(activeView);
   const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
   const openView = (nextView: ViewKey) => {
-    setActiveView(nextView);
+    setActiveView(platformAdminItems.some((item) => item.view === nextView) ? nextView : "dashboard");
     setNotificationPanelOpen(false);
     setAccountMenuOpen(false);
   };
@@ -285,24 +291,16 @@ function PlatformAdminShell({
             )}
           </div>
         </header>
-        {(activeView === "dashboard" || activeView === "settings") && (
-          <PlatformAdminView data={data} session={session} actions={actions} runMutation={runMutation} setView={openView} />
-        )}
-        {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />}
-        {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
-        {activeView === "logs" && <OperationLogs data={data} session={session} />}
+        {activeView === "dashboard" && <PlatformAdminView data={data} session={session} setView={openView} />}
+        {activeView === "settings" && <PlatformAccountAdminView data={data} />}
+        {activeView === "reports" && <PlatformDataReadOnlyView data={data} />}
+        {activeView === "logs" && <PlatformAuditReadOnlyView data={data} />}
       </main>
       <nav className="workbar" aria-label="主工作栏">
-        {workbarItems.map((item) => {
+        {platformAdminItems.map((item) => {
           const Icon = item.icon;
           return (
-            <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => openView(item.view)}>
+            <button key={item.view} className={activeView === item.view ? "active" : ""} onClick={() => openView(item.view)}>
               <Icon size={18} />
               <span>{item.label}</span>
             </button>
@@ -316,20 +314,16 @@ function PlatformAdminShell({
 function PlatformAdminView({
   data,
   session,
-  actions,
-  runMutation,
   setView,
 }: {
   data: AppData;
   session: UserSession;
-  actions: ApiActions;
-  runMutation: RunMutation;
   setView: (view: ViewKey) => void;
 }) {
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
-  const pendingAppointments = data.appointments.filter((appointment) => ["待确认", "已确认", "已到店"].includes(appointment.status)).length;
-  const pendingSignatures = (data.customerSignatures ?? []).filter((signature) => signature.status === "待签名").length;
-  const pendingApprovals = data.approvalRequests.filter((approval) => approval.status === "待审批").length;
+  const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
+  const activeAccounts = data.authUsers.filter((user) => user.status === "active").length;
+  const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
 
   const managementCards: Array<{
     title: string;
@@ -339,16 +333,10 @@ function PlatformAdminView({
     tone: "rose" | "violet" | "teal" | "amber";
     view: ViewKey;
   }> = [
-    { title: "老板邀请", desc: "固定邀请码开通门店老板账号", metric: "登录页使用", icon: LockKeyhole, tone: "violet", view: "settings" },
-    { title: "门店列表", desc: "查看已开通门店和老板账号", metric: `${data.storeProfiles.length} 家`, icon: Building2, tone: "teal", view: "settings" },
-    { title: "预约管理", desc: "查看预约、排班和到店确认", metric: `${pendingAppointments} 待处理`, icon: CalendarDays, tone: "rose", view: "appointments" },
-    { title: "开单收银", desc: "前台营业、支付记录和退款", metric: `${data.orders.length} 订单`, icon: CreditCard, tone: "amber", view: "pos" },
-    { title: "客户会员", desc: "客户档案、卡项、服务记录和签名", metric: `${data.customers.length} 客户`, icon: UsersRound, tone: "rose", view: "customers" },
-    { title: "客户签名", desc: "客户确认服务记录和消费内容", metric: `${pendingSignatures} 待签`, icon: ClipboardList, tone: "teal", view: "customers" },
-    { title: "库存管理", desc: "入库、盘点、预警和库存流水", metric: `${data.products.length} 商品`, icon: Boxes, tone: "amber", view: "inventory" },
-    { title: "审批中心", desc: "改价和退款审批", metric: `${pendingApprovals} 待审`, icon: ShieldCheck, tone: "violet", view: "approvals" },
-    { title: "报表分析", desc: "营收、提成、日结和经营概览", metric: money(data.orders.reduce((sum, order) => sum + order.paidAmount, 0)), icon: ChartNoAxesColumnIncreasing, tone: "teal", view: "reports" },
-    { title: "操作日志", desc: "查看关键操作和数据变化", metric: `${data.operationLogs.length} 条`, icon: ClipboardList, tone: "amber", view: "logs" },
+    { title: "账号管理", desc: "查看平台、老板和员工账号状态", metric: `${data.authUsers.length} 个账号`, icon: UsersRound, tone: "violet", view: "settings" },
+    { title: "门店账号", desc: "只读查看门店与老板绑定关系", metric: `${data.storeProfiles.length} 家门店`, icon: Building2, tone: "teal", view: "settings" },
+    { title: "数据查看", desc: "只读查看门店经营数据汇总", metric: money(totalRevenue), icon: ChartNoAxesColumnIncreasing, tone: "rose", view: "reports" },
+    { title: "审计日志", desc: "查看系统关键操作记录", metric: `${data.operationLogs.length} 条`, icon: ClipboardList, tone: "amber", view: "logs" },
   ];
 
   return (
@@ -367,28 +355,184 @@ function PlatformAdminView({
       <section className="page-hero">
         <div>
           <span className="eyebrow"><Building2 size={15} /> 平台 Admin</span>
-          <h1>门店老板邀请码</h1>
-          <p>Admin 提供固定老板邀请码，老板通过登录页的邀请码入口注册门店账号。</p>
+          <h1>账号管理与数据查看</h1>
+          <p>Admin 只负责平台账号、门店状态、权限边界和数据巡检，不录入客户资料，不处理预约、开单和产品库存。</p>
           <div className="admin-owner-code">
-            <span>固定邀请码</span>
+            <span>系统自动邀请码</span>
             <strong>{DEFAULT_OWNER_INVITE_CODE}</strong>
           </div>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
-          <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="通过邀请开通" />
+          <StatCard title="启用账号" value={`${activeAccounts} 个`} hint="平台账号总览" />
+          <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="门店负责人" />
+          <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店端成员" />
         </div>
       </section>
 
       <section className="admin-module-section">
         <div className="admin-section-title">
-          <span>快捷入口</span>
+          <span>Admin 入口</span>
         </div>
         <div className="admin-module-grid">
           {managementCards.map((item) => (
             <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view)} />
           ))}
         </div>
+      </section>
+    </div>
+  );
+}
+
+function PlatformAccountAdminView({ data }: { data: AppData }) {
+  const adminAccounts = data.authUsers.filter((user) => user.role === "superadmin");
+  const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
+  const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
+  const storeRows = data.storeProfiles.map((store) => {
+    const ownerStaff = data.staff.find((staff) => staff.role === "老板");
+    const ownerUser = ownerStaff ? data.authUsers.find((user) => user.staffId === ownerStaff.id) : ownerAccounts[0];
+    return [
+      store.name,
+      ownerUser?.name ?? "未绑定",
+      ownerUser?.account ?? "未绑定",
+      store.phone,
+      shortDate(store.createdAt),
+    ];
+  });
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><UsersRound size={15} /> 平台账号</span>
+          <h1>账号管理</h1>
+          <p>Admin 只查看和管理账号边界；客户资料、服务记录和开单数据由门店端的店长、前台和员工维护。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="Admin" value={`${adminAccounts.length} 个`} hint="平台管理员" />
+          <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="门店负责人" />
+          <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店工作台成员" />
+        </div>
+      </section>
+
+      <section className="dashboard-columns">
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<UsersRound size={18} />} title="账号列表" action={`${data.authUsers.length} 个账号`} />
+          <DataTable
+            columns={["姓名", "账号", "角色", "状态", "创建时间"]}
+            rows={data.authUsers.map((user) => [
+              user.name,
+              user.account,
+              user.roleName,
+              <Badge key={`${user.id}-status`} text={user.status === "active" ? "启用" : "停用"} tone={user.status === "active" ? "ok" : "warn"} />,
+              shortDate(user.createdAt),
+            ])}
+          />
+        </div>
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<Building2 size={18} />} title="门店账号" action={`${data.storeProfiles.length} 家门店`} />
+          <DataTable
+            columns={["门店", "老板", "老板账号", "门店电话", "开通时间"]}
+            rows={storeRows}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PlatformDataReadOnlyView({ data }: { data: AppData }) {
+  const summary = reportSummary(data);
+  const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const paidOrders = data.orders.filter((order) => order.status !== "已退款").length;
+  const activeMemberCards = data.memberCards.filter((card) => card.status === "正常").length;
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><ChartNoAxesColumnIncreasing size={15} /> 只读数据</span>
+          <h1>平台数据查看</h1>
+          <p>这里只做数据汇总和巡检，不提供新增客户、预约、开单、产品、库存等门店业务表单。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
+          <StatCard title="客户数" value={`${data.customers.length} 人`} hint="门店端维护" />
+          <StatCard title="实收金额" value={money(totalRevenue)} hint={`${paidOrders} 个收银订单`} />
+        </div>
+      </section>
+
+      <section className="action-strip" aria-label="平台数据指标">
+        <button type="button">
+          <UsersRound size={18} />
+          <strong>{data.authUsers.length}</strong>
+          <span>账号总数</span>
+        </button>
+        <button type="button">
+          <CalendarDays size={18} />
+          <strong>{data.appointments.length}</strong>
+          <span>预约记录</span>
+        </button>
+        <button type="button">
+          <CreditCard size={18} />
+          <strong>{data.orders.length}</strong>
+          <span>订单记录</span>
+        </button>
+        <button type="button">
+          <BadgeCent size={18} />
+          <strong>{activeMemberCards}</strong>
+          <span>有效会员卡</span>
+        </button>
+      </section>
+
+      <section className="panel dashboard-panel">
+        <PanelTitle icon={<Database size={18} />} title="数据巡检" action="只读汇总" />
+        <DataTable
+          columns={["指标", "结果", "说明"]}
+          rows={[
+            ["实收金额", money(summary.revenue), "门店端收银记录汇总"],
+            ["退款金额", money(summary.refundAmount), "门店端退款记录汇总"],
+            ["会员储值余额", money(summary.cardBalance), "客户资产余额"],
+            ["员工提成", money(summary.commission), "门店端员工提成汇总"],
+            ["低库存项", `${summary.lowStockCount} 项`, "库存模块预警数量"],
+          ]}
+        />
+      </section>
+    </div>
+  );
+}
+
+function PlatformAuditReadOnlyView({ data }: { data: AppData }) {
+  const logs = data.operationLogs
+    .slice()
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+    .slice(0, 120);
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><ClipboardList size={15} /> 系统审计</span>
+          <h1>审计日志</h1>
+          <p>记录平台和门店关键动作，Admin 用于追踪风险，不在这里直接修改客户或订单数据。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="日志数" value={`${data.operationLogs.length} 条`} hint="关键操作记录" />
+          <StatCard title="审批记录" value={`${data.approvalRequests.length} 条`} hint="改价和退款轨迹" />
+        </div>
+      </section>
+
+      <section className="panel dashboard-panel">
+        <PanelTitle icon={<ClipboardList size={18} />} title="最近操作" action="只读查看" />
+        <DataTable
+          columns={["时间", "操作人", "动作", "对象类型", "摘要"]}
+          rows={logs.map((log) => [
+            shortDate(log.createdAt),
+            data.authUsers.find((user) => user.id === log.userId)?.name ?? "系统",
+            log.action,
+            log.targetType,
+            log.summary,
+          ])}
+        />
       </section>
     </div>
   );
@@ -2934,7 +3078,7 @@ function AdminCenterCard({
   item,
   onClick,
 }: {
-  item: { title: string; desc: string; icon: typeof LayoutDashboard; tone: "rose" | "violet" | "teal" | "amber" };
+  item: { title: string; desc: string; metric?: string; icon: typeof LayoutDashboard; tone: "rose" | "violet" | "teal" | "amber" };
   onClick: () => void;
 }) {
   const Icon = item.icon;
@@ -2943,6 +3087,7 @@ function AdminCenterCard({
       <span className={`admin-module-icon ${item.tone}`}><Icon size={22} /></span>
       <strong>{item.title}</strong>
       <small>{item.desc}</small>
+      {item.metric && <em>{item.metric}</em>}
     </button>
   );
 }

@@ -4686,6 +4686,10 @@ textarea,
   grid-template-columns: repeat(3, minmax(130px, 1fr));
 }
 
+.platform-admin-page .admin-module-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .platform-admin-page .content-grid {
   grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
 }
@@ -4732,6 +4736,10 @@ textarea,
   }
 
   .platform-admin-page .page-hero-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .platform-admin-page .admin-module-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
