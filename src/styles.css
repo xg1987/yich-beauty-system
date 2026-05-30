@@ -4554,3 +4554,98 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+.platform-admin-shell {
+  display: block;
+  min-height: 100vh;
+  padding: 0;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(111, 66, 193, 0.14), transparent 28%),
+    linear-gradient(135deg, #f8f3ff 0%, #fffaf7 100%);
+  color: var(--yich-ink);
+}
+
+.platform-admin-shell .platform-admin-main {
+  width: min(1320px, calc(100% - 48px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 22px 0 42px;
+}
+
+.platform-admin-shell .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 8px 0 18px;
+  border-bottom: 0;
+  background: linear-gradient(180deg, rgba(248, 243, 255, 0.96), rgba(248, 243, 255, 0));
+}
+
+.platform-admin-shell .topbar-title {
+  position: static;
+  width: auto;
+  transform: none;
+  text-align: left;
+}
+
+.platform-admin-shell .topbar-title p {
+  margin: 0;
+  color: var(--yich-purple-deep);
+  font-weight: 900;
+}
+
+.platform-admin-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.platform-admin-page .admin-profile-hero,
+.platform-admin-page .page-hero,
+.platform-admin-page .content-grid {
+  width: 100%;
+}
+
+.platform-admin-page .page-hero {
+  grid-template-columns: minmax(320px, 0.86fr) minmax(560px, 1.14fr);
+}
+
+.platform-admin-page .page-hero h1 {
+  margin: 0;
+  color: #fffdfa;
+  font-size: clamp(30px, 3vw, 46px);
+  line-height: 1.16;
+}
+
+.platform-admin-page .page-hero-stats {
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+}
+
+.platform-admin-page .content-grid {
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+}
+
+.platform-admin-page .stat-card {
+  min-width: 0;
+  min-height: 116px;
+}
+
+@media (max-width: 900px) {
+  .platform-admin-shell .platform-admin-main {
+    width: min(100% - 28px, 720px);
+    padding-top: 16px;
+  }
+
+  .platform-admin-page .page-hero,
+  .platform-admin-page .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-admin-page .page-hero-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
