@@ -5099,6 +5099,15 @@ textarea,
   box-shadow: 0 16px 34px rgba(68, 49, 45, 0.08);
 }
 
+.settings-version {
+  width: fit-content;
+  margin: 58px auto 0;
+  color: rgba(71, 54, 89, 0.46);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
 .settings-avatar-editor {
   width: fit-content;
   display: grid;

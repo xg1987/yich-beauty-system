@@ -45,6 +45,7 @@ import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
 import CustomerSignaturePage from "./pages/public/CustomerSignaturePage";
 import StorefrontPage from "./pages/public/StorefrontPage";
+import packageJson from "../package.json";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admin";
 type ThemeMode = "day" | "night";
@@ -53,6 +54,7 @@ type NavigateOptions = { fromAdmin?: boolean };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 const THEME_KEY = "yich-system-theme";
+const APP_VERSION = packageJson.version;
 const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
@@ -3518,6 +3520,8 @@ function SettingsView({
           </div>
         </form>
       </div>
+
+      <div className="settings-version">软件版本 v{APP_VERSION}</div>
     </div>
   );
 }
