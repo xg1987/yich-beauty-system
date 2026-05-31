@@ -5102,10 +5102,24 @@ textarea,
 .settings-version {
   width: fit-content;
   margin: 58px auto 0;
-  color: rgba(71, 54, 89, 0.46);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: rgba(71, 54, 89, 0.34);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0;
+  text-align: center;
+}
+
+.settings-version strong {
+  color: rgba(61, 38, 101, 0.62);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.settings-version span {
+  color: rgba(71, 54, 89, 0.28);
 }
 
 .settings-avatar-editor {

@@ -55,6 +55,7 @@ type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
+const APP_BUILD_DATE = "2026-05-31";
 const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
@@ -3521,7 +3522,10 @@ function SettingsView({
         </form>
       </div>
 
-      <div className="settings-version">软件版本 v{APP_VERSION}</div>
+      <footer className="settings-version" aria-label="软件版本">
+        <strong>一宸 YiCh 美业门店系统 · v{APP_VERSION}</strong>
+        <span>© 2026 一宸 YiCh · 构建于 {APP_BUILD_DATE}</span>
+      </footer>
     </div>
   );
 }
