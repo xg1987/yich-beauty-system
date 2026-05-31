@@ -214,8 +214,10 @@ export default function App() {
             {activeView === "inventory" && (isPlatformAdmin ? <PlatformInventoryReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Inventory data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "reports" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Reports data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Approvals data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "logs" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
+            {activeView === "logs" && (isPlatformAdmin ? <PlatformAuditReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} setView={navigate} showBack={showAdminDetailBack} />}
+            {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />}
+            {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />}
             {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
           </>
         )}
@@ -257,15 +259,19 @@ function ManagementCenter({
   };
 
   const managementCards = [
-    { title: "预约管理", desc: "到店预约 / 改约取消", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "开单收银", desc: "服务开单 / 收款退款", icon: CreditCard, tone: "rose", view: "pos" },
+    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
+    { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "violet", view: "permissions" },
+    { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
+    { title: "操作审计", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
+    { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
+    { title: "预约管理", desc: "预约记录 / 到店状态", icon: CalendarDays, tone: "violet", view: "appointments" },
+    { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
-    { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "库存管理", desc: "库存预警 / 采购盘点", icon: Boxes, tone: "teal", view: "inventory" },
+    { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "库存管理", desc: "库存预警 / 出入库记录", icon: Boxes, tone: "teal", view: "inventory" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "审批中心", desc: "退款改价 / 关键审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
-    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
+    { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
   ] satisfies Array<{
     title: string;
     desc: string;
@@ -760,6 +766,147 @@ function PlatformAccountAdminView({ data, setView, showBack }: { data: AppData; 
   );
 }
 
+function PlatformPermissionReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
+  const pendingStaffInvites = data.staffInvites.filter((item) => item.status === "待加入").length;
+  const pendingOwnerInvites = data.storeOwnerInvites.filter((item) => item.status === "待加入").length;
+  const roleRows = [
+    ["系统管理员", "账号管理、权限审批、平台数据、操作审计、服务器用量", "平台级查看"],
+    ["老板", "门店经营、员工、库存、报表、审批", "门店级管理"],
+    ["店长", "预约、收银、客户、库存、提成、报表", "门店级执行"],
+    ["前台", "预约、收银、客户登记", "到店业务"],
+    ["美容师", "预约、服务开单、客户记录、个人提成", "本人服务"],
+    ["财务", "报表、日结、提成结算、审批", "财务处理"],
+  ];
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      {showBack && <PlatformPageTitle title="权限审批" onBack={() => setView("settings")} />}
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><ShieldCheck size={15} /> 权限审批</span>
+          <h1>权限与授权记录</h1>
+          <p>角色边界、账号授权、邀请码和关键审批状态。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="待审批" value={`${pendingApprovals} 单`} hint="关键审批" />
+          <StatCard title="员工邀请码" value={`${pendingStaffInvites} 个`} hint="待加入" />
+          <StatCard title="门店邀请码" value={`${pendingOwnerInvites} 个`} hint="待加入" />
+        </div>
+      </section>
+
+      <section className="dashboard-columns">
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<ShieldCheck size={18} />} title="角色权限" action="权限边界" />
+          <DataTable columns={["角色", "可见模块", "范围"]} rows={roleRows} />
+        </div>
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<ClipboardList size={18} />} title="关键审批" action={`${data.approvalRequests.length} 条`} />
+          <DataTable
+            columns={["类型", "目标", "金额", "申请人", "状态", "申请时间"]}
+            rows={data.approvalRequests.map((request) => [
+              request.type,
+              request.targetId,
+              money(request.amount),
+              data.authUsers.find((user) => user.id === request.requestedBy)?.name ?? "系统",
+              <Badge key={`${request.id}-permission-status`} text={request.status} tone={request.status === "已通过" ? "ok" : request.status === "已拒绝" ? "warn" : undefined} />,
+              shortDate(request.createdAt),
+            ])}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  const logs = [...(data.operationLogs ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const actionCount = new Set(logs.map((item) => item.action)).size;
+  const userCount = new Set(logs.map((item) => item.userId)).size;
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      {showBack && <PlatformPageTitle title="操作审计" onBack={() => setView("settings")} />}
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><ClipboardList size={15} /> 操作审计</span>
+          <h1>操作日志</h1>
+          <p>登录记录、关键动作、对象类型和操作摘要。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="日志数" value={`${logs.length} 条`} hint="操作记录" />
+          <StatCard title="动作类型" value={`${actionCount} 类`} hint="操作分类" />
+          <StatCard title="操作账号" value={`${userCount} 个`} hint="涉及账号" />
+        </div>
+      </section>
+
+      <section className="panel dashboard-panel">
+        <PanelTitle icon={<ClipboardList size={18} />} title="最近操作" action={`${logs.length} 条`} />
+        <DataTable
+          columns={["时间", "操作人", "动作", "对象类型", "摘要"]}
+          rows={logs.slice(0, 120).map((log) => [
+            shortDate(log.createdAt),
+            data.authUsers.find((user) => user.id === log.userId)?.name ?? "系统",
+            log.action,
+            log.targetType,
+            log.summary,
+          ])}
+        />
+      </section>
+    </div>
+  );
+}
+
+function PlatformUsageReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  const d1Records = [
+    data.storeProfiles,
+    data.authUsers,
+    data.staff,
+    data.customers,
+    data.services,
+    data.products,
+    data.appointments,
+    data.orders,
+    data.memberCards,
+    data.inventoryLogs,
+    data.operationLogs,
+    data.approvalRequests,
+  ].reduce((sum, list) => sum + list.length, 0);
+  const avatarObjects = data.authUsers.filter((user) => user.avatarUrl).length;
+  const writeEvents = data.operationLogs.length;
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      {showBack && <PlatformPageTitle title="服务器用量" onBack={() => setView("settings")} />}
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><Database size={15} /> 服务器用量</span>
+          <h1>资源用量</h1>
+          <p>D1 数据记录、R2 对象、Worker 事件和 Pages 版本。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="D1 记录" value={`${d1Records} 条`} hint="核心数据表" />
+          <StatCard title="R2 对象" value={`${avatarObjects} 个`} hint="头像资源" />
+          <StatCard title="Worker 事件" value={`${writeEvents} 条`} hint="操作记录" />
+        </div>
+      </section>
+
+      <section className="panel dashboard-panel">
+        <PanelTitle icon={<Database size={18} />} title="资源明细" action={`v${APP_VERSION}`} />
+        <DataTable
+          columns={["资源", "当前用量", "说明"]}
+          rows={[
+            ["D1 SQL 数据库", `${d1Records} 条记录`, "门店、账号、客户、订单、库存和审计数据"],
+            ["R2 对象存储", `${avatarObjects} 个对象`, "账号头像和后续文件资源"],
+            ["Worker 业务事件", `${writeEvents} 条`, "服务端写入和操作记录"],
+            ["Cloudflare Pages", `v${APP_VERSION}`, "当前线上构建版本"],
+          ]}
+        />
+      </section>
+    </div>
+  );
+}
+
 function PlatformDataReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
   const summary = reportSummary(data);
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
@@ -826,7 +973,7 @@ function workbarForView(view: ViewKey): WorkbarKey {
   if (view === "appointments") return "appointments";
   if (view === "pos") return "cashier";
   if (view === "customers") return "customers";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "usage"].includes(view)) return "admin";
   return "workbench";
 }
 

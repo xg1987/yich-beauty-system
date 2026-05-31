@@ -10,6 +10,8 @@ export type ViewKey =
   | "approvals"
   | "logs"
   | "accounts"
+  | "permissions"
+  | "usage"
   | "settings";
 
 export type UserRole = "superadmin" | "owner" | "manager" | "frontdesk" | "therapist" | "finance";
