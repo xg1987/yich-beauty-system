@@ -18,6 +18,7 @@ import {
   Megaphone,
   MessageCircle,
   PackagePlus,
+  RefreshCw,
   Save,
   Settings,
   Share2,
@@ -858,50 +859,121 @@ function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData;
 }
 
 function PlatformUsageReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
-  const d1Records = [
-    data.storeProfiles,
-    data.authUsers,
-    data.staff,
-    data.customers,
-    data.services,
-    data.products,
-    data.appointments,
-    data.orders,
-    data.memberCards,
-    data.inventoryLogs,
-    data.operationLogs,
-    data.approvalRequests,
-  ].reduce((sum, list) => sum + list.length, 0);
+  const d1Tables = [
+    ["storeProfiles", data.storeProfiles.length],
+    ["authUsers", data.authUsers.length],
+    ["staff", data.staff.length],
+    ["customers", data.customers.length],
+    ["services", data.services.length],
+    ["products", data.products.length],
+    ["appointments", data.appointments.length],
+    ["orders", data.orders.length],
+    ["memberCards", data.memberCards.length],
+    ["inventoryLogs", data.inventoryLogs.length],
+    ["operationLogs", data.operationLogs.length],
+    ["approvalRequests", data.approvalRequests.length],
+  ] as const;
+  const d1Records = d1Tables.reduce((sum, [, count]) => sum + count, 0);
   const avatarObjects = data.authUsers.filter((user) => user.avatarUrl).length;
   const writeEvents = data.operationLogs.length;
+  const r2Groups = [
+    ["avatars/", avatarObjects, "账号头像"],
+    ["customers/", 0, "客户资料附件"],
+    ["products/", 0, "项目商品图片"],
+    ["receipts/", 0, "收银票据附件"],
+  ] as const;
+  const d1TableLabels: Record<string, string> = {
+    storeProfiles: "门店资料",
+    authUsers: "登录账号",
+    staff: "员工档案",
+    customers: "客户档案",
+    services: "服务项目",
+    products: "商品资料",
+    appointments: "预约记录",
+    orders: "收银订单",
+    memberCards: "会员资产",
+    inventoryLogs: "库存流水",
+    operationLogs: "操作日志",
+    approvalRequests: "审批记录",
+  };
+  const updatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
 
   return (
-    <div className="admin-center-page platform-admin-page">
-      {showBack && <PlatformPageTitle title="服务器用量" onBack={() => setView("settings")} />}
-      <section className="page-hero platform-admin-readonly-hero">
-        <div>
-          <span className="eyebrow"><Database size={15} /> 服务器用量</span>
-          <h1>资源用量</h1>
-          <p>D1 数据记录、R2 对象、Worker 事件和 Pages 版本。</p>
+    <div className="admin-center-page platform-admin-page usage-monitor-page">
+      <header className="usage-monitor-header">
+        <div className="usage-monitor-title">
+          {showBack && (
+            <button type="button" aria-label="返回管理中心" onClick={() => setView("settings")}>
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <div>
+            <h1>服务器用量监控</h1>
+            <p>Cloudflare 资源统计 · {updatedAt}</p>
+          </div>
         </div>
-        <div className="page-hero-stats">
-          <StatCard title="D1 记录" value={`${d1Records} 条`} hint="核心数据表" />
-          <StatCard title="R2 对象" value={`${avatarObjects} 个`} hint="头像资源" />
-          <StatCard title="Worker 事件" value={`${writeEvents} 条`} hint="操作记录" />
+        <button className="usage-refresh-button" type="button" onClick={() => window.location.reload()}>
+          <RefreshCw size={16} />
+        </button>
+      </header>
+
+      <section className="usage-card">
+        <PanelTitle icon={<Database size={18} />} title="R2 图片存储" action="对象存储" />
+        <div className="usage-metrics">
+          <div>
+            <strong>{avatarObjects}</strong>
+            <span>已记录对象</span>
+          </div>
+          <div>
+            <strong>10 GB</strong>
+            <span>免费额度</span>
+          </div>
+          <div>
+            <strong>待接入</strong>
+            <span>容量统计</span>
+          </div>
         </div>
+
+        <div className="usage-soft-meter" aria-label="R2 存储状态">
+          <div>
+            <span>R2 存储状态</span>
+            <strong>待接入容量指标</strong>
+          </div>
+        </div>
+
+        <DataTable
+          columns={["目录", "对象数", "用途"]}
+          rows={r2Groups.map(([folder, count, label]) => [folder, `${count} 个`, label])}
+        />
       </section>
 
-      <section className="panel dashboard-panel">
-        <PanelTitle icon={<Database size={18} />} title="资源明细" action={`v${APP_VERSION}`} />
+      <section className="usage-card">
+        <PanelTitle icon={<Database size={18} />} title="D1 数据库" action="数据表" />
+        <div className="usage-metrics">
+          <div>
+            <strong>{d1Records}</strong>
+            <span>总记录数</span>
+          </div>
+          <div>
+            <strong>{d1Tables.length}</strong>
+            <span>监控表数</span>
+          </div>
+          <div>
+            <strong>5 GB</strong>
+            <span>免费额度</span>
+          </div>
+        </div>
+
         <DataTable
-          columns={["资源", "当前用量", "说明"]}
-          rows={[
-            ["D1 SQL 数据库", `${d1Records} 条记录`, "门店、账号、客户、订单、库存和审计数据"],
-            ["R2 对象存储", `${avatarObjects} 个对象`, "账号头像和后续文件资源"],
-            ["Worker 业务事件", `${writeEvents} 条`, "服务端写入和操作记录"],
-            ["Cloudflare Pages", `v${APP_VERSION}`, "当前线上构建版本"],
-          ]}
+          columns={["数据表", "记录数", "说明"]}
+          rows={d1Tables.map(([table, count]) => [table, `${count} 行`, d1TableLabels[table]])}
         />
+      </section>
+
+      <section className="usage-warning-card">
+        <strong>Worker 请求指标</strong>
+        <span>请求量、错误率和响应耗时以 Cloudflare Workers Metrics 为准。</span>
+        <em>当前系统记录操作事件 {writeEvents} 条。</em>
       </section>
     </div>
   );
