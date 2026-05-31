@@ -56,7 +56,7 @@ import { hashPassword } from "../src/lib/password";
 // Read version from package.json (Node.js ESM)
 import pkg from "../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../src/domain/auth";
-import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../src/domain/types";
+import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, TagScope, UserRole } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
 import { getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase } from "./database";
@@ -244,6 +244,12 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "GET" && url.pathname === "/api/data") {
         requirePermission(session, "dashboard:view");
         sendJson(response, 200, scopeDataForSession(database.readData(), session));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/usage/r2") {
+        requirePermission(session, "settings:view");
+        sendJson(response, 200, localR2UsageUnavailable());
         return;
       }
 
@@ -1362,6 +1368,19 @@ function notificationVisibleToSession(notification: AppData["notifications"][num
   if (!notification.audienceRoles.includes(session.user.role)) return false;
   if (session.user.role === "therapist" && notification.staffId) return notification.staffId === session.user.staffId;
   return true;
+}
+
+function localR2UsageUnavailable(): R2UsageSnapshot {
+  return {
+    available: false,
+    source: "r2-binding",
+    objectCount: 0,
+    totalBytes: 0,
+    limitBytes: 10 * 1024 * 1024 * 1024,
+    prefixes: [],
+    updatedAt: nowIso(),
+    message: "本地开发服务未绑定 R2 Bucket，无法读取真实容量。",
+  };
 }
 
 async function readJson(request: IncomingMessage): Promise<JsonBody> {

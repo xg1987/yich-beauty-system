@@ -55,7 +55,7 @@ import { hashPassword } from "../../src/lib/password";
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
+import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
@@ -63,9 +63,16 @@ import type { D1DatabaseBinding } from "../../src/cloudflare/d1Types";
 
 type Env = {
   DB: D1DatabaseBinding;
+  R2_BUCKET?: R2BucketLike;
+  YICH_R2?: R2BucketLike;
+  ASSETS_BUCKET?: R2BucketLike;
 };
 
 type JsonBody = Record<string, unknown>;
+type R2ObjectLike = { key: string; size?: number };
+type R2BucketLike = {
+  list: (options?: { cursor?: string; limit?: number }) => Promise<{ objects: R2ObjectLike[]; truncated?: boolean; cursor?: string }>;
+};
 type PagesFunction<Bindings> = (context: { request: Request; env: Bindings }) => Response | Promise<Response>;
 
 export const onRequest: PagesFunction<Env> = async (context) => {
@@ -233,6 +240,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
       return sendJson(200, scopeDataForSession(await database.readData(), session));
+    }
+
+    if (context.request.method === "GET" && pathname === "/api/usage/r2") {
+      requirePermission(session, "settings:view");
+      return sendJson(200, await readR2Usage(context.env));
     }
 
     if (context.request.method === "GET" && pathname === "/api/data-quality") {
@@ -1305,6 +1317,54 @@ function notificationVisibleToSession(notification: AppData["notifications"][num
   if (!notification.audienceRoles.includes(session.user.role)) return false;
   if (session.user.role === "therapist" && notification.staffId) return notification.staffId === session.user.staffId;
   return true;
+}
+
+async function readR2Usage(env: Env): Promise<R2UsageSnapshot> {
+  const bucket = env.R2_BUCKET ?? env.YICH_R2 ?? env.ASSETS_BUCKET;
+  const limitBytes = 10 * 1024 * 1024 * 1024;
+  if (!bucket) {
+    return {
+      available: false,
+      source: "r2-binding",
+      objectCount: 0,
+      totalBytes: 0,
+      limitBytes,
+      prefixes: [],
+      updatedAt: nowIso(),
+      message: "当前项目未绑定 R2 Bucket，无法读取真实容量。",
+    };
+  }
+
+  const prefixMap = new Map<string, { objectCount: number; bytes: number }>();
+  let cursor: string | undefined;
+  let objectCount = 0;
+  let totalBytes = 0;
+
+  do {
+    const result = await bucket.list({ cursor, limit: 1000 });
+    for (const object of result.objects) {
+      const bytes = typeof object.size === "number" ? object.size : 0;
+      const prefix = object.key.includes("/") ? `${object.key.split("/")[0]}/` : "(根目录)";
+      const current = prefixMap.get(prefix) ?? { objectCount: 0, bytes: 0 };
+      current.objectCount += 1;
+      current.bytes += bytes;
+      prefixMap.set(prefix, current);
+      objectCount += 1;
+      totalBytes += bytes;
+    }
+    cursor = result.truncated ? result.cursor : undefined;
+  } while (cursor);
+
+  return {
+    available: true,
+    source: "r2-binding",
+    bucketName: "R2_BUCKET",
+    objectCount,
+    totalBytes,
+    limitBytes,
+    prefixes: Array.from(prefixMap, ([prefix, value]) => ({ prefix, ...value })).sort((a, b) => b.bytes - a.bytes),
+    updatedAt: nowIso(),
+  };
 }
 
 async function readJson(request: Request): Promise<JsonBody> {

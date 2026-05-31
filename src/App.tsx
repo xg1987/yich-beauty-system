@@ -40,7 +40,7 @@ import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, Product, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
@@ -218,7 +218,7 @@ export default function App() {
             {activeView === "logs" && (isPlatformAdmin ? <PlatformAuditReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} setView={navigate} showBack={showAdminDetailBack} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />}
-            {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />}
+            {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} />}
             {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
           </>
         )}
@@ -858,7 +858,49 @@ function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData;
   );
 }
 
-function PlatformUsageReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+function PlatformUsageReadOnlyView({
+  data,
+  setView,
+  showBack,
+  fetchR2Usage,
+}: {
+  data: AppData;
+  setView: (view: ViewKey) => void;
+  showBack?: boolean;
+  fetchR2Usage: () => Promise<R2UsageSnapshot>;
+}) {
+  const [r2Usage, setR2Usage] = useState<R2UsageSnapshot | undefined>();
+  const [r2Loading, setR2Loading] = useState(true);
+  const [r2Error, setR2Error] = useState("");
+  const formatBytes = (bytes: number) => {
+    if (bytes <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"] as const;
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+    const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${size.toFixed(precision)} ${units[unitIndex]}`;
+  };
+  const loadR2Usage = async () => {
+    setR2Loading(true);
+    setR2Error("");
+    try {
+      setR2Usage(await fetchR2Usage());
+    } catch (caught) {
+      setR2Usage(undefined);
+      setR2Error(caught instanceof Error ? caught.message : "R2 真实容量读取失败");
+    } finally {
+      setR2Loading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadR2Usage();
+  }, []);
+
   const d1Tables = [
     ["storeProfiles", data.storeProfiles.length],
     ["authUsers", data.authUsers.length],
@@ -874,14 +916,15 @@ function PlatformUsageReadOnlyView({ data, setView, showBack }: { data: AppData;
     ["approvalRequests", data.approvalRequests.length],
   ] as const;
   const d1Records = d1Tables.reduce((sum, [, count]) => sum + count, 0);
-  const avatarObjects = data.authUsers.filter((user) => user.avatarUrl).length;
+  const r2LimitBytes = r2Usage?.limitBytes ?? 10 * 1024 * 1024 * 1024;
+  const r2UsedBytes = r2Usage?.totalBytes ?? 0;
+  const r2ObjectCount = r2Usage?.objectCount ?? 0;
+  const r2UsagePercent = r2LimitBytes > 0 ? Math.min(100, (r2UsedBytes / r2LimitBytes) * 100) : 0;
+  const r2UsageLabel = r2Usage?.available ? (r2UsagePercent > 0 && r2UsagePercent < 0.1 ? "<0.1%" : `${r2UsagePercent.toFixed(1)}%`) : "未绑定";
   const writeEvents = data.operationLogs.length;
-  const r2Groups = [
-    ["avatars/", avatarObjects, "账号头像"],
-    ["customers/", 0, "客户资料附件"],
-    ["products/", 0, "项目商品图片"],
-    ["receipts/", 0, "收银票据附件"],
-  ] as const;
+  const r2Rows = r2Usage?.available
+    ? r2Usage.prefixes.map((item) => [item.prefix, `${item.objectCount} 个`, formatBytes(item.bytes)])
+    : [[r2Usage?.message ?? r2Error ?? "R2 Bucket 未绑定，无法读取真实容量", "-", "-"]];
   const d1TableLabels: Record<string, string> = {
     storeProfiles: "门店资料",
     authUsers: "登录账号",
@@ -912,7 +955,7 @@ function PlatformUsageReadOnlyView({ data, setView, showBack }: { data: AppData;
             <p>Cloudflare 资源统计 · {updatedAt}</p>
           </div>
         </div>
-        <button className="usage-refresh-button" type="button" onClick={() => window.location.reload()}>
+        <button className="usage-refresh-button" type="button" onClick={() => void loadR2Usage()}>
           <RefreshCw size={16} />
         </button>
       </header>
@@ -921,29 +964,29 @@ function PlatformUsageReadOnlyView({ data, setView, showBack }: { data: AppData;
         <PanelTitle icon={<Database size={18} />} title="R2 图片存储" action="对象存储" />
         <div className="usage-metrics">
           <div>
-            <strong>{avatarObjects}</strong>
-            <span>已记录对象</span>
+            <strong>{r2Loading ? "读取中" : r2ObjectCount}</strong>
+            <span>对象总数</span>
           </div>
           <div>
-            <strong>10 GB</strong>
+            <strong>{r2Loading ? "读取中" : formatBytes(r2UsedBytes)}</strong>
+            <span>真实已用容量</span>
+          </div>
+          <div>
+            <strong>{formatBytes(r2LimitBytes)}</strong>
             <span>免费额度</span>
-          </div>
-          <div>
-            <strong>待接入</strong>
-            <span>容量统计</span>
           </div>
         </div>
 
         <div className="usage-soft-meter" aria-label="R2 存储状态">
           <div>
             <span>R2 存储状态</span>
-            <strong>待接入容量指标</strong>
+            <strong>{r2Loading ? "读取真实数据中" : r2Usage?.available ? `${r2UsageLabel} · 剩余 ${formatBytes(Math.max(0, r2LimitBytes - r2UsedBytes))}` : r2Usage?.message ?? r2Error}</strong>
           </div>
         </div>
 
         <DataTable
-          columns={["目录", "对象数", "用途"]}
-          rows={r2Groups.map(([folder, count, label]) => [folder, `${count} 个`, label])}
+          columns={["目录", "对象数", "真实容量"]}
+          rows={r2Loading ? [["读取中", "-", "-"]] : r2Rows.length > 0 ? r2Rows : [["暂无对象", "0 个", "0 B"]]}
         />
       </section>
 

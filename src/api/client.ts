@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole } from "../domain/types";
+import type { AppData, Appointment, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -41,6 +41,7 @@ export function createApiClient(getToken: () => string | undefined) {
     signPublicCustomerSignature: (token: string, body: { signerName: string; signatureText: string }) =>
       request<PublicCustomerSignaturePayload>(`/api/public/customer-signatures/${encodeURIComponent(token)}/sign`, { method: "POST", body }),
     fetchData: () => request<AppData>("/api/data", { token: getToken() }),
+    fetchR2Usage: () => request<R2UsageSnapshot>("/api/usage/r2", { token: getToken() }),
     fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
     cleanupFormalData: (confirm: string) =>
       request<AppData>("/api/data-quality/cleanup", { method: "POST", body: { confirm }, token: getToken() }),

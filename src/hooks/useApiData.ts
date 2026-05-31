@@ -121,6 +121,7 @@ export function useApiData() {
     addStaff: client.addStaff,
     updateStaff: client.updateStaff,
     updateStoreProfile: client.updateStoreProfile,
+    fetchR2Usage: client.fetchR2Usage,
     fetchDataQuality: client.fetchDataQuality,
     cleanupFormalData: client.cleanupFormalData,
     createStaffInvite: client.createStaffInvite,

@@ -62,6 +62,24 @@ export type AuthUser = {
   createdAt: string;
 };
 
+export type R2UsagePrefix = {
+  prefix: string;
+  objectCount: number;
+  bytes: number;
+};
+
+export type R2UsageSnapshot = {
+  available: boolean;
+  source: "r2-binding";
+  bucketName?: string;
+  objectCount: number;
+  totalBytes: number;
+  limitBytes: number;
+  prefixes: R2UsagePrefix[];
+  updatedAt: string;
+  message?: string;
+};
+
 export type StaffInvite = {
   id: string;
   staffId: string;
