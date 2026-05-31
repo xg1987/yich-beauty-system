@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { createApiClient } from "../api/client";
-import type { UserSession } from "../domain/auth";
+import { normalizeUserSession, type UserSession } from "../domain/auth";
 import type { AppData } from "../domain/types";
 
 const SESSION_KEY = "yich-system-session";
 
-export function useApiData() {
+function readSavedSession() {
   const savedSession = localStorage.getItem(SESSION_KEY);
-  const [session, setSession] = useState<UserSession | undefined>(
-    savedSession ? (JSON.parse(savedSession) as UserSession) : undefined,
-  );
+  if (!savedSession) return undefined;
+  return normalizeUserSession(JSON.parse(savedSession) as UserSession);
+}
+
+function saveSession(session: UserSession) {
+  const normalized = normalizeUserSession(session);
+  localStorage.setItem(SESSION_KEY, JSON.stringify(normalized));
+  return normalized;
+}
+
+export function useApiData() {
+  const [session, setSession] = useState<UserSession | undefined>(readSavedSession);
   const [data, setData] = useState<AppData | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -25,8 +34,7 @@ export function useApiData() {
     setLoading(true);
     setError(undefined);
     try {
-      const nextSession = await client.login(account, password);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+      const nextSession = saveSession(await client.login(account, password));
       setSession(nextSession);
       const nextData = await createApiClient(() => nextSession.token).fetchData();
       setData(nextData);
@@ -41,8 +49,7 @@ export function useApiData() {
     setLoading(true);
     setError(undefined);
     try {
-      const nextSession = await authAction();
-      localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+      const nextSession = saveSession(await authAction());
       setSession(nextSession);
       const nextData = await createApiClient(() => nextSession.token).fetchData();
       setData(nextData);
@@ -98,10 +105,10 @@ export function useApiData() {
     setError(undefined);
     try {
       const result = await client.updateAccountProfile(body);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(result.session));
-      setSession(result.session);
+      const nextSession = saveSession(result.session);
+      setSession(nextSession);
       setData(result.data);
-      return result;
+      return { ...result, session: nextSession };
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "账号资料保存失败");
       throw caught;

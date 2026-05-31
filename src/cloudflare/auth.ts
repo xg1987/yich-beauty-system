@@ -1,4 +1,4 @@
-import { rolePermissions, type UserSession } from "../domain/auth";
+import { effectiveRoleForUser, effectiveRoleNameForUser, rolePermissions, type UserSession } from "../domain/auth";
 import type { AuthUser } from "../domain/types";
 import type { D1DatabaseBinding } from "./d1Types";
 import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../lib/password";
@@ -59,6 +59,7 @@ async function readAuthUsers(db: D1DatabaseBinding) {
 }
 
 export function buildSession(token: string, user: AuthUser): UserSession {
+  const role = effectiveRoleForUser(user);
   return {
     token,
     user: {
@@ -66,10 +67,10 @@ export function buildSession(token: string, user: AuthUser): UserSession {
       name: user.name,
       account: user.account,
       avatarUrl: user.avatarUrl,
-      role: user.role,
-      roleName: user.roleName,
+      role,
+      roleName: effectiveRoleNameForUser(user),
       staffId: user.staffId,
-      permissions: rolePermissions[user.role],
+      permissions: rolePermissions[role],
     },
   };
 }

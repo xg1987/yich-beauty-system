@@ -31,6 +31,33 @@ export type UserSession = {
   };
 };
 
+export const platformAdminAccounts = ["admin@yich.local", "13827445244"];
+
+export function isPlatformAdminAccount(account: string) {
+  return platformAdminAccounts.includes(account.trim().toLowerCase());
+}
+
+export function effectiveRoleForUser(user: { account: string; role: UserRole }): UserRole {
+  return user.role === "superadmin" || isPlatformAdminAccount(user.account) ? "superadmin" : user.role;
+}
+
+export function effectiveRoleNameForUser(user: { account: string; role: UserRole; roleName: string }) {
+  return effectiveRoleForUser(user) === "superadmin" ? "系统管理员" : user.roleName;
+}
+
+export function normalizeUserSession(session: UserSession): UserSession {
+  const role = effectiveRoleForUser(session.user);
+  return {
+    ...session,
+    user: {
+      ...session.user,
+      role,
+      roleName: role === "superadmin" ? "系统管理员" : session.user.roleName,
+      permissions: rolePermissions[role],
+    },
+  };
+}
+
 export const rolePermissions: Record<RoleKey, Permission[]> = {
   superadmin: [
     "dashboard:view",

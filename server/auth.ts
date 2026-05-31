@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { rolePermissions, type UserSession } from "../src/domain/auth";
+import { effectiveRoleForUser, effectiveRoleNameForUser, normalizeUserSession, rolePermissions, type UserSession } from "../src/domain/auth";
 import type { AuthUser } from "../src/domain/types";
 import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../src/lib/password";
 
@@ -42,7 +42,8 @@ export async function login(account: string, password: string, users: AuthUser[]
 
 export function getSession(authorizationHeader: string | undefined): UserSession | undefined {
   const token = authorizationHeader?.replace(/^Bearer\s+/i, "");
-  return token ? sessions.get(token) : undefined;
+  const session = token ? sessions.get(token) : undefined;
+  return session ? normalizeUserSession(session) : undefined;
 }
 
 export function refreshSessionUser(token: string, user: AuthUser): UserSession {
@@ -52,6 +53,7 @@ export function refreshSessionUser(token: string, user: AuthUser): UserSession {
 }
 
 export function buildSession(token: string, user: AuthUser): UserSession {
+  const role = effectiveRoleForUser(user);
   return {
     token,
     user: {
@@ -59,10 +61,10 @@ export function buildSession(token: string, user: AuthUser): UserSession {
       name: user.name,
       account: user.account,
       avatarUrl: user.avatarUrl,
-      role: user.role,
-      roleName: user.roleName,
+      role,
+      roleName: effectiveRoleNameForUser(user),
       staffId: user.staffId,
-      permissions: rolePermissions[user.role],
+      permissions: rolePermissions[role],
     },
   };
 }

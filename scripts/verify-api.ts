@@ -54,7 +54,7 @@ try {
     method: "POST",
     body: { account: "admin@test.local", password: "test-password" },
   });
-  assert.equal(adminSession.user.roleName, "Admin", "admin login should return platform admin session");
+  assert.equal(adminSession.user.roleName, "系统管理员", "admin login should return platform admin session");
   const afterAccountProfile = await request<{ session: { user: { name: string; avatarUrl?: string } }; data: AppData }>(baseUrl, "/api/account-profile", {
     method: "PATCH",
     token: adminSession.token,
@@ -63,6 +63,40 @@ try {
   assert.equal(afterAccountProfile.session.user.name, "API 管理员", "account profile API should update session name");
   assert.equal(afterAccountProfile.session.user.avatarUrl, "data:image/png;base64,AA==", "account profile API should update session avatar");
   assert.equal(afterAccountProfile.data.authUsers.find((user) => user.id === "u_superadmin")?.name, "API 管理员", "account profile API should persist user name");
+
+  database.replaceData({
+    ...database.readData(),
+    authUsers: [
+      {
+        id: "u_legacy_phone_admin",
+        name: "后台Admin",
+        account: "13827445244",
+        password: "legacy-admin-password",
+        role: "owner",
+        roleName: "老板",
+        status: "active",
+        createdAt: new Date().toISOString(),
+      },
+      ...database.readData().authUsers,
+    ],
+  });
+  const phoneAdminSession = await request<{ token: string; user: { role: string; roleName: string } }>(baseUrl, "/api/auth/login", {
+    method: "POST",
+    body: { account: "13827445244", password: "legacy-admin-password" },
+  });
+  assert.equal(phoneAdminSession.user.role, "superadmin", "legacy phone admin account should enter platform admin shell");
+  assert.equal(phoneAdminSession.user.roleName, "系统管理员", "legacy phone admin account should show platform admin role name");
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/appointments", {
+        method: "POST",
+        token: phoneAdminSession.token,
+        body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), note: "" },
+      }),
+    /超级管理员端仅允许只读查看/,
+    "legacy phone admin account should be readonly for business writes",
+  );
+
   const invitedOwnerSession = await request<{ token: string; user: { roleName: string; account: string } }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
     body: {
