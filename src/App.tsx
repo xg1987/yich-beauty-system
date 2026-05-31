@@ -3269,6 +3269,46 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
   );
 }
 
+const AVATAR_MAX_SIZE = 640;
+const AVATAR_JPEG_QUALITY = 0.82;
+
+function normalizeAvatarFile(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    return Promise.reject(new Error("请选择图片文件"));
+  }
+
+  return new Promise((resolve, reject) => {
+    const imageUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(imageUrl);
+      const scale = Math.min(1, AVATAR_MAX_SIZE / Math.max(image.naturalWidth, image.naturalHeight));
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("头像处理失败，请重新选择图片"));
+        return;
+      }
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", AVATAR_JPEG_QUALITY));
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error("头像读取失败，请重新选择图片"));
+    };
+
+    image.src = imageUrl;
+  });
+}
+
 function SettingsView({
   session,
   setView,
@@ -3294,12 +3334,21 @@ function SettingsView({
   const [signature, setSignature] = useState("以诚待人，以礼从商。传递华夏智慧，服务雅士人生。");
   const [copiedWechat, setCopiedWechat] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [profileError, setProfileError] = useState<string | undefined>();
+  const [avatarProcessing, setAvatarProcessing] = useState(false);
 
-  const uploadAvatar = (file: File | undefined) => {
+  const uploadAvatar = async (file: File | undefined) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setAvatarUrl(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
+    setSaved(false);
+    setProfileError(undefined);
+    setAvatarProcessing(true);
+    try {
+      setAvatarUrl(await normalizeAvatarFile(file));
+    } catch (caught) {
+      setProfileError(caught instanceof Error ? caught.message : "头像处理失败，请重新选择图片");
+    } finally {
+      setAvatarProcessing(false);
+    }
   };
 
   const copyWechat = () => {
@@ -3310,10 +3359,15 @@ function SettingsView({
 
   const saveSettings = (event: FormEvent) => {
     event.preventDefault();
-    void updateProfile({ name: profileName.trim() || displayName, avatarUrl }).then(() => {
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 1400);
-    });
+    setProfileError(undefined);
+    void updateProfile({ name: profileName.trim() || displayName, avatarUrl })
+      .then(() => {
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 1400);
+      })
+      .catch((caught) => {
+        setProfileError(caught instanceof Error ? caught.message : "账号资料保存失败，请稍后重试");
+      });
   };
 
   const settingTabs = [
@@ -3373,9 +3427,12 @@ function SettingsView({
             <span className="settings-avatar-frame">
               <UserAvatar avatarUrl={avatarUrl} size={52} />
             </span>
-            <span>点击更换头像</span>
-            <input type="file" accept="image/*" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+            <span>{avatarProcessing ? "头像处理中" : "点击更换头像"}</span>
+            <input type="file" accept="image/*" onChange={(event) => void uploadAvatar(event.target.files?.[0])} />
           </label>
+
+          {profileError && <div className="settings-profile-message error">{profileError}</div>}
+          {saved && !profileError && <div className="settings-profile-message success">头像和资料已保存</div>}
 
           {activePanel === "profile" && (
             <>
@@ -3422,9 +3479,9 @@ function SettingsView({
           )}
 
           <div className="settings-save-row">
-            <button className="primary-button" type="submit">
+            <button className="primary-button" type="submit" disabled={avatarProcessing}>
               <Save size={18} />
-              {saved ? "已保存" : "保存设置"}
+              {avatarProcessing ? "处理中" : saved ? "已保存" : "保存设置"}
             </button>
           </div>
         </form>

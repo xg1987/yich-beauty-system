@@ -5135,6 +5135,26 @@ textarea,
   display: none;
 }
 
+.settings-profile-message {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.settings-profile-message.error {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+.settings-profile-message.success {
+  background: rgba(22, 163, 74, 0.08);
+  color: #15803d;
+}
+
 .settings-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
