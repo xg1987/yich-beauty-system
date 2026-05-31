@@ -5534,7 +5534,7 @@ textarea,
 :root {
   --yich-workbench-width: 1360px;
   --yich-workbench-sidebar-width: 156px;
-  --yich-workbench-visual-offset: 0px;
+  --yich-workbench-visual-offset: calc(var(--yich-workbench-sidebar-width) / -2);
 }
 
 .app-shell .main > .topbar {
@@ -5579,6 +5579,91 @@ textarea,
   .app-shell .main > .dashboard-page,
   .app-shell .main > .admin-center-page,
   .app-shell .main > .page-stack {
+    transform: none;
+  }
+}
+
+/* Final framework guard: one shell, one width system, no per-page drift. */
+.app-shell .main {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell .main > .topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: none;
+  margin: 0 0 18px;
+  padding: 0;
+  transform: none;
+}
+
+.app-shell .main > .topbar .topbar-actions {
+  grid-column: 1;
+  justify-self: end;
+  margin-right: 24px;
+}
+
+.app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
+  margin-right: 24px;
+}
+
+.app-shell .main > .topbar .topbar-title {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: center;
+  text-align: center;
+}
+
+.app-shell .main > .content-grid,
+.app-shell .main > .page-grid,
+.app-shell .main > .dashboard-page,
+.app-shell .main > .admin-center-page,
+.app-shell .main > .page-stack {
+  width: min(var(--yich-workbench-width), 100%);
+  max-width: var(--yich-workbench-width);
+  margin-right: auto;
+  margin-left: auto;
+  transform: translateX(var(--yich-workbench-visual-offset));
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page {
+  width: min(var(--yich-workbench-width), 100%);
+  max-width: var(--yich-workbench-width);
+  margin-right: auto;
+  margin-left: auto;
+  transform: translateX(var(--yich-workbench-visual-offset));
+}
+
+.app-shell .main > .page-stack > .content-grid,
+.app-shell .main > .page-stack > .page-grid {
+  width: 100%;
+  max-width: none;
+  margin-right: 0;
+  margin-left: 0;
+  transform: none;
+}
+
+.platform-admin-page .page-hero,
+.platform-admin-page .beauty-hero {
+  width: 100%;
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.platform-admin-page .platform-page-title {
+  width: 100%;
+  margin: 18px 0 22px;
+}
+
+@media (max-width: 900px) {
+  .app-shell .main > .content-grid,
+  .app-shell .main > .page-grid,
+  .app-shell .main > .dashboard-page,
+  .app-shell .main > .admin-center-page,
+  .app-shell .main > .page-stack,
+  .app-shell .main > .admin-center-page.platform-admin-page {
     transform: none;
   }
 }

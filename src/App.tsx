@@ -202,7 +202,7 @@ export default function App() {
           />
         ) : (
           <>
-            {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} session={session} /> : <Dashboard data={data} session={session} setView={navigate} />)}
+            {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && (isPlatformAdmin ? <PlatformAppointmentsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Appointments data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Pos data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "customers" && (isPlatformAdmin ? <PlatformCustomersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Customers data={data} actions={actions} runMutation={runMutation} />)}
@@ -212,6 +212,7 @@ export default function App() {
             {activeView === "reports" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Reports data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Approvals data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "logs" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
+            {activeView === "accounts" && <PlatformAccountAdminView data={data} setView={navigate} showBack={showAdminDetailBack} />}
             {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
           </>
         )}
@@ -261,7 +262,7 @@ function ManagementCenter({
     { title: "库存管理", desc: "库存预警 / 采购盘点", icon: Boxes, tone: "teal", view: "inventory" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 关键审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
-    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "settings" },
+    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
   ] satisfies Array<{
     title: string;
     desc: string;
@@ -319,37 +320,22 @@ function ManagementCenter({
 
 function PlatformAdminView({
   data,
-  session,
 }: {
   data: AppData;
-  session: UserSession;
 }) {
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
   const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const activeAccounts = data.authUsers.filter((user) => user.status === "active").length;
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
-  const adminName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <section className="admin-profile-hero">
-        <i className="admin-hero-pattern" aria-hidden="true" />
-        <div className="admin-avatar">
-          <UserAvatar avatarUrl={session.user.avatarUrl} size={78} />
-        </div>
-        <div className="admin-profile-copy">
-          <span className="admin-role-pill"><ShieldCheck size={14} /> 系统管理员</span>
-          <h2>{adminName}</h2>
-          <p>系统管理员 · {session.user.account}</p>
-        </div>
-      </section>
-
       <section className="page-hero">
         <div>
-          <span className="eyebrow"><Building2 size={15} /> 平台工作台</span>
-          <h1>账号与经营数据总览</h1>
-          <p>这里只做平台级只读总览，具体模块入口统一放在管理中心。</p>
+          <span className="eyebrow"><Building2 size={15} /> 工作台</span>
+          <h1>平台数据总览</h1>
+          <p>账号、预约、收款、客户和门店数据汇总。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="启用账号" value={`${activeAccounts} 个`} hint="平台账号总览" />
@@ -360,12 +346,12 @@ function PlatformAdminView({
       </section>
 
       <section className="panel dashboard-panel">
-        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="平台数据概览" action="只读查看" />
+        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="平台数据概览" action="数据总览" />
         <DataTable
           columns={["指标", "结果", "说明"]}
           rows={[
-            ["客户总数", `${data.customers.length} 人`, "门店端维护的客户档案"],
-            ["订单总数", `${data.orders.length} 单`, "门店端收银订单"],
+            ["客户总数", `${data.customers.length} 人`, "客户档案汇总"],
+            ["订单总数", `${data.orders.length} 单`, "收银订单汇总"],
             ["实收汇总", money(totalRevenue), "已记录收款金额"],
             ["门店数量", `${data.storeProfiles.length} 家`, "平台已开通门店"],
           ]}
@@ -408,19 +394,19 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
       {showBack && <PlatformPageTitle title="预约管理" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><CalendarDays size={15} /> 只读预约</span>
+          <span className="eyebrow"><CalendarDays size={15} /> 预约管理</span>
           <h1>预约记录</h1>
-          <p>超级 admin 只查看预约流转，不新增、不改约、不取消预约。</p>
+          <p>预约时间、客户项目、服务人员和到店状态汇总。</p>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="预约总数" value={`${data.appointments.length} 条`} hint="历史预约记录" />
-          <StatCard title="待到店" value={`${pending} 条`} hint="待确认和已确认" />
-          <StatCard title="已完成" value={`${completed} 条`} hint="服务闭环" />
-          <StatCard title="线上待处理" value={`${onlinePending} 条`} hint="公开页预约请求" />
+          <StatCard title="预约总数" value={`${data.appointments.length} 条`} hint="预约记录" />
+          <StatCard title="待到店" value={`${pending} 条`} hint="到店安排" />
+          <StatCard title="已完成" value={`${completed} 条`} hint="服务完成" />
+          <StatCard title="线上待处理" value={`${onlinePending} 条`} hint="线上预约" />
         </div>
       </section>
       <section className="panel dashboard-panel">
-        <PanelTitle icon={<CalendarDays size={18} />} title="预约列表" action="只读查看" />
+        <PanelTitle icon={<CalendarDays size={18} />} title="预约列表" action={`${data.appointments.length} 条`} />
         <DataTable columns={["预约时间", "客户", "项目", "员工", "状态", "备注"]} rows={rows} />
       </section>
     </div>
@@ -450,18 +436,18 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
       {showBack && <PlatformPageTitle title="开单收银" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><CreditCard size={15} /> 只读收银</span>
+          <span className="eyebrow"><CreditCard size={15} /> 开单收银</span>
           <h1>订单与收款记录</h1>
-          <p>超级 admin 只看订单流水，不开单、不收款、不退款。</p>
+          <p>订单流水、支付方式、实收金额和退款记录。</p>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="实收金额" value={money(totalRevenue)} hint="门店端收款汇总" />
+          <StatCard title="实收金额" value={money(totalRevenue)} hint="收款汇总" />
           <StatCard title="订单数" value={`${data.orders.length} 单`} hint="收银订单" />
           <StatCard title="退款金额" value={money(refundAmount)} hint={`${data.refunds.length} 条退款`} />
         </div>
       </section>
       <section className="panel dashboard-panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="订单流水" action="只读查看" />
+        <PanelTitle icon={<CreditCard size={18} />} title="订单流水" action={`${data.orders.length} 单`} />
         <DataTable columns={["订单号", "客户", "项目", "员工", "支付方式", "实收", "状态", "时间"]} rows={rows} />
       </section>
     </div>
@@ -493,9 +479,9 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
       {showBack && <PlatformPageTitle title="客户会员" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><HeartHandshake size={15} /> 只读客户</span>
+          <span className="eyebrow"><HeartHandshake size={15} /> 客户会员</span>
           <h1>客户会员资产</h1>
-          <p>超级 admin 只查看客户和会员卡资产，客户资料由门店端维护。</p>
+          <p>客户档案、会员卡资产、标签和分销关系。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="客户总数" value={`${data.customers.length} 人`} hint="客户档案" />
@@ -523,9 +509,9 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
       {showBack && <PlatformPageTitle title="项目商品" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><PackagePlus size={15} /> 只读项目</span>
+          <span className="eyebrow"><PackagePlus size={15} /> 项目商品</span>
           <h1>项目商品资料</h1>
-          <p>超级 admin 只查看服务项目、商品和耗材配置，不新增或修改资料。</p>
+          <p>服务项目、商品资料、耗材配置和库存数量。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="服务项目" value={`${data.services.length} 项`} hint="门店服务" />
@@ -535,7 +521,7 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
       </section>
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<Sparkles size={18} />} title="服务项目" action="只读查看" />
+          <PanelTitle icon={<Sparkles size={18} />} title="服务项目" action={`${data.services.length} 项`} />
           <DataTable
             columns={["项目", "分类", "价格", "时长", "耗材配置"]}
             rows={data.services.map((service) => [
@@ -548,7 +534,7 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
           />
         </div>
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<Boxes size={18} />} title="商品资料" action="只读查看" />
+          <PanelTitle icon={<Boxes size={18} />} title="商品资料" action={`${data.products.length} 项`} />
           <DataTable
             columns={["商品", "类型", "单位", "售价", "成本", "库存"]}
             rows={data.products.map((product) => [
@@ -575,9 +561,9 @@ function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData;
       {showBack && <PlatformPageTitle title="员工提成" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><BadgeCent size={15} /> 只读员工</span>
+          <span className="eyebrow"><BadgeCent size={15} /> 员工提成</span>
           <h1>员工、邀请码与提成</h1>
-          <p>超级 admin 只查看员工账号、邀请码状态和提成流水，不创建员工、不结算提成。</p>
+          <p>员工账号、邀请码状态、底薪配置和提成流水。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="员工数" value={`${data.staff.length} 人`} hint={`${activeStaff} 人启用`} />
@@ -587,7 +573,7 @@ function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData;
       </section>
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="员工列表" action="只读查看" />
+          <PanelTitle icon={<UsersRound size={18} />} title="员工列表" action={`${data.staff.length} 人`} />
           <DataTable
             columns={["姓名", "手机", "岗位", "状态", "底薪", "提成比例"]}
             rows={data.staff.map((staff) => [
@@ -601,7 +587,7 @@ function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData;
           />
         </div>
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<BadgeCent size={18} />} title="提成流水" action="只读查看" />
+          <PanelTitle icon={<BadgeCent size={18} />} title="提成流水" action={`${data.commissions.length} 条`} />
           <DataTable
             columns={["员工", "类型", "基数", "比例", "金额", "状态", "时间"]}
             rows={data.commissions.map((commission) => [
@@ -629,9 +615,9 @@ function PlatformInventoryReadOnlyView({ data, setView, showBack }: { data: AppD
       {showBack && <PlatformPageTitle title="库存管理" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><Boxes size={15} /> 只读库存</span>
+          <span className="eyebrow"><Boxes size={15} /> 库存管理</span>
           <h1>库存预警与流水</h1>
-          <p>超级 admin 只看库存状态和流水，不入库、不盘点、不调整库存。</p>
+          <p>库存状态、预警项目、出入库流水和盘点记录。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="商品数" value={`${data.products.length} 项`} hint="商品与耗材" />
@@ -641,7 +627,7 @@ function PlatformInventoryReadOnlyView({ data, setView, showBack }: { data: AppD
       </section>
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<Boxes size={18} />} title="库存状态" action="只读查看" />
+          <PanelTitle icon={<Boxes size={18} />} title="库存状态" action={`${data.products.length} 项`} />
           <DataTable
             columns={["商品", "类型", "库存", "预警线", "单位", "状态"]}
             rows={data.products.map((product) => [
@@ -683,18 +669,18 @@ function PlatformApprovalsReadOnlyView({ data, setView, showBack }: { data: AppD
       {showBack && <PlatformPageTitle title="审批中心" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><ShieldCheck size={15} /> 只读审批</span>
+          <span className="eyebrow"><ShieldCheck size={15} /> 审批中心</span>
           <h1>关键审批记录</h1>
-          <p>超级 admin 只看审批轨迹，不通过、不拒绝、不发起审批。</p>
+          <p>退款、改价、异常操作和关键审批记录。</p>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="待审批" value={`${pending} 单`} hint="门店端处理" />
+          <StatCard title="待审批" value={`${pending} 单`} hint="待处理" />
           <StatCard title="已通过" value={`${passed} 单`} hint="历史通过" />
           <StatCard title="已拒绝" value={`${rejected} 单`} hint="历史拒绝" />
         </div>
       </section>
       <section className="panel dashboard-panel">
-        <PanelTitle icon={<ShieldCheck size={18} />} title="审批记录" action="只读查看" />
+        <PanelTitle icon={<ShieldCheck size={18} />} title="审批记录" action={`${data.approvalRequests.length} 条`} />
         <DataTable
           columns={["类型", "目标", "金额", "原因", "申请人", "状态", "申请时间", "处理时间"]}
           rows={data.approvalRequests.map((request) => [
@@ -736,7 +722,7 @@ function PlatformAccountAdminView({ data, setView, showBack }: { data: AppData; 
         <div>
           <span className="eyebrow"><UsersRound size={15} /> 平台账号</span>
           <h1>账号管理</h1>
-          <p>管理员只查看和管理账号边界；客户资料、服务记录和开单数据由门店端的店长、前台和员工维护。</p>
+          <p>平台账号、门店负责人、员工账号和门店绑定关系。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="系统管理员" value={`${adminAccounts.length} 个`} hint="平台管理员" />
@@ -782,13 +768,13 @@ function PlatformDataReadOnlyView({ data, setView, showBack }: { data: AppData; 
       {showBack && <PlatformPageTitle title="报表分析" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><ChartNoAxesColumnIncreasing size={15} /> 只读数据</span>
+          <span className="eyebrow"><ChartNoAxesColumnIncreasing size={15} /> 报表分析</span>
           <h1>平台数据查看</h1>
-          <p>这里只做数据汇总和巡检，不提供新增客户、预约、开单、产品、库存等门店业务表单。</p>
+          <p>经营收入、订单记录、客户资产和库存指标汇总。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
-          <StatCard title="客户数" value={`${data.customers.length} 人`} hint="门店端维护" />
+          <StatCard title="客户数" value={`${data.customers.length} 人`} hint="客户档案" />
           <StatCard title="实收金额" value={money(totalRevenue)} hint={`${paidOrders} 个收银订单`} />
         </div>
       </section>
@@ -817,14 +803,14 @@ function PlatformDataReadOnlyView({ data, setView, showBack }: { data: AppData; 
       </section>
 
       <section className="panel dashboard-panel">
-        <PanelTitle icon={<Database size={18} />} title="数据巡检" action="只读汇总" />
+        <PanelTitle icon={<Database size={18} />} title="核心指标" action="数据汇总" />
         <DataTable
           columns={["指标", "结果", "说明"]}
           rows={[
-            ["实收金额", money(summary.revenue), "门店端收银记录汇总"],
-            ["退款金额", money(summary.refundAmount), "门店端退款记录汇总"],
+            ["实收金额", money(summary.revenue), "收银记录汇总"],
+            ["退款金额", money(summary.refundAmount), "退款记录汇总"],
             ["会员储值余额", money(summary.cardBalance), "客户资产余额"],
-            ["员工提成", money(summary.commission), "门店端员工提成汇总"],
+            ["员工提成", money(summary.commission), "员工提成汇总"],
             ["低库存项", `${summary.lowStockCount} 项`, "库存模块预警数量"],
           ]}
         />
@@ -837,7 +823,7 @@ function workbarForView(view: ViewKey): WorkbarKey {
   if (view === "appointments") return "appointments";
   if (view === "pos") return "cashier";
   if (view === "customers") return "customers";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts"].includes(view)) return "admin";
   return "workbench";
 }
 
@@ -1011,7 +997,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   if (input.role === "therapist") {
     return {
       title: "员工服务工作台",
-      desc: "只聚焦今天分配给自己的预约、护理记录、客户回访和个人提成，员工不用从全店数据里找任务。",
+      desc: "今日预约、护理记录、客户回访和个人提成集中呈现。",
       scheduleTitle: "我的今日预约",
       emptySchedule: "今天暂无分配给你的预约",
       followTitle: "我的客户回访",
@@ -3232,9 +3218,9 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
     <div className="page-stack">
       <PageHero
         icon={<ClipboardList size={15} />}
-        eyebrow="系统审计"
+        eyebrow="系统记录"
         title="操作日志"
-        desc="查看系统中所有关键操作记录（开单、退款、改价、会员变更等）。"
+        desc="关键操作记录、业务变更和异常追踪。"
         stats={[
           { label: "总记录数", value: `${data.operationLogs?.length ?? 0} 条`, hint: "已记录操作", icon: <ClipboardList size={18} /> },
         ]}

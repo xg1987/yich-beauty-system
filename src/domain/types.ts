@@ -9,6 +9,7 @@ export type ViewKey =
   | "reports"
   | "approvals"
   | "logs"
+  | "accounts"
   | "settings";
 
 export type UserRole = "superadmin" | "owner" | "manager" | "frontdesk" | "therapist" | "finance";
