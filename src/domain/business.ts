@@ -1080,6 +1080,8 @@ export function updateStaffMember(data: AppData, input: StaffUpdateInput): AppDa
   };
 }
 
+const MAX_ACCOUNT_AVATAR_URL_LENGTH = 180_000;
+
 export function updateAccountProfile(data: AppData, input: AccountProfileInput): AppData {
   const user = data.authUsers.find((item) => item.id === input.userId);
   if (!user) throw new Error("账号不存在");
@@ -1087,6 +1089,7 @@ export function updateAccountProfile(data: AppData, input: AccountProfileInput):
   const avatarUrl = input.avatarUrl?.trim();
   if (!name) throw new Error("请输入姓名");
   if (avatarUrl && !avatarUrl.startsWith("data:image/")) throw new Error("头像格式不正确");
+  if (avatarUrl && avatarUrl.length > MAX_ACCOUNT_AVATAR_URL_LENGTH) throw new Error("头像文件过大，请重新上传头像");
   return {
     ...data,
     authUsers: data.authUsers.map((item) =>

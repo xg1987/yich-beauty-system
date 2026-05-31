@@ -3269,20 +3269,15 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
   );
 }
 
-const AVATAR_MAX_SIZE = 640;
-const AVATAR_JPEG_QUALITY = 0.82;
+const AVATAR_MAX_SIZE = 360;
+const AVATAR_JPEG_QUALITY = 0.72;
+const AVATAR_MAX_DATA_URL_LENGTH = 180_000;
 
-function normalizeAvatarFile(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) {
-    return Promise.reject(new Error("请选择图片文件"));
-  }
-
+function normalizeAvatarSource(source: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const imageUrl = URL.createObjectURL(file);
     const image = new Image();
 
     image.onload = () => {
-      URL.revokeObjectURL(imageUrl);
       const scale = Math.min(1, AVATAR_MAX_SIZE / Math.max(image.naturalWidth, image.naturalHeight));
       const width = Math.max(1, Math.round(image.naturalWidth * scale));
       const height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -3297,16 +3292,32 @@ function normalizeAvatarFile(file: File): Promise<string> {
       context.fillStyle = "#fff";
       context.fillRect(0, 0, width, height);
       context.drawImage(image, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", AVATAR_JPEG_QUALITY));
+      const dataUrl = canvas.toDataURL("image/jpeg", AVATAR_JPEG_QUALITY);
+      if (dataUrl.length > AVATAR_MAX_DATA_URL_LENGTH) {
+        reject(new Error("头像文件过大，请重新选择一张较小的图片"));
+        return;
+      }
+      resolve(dataUrl);
     };
 
     image.onerror = () => {
-      URL.revokeObjectURL(imageUrl);
       reject(new Error("头像读取失败，请重新选择图片"));
     };
 
-    image.src = imageUrl;
+    image.src = source;
   });
+}
+
+async function normalizeAvatarFile(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("请选择图片文件");
+  }
+  const imageUrl = URL.createObjectURL(file);
+  try {
+    return await normalizeAvatarSource(imageUrl);
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
 }
 
 function SettingsView({
@@ -3360,13 +3371,21 @@ function SettingsView({
   const saveSettings = (event: FormEvent) => {
     event.preventDefault();
     setProfileError(undefined);
-    void updateProfile({ name: profileName.trim() || displayName, avatarUrl })
+    setAvatarProcessing(true);
+    void (async () => {
+      const compactAvatarUrl = avatarUrl ? await normalizeAvatarSource(avatarUrl) : "";
+      await updateProfile({ name: profileName.trim() || displayName, avatarUrl: compactAvatarUrl });
+      setAvatarUrl(compactAvatarUrl);
+    })()
       .then(() => {
         setSaved(true);
         window.setTimeout(() => setSaved(false), 1400);
       })
       .catch((caught) => {
         setProfileError(caught instanceof Error ? caught.message : "账号资料保存失败，请稍后重试");
+      })
+      .finally(() => {
+        setAvatarProcessing(false);
       });
   };
 
