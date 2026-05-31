@@ -73,27 +73,6 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
-const platformAdminItems: Array<{ view: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
-  { view: "dashboard", label: "总览", icon: LayoutDashboard },
-  { view: "settings", label: "账号", icon: UsersRound },
-  { view: "reports", label: "数据", icon: ChartNoAxesColumnIncreasing },
-  { view: "logs", label: "审计", icon: ClipboardList },
-];
-
-const platformAdminAllowedViews: ViewKey[] = [
-  "dashboard",
-  "appointments",
-  "pos",
-  "customers",
-  "catalog",
-  "staff",
-  "inventory",
-  "reports",
-  "approvals",
-  "settings",
-  "logs",
-];
-
 export default function App() {
   const { data, session, loading, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, updateAccountProfile, logout, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>("dashboard");
@@ -157,19 +136,7 @@ export default function App() {
     setAccountMenuOpen(false);
   };
 
-  if (session.user.role === "superadmin") {
-    return (
-      <PlatformAdminShell
-        data={data}
-        session={session}
-        error={error}
-        logout={logout}
-        actions={actions}
-        runMutation={runMutation}
-        updateAccountProfile={updateAccountProfile}
-      />
-    );
-  }
+  const isPlatformAdmin = session.user.role === "superadmin";
 
   return (
     <div className={`app-shell theme-${themeMode}`}>
@@ -237,16 +204,16 @@ export default function App() {
           />
         ) : (
           <>
-            {activeView === "dashboard" && <Dashboard data={data} session={session} setView={navigate} />}
-            {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
-            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} />}
-            {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} />}
-            {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} />}
-            {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />}
-            {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} />}
-            {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} />}
-            {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} />}
-            {activeView === "logs" && <OperationLogs data={data} session={session} />}
+            {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} session={session} setView={navigate} /> : <Dashboard data={data} session={session} setView={navigate} />)}
+            {activeView === "appointments" && (isPlatformAdmin ? <PlatformAppointmentsReadOnlyView data={data} setView={navigate} /> : <Appointments data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} /> : <Pos data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "customers" && (isPlatformAdmin ? <PlatformCustomersReadOnlyView data={data} setView={navigate} /> : <Customers data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "catalog" && (isPlatformAdmin ? <PlatformCatalogReadOnlyView data={data} setView={navigate} /> : <Catalog data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "staff" && (isPlatformAdmin ? <PlatformStaffReadOnlyView data={data} setView={navigate} /> : <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />)}
+            {activeView === "inventory" && (isPlatformAdmin ? <PlatformInventoryReadOnlyView data={data} setView={navigate} /> : <Inventory data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "reports" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} /> : <Reports data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} /> : <Approvals data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "logs" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} /> : <OperationLogs data={data} session={session} />)}
             {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
           </>
         )}
@@ -297,8 +264,6 @@ function ManagementCenter({
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 关键审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "settings" },
-    { title: "数据总览", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "操作审计", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
   ] satisfies Array<{
     title: string;
     desc: string;
@@ -354,116 +319,6 @@ function ManagementCenter({
   );
 }
 
-function PlatformAdminShell({
-  data,
-  session,
-  error,
-  logout,
-  actions,
-  runMutation,
-  updateAccountProfile,
-}: {
-  data: AppData;
-  session: UserSession;
-  error?: string;
-  logout: () => void;
-  actions: ApiActions;
-  runMutation: RunMutation;
-  updateAccountProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
-}) {
-  const [activeView, setActiveView] = useState<ViewKey>("dashboard");
-  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
-  const [platformThemeMode, setPlatformThemeMode] = useState<ThemeMode>("day");
-  const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
-  const openView = (nextView: ViewKey) => {
-    setActiveView(platformAdminAllowedViews.includes(nextView) ? nextView : "dashboard");
-    setAccountSettingsOpen(false);
-    setNotificationPanelOpen(false);
-    setAccountMenuOpen(false);
-  };
-
-  return (
-    <div className="app-shell theme-day platform-admin-shell">
-      <main className="main platform-admin-main">
-        <header className="topbar">
-          <div className="topbar-title">
-            <p>一宸 YiCh 美业门店系统</p>
-          </div>
-          <div className="topbar-actions">
-            {error && <span className="error-chip">{error}</span>}
-            <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
-              <Bell size={18} />
-              {notificationCount > 0 && <span>{notificationCount}</span>}
-            </button>
-            <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserAvatar avatarUrl={session.user.avatarUrl} size={18} />
-            </button>
-            {notificationPanelOpen && (
-              <NotificationPanel
-                data={data}
-                session={session}
-                actions={actions}
-                runMutation={runMutation}
-                setView={openView}
-                onClose={() => setNotificationPanelOpen(false)}
-              />
-            )}
-            {accountMenuOpen && (
-              <AccountMenu
-                session={session}
-                logout={logout}
-                openSettings={() => {
-                  setAccountSettingsOpen(true);
-                  setAccountMenuOpen(false);
-                  setNotificationPanelOpen(false);
-                }}
-              />
-            )}
-          </div>
-        </header>
-        {accountSettingsOpen ? (
-          <SettingsView
-            session={session}
-            setView={openView}
-            returnView={activeView}
-            backLabel="返回管理中心"
-            updateProfile={updateAccountProfile}
-            themeMode={platformThemeMode}
-            setThemeMode={setPlatformThemeMode}
-          />
-        ) : (
-          <>
-            {activeView === "dashboard" && <PlatformAdminView data={data} session={session} setView={openView} />}
-            {activeView === "appointments" && <PlatformAppointmentsReadOnlyView data={data} setView={openView} />}
-            {activeView === "pos" && <PlatformOrdersReadOnlyView data={data} setView={openView} />}
-            {activeView === "customers" && <PlatformCustomersReadOnlyView data={data} setView={openView} />}
-            {activeView === "catalog" && <PlatformCatalogReadOnlyView data={data} setView={openView} />}
-            {activeView === "staff" && <PlatformStaffReadOnlyView data={data} setView={openView} />}
-            {activeView === "inventory" && <PlatformInventoryReadOnlyView data={data} setView={openView} />}
-            {activeView === "reports" && <PlatformDataReadOnlyView data={data} setView={openView} />}
-            {activeView === "approvals" && <PlatformApprovalsReadOnlyView data={data} setView={openView} />}
-            {activeView === "settings" && <PlatformAccountAdminView data={data} setView={openView} />}
-            {activeView === "logs" && <PlatformAuditReadOnlyView data={data} setView={openView} />}
-          </>
-        )}
-      </main>
-      <nav className="workbar" aria-label="主工作栏">
-        {platformAdminItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button key={item.view} className={activeView === item.view ? "active" : ""} onClick={() => openView(item.view)}>
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-    </div>
-  );
-}
-
 function PlatformAdminView({
   data,
   session,
@@ -498,7 +353,6 @@ function PlatformAdminView({
     { title: "报表分析", desc: "只读查看经营数据和财务汇总", metric: money(totalRevenue), icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "只读查看退款改价和关键审批", metric: `${pendingApprovals} 单待审`, icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "账号管理", desc: "查看平台、老板和员工账号状态", metric: `${data.authUsers.length} 个账号`, icon: UsersRound, tone: "violet", view: "settings" },
-    { title: "操作审计", desc: "查看系统关键操作记录", metric: `${data.operationLogs.length} 条`, icon: ClipboardList, tone: "amber", view: "logs" },
   ];
 
   return (
@@ -576,7 +430,7 @@ function PlatformAppointmentsReadOnlyView({ data, setView }: { data: AppData; se
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="预约管理" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="预约管理" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><CalendarDays size={15} /> 只读预约</span>
@@ -618,7 +472,7 @@ function PlatformOrdersReadOnlyView({ data, setView }: { data: AppData; setView:
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="开单收银" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="开单收银" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><CreditCard size={15} /> 只读收银</span>
@@ -661,7 +515,7 @@ function PlatformCustomersReadOnlyView({ data, setView }: { data: AppData; setVi
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="客户会员" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="客户会员" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><HeartHandshake size={15} /> 只读客户</span>
@@ -691,7 +545,7 @@ function PlatformCustomersReadOnlyView({ data, setView }: { data: AppData; setVi
 function PlatformCatalogReadOnlyView({ data, setView }: { data: AppData; setView: (view: ViewKey) => void }) {
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="项目商品" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="项目商品" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><PackagePlus size={15} /> 只读项目</span>
@@ -743,7 +597,7 @@ function PlatformStaffReadOnlyView({ data, setView }: { data: AppData; setView: 
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="员工提成" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="员工提成" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><BadgeCent size={15} /> 只读员工</span>
@@ -797,7 +651,7 @@ function PlatformInventoryReadOnlyView({ data, setView }: { data: AppData; setVi
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="库存管理" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="库存管理" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><Boxes size={15} /> 只读库存</span>
@@ -851,7 +705,7 @@ function PlatformApprovalsReadOnlyView({ data, setView }: { data: AppData; setVi
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="审批中心" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="审批中心" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><ShieldCheck size={15} /> 只读审批</span>
@@ -902,7 +756,7 @@ function PlatformAccountAdminView({ data, setView }: { data: AppData; setView: (
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="账号管理" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="账号管理" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><UsersRound size={15} /> 平台账号</span>
@@ -950,7 +804,7 @@ function PlatformDataReadOnlyView({ data, setView }: { data: AppData; setView: (
 
   return (
     <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="报表分析" onBack={() => setView("dashboard")} />
+      <PlatformPageTitle title="报表分析" onBack={() => setView("settings")} />
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><ChartNoAxesColumnIncreasing size={15} /> 只读数据</span>
@@ -998,44 +852,6 @@ function PlatformDataReadOnlyView({ data, setView }: { data: AppData; setView: (
             ["员工提成", money(summary.commission), "门店端员工提成汇总"],
             ["低库存项", `${summary.lowStockCount} 项`, "库存模块预警数量"],
           ]}
-        />
-      </section>
-    </div>
-  );
-}
-
-function PlatformAuditReadOnlyView({ data, setView }: { data: AppData; setView: (view: ViewKey) => void }) {
-  const logs = data.operationLogs
-    .slice()
-    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-    .slice(0, 120);
-
-  return (
-    <div className="admin-center-page platform-admin-page">
-      <PlatformPageTitle title="操作审计" onBack={() => setView("dashboard")} />
-      <section className="page-hero platform-admin-readonly-hero">
-        <div>
-          <span className="eyebrow"><ClipboardList size={15} /> 系统审计</span>
-          <h1>审计日志</h1>
-          <p>记录平台和门店关键动作，管理员用于追踪风险，不在这里直接修改客户或订单数据。</p>
-        </div>
-        <div className="page-hero-stats">
-          <StatCard title="日志数" value={`${data.operationLogs.length} 条`} hint="关键操作记录" />
-          <StatCard title="审批记录" value={`${data.approvalRequests.length} 条`} hint="改价和退款轨迹" />
-        </div>
-      </section>
-
-      <section className="panel dashboard-panel">
-        <PanelTitle icon={<ClipboardList size={18} />} title="最近操作" action="只读查看" />
-        <DataTable
-          columns={["时间", "操作人", "动作", "对象类型", "摘要"]}
-          rows={logs.map((log) => [
-            shortDate(log.createdAt),
-            data.authUsers.find((user) => user.id === log.userId)?.name ?? "系统",
-            log.action,
-            log.targetType,
-            log.summary,
-          ])}
         />
       </section>
     </div>

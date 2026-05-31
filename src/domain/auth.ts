@@ -61,8 +61,14 @@ export function normalizeUserSession(session: UserSession): UserSession {
 export const rolePermissions: Record<RoleKey, Permission[]> = {
   superadmin: [
     "dashboard:view",
+    "appointments:manage",
+    "pos:manage",
+    "customers:manage",
+    "catalog:manage",
     "staff:view",
+    "inventory:manage",
     "reports:view",
+    "approvals:manage",
     "settings:view",
   ],
   owner: [

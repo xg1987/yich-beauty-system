@@ -4521,17 +4521,6 @@ html[data-theme="day"],
   border-radius: 24px;
 }
 
-@media (min-width: 1680px) {
-  .main > .topbar,
-  .main > .content-grid,
-  .main > .page-grid,
-  .main > .dashboard-page,
-  .main > .admin-center-page,
-  .main > .page-stack {
-    transform: translateX(-78px);
-  }
-}
-
 .panel,
 .stat-card,
 .quick-card,
@@ -4624,53 +4613,10 @@ textarea,
   }
 }
 
-.platform-admin-shell {
-  display: block;
-  min-height: 100vh;
-  padding: 0;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(111, 66, 193, 0.14), transparent 28%),
-    linear-gradient(135deg, #f8f3ff 0%, #fffaf7 100%);
-  color: var(--yich-ink);
-}
-
-.platform-admin-shell .platform-admin-main {
-  width: min(1320px, calc(100% - 48px));
-  min-height: 100vh;
-  margin: 0 auto;
-  padding: 22px 0 42px;
-}
-
-.platform-admin-shell .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  min-height: 58px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  padding: 8px 0 18px;
-  border-bottom: 0;
-  background: linear-gradient(180deg, rgba(248, 243, 255, 0.96), rgba(248, 243, 255, 0));
-}
-
-.platform-admin-shell .topbar-title {
-  position: static;
-  width: auto;
-  transform: none;
-  text-align: left;
-}
-
-.platform-admin-shell .topbar-title p {
-  margin: 0;
-  color: var(--yich-purple-deep);
-  font-weight: 900;
-}
-
 .platform-admin-page {
-  width: 100%;
-  max-width: none;
-  margin: 0;
+  width: min(1040px, 100%);
+  max-width: 1040px;
+  margin: 0 auto;
 }
 
 .platform-page-title {
@@ -4770,11 +4716,6 @@ textarea,
 }
 
 @media (max-width: 900px) {
-  .platform-admin-shell .platform-admin-main {
-    width: min(100% - 28px, 720px);
-    padding-top: 16px;
-  }
-
   .platform-admin-page .page-hero,
   .platform-admin-page .content-grid {
     grid-template-columns: 1fr;
@@ -5358,7 +5299,7 @@ textarea,
 }
 
 .platform-admin-page .admin-profile-hero {
-  width: min(1040px, 100%);
+  width: 100%;
   min-height: 132px;
   margin: 28px auto 22px;
   grid-template-columns: auto minmax(0, 1fr);
@@ -5596,7 +5537,7 @@ textarea,
   --yich-workbench-visual-offset: 0px;
 }
 
-.app-shell:not(.platform-admin-shell) .main > .topbar {
+.app-shell .main > .topbar {
   width: 100%;
   max-width: none;
   margin-right: 0;
@@ -5604,42 +5545,28 @@ textarea,
   transform: none;
 }
 
-.app-shell:not(.platform-admin-shell) .main > .topbar .topbar-actions {
+.app-shell .main > .topbar .topbar-actions {
   grid-column: 3;
   justify-self: end;
   margin-right: clamp(16px, 3vw, 56px);
 }
 
-.app-shell:not(.platform-admin-shell) .main > .content-grid,
-.app-shell:not(.platform-admin-shell) .main > .page-grid,
-.app-shell:not(.platform-admin-shell) .main > .dashboard-page,
-.app-shell:not(.platform-admin-shell) .main > .admin-center-page:not(.platform-admin-page),
-.app-shell:not(.platform-admin-shell) .main > .page-stack {
+.app-shell .main > .content-grid,
+.app-shell .main > .page-grid,
+.app-shell .main > .dashboard-page,
+.app-shell .main > .admin-center-page,
+.app-shell .main > .page-stack {
   width: min(var(--yich-workbench-width), 100%);
   max-width: var(--yich-workbench-width);
   margin-right: auto;
   margin-left: auto;
-  transform: translateX(var(--yich-workbench-visual-offset));
+  transform: none;
 }
 
-.app-shell:not(.platform-admin-shell) .page-stack > .content-grid,
-.app-shell:not(.platform-admin-shell) .page-stack > .page-grid {
+.app-shell .page-stack > .content-grid,
+.app-shell .page-stack > .page-grid {
   width: 100%;
   max-width: none;
-}
-
-@media (min-width: 1680px) {
-  :root {
-    --yich-workbench-visual-offset: calc(var(--yich-workbench-sidebar-width) / -2);
-  }
-
-  .app-shell:not(.platform-admin-shell) .main > .content-grid,
-  .app-shell:not(.platform-admin-shell) .main > .page-grid,
-  .app-shell:not(.platform-admin-shell) .main > .dashboard-page,
-  .app-shell:not(.platform-admin-shell) .main > .admin-center-page,
-  .app-shell:not(.platform-admin-shell) .main > .page-stack {
-    transform: translateX(var(--yich-workbench-visual-offset));
-  }
 }
 
 @media (max-width: 900px) {
@@ -5647,11 +5574,11 @@ textarea,
     --yich-workbench-visual-offset: 0px;
   }
 
-  .app-shell:not(.platform-admin-shell) .main > .content-grid,
-  .app-shell:not(.platform-admin-shell) .main > .page-grid,
-  .app-shell:not(.platform-admin-shell) .main > .dashboard-page,
-  .app-shell:not(.platform-admin-shell) .main > .admin-center-page:not(.platform-admin-page),
-  .app-shell:not(.platform-admin-shell) .main > .page-stack {
+  .app-shell .main > .content-grid,
+  .app-shell .main > .page-grid,
+  .app-shell .main > .dashboard-page,
+  .app-shell .main > .admin-center-page,
+  .app-shell .main > .page-stack {
     transform: none;
   }
 }
