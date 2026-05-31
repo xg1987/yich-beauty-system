@@ -3269,35 +3269,47 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
   );
 }
 
-const AVATAR_MAX_SIZE = 360;
-const AVATAR_JPEG_QUALITY = 0.72;
-const AVATAR_MAX_DATA_URL_LENGTH = 180_000;
+const AVATAR_COMPRESSION_STEPS = [
+  { size: 360, quality: 0.72 },
+  { size: 300, quality: 0.64 },
+  { size: 240, quality: 0.56 },
+  { size: 180, quality: 0.48 },
+  { size: 128, quality: 0.42 },
+];
+const AVATAR_MAX_DATA_URL_LENGTH = 150_000;
+
+function renderAvatarDataUrl(image: HTMLImageElement, maxSize: number, quality: number) {
+  const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("头像处理失败，请重新选择图片");
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
 
 function normalizeAvatarSource(source: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image();
 
     image.onload = () => {
-      const scale = Math.min(1, AVATAR_MAX_SIZE / Math.max(image.naturalWidth, image.naturalHeight));
-      const width = Math.max(1, Math.round(image.naturalWidth * scale));
-      const height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        reject(new Error("头像处理失败，请重新选择图片"));
-        return;
+      try {
+        for (const step of AVATAR_COMPRESSION_STEPS) {
+          const dataUrl = renderAvatarDataUrl(image, step.size, step.quality);
+          if (dataUrl.length <= AVATAR_MAX_DATA_URL_LENGTH) {
+            resolve(dataUrl);
+            return;
+          }
+        }
+        reject(new Error("头像无法自动压缩，请换一张图片后再保存"));
+      } catch (caught) {
+        reject(caught instanceof Error ? caught : new Error("头像处理失败，请重新选择图片"));
       }
-      context.fillStyle = "#fff";
-      context.fillRect(0, 0, width, height);
-      context.drawImage(image, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", AVATAR_JPEG_QUALITY);
-      if (dataUrl.length > AVATAR_MAX_DATA_URL_LENGTH) {
-        reject(new Error("头像文件过大，请重新选择一张较小的图片"));
-        return;
-      }
-      resolve(dataUrl);
     };
 
     image.onerror = () => {
@@ -3382,7 +3394,8 @@ function SettingsView({
         window.setTimeout(() => setSaved(false), 1400);
       })
       .catch((caught) => {
-        setProfileError(caught instanceof Error ? caught.message : "账号资料保存失败，请稍后重试");
+        const message = caught instanceof Error ? caught.message : "账号资料保存失败，请稍后重试";
+        setProfileError(message.includes("SQLITE_TOOBIG") || message.includes("string or blob too big") ? "头像无法自动压缩，请换一张图片后再保存" : message);
       })
       .finally(() => {
         setAvatarProcessing(false);

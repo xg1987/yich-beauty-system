@@ -1089,7 +1089,7 @@ export function updateAccountProfile(data: AppData, input: AccountProfileInput):
   const avatarUrl = input.avatarUrl?.trim();
   if (!name) throw new Error("请输入姓名");
   if (avatarUrl && !avatarUrl.startsWith("data:image/")) throw new Error("头像格式不正确");
-  if (avatarUrl && avatarUrl.length > MAX_ACCOUNT_AVATAR_URL_LENGTH) throw new Error("头像文件过大，请重新上传头像");
+  if (avatarUrl && avatarUrl.length > MAX_ACCOUNT_AVATAR_URL_LENGTH) throw new Error("头像无法保存，请换一张图片后再试");
   return {
     ...data,
     authUsers: data.authUsers.map((item) =>
