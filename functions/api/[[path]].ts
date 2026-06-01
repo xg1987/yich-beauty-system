@@ -70,8 +70,19 @@ type Env = {
 
 type JsonBody = Record<string, unknown>;
 type R2ObjectLike = { key: string; size?: number };
+type R2StoredObjectLike = {
+  body: ReadableStream;
+  httpMetadata?: { contentType?: string };
+  writeHttpMetadata?: (headers: Headers) => void;
+};
 type R2BucketLike = {
   list: (options?: { cursor?: string; limit?: number }) => Promise<{ objects: R2ObjectLike[]; truncated?: boolean; cursor?: string }>;
+  get: (key: string) => Promise<R2StoredObjectLike | null>;
+  put: (
+    key: string,
+    value: ReadableStream | ArrayBuffer | Blob | string,
+    options?: { httpMetadata?: { contentType?: string }; customMetadata?: Record<string, string> },
+  ) => Promise<unknown>;
 };
 type PagesFunction<Bindings> = (context: { request: Request; env: Bindings }) => Response | Promise<Response>;
 
@@ -86,6 +97,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     const url = new URL(context.request.url);
     const pathname = url.pathname;
+
+    if (context.request.method === "GET" && pathname.startsWith("/api/assets/")) {
+      return serveR2Asset(context.env, pathname);
+    }
 
     if (context.request.method === "GET" && pathname === "/api/health") {
       return sendJson(200, {
@@ -214,6 +229,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname === "/api/auth/me") {
       return sendJson(200, session);
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/account-avatar") {
+      const upload = await uploadAccountAvatar(context.request, context.env, session);
+      return sendJson(201, upload);
     }
 
     if (context.request.method === "PATCH" && pathname === "/api/account-profile") {
@@ -1196,6 +1216,7 @@ function requirePermission(session: UserSession, permission: Permission) {
 function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD") return false;
   if (method === "PATCH" && pathname === "/api/account-profile") return false;
+  if (method === "POST" && pathname === "/api/account-avatar") return false;
   if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
   if (method === "POST" && pathname === "/api/notifications/read-all") return false;
   return true;
@@ -1319,8 +1340,81 @@ function notificationVisibleToSession(notification: AppData["notifications"][num
   return true;
 }
 
+function getR2Bucket(env: Env) {
+  return env.R2_BUCKET ?? env.YICH_R2 ?? env.ASSETS_BUCKET;
+}
+
+function assetUrlForKey(key: string) {
+  return `/api/assets/${key.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function assetKeyFromPath(pathname: string) {
+  const key = pathname.replace(/^\/api\/assets\/?/, "").split("/").map(decodeURIComponent).join("/");
+  if (!key || key.includes("..") || key.startsWith("/")) {
+    throw new Error("资源路径不正确");
+  }
+  return key;
+}
+
+async function serveR2Asset(env: Env, pathname: string) {
+  const bucket = getR2Bucket(env);
+  if (!bucket) return sendJson(404, { error: "资源不存在" });
+
+  const object = await bucket.get(assetKeyFromPath(pathname));
+  if (!object) return sendJson(404, { error: "资源不存在" });
+
+  const headers = new Headers({
+    "Cache-Control": "public, max-age=31536000, immutable",
+    ...corsHeaders(),
+  });
+  if (object.writeHttpMetadata) {
+    object.writeHttpMetadata(headers);
+  } else if (object.httpMetadata?.contentType) {
+    headers.set("Content-Type", object.httpMetadata.contentType);
+  } else {
+    headers.set("Content-Type", "application/octet-stream");
+  }
+
+  return new Response(object.body, { headers });
+}
+
+async function uploadAccountAvatar(request: Request, env: Env, session: UserSession) {
+  const bucket = getR2Bucket(env);
+  if (!bucket) {
+    throw new Error("当前项目未绑定 R2 Bucket，无法上传头像");
+  }
+
+  const form = await request.formData();
+  const value = form.get("avatar");
+  if (!(value instanceof File)) {
+    throw new Error("请选择头像图片");
+  }
+  if (!value.type.startsWith("image/")) {
+    throw new Error("请选择图片文件");
+  }
+  if (value.size > 1_200_000) {
+    throw new Error("头像文件过大，请重新上传头像");
+  }
+
+  const extension = value.type.includes("png") ? "png" : value.type.includes("webp") ? "webp" : "jpg";
+  const key = `avatars/${session.user.id}/${Date.now()}-${makeId("img")}.${extension}`;
+  await bucket.put(key, value.stream(), {
+    httpMetadata: { contentType: value.type },
+    customMetadata: {
+      userId: session.user.id,
+      uploadedAt: nowIso(),
+    },
+  });
+
+  return {
+    key,
+    avatarUrl: assetUrlForKey(key),
+    size: value.size,
+  };
+}
+
 async function readR2Usage(env: Env): Promise<R2UsageSnapshot> {
-  const bucket = env.R2_BUCKET ?? env.YICH_R2 ?? env.ASSETS_BUCKET;
+  const bucket = getR2Bucket(env);
   const limitBytes = 10 * 1024 * 1024 * 1024;
   if (!bucket) {
     return {

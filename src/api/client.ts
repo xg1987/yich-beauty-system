@@ -45,6 +45,11 @@ export function createApiClient(getToken: () => string | undefined) {
     fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
     cleanupFormalData: (confirm: string) =>
       request<AppData>("/api/data-quality/cleanup", { method: "POST", body: { confirm }, token: getToken() }),
+    uploadAccountAvatar: (file: File) => {
+      const body = new FormData();
+      body.append("avatar", file);
+      return requestForm<{ avatarUrl: string; key: string; size: number }>("/api/account-avatar", { method: "POST", body, token: getToken() });
+    },
     updateAccountProfile: (body: { name: string; avatarUrl?: string }) =>
       request<{ session: UserSession; data: AppData }>("/api/account-profile", { method: "PATCH", body, token: getToken() }),
     markNotificationRead: (notificationId: string) =>
@@ -235,6 +240,29 @@ async function request<T>(
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const text = await response.text();
+  const payload = text ? parseJson<T | { error: string }>(text) : undefined;
+  if (!response.ok) {
+    throw new Error(isErrorPayload(payload) ? payload.error : `HTTP ${response.status}`);
+  }
+  if (payload === undefined) {
+    throw new Error("服务暂时不可用，请稍后重试");
+  }
+  return payload as T;
+}
+
+async function requestForm<T>(
+  path: string,
+  options: { method?: string; body: FormData; token?: string },
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: options.method ?? "POST",
+    headers: {
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+    },
+    body: options.body,
   });
 
   const text = await response.text();

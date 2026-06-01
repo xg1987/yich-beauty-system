@@ -201,6 +201,7 @@ export default function App() {
             returnView={activeView}
             backLabel="返回管理中心"
             updateProfile={updateAccountProfile}
+            uploadAccountAvatar={actions.uploadAccountAvatar}
             themeMode={themeMode}
             setThemeMode={setThemeMode}
           />
@@ -3597,12 +3598,29 @@ async function normalizeAvatarFile(file: File): Promise<string> {
   }
 }
 
+function dataUrlToFile(dataUrl: string, filename: string) {
+  const [meta, base64] = dataUrl.split(",");
+  const match = /data:(.*?);base64/.exec(meta);
+  const type = match?.[1] ?? "image/jpeg";
+  const binary = window.atob(base64 ?? "");
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new File([bytes], filename, { type });
+}
+
+function isR2AvatarUrl(value: string) {
+  return value.startsWith("/api/assets/");
+}
+
 function SettingsView({
   session,
   setView,
   returnView = "dashboard",
   backLabel = "返回管理中心",
   updateProfile,
+  uploadAccountAvatar,
   themeMode,
   setThemeMode,
 }: {
@@ -3611,6 +3629,7 @@ function SettingsView({
   returnView?: ViewKey;
   backLabel?: string;
   updateProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
+  uploadAccountAvatar: (file: File) => Promise<{ avatarUrl: string; key: string; size: number }>;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
 }) {
@@ -3631,9 +3650,12 @@ function SettingsView({
     setProfileError(undefined);
     setAvatarProcessing(true);
     try {
-      setAvatarUrl(await normalizeAvatarFile(file));
+      const compactAvatarUrl = await normalizeAvatarFile(file);
+      const uploaded = await uploadAccountAvatar(dataUrlToFile(compactAvatarUrl, "avatar.jpg"));
+      setAvatarUrl(uploaded.avatarUrl);
     } catch (caught) {
-      setProfileError(caught instanceof Error ? caught.message : "头像处理失败，请重新选择图片");
+      const message = caught instanceof Error ? caught.message : "头像处理失败，请重新选择图片";
+      setProfileError(message.includes("413") ? "头像文件过大，请重新上传头像" : message);
     } finally {
       setAvatarProcessing(false);
     }
@@ -3650,9 +3672,14 @@ function SettingsView({
     setProfileError(undefined);
     setAvatarProcessing(true);
     void (async () => {
-      const compactAvatarUrl = avatarUrl ? await normalizeAvatarSource(avatarUrl) : "";
-      await updateProfile({ name: profileName.trim() || displayName, avatarUrl: compactAvatarUrl });
-      setAvatarUrl(compactAvatarUrl);
+      let nextAvatarUrl = avatarUrl;
+      if (nextAvatarUrl && !isR2AvatarUrl(nextAvatarUrl)) {
+        const compactAvatarUrl = nextAvatarUrl.startsWith("data:image/") ? nextAvatarUrl : await normalizeAvatarSource(nextAvatarUrl);
+        const uploaded = await uploadAccountAvatar(dataUrlToFile(compactAvatarUrl, "avatar.jpg"));
+        nextAvatarUrl = uploaded.avatarUrl;
+      }
+      await updateProfile({ name: profileName.trim() || displayName, avatarUrl: nextAvatarUrl });
+      setAvatarUrl(nextAvatarUrl);
     })()
       .then(() => {
         setSaved(true);
@@ -3660,7 +3687,11 @@ function SettingsView({
       })
       .catch((caught) => {
         const message = caught instanceof Error ? caught.message : "账号资料保存失败，请稍后重试";
-        setProfileError(message.includes("SQLITE_TOOBIG") || message.includes("string or blob too big") ? "头像无法自动压缩，请换一张图片后再保存" : message);
+        setProfileError(
+          message.includes("SQLITE_TOOBIG") || message.includes("string or blob too big") || message.includes("413")
+            ? "头像文件过大，请重新上传头像"
+            : message,
+        );
       })
       .finally(() => {
         setAvatarProcessing(false);

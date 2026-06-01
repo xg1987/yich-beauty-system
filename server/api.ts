@@ -87,6 +87,11 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
 
+      if (request.method === "GET" && url.pathname.startsWith("/api/assets/")) {
+        sendJson(response, 404, { error: "本地开发服务未绑定 R2 Bucket，无法读取头像资源" });
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/api/auth/login") {
         const body = await readJson(request);
         const account = requiredString(body, "account");
@@ -216,6 +221,11 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "GET" && url.pathname === "/api/auth/me") {
         sendJson(response, 200, session);
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/account-avatar") {
+        sendJson(response, 400, { error: "本地开发服务未绑定 R2 Bucket，请在 Cloudflare 部署环境上传头像" });
         return;
       }
 
@@ -1247,6 +1257,7 @@ function requirePermission(session: UserSession, permission: Permission) {
 function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD") return false;
   if (method === "PATCH" && pathname === "/api/account-profile") return false;
+  if (method === "POST" && pathname === "/api/account-avatar") return false;
   if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
   if (method === "POST" && pathname === "/api/notifications/read-all") return false;
   return true;
