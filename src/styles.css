@@ -7674,3 +7674,390 @@ textarea,
 .theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card em {
   color: var(--night-muted);
 }
+
+/* Night theme visual polish: warm beauty-admin dark palette.
+   Color-only overrides; keep the fixed framework, widths, routes and navigation untouched. */
+.theme-night {
+  --night-bg: #0e0b0b;
+  --night-bg-soft: #151010;
+  --night-surface: rgba(28, 22, 20, 0.96);
+  --night-surface-soft: rgba(36, 28, 25, 0.92);
+  --night-surface-muted: rgba(48, 37, 34, 0.88);
+  --night-line: rgba(232, 174, 180, 0.14);
+  --night-line-strong: rgba(232, 174, 180, 0.24);
+  --night-text: #fff8f3;
+  --night-text-soft: rgba(255, 244, 237, 0.82);
+  --night-muted: rgba(240, 208, 199, 0.66);
+  --night-muted-weak: rgba(240, 208, 199, 0.42);
+  --night-purple: #8f58f2;
+  --night-purple-soft: rgba(143, 88, 242, 0.16);
+  --night-wine: #a32231;
+  --night-rose: #e66b78;
+  --night-gold: #b08355;
+  --line: var(--night-line);
+  --surface: var(--night-surface);
+  --soft: var(--night-surface-soft);
+  --muted: var(--night-muted);
+  --shadow: 0 24px 58px rgba(0, 0, 0, 0.5);
+}
+
+.theme-night .main {
+  background:
+    radial-gradient(circle at 23% -10%, rgba(105, 63, 193, 0.14), transparent 30%),
+    radial-gradient(circle at 82% 4%, rgba(163, 34, 49, 0.12), transparent 28%),
+    linear-gradient(180deg, #151011 0%, #0e0b0b 42%, #100c0c 100%);
+  color: var(--night-text);
+}
+
+.theme-night.app-shell .main > .topbar,
+.theme-night .topbar {
+  border-color: rgba(232, 174, 180, 0.08);
+  background:
+    linear-gradient(180deg, rgba(18, 13, 14, 0.98) 0%, rgba(18, 13, 14, 0.9) 60%, rgba(18, 13, 14, 0) 100%);
+  color: var(--night-text);
+}
+
+.theme-night .topbar-brand .brand-mark {
+  background: rgba(143, 88, 242, 0.16);
+  color: #d9c7ff;
+}
+
+.theme-night .topbar-brand strong,
+.theme-night .topbar-brand span,
+.theme-night .topbar-title h1,
+.theme-night .topbar-title p {
+  color: rgba(232, 209, 255, 0.86);
+}
+
+.theme-night .icon-button,
+.theme-night .avatar-button,
+.theme-night .topbar-actions button {
+  border-color: rgba(232, 174, 180, 0.16);
+  background: rgba(30, 23, 22, 0.84);
+  color: var(--night-text-soft);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+}
+
+.theme-night .avatar-button,
+.theme-night .topbar-actions button:last-child {
+  background: linear-gradient(135deg, var(--night-wine), #d85f73);
+  color: #fff8f3;
+}
+
+.theme-night .sidebar,
+.theme-night .workbar,
+.theme-night .bottom-nav {
+  border-color: rgba(232, 174, 180, 0.12);
+  background: rgba(14, 11, 11, 0.96);
+}
+
+.theme-night .workbar button,
+.theme-night .bottom-nav button {
+  color: var(--night-muted);
+}
+
+.theme-night .workbar button.active,
+.theme-night .bottom-nav button.active {
+  background: linear-gradient(135deg, #7542d8, #e16677);
+  color: #fff;
+  box-shadow: 0 18px 34px rgba(118, 66, 216, 0.28), 0 10px 26px rgba(230, 107, 120, 0.2);
+}
+
+.theme-night .workbench-hero,
+.theme-night .page-hero,
+.theme-night .platform-admin-page .page-hero,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  border-color: rgba(255, 221, 216, 0.12);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 76% 16%, rgba(255, 205, 151, 0.13), transparent 30%),
+    linear-gradient(105deg, #442079 0%, #6c3bd5 48%, #8b5d3a 100%);
+  background-size: 72px 72px, 72px 72px, auto, auto;
+  color: #fff;
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.38);
+}
+
+.theme-night .workbench-hero h2,
+.theme-night .page-hero h1,
+.theme-night .page-hero h2,
+.theme-night .platform-admin-page .page-hero h1,
+.theme-night .admin-profile-hero h2 {
+  color: #fff;
+}
+
+.theme-night .workbench-hero p,
+.theme-night .page-hero p,
+.theme-night .platform-admin-page .page-hero p,
+.theme-night .admin-profile-hero p {
+  color: rgba(255, 244, 237, 0.78);
+}
+
+.theme-night .workbench-hero-kicker,
+.theme-night .page-hero-kicker,
+.theme-night .admin-role-pill {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 248, 243, 0.92);
+}
+
+.theme-night .page-hero-stat,
+.theme-night .page-hero .stat-card,
+.theme-night .platform-admin-page .stat-card,
+.theme-night .dashboard-metric {
+  border-color: rgba(255, 244, 237, 0.16);
+  background: rgba(28, 22, 20, 0.72);
+  color: #fff8f3;
+  box-shadow: none;
+}
+
+.theme-night .panel,
+.theme-night .stat-card,
+.theme-night .quick-card,
+.theme-night .record-card,
+.theme-night .inventory-line,
+.theme-night .settings-card,
+.theme-night .settings-static-panel,
+.theme-night .sub-panel,
+.theme-night .theme-switch-panel,
+.theme-night .admin-code-panel,
+.theme-night .admin-module-card,
+.theme-night .dashboard-panel,
+.theme-night .workbench-panel,
+.theme-night .appointment-panel,
+.theme-night .cashier-panel,
+.theme-night .customer-panel,
+.theme-night .usage-card,
+.theme-night .notification-panel,
+.theme-night .account-menu,
+.theme-night .account-bind-list > div,
+.theme-night .action-strip button,
+.theme-night .timeline-item,
+.theme-night .care-item,
+.theme-night .appointment-schedule-card,
+.theme-night .appointment-request-card,
+.theme-night .cashier-method-list article,
+.theme-night .cashier-order-card,
+.theme-night .customer-level-list article,
+.theme-night .customer-mini-card {
+  border-color: var(--night-line);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(163, 34, 49, 0.07), transparent 34%),
+    var(--night-surface);
+  color: var(--night-text);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.34);
+}
+
+.theme-night .panel-title h2,
+.theme-night .usage-card .panel-title h2,
+.theme-night .notification-head strong,
+.theme-night .account-menu-user strong,
+.theme-night .quick-card strong,
+.theme-night .record-card strong,
+.theme-night .settings-card strong,
+.theme-night .admin-module-card strong,
+.theme-night .appointment-empty-state strong,
+.theme-night .appointment-schedule-card strong,
+.theme-night .appointment-request-card strong,
+.theme-night .cashier-method-list strong,
+.theme-night .cashier-order-card strong,
+.theme-night .customer-level-list strong,
+.theme-night .customer-mini-card strong,
+.theme-night .platform-page-title h1,
+.theme-night .usage-monitor-title h1 {
+  color: var(--night-text);
+}
+
+.theme-night .panel-title span,
+.theme-night .usage-card .panel-title span,
+.theme-night .quick-card p,
+.theme-night .record-card span,
+.theme-night .settings-card span,
+.theme-night .admin-module-card span,
+.theme-night .notification-list small,
+.theme-night .account-menu-user span,
+.theme-night .appointment-schedule-card span,
+.theme-night .appointment-schedule-card small,
+.theme-night .appointment-request-card span,
+.theme-night .appointment-empty-state span,
+.theme-night .appointment-soft-empty,
+.theme-night .cashier-revenue-card span,
+.theme-night .cashier-revenue-card small,
+.theme-night .cashier-status-grid span,
+.theme-night .cashier-status-grid small,
+.theme-night .cashier-method-list span,
+.theme-night .cashier-tip-list span,
+.theme-night .cashier-tip-list small,
+.theme-night .cashier-order-card span,
+.theme-night .cashier-order-card small,
+.theme-night .cashier-soft-empty,
+.theme-night .customer-focus-card span,
+.theme-night .customer-focus-card small,
+.theme-night .customer-status-grid span,
+.theme-night .customer-status-grid small,
+.theme-night .customer-level-list span,
+.theme-night .customer-tip-list span,
+.theme-night .customer-tip-list small,
+.theme-night .customer-mini-card span,
+.theme-night .customer-mini-card small,
+.theme-night .customer-soft-empty,
+.theme-night .usage-monitor-title p {
+  color: var(--night-muted);
+}
+
+.theme-night .stat-card span,
+.theme-night .usage-metrics span,
+.theme-night th,
+.theme-night label,
+.theme-night small {
+  color: var(--night-muted);
+}
+
+.theme-night .stat-card strong,
+.theme-night .usage-metrics strong,
+.theme-night .appointment-status-grid strong,
+.theme-night .cashier-status-grid strong,
+.theme-night .cashier-tip-list strong,
+.theme-night .customer-status-grid strong,
+.theme-night .customer-tip-list strong,
+.theme-night .cashier-revenue-card strong,
+.theme-night .customer-focus-card strong,
+.theme-night .cashier-method-list em,
+.theme-night .cashier-order-card em,
+.theme-night .customer-level-list em,
+.theme-night .customer-mini-card em {
+  color: var(--night-text);
+}
+
+.theme-night .table-wrap,
+.theme-night .usage-card .table-wrap {
+  border-color: rgba(232, 174, 180, 0.12);
+  background: rgba(18, 14, 14, 0.82);
+}
+
+.theme-night table {
+  color: var(--night-text-soft);
+}
+
+.theme-night th,
+.theme-night td {
+  border-color: rgba(232, 174, 180, 0.1);
+}
+
+.theme-night th {
+  background: rgba(255, 244, 237, 0.035);
+}
+
+.theme-night td {
+  color: var(--night-text-soft);
+}
+
+.theme-night input,
+.theme-night select,
+.theme-night textarea,
+.theme-night .form-readonly,
+.theme-night .contact-inline-field {
+  border-color: var(--night-line);
+  background: rgba(19, 15, 14, 0.94);
+  color: var(--night-text);
+}
+
+.theme-night input:focus,
+.theme-night select:focus,
+.theme-night textarea:focus {
+  border-color: rgba(230, 107, 120, 0.68);
+  box-shadow: 0 0 0 3px rgba(230, 107, 120, 0.14);
+}
+
+.theme-night ::placeholder {
+  color: var(--night-muted-weak);
+}
+
+.theme-night .empty,
+.theme-night .appointment-empty-state,
+.theme-night .appointment-soft-empty,
+.theme-night .cashier-soft-empty,
+.theme-night .customer-soft-empty {
+  border-color: var(--night-line);
+  background: rgba(24, 19, 18, 0.84);
+  color: var(--night-muted);
+}
+
+.theme-night .appointment-date-strip {
+  border-color: var(--night-line);
+  background: rgba(48, 37, 34, 0.84);
+}
+
+.theme-night .appointment-date-strip button {
+  color: var(--night-muted);
+}
+
+.theme-night .appointment-date-strip button.active {
+  background: linear-gradient(135deg, #7442d8, #be4157);
+  color: #fff;
+}
+
+.theme-night .appointment-status-grid > div,
+.theme-night .cashier-status-grid > div,
+.theme-night .cashier-tip-list > div,
+.theme-night .customer-status-grid > div,
+.theme-night .customer-tip-list > div,
+.theme-night .usage-metrics > div,
+.theme-night .cashier-revenue-card,
+.theme-night .customer-focus-card {
+  border-color: var(--night-line);
+  background:
+    radial-gradient(circle at 84% 12%, rgba(143, 88, 242, 0.12), transparent 34%),
+    rgba(36, 28, 25, 0.92);
+}
+
+.theme-night .usage-soft-meter {
+  border-color: rgba(91, 197, 151, 0.2);
+  background: rgba(43, 91, 69, 0.22);
+}
+
+.theme-night .usage-soft-meter > div,
+.theme-night .usage-soft-meter strong {
+  color: #9ee8c5;
+}
+
+.theme-night .usage-inline-note {
+  border-color: rgba(143, 88, 242, 0.18);
+  background: rgba(143, 88, 242, 0.12);
+  color: var(--night-muted);
+}
+
+.theme-night .usage-inline-note strong {
+  color: var(--night-text);
+}
+
+.theme-night .usage-warning-card {
+  border-color: rgba(205, 146, 70, 0.28);
+  background: rgba(83, 56, 25, 0.26);
+  color: #f2c98a;
+}
+
+.theme-night .usage-warning-card span,
+.theme-night .usage-warning-card em {
+  color: rgba(242, 201, 138, 0.8);
+}
+
+.theme-night .theme-option,
+.theme-night .theme-toggle button,
+.theme-night .settings-tab-button {
+  border-color: var(--night-line);
+  background: rgba(28, 22, 20, 0.92);
+  color: var(--night-text-soft);
+}
+
+.theme-night .theme-toggle button.active,
+.theme-night .settings-tab-button.active {
+  background: linear-gradient(135deg, var(--night-wine), var(--night-rose));
+  color: #fff8f3;
+}
+
+.theme-night .theme-auto-note,
+.theme-night .settings-version,
+.theme-night .account-menu-version {
+  color: var(--night-muted);
+}
