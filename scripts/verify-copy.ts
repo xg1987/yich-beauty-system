@@ -6,7 +6,7 @@ type ForbiddenCopy = {
   reason: string;
 };
 
-const srcRoot = join(process.cwd(), "src");
+const scanRoots = ["src", "server", "functions"].map((name) => join(process.cwd(), name));
 
 const ignoredFiles = new Set([
   "src/domain/testFixture.ts",
@@ -16,6 +16,8 @@ const ignoredFiles = new Set([
 
 const forbiddenCopies: ForbiddenCopy[] = [
   { phrase: "超级 admin", reason: "正式产品中不展示内部角色解释" },
+  { phrase: "超级 Admin", reason: "正式产品中不展示内部角色解释" },
+  { phrase: "超级admin", reason: "正式产品中不展示内部角色解释" },
   { phrase: "超级管理员", reason: "界面统一使用系统管理员" },
   { phrase: "只读", reason: "正式产品中不展示实现口径" },
   { phrase: "不新增", reason: "正式产品中不展示限制说明" },
@@ -50,18 +52,20 @@ function collectFiles(dir: string): string[] {
 
 const violations: string[] = [];
 
-for (const filePath of collectFiles(srcRoot)) {
-  const rel = relative(process.cwd(), filePath);
-  if (ignoredFiles.has(rel)) continue;
+for (const root of scanRoots) {
+  for (const filePath of collectFiles(root)) {
+    const rel = relative(process.cwd(), filePath);
+    if (ignoredFiles.has(rel)) continue;
 
-  const lines = readFileSync(filePath, "utf8").split(/\r?\n/);
-  lines.forEach((line, index) => {
-    for (const item of forbiddenCopies) {
-      if (line.includes(item.phrase)) {
-        violations.push(`${rel}:${index + 1} contains "${item.phrase}" - ${item.reason}`);
+    const lines = readFileSync(filePath, "utf8").split(/\r?\n/);
+    lines.forEach((line, index) => {
+      for (const item of forbiddenCopies) {
+        if (line.includes(item.phrase)) {
+          violations.push(`${rel}:${index + 1} contains "${item.phrase}" - ${item.reason}`);
+        }
       }
-    }
-  });
+    });
+  }
 }
 
 if (violations.length > 0) {
