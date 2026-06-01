@@ -7,7 +7,7 @@ import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
 import { DEFAULT_OWNER_INVITE_CODE } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
-import type { AppData } from "../src/domain/types";
+import type { AppData, WorkerUsageSnapshot } from "../src/domain/types";
 
 const tempDir = mkdtempSync(join(tmpdir(), "beauty-api-"));
 const database = new BeautyDatabase(join(tempDir, "test.sqlite"));
@@ -81,6 +81,11 @@ try {
   assert.ok(usageAfterAvatar.objectCount > 0, "R2 usage API should include uploaded avatar objects");
   assert.ok(usageAfterAvatar.totalBytes >= uploadedAvatar.size, "R2 usage API should include uploaded avatar bytes");
   assert.ok(usageAfterAvatar.prefixes.some((item) => item.prefix === "avatars/" && item.objectCount > 0), "R2 usage API should group avatars under avatars/");
+  const workerUsage = await request<WorkerUsageSnapshot>(baseUrl, "/api/usage/worker", { token: adminSession.token });
+  assert.equal(workerUsage.source, "cloudflare-graphql", "worker usage API should use Cloudflare Metrics source");
+  assert.equal(typeof workerUsage.requests, "number", "worker usage API should return request count");
+  assert.equal(typeof workerUsage.errors, "number", "worker usage API should return error count");
+  assert.equal(workerUsage.windowHours, 24, "worker usage API should report the 24 hour metrics window");
   const afterAccountProfile = await request<{ session: { user: { name: string; avatarUrl?: string } }; data: AppData }>(baseUrl, "/api/account-profile", {
     method: "PATCH",
     token: adminSession.token,
