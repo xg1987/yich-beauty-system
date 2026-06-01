@@ -409,13 +409,42 @@ function PlatformPageTitle({ title, onBack }: { title: string; onBack: () => voi
 }
 
 function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  type AppointmentRange = "today" | "tomorrow" | "week";
+  const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
   const today = new Date();
+  const startOfDay = (date: Date) => {
+    const value = new Date(date);
+    value.setHours(0, 0, 0, 0);
+    return value;
+  };
+  const endOfDay = (date: Date) => {
+    const value = new Date(date);
+    value.setHours(23, 59, 59, 999);
+    return value;
+  };
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
+  const weekStart = startOfDay(today);
+  weekStart.setDate(today.getDate() - dayOfWeek + 1);
+  const weekEnd = endOfDay(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const appointmentRanges: Record<AppointmentRange, { label: string; start: Date; end: Date }> = {
+    today: { label: "今日", start: startOfDay(today), end: endOfDay(today) },
+    tomorrow: { label: "明日", start: startOfDay(tomorrow), end: endOfDay(tomorrow) },
+    week: { label: "本周", start: weekStart, end: weekEnd },
+  };
+  const selectedAppointmentRange = appointmentRanges[appointmentRange];
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const pending = data.appointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const completed = data.appointments.filter((item) => item.status === "已完成").length;
   const onlinePendingRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const onlinePending = onlinePendingRequests.length;
-  const upcomingAppointments = data.appointments
+  const rangeAppointments = data.appointments
+    .filter((item) => {
+      const startAt = new Date(item.startAt).getTime();
+      return startAt >= selectedAppointmentRange.start.getTime() && startAt <= selectedAppointmentRange.end.getTime();
+    })
     .slice()
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
     .slice(0, 6);
@@ -451,14 +480,22 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
 
       <section className="appointment-page-grid">
         <div className="appointment-panel appointment-board-panel">
-          <PanelTitle icon={<CalendarDays size={18} />} title="今日预约看板" action={`${todayAppointments.length} 条`} />
+          <PanelTitle icon={<CalendarDays size={18} />} title={`${selectedAppointmentRange.label}预约看板`} action={`${rangeAppointments.length} 条`} />
           <div className="appointment-date-strip" aria-label="预约日期筛选">
-            <button className="active" type="button">今日</button>
-            <button type="button">明日</button>
-            <button type="button">本周</button>
+            {(["today", "tomorrow", "week"] as AppointmentRange[]).map((range) => (
+              <button
+                aria-pressed={appointmentRange === range}
+                className={appointmentRange === range ? "active" : undefined}
+                key={range}
+                onClick={() => setAppointmentRange(range)}
+                type="button"
+              >
+                {appointmentRanges[range].label}
+              </button>
+            ))}
           </div>
           <div className="appointment-timeline-board">
-            {upcomingAppointments.map((item) => (
+            {rangeAppointments.map((item) => (
               <article className="appointment-schedule-card" key={item.id}>
                 <time>{shortDate(item.startAt).split(" ")[1] ?? shortDate(item.startAt)}</time>
                 <div>
@@ -469,11 +506,10 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
                 <Badge text={item.status} tone={item.status === "已完成" ? "ok" : item.status === "已取消" || item.status === "爽约" ? "warn" : undefined} />
               </article>
             ))}
-            {upcomingAppointments.length === 0 && (
+            {rangeAppointments.length === 0 && (
               <div className="appointment-empty-state">
                 <CalendarDays size={28} />
-                <strong>暂无预约安排</strong>
-                <span>暂无到店计划</span>
+                <strong>{selectedAppointmentRange.label}暂无预约安排</strong>
               </div>
             )}
           </div>
