@@ -229,7 +229,7 @@ export default function App() {
           />
         ) : (
           <>
-            {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} setView={navigate} /> : <Dashboard data={data} session={session} setView={navigate} />)}
+            {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && (isPlatformAdmin ? <PlatformAppointmentsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Appointments data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Pos data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "customers" && (isPlatformAdmin ? <PlatformCustomersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Customers data={data} actions={actions} runMutation={runMutation} />)}
@@ -286,7 +286,7 @@ function ManagementCenter({
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
     { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
-    { title: "操作审计", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
+    { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
     { title: "预约管理", desc: "预约记录 / 到店状态", icon: CalendarDays, tone: "violet", view: "appointments" },
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
@@ -353,88 +353,33 @@ function ManagementCenter({
 
 function PlatformAdminView({
   data,
-  setView,
 }: {
   data: AppData;
-  setView: (view: ViewKey) => void;
 }) {
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
   const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const activeAccounts = data.authUsers.filter((user) => user.status === "active").length;
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
-  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
   const platformMetrics = [
     { icon: <ShieldCheck size={18} />, label: "启用账号", value: `${activeAccounts} 个`, hint: "平台账号" },
     { icon: <Building2 size={18} />, label: "老板账号", value: `${ownerAccounts.length} 个`, hint: "门店负责人" },
     { icon: <UsersRound size={18} />, label: "员工账号", value: `${staffAccounts.length} 个`, hint: "门店成员" },
-  ];
-  const platformActions = [
-    { icon: <UsersRound size={18} />, label: "账号管理", value: `${activeAccounts} 个`, view: "accounts" as ViewKey },
-    { icon: <CalendarDays size={18} />, label: "预约管理", value: `${todayAppointments} 条`, view: "appointments" as ViewKey },
-    { icon: <CreditCard size={18} />, label: "收银订单", value: money(totalRevenue), view: "pos" as ViewKey },
-  ];
-  const platformQuick = [
-    { title: "客户档案", value: `${data.customers.length} 人`, hint: "客户会员基础数据", view: "customers" as ViewKey },
-    { title: "报表分析", value: money(totalRevenue), hint: "收款与门店数据", view: "reports" as ViewKey },
-    { title: "权限审批", value: `${pendingApprovals} 单`, hint: "关键权限待处理", view: "permissions" as ViewKey },
-    { title: "操作审计", value: `${data.operationLogs.length} 条`, hint: "账号操作记录", view: "logs" as ViewKey },
+    { icon: <CalendarDays size={18} />, label: "今日预约", value: `${todayAppointments} 条`, hint: "门店预约" },
   ];
 
   return (
     <div className="dashboard-page platform-admin-workbench">
       <section className="workbench-hero role-hero-superadmin">
         <span className="workbench-hero-kicker"><Building2 size={15} /> 平台总览</span>
-        <h2>账号与经营数据总览</h2>
+        <h2>平台总览</h2>
         <p>门店 {data.storeProfiles.length} 家 · 账号 {activeAccounts} 个 · 今日预约 {todayAppointments} 条</p>
-        <small>账号、预约、收款、客户和门店数据汇总。</small>
       </section>
 
       <section className="workbench-metric-row" aria-label="平台关键数据">
         {platformMetrics.map((item) => (
           <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
         ))}
-      </section>
-
-      <section className="workbench-action-row" aria-label="核心入口">
-        {platformActions.map((item) => (
-          <button key={item.label} onClick={() => setView(item.view)}>
-            {item.icon}
-            <strong>{item.value}</strong>
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </section>
-
-      <section className="workbench-content-grid lower">
-        <div className="workbench-panel">
-          <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="管理中心" />
-          <div className="workbench-quick-list">
-            {platformQuick.map((item) => (
-              <button key={item.title} onClick={() => setView(item.view)}>
-                <strong>{item.value}</strong>
-                <span>{item.title}</span>
-                <small>{item.hint}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="workbench-panel">
-          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营概览" action="数据汇总" />
-          <div className="workbench-insight-list">
-            <button onClick={() => setView("reports")}>
-              <span>实收汇总</span>
-              <strong>{money(totalRevenue)}</strong>
-              <small>已记录收款金额</small>
-            </button>
-            <button onClick={() => setView("settings")}>
-              <span>门店数量</span>
-              <strong>{data.storeProfiles.length} 家</strong>
-              <small>已开通门店</small>
-            </button>
-          </div>
-        </div>
       </section>
 
       <section className="workbench-panel">
@@ -1174,7 +1119,7 @@ function PlatformPermissionReadOnlyView({ data, setView, showBack }: { data: App
   const pendingStaffInvites = data.staffInvites.filter((item) => item.status === "待加入").length;
   const pendingOwnerInvites = data.storeOwnerInvites.filter((item) => item.status === "待加入").length;
   const roleRows = [
-    ["系统管理员", "账号管理、权限审批、平台数据、操作审计、服务器用量", "平台级查看"],
+    ["系统管理员", "账号管理、权限审批、平台数据、操作日志、服务器用量", "平台管理"],
     ["老板", "门店经营、员工、库存、报表、审批", "门店级管理"],
     ["店长", "预约、收银、客户、库存、提成、报表", "门店级执行"],
     ["前台", "预约、收银、客户登记", "到店业务"],
@@ -1229,10 +1174,10 @@ function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData;
 
   return (
     <div className="admin-center-page platform-admin-page">
-      {showBack && <PlatformPageTitle title="操作审计" onBack={() => setView("settings")} />}
+      {showBack && <PlatformPageTitle title="操作日志" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><ClipboardList size={15} /> 操作审计</span>
+          <span className="eyebrow"><ClipboardList size={15} /> 操作日志</span>
           <h1>操作日志</h1>
           <p>登录记录、关键动作、对象类型和操作摘要。</p>
         </div>
@@ -1345,15 +1290,11 @@ function PlatformUsageReadOnlyView({
 
   return (
     <div className="admin-center-page platform-admin-page usage-monitor-page">
+      {showBack && <PlatformPageTitle title="服务器用量监控" onBack={() => setView("settings")} />}
       <header className="usage-monitor-header">
         <div className="usage-monitor-title">
-          {showBack && (
-            <button type="button" aria-label="返回管理中心" onClick={() => setView("settings")}>
-              <ArrowLeft size={20} />
-            </button>
-          )}
           <div>
-            <h1>服务器用量监控</h1>
+            {!showBack && <h1>服务器用量监控</h1>}
             <p>Cloudflare 资源统计 · {updatedAt}</p>
           </div>
         </div>
@@ -4025,6 +3966,17 @@ function isR2AvatarUrl(value: string) {
   return value.startsWith("/api/assets/");
 }
 
+function accountAvatarErrorMessage(caught: unknown, fallback: string) {
+  const message = caught instanceof Error ? caught.message : fallback;
+  if (/SQLITE_TOOBIG|string or blob too big|413|Payload Too Large|头像文件过大/i.test(message)) {
+    return "头像文件过大，请重新上传头像";
+  }
+  if (message.includes("R2 Bucket") || message.includes("未绑定 R2")) {
+    return "头像存储服务未配置，请联系管理员";
+  }
+  return message;
+}
+
 function SettingsView({
   session,
   setView,
@@ -4065,8 +4017,7 @@ function SettingsView({
       const uploaded = await uploadAccountAvatar(dataUrlToFile(compactAvatarUrl, "avatar.jpg"));
       setAvatarUrl(uploaded.avatarUrl);
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "头像处理失败，请重新选择图片";
-      setProfileError(message.includes("413") ? "头像文件过大，请重新上传头像" : message);
+      setProfileError(accountAvatarErrorMessage(caught, "头像处理失败，请重新选择图片"));
     } finally {
       setAvatarProcessing(false);
     }
@@ -4089,6 +4040,9 @@ function SettingsView({
         const uploaded = await uploadAccountAvatar(dataUrlToFile(compactAvatarUrl, "avatar.jpg"));
         nextAvatarUrl = uploaded.avatarUrl;
       }
+      if (nextAvatarUrl && !isR2AvatarUrl(nextAvatarUrl)) {
+        throw new Error("头像存储失败，请重新上传头像");
+      }
       await updateProfile({ name: profileName.trim() || displayName, avatarUrl: nextAvatarUrl });
       setAvatarUrl(nextAvatarUrl);
     })()
@@ -4097,12 +4051,7 @@ function SettingsView({
         window.setTimeout(() => setSaved(false), 1400);
       })
       .catch((caught) => {
-        const message = caught instanceof Error ? caught.message : "账号资料保存失败，请稍后重试";
-        setProfileError(
-          message.includes("SQLITE_TOOBIG") || message.includes("string or blob too big") || message.includes("413")
-            ? "头像文件过大，请重新上传头像"
-            : message,
-        );
+        setProfileError(accountAvatarErrorMessage(caught, "账号资料保存失败，请稍后重试"));
       })
       .finally(() => {
         setAvatarProcessing(false);

@@ -164,10 +164,16 @@ function card(data: AppData, cardId: string) {
   });
   assert.equal(updatedStore.storeProfiles[0].name, "测试皮肤管理中心", "store profile should update store name");
   assert.equal(updatedStore.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile should update business hours");
-  const updatedAccount = updateAccountProfile(cloneSeed(), { userId: "u_manager", name: "新主管名", avatarUrl: "data:image/png;base64,AA==" });
+  const avatarAssetUrl = "/api/assets/avatars/u_manager/test-avatar.jpg";
+  const updatedAccount = updateAccountProfile(cloneSeed(), { userId: "u_manager", name: "新主管名", avatarUrl: avatarAssetUrl });
   assert.equal(updatedAccount.authUsers.find((user) => user.id === "u_manager")?.name, "新主管名", "account profile should update auth user name");
-  assert.equal(updatedAccount.authUsers.find((user) => user.id === "u_manager")?.avatarUrl, "data:image/png;base64,AA==", "account profile should update avatar");
+  assert.equal(updatedAccount.authUsers.find((user) => user.id === "u_manager")?.avatarUrl, avatarAssetUrl, "account profile should persist uploaded asset avatar URL");
   assert.equal(updatedAccount.staff.find((staff) => staff.id === "s1")?.name, "新主管名", "account profile should sync bound staff name");
+  assert.throws(
+    () => updateAccountProfile(cloneSeed(), { userId: "u_manager", name: "新主管名", avatarUrl: "data:image/png;base64,AA==" }),
+    /头像文件过大/,
+    "account profile should reject inline image blobs",
+  );
   assert.throws(
     () => updateStoreProfile(updatedStore, { name: "", phone: "13900000002", address: "测试新地址", businessHours: "09:30 - 22:00" }),
     /请输入门店名称/,

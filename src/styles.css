@@ -7274,3 +7274,61 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+/* Framework alignment guard: the visible shell is the fixed topbar + bottom workbar.
+   The legacy sidebar is kept out of layout so every page centers on the viewport. */
+.app-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell > .sidebar {
+  display: none;
+}
+
+.app-shell .main {
+  width: 100%;
+  max-width: none;
+  padding-right: clamp(18px, 3vw, 42px);
+  padding-left: clamp(18px, 3vw, 42px);
+}
+
+.app-shell .main > .content-grid,
+.app-shell .main > .page-grid,
+.app-shell .main > .dashboard-page,
+.app-shell .main > .admin-center-page,
+.app-shell .main > .page-stack,
+.app-shell .main > .admin-center-page.platform-admin-page {
+  width: min(var(--yich-workbench-width), 100%);
+  max-width: var(--yich-workbench-width);
+  margin-right: auto;
+  margin-left: auto;
+  transform: none;
+}
+
+@media (max-width: 900px) {
+  .app-shell .main {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+}
+
+/* Final shell guard: account tools stay at the viewport right on every page. */
+.app-shell .main > .topbar .topbar-actions {
+  position: fixed;
+  top: 34px;
+  right: 28px;
+  z-index: 120;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-right: 0;
+}
+
+@media (max-width: 900px) {
+  .app-shell .main > .topbar .topbar-actions {
+    top: 18px;
+    right: 16px;
+    gap: 10px;
+  }
+}

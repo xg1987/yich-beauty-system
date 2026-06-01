@@ -1080,7 +1080,6 @@ export function updateStaffMember(data: AppData, input: StaffUpdateInput): AppDa
   };
 }
 
-const MAX_ACCOUNT_AVATAR_URL_LENGTH = 180_000;
 const MAX_ACCOUNT_ASSET_URL_LENGTH = 500;
 
 export function updateAccountProfile(data: AppData, input: AccountProfileInput): AppData {
@@ -1089,9 +1088,9 @@ export function updateAccountProfile(data: AppData, input: AccountProfileInput):
   const name = input.name.trim();
   const avatarUrl = input.avatarUrl?.trim();
   if (!name) throw new Error("请输入姓名");
-  if (avatarUrl && !avatarUrl.startsWith("data:image/") && !avatarUrl.startsWith("/api/assets/")) throw new Error("头像格式不正确");
-  if (avatarUrl?.startsWith("/api/assets/") && avatarUrl.length > MAX_ACCOUNT_ASSET_URL_LENGTH) throw new Error("头像地址不正确");
-  if (avatarUrl?.startsWith("data:image/") && avatarUrl.length > MAX_ACCOUNT_AVATAR_URL_LENGTH) throw new Error("头像文件过大，请重新上传头像");
+  if (avatarUrl?.startsWith("data:image/")) throw new Error("头像文件过大，请重新上传头像");
+  if (avatarUrl && !avatarUrl.startsWith("/api/assets/")) throw new Error("头像格式不正确");
+  if (avatarUrl && avatarUrl.length > MAX_ACCOUNT_ASSET_URL_LENGTH) throw new Error("头像地址不正确");
   return {
     ...data,
     authUsers: data.authUsers.map((item) =>

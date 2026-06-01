@@ -55,13 +55,31 @@ try {
     body: { account: "admin@test.local", password: "test-password" },
   });
   assert.equal(adminSession.user.roleName, "系统管理员", "admin login should return platform admin session");
+  await assert.rejects(
+    () =>
+      request<{ session: { user: { name: string; avatarUrl?: string } }; data: AppData }>(baseUrl, "/api/account-profile", {
+        method: "PATCH",
+        token: adminSession.token,
+        body: { name: "API 管理员", avatarUrl: "data:image/png;base64,AA==" },
+      }),
+    /头像文件过大/,
+    "account profile API should reject inline avatar blobs",
+  );
+  const avatarForm = new FormData();
+  avatarForm.set("avatar", new Blob([Buffer.from("avatar-test")], { type: "image/png" }), "avatar.png");
+  const uploadedAvatar = await requestForm<{ avatarUrl: string; key: string; size: number }>(baseUrl, "/api/account-avatar", {
+    method: "POST",
+    token: adminSession.token,
+    body: avatarForm,
+  });
+  assert.match(uploadedAvatar.avatarUrl, /^\/api\/assets\/avatars\/u_superadmin\//, "account avatar API should return asset URL");
   const afterAccountProfile = await request<{ session: { user: { name: string; avatarUrl?: string } }; data: AppData }>(baseUrl, "/api/account-profile", {
     method: "PATCH",
     token: adminSession.token,
-    body: { name: "API 管理员", avatarUrl: "data:image/png;base64,AA==" },
+    body: { name: "API 管理员", avatarUrl: uploadedAvatar.avatarUrl },
   });
   assert.equal(afterAccountProfile.session.user.name, "API 管理员", "account profile API should update session name");
-  assert.equal(afterAccountProfile.session.user.avatarUrl, "data:image/png;base64,AA==", "account profile API should update session avatar");
+  assert.equal(afterAccountProfile.session.user.avatarUrl, uploadedAvatar.avatarUrl, "account profile API should update session avatar");
   assert.equal(afterAccountProfile.data.authUsers.find((user) => user.id === "u_superadmin")?.name, "API 管理员", "account profile API should persist user name");
 
   database.replaceData({
@@ -932,6 +950,21 @@ async function request<T>(baseUrl: string, path: string, options: { method?: str
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const data = (await response.json()) as T | { error: string };
+  if (!response.ok) {
+    throw new Error(isErrorPayload(data) ? data.error : `HTTP ${response.status}`);
+  }
+  return data as T;
+}
+
+async function requestForm<T>(baseUrl: string, path: string, options: { method?: string; body: FormData; token?: string }) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: options.method ?? "POST",
+    headers: {
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+    },
+    body: options.body,
   });
   const data = (await response.json()) as T | { error: string };
   if (!response.ok) {
