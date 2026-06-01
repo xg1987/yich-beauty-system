@@ -2936,9 +2936,7 @@ html[data-theme="day"],
 .theme-day .admin-profile-hero,
 .theme-day .beauty-hero {
   border-color: rgba(150, 95, 82, 0.22);
-  background:
-    linear-gradient(135deg, #b94b63 0%, #d87486 48%, #c59658 100%),
-    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.28), transparent 30%);
+  background: linear-gradient(135deg, #b94b63 0%, #d87486 48%, #c59658 100%);
   box-shadow: 0 22px 54px rgba(150, 54, 77, 0.22);
 }
 
@@ -3204,9 +3202,7 @@ html[data-theme="day"],
 .theme-day .admin-profile-hero,
 .theme-day .beauty-hero {
   border-color: rgba(111, 66, 193, 0.16);
-  background:
-    linear-gradient(135deg, #45257f 0%, #6f42c1 48%, #b99555 100%),
-    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.28), transparent 30%);
+  background: linear-gradient(135deg, #45257f 0%, #6f42c1 48%, #b99555 100%);
   box-shadow: 0 22px 54px rgba(69, 37, 127, 0.24);
 }
 
@@ -4740,23 +4736,12 @@ textarea,
   padding: 28px 34px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 20px;
-  background:
-    radial-gradient(circle at 84% 18%, rgba(255, 255, 255, 0.18), transparent 30%),
-    radial-gradient(circle at 88% 20%, rgba(185, 149, 85, 0.2), transparent 30%),
-    linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
+  background: linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
   box-shadow: 0 24px 54px rgba(69, 37, 127, 0.2);
 }
 
 .admin-hero-pattern {
-  position: absolute;
-  inset: 0;
-  opacity: 0.08;
-  pointer-events: none;
-  background-image:
-    radial-gradient(circle at 10px 10px, #fff 1.2px, transparent 1.4px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.7) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.45) 1px, transparent 1px);
-  background-size: 28px 28px, 122px 100%, 100% 48px;
+  display: none;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-profile-hero > :not(.admin-hero-pattern) {
@@ -5595,8 +5580,7 @@ textarea,
 }
 
 .workbench-hero::after {
-  background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.28), transparent 38%);
-  opacity: 0.7;
+  display: none;
 }
 
 .workbench-hero > * {
@@ -6350,9 +6334,7 @@ textarea,
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 36px;
-  background:
-    radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.18), transparent 34%),
-    linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
+  background: linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
   color: #fffdfa;
   box-shadow: 0 24px 60px rgba(69, 37, 127, 0.16);
 }
