@@ -93,7 +93,7 @@ try {
         token: phoneAdminSession.token,
         body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), note: "" },
       }),
-    /超级管理员端仅允许只读查看/,
+    /当前账号无此操作权限/,
     "legacy phone admin account should be readonly for business writes",
   );
 

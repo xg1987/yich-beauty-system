@@ -2765,7 +2765,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         </form>
         <div className="tag-admin-list">
           {data.tagDefinitions.length === 0 ? (
-            <p className="empty">暂无正式标签，可先新增客户标签</p>
+            <p className="empty">暂无客户标签</p>
           ) : (
             data.tagDefinitions.map((tag) => (
               <div className="tag-admin-row" key={tag.id}>
