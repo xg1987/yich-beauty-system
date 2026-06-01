@@ -435,7 +435,6 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
     week: { label: "本周", start: weekStart, end: weekEnd },
   };
   const selectedAppointmentRange = appointmentRanges[appointmentRange];
-  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const pending = data.appointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const completed = data.appointments.filter((item) => item.status === "已完成").length;
   const onlinePendingRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
@@ -446,11 +445,10 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
       return startAt >= selectedAppointmentRange.start.getTime() && startAt <= selectedAppointmentRange.end.getTime();
     })
     .slice()
-    .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
-    .slice(0, 6);
-  const rows = data.appointments
-    .slice()
-    .sort((a, b) => +new Date(b.startAt) - +new Date(a.startAt))
+    .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
+  const rangePending = rangeAppointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
+  const rangeCompleted = rangeAppointments.filter((item) => item.status === "已完成").length;
+  const rows = rangeAppointments
     .slice(0, 120)
     .map((item) => [
       shortDate(item.startAt),
@@ -495,7 +493,7 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
             ))}
           </div>
           <div className="appointment-timeline-board">
-            {rangeAppointments.map((item) => (
+            {rangeAppointments.slice(0, 6).map((item) => (
               <article className="appointment-schedule-card" key={item.id}>
                 <time>{shortDate(item.startAt).split(" ")[1] ?? shortDate(item.startAt)}</time>
                 <div>
@@ -519,18 +517,18 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
           <PanelTitle icon={<ClipboardList size={18} />} title="预约状态" action="实时汇总" />
           <div className="appointment-status-grid">
             <div>
-              <span>预约总数</span>
-              <strong>{data.appointments.length}</strong>
-              <small>全部预约记录</small>
+              <span>{selectedAppointmentRange.label}预约</span>
+              <strong>{rangeAppointments.length}</strong>
+              <small>当前筛选范围</small>
             </div>
             <div>
               <span>待到店</span>
-              <strong>{pending}</strong>
+              <strong>{rangePending}</strong>
               <small>待确认 / 已确认</small>
             </div>
             <div>
               <span>已完成</span>
-              <strong>{completed}</strong>
+              <strong>{rangeCompleted}</strong>
               <small>服务已结束</small>
             </div>
             <div>
@@ -557,11 +555,11 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
       </section>
 
       <section className="appointment-panel">
-        <PanelTitle icon={<ClipboardList size={18} />} title="全部预约列表" action={`${data.appointments.length} 条`} />
+        <PanelTitle icon={<ClipboardList size={18} />} title={`${selectedAppointmentRange.label}预约列表`} action={`${rangeAppointments.length} 条`} />
         {rows.length > 0 ? (
           <DataTable columns={["预约时间", "客户", "项目", "员工", "状态", "备注"]} rows={rows} />
         ) : (
-          <p className="appointment-soft-empty">暂无预约记录</p>
+          <p className="appointment-soft-empty">{selectedAppointmentRange.label}暂无预约记录</p>
         )}
       </section>
     </div>
