@@ -5880,7 +5880,7 @@ textarea,
 :root {
   --yich-workbench-width: 1360px;
   --yich-workbench-sidebar-width: 156px;
-  --yich-workbench-visual-offset: calc(var(--yich-workbench-sidebar-width) / -2);
+  --yich-workbench-visual-offset: 0px;
 }
 
 .app-shell .main > .topbar {
@@ -5971,7 +5971,7 @@ textarea,
   max-width: var(--yich-workbench-width);
   margin-right: auto;
   margin-left: auto;
-  transform: translateX(var(--yich-workbench-visual-offset));
+  transform: none;
 }
 
 .app-shell .main > .admin-center-page.platform-admin-page {
@@ -5979,7 +5979,7 @@ textarea,
   max-width: var(--yich-workbench-width);
   margin-right: auto;
   margin-left: auto;
-  transform: translateX(var(--yich-workbench-visual-offset));
+  transform: none;
 }
 
 .app-shell .main > .page-stack > .content-grid,

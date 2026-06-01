@@ -1,4 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   addOperationLog,
   addSystemNotification,
@@ -62,6 +64,13 @@ import { getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase } from "./database";
 
 type JsonBody = Record<string, unknown>;
+type LocalAvatarUpload = {
+  buffer: Buffer;
+  contentType: string;
+  extension: string;
+};
+
+const LOCAL_ASSET_ROOT = path.join(process.cwd(), ".local-r2");
 
 export function createApiServer(database = new BeautyDatabase()) {
   database.seedIfEmpty();
@@ -88,7 +97,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/api/assets/")) {
-        sendJson(response, 404, { error: "本地开发服务未绑定 R2 Bucket，无法读取头像资源" });
+        await serveLocalAsset(response, url.pathname);
         return;
       }
 
@@ -215,7 +224,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       }
 
       if (session.user.role === "superadmin" && isSuperadminBusinessWrite(request.method ?? "GET", url.pathname)) {
-        sendJson(response, 403, { error: "超级管理员端仅允许只读查看，业务写入请使用门店角色账号" });
+        sendJson(response, 403, { error: "当前账号无此操作权限" });
         return;
       }
 
@@ -225,7 +234,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       }
 
       if (request.method === "POST" && url.pathname === "/api/account-avatar") {
-        sendJson(response, 400, { error: "本地开发服务未绑定 R2 Bucket，请在 Cloudflare 部署环境上传头像" });
+        sendJson(response, 200, await saveLocalAccountAvatar(request, session.user.id));
         return;
       }
 
@@ -259,7 +268,7 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "GET" && url.pathname === "/api/usage/r2") {
         requirePermission(session, "settings:view");
-        sendJson(response, 200, localR2UsageUnavailable());
+        sendJson(response, 200, await readLocalR2Usage());
         return;
       }
 
@@ -1381,17 +1390,139 @@ function notificationVisibleToSession(notification: AppData["notifications"][num
   return true;
 }
 
-function localR2UsageUnavailable(): R2UsageSnapshot {
+async function serveLocalAsset(response: ServerResponse, pathname: string) {
+  const key = assetKeyFromPath(pathname);
+  const filePath = localAssetPath(key);
+  try {
+    const buffer = await readFile(filePath);
+    response.writeHead(200, {
+      "Content-Type": contentTypeForAsset(key),
+      "Cache-Control": "public, max-age=31536000, immutable",
+    });
+    response.end(buffer);
+  } catch {
+    sendJson(response, 404, { error: "资源不存在" });
+  }
+}
+
+async function saveLocalAccountAvatar(request: IncomingMessage, userId: string) {
+  const upload = await parseAvatarUpload(request);
+  if (upload.buffer.length > 1_200_000) throw new Error("头像文件过大，请重新上传头像");
+
+  const key = `avatars/${userId}/${Date.now()}-${makeId("img")}.${upload.extension}`;
+  const filePath = localAssetPath(key);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, upload.buffer);
+
   return {
-    available: false,
-    source: "r2-binding",
-    objectCount: 0,
-    totalBytes: 0,
-    limitBytes: 10 * 1024 * 1024 * 1024,
-    prefixes: [],
-    updatedAt: nowIso(),
-    message: "本地开发服务未绑定 R2 Bucket，无法读取真实容量。",
+    key,
+    avatarUrl: assetUrlForKey(key),
+    size: upload.buffer.length,
   };
+}
+
+async function readLocalR2Usage(): Promise<R2UsageSnapshot> {
+  const limitBytes = 10 * 1024 * 1024 * 1024;
+  const prefixMap = new Map<string, { objectCount: number; bytes: number }>();
+  let objectCount = 0;
+  let totalBytes = 0;
+
+  const files = await listLocalAssetFiles(LOCAL_ASSET_ROOT);
+  for (const filePath of files) {
+    const relativePath = path.relative(LOCAL_ASSET_ROOT, filePath).split(path.sep).join("/");
+    const info = await stat(filePath);
+    const prefix = relativePath.includes("/") ? `${relativePath.split("/")[0]}/` : "(根目录)";
+    const current = prefixMap.get(prefix) ?? { objectCount: 0, bytes: 0 };
+    current.objectCount += 1;
+    current.bytes += info.size;
+    prefixMap.set(prefix, current);
+    objectCount += 1;
+    totalBytes += info.size;
+  }
+
+  return {
+    available: true,
+    source: "r2-binding",
+    bucketName: "local-dev-assets",
+    objectCount,
+    totalBytes,
+    limitBytes,
+    prefixes: Array.from(prefixMap, ([prefix, value]) => ({ prefix, ...value })).sort((a, b) => b.bytes - a.bytes),
+    updatedAt: nowIso(),
+  };
+}
+
+async function listLocalAssetFiles(directory: string): Promise<string[]> {
+  try {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const nested = await Promise.all(
+      entries.map((entry) => {
+        const entryPath = path.join(directory, entry.name);
+        return entry.isDirectory() ? listLocalAssetFiles(entryPath) : Promise.resolve([entryPath]);
+      }),
+    );
+    return nested.flat();
+  } catch {
+    return [];
+  }
+}
+
+async function parseAvatarUpload(request: IncomingMessage): Promise<LocalAvatarUpload> {
+  const contentType = request.headers["content-type"] ?? "";
+  const boundary = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType)?.[1] ?? /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType)?.[2];
+  if (!boundary) throw new Error("请选择头像图片");
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  const body = Buffer.concat(chunks);
+  const delimiter = Buffer.from(`--${boundary}`);
+  let offset = 0;
+  while (offset < body.length) {
+    const partStart = body.indexOf(delimiter, offset);
+    if (partStart === -1) break;
+    const headerStart = partStart + delimiter.length + 2;
+    const headerEnd = body.indexOf(Buffer.from("\r\n\r\n"), headerStart);
+    if (headerEnd === -1) break;
+
+    const header = body.subarray(headerStart, headerEnd).toString("utf-8");
+    const nextPart = body.indexOf(delimiter, headerEnd + 4);
+    if (nextPart === -1) break;
+    const content = body.subarray(headerEnd + 4, Math.max(headerEnd + 4, nextPart - 2));
+    if (/name="avatar"/.test(header)) {
+      const type = /Content-Type:\s*([^\r\n]+)/i.exec(header)?.[1]?.trim() ?? "image/jpeg";
+      if (!type.startsWith("image/")) throw new Error("请选择图片文件");
+      return {
+        buffer: content,
+        contentType: type,
+        extension: type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg",
+      };
+    }
+    offset = nextPart;
+  }
+
+  throw new Error("请选择头像图片");
+}
+
+function localAssetPath(key: string) {
+  const normalized = path.normalize(key).replace(/^(\.\.(\/|\\|$))+/, "").replace(/^[/\\]+/, "");
+  return path.join(LOCAL_ASSET_ROOT, normalized);
+}
+
+function assetKeyFromPath(pathname: string) {
+  return decodeURIComponent(pathname.replace(/^\/api\/assets\//, ""));
+}
+
+function assetUrlForKey(key: string) {
+  return `/api/assets/${encodeURIComponent(key).replaceAll("%2F", "/")}`;
+}
+
+function contentTypeForAsset(key: string) {
+  if (key.endsWith(".png")) return "image/png";
+  if (key.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
 }
 
 async function readJson(request: IncomingMessage): Promise<JsonBody> {

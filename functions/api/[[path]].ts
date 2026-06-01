@@ -224,7 +224,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (session.user.role === "superadmin" && isSuperadminBusinessWrite(context.request.method, pathname)) {
-      return sendJson(403, { error: "超级管理员端仅允许只读查看，业务写入请使用门店角色账号" });
+      return sendJson(403, { error: "当前账号无此操作权限" });
     }
 
     if (context.request.method === "GET" && pathname === "/api/auth/me") {

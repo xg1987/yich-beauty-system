@@ -364,11 +364,10 @@ function PlatformAdminView({
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
   const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
-  const todayLabel = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
   const platformMetrics = [
-    { icon: <ShieldCheck size={18} />, label: "启用账号", value: `${activeAccounts} 个`, hint: "平台账号总览" },
+    { icon: <ShieldCheck size={18} />, label: "启用账号", value: `${activeAccounts} 个`, hint: "平台账号" },
     { icon: <Building2 size={18} />, label: "老板账号", value: `${ownerAccounts.length} 个`, hint: "门店负责人" },
-    { icon: <UsersRound size={18} />, label: "员工账号", value: `${staffAccounts.length} 个`, hint: "门店端成员" },
+    { icon: <UsersRound size={18} />, label: "员工账号", value: `${staffAccounts.length} 个`, hint: "门店成员" },
   ];
   const platformActions = [
     { icon: <UsersRound size={18} />, label: "账号管理", value: `${activeAccounts} 个`, view: "accounts" as ViewKey },
@@ -385,10 +384,10 @@ function PlatformAdminView({
   return (
     <div className="dashboard-page platform-admin-workbench">
       <section className="workbench-hero role-hero-superadmin">
-        <span className="workbench-hero-kicker"><Building2 size={15} /> 平台工作台</span>
-        <h2>平台有数，门店有序</h2>
+        <span className="workbench-hero-kicker"><Building2 size={15} /> 平台总览</span>
+        <h2>账号与经营数据总览</h2>
         <p>门店 {data.storeProfiles.length} 家 · 账号 {activeAccounts} 个 · 今日预约 {todayAppointments} 条</p>
-        <small>{todayLabel} · 聚合账号、预约、收款、客户和门店基础数据。</small>
+        <small>账号、预约、收款、客户和门店数据汇总。</small>
       </section>
 
       <section className="workbench-metric-row" aria-label="平台关键数据">
@@ -397,7 +396,7 @@ function PlatformAdminView({
         ))}
       </section>
 
-      <section className="workbench-action-row" aria-label="平台快捷操作">
+      <section className="workbench-action-row" aria-label="核心入口">
         {platformActions.map((item) => (
           <button key={item.label} onClick={() => setView(item.view)}>
             {item.icon}
@@ -409,7 +408,7 @@ function PlatformAdminView({
 
       <section className="workbench-content-grid lower">
         <div className="workbench-panel">
-          <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="平台管理员" />
+          <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="管理中心" />
           <div className="workbench-quick-list">
             {platformQuick.map((item) => (
               <button key={item.title} onClick={() => setView(item.view)}>
@@ -422,7 +421,7 @@ function PlatformAdminView({
         </div>
 
         <div className="workbench-panel">
-          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="营业提示" action="平台总览" />
+          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营概览" action="数据汇总" />
           <div className="workbench-insight-list">
             <button onClick={() => setView("reports")}>
               <span>实收汇总</span>
@@ -432,7 +431,7 @@ function PlatformAdminView({
             <button onClick={() => setView("settings")}>
               <span>门店数量</span>
               <strong>{data.storeProfiles.length} 家</strong>
-              <small>平台已开通门店</small>
+              <small>已开通门店</small>
             </button>
           </div>
         </div>
@@ -446,7 +445,7 @@ function PlatformAdminView({
             ["客户总数", `${data.customers.length} 人`, "客户档案汇总"],
             ["订单总数", `${data.orders.length} 单`, "收银订单汇总"],
             ["实收汇总", money(totalRevenue), "已记录收款金额"],
-            ["门店数量", `${data.storeProfiles.length} 家`, "平台已开通门店"],
+            ["门店数量", `${data.storeProfiles.length} 家`, "已开通门店"],
           ]}
         />
       </section>
@@ -530,7 +529,7 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
               <div className="appointment-empty-state">
                 <CalendarDays size={28} />
                 <strong>暂无预约安排</strong>
-                <span>门店老板和前台创建预约后，会在这里显示到店时间、客户、项目和服务员工。</span>
+                <span>暂无到店计划</span>
               </div>
             )}
           </div>
@@ -706,17 +705,17 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
         </div>
 
         <div className="cashier-panel">
-          <PanelTitle icon={<BadgeCent size={18} />} title="收银提示" action="前台关注" />
+          <PanelTitle icon={<BadgeCent size={18} />} title="收款概览" action="经营指标" />
           <div className="cashier-tip-list">
             <div>
               <span>到店未收银</span>
               <strong>{data.appointments.filter((appointment) => appointment.status === "已到店").length} 条</strong>
-              <small>可从收银台关联预约开单</small>
+              <small>到店服务与收款衔接</small>
             </div>
             <div>
               <span>有效会员卡</span>
               <strong>{data.memberCards.filter((card) => card.status === "正常").length} 张</strong>
-              <small>支持会员卡扣款</small>
+              <small>会员资产规模</small>
             </div>
           </div>
         </div>
@@ -851,17 +850,17 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
         </div>
 
         <div className="customer-panel">
-          <PanelTitle icon={<MessageCircle size={18} />} title="客户提醒" action="前台关注" />
+          <PanelTitle icon={<MessageCircle size={18} />} title="客户跟进" action="服务状态" />
           <div className="customer-tip-list">
             <div>
               <span>待回访客户</span>
               <strong>{pendingFollowUps} 位</strong>
-              <small>需要电话、微信或到店跟进</small>
+              <small>回访计划</small>
             </div>
             <div>
               <span>待签名确认</span>
               <strong>{pendingSignatures} 份</strong>
-              <small>客户签名单待处理</small>
+              <small>签署记录</small>
             </div>
           </div>
         </div>
@@ -884,7 +883,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
             <div>
               <span>有效会员卡</span>
               <strong>{activeCards} 张</strong>
-              <small>可用于前台收银扣款</small>
+              <small>会员资产</small>
             </div>
             <div>
               <span>总余额</span>

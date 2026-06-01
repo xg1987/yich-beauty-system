@@ -8,3 +8,4 @@ vite.config.d.ts
 .DS_Store
 data/*.sqlite
 data/*.sqlite-*
+.local-r2/
