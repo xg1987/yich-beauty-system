@@ -122,6 +122,7 @@ export function useApiData() {
     updateStaff: client.updateStaff,
     updateStoreProfile: client.updateStoreProfile,
     fetchR2Usage: client.fetchR2Usage,
+    fetchWorkerUsage: client.fetchWorkerUsage,
     fetchDataQuality: client.fetchDataQuality,
     cleanupFormalData: client.cleanupFormalData,
     uploadAccountAvatar: client.uploadAccountAvatar,

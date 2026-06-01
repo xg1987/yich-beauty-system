@@ -55,7 +55,7 @@ import { hashPassword } from "../../src/lib/password";
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, TagScope, UserRole } from "../../src/domain/types";
+import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
@@ -66,6 +66,9 @@ type Env = {
   R2_BUCKET?: R2BucketLike;
   YICH_R2?: R2BucketLike;
   ASSETS_BUCKET?: R2BucketLike;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_WORKER_SCRIPT_NAME?: string;
 };
 
 type JsonBody = Record<string, unknown>;
@@ -265,6 +268,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "GET" && pathname === "/api/usage/r2") {
       requirePermission(session, "settings:view");
       return sendJson(200, await readR2Usage(context.env));
+    }
+
+    if (context.request.method === "GET" && pathname === "/api/usage/worker") {
+      requirePermission(session, "settings:view");
+      return sendJson(200, await readWorkerUsage(context.env));
     }
 
     if (context.request.method === "GET" && pathname === "/api/data-quality") {
@@ -1459,6 +1467,123 @@ async function readR2Usage(env: Env): Promise<R2UsageSnapshot> {
     prefixes: Array.from(prefixMap, ([prefix, value]) => ({ prefix, ...value })).sort((a, b) => b.bytes - a.bytes),
     updatedAt: nowIso(),
   };
+}
+
+async function readWorkerUsage(env: Env): Promise<WorkerUsageSnapshot> {
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const apiToken = env.CLOUDFLARE_API_TOKEN?.trim();
+  const scriptName = env.CLOUDFLARE_WORKER_SCRIPT_NAME?.trim();
+  const windowHours = 24;
+
+  const fallback = (message: string): WorkerUsageSnapshot => ({
+    available: false,
+    source: "cloudflare-graphql",
+    accountId,
+    scriptName,
+    requests: 0,
+    errors: 0,
+    subrequests: 0,
+    windowHours,
+    rows: [],
+    updatedAt: nowIso(),
+    message,
+  });
+
+  if (!accountId || !apiToken) {
+    return fallback("Cloudflare Metrics 配置未完成，无法读取真实 Worker 请求量。");
+  }
+
+  const now = new Date();
+  const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
+  const filter: Record<string, string> = {
+    datetime_geq: since.toISOString(),
+    datetime_leq: now.toISOString(),
+  };
+  if (scriptName) filter.scriptName = scriptName;
+
+  const query = `
+    query WorkerUsage($accountTag: string!, $filter: AccountWorkersInvocationsAdaptiveFilter_InputObject!) {
+      viewer {
+        accounts(filter: { accountTag: $accountTag }) {
+          workersInvocationsAdaptive(limit: 100, filter: $filter) {
+            dimensions {
+              scriptName
+              status
+            }
+            sum {
+              requests
+              errors
+              subrequests
+            }
+            quantiles {
+              cpuTimeP50
+              cpuTimeP99
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query, variables: { accountTag: accountId, filter } }),
+    });
+    const payload = await response.json() as {
+      data?: {
+        viewer?: {
+          accounts?: Array<{
+            workersInvocationsAdaptive?: Array<{
+              dimensions?: { scriptName?: string; status?: string };
+              sum?: { requests?: number; errors?: number; subrequests?: number };
+              quantiles?: { cpuTimeP50?: number; cpuTimeP99?: number };
+            }>;
+          }>;
+        };
+      };
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (!response.ok || payload.errors?.length) {
+      const message = payload.errors?.map((item) => item.message).filter(Boolean).join("；") || `Cloudflare Metrics 读取失败(${response.status})`;
+      return fallback(message);
+    }
+
+    const rows = (payload.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive ?? []).map((item) => ({
+      scriptName: item.dimensions?.scriptName ?? "未命名 Worker",
+      status: item.dimensions?.status ?? "unknown",
+      requests: item.sum?.requests ?? 0,
+      errors: item.sum?.errors ?? 0,
+      subrequests: item.sum?.subrequests ?? 0,
+      cpuTimeP50: item.quantiles?.cpuTimeP50,
+      cpuTimeP99: item.quantiles?.cpuTimeP99,
+    }));
+    const requests = rows.reduce((sum, row) => sum + row.requests, 0);
+    const errors = rows.reduce((sum, row) => sum + row.errors, 0);
+    const subrequests = rows.reduce((sum, row) => sum + row.subrequests, 0);
+
+    return {
+      available: true,
+      source: "cloudflare-graphql",
+      accountId,
+      scriptName,
+      requests,
+      errors,
+      subrequests,
+      cpuTimeP50: rows.length ? Math.max(...rows.map((row) => row.cpuTimeP50 ?? 0)) : undefined,
+      cpuTimeP99: rows.length ? Math.max(...rows.map((row) => row.cpuTimeP99 ?? 0)) : undefined,
+      windowHours,
+      rows,
+      updatedAt: nowIso(),
+    };
+  } catch (caught) {
+    return fallback(caught instanceof Error ? caught.message : "Cloudflare Metrics 读取失败");
+  }
 }
 
 async function readJson(request: Request): Promise<JsonBody> {

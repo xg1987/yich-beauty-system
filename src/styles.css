@@ -6157,6 +6157,25 @@ textarea,
   padding: 11px 13px;
 }
 
+.usage-inline-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(109, 40, 217, 0.06);
+  color: rgba(49, 40, 36, 0.62);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.usage-inline-note strong {
+  color: var(--yich-purple-deep);
+  font-size: 16px;
+  font-weight: 950;
+}
+
 .usage-warning-card {
   display: grid;
   gap: 6px;

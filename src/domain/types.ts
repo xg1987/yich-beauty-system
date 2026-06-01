@@ -80,6 +80,32 @@ export type R2UsageSnapshot = {
   message?: string;
 };
 
+export type WorkerUsageRow = {
+  scriptName: string;
+  status: string;
+  requests: number;
+  errors: number;
+  subrequests: number;
+  cpuTimeP50?: number;
+  cpuTimeP99?: number;
+};
+
+export type WorkerUsageSnapshot = {
+  available: boolean;
+  source: "cloudflare-graphql";
+  accountId?: string;
+  scriptName?: string;
+  requests: number;
+  errors: number;
+  subrequests: number;
+  cpuTimeP50?: number;
+  cpuTimeP99?: number;
+  windowHours: number;
+  rows: WorkerUsageRow[];
+  updatedAt: string;
+  message?: string;
+};
+
 export type StaffInvite = {
   id: string;
   staffId: string;

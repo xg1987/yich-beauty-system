@@ -2,6 +2,9 @@ name = "yich-beauty-system"
 compatibility_date = "2026-05-24"
 pages_build_output_dir = "dist"
 
+[vars]
+CLOUDFLARE_ACCOUNT_ID = "de654b23294ca3b02f6649e3617f1b93"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "yich-beauty-db"

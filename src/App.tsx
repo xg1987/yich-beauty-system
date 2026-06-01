@@ -40,7 +40,7 @@ import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, reportSummary } from "./domain/business";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
@@ -240,7 +240,7 @@ export default function App() {
             {activeView === "logs" && (isPlatformAdmin ? <PlatformAuditReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} setView={navigate} showBack={showAdminDetailBack} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />}
-            {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} />}
+            {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
             {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
           </>
         )}
@@ -1243,15 +1243,20 @@ function PlatformUsageReadOnlyView({
   setView,
   showBack,
   fetchR2Usage,
+  fetchWorkerUsage,
 }: {
   data: AppData;
   setView: (view: ViewKey) => void;
   showBack?: boolean;
   fetchR2Usage: () => Promise<R2UsageSnapshot>;
+  fetchWorkerUsage: () => Promise<WorkerUsageSnapshot>;
 }) {
   const [r2Usage, setR2Usage] = useState<R2UsageSnapshot | undefined>();
   const [r2Loading, setR2Loading] = useState(true);
   const [r2Error, setR2Error] = useState("");
+  const [workerUsage, setWorkerUsage] = useState<WorkerUsageSnapshot | undefined>();
+  const [workerLoading, setWorkerLoading] = useState(true);
+  const [workerError, setWorkerError] = useState("");
   const formatBytes = (bytes: number) => {
     if (bytes <= 0) return "0 B";
     const units = ["B", "KB", "MB", "GB"] as const;
@@ -1276,9 +1281,24 @@ function PlatformUsageReadOnlyView({
       setR2Loading(false);
     }
   };
+  const loadWorkerUsage = async () => {
+    setWorkerLoading(true);
+    setWorkerError("");
+    try {
+      setWorkerUsage(await fetchWorkerUsage());
+    } catch (caught) {
+      setWorkerUsage(undefined);
+      setWorkerError(caught instanceof Error ? caught.message : "Worker 请求量读取失败");
+    } finally {
+      setWorkerLoading(false);
+    }
+  };
+  const loadUsage = async () => {
+    await Promise.all([loadR2Usage(), loadWorkerUsage()]);
+  };
 
   useEffect(() => {
-    void loadR2Usage();
+    void loadUsage();
   }, []);
 
   const d1Tables = [
@@ -1301,10 +1321,21 @@ function PlatformUsageReadOnlyView({
   const r2ObjectCount = r2Usage?.objectCount ?? 0;
   const r2UsagePercent = r2LimitBytes > 0 ? Math.min(100, (r2UsedBytes / r2LimitBytes) * 100) : 0;
   const r2UsageLabel = r2Usage?.available ? (r2UsagePercent > 0 && r2UsagePercent < 0.1 ? "<0.1%" : `${r2UsagePercent.toFixed(1)}%`) : "未绑定";
-  const writeEvents = data.operationLogs.length;
   const r2Rows = r2Usage?.available
     ? r2Usage.prefixes.map((item) => [item.prefix, `${item.objectCount} 个`, formatBytes(item.bytes)])
     : [[r2Usage?.message ?? r2Error ?? "R2 Bucket 未绑定，无法读取真实容量", "-", "-"]];
+  const workerRequests = workerUsage?.requests ?? 0;
+  const workerErrors = workerUsage?.errors ?? 0;
+  const workerSubrequests = workerUsage?.subrequests ?? 0;
+  const workerErrorRate = workerRequests > 0 ? (workerErrors / workerRequests) * 100 : 0;
+  const workerRows = workerUsage?.available
+    ? workerUsage.rows.map((row) => [
+        row.scriptName,
+        row.requests.toLocaleString("zh-CN"),
+        row.errors.toLocaleString("zh-CN"),
+        row.subrequests.toLocaleString("zh-CN"),
+      ])
+    : [[workerUsage?.message ?? workerError ?? "Cloudflare Metrics 配置未完成，无法读取真实请求量", "-", "-", "-"]];
   const d1TableLabels: Record<string, string> = {
     storeProfiles: "门店资料",
     authUsers: "登录账号",
@@ -1331,7 +1362,7 @@ function PlatformUsageReadOnlyView({
             <p>Cloudflare 资源统计 · {updatedAt}</p>
           </div>
         </div>
-        <button className="usage-refresh-button" type="button" onClick={() => void loadR2Usage()}>
+        <button className="usage-refresh-button" type="button" onClick={() => void loadUsage()}>
           <RefreshCw size={16} />
         </button>
       </header>
@@ -1389,10 +1420,30 @@ function PlatformUsageReadOnlyView({
         />
       </section>
 
-      <section className="usage-warning-card">
-        <strong>Worker 请求指标</strong>
-        <span>请求量、错误率和响应耗时以 Cloudflare Workers Metrics 为准。</span>
-        <em>当前系统记录操作事件 {writeEvents} 条。</em>
+      <section className="usage-card">
+        <PanelTitle icon={<Database size={18} />} title="Worker 请求统计" action={`最近 ${workerUsage?.windowHours ?? 24} 小时`} />
+        <div className="usage-metrics">
+          <div>
+            <strong>{workerLoading ? "读取中" : workerRequests.toLocaleString("zh-CN")}</strong>
+            <span>请求数</span>
+          </div>
+          <div>
+            <strong>{workerLoading ? "读取中" : workerErrors.toLocaleString("zh-CN")}</strong>
+            <span>错误数</span>
+          </div>
+          <div>
+            <strong>{workerLoading ? "读取中" : `${workerErrorRate.toFixed(2)}%`}</strong>
+            <span>错误率</span>
+          </div>
+        </div>
+        <DataTable
+          columns={["Worker", "请求数", "错误数", "子请求"]}
+          rows={workerLoading ? [["读取中", "-", "-", "-"]] : workerRows.length > 0 ? workerRows : [["暂无请求记录", "0", "0", "0"]]}
+        />
+        <div className="usage-inline-note">
+          <span>子请求合计</span>
+          <strong>{workerLoading ? "读取中" : workerSubrequests.toLocaleString("zh-CN")}</strong>
+        </div>
       </section>
     </div>
   );
