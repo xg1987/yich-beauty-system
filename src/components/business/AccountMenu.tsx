@@ -20,7 +20,7 @@ export function AccountMenu({ session, logout, openSettings }: AccountMenuProps)
   return (
     <aside className="account-menu" aria-label="账号菜单">
       <div className="account-menu-user">
-        <div className="account-menu-avatar"><UserAvatar avatarUrl={session.user.avatarUrl} size={34} /></div>
+        <div className="account-menu-avatar"><UserAvatar size={34} /></div>
         <div>
           <strong>{menuDisplayName(session)}</strong>
           <span>{menuRoleName(session)}</span>

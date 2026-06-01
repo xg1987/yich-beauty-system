@@ -50,15 +50,25 @@ import StorefrontPage from "./pages/public/StorefrontPage";
 import packageJson from "../package.json";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admin";
-type ThemeMode = "day" | "night";
+type ThemeMode = "auto" | "day" | "night";
+type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
 type CardType = "储值卡" | "次数卡" | "套餐卡";
 type NavigateOptions = { fromAdmin?: boolean };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-01";
+const APP_BUILD_DATE = "2026-06-02";
 const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
+
+function isThemeMode(value: string | null): value is ThemeMode {
+  return value === "auto" || value === "day" || value === "night";
+}
+
+function getSystemThemeMode(): EffectiveThemeMode {
+  if (typeof window === "undefined") return "day";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "night" : "day";
+}
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
   { key: "dashboard", label: "工作台", icon: LayoutDashboard },
@@ -87,13 +97,27 @@ export default function App() {
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem(THEME_KEY) === "night" ? "night" : "day"));
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    const savedThemeMode = localStorage.getItem(THEME_KEY);
+    return isThemeMode(savedThemeMode) ? savedThemeMode : "auto";
+  });
+  const [systemThemeMode, setSystemThemeMode] = useState<EffectiveThemeMode>(() => getSystemThemeMode());
+  const effectiveThemeMode: EffectiveThemeMode = themeMode === "auto" ? systemThemeMode : themeMode;
   const topbarActionsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem(THEME_KEY, themeMode);
-    document.documentElement.dataset.theme = themeMode;
-  }, [themeMode]);
+    document.documentElement.dataset.themePreference = themeMode;
+    document.documentElement.dataset.theme = effectiveThemeMode;
+  }, [themeMode, effectiveThemeMode]);
+
+  useEffect(() => {
+    const themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const syncSystemTheme = () => setSystemThemeMode(themeQuery.matches ? "night" : "day");
+    syncSystemTheme();
+    themeQuery.addEventListener("change", syncSystemTheme);
+    return () => themeQuery.removeEventListener("change", syncSystemTheme);
+  }, []);
 
   useEffect(() => {
     if (!accountMenuOpen && !notificationPanelOpen) return;
@@ -163,7 +187,7 @@ export default function App() {
   const showAdminDetailBack = isPlatformAdmin && adminDetailFromCenter;
 
   return (
-    <div className={`app-shell theme-${themeMode}`}>
+    <div className={`app-shell theme-${effectiveThemeMode}`}>
       <aside className="sidebar">
         <div className="rail-admin">
           <div className="brand-mark">D</div>
@@ -192,7 +216,7 @@ export default function App() {
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
             <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserAvatar avatarUrl={session.user.avatarUrl} size={22} />
+              <UserAvatar size={22} />
             </button>
             {notificationPanelOpen && (
               <NotificationPanel
@@ -309,7 +333,7 @@ function ManagementCenter({
       <section className="admin-profile-hero">
         <div className="admin-hero-pattern" aria-hidden="true" />
         <div className="admin-avatar">
-          <UserAvatar avatarUrl={session.user.avatarUrl} size={78} />
+          <UserAvatar size={78} />
         </div>
         <div className="admin-profile-copy">
           <span className="admin-role-pill"><ShieldCheck size={14} /> {displayRole}</span>
@@ -4167,7 +4191,7 @@ function SettingsView({
         <form className="settings-profile-card" onSubmit={saveSettings}>
           <label className="settings-avatar-editor">
             <span className="settings-avatar-frame">
-              <UserAvatar avatarUrl={avatarUrl} size={52} />
+              <UserAvatar avatarUrl={avatarUrl} size={52} showImage />
             </span>
             <span>{avatarProcessing ? "头像处理中" : "点击更换头像"}</span>
             <input type="file" accept="image/*" onChange={(event) => void uploadAvatar(event.target.files?.[0])} />
@@ -4207,6 +4231,7 @@ function SettingsView({
             <div className="settings-static-panel">
               <strong>外观模式</strong>
               <div className="settings-mode-toggle">
+                <button type="button" className={themeMode === "auto" ? "active" : ""} onClick={() => setThemeMode("auto")}>自动</button>
                 <button type="button" className={themeMode === "day" ? "active" : ""} onClick={() => setThemeMode("day")}>日间模式</button>
                 <button type="button" className={themeMode === "night" ? "active" : ""} onClick={() => setThemeMode("night")}>夜间模式</button>
               </div>

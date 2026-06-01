@@ -1,6 +1,6 @@
 {
   "name": "yich-beauty-system",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "dev:full": "sh -c 'npm run dev:api & npm run dev; wait'",
     "build": "tsc --noEmit && vite build",
     "verify:copy": "tsx scripts/verify-copy.ts",
+    "verify:theme-avatar": "tsx scripts/verify-theme-avatar.ts",
     "verify:appointment-range": "tsx scripts/verify-appointment-range.ts",
     "verify:role-access": "tsx scripts/verify-role-access.ts",
     "verify:business": "tsx scripts/verify-business.ts",
