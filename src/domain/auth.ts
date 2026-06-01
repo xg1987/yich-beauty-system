@@ -121,7 +121,10 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   settings: "settings:view",
 };
 
+export const platformOnlyViews = new Set<ViewKey>(["accounts", "permissions", "usage"]);
+
 export function canAccessView(session: UserSession, view: ViewKey) {
+  if (platformOnlyViews.has(view) && effectiveRoleForUser(session.user) !== "superadmin") return false;
   return session.user.permissions.includes(viewPermissions[view]);
 }
 
