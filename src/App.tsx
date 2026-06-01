@@ -27,7 +27,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "./components/business/AccountMenu";
 import { NotificationPanel, visibleNotifications } from "./components/business/NotificationPanel";
 import { UserAvatar } from "./components/business/UserAvatar";
@@ -87,11 +87,26 @@ export default function App() {
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem(THEME_KEY) === "night" ? "night" : "day"));
+  const topbarActionsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem(THEME_KEY, themeMode);
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);
+
+  useEffect(() => {
+    if (!accountMenuOpen && !notificationPanelOpen) return;
+
+    const closeFloatingPanels = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && topbarActionsRef.current?.contains(target)) return;
+      setAccountMenuOpen(false);
+      setNotificationPanelOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeFloatingPanels);
+    return () => document.removeEventListener("pointerdown", closeFloatingPanels);
+  }, [accountMenuOpen, notificationPanelOpen]);
 
   const publicStoreMatch = window.location.pathname.match(/^\/store\/([^/]+)/);
   if (publicStoreMatch) {
@@ -159,17 +174,24 @@ export default function App() {
       </aside>
       <main className="main">
         <header className="topbar">
+          <div className="topbar-brand">
+            <div className="brand-mark">D</div>
+            <div>
+              <strong>管理后台</strong>
+              <span>admin</span>
+            </div>
+          </div>
           <div className="topbar-title">
             <p>一宸 YiCh 美业门店系统</p>
           </div>
-          <div className="topbar-actions">
+          <div className="topbar-actions" ref={topbarActionsRef}>
             {error && <span className="error-chip">{error}</span>}
             <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
               <Bell size={18} />
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
             <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserAvatar avatarUrl={session.user.avatarUrl} size={18} />
+              <UserAvatar avatarUrl={session.user.avatarUrl} size={22} />
             </button>
             {notificationPanelOpen && (
               <NotificationPanel
@@ -207,7 +229,7 @@ export default function App() {
           />
         ) : (
           <>
-            {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
+            {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} setView={navigate} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && (isPlatformAdmin ? <PlatformAppointmentsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Appointments data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Pos data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "customers" && (isPlatformAdmin ? <PlatformCustomersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Customers data={data} actions={actions} runMutation={runMutation} />)}
@@ -251,7 +273,7 @@ function ManagementCenter({
   const systemInviteCode = DEFAULT_OWNER_INVITE_CODE;
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
-  const [inviteVisible, setInviteVisible] = useState(true);
+  const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
   const copyInviteCode = () => {
@@ -331,32 +353,92 @@ function ManagementCenter({
 
 function PlatformAdminView({
   data,
+  setView,
 }: {
   data: AppData;
+  setView: (view: ViewKey) => void;
 }) {
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
   const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const activeAccounts = data.authUsers.filter((user) => user.status === "active").length;
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
+  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
+  const todayLabel = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+  const platformMetrics = [
+    { icon: <ShieldCheck size={18} />, label: "启用账号", value: `${activeAccounts} 个`, hint: "平台账号总览" },
+    { icon: <Building2 size={18} />, label: "老板账号", value: `${ownerAccounts.length} 个`, hint: "门店负责人" },
+    { icon: <UsersRound size={18} />, label: "员工账号", value: `${staffAccounts.length} 个`, hint: "门店端成员" },
+  ];
+  const platformActions = [
+    { icon: <UsersRound size={18} />, label: "账号管理", value: `${activeAccounts} 个`, view: "accounts" as ViewKey },
+    { icon: <CalendarDays size={18} />, label: "预约管理", value: `${todayAppointments} 条`, view: "appointments" as ViewKey },
+    { icon: <CreditCard size={18} />, label: "收银订单", value: money(totalRevenue), view: "pos" as ViewKey },
+  ];
+  const platformQuick = [
+    { title: "客户档案", value: `${data.customers.length} 人`, hint: "客户会员基础数据", view: "customers" as ViewKey },
+    { title: "报表分析", value: money(totalRevenue), hint: "收款与门店数据", view: "reports" as ViewKey },
+    { title: "权限审批", value: `${pendingApprovals} 单`, hint: "关键权限待处理", view: "permissions" as ViewKey },
+    { title: "操作审计", value: `${data.operationLogs.length} 条`, hint: "账号操作记录", view: "logs" as ViewKey },
+  ];
 
   return (
-    <div className="admin-center-page platform-admin-page">
-      <section className="page-hero">
-        <div>
-          <span className="eyebrow"><Building2 size={15} /> 工作台</span>
-          <h1>平台数据总览</h1>
-          <p>账号、预约、收款、客户和门店数据汇总。</p>
+    <div className="dashboard-page platform-admin-workbench">
+      <section className="workbench-hero role-hero-superadmin">
+        <span className="workbench-hero-kicker"><Building2 size={15} /> 平台工作台</span>
+        <h2>平台有数，门店有序</h2>
+        <p>门店 {data.storeProfiles.length} 家 · 账号 {activeAccounts} 个 · 今日预约 {todayAppointments} 条</p>
+        <small>{todayLabel} · 聚合账号、预约、收款、客户和门店基础数据。</small>
+      </section>
+
+      <section className="workbench-metric-row" aria-label="平台关键数据">
+        {platformMetrics.map((item) => (
+          <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
+        ))}
+      </section>
+
+      <section className="workbench-action-row" aria-label="平台快捷操作">
+        {platformActions.map((item) => (
+          <button key={item.label} onClick={() => setView(item.view)}>
+            {item.icon}
+            <strong>{item.value}</strong>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </section>
+
+      <section className="workbench-content-grid lower">
+        <div className="workbench-panel">
+          <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="平台管理员" />
+          <div className="workbench-quick-list">
+            {platformQuick.map((item) => (
+              <button key={item.title} onClick={() => setView(item.view)}>
+                <strong>{item.value}</strong>
+                <span>{item.title}</span>
+                <small>{item.hint}</small>
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="page-hero-stats">
-          <StatCard title="启用账号" value={`${activeAccounts} 个`} hint="平台账号总览" />
-          <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="门店负责人" />
-          <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店端成员" />
-          <StatCard title="今日预约" value={`${todayAppointments} 条`} hint="门店预约总览" />
+
+        <div className="workbench-panel">
+          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="营业提示" action="平台总览" />
+          <div className="workbench-insight-list">
+            <button onClick={() => setView("reports")}>
+              <span>实收汇总</span>
+              <strong>{money(totalRevenue)}</strong>
+              <small>已记录收款金额</small>
+            </button>
+            <button onClick={() => setView("settings")}>
+              <span>门店数量</span>
+              <strong>{data.storeProfiles.length} 家</strong>
+              <small>平台已开通门店</small>
+            </button>
+          </div>
         </div>
       </section>
 
-      <section className="panel dashboard-panel">
+      <section className="workbench-panel">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="平台数据概览" action="数据总览" />
         <DataTable
           columns={["指标", "结果", "说明"]}
@@ -384,9 +466,16 @@ function PlatformPageTitle({ title, onBack }: { title: string; onBack: () => voi
 }
 
 function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  const today = new Date();
+  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const pending = data.appointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const completed = data.appointments.filter((item) => item.status === "已完成").length;
-  const onlinePending = data.onlineBookingRequests.filter((item) => item.status === "待处理").length;
+  const onlinePendingRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
+  const onlinePending = onlinePendingRequests.length;
+  const upcomingAppointments = data.appointments
+    .slice()
+    .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
+    .slice(0, 6);
   const rows = data.appointments
     .slice()
     .sort((a, b) => +new Date(b.startAt) - +new Date(a.startAt))
@@ -416,9 +505,85 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
           <StatCard title="线上待处理" value={`${onlinePending} 条`} hint="线上预约" />
         </div>
       </section>
-      <section className="panel dashboard-panel">
-        <PanelTitle icon={<CalendarDays size={18} />} title="预约列表" action={`${data.appointments.length} 条`} />
-        <DataTable columns={["预约时间", "客户", "项目", "员工", "状态", "备注"]} rows={rows} />
+
+      <section className="appointment-page-grid">
+        <div className="appointment-panel appointment-board-panel">
+          <PanelTitle icon={<CalendarDays size={18} />} title="今日预约看板" action={`${todayAppointments.length} 条`} />
+          <div className="appointment-date-strip" aria-label="预约日期筛选">
+            <button className="active" type="button">今日</button>
+            <button type="button">明日</button>
+            <button type="button">本周</button>
+          </div>
+          <div className="appointment-timeline-board">
+            {upcomingAppointments.map((item) => (
+              <article className="appointment-schedule-card" key={item.id}>
+                <time>{shortDate(item.startAt).split(" ")[1] ?? shortDate(item.startAt)}</time>
+                <div>
+                  <strong>{nameOf(data.customers, item.customerId)}</strong>
+                  <span>{nameOf(data.services, item.serviceId)} · {nameOf(data.staff, item.staffId)}</span>
+                  {item.note && <small>{item.note}</small>}
+                </div>
+                <Badge text={item.status} tone={item.status === "已完成" ? "ok" : item.status === "已取消" || item.status === "爽约" ? "warn" : undefined} />
+              </article>
+            ))}
+            {upcomingAppointments.length === 0 && (
+              <div className="appointment-empty-state">
+                <CalendarDays size={28} />
+                <strong>暂无预约安排</strong>
+                <span>门店老板和前台创建预约后，会在这里显示到店时间、客户、项目和服务员工。</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="appointment-panel">
+          <PanelTitle icon={<ClipboardList size={18} />} title="预约状态" action="实时汇总" />
+          <div className="appointment-status-grid">
+            <div>
+              <span>预约总数</span>
+              <strong>{data.appointments.length}</strong>
+              <small>全部预约记录</small>
+            </div>
+            <div>
+              <span>待到店</span>
+              <strong>{pending}</strong>
+              <small>待确认 / 已确认</small>
+            </div>
+            <div>
+              <span>已完成</span>
+              <strong>{completed}</strong>
+              <small>服务已结束</small>
+            </div>
+            <div>
+              <span>线上申请</span>
+              <strong>{onlinePending}</strong>
+              <small>待前台处理</small>
+            </div>
+          </div>
+          <div className="appointment-panel-divider" />
+          <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${onlinePending} 条待处理`} />
+          <div className="appointment-request-list">
+            {onlinePendingRequests.slice(0, 3).map((request) => (
+              <article className="appointment-request-card" key={request.id}>
+                <div>
+                  <strong>{request.customerName}</strong>
+                  <span>{request.phone} · {shortDate(request.preferredAt)}</span>
+                </div>
+                <Badge text={request.status} />
+              </article>
+            ))}
+            {onlinePendingRequests.length === 0 && <p className="appointment-soft-empty">暂无线上预约申请</p>}
+          </div>
+        </div>
+      </section>
+
+      <section className="appointment-panel">
+        <PanelTitle icon={<ClipboardList size={18} />} title="全部预约列表" action={`${data.appointments.length} 条`} />
+        {rows.length > 0 ? (
+          <DataTable columns={["预约时间", "客户", "项目", "员工", "状态", "备注"]} rows={rows} />
+        ) : (
+          <p className="appointment-soft-empty">暂无预约记录</p>
+        )}
       </section>
     </div>
   );
@@ -427,6 +592,24 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
 function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
   const refundAmount = data.refunds.reduce((sum, refund) => sum + refund.amount, 0);
+  const today = new Date();
+  const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
+  const todayRevenue = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const paidOrders = data.orders.filter((order) => order.status === "已支付").length;
+  const refundedOrders = data.orders.filter((order) => order.status !== "已支付").length;
+  const averageOrderValue = data.orders.length ? Math.round(totalRevenue / data.orders.length) : 0;
+  const recentOrders = data.orders
+    .slice()
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+    .slice(0, 5);
+  const payMethodSummary = (["微信", "支付宝", "现金", "银行卡", "会员卡"] as Order["payMethod"][]).map((method) => {
+    const methodOrders = data.orders.filter((order) => order.payMethod === method);
+    return {
+      amount: methodOrders.reduce((sum, order) => sum + order.paidAmount, 0),
+      count: methodOrders.length,
+      method,
+    };
+  });
   const rows = data.orders
     .slice()
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
@@ -457,9 +640,95 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
           <StatCard title="退款金额" value={money(refundAmount)} hint={`${data.refunds.length} 条退款`} />
         </div>
       </section>
-      <section className="panel dashboard-panel">
+
+      <section className="cashier-page-grid">
+        <div className="cashier-panel cashier-board-panel">
+          <PanelTitle icon={<CreditCard size={18} />} title="今日收银看板" action={`${todayOrders.length} 单`} />
+          <div className="cashier-revenue-card">
+            <span>今日实收</span>
+            <strong>{money(todayRevenue)}</strong>
+            <small>今日订单 {todayOrders.length} 单 · 客单价 {money(averageOrderValue)}</small>
+          </div>
+          <div className="cashier-status-grid">
+            <div>
+              <span>已支付</span>
+              <strong>{paidOrders}</strong>
+              <small>正常收银订单</small>
+            </div>
+            <div>
+              <span>退款/部分退款</span>
+              <strong>{refundedOrders}</strong>
+              <small>需关注售后</small>
+            </div>
+            <div>
+              <span>退款金额</span>
+              <strong>{money(refundAmount)}</strong>
+              <small>{data.refunds.length} 条退款记录</small>
+            </div>
+          </div>
+        </div>
+
+        <div className="cashier-panel">
+          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式汇总" action="收款结构" />
+          <div className="cashier-method-list">
+            {payMethodSummary.map((item) => (
+              <article key={item.method}>
+                <div>
+                  <strong>{item.method}</strong>
+                  <span>{item.count} 单</span>
+                </div>
+                <em>{money(item.amount)}</em>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="cashier-page-grid lower">
+        <div className="cashier-panel">
+          <PanelTitle icon={<ClipboardList size={18} />} title="最近订单" action="最新 5 单" />
+          <div className="cashier-order-list">
+            {recentOrders.map((order) => (
+              <article className="cashier-order-card" key={order.id}>
+                <div>
+                  <strong>{order.orderNo}</strong>
+                  <span>{nameOf(data.customers, order.customerId)} · {nameOf(data.services, order.serviceId)}</span>
+                  <small>{order.payMethod} · {shortDate(order.createdAt)}</small>
+                </div>
+                <div>
+                  <em>{money(order.paidAmount)}</em>
+                  <Badge text={order.status} tone={order.status === "已支付" ? "ok" : "warn"} />
+                </div>
+              </article>
+            ))}
+            {recentOrders.length === 0 && <p className="cashier-soft-empty">暂无收银订单</p>}
+          </div>
+        </div>
+
+        <div className="cashier-panel">
+          <PanelTitle icon={<BadgeCent size={18} />} title="收银提示" action="前台关注" />
+          <div className="cashier-tip-list">
+            <div>
+              <span>到店未收银</span>
+              <strong>{data.appointments.filter((appointment) => appointment.status === "已到店").length} 条</strong>
+              <small>可从收银台关联预约开单</small>
+            </div>
+            <div>
+              <span>有效会员卡</span>
+              <strong>{data.memberCards.filter((card) => card.status === "正常").length} 张</strong>
+              <small>支持会员卡扣款</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="cashier-panel">
         <PanelTitle icon={<CreditCard size={18} />} title="订单流水" action={`${data.orders.length} 单`} />
-        <DataTable columns={["订单号", "客户", "项目", "员工", "支付方式", "实收", "状态", "时间"]} rows={rows} />
+        {rows.length > 0 ? (
+          <DataTable columns={["订单号", "客户", "项目", "员工", "支付方式", "实收", "状态", "时间"]} rows={rows} />
+        ) : (
+          <p className="cashier-soft-empty">暂无订单流水</p>
+        )}
       </section>
     </div>
   );
@@ -467,6 +736,23 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
 
 function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
   const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
+  const totalCardBalance = data.memberCards.reduce((sum, card) => sum + card.balance, 0);
+  const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
+  const pendingSignatures = data.customerSignatures.filter((item) => item.status === "待签名").length;
+  const recentCustomers = data.customers
+    .slice()
+    .sort((a, b) => +new Date(b.lastVisit) - +new Date(a.lastVisit))
+    .slice(0, 5);
+  const levelSummary = Array.from(
+    data.customers.reduce((map, customer) => map.set(customer.level, (map.get(customer.level) ?? 0) + 1), new Map<string, number>()),
+  ).sort((a, b) => b[1] - a[1]);
+  const tagSummary = Array.from(
+    data.customers
+      .flatMap((customer) => customer.tags)
+      .reduce((map, tag) => map.set(tag, (map.get(tag) ?? 0) + 1), new Map<string, number>()),
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
   const rows = data.customers.slice(0, 120).map((customer) => [
     customer.name,
     customer.phone,
@@ -500,15 +786,131 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
           <StatCard title="有效卡" value={`${activeCards} 张`} hint="正常状态" />
         </div>
       </section>
-      <section className="dashboard-columns">
-        <div className="panel dashboard-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
+
+      <section className="customer-page-grid">
+        <div className="customer-panel customer-board-panel">
+          <PanelTitle icon={<UsersRound size={18} />} title="客户资产看板" action={`${data.customers.length} 人`} />
+          <div className="customer-focus-card">
+            <span>客户总数</span>
+            <strong>{data.customers.length}</strong>
+            <small>记录客户档案、来源、标签和最近到店信息。</small>
+          </div>
+          <div className="customer-status-grid">
+            <div>
+              <span>会员卡</span>
+              <strong>{data.memberCards.length}</strong>
+              <small>{activeCards} 张有效卡</small>
+            </div>
+            <div>
+              <span>卡余额</span>
+              <strong>{money(totalCardBalance)}</strong>
+              <small>储值资产合计</small>
+            </div>
+            <div>
+              <span>待回访</span>
+              <strong>{pendingFollowUps}</strong>
+              <small>护理后跟进</small>
+            </div>
+          </div>
+        </div>
+
+        <div className="customer-panel">
+          <PanelTitle icon={<HeartHandshake size={18} />} title="客户分层" action="会员结构" />
+          <div className="customer-level-list">
+            {levelSummary.map(([level, count]) => (
+              <article key={level}>
+                <div>
+                  <strong>{level}</strong>
+                  <span>{count} 位客户</span>
+                </div>
+                <em>{data.customers.length ? Math.round((count / data.customers.length) * 100) : 0}%</em>
+              </article>
+            ))}
+            {levelSummary.length === 0 && <p className="customer-soft-empty">暂无客户分层数据</p>}
+          </div>
+        </div>
+      </section>
+
+      <section className="customer-page-grid lower">
+        <div className="customer-panel">
+          <PanelTitle icon={<UsersRound size={18} />} title="最近客户" action="最近到店" />
+          <div className="customer-card-list">
+            {recentCustomers.map((customer) => (
+              <article className="customer-mini-card" key={customer.id}>
+                <div className="customer-avatar">{customer.name.slice(0, 1)}</div>
+                <div>
+                  <strong>{customer.name}</strong>
+                  <span>{customer.phone} · {customer.level}</span>
+                  <small>{customer.tags.length > 0 ? customer.tags.join(" / ") : customer.source}</small>
+                </div>
+                <em>{shortDate(customer.lastVisit)}</em>
+              </article>
+            ))}
+            {recentCustomers.length === 0 && <p className="customer-soft-empty">暂无客户档案</p>}
+          </div>
+        </div>
+
+        <div className="customer-panel">
+          <PanelTitle icon={<MessageCircle size={18} />} title="客户提醒" action="前台关注" />
+          <div className="customer-tip-list">
+            <div>
+              <span>待回访客户</span>
+              <strong>{pendingFollowUps} 位</strong>
+              <small>需要电话、微信或到店跟进</small>
+            </div>
+            <div>
+              <span>待签名确认</span>
+              <strong>{pendingSignatures} 份</strong>
+              <small>客户签名单待处理</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="customer-page-grid lower">
+        <div className="customer-panel">
+          <PanelTitle icon={<Megaphone size={18} />} title="客户标签" action={`${tagSummary.length} 个常用`} />
+          <div className="customer-tag-cloud">
+            {tagSummary.map(([tag, count]) => (
+              <span key={tag}>{tag}<em>{count}</em></span>
+            ))}
+            {tagSummary.length === 0 && <p className="customer-soft-empty">暂无客户标签</p>}
+          </div>
+        </div>
+
+        <div className="customer-panel">
+          <PanelTitle icon={<CreditCard size={18} />} title="会员卡概况" action="余额/次数" />
+          <div className="customer-tip-list">
+            <div>
+              <span>有效会员卡</span>
+              <strong>{activeCards} 张</strong>
+              <small>可用于前台收银扣款</small>
+            </div>
+            <div>
+              <span>总余额</span>
+              <strong>{money(totalCardBalance)}</strong>
+              <small>储值卡余额合计</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="customer-panel">
+        <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
+        {rows.length > 0 ? (
           <DataTable columns={["客户", "手机", "等级", "来源", "标签", "最近到店"]} rows={rows} />
-        </div>
-        <div className="panel dashboard-panel">
-          <PanelTitle icon={<CreditCard size={18} />} title="会员卡列表" action="余额/次数/状态" />
+        ) : (
+          <p className="customer-soft-empty">暂无客户列表</p>
+        )}
+      </section>
+
+      <section className="customer-panel">
+        <PanelTitle icon={<CreditCard size={18} />} title="会员卡列表" action="余额/次数/状态" />
+        {cardRows.length > 0 ? (
           <DataTable columns={["客户", "卡名", "类型", "余额", "次数", "状态", "有效期"]} rows={cardRows} />
-        </div>
+        ) : (
+          <p className="customer-soft-empty">暂无会员卡列表</p>
+        )}
       </section>
     </div>
   );
@@ -1137,24 +1539,35 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   });
   const actionItems = dashboardContent.actions.filter((item) => canAccessView(session, item.view));
   const roleTasks = roleHomeCards(data, session);
+  const todayLabel = today.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+  const heroLine = session.user.role === "therapist" ? "护理有序，客户安心" : "今日有序，门店有数";
+  const heroStats = session.user.role === "therapist"
+    ? `我的预约 ${todayAppointments} · 待回访 ${pendingFollowUps} · 提成 ${money(myCommission)}`
+    : `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 营业额 ${money(todayRevenue)}`;
+  const primaryActions = actionItems.slice(0, 3);
+  const insightItems = [
+    { label: "待审批", value: `${pendingApprovals} 条`, hint: "改价与退款审批", view: "approvals" as ViewKey },
+    { label: "库存预警", value: `${lowStock.length} 项`, hint: "低于安全库存", view: "inventory" as ViewKey },
+    { label: "线上预约", value: `${onlineRequests} 条`, hint: "待前台处理", view: "appointments" as ViewKey },
+  ].filter((item) => canAccessView(session, item.view));
 
   return (
     <div className="dashboard-page">
-      <section className={`beauty-hero role-hero-${session.user.role}`}>
-        <div className="beauty-hero-copy">
-          <span className="eyebrow"><Sparkles size={15} /> {session.user.roleName}工作台</span>
-          <h2>{dashboardContent.title}</h2>
-          <p>{dashboardContent.desc}</p>
-        </div>
-        <div className="hero-metrics">
-          {dashboardContent.metrics.map((item) => (
-            <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
-          ))}
-        </div>
+      <section className={`workbench-hero role-hero-${session.user.role}`}>
+        <span className="workbench-hero-kicker"><Sparkles size={15} /> {session.user.roleName}工作台</span>
+        <h2>{heroLine}</h2>
+        <p>{heroStats}</p>
+        <small>{todayLabel} · {dashboardContent.desc}</small>
       </section>
 
-      <section className="action-strip" aria-label="今日待办">
-        {actionItems.map((item) => (
+      <section className="workbench-metric-row" aria-label="今日关键数据">
+        {dashboardContent.metrics.map((item) => (
+          <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
+        ))}
+      </section>
+
+      <section className="workbench-action-row" aria-label="快捷操作">
+        {primaryActions.map((item) => (
           <button key={item.label} onClick={() => setView(item.view)}>
             {item.icon}
             <strong>{item.value}</strong>
@@ -1163,22 +1576,9 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         ))}
       </section>
 
-      <section className="panel role-home dashboard-panel">
-        <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="按当前账号权限显示" />
-        <div className="quick-grid compact">
-          {roleTasks.map((item) => (
-            <button key={item.title} className="quick-card" onClick={() => setView(item.view)}>
-              <strong>{item.value}</strong>
-              <span>{item.title}</span>
-              <small>{item.hint}</small>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="dashboard-columns">
-        <div className="panel dashboard-panel">
-          <PanelTitle icon={<CalendarDays size={18} />} title={dashboardContent.scheduleTitle} action="按到店时间" />
+      <section className="workbench-content-grid">
+        <div className="workbench-panel workbench-today-panel">
+          <PanelTitle icon={<CalendarDays size={18} />} title="今日待办" action={dashboardContent.scheduleTitle} />
           <div className="timeline-list">
             {roleAppointmentsList.slice(0, 5).map((item) => (
               <article key={item.id} className="timeline-item">
@@ -1194,7 +1594,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
           </div>
         </div>
 
-        <div className="panel dashboard-panel">
+        <div className="workbench-panel">
           <PanelTitle icon={<HeartHandshake size={18} />} title={dashboardContent.followTitle} action={`${pendingFollowUps} 个待跟进`} />
           <div className="care-list">
             {careList.map((item) => (
@@ -1211,20 +1611,32 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         </div>
       </section>
 
-      <section className="dashboard-columns lower">
-        <div className="panel dashboard-panel">
-          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title={dashboardContent.healthTitle} action="实时数据" />
-          <div className="health-grid">
-            {dashboardContent.healthMetrics.map((item) => (
-              <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
+      <section className="workbench-content-grid lower">
+        <div className="workbench-panel">
+          <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="按当前账号权限显示" />
+          <div className="workbench-quick-list">
+            {roleTasks.map((item) => (
+              <button key={item.title} onClick={() => setView(item.view)}>
+                <strong>{item.value}</strong>
+                <span>{item.title}</span>
+                <small>{item.hint}</small>
+              </button>
             ))}
           </div>
         </div>
 
-        <div className="panel dashboard-panel">
-          <PanelTitle icon={<PackagePlus size={18} />} title="耗材与商品提醒" action="低库存优先" />
-          <div className="stack">
-            {lowStock.length === 0 ? <p className="empty">暂无低库存商品</p> : lowStock.slice(0, 4).map((item) => <InventoryLine key={item.id} product={item} />)}
+        <div className="workbench-panel">
+          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="营业提示" action="实时提醒" />
+          <div className="workbench-insight-list">
+            {insightItems.map((item) => (
+              <button key={item.label} onClick={() => setView(item.view)}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.hint}</small>
+              </button>
+            ))}
+            {lowStock.length > 0 && lowStock.slice(0, 2).map((item) => <InventoryLine key={item.id} product={item} />)}
+            {insightItems.length === 0 && lowStock.length === 0 && <p className="empty">暂无需要处理的提醒</p>}
           </div>
         </div>
       </section>
