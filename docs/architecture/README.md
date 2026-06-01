@@ -13,6 +13,9 @@
 3. [ADMIN-SPEC.md](./ADMIN-SPEC.md)  
    超级管理员端规格，包括 Admin 账号、全局看板、门店管理、系统配置、审计日志、API 和数据库迁移建议。
 
+4. [UI-FUNCTION-GAPS.md](./UI-FUNCTION-GAPS.md)  
+   当前 UI 已完成但功能未完成的备注，给后续开发同事接手补功能使用。
+
 ## 当前实施原则
 
 - 先拆前端结构，再补新功能。
