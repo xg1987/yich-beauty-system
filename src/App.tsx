@@ -39,6 +39,7 @@ import { CheckboxGroup } from "./components/ui/CheckboxGroup";
 import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, reportSummary } from "./domain/business";
+import { appointmentRangeMap, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
@@ -409,43 +410,14 @@ function PlatformPageTitle({ title, onBack }: { title: string; onBack: () => voi
 }
 
 function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
-  type AppointmentRange = "today" | "tomorrow" | "week";
   const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
-  const today = new Date();
-  const startOfDay = (date: Date) => {
-    const value = new Date(date);
-    value.setHours(0, 0, 0, 0);
-    return value;
-  };
-  const endOfDay = (date: Date) => {
-    const value = new Date(date);
-    value.setHours(23, 59, 59, 999);
-    return value;
-  };
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
-  const weekStart = startOfDay(today);
-  weekStart.setDate(today.getDate() - dayOfWeek + 1);
-  const weekEnd = endOfDay(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  const appointmentRanges: Record<AppointmentRange, { label: string; start: Date; end: Date }> = {
-    today: { label: "今日", start: startOfDay(today), end: endOfDay(today) },
-    tomorrow: { label: "明日", start: startOfDay(tomorrow), end: endOfDay(tomorrow) },
-    week: { label: "本周", start: weekStart, end: weekEnd },
-  };
+  const appointmentRanges = appointmentRangeMap();
   const selectedAppointmentRange = appointmentRanges[appointmentRange];
   const pending = data.appointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const completed = data.appointments.filter((item) => item.status === "已完成").length;
   const onlinePendingRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const onlinePending = onlinePendingRequests.length;
-  const rangeAppointments = data.appointments
-    .filter((item) => {
-      const startAt = new Date(item.startAt).getTime();
-      return startAt >= selectedAppointmentRange.start.getTime() && startAt <= selectedAppointmentRange.end.getTime();
-    })
-    .slice()
-    .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
+  const rangeAppointments = filterAppointmentsByRange(data.appointments, appointmentRange);
   const rangePending = rangeAppointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const rangeCompleted = rangeAppointments.filter((item) => item.status === "已完成").length;
   const rows = rangeAppointments
