@@ -287,7 +287,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/data-quality/cleanup") {
         requirePermission(session, "settings:view");
         if (session.user.role !== "owner") {
-          sendJson(response, 403, { error: "只有老板账号可以清理正式库数据" });
+          sendJson(response, 403, { error: "当前账号无权限清理正式库数据" });
           return;
         }
         const body = await readJson(request);

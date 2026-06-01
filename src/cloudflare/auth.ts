@@ -12,10 +12,6 @@ export type LoginResult = {
 };
 
 export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<LoginResult> {
-  if (isLegacySampleCredential(account, password)) {
-    throw new Error("账号或密码不正确");
-  }
-
   const users = await readAuthUsers(db);
   const user = users.find((item) => item.account === account && item.status === "active");
   if (!user) {
@@ -73,10 +69,6 @@ export function buildSession(token: string, user: AuthUser): UserSession {
       permissions: rolePermissions[role],
     },
   };
-}
-
-function isLegacySampleCredential(account: string, password: string) {
-  return account.endsWith("@demo.local") || password === "yich-demo";
 }
 
 /** Helper for callers that want to know if a stored password is still legacy plaintext */

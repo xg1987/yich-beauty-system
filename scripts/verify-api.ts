@@ -151,14 +151,14 @@ try {
   assert.equal(afterStoreProfile.storeProfiles[0].name, "API 皮肤管理中心", "store profile API should update store name");
   assert.equal(afterStoreProfile.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile API should update business hours");
 
-  const publicStore = await request<{ storefront: { shareCode: string }; services: Array<{ id: string }> }>(baseUrl, "/api/public/store/yich-demo");
-  assert.equal(publicStore.storefront.shareCode, "yich-demo", "public store API should expose enabled storefront");
+  const publicStore = await request<{ storefront: { shareCode: string }; services: Array<{ id: string }> }>(baseUrl, "/api/public/store/yich-store");
+  assert.equal(publicStore.storefront.shareCode, "yich-store", "public store API should expose enabled storefront");
   assert.ok(publicStore.services.some((service) => service.id === "v1"), "public store API should expose enabled services");
 
   await request<{ ok: boolean }>(baseUrl, "/api/public/online-booking-requests", {
     method: "POST",
     body: {
-      shareCode: "yich-demo",
+      shareCode: "yich-store",
       customerName: "API 线上客户",
       phone: "13700000008",
       serviceId: "v1",

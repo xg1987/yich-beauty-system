@@ -16,7 +16,7 @@ export const testFixtureData: AppData = {
     {
       id: "os1",
       storeId: "store1",
-      shareCode: "yich-demo",
+      shareCode: "yich-store",
       status: "启用",
       headline: "一宸 YiCh 美业门店系统",
       description: "线上查看项目并提交到店预约意向",

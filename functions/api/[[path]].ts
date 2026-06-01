@@ -283,7 +283,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/data-quality/cleanup") {
       requirePermission(session, "settings:view");
       if (session.user.role !== "owner") {
-        return sendJson(403, { error: "只有老板账号可以清理正式库数据" });
+        return sendJson(403, { error: "当前账号无权限清理正式库数据" });
       }
       const body = await readJson(context.request);
       if (requiredString(body, "confirm") !== "清理非正式数据") {

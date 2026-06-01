@@ -1325,7 +1325,7 @@ export function joinStoreOwnerInvite(
         action: "老板邀请码注册",
         targetType: "store",
         targetId: storeId,
-        summary: `${storeName} 通过系统邀请码开通老板账号`,
+        summary: `${storeName} 通过系统邀请码开通负责人账号`,
         createdAt,
       },
       ...data.operationLogs,
