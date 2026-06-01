@@ -73,6 +73,14 @@ try {
     body: avatarForm,
   });
   assert.match(uploadedAvatar.avatarUrl, /^\/api\/assets\/avatars\/u_superadmin\//, "account avatar API should return asset URL");
+  const usageAfterAvatar = await request<{ objectCount: number; totalBytes: number; prefixes: Array<{ prefix: string; objectCount: number; bytes: number }> }>(
+    baseUrl,
+    "/api/usage/r2",
+    { token: adminSession.token },
+  );
+  assert.ok(usageAfterAvatar.objectCount > 0, "R2 usage API should include uploaded avatar objects");
+  assert.ok(usageAfterAvatar.totalBytes >= uploadedAvatar.size, "R2 usage API should include uploaded avatar bytes");
+  assert.ok(usageAfterAvatar.prefixes.some((item) => item.prefix === "avatars/" && item.objectCount > 0), "R2 usage API should group avatars under avatars/");
   const afterAccountProfile = await request<{ session: { user: { name: string; avatarUrl?: string } }; data: AppData }>(baseUrl, "/api/account-profile", {
     method: "PATCH",
     token: adminSession.token,

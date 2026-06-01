@@ -221,7 +221,6 @@ export default function App() {
             session={session}
             setView={returnFromAccountSettings}
             returnView={activeView}
-            backLabel="返回管理中心"
             updateProfile={updateAccountProfile}
             uploadAccountAvatar={actions.uploadAccountAvatar}
             themeMode={themeMode}
@@ -401,7 +400,7 @@ function PlatformAdminView({
 function PlatformPageTitle({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <div className="platform-page-title">
-      <button type="button" aria-label="返回管理中心" onClick={onBack}>
+      <button type="button" aria-label="返回" title="返回" onClick={onBack}>
         <ArrowLeft size={22} />
       </button>
       <h1>{title}</h1>
@@ -3981,7 +3980,6 @@ function SettingsView({
   session,
   setView,
   returnView = "dashboard",
-  backLabel = "返回管理中心",
   updateProfile,
   uploadAccountAvatar,
   themeMode,
@@ -3990,7 +3988,6 @@ function SettingsView({
   session: UserSession;
   setView: (view: ViewKey) => void;
   returnView?: ViewKey;
-  backLabel?: string;
   updateProfile: (body: { name: string; avatarUrl?: string }) => Promise<{ session: UserSession; data: AppData }>;
   uploadAccountAvatar: (file: File) => Promise<{ avatarUrl: string; key: string; size: number }>;
   themeMode: ThemeMode;
@@ -4068,7 +4065,7 @@ function SettingsView({
   return (
     <div className="settings-profile-page">
       <header className="settings-profile-title">
-        <button type="button" aria-label={backLabel} title={backLabel} onClick={() => setView(returnView)}>
+        <button type="button" aria-label="返回" title="返回" onClick={() => setView(returnView)}>
           <ArrowLeft size={22} />
         </button>
         <h1>系统设置</h1>
