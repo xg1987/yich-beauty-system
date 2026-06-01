@@ -15,6 +15,7 @@
     "verify:business": "tsx scripts/verify-business.ts",
     "verify:api": "tsx scripts/verify-api.ts",
     "verify:cloudflare-api": "tsx scripts/verify-cloudflare-api.ts",
+    "verify:night-theme": "tsx scripts/verify-night-theme.ts",
     "preview": "vite preview --host 0.0.0.0",
     "cf:login": "wrangler login",
     "cf:whoami": "wrangler whoami",
