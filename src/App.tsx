@@ -362,7 +362,7 @@ function PlatformAdminView({
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
   const platformMetrics = [
     { icon: <ShieldCheck size={18} />, label: "启用账号", value: `${activeAccounts} 个`, hint: "平台账号" },
-    { icon: <Building2 size={18} />, label: "老板账号", value: `${ownerAccounts.length} 个`, hint: "门店负责人" },
+    { icon: <Building2 size={18} />, label: "门店账号", value: `${ownerAccounts.length} 个`, hint: "负责人账号" },
     { icon: <UsersRound size={18} />, label: "员工账号", value: `${staffAccounts.length} 个`, hint: "门店成员" },
     { icon: <CalendarDays size={18} />, label: "今日预约", value: `${todayAppointments} 条`, hint: "门店预约" },
   ];
@@ -1114,11 +1114,11 @@ function PlatformAccountAdminView({ data, setView, showBack }: { data: AppData; 
         <div>
           <span className="eyebrow"><UsersRound size={15} /> 平台账号</span>
           <h1>账号管理</h1>
-          <p>平台账号、门店负责人、员工账号和门店绑定关系。</p>
+          <p>平台账号、门店账号、员工账号和门店绑定关系。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="系统管理员" value={`${adminAccounts.length} 个`} hint="平台管理员" />
-          <StatCard title="老板账号" value={`${ownerAccounts.length} 个`} hint="门店负责人" />
+          <StatCard title="门店账号" value={`${ownerAccounts.length} 个`} hint="负责人账号" />
           <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店工作台成员" />
         </div>
       </section>
@@ -1140,7 +1140,7 @@ function PlatformAccountAdminView({ data, setView, showBack }: { data: AppData; 
         <div className="panel dashboard-panel">
           <PanelTitle icon={<Building2 size={18} />} title="门店账号" action={`${data.storeProfiles.length} 家门店`} />
           <DataTable
-            columns={["门店", "老板", "老板账号", "门店电话", "开通时间"]}
+            columns={["门店", "负责人", "登录账号", "门店电话", "开通时间"]}
             rows={storeRows}
           />
         </div>
@@ -1412,7 +1412,7 @@ function PlatformDataReadOnlyView({ data, setView, showBack }: { data: AppData; 
       <section className="page-hero platform-admin-readonly-hero">
         <div>
           <span className="eyebrow"><ChartNoAxesColumnIncreasing size={15} /> 报表分析</span>
-          <h1>平台数据查看</h1>
+          <h1>数据总览</h1>
           <p>经营收入、订单记录、客户资产和库存指标汇总。</p>
         </div>
         <div className="page-hero-stats">
