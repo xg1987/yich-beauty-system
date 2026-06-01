@@ -94,6 +94,80 @@ try {
   assert.equal(afterAccountProfile.session.user.name, "API 管理员", "account profile API should update session name");
   assert.equal(afterAccountProfile.session.user.avatarUrl, uploadedAvatar.avatarUrl, "account profile API should update session avatar");
   assert.equal(afterAccountProfile.data.authUsers.find((user) => user.id === "u_superadmin")?.name, "API 管理员", "account profile API should persist user name");
+  const blockedAdminBusinessWrites: Array<{ label: string; path: string; method: string; body?: unknown }> = [
+    {
+      label: "admin should not create appointments",
+      path: "/api/appointments",
+      method: "POST",
+      body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), note: "" },
+    },
+    {
+      label: "admin should not checkout orders",
+      path: "/api/checkout",
+      method: "POST",
+      body: { customerId: "c1", staffId: "s1", serviceId: "v1", payMethod: "微信" },
+    },
+    {
+      label: "admin should not create customers",
+      path: "/api/customers",
+      method: "POST",
+      body: { name: "Admin 禁止客户", phone: "13600000000" },
+    },
+    {
+      label: "admin should not create services",
+      path: "/api/services",
+      method: "POST",
+      body: { name: "Admin 禁止项目", category: "皮肤管理", price: 100, duration: 30 },
+    },
+    {
+      label: "admin should not create products",
+      path: "/api/products",
+      method: "POST",
+      body: { name: "Admin 禁止商品", type: "sale", stock: 1, unit: "瓶", price: 10 },
+    },
+    {
+      label: "admin should not adjust inventory",
+      path: "/api/inventory/adjust",
+      method: "POST",
+      body: { productId: "p1", type: "入库", quantity: 1 },
+    },
+    {
+      label: "admin should not create approvals",
+      path: "/api/approvals",
+      method: "POST",
+      body: { type: "改价折扣", targetId: "order-admin-blocked", amount: 1, reason: "权限验证" },
+    },
+    {
+      label: "admin should not create staff",
+      path: "/api/staff",
+      method: "POST",
+      body: { name: "Admin 禁止员工", phone: "13600000001", role: "员工", baseSalary: 0, commissionRate: 0 },
+    },
+    {
+      label: "admin should not update storefront",
+      path: "/api/online-storefront",
+      method: "POST",
+      body: {
+        shareCode: "admin-blocked-storefront",
+        status: "启用",
+        headline: "Admin 禁止线上店铺",
+        description: "",
+        enabledServiceIds: [],
+      },
+    },
+  ];
+  for (const blockedWrite of blockedAdminBusinessWrites) {
+    await assert.rejects(
+      () =>
+        request<AppData>(baseUrl, blockedWrite.path, {
+          method: blockedWrite.method,
+          token: adminSession.token,
+          body: blockedWrite.body,
+        }),
+      /当前账号无此操作权限/,
+      blockedWrite.label,
+    );
+  }
 
   database.replaceData({
     ...database.readData(),
