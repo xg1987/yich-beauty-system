@@ -318,6 +318,24 @@ try {
   });
   assert.equal(afterStoreProfile.storeProfiles[0].name, "API 皮肤管理中心", "store profile API should update store name");
   assert.equal(afterStoreProfile.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile API should update business hours");
+  const afterStoreDisabled = await request<AppData>(baseUrl, `/api/stores/${afterStoreProfile.storeProfiles[0].id}/status`, {
+    method: "PATCH",
+    token: adminSession.token,
+    body: { status: "disabled" },
+  });
+  assert.equal(afterStoreDisabled.storeProfiles.find((store) => store.id === afterStoreProfile.storeProfiles[0].id)?.status, "disabled", "admin should disable store");
+  assert.equal(afterStoreDisabled.operationLogs[0].action, "停用门店", "store status API should write operation log");
+  await assert.rejects(
+    () => request<{ storefront: { shareCode: string } }>(baseUrl, "/api/public/store/yich-store"),
+    /线上店铺不存在或已停用/,
+    "disabled store should hide public storefront",
+  );
+  const afterStoreEnabled = await request<AppData>(baseUrl, `/api/stores/${afterStoreProfile.storeProfiles[0].id}/status`, {
+    method: "PATCH",
+    token: adminSession.token,
+    body: { status: "active" },
+  });
+  assert.equal(afterStoreEnabled.storeProfiles.find((store) => store.id === afterStoreProfile.storeProfiles[0].id)?.status, "active", "admin should re-enable store");
 
   const publicStore = await request<{ storefront: { shareCode: string }; services: Array<{ id: string }> }>(baseUrl, "/api/public/store/yich-store");
   assert.equal(publicStore.storefront.shareCode, "yich-store", "public store API should expose enabled storefront");

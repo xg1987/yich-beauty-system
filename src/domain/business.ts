@@ -31,6 +31,7 @@ import type {
   StaffUnavailableSlot,
   SystemConfig,
   SystemConfigKey,
+  StoreProfile,
   StoreOwnerApplication,
   StoreOwnerInvite,
   SystemNotification,
@@ -250,6 +251,12 @@ export type StoreProfileInput = {
   phone: string;
   address: string;
   businessHours: string;
+};
+
+export type StoreStatusInput = {
+  storeId: string;
+  status: NonNullable<StoreProfile["status"]>;
+  userId: string;
 };
 
 export type StaffInput = {
@@ -732,6 +739,7 @@ export function registerStore(
         phone: input.phone,
         address: input.address ?? "",
         businessHours: "10:00 - 21:00",
+        status: "active",
         createdAt,
       },
     ],
@@ -772,6 +780,34 @@ export function registerStore(
         targetId: data.storeProfiles[0]?.id ?? "store",
         summary: `${input.storeName} 完成门店注册`,
         createdAt,
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function updateStoreStatus(
+  data: AppData,
+  input: StoreStatusInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const updatedAt = (options.now ?? nowIso)();
+  const store = data.storeProfiles.find((item) => item.id === input.storeId);
+  if (!store) throw new Error("门店不存在");
+  if (input.status !== "active" && input.status !== "disabled") throw new Error("门店状态不正确");
+  return {
+    ...data,
+    storeProfiles: data.storeProfiles.map((item) => item.id === store.id ? { ...item, status: input.status } : item),
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId: input.userId,
+        action: input.status === "active" ? "启用门店" : "停用门店",
+        targetType: "store",
+        targetId: store.id,
+        summary: `${input.status === "active" ? "启用" : "停用"}门店 ${store.name}`,
+        createdAt: updatedAt,
       },
       ...data.operationLogs,
     ],
@@ -1628,6 +1664,7 @@ export function decideStoreOwnerApplication(
         phone: application.phone,
         address: application.address ?? "",
         businessHours: "10:00 - 21:00",
+        status: "active",
         createdAt: decidedAt,
       },
       ...data.storeProfiles,

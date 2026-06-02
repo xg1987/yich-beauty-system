@@ -1306,7 +1306,15 @@ function PlatformAccountAdminView({
       ownerUser?.name ?? "未绑定",
       ownerUser?.account ?? "未绑定",
       store.phone,
+      <Badge key={`${store.id}-status`} text={(store.status ?? "active") === "active" ? "启用" : "停用"} tone={(store.status ?? "active") === "active" ? "ok" : "warn"} />,
       shortDate(store.createdAt),
+      <button
+        key={`${store.id}-toggle`}
+        type="button"
+        onClick={() => void runMutation(() => actions.updateStoreStatus(store.id, (store.status ?? "active") === "active" ? "disabled" : "active"))}
+      >
+        {(store.status ?? "active") === "active" ? "停用" : "启用"}
+      </button>,
     ];
   });
 
@@ -1354,7 +1362,7 @@ function PlatformAccountAdminView({
         <div className="panel dashboard-panel">
           <PanelTitle icon={<Building2 size={18} />} title="门店账号" action={`${data.storeProfiles.length} 家门店`} />
           <DataTable
-            columns={["门店", "负责人", "登录账号", "门店电话", "开通时间"]}
+            columns={["门店", "负责人", "登录账号", "门店电话", "状态", "开通时间", "操作"]}
             rows={storeRows}
           />
         </div>

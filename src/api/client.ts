@@ -64,6 +64,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/notifications/read-all", { method: "POST", token: getToken() }),
     updateSystemConfig: (key: SystemConfigKey, value: string) =>
       request<AppData>(`/api/system-configs/${encodeURIComponent(key)}`, { method: "PATCH", body: { value }, token: getToken() }),
+    updateStoreStatus: (storeId: string, status: "active" | "disabled") =>
+      request<AppData>(`/api/stores/${encodeURIComponent(storeId)}/status`, { method: "PATCH", body: { status }, token: getToken() }),
     updateStoreProfile: (body: { name: string; phone: string; address: string; businessHours: string }) =>
       request<AppData>("/api/store-profile", { method: "PATCH", body, token: getToken() }),
     addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>

@@ -10,6 +10,7 @@ export const testFixtureData: AppData = {
       phone: "021-8888-0000",
       address: "上海市静安区示例路 88 号",
       businessHours: "10:00 - 21:00",
+      status: "active",
       createdAt: nowIso(),
     },
   ],

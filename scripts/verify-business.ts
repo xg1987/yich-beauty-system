@@ -51,6 +51,7 @@ import {
   updateAuthUserStatus,
   updateStaffMember,
   updateStoreProfile,
+  updateStoreStatus,
   updateSystemConfig,
   updateTagDefinition,
   updateMemberCardStatus,
@@ -260,6 +261,9 @@ function card(data: AppData, cardId: string) {
   });
   assert.equal(updatedStore.storeProfiles[0].name, "测试皮肤管理中心", "store profile should update store name");
   assert.equal(updatedStore.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile should update business hours");
+  const disabledStore = updateStoreStatus(updatedStore, { storeId: updatedStore.storeProfiles[0].id, status: "disabled", userId: "u_superadmin" }, { idFactory: testId, now: fixedNow });
+  assert.equal(disabledStore.storeProfiles[0].status, "disabled", "admin should disable store");
+  assert.equal(disabledStore.operationLogs[0].action, "停用门店", "store status should write operation log");
   const avatarAssetUrl = "/api/assets/avatars/u_manager/test-avatar.jpg";
   const updatedAccount = updateAccountProfile(cloneSeed(), { userId: "u_manager", name: "新主管名", avatarUrl: avatarAssetUrl });
   assert.equal(updatedAccount.authUsers.find((user) => user.id === "u_manager")?.name, "新主管名", "account profile should update auth user name");

@@ -54,6 +54,7 @@ import {
   updateAccountProfile,
   updateAuthUserStatus,
   updateStoreProfile,
+  updateStoreStatus,
   updateSystemConfig,
   updateMemberCardStatus,
   platformInviteIssuerId,
@@ -382,6 +383,22 @@ export function createApiServer(database = new BeautyDatabase()) {
           },
           (data) => updateSystemConfig(data, { key, value: requiredString(body, "value"), updatedBy: session.user.id }),
         );
+        sendJson(response, 200, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/stores/") && url.pathname.endsWith("/status")) {
+        if (session.user.role !== "superadmin") {
+          throw new Error("只有平台 Admin 可以管理门店状态");
+        }
+        const storeId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        const nextData = updateStoreStatus(database.readData(), {
+          storeId,
+          status: requiredString(body, "status") as "active" | "disabled",
+          userId: session.user.id,
+        });
+        database.replaceData(nextData);
         sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
@@ -1363,6 +1380,7 @@ function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "POST" && pathname === "/api/account-avatar") return false;
   if (method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) return false;
   if (method === "PATCH" && pathname.startsWith("/api/system-configs/")) return false;
+  if (method === "PATCH" && pathname.startsWith("/api/stores/") && pathname.endsWith("/status")) return false;
   if (method === "POST" && pathname === "/api/store-owner-invites") return false;
   if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;
   if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
@@ -1374,6 +1392,7 @@ function publicStorePayload(data: AppData, shareCode: string) {
   const storefront = data.onlineStorefronts.find((item) => item.shareCode === shareCode && item.status === "启用");
   if (!storefront) throw new Error("线上店铺不存在或已停用");
   const store = data.storeProfiles.find((item) => item.id === storefront.storeId) ?? data.storeProfiles[0];
+  if (store && (store.status ?? "active") !== "active") throw new Error("线上店铺不存在或已停用");
   return {
     store,
     storefront,
