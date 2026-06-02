@@ -30,6 +30,7 @@ import {
   formalDataAudit,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  platformInviteCodeForPlatformAdmin,
   platformInviteCodeForUser,
   previewFormalDataCleanup,
   receivePurchaseOrder,
@@ -143,6 +144,10 @@ function card(data: AppData, cardId: string) {
   assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
   const platformAdmin = cloneSeed().authUsers.find((user) => user.role === "superadmin");
   assert.ok(platformAdmin, "test fixture should include a platform admin");
+  const ownerUser = cloneSeed().authUsers.find((user) => user.role === "owner");
+  assert.ok(ownerUser, "test fixture should include an owner");
+  assert.ok(platformInviteCodeForPlatformAdmin(platformAdmin, cloneSeed().authUsers), "platform admin should have a system invite code");
+  assert.equal(platformInviteCodeForPlatformAdmin(ownerUser, cloneSeed().authUsers), undefined, "owner should not have a platform system invite code");
   assert.throws(
     () =>
       joinInviteByCode(

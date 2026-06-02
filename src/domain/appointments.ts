@@ -8,6 +8,21 @@ export type AppointmentRangeMeta = {
   end: Date;
 };
 
+export type AppointmentRoomAssignment = {
+  appointment: Appointment;
+  roomName: string;
+};
+
+export type AppointmentRoomUsage = {
+  availableRoomCount: number;
+  bookedRoomSlots: number;
+  dayCount: number;
+  maintenanceRoomCount: number;
+  remainingRoomSlots: number;
+  roomAssignments: AppointmentRoomAssignment[];
+  roomCapacity: number;
+};
+
 const startOfDay = (date: Date) => {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
@@ -48,4 +63,44 @@ export function filterAppointmentsByRange(appointments: Appointment[], range: Ap
     })
     .slice()
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
+}
+
+function countCalendarDays(start: Date, end: Date) {
+  const startDay = new Date(start);
+  const endDay = new Date(end);
+  startDay.setHours(0, 0, 0, 0);
+  endDay.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
+}
+
+function isActiveRoomAppointment(appointment: Appointment) {
+  return appointment.status !== "已取消" && appointment.status !== "爽约";
+}
+
+export function calculateAppointmentRoomUsage(
+  appointments: Appointment[],
+  rangeMeta: AppointmentRangeMeta,
+  roomNames: string[],
+  maintenanceRoomCount = 0,
+): AppointmentRoomUsage {
+  const availableRoomCount = Math.max(0, roomNames.length - maintenanceRoomCount);
+  const dayCount = countCalendarDays(rangeMeta.start, rangeMeta.end);
+  const roomCapacity = availableRoomCount * dayCount;
+  const activeAppointments = appointments.filter(isActiveRoomAppointment);
+  const bookedRoomSlots = Math.min(activeAppointments.length, roomCapacity);
+  const remainingRoomSlots = Math.max(0, roomCapacity - bookedRoomSlots);
+  const roomAssignments = activeAppointments.slice(0, availableRoomCount).map((appointment, index) => ({
+    appointment,
+    roomName: roomNames[index] ?? `护理房 ${index + 1}`,
+  }));
+
+  return {
+    availableRoomCount,
+    bookedRoomSlots,
+    dayCount,
+    maintenanceRoomCount,
+    remainingRoomSlots,
+    roomAssignments,
+    roomCapacity,
+  };
 }

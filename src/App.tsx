@@ -38,8 +38,8 @@ import { Badge } from "./components/ui/Badge";
 import { CheckboxGroup } from "./components/ui/CheckboxGroup";
 import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
-import { calculateOrderTotal, platformInviteCodeForUser, reportSummary } from "./domain/business";
-import { appointmentRangeMap, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
+import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary } from "./domain/business";
+import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
@@ -79,14 +79,6 @@ function getSystemThemeMode(): EffectiveThemeMode {
   const shanghaiHour = Number(shanghaiHourText === "24" ? "0" : shanghaiHourText);
   if (!Number.isFinite(shanghaiHour)) return "day";
   return shanghaiHour >= AUTO_THEME_DAY_START_HOUR && shanghaiHour < AUTO_THEME_NIGHT_START_HOUR ? "day" : "night";
-}
-
-function countCalendarDays(start: Date, end: Date) {
-  const startDay = new Date(start);
-  const endDay = new Date(end);
-  startDay.setHours(0, 0, 0, 0);
-  endDay.setHours(0, 0, 0, 0);
-  return Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
 }
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
@@ -312,9 +304,10 @@ function ManagementCenter({
   session: UserSession;
   setView: NavigateToView;
 }) {
-  const systemInviteCode = platformInviteCodeForUser({
+  const systemInviteCode = platformInviteCodeForPlatformAdmin({
     id: session.user.id,
     account: session.user.account,
+    role: session.user.role,
   }, data.authUsers);
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
@@ -322,6 +315,7 @@ function ManagementCenter({
   const [inviteCopied, setInviteCopied] = useState(false);
 
   const copyInviteCode = () => {
+    if (!systemInviteCode) return;
     void navigator.clipboard?.writeText(systemInviteCode);
     setInviteCopied(true);
     window.setTimeout(() => setInviteCopied(false), 1400);
@@ -363,24 +357,26 @@ function ManagementCenter({
         </div>
       </section>
 
-      <section className="admin-invite-section" aria-label="系统邀请码">
-        <div className="admin-invite-heading">
-          <span>系统邀请码</span>
-        </div>
-        <div className="admin-invite-card">
-          <span>邀请码</span>
-          <div className="admin-invite-code">
-            <strong>{inviteVisible ? systemInviteCode : "••••••"}</strong>
-            <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)}>
-              {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-            <button type="button" aria-label="复制邀请码" onClick={copyInviteCode}>
-              <Copy size={17} />
-            </button>
+      {systemInviteCode && (
+        <section className="admin-invite-section" aria-label="系统邀请码">
+          <div className="admin-invite-heading">
+            <span>系统邀请码</span>
           </div>
-          {inviteCopied && <small className="admin-invite-copied">已复制</small>}
-        </div>
-      </section>
+          <div className="admin-invite-card">
+            <span>邀请码</span>
+            <div className="admin-invite-code">
+              <strong>{inviteVisible ? systemInviteCode : "••••••"}</strong>
+              <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)}>
+                {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+              <button type="button" aria-label="复制邀请码" onClick={copyInviteCode}>
+                <Copy size={17} />
+              </button>
+            </div>
+            {inviteCopied && <small className="admin-invite-copied">已复制</small>}
+          </div>
+        </section>
+      )}
 
       <section className="admin-module-section">
         <div className="admin-section-title">
@@ -465,16 +461,12 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
   const rangeAppointments = filterAppointmentsByRange(data.appointments, appointmentRange);
   const rangePending = rangeAppointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const rangeCompleted = rangeAppointments.filter((item) => item.status === "已完成").length;
-  const rangeActiveAppointments = rangeAppointments.filter((item) => item.status !== "已取消" && item.status !== "爽约");
-  const roomDayCount = countCalendarDays(selectedAppointmentRange.start, selectedAppointmentRange.end);
-  const availableRoomCount = Math.max(0, APPOINTMENT_ROOM_NAMES.length - APPOINTMENT_ROOM_MAINTENANCE_COUNT);
-  const roomCapacity = availableRoomCount * roomDayCount;
-  const bookedRoomSlots = Math.min(rangeActiveAppointments.length, roomCapacity);
-  const remainingRoomSlots = Math.max(0, roomCapacity - bookedRoomSlots);
-  const roomAssignments = rangeActiveAppointments.slice(0, availableRoomCount).map((item, index) => ({
-    appointment: item,
-    roomName: APPOINTMENT_ROOM_NAMES[index] ?? `护理房 ${index + 1}`,
-  }));
+  const roomUsage = calculateAppointmentRoomUsage(
+    rangeAppointments,
+    selectedAppointmentRange,
+    APPOINTMENT_ROOM_NAMES,
+    APPOINTMENT_ROOM_MAINTENANCE_COUNT,
+  );
   const rows = rangeAppointments
     .slice(0, 120)
     .map((item) => [
@@ -569,27 +561,27 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
           <div className="appointment-room-summary">
             <div>
               <span>房间总数</span>
-              <strong>{availableRoomCount}</strong>
+              <strong>{roomUsage.availableRoomCount}</strong>
               <small>可预约房间</small>
             </div>
             <div>
               <span>已预约</span>
-              <strong>{bookedRoomSlots}</strong>
+              <strong>{roomUsage.bookedRoomSlots}</strong>
               <small>房间占用</small>
             </div>
             <div>
               <span>剩余可约</span>
-              <strong>{remainingRoomSlots}</strong>
-              <small>{roomDayCount > 1 ? `${roomDayCount} 天容量` : "今日容量"}</small>
+              <strong>{roomUsage.remainingRoomSlots}</strong>
+              <small>{roomUsage.dayCount > 1 ? `${roomUsage.dayCount} 天容量` : "今日容量"}</small>
             </div>
             <div>
               <span>维护中</span>
-              <strong>{APPOINTMENT_ROOM_MAINTENANCE_COUNT}</strong>
+              <strong>{roomUsage.maintenanceRoomCount}</strong>
               <small>暂不可约</small>
             </div>
           </div>
           <div className="appointment-room-list">
-            {roomAssignments.map(({ appointment, roomName }) => (
+            {roomUsage.roomAssignments.map(({ appointment, roomName }) => (
               <article className="appointment-room-card" key={`${appointment.id}-room`}>
                 <div>
                   <strong>{roomName}</strong>
@@ -598,7 +590,7 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
                 <time>{shortDate(appointment.startAt)}</time>
               </article>
             ))}
-            {roomAssignments.length === 0 && <p className="appointment-soft-empty">暂无房间占用</p>}
+            {roomUsage.roomAssignments.length === 0 && <p className="appointment-soft-empty">暂无房间占用</p>}
           </div>
           <div className="appointment-panel-divider" />
           <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${onlinePending} 条待处理`} />

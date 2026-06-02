@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appointmentRangeMap, filterAppointmentsByRange } from "../src/domain/appointments";
+import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange } from "../src/domain/appointments";
 import type { Appointment } from "../src/domain/types";
 
 const baseDate = new Date("2026-06-03T10:30:00+08:00");
@@ -44,6 +44,29 @@ assert.deepEqual(
   filterAppointmentsByRange(appointments, "week", baseDate).map((item) => item.id),
   ["yesterday", "today-early", "today-late", "tomorrow", "weekend"],
   "week filter should include Monday through Sunday appointments in time order",
+);
+
+const roomUsage = calculateAppointmentRoomUsage(
+  [
+    appointment("active-1", "2026-06-03T09:00:00+08:00"),
+    appointment("active-2", "2026-06-03T10:00:00+08:00"),
+    { ...appointment("canceled", "2026-06-03T11:00:00+08:00"), status: "已取消" },
+    { ...appointment("no-show", "2026-06-03T12:00:00+08:00"), status: "爽约" },
+  ],
+  ranges.today,
+  ["护理房 1", "护理房 2", "VIP护理房"],
+  1,
+);
+
+assert.equal(roomUsage.availableRoomCount, 2, "room usage should subtract maintenance rooms");
+assert.equal(roomUsage.dayCount, 1, "today room usage should count one day");
+assert.equal(roomUsage.roomCapacity, 2, "room capacity should be available rooms times day count");
+assert.equal(roomUsage.bookedRoomSlots, 2, "active appointments should occupy rooms");
+assert.equal(roomUsage.remainingRoomSlots, 0, "full room usage should leave no remaining slots");
+assert.deepEqual(
+  roomUsage.roomAssignments.map((item) => `${item.roomName}:${item.appointment.id}`),
+  ["护理房 1:active-1", "护理房 2:active-2"],
+  "room assignments should map active appointments to rooms in appointment order",
 );
 
 console.log("预约日期范围筛选验证通过。");

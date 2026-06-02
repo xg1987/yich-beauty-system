@@ -95,6 +95,14 @@ export function platformInviteCodeForUser(
   return platformInviteCandidateForUser(user);
 }
 
+export function platformInviteCodeForPlatformAdmin(
+  user: Pick<AuthUser, "id" | "account" | "role">,
+  users?: Array<Pick<AuthUser, "id" | "account">>,
+) {
+  if (effectiveRoleForUser(user) !== "superadmin") return undefined;
+  return platformInviteCodeForUser(user, users);
+}
+
 export function isPlatformInviteCodeFormat(inviteCode: string) {
   return new RegExp(`^${PLATFORM_INVITE_PREFIX}[${PLATFORM_INVITE_ALPHABET}]{4}$`).test(inviteCode.trim().toUpperCase());
 }
