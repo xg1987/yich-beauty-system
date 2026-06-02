@@ -618,7 +618,7 @@ function ManagementCenter({
           <div className="admin-invite-card">
             <span>邀请码</span>
             <div className="admin-invite-code">
-              <strong>{managementInviteCode ? (inviteVisible ? managementInviteCode : "••••••") : "待生成"}</strong>
+              <strong>{managementInviteCode ? (inviteVisible ? managementInviteCode : "••••••") : "点击生成"}</strong>
               <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)} disabled={!managementInviteCode}>
                 {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
@@ -632,10 +632,10 @@ function ManagementCenter({
               <button
                 type="button"
                 className="admin-invite-link"
-                onClick={inviteCandidateStaff ? generateManagementStaffInvite : () => setView("staff", { fromAdmin: true })}
+                onClick={generateManagementStaffInvite}
                 disabled={inviteGenerating}
               >
-                {inviteCandidateStaff ? (inviteGenerating ? "生成中" : "系统生成邀请码") : "先建员工档案"}
+                {inviteGenerating ? "生成中" : "系统生成邀请码"}
               </button>
             )}
           </div>
