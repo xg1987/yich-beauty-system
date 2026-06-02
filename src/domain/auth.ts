@@ -15,6 +15,7 @@ export type Permission =
   | "inventory:manage"
   | "reports:view"
   | "approvals:manage"
+  | "logs:view"
   | "settings:view";
 
 export type UserSession = {
@@ -69,6 +70,7 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "inventory:manage",
     "reports:view",
     "approvals:manage",
+    "logs:view",
     "settings:view",
   ],
   owner: [
@@ -83,6 +85,7 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "inventory:manage",
     "reports:view",
     "approvals:manage",
+    "logs:view",
     "settings:view",
   ],
   manager: [
@@ -97,11 +100,12 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "inventory:manage",
     "reports:view",
     "approvals:manage",
+    "logs:view",
     "settings:view",
   ],
-  frontdesk: ["dashboard:view", "appointments:manage", "pos:manage", "customers:manage"],
-  therapist: ["dashboard:view", "appointments:manage", "customers:manage", "staff:view"],
-  finance: ["dashboard:view", "pos:manage", "staff:view", "commissions:settle", "reports:view", "approvals:manage"],
+  frontdesk: ["dashboard:view", "appointments:manage", "customers:manage", "settings:view"],
+  therapist: ["dashboard:view", "appointments:manage", "customers:manage", "staff:view", "settings:view"],
+  finance: ["dashboard:view", "pos:manage", "staff:view", "commissions:settle", "reports:view", "approvals:manage", "settings:view"],
 };
 
 export const viewPermissions: Record<ViewKey, Permission> = {
@@ -114,7 +118,7 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   inventory: "inventory:manage",
   reports: "reports:view",
   approvals: "approvals:manage",
-  logs: "settings:view",
+  logs: "logs:view",
   accounts: "settings:view",
   permissions: "settings:view",
   usage: "settings:view",

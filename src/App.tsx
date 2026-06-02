@@ -1658,7 +1658,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     todayRevenue,
   });
   const actionItems = dashboardContent.actions.filter((item) => canAccessView(session, item.view));
-  const roleTasks = roleHomeCards(data, session);
+  const roleTasks = roleHomeCards(data, session).filter((item) => canAccessView(session, item.view));
   const todayLabel = today.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
   const heroLine = session.user.role === "therapist" ? "护理有序，客户安心" : "今日有序，门店有数";
   const heroStats = session.user.role === "therapist"

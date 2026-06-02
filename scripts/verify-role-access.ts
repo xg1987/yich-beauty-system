@@ -23,9 +23,9 @@ const expectedViewsByRole: Record<UserRole, ViewKey[]> = {
   superadmin: allViews,
   owner: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "settings"],
   manager: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "settings"],
-  frontdesk: ["dashboard", "appointments", "pos", "customers"],
-  therapist: ["dashboard", "appointments", "customers", "staff"],
-  finance: ["dashboard", "pos", "staff", "reports", "approvals"],
+  frontdesk: ["dashboard", "appointments", "customers", "settings"],
+  therapist: ["dashboard", "appointments", "customers", "staff", "settings"],
+  finance: ["dashboard", "pos", "staff", "reports", "approvals", "settings"],
 };
 
 function makeSession(role: UserRole, account = `${role}@yich.local`): UserSession {
@@ -55,6 +55,19 @@ for (const role of ["owner", "manager", "frontdesk", "therapist", "finance"] as 
   const session = makeSession(role);
   for (const view of platformOnlyViews) {
     assert.equal(canAccessView(session, view), false, `${role} should not access platform-only view: ${view}`);
+  }
+}
+
+for (const role of ["frontdesk", "therapist"] as UserRole[]) {
+  const session = makeSession(role);
+  assert.equal(canAccessView(session, "settings"), true, `${role} should access management center`);
+  assert.equal(canAccessView(session, "pos"), false, `${role} should not access cashier`);
+}
+
+for (const role of ["owner", "manager"] as UserRole[]) {
+  const session = makeSession(role);
+  for (const view of ["dashboard", "appointments", "pos", "customers", "settings"] as ViewKey[]) {
+    assert.equal(canAccessView(session, view), true, `${role} should access ${view}`);
   }
 }
 
