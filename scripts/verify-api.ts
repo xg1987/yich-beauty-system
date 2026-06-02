@@ -297,6 +297,34 @@ try {
   assert.equal(publicStore.storefront.shareCode, "yich-store", "public store API should expose enabled storefront");
   assert.ok(publicStore.services.some((service) => service.id === "v1"), "public store API should expose enabled services");
 
+  for (const staffId of ["s1", "s2", "s3"]) {
+    await request<AppData>(baseUrl, "/api/staff-unavailable-slots", {
+      method: "POST",
+      token: session.token,
+      body: {
+        staffId,
+        startAt: futureIso(45, "02:00"),
+        endAt: futureIso(45, "03:00"),
+        reason: "API 线上预约占用校验",
+      },
+    });
+  }
+  await assert.rejects(
+    () =>
+      request<{ ok: boolean }>(baseUrl, "/api/public/online-booking-requests", {
+        method: "POST",
+        body: {
+          shareCode: "yich-store",
+          customerName: "API 冲突客户",
+          phone: "13700000018",
+          serviceId: "v1",
+          preferredAt: futureIso(45, "02:15"),
+        },
+      }),
+    /暂无可预约员工/,
+    "public booking API should reject a time with no available staff",
+  );
+
   await request<{ ok: boolean }>(baseUrl, "/api/public/online-booking-requests", {
     method: "POST",
     body: {

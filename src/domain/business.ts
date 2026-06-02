@@ -1149,6 +1149,9 @@ export function createOnlineBookingRequest(
   if (!input.phone.trim()) throw new Error("请输入手机号");
   if (!storefront.enabledServiceIds.includes(input.serviceId)) throw new Error("该项目暂未开放线上预约");
   if (+new Date(input.preferredAt) <= +new Date(createdAt)) throw new Error("预约意向时间必须晚于当前时间");
+  if (availableStaffForOnlineBooking(data, input.serviceId, input.preferredAt).length === 0) {
+    throw new Error("该时间暂无可预约员工，请选择其他时间");
+  }
 
   const request: OnlineBookingRequest = {
     id: idFactory("obr"),
@@ -1165,6 +1168,35 @@ export function createOnlineBookingRequest(
     ...data,
     onlineBookingRequests: [request, ...data.onlineBookingRequests],
   };
+}
+
+export function availableStaffForOnlineBooking(data: AppData, serviceId: string, preferredAt: string) {
+  const selectedService = data.services.find((item) => item.id === serviceId);
+  if (!selectedService) return [];
+  const startAt = new Date(preferredAt);
+  if (Number.isNaN(startAt.getTime())) return [];
+  const endAt = new Date(startAt.getTime() + selectedService.duration * 60 * 1000);
+
+  return data.staff.filter((staff) => {
+    if (staff.status !== "active") return false;
+    const hasAppointmentConflict = data.appointments.some((appointment) => {
+      if (appointment.staffId !== staff.id) return false;
+      if (["已完成", "已取消", "爽约"].includes(appointment.status)) return false;
+      const service = data.services.find((item) => item.id === appointment.serviceId);
+      const appointmentStart = new Date(appointment.startAt);
+      const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+      return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
+    });
+    if (hasAppointmentConflict) return false;
+
+    const hasUnavailableConflict = data.staffUnavailableSlots.some((slot) =>
+      slot.staffId === staff.id && hasTimeOverlap(startAt, endAt, new Date(slot.startAt), new Date(slot.endAt)),
+    );
+    if (hasUnavailableConflict) return false;
+
+    const shiftsForDay = data.staffShifts.filter((shift) => shift.staffId === staff.id && shift.startAt.slice(0, 10) === preferredAt.slice(0, 10));
+    return shiftsForDay.length === 0 || shiftsForDay.some((shift) => startAt >= new Date(shift.startAt) && endAt <= new Date(shift.endAt));
+  });
 }
 
 export function convertOnlineBookingRequest(

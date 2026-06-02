@@ -625,6 +625,35 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(configured.onlineStorefronts[0].shareCode, "yich-online", "online storefront should save share code");
 
+  const noAvailableStaff = {
+    ...configured,
+    staffUnavailableSlots: configured.staff.map((staff) => ({
+      id: testId("su"),
+      staffId: staff.id,
+      startAt: "2026-05-30T02:00:00.000Z",
+      endAt: "2026-05-30T03:00:00.000Z",
+      reason: "线上预约占用校验",
+      createdBy: "u_manager",
+      createdAt: fixedNow(),
+    })),
+  };
+  assert.throws(
+    () =>
+      createOnlineBookingRequest(
+        noAvailableStaff,
+        {
+          shareCode: "yich-online",
+          customerName: "线上客户",
+          phone: "13700000009",
+          serviceId: "v1",
+          preferredAt: "2026-05-30T02:15:00.000Z",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /暂无可预约员工/,
+    "online booking should reject a time with no available staff",
+  );
+
   const requested = createOnlineBookingRequest(
     configured,
     {
