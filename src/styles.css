@@ -9857,14 +9857,14 @@ textarea,
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
-/* Workbench alignment lock: keep every row on the same column rhythm. */
+/* Workbench alignment lock: keep action cards and panels on one column rhythm. */
 .workbench-action-row {
   grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
 }
 
 .workbench-content-grid,
 .workbench-content-grid.lower {
-  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
 }
 
