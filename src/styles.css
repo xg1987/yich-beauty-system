@@ -4942,6 +4942,14 @@ textarea,
   font-weight: 900;
 }
 
+.admin-invite-heading small {
+  display: block;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  font-weight: 780;
+}
+
 .admin-invite-card {
   width: 100%;
   min-height: 80px;
@@ -5012,6 +5020,18 @@ textarea,
 
 .admin-invite-code button:disabled {
   opacity: 0.45;
+}
+
+.admin-invite-link {
+  min-height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .admin-center-page:not(.platform-admin-page) .admin-section-title span {
@@ -8057,6 +8077,44 @@ textarea,
 .theme-night .settings-version,
 .theme-night .account-menu-version {
   color: var(--night-muted);
+}
+
+/* Business-page alignment pass: keep the fixed shell, but remove the old
+   left-narrow/right-empty content layout from operational pages. */
+.app-shell .main > .page-stack > .content-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.app-shell .main > .page-stack > .content-grid > .panel,
+.app-shell .main > .page-stack > .content-grid > .panel.wide {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.app-shell .main > .page-stack > .content-grid > .panel:first-child {
+  position: static;
+  max-height: none;
+  overflow: visible;
+}
+
+@media (min-width: 980px) {
+  .app-shell .main > .page-stack > .content-grid > .panel .form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .primary-button,
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .sub-panel,
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .form-note,
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .checkout-total,
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .check-group,
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .divider,
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .invite-result-card,
+  .app-shell .main > .page-stack > .content-grid > .panel .form > .room-settings-card {
+    grid-column: 1 / -1;
+  }
 }
 
 .theme-night .appointment-room-summary > div,

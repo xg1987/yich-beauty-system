@@ -398,14 +398,20 @@ function ManagementCenter({
     account: session.user.account,
     role: session.user.role,
   }, data.authUsers);
+  const latestStaffInvite = data.staffInvites.find((invite) => invite.status === "待加入");
+  const managementInviteCode = systemInviteCode ?? latestStaffInvite?.inviteCode ?? "";
+  const canManageStaffInvite = hasPermission(session, "staff:manage");
+  const showInviteSection = Boolean(systemInviteCode) || canManageStaffInvite;
+  const inviteSectionTitle = systemInviteCode ? "系统邀请码" : "员工邀请码";
+  const inviteSectionHint = systemInviteCode ? "平台授权入口" : "员工加入门店";
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
   const copyInviteCode = () => {
-    if (!systemInviteCode) return;
-    void navigator.clipboard?.writeText(systemInviteCode);
+    if (!managementInviteCode) return;
+    void navigator.clipboard?.writeText(managementInviteCode);
     setInviteCopied(true);
     window.setTimeout(() => setInviteCopied(false), 1400);
   };
@@ -486,23 +492,29 @@ function ManagementCenter({
         </div>
       </section>
 
-      {systemInviteCode && (
-        <section className="admin-invite-section" aria-label="系统邀请码">
+      {showInviteSection && (
+        <section className="admin-invite-section" aria-label={inviteSectionTitle}>
           <div className="admin-invite-heading">
-            <span>系统邀请码</span>
+            <span>{inviteSectionTitle}</span>
+            <small>{inviteSectionHint}</small>
           </div>
           <div className="admin-invite-card">
             <span>邀请码</span>
             <div className="admin-invite-code">
-              <strong>{inviteVisible ? systemInviteCode : "••••••"}</strong>
-              <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)}>
+              <strong>{managementInviteCode ? (inviteVisible ? managementInviteCode : "••••••") : "待生成"}</strong>
+              <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)} disabled={!managementInviteCode}>
                 {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
-              <button type="button" aria-label="复制邀请码" onClick={copyInviteCode}>
+              <button type="button" aria-label="复制邀请码" onClick={copyInviteCode} disabled={!managementInviteCode}>
                 <Copy size={17} />
               </button>
             </div>
             {inviteCopied && <small className="admin-invite-copied">已复制</small>}
+            {!managementInviteCode && (
+              <button type="button" className="admin-invite-link" onClick={() => setView("staff", { fromAdmin: true })}>
+                去人员账号生成
+              </button>
+            )}
           </div>
         </section>
       )}
