@@ -217,6 +217,50 @@ function parseRoomNames(value: string) {
     .slice(0, 20);
 }
 
+async function copyTextToClipboard(text: string) {
+  const value = text.trim();
+  if (!value) return false;
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fall through to the textarea fallback below.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.readOnly = true;
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+
+  const selection = document.getSelection();
+  const selectedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : undefined;
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, value.length);
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch {
+    copied = false;
+  }
+
+  document.body.removeChild(textarea);
+  if (selection && selectedRange) {
+    selection.removeAllRanges();
+    selection.addRange(selectedRange);
+  }
+
+  return copied;
+}
+
 function isThemeMode(value: string | null): value is ThemeMode {
   return value === "auto" || value === "day" || value === "night";
 }
@@ -497,13 +541,24 @@ function ManagementCenter({
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
   const [inviteVisible, setInviteVisible] = useState(false);
-  const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteCopyStatus, setInviteCopyStatus] = useState<"idle" | "copied" | "selected">("idle");
+  const inviteInputRef = useRef<HTMLInputElement>(null);
 
   const copyInviteCode = () => {
     if (!managementInviteCode) return;
-    void navigator.clipboard?.writeText(managementInviteCode);
-    setInviteCopied(true);
-    window.setTimeout(() => setInviteCopied(false), 1400);
+    void copyTextToClipboard(managementInviteCode).then((copied) => {
+      if (copied) {
+        setInviteCopyStatus("copied");
+      } else {
+        setInviteVisible(true);
+        window.requestAnimationFrame(() => {
+          inviteInputRef.current?.focus();
+          inviteInputRef.current?.select();
+        });
+        setInviteCopyStatus("selected");
+      }
+      window.setTimeout(() => setInviteCopyStatus("idle"), 1800);
+    });
   };
 
   type ManagementCard = {
@@ -591,7 +646,15 @@ function ManagementCenter({
           <div className="admin-invite-card">
             <span>{inviteSectionTitle}</span>
             <div className="admin-invite-code">
-              <strong>{inviteVisible ? managementInviteCode : "••••••"}</strong>
+              <input
+                ref={inviteInputRef}
+                className="admin-invite-value"
+                type={inviteVisible ? "text" : "password"}
+                value={managementInviteCode}
+                readOnly
+                aria-label={`${inviteSectionTitle}内容`}
+                tabIndex={-1}
+              />
               <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)} disabled={!managementInviteCode}>
                 {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
@@ -599,7 +662,11 @@ function ManagementCenter({
                 <Copy size={17} />
               </button>
             </div>
-            {inviteCopied && <small className="admin-invite-copied">已复制</small>}
+            {inviteCopyStatus !== "idle" && (
+              <small className="admin-invite-copied">
+                {inviteCopyStatus === "copied" ? "已复制" : "已选中，请按 Command+C"}
+              </small>
+            )}
           </div>
         </section>
       )}
@@ -4021,9 +4088,11 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
 
   const copyLastInviteCode = () => {
     if (!lastInviteCode) return;
-    void navigator.clipboard?.writeText(lastInviteCode);
-    setInviteCopied(true);
-    window.setTimeout(() => setInviteCopied(false), 1400);
+    void copyTextToClipboard(lastInviteCode).then((copied) => {
+      if (!copied) return;
+      setInviteCopied(true);
+      window.setTimeout(() => setInviteCopied(false), 1400);
+    });
   };
 
   const activeStaff = staffRows.filter((staff) => staff.status === "active").length;
@@ -4975,9 +5044,11 @@ function SettingsView({
   };
 
   const copyWechat = () => {
-    void navigator.clipboard?.writeText("yichen_admin");
-    setCopiedWechat(true);
-    window.setTimeout(() => setCopiedWechat(false), 1400);
+    void copyTextToClipboard("yichen_admin").then((copied) => {
+      if (!copied) return;
+      setCopiedWechat(true);
+      window.setTimeout(() => setCopiedWechat(false), 1400);
+    });
   };
 
   const saveSettings = (event: FormEvent) => {

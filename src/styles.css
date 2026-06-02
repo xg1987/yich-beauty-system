@@ -4994,13 +4994,24 @@ textarea,
   gap: 10px;
 }
 
-.admin-invite-code strong {
+.admin-invite-code strong,
+.admin-invite-value {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
   color: #fff;
   font-size: clamp(28px, 3vw, 38px);
   font-weight: 900;
   letter-spacing: 1.2px;
   line-height: 1;
   white-space: nowrap;
+  outline: 0;
+}
+
+.admin-invite-value::selection {
+  background: rgba(255, 255, 255, 0.32);
+  color: #fff;
 }
 
 .admin-invite-code button {
@@ -6757,7 +6768,8 @@ textarea,
   gap: 8px;
 }
 
-.admin-invite-code strong {
+.admin-invite-code strong,
+.admin-invite-value {
   font-size: clamp(21px, 2.2vw, 28px);
   letter-spacing: 0.6px;
 }
@@ -9822,4 +9834,25 @@ textarea,
 .theme-night .cashier-panel svg,
 .theme-night .customer-panel svg {
   color: #fff;
+}
+
+.theme-day .admin-invite-code .admin-invite-value,
+.theme-night .admin-invite-code .admin-invite-value,
+.admin-invite-code .admin-invite-value {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  box-shadow: none;
+}
+
+.theme-day .admin-invite-code .admin-invite-value:focus,
+.theme-night .admin-invite-code .admin-invite-value:focus,
+.admin-invite-code .admin-invite-value:focus {
+  border: 0;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
