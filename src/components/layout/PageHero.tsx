@@ -12,30 +12,34 @@ type PageHeroProps = {
   eyebrow: string;
   title: string;
   desc: string;
-  stats: PageHeroStat[];
+  stats?: PageHeroStat[];
 };
 
-export function PageHero({ icon, eyebrow, title, desc, stats }: PageHeroProps) {
+export function PageHero({ icon, eyebrow, title, desc, stats = [] }: PageHeroProps) {
   return (
-    <section className="page-hero">
-      <div className="page-hero-copy">
-        <span className="eyebrow">{icon} {eyebrow}</span>
-        <h2>{title}</h2>
-        <p>{desc}</p>
-      </div>
-      <div className="page-hero-stats">
-        {stats.map((item) => (
-          <div className="page-hero-stat" key={item.label}>
-            <span className="metric-icon">{item.icon}</span>
-            <div>
-              <small>{item.label}</small>
-              <strong>{item.value}</strong>
-              <em>{item.hint}</em>
+    <>
+      <section className="page-hero">
+        <div className="page-hero-copy">
+          <span className="eyebrow">{icon} {eyebrow}</span>
+          <h2>{title}</h2>
+          <p>{desc}</p>
+        </div>
+      </section>
+      {stats.length > 0 && (
+        <section className="module-metric-strip" aria-label={`${title}关键数据`}>
+          {stats.map((item) => (
+            <div className="module-metric-card" key={item.label}>
+              <span className="metric-icon">{item.icon}</span>
+              <div>
+                <small>{item.label}</small>
+                <strong>{item.value}</strong>
+                <em>{item.hint}</em>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </section>
+          ))}
+        </section>
+      )}
+    </>
   );
 }
 

@@ -83,6 +83,48 @@ const viewTitles: Record<ViewKey, string> = {
   settings: "管理中心",
 };
 
+type ModuleTone = "rose" | "violet" | "teal" | "amber";
+type FeatureModule<Key extends string> = {
+  key: Key;
+  title: string;
+  desc: string;
+  icon: typeof LayoutDashboard;
+  tone: ModuleTone;
+  meta?: string;
+};
+
+function ModuleOverview<Key extends string>({
+  modules,
+  activeKey,
+  onSelect,
+}: {
+  modules: Array<FeatureModule<Key>>;
+  activeKey: Key;
+  onSelect: (key: Key) => void;
+}) {
+  return (
+    <section className="module-overview" aria-label="功能模块">
+      {modules.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            type="button"
+            aria-pressed={activeKey === item.key}
+            className={`module-entry-card ${item.tone}${activeKey === item.key ? " active" : ""}`}
+            key={item.key}
+            onClick={() => onSelect(item.key)}
+          >
+            <span className={`admin-module-icon ${item.tone}`}><Icon size={20} /></span>
+            <strong>{item.title}</strong>
+            <small>{item.desc}</small>
+            {item.meta && <em>{item.meta}</em>}
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
 function isBusinessStaff(staff: Staff) {
   return staff.role !== "老板";
 }
@@ -108,7 +150,25 @@ function isVisiblePlatformAdmin(user: { account: string; role: UserRole }) {
 }
 
 function displayRoleName(user: { account: string; role: UserRole; roleName: string }) {
-  return isVisiblePlatformAdmin(user) ? "系统管理员" : user.roleName;
+  if (isVisiblePlatformAdmin(user)) return "系统管理员";
+  if (user.role === "owner" || user.role === "manager") return "店长";
+  return user.roleName === "老板" || user.roleName === "主管" ? "店长" : user.roleName;
+}
+
+function displayStaffRole(role: string) {
+  return role === "老板" || role === "主管" ? "店长" : role;
+}
+
+function displayUserRole(role: UserRole) {
+  const labels: Record<UserRole, string> = {
+    superadmin: "系统管理员",
+    owner: "店长",
+    manager: "店长",
+    frontdesk: "前台",
+    therapist: "员工",
+    finance: "财务",
+  };
+  return labels[role];
 }
 
 function roomNamesOf(data: AppData) {
@@ -403,9 +463,9 @@ function ManagementCenter({
   const canManageStaffInvite = hasPermission(session, "staff:manage");
   const showInviteSection = Boolean(systemInviteCode) || canManageStaffInvite;
   const inviteSectionTitle = systemInviteCode ? "系统邀请码" : "员工邀请码";
-  const inviteSectionHint = systemInviteCode ? "平台授权入口" : "员工加入门店";
+  const inviteSectionHint = systemInviteCode ? "平台授权入口" : "系统自动生成，员工加入门店";
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
-  const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
+  const displayRole = displayRoleName(session.user);
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
 
@@ -1251,7 +1311,7 @@ function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData;
             rows={staffRows.map((staff) => [
               staff.name,
               staff.phone,
-              staff.role,
+              displayStaffRole(staff.role),
               <Badge key={`${staff.id}-status`} text={staff.status === "active" ? "启用" : "停用"} tone={staff.status === "active" ? "ok" : "warn"} />,
               money(staff.baseSalary ?? 0),
               `${staff.commissionRate ?? 0}%`,
@@ -1485,7 +1545,7 @@ function PlatformPermissionReadOnlyView({
   const pendingOwnerApplications = storeOwnerApplications.filter((item) => item.status === "待审批").length;
   const roleRows = [
     ["系统管理员", "账号、权限、平台数据、日志、用量", "平台级"],
-    ["老板", "门店经营、员工、库存、报表、审批", "门店级"],
+    ["店长", "门店经营、员工、库存、报表、审批", "门店级"],
     ["店长", "预约、收银、客户、库存、提成、报表", "执行级"],
     ["前台", "预约、收银、客户登记", "到店业务"],
     ["美容师", "预约、服务开单、客户记录、个人提成", "本人服务"],
@@ -2204,7 +2264,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       ],
     };
   }
-  const operatorLabel = input.role === "manager" ? "店长" : "老板";
+  const operatorLabel = "店长";
   return {
     title: `${operatorLabel}经营看板`,
     desc: `${operatorLabel}首屏看现金流、客户资产、审批风险和库存风险，用一页判断门店今天是否健康。`,
@@ -2314,6 +2374,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const roomSignature = roomNames.join("\n");
   const [roomNamesText, setRoomNamesText] = useState(roomSignature);
   const [roomSaved, setRoomSaved] = useState(false);
+  const [activeModule, setActiveModule] = useState<"new" | "list" | "schedule" | "blocked" | "rooms" | "online">("new");
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -2441,6 +2502,14 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, maintenanceRoomCountOf(data));
   const parsedRoomCount = parseRoomNames(roomNamesText).length;
+  const appointmentModules: Array<FeatureModule<typeof activeModule>> = [
+    { key: "new", title: "新增预约", desc: "客户、项目、员工和预约时间", icon: CalendarDays, tone: "violet", meta: "开单前入口" },
+    { key: "list", title: "预约列表", desc: "确认、到店、改约和取消", icon: ClipboardList, tone: "rose", meta: `${data.appointments.length} 条` },
+    { key: "schedule", title: "员工排班", desc: "设置上班时段和班次说明", icon: UsersRound, tone: "teal", meta: `${data.staffShifts.length} 条` },
+    { key: "blocked", title: "不可预约", desc: "锁定休息、培训和占用时间", icon: LockKeyhole, tone: "amber", meta: `${data.staffUnavailableSlots.length} 条` },
+    { key: "rooms", title: "房间设置", desc: "房间数量、房名和今日占用", icon: Building2, tone: "teal", meta: `${roomUsage.availableRoomCount} 间` },
+    { key: "online", title: "线上申请", desc: "线上预约转入门店预约", icon: Share2, tone: "violet", meta: `${pendingOnlineRequests.length} 个待处理` },
+  ];
 
   return (
     <div className="page-stack">
@@ -2457,7 +2526,9 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           { label: "可用房间", value: `${roomUsage.availableRoomCount} 间`, hint: "预约看板可见", icon: <Building2 size={18} /> },
         ]}
       />
-      <div className="content-grid">
+      <ModuleOverview modules={appointmentModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {activeModule === "new" && (
         <section className="panel">
           <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="员工时间锁定" />
           <form className="form" onSubmit={addAppointment}>
@@ -2475,7 +2546,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           {selectedTimeConflict && <p style={{color: 'red', fontSize: 13}}>⚠️ 该员工在此时间段有不可预约安排，建议调整时间</p>}
           <button className="primary-button" disabled={!staffId}>保存预约</button>
         </form>
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "blocked" && (
+        <section className="panel">
         <PanelTitle icon={<CalendarDays size={18} />} title="锁定员工时间" action="不可预约" />
         <form className="form" onSubmit={addBlockedSlot}>
           <Select label="员工" value={blockedStaffId} onChange={setBlockedStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
@@ -2494,6 +2568,21 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           <button className="primary-button" disabled={!blockedStaffId}>锁定时间</button>
         </form>
         <div className="divider" />
+        <PanelTitle icon={<CalendarDays size={18} />} title="不可预约时段" action={`${data.staffUnavailableSlots.length} 条`} />
+        <DataTable
+          columns={["员工", "开始", "结束", "原因", "创建时间"]}
+          rows={data.staffUnavailableSlots.map((slot) => [
+            nameOf(data.staff, slot.staffId),
+            shortDate(slot.startAt),
+            shortDate(slot.endAt),
+            slot.reason,
+            shortDate(slot.createdAt),
+          ])}
+        />
+        </section>
+        )}
+        {activeModule === "schedule" && (
+        <section className="panel">
         <PanelTitle icon={<CalendarDays size={18} />} title="员工排班" action="预约校验" />
         <form className="form" onSubmit={addShift}>
           <Select label="员工" value={shiftStaffId} onChange={setShiftStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
@@ -2511,8 +2600,22 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           </label>
           <button className="primary-button" disabled={!shiftStaffId}>保存班次</button>
         </form>
+        <div className="divider" />
+        <PanelTitle icon={<CalendarDays size={18} />} title="班次列表" action={`${data.staffShifts.length} 条`} />
+        <DataTable
+          columns={["员工", "上班", "下班", "说明", "创建时间"]}
+          rows={data.staffShifts.map((shift) => [
+            nameOf(data.staff, shift.staffId),
+            shortDate(shift.startAt),
+            shortDate(shift.endAt),
+            shift.note,
+            shortDate(shift.createdAt),
+          ])}
+        />
         </section>
-        <section className="panel wide">
+        )}
+        {activeModule === "rooms" && (
+        <section className="panel">
           <PanelTitle icon={<Building2 size={18} />} title="房间设置" action={`${roomNames.length} 间`} />
           <form className="room-settings-card" onSubmit={saveRooms}>
             <label>
@@ -2559,7 +2662,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             </div>
             <button className="primary-button" disabled={parsedRoomCount === 0}>{roomSaved ? "已保存" : "保存房间设置"}</button>
           </form>
-          <div className="divider" />
+        </section>
+        )}
+        {activeModule === "online" && (
+        <section className="panel">
           <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${pendingOnlineRequests.length} 个待处理`} />
         <div className="inline-form online-request-toolbar">
           <Select label="转预约员工" value={onlineRequestStaffId} onChange={setOnlineRequestStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
@@ -2582,7 +2688,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           ))}
           {data.onlineBookingRequests.length === 0 && <p className="empty">暂无线上预约申请</p>}
         </div>
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "list" && (
+        <section className="panel">
           <PanelTitle icon={<ClipboardList size={18} />} title="预约列表" action="支持到店确认" />
         <div className="card-list">
           {data.appointments.map((item) => (
@@ -2640,31 +2749,8 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             </article>
           ))}
         </div>
-        <div className="divider" />
-        <PanelTitle icon={<CalendarDays size={18} />} title="不可预约时段" action={`${data.staffUnavailableSlots.length} 条`} />
-        <DataTable
-          columns={["员工", "开始", "结束", "原因", "创建时间"]}
-          rows={data.staffUnavailableSlots.map((slot) => [
-            nameOf(data.staff, slot.staffId),
-            shortDate(slot.startAt),
-            shortDate(slot.endAt),
-            slot.reason,
-            shortDate(slot.createdAt),
-          ])}
-        />
-        <div className="divider" />
-        <PanelTitle icon={<CalendarDays size={18} />} title="班次列表" action={`${data.staffShifts.length} 条`} />
-        <DataTable
-          columns={["员工", "上班", "下班", "说明", "创建时间"]}
-          rows={data.staffShifts.map((shift) => [
-            nameOf(data.staff, shift.staffId),
-            shortDate(shift.startAt),
-            shortDate(shift.endAt),
-            shift.note,
-            shortDate(shift.createdAt),
-          ])}
-        />
         </section>
+        )}
       </div>
     </div>
   );
@@ -3729,6 +3815,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const [inviteValidDays, setInviteValidDays] = useState(7);
   const [lastInviteCode, setLastInviteCode] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [activeModule, setActiveModule] = useState<"profile" | "invite" | "salary" | "settlements" | "commissions" | "distribution">("profile");
   const editingStaff = staffRows.find((staff) => staff.id === editingStaffId);
 
   const settleAll = () => {
@@ -3827,6 +3914,14 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
       expected: (staff.baseSalary ?? 0) + pending + settled,
     };
   });
+  const staffModules: Array<FeatureModule<typeof activeModule>> = [
+    { key: "profile", title: "员工档案", desc: "建档、岗位、底薪和状态", icon: UsersRound, tone: "violet", meta: `${staffRows.length} 人` },
+    { key: "invite", title: "员工邀请码", desc: "系统自动生成，员工自行加入", icon: LockKeyhole, tone: "rose", meta: `${pendingInvites} 个待加入` },
+    { key: "salary", title: "薪资汇总", desc: "底薪、项目提成和预计薪资", icon: HeartHandshake, tone: "teal", meta: money(pendingCommission) },
+    { key: "settlements", title: "结算流水", desc: "批量结算记录和操作人", icon: ClipboardList, tone: "amber", meta: `${data.commissionSettlements.length} 批` },
+    { key: "commissions", title: "提成记录", desc: "订单提成、比例和状态", icon: BadgeCent, tone: "violet", meta: `${data.commissions.filter((item) => staffIds.has(item.staffId)).length} 条` },
+    { key: "distribution", title: "分销佣金", desc: "推荐归属和待结佣金", icon: Share2, tone: "teal", meta: money(pendingDistributionCommission) },
+  ];
 
   return (
     <div className="page-stack">
@@ -3842,10 +3937,16 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           { label: "分销佣金", value: money(pendingDistributionCommission), hint: "待财务结算", icon: <Share2 size={18} /> },
         ]}
       />
-      <div className="content-grid">
+      <ModuleOverview modules={staffModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {(activeModule === "profile" || activeModule === "invite") && (
         <section className="panel">
-        <PanelTitle icon={<BadgeCent size={18} />} title="员工档案" action={canManageStaff ? "先建档，再邀请加入" : "个人视图"} />
-        {canManageStaff ? (
+        <PanelTitle
+          icon={activeModule === "invite" ? <LockKeyhole size={18} /> : <BadgeCent size={18} />}
+          title={activeModule === "invite" ? "邀请员工" : "员工档案"}
+          action={activeModule === "invite" ? "系统自动生成邀请码" : canManageStaff ? "先建档，再邀请加入" : "个人视图"}
+        />
+        {canManageStaff && activeModule === "profile" ? (
           <>
             <form className="form" onSubmit={addStaff}>
               <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
@@ -3855,11 +3956,12 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
               <label>提成比例<input type="number" step="0.01" value={commissionRate} onChange={(event) => setCommissionRate(Number(event.target.value))} /></label>
               <button className="primary-button">保存员工档案</button>
             </form>
-            <div className="divider" />
-            <PanelTitle icon={<LockKeyhole size={18} />} title="邀请员工" action="邀请码加入" />
+          </>
+        ) : canManageStaff && activeModule === "invite" ? (
+          <>
             <form className="form" onSubmit={createInvite}>
               <Select label="员工" value={inviteStaffId} onChange={setInviteStaffId} options={inviteStaffOptions} />
-              <label>员工手机号/账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} placeholder="确认邀请码后用于登录" /></label>
+              <label>员工手机号/账号<input value={inviteAccount} onChange={(event) => setInviteAccount(event.target.value)} placeholder="员工加入门店后用于登录" /></label>
               <Select
                 label="账号角色"
                 value={inviteRole}
@@ -3871,11 +3973,11 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
                 ]}
               />
               <label>有效期（天）<input type="number" min={1} value={inviteValidDays} onChange={(event) => setInviteValidDays(Number(event.target.value))} /></label>
-              <button className="primary-button" disabled={!inviteStaffId}>生成邀请</button>
+              <button className="primary-button" disabled={!inviteStaffId}>系统生成邀请码</button>
             </form>
             {lastInviteCode && (
               <div className="invite-result-card">
-                <span>员工邀请码</span>
+                <span>系统生成的邀请码</span>
                 <strong>{lastInviteCode}</strong>
                 <small>把这个邀请码发给员工，员工在登录页选择“加入门店”，填写邀请码、姓名和密码后开通账号。</small>
                 <button type="button" onClick={copyLastInviteCode}>{inviteCopied ? "已复制" : "复制邀请码"}</button>
@@ -3885,12 +3987,14 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         ) : (
           <div className="settings-card compact">
             <strong>{session.user.name}</strong>
-            <span>角色：{session.user.roleName}</span>
+            <span>角色：{displayRoleName(session.user)}</span>
             <span>账号：{session.user.account}</span>
           </div>
         )}
         </section>
-        <section className="panel wide">
+        )}
+        {activeModule === "profile" && (
+        <section className="panel">
         <PanelTitle icon={<UsersRound size={18} />} title="员工档案" action={`${staffRows.length} 人`} />
         {canManageStaff && editingStaff && (
           <form className="staff-edit-form" onSubmit={saveStaffEdit}>
@@ -3922,7 +4026,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           columns={["员工", "岗位", "手机号", "状态", "账号", "底薪", "提成比例", "操作"]}
           rows={staffRows.map((staff) => [
             staff.name,
-            staff.role,
+            displayStaffRole(staff.role),
             staff.phone,
             <Badge key={`${staff.id}-status`} text={staff.status === "active" ? "在职" : "停用"} tone={staff.status === "active" ? "ok" : "warn"} />,
             data.authUsers.find((user) => user.staffId === staff.id)?.account ?? "未开通",
@@ -3943,13 +4047,16 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             ),
           ])}
         />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "salary" && (
+        <section className="panel">
         <PanelTitle icon={<HeartHandshake size={18} />} title="薪资汇总" action="底薪 + 提成" />
         <DataTable
           columns={["员工", "岗位", "底薪", "项目提成", "商品提成", "待结提成", "已结提成", "预计薪资"]}
           rows={salaryRows.map((row) => [
             row.staff.name,
-            row.staff.role,
+            displayStaffRole(row.staff.role),
             money(row.staff.baseSalary ?? 0),
             money(row.serviceCommission),
             money(row.salesCommission),
@@ -3958,14 +4065,17 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             money(row.expected),
           ])}
         />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "invite" && (
+        <section className="panel">
         <PanelTitle icon={<LockKeyhole size={18} />} title="邀请记录" action={`${data.staffInvites.length} 条`} />
         <DataTable
           columns={["员工", "账号", "角色", "状态", "邀请码", "有效期", "加入时间", "操作"]}
           rows={data.staffInvites.map((invite) => [
             nameOf(data.staff, invite.staffId),
             invite.account,
-            invite.role,
+            displayUserRole(invite.role),
             <Badge key={`${invite.id}-status`} text={invite.status === "待加入" && invite.expiresAt && +new Date(invite.expiresAt) <= Date.now() ? "已过期" : invite.status} />,
             invite.inviteCode,
             invite.expiresAt ? shortDate(invite.expiresAt) : "未设置",
@@ -3977,7 +4087,10 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             ),
           ])}
         />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "settlements" && (
+        <section className="panel">
         <PanelTitle icon={<ClipboardList size={18} />} title="结算流水" action={`${data.commissionSettlements.length} 批`} />
         <DataTable
           columns={["类型", "金额", "笔数", "操作人", "时间"]}
@@ -3989,7 +4102,10 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             shortDate(item.createdAt),
           ])}
         />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "commissions" && (
+        <section className="panel">
         <PanelTitle
           icon={<BadgeCent size={18} />}
           title="提成记录"
@@ -4009,7 +4125,10 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             shortDate(item.createdAt),
           ])}
         />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "distribution" && (
+        <section className="panel">
         <PanelTitle
           icon={<Share2 size={18} />}
           title="分销佣金"
@@ -4029,6 +4148,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           ])}
         />
         </section>
+        )}
       </div>
     </div>
   );
@@ -4285,7 +4405,7 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
             columns={["员工", "角色", "订单数", "实收业绩", "提成合计"]}
             rows={staffPerformance.map((item) => [
               item.staff.name,
-              item.staff.role,
+              displayStaffRole(item.staff.role),
               item.orderCount,
               money(item.revenue),
               money(item.commissions),
@@ -4611,7 +4731,7 @@ function SettingsView({
   setThemeMode: (mode: ThemeMode) => void;
 }) {
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
-  const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
+  const displayRole = displayRoleName(session.user);
   const [activePanel, setActivePanel] = useState<"profile" | "security" | "appearance" | "notice">("profile");
   const [profileName, setProfileName] = useState(displayName);
   const [avatarUrl, setAvatarUrl] = useState(session.user.avatarUrl ?? "");

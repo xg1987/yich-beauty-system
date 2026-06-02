@@ -97,7 +97,7 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
                     <label>门店名称<input value={joinStoreName} onChange={(event) => setJoinStoreName(event.target.value)} placeholder="请输入门店名称" required /></label>
                     <label>联系电话<input value={joinPhone} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required /></label>
                     <label>门店地址<input value={joinAddress} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" /></label>
-                    <label>老板登录账号<input value={joinAccount} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
+                    <label>店长登录账号<input value={joinAccount} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
                   </>
                 )}
               </>

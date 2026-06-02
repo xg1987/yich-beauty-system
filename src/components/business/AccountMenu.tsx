@@ -13,7 +13,9 @@ function menuDisplayName(session: UserSession) {
 }
 
 function menuRoleName(session: UserSession) {
-  return menuDisplayName(session) === "admin" ? "管理员" : session.user.roleName;
+  if (menuDisplayName(session) === "admin") return "管理员";
+  if (session.user.role === "owner" || session.user.role === "manager") return "店长";
+  return session.user.roleName === "老板" || session.user.roleName === "主管" ? "店长" : session.user.roleName;
 }
 
 export function AccountMenu({ session, logout, openSettings }: AccountMenuProps) {
