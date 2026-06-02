@@ -3711,30 +3711,57 @@ html[data-theme="day"],
 
 .management-back-row {
   width: min(1360px, 100%);
-  margin: 0 auto -2px;
+  margin: 0 auto 10px;
 }
 
 .back-to-admin {
   width: fit-content;
-  min-height: 36px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
-  padding: 0 12px;
-  border: 1px solid rgba(111, 66, 193, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 253, 250, 0.82);
-  color: var(--yich-purple-deep);
-  font-weight: 900;
-  box-shadow: 0 10px 24px rgba(69, 37, 127, 0.08);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 244, 237, 0.82);
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: 0;
+  box-shadow: none;
   cursor: pointer;
 }
 
+.back-to-admin svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2;
+}
+
+.back-to-admin:hover,
+.back-to-admin:focus-visible {
+  color: #fff8f3;
+  outline: none;
+}
+
 .back-to-admin span {
-  color: var(--yich-muted);
+  color: rgba(255, 244, 237, 0.48);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 680;
+}
+
+.theme-day .back-to-admin {
+  color: rgba(49, 40, 36, 0.72);
+}
+
+.theme-day .back-to-admin:hover,
+.theme-day .back-to-admin:focus-visible {
+  color: var(--yich-purple-deep);
+}
+
+.theme-day .back-to-admin span {
+  color: rgba(49, 40, 36, 0.46);
 }
 
 .theme-night .account-menu {
@@ -3756,13 +3783,12 @@ html[data-theme="day"],
 }
 
 .theme-night .back-to-admin {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(20, 18, 16, 0.72);
-  color: #d7c3ff;
+  background: transparent;
+  color: rgba(255, 244, 237, 0.82);
 }
 
 .theme-night .back-to-admin span {
-  color: rgba(255, 244, 237, 0.58);
+  color: rgba(255, 244, 237, 0.48);
 }
 
 .theme-night .invite-result-card {
