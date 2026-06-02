@@ -83,7 +83,7 @@ const viewTitles: Record<ViewKey, string> = {
   settings: "管理中心",
 };
 
-type ModuleTone = "rose" | "violet" | "teal" | "amber";
+type ModuleTone = "rose" | "violet" | "teal" | "amber" | "jade" | "plum";
 type FeatureModule<Key extends string> = {
   key: Key;
   title: string;
@@ -99,8 +99,8 @@ function ModuleOverview<Key extends string>({
   onSelect,
 }: {
   modules: Array<FeatureModule<Key>>;
-  activeKey: Key;
-  onSelect: (key: Key) => void;
+  activeKey?: Key;
+  onSelect: (key?: Key) => void;
 }) {
   return (
     <section className="module-overview" aria-label="功能模块">
@@ -112,7 +112,7 @@ function ModuleOverview<Key extends string>({
             aria-pressed={activeKey === item.key}
             className={`module-entry-card ${item.tone}${activeKey === item.key ? " active" : ""}`}
             key={item.key}
-            onClick={() => onSelect(item.key)}
+            onClick={() => onSelect(activeKey === item.key ? undefined : item.key)}
           >
             <span className={`admin-module-icon ${item.tone}`}><Icon size={20} /></span>
             <strong>{item.title}</strong>
@@ -122,6 +122,14 @@ function ModuleOverview<Key extends string>({
         );
       })}
     </section>
+  );
+}
+
+function ModuleDetailHint() {
+  return (
+    <p className="module-detail-hint">
+      请选择上方功能模块，系统只会展开当前要处理的内容。
+    </p>
   );
 }
 
@@ -2374,7 +2382,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const roomSignature = roomNames.join("\n");
   const [roomNamesText, setRoomNamesText] = useState(roomSignature);
   const [roomSaved, setRoomSaved] = useState(false);
-  const [activeModule, setActiveModule] = useState<"new" | "list" | "schedule" | "blocked" | "rooms" | "online">("new");
+  const [activeModule, setActiveModule] = useState<"new" | "list" | "schedule" | "blocked" | "rooms" | "online" | undefined>();
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -2502,13 +2510,14 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, maintenanceRoomCountOf(data));
   const parsedRoomCount = parseRoomNames(roomNamesText).length;
-  const appointmentModules: Array<FeatureModule<typeof activeModule>> = [
+  type AppointmentModuleKey = NonNullable<typeof activeModule>;
+  const appointmentModules: Array<FeatureModule<AppointmentModuleKey>> = [
     { key: "new", title: "新增预约", desc: "客户、项目、员工和预约时间", icon: CalendarDays, tone: "violet", meta: "开单前入口" },
     { key: "list", title: "预约列表", desc: "确认、到店、改约和取消", icon: ClipboardList, tone: "rose", meta: `${data.appointments.length} 条` },
-    { key: "schedule", title: "员工排班", desc: "设置上班时段和班次说明", icon: UsersRound, tone: "teal", meta: `${data.staffShifts.length} 条` },
+    { key: "schedule", title: "员工排班", desc: "设置上班时段和班次说明", icon: UsersRound, tone: "jade", meta: `${data.staffShifts.length} 条` },
     { key: "blocked", title: "不可预约", desc: "锁定休息、培训和占用时间", icon: LockKeyhole, tone: "amber", meta: `${data.staffUnavailableSlots.length} 条` },
     { key: "rooms", title: "房间设置", desc: "房间数量、房名和今日占用", icon: Building2, tone: "teal", meta: `${roomUsage.availableRoomCount} 间` },
-    { key: "online", title: "线上申请", desc: "线上预约转入门店预约", icon: Share2, tone: "violet", meta: `${pendingOnlineRequests.length} 个待处理` },
+    { key: "online", title: "线上申请", desc: "线上预约转入门店预约", icon: Share2, tone: "plum", meta: `${pendingOnlineRequests.length} 个待处理` },
   ];
 
   return (
@@ -2528,6 +2537,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
       />
       <ModuleOverview modules={appointmentModules} activeKey={activeModule} onSelect={setActiveModule} />
       <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
         {activeModule === "new" && (
         <section className="panel">
           <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="员工时间锁定" />
@@ -2773,6 +2783,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [approvalReason, setApprovalReason] = useState("客户维护价");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
+  const [activeModule, setActiveModule] = useState<"quick" | "arrived" | "orders" | "discount" | "refunds" | "cards" | undefined>();
   const staffOptions = serviceStaff.map(optionOf);
 
   useEffect(() => {
@@ -2907,6 +2918,15 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
       }),
     );
   };
+  type PosModuleKey = NonNullable<typeof activeModule>;
+  const posModules: Array<FeatureModule<PosModuleKey>> = [
+    { key: "quick", title: "快速开单", desc: "客户、项目、员工和支付", icon: CreditCard, tone: "rose", meta: "收银入口" },
+    { key: "arrived", title: "到店收银", desc: "处理已到店预约转收银", icon: CalendarDays, tone: "violet", meta: `${arrivedAppointments.length} 单` },
+    { key: "orders", title: "订单流水", desc: "查看订单、支付和实收记录", icon: ClipboardList, tone: "amber", meta: `${data.orders.length} 单` },
+    { key: "discount", title: "改价审批", desc: "折扣、原因和审批单", icon: ShieldCheck, tone: "violet", meta: money(discountAmount) },
+    { key: "refunds", title: "退款处理", desc: "订单退款和审批编号", icon: RefreshCw, tone: "rose", meta: `${data.refunds.length} 条` },
+    { key: "cards", title: "会员卡核销", desc: "会员卡支付和卡扣记录", icon: BadgeCent, tone: "teal", meta: `${activeCards} 张` },
+  ];
 
   return (
     <div className="page-stack">
@@ -2921,9 +2941,16 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           { label: "有效会员卡", value: `${activeCards} 张`, hint: "可用于卡扣", icon: <BadgeCent size={18} /> },
         ]}
       />
-      <div className="content-grid">
+      <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
+        {(activeModule === "quick" || activeModule === "discount" || activeModule === "cards") && (
         <section className="panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="快速开单" action="自动提成/扣库存" />
+        <PanelTitle
+          icon={<CreditCard size={18} />}
+          title={activeModule === "cards" ? "会员卡核销" : activeModule === "discount" ? "改价审批开单" : "快速开单"}
+          action={activeModule === "discount" ? "折扣需审批" : activeModule === "cards" ? "会员卡支付" : "自动提成/扣库存"}
+        />
         <form className="form" onSubmit={checkout}>
           <Select
             label="到店预约"
@@ -3014,11 +3041,19 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           <button className="primary-button" disabled={!staffId || (payMethod === "会员卡" && !cardId)}>完成收银</button>
         </form>
         </section>
-        <section className="panel wide">
-        <PanelTitle icon={<ClipboardList size={18} />} title="订单流水" action="最近订单" />
+        )}
+        {(activeModule === "orders" || activeModule === "refunds" || activeModule === "arrived") && (
+        <section className="panel">
+        <PanelTitle
+          icon={<ClipboardList size={18} />}
+          title={activeModule === "arrived" ? "到店待收银" : activeModule === "refunds" ? "退款处理" : "订单流水"}
+          action={activeModule === "arrived" ? `${arrivedAppointments.length} 单` : "最近订单"}
+        />
           <DataTable
           columns={["单号", "客户", "项目", "员工", "来源", "支付", "实收", "状态", "时间", "操作"]}
-          rows={data.orders.map((order) => [
+          rows={data.orders
+            .filter((order) => activeModule !== "arrived" || arrivedAppointments.some((appointment) => appointment.id === order.appointmentId))
+            .map((order) => [
             order.orderNo,
             nameOf(data.customers, order.customerId),
             nameOf(data.services, order.serviceId),
@@ -3063,6 +3098,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           ])}
         />
         </section>
+        )}
       </div>
     </div>
   );
@@ -3116,6 +3152,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [signatureTitle, setSignatureTitle] = useState("客户服务确认签名");
   const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务、消费记录和服务档案内容无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
+  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "tags" | "records" | "signature" | "distribution" | undefined>();
 
   useEffect(() => {
     const customer = data.customers.find((item) => item.id === tagCustomerId);
@@ -3347,6 +3384,15 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     return days <= 7;
   }).length;
   const activeDistributorCount = data.distributors.filter((distributor) => distributor.status === "启用").length;
+  type CustomerModuleKey = NonNullable<typeof activeModule>;
+  const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
+    { key: "profile", title: "客户档案", desc: "新增客户和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
+    { key: "cards", title: "会员卡项", desc: "开卡、充值、冻结和退卡", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
+    { key: "tags", title: "标签分层", desc: "客户标签、等级和来源", icon: Megaphone, tone: "amber", meta: `${allTags.length} 个标签` },
+    { key: "records", title: "服务档案", desc: "护理记录和客户回访", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
+    { key: "signature", title: "客户签名", desc: "生成确认链接和签名记录", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 条` },
+    { key: "distribution", title: "分销关系", desc: "推荐归属和成交佣金", icon: Share2, tone: "teal", meta: `${activeDistributorCount} 个` },
+  ];
 
   return (
     <div className="page-stack">
@@ -3361,15 +3407,23 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           { label: "分销员", value: `${activeDistributorCount} 个`, hint: "推荐归属", icon: <Share2 size={18} /> },
         ]}
       />
-      <div className="content-grid">
+      <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
+        {activeModule && (
         <section className="panel">
+        {activeModule === "profile" && (
+        <>
         <PanelTitle icon={<UsersRound size={18} />} title="新增客户" action="客户资产沉淀" />
         <form className="form" onSubmit={addCustomer}>
           <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
           <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
           <button className="primary-button">保存客户</button>
         </form>
-        <div className="divider" />
+        </>
+        )}
+        {activeModule === "tags" && (
+        <>
         <PanelTitle icon={<Megaphone size={18} />} title="标签管理" action={`${data.tagDefinitions.length} 个标签`} />
         <form className="form" onSubmit={createTag}>
           <label>标签名称<input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="如：敏感肌 / 高消费 / 高复购" required /></label>
@@ -3413,6 +3467,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <CheckboxGroup label="客户标签" values={customerTags} onChange={setCustomerTags} options={customerTagOptions} />
           <button className="primary-button">保存标签</button>
         </form>
+        </>
+        )}
+        {activeModule === "distribution" && (
+        <>
         <PanelTitle icon={<Share2 size={18} />} title="分销设置" action="推荐归属/成交佣金" />
         <form className="form" onSubmit={createDistributor}>
           <Select label="分销员类型" value={distributorType} onChange={(value) => setDistributorType(value as "客户" | "员工")} options={["客户", "员工"].map((item) => ({ value: item, label: item }))} />
@@ -3429,7 +3487,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <Select label="绑定客户" value={referralCustomerId} onChange={setReferralCustomerId} options={data.customers.map(optionOf)} />
           <button className="primary-button" disabled={!referralDistributorId}>绑定客户归属</button>
         </form>
-        <div className="divider" />
+        </>
+        )}
+        {activeModule === "cards" && (
+        <>
         <PanelTitle icon={<CreditCard size={18} />} title="开卡/办卡" action="储值或次数" />
         <form className="form" onSubmit={openCard}>
           <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
@@ -3465,7 +3526,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <Select label="转给客户" value={transferToCustomerId} onChange={setTransferToCustomerId} options={data.customers.map(optionOf)} />
           <button onClick={() => void runMutation(() => actions.transferMemberCard(operationCardId, transferToCustomerId, "客户转卡"))}>转卡</button>
         </div>
-        <div className="divider" />
+        </>
+        )}
+        {activeModule === "records" && (
+        <>
         <PanelTitle icon={<ClipboardList size={18} />} title="服务档案" action="护理记录/回访" />
         <div className="order-record-shortcuts">
           {data.orders
@@ -3494,7 +3558,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>下次回访<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></label>
           <button className="primary-button" disabled={!recordStaffId}>保存档案</button>
         </form>
-        <div className="divider" />
+        </>
+        )}
+        {activeModule === "signature" && (
+        <>
         <PanelTitle icon={<LockKeyhole size={18} />} title="客户签名" action="生成确认链接" />
         <form className="form" onSubmit={createSignature}>
           <Select label="客户" value={signatureCustomerId} onChange={(value) => { setSignatureCustomerId(value); setSignatureRecordId(""); setSignatureOrderId(""); }} options={data.customers.map(optionOf)} />
@@ -3505,8 +3572,12 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>有效期（天）<input type="number" min={1} value={signatureValidDays} onChange={(event) => setSignatureValidDays(Number(event.target.value))} /></label>
           <button className="primary-button" disabled={!signatureCustomerId}>生成客户签名链接</button>
         </form>
+        </>
+        )}
         </section>
-        <section className="panel wide">
+        )}
+        {(activeModule === "profile" || activeModule === "tags") && (
+        <section className="panel">
         <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${filteredCustomers.length}/${data.customers.length} 位客户`} />
         <div className="inline-actions">
           <button className={!tagFilter ? "active" : ""} onClick={() => setTagFilter("")}>全部</button>
@@ -3532,7 +3603,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
               .join("，") || "未开卡",
           ])}
         />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "cards" && (
+        <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="会员卡列表" action="余额/次数/退卡" />
         <DataTable
           columns={["客户", "卡项", "类型", "余额", "次数", "绑定项目", "状态", "操作"]}
@@ -3553,6 +3627,25 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             ),
           ])}
         />
+        <div className="divider" />
+        <PanelTitle icon={<CreditCard size={18} />} title="卡项流水" action="开卡/消费/退款" />
+        <DataTable
+          columns={["卡项", "类型", "金额变动", "次数变动", "余额", "剩余次数", "备注", "时间"]}
+          rows={data.memberCardTransactions.map((transaction) => [
+            nameOf(data.memberCards, transaction.memberCardId),
+            transaction.type,
+            money(transaction.amountDelta),
+            transaction.timesDelta,
+            money(transaction.balanceAfter),
+            transaction.remainingTimesAfter,
+            transaction.note,
+            shortDate(transaction.createdAt),
+          ])}
+        />
+        </section>
+        )}
+        {activeModule === "distribution" && (
+        <section className="panel">
         <PanelTitle icon={<Share2 size={18} />} title="分销关系" action={`${data.distributors.length} 个分销员`} />
         <DataTable
           columns={["分销员", "类型", "手机号", "比例", "邀请码", "状态"]}
@@ -3575,22 +3668,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
             shortDate(relation.createdAt),
           ])}
         />
-        <div className="divider" />
-        <PanelTitle icon={<CreditCard size={18} />} title="卡项流水" action="开卡/消费/退款" />
-        <DataTable
-          columns={["卡项", "类型", "金额变动", "次数变动", "余额", "剩余次数", "备注", "时间"]}
-          rows={data.memberCardTransactions.map((transaction) => [
-            nameOf(data.memberCards, transaction.memberCardId),
-            transaction.type,
-            money(transaction.amountDelta),
-            transaction.timesDelta,
-            money(transaction.balanceAfter),
-            transaction.remainingTimesAfter,
-            transaction.note,
-            shortDate(transaction.createdAt),
-          ])}
-        />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "records" && (
+        <section className="panel">
         <PanelTitle icon={<ClipboardList size={18} />} title="护理档案" action={`${data.customerServiceRecords.length} 条`} />
         <DataTable
           columns={["客户", "员工", "项目", "订单", "卡项消耗", "皮肤情况", "服务前", "护理步骤", "使用产品", "服务后", "客户反馈", "下次建议", "时间"]}
@@ -3617,25 +3698,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           ])}
         />
         <div className="divider" />
-        <PanelTitle icon={<LockKeyhole size={18} />} title="签名记录" action={`${data.customerSignatures?.length ?? 0} 条`} />
-        <DataTable
-          columns={["客户", "标题", "状态", "签名链接", "签名人", "创建/签名时间"]}
-          rows={(data.customerSignatures ?? []).map((signature) => [
-            nameOf(data.customers, signature.customerId),
-            signature.title,
-            <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
-            signature.status === "待签名" ? (
-              <a key={`${signature.id}-link`} href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
-                打开签名页
-              </a>
-            ) : (
-              "已完成"
-            ),
-            signature.signerName ?? "-",
-            `${shortDate(signature.createdAt)}${signature.signedAt ? ` / ${shortDate(signature.signedAt)}` : ""}`,
-          ])}
-        />
-        <div className="divider" />
         <PanelTitle icon={<ClipboardList size={18} />} title="客户跟进" action={`${data.customerFollowUps.length} 条`} />
         <DataTable
           columns={["客户", "员工", "方式", "计划时间", "状态", "备注", "操作"]}
@@ -3654,6 +3716,29 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           ])}
         />
         </section>
+        )}
+        {activeModule === "signature" && (
+        <section className="panel">
+        <PanelTitle icon={<LockKeyhole size={18} />} title="签名记录" action={`${data.customerSignatures?.length ?? 0} 条`} />
+        <DataTable
+          columns={["客户", "标题", "状态", "签名链接", "签名人", "创建/签名时间"]}
+          rows={(data.customerSignatures ?? []).map((signature) => [
+            nameOf(data.customers, signature.customerId),
+            signature.title,
+            <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+            signature.status === "待签名" ? (
+              <a key={`${signature.id}-link`} href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
+                打开签名页
+              </a>
+            ) : (
+              "已完成"
+            ),
+            signature.signerName ?? "-",
+            `${shortDate(signature.createdAt)}${signature.signedAt ? ` / ${shortDate(signature.signedAt)}` : ""}`,
+          ])}
+        />
+        </section>
+        )}
 
       </div>
     </div>
@@ -3671,6 +3756,7 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
+  const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "list" | undefined>();
   const consumableOptions = data.products
     .filter((product) => product.type === "consumable")
     .map((product) => ({ value: product.id, label: `${product.name} · ${product.stock}${product.unit}` }));
@@ -3714,6 +3800,13 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
     void runMutation(() => actions.addProduct({ name: productName, stock: productStock, type: "consumable", unit: "件" }));
     setProductName("");
   };
+  type CatalogModuleKey = NonNullable<typeof activeModule>;
+  const catalogModules: Array<FeatureModule<CatalogModuleKey>> = [
+    { key: "service", title: "新增项目", desc: "服务名称、价格、时长和默认耗材", icon: Sparkles, tone: "violet", meta: "服务目录" },
+    { key: "recipe", title: "项目配方", desc: "配置项目消耗的耗材", icon: PackagePlus, tone: "jade", meta: "自动扣库存" },
+    { key: "product", title: "新增商品", desc: "新增商品、耗材和初始库存", icon: Boxes, tone: "teal", meta: "库存资料" },
+    { key: "list", title: "项目商品列表", desc: "查看服务、商品和耗材配置", icon: ClipboardList, tone: "amber", meta: `${data.services.length + data.products.length} 项` },
+  ];
 
   return (
     <div className="page-stack">
@@ -3728,7 +3821,10 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           { label: "低库存", value: `${data.products.filter((item) => item.stock <= item.warningStock).length} 项`, hint: "需补货", icon: <PackagePlus size={18} /> },
         ]}
       />
-      <div className="content-grid">
+      <ModuleOverview modules={catalogModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
+        {activeModule === "service" && (
         <section className="panel">
         <PanelTitle icon={<Sparkles size={18} />} title="新增项目" action="服务目录" />
         <form className="form" onSubmit={addService}>
@@ -3746,7 +3842,10 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           )}
           <button className="primary-button">保存项目</button>
         </form>
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "recipe" && (
+        <section className="panel">
         <PanelTitle icon={<PackagePlus size={18} />} title="项目配方" action="多耗材自动扣库存" />
         <form className="form" onSubmit={addRecipeConsumable}>
           <Select label="服务项目" value={recipeServiceId} onChange={setRecipeServiceId} options={data.services.map(optionOf)} />
@@ -3763,7 +3862,10 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           ))}
           {recipeConsumables.length === 0 && <p className="empty">当前项目未配置耗材配方</p>}
         </div>
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "product" && (
+        <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="新增商品/耗材" action="库存资料" />
         <form className="form" onSubmit={addProduct}>
           <label>名称<input value={productName} onChange={(event) => setProductName(event.target.value)} required /></label>
@@ -3771,7 +3873,9 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           <button className="primary-button">保存商品</button>
         </form>
         </section>
-        <section className="panel wide">
+        )}
+        {activeModule === "list" && (
+        <section className="panel">
         <PanelTitle icon={<Sparkles size={18} />} title="项目与商品" action="价格/库存" />
         <div className="split-list">
           <DataTable
@@ -3787,6 +3891,7 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           <DataTable columns={["商品", "类型", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.type === "sale" ? "销售商品" : "服务耗材", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
         </div>
         </section>
+        )}
       </div>
     </div>
   );
@@ -3815,7 +3920,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const [inviteValidDays, setInviteValidDays] = useState(7);
   const [lastInviteCode, setLastInviteCode] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
-  const [activeModule, setActiveModule] = useState<"profile" | "invite" | "salary" | "settlements" | "commissions" | "distribution">("profile");
+  const [activeModule, setActiveModule] = useState<"profile" | "invite" | "salary" | "settlements" | "commissions" | "distribution" | undefined>();
   const editingStaff = staffRows.find((staff) => staff.id === editingStaffId);
 
   const settleAll = () => {
@@ -3914,7 +4019,8 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
       expected: (staff.baseSalary ?? 0) + pending + settled,
     };
   });
-  const staffModules: Array<FeatureModule<typeof activeModule>> = [
+  type StaffModuleKey = NonNullable<typeof activeModule>;
+  const staffModules: Array<FeatureModule<StaffModuleKey>> = [
     { key: "profile", title: "员工档案", desc: "建档、岗位、底薪和状态", icon: UsersRound, tone: "violet", meta: `${staffRows.length} 人` },
     { key: "invite", title: "员工邀请码", desc: "系统自动生成，员工自行加入", icon: LockKeyhole, tone: "rose", meta: `${pendingInvites} 个待加入` },
     { key: "salary", title: "薪资汇总", desc: "底薪、项目提成和预计薪资", icon: HeartHandshake, tone: "teal", meta: money(pendingCommission) },
@@ -3939,6 +4045,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
       />
       <ModuleOverview modules={staffModules} activeKey={activeModule} onSelect={setActiveModule} />
       <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
         {(activeModule === "profile" || activeModule === "invite") && (
         <section className="panel">
         <PanelTitle
@@ -4166,6 +4273,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
   const [unitCost, setUnitCost] = useState(68);
   const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
   const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
+  const [activeModule, setActiveModule] = useState<"adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs" | undefined>();
 
   const changeStock = (event: FormEvent) => {
     event.preventDefault();
@@ -4195,6 +4303,15 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
     if (lowStockItems.length === 0) return;
     void runMutation(() => actions.restockLowInventory(supplierId || undefined));
   };
+  type InventoryModuleKey = NonNullable<typeof activeModule>;
+  const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
+    { key: "adjust", title: "库存操作", desc: "入库、报损和盘点调整", icon: Boxes, tone: "teal", meta: "流水入口" },
+    { key: "supplier", title: "供应商", desc: "维护采购基础资料", icon: Building2, tone: "amber", meta: `${data.suppliers.length} 家` },
+    { key: "purchase", title: "采购入库", desc: "供应商采购和入库记录", icon: PackagePlus, tone: "jade", meta: "补货" },
+    { key: "stocktake", title: "库存盘点", desc: "账实差异和盘点记录", icon: ClipboardList, tone: "violet", meta: `${data.stocktakes.length} 条` },
+    { key: "list", title: "库存列表", desc: "库存状态和低库存提醒", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
+    { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
+  ];
 
   return (
     <div className="page-stack">
@@ -4209,7 +4326,10 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           { label: "供应商", value: `${data.suppliers.length} 家`, hint: "采购基础资料", icon: <Building2 size={18} /> },
         ]}
       />
-      <div className="content-grid">
+      <ModuleOverview modules={inventoryModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
+        {activeModule === "adjust" && (
         <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="库存操作" action="入库/报损/盘点" />
         <form className="form" onSubmit={changeStock}>
@@ -4218,14 +4338,20 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>数量<input type="number" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
           <button className="primary-button">保存库存流水</button>
         </form>
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "supplier" && (
+        <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="供应商" action="采购基础资料" />
         <form className="form" onSubmit={addSupplier}>
           <label>供应商名称<input value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label>
           <label>联系电话<input value={supplierPhone} onChange={(event) => setSupplierPhone(event.target.value)} /></label>
           <button className="primary-button">新增供应商</button>
         </form>
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "purchase" && (
+        <section className="panel">
         <PanelTitle icon={<PackagePlus size={18} />} title="采购入库" action="生成采购单" />
         <form className="form" onSubmit={receivePurchase}>
           <Select label="供应商" value={supplierId} onChange={setSupplierId} options={data.suppliers.map(optionOf)} />
@@ -4234,7 +4360,10 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>采购单价<input type="number" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label>
           <button className="primary-button">确认入库</button>
         </form>
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "stocktake" && (
+        <section className="panel">
         <PanelTitle icon={<ClipboardList size={18} />} title="库存盘点" action="调整账实差异" />
         <form className="form" onSubmit={createStocktake}>
           <Select label="商品/耗材" value={stocktakeProductId} onChange={setStocktakeProductId} options={data.products.map(optionOf)} />
@@ -4242,7 +4371,9 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           <button className="primary-button">提交盘点</button>
         </form>
         </section>
-        <section className="panel wide">
+        )}
+        {activeModule === "list" && (
+        <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="库存列表" action="低库存自动标记" />
         {lowStock > 0 && (
           <div style={{margin: '8px 0', padding: '8px 12px', background: '#fff3cd', borderRadius: 6, fontSize: 14}}>
@@ -4260,7 +4391,10 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
             <Badge key={item.id} text={item.stock <= item.warningStock ? "需补货" : "正常"} tone={item.stock <= item.warningStock ? "warn" : "ok"} />,
           ])}
         />
-        <div className="divider" />
+        </section>
+        )}
+        {activeModule === "logs" && (
+        <section className="panel">
         <PanelTitle icon={<ClipboardList size={18} />} title="库存流水" action="自动记录" />
         <DataTable columns={["商品", "类型", "变动", "结余", "备注", "时间"]} rows={data.inventoryLogs.map((log) => [nameOf(data.products, log.productId), log.type, log.delta, log.stockAfter, log.note, shortDate(log.createdAt)])} />
         <div className="divider" />
@@ -4289,6 +4423,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           />
         </div>
         </section>
+        )}
       </div>
     </div>
   );
@@ -4296,6 +4431,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
 
 function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
   const [businessDate, setBusinessDate] = useState(new Date().toISOString().slice(0, 10));
+  const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | undefined>();
   const summary = reportSummary(data);
   const payMethods = ["微信", "支付宝", "现金", "银行卡", "会员卡"].map((method) => ({
     method,
@@ -4329,6 +4465,15 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
       .reduce((sum, o) => sum + o.paidAmount, 0);
     return { name: service.name, revenue };
   }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  type ReportsModuleKey = NonNullable<typeof activeModule>;
+  const reportModules: Array<FeatureModule<ReportsModuleKey>> = [
+    { key: "summary", title: "经营总览", desc: "客单价、预约转化和库存风险", icon: ChartNoAxesColumnIncreasing, tone: "violet", meta: money(summary.revenue) },
+    { key: "payments", title: "收银流水", desc: "支付方式和实收结构", icon: CreditCard, tone: "rose", meta: `${data.orders.length} 单` },
+    { key: "daily", title: "财务日结", desc: "营业日锁定和反结记录", icon: ClipboardList, tone: "amber", meta: `${data.dailyCloses.length} 天` },
+    { key: "staff", title: "员工业绩", desc: "员工订单、实收和提成排行", icon: BadgeCent, tone: "jade", meta: `${staffPerformance.length} 人` },
+    { key: "members", title: "会员资产", desc: "会员卡余额和客户规模", icon: UsersRound, tone: "teal", meta: `${activeMembers} 张` },
+    { key: "services", title: "项目排行", desc: "热门项目和项目实收", icon: Sparkles, tone: "plum", meta: `${serviceRevenue.length} 项` },
+  ];
 
   return (
     <div className="page-stack">
@@ -4344,12 +4489,10 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           { label: "分销佣金", value: money(summary.distributionCommission), hint: "转介绍待结算", icon: <Share2 size={18} /> },
         ]}
       />
-      <div className="page-grid">
-        <StatCard title="实收现金流" value={money(summary.revenue)} hint={`退款 ${money(summary.refundAmount)}`} />
-        <StatCard title="项目服务数" value={`${summary.serviceCount} 单`} hint="已完成收银订单" />
-        <StatCard title="会员储值余额" value={money(summary.cardBalance)} hint="未消耗客户资产" />
-        <StatCard title="员工提成" value={money(summary.commission)} hint="服务提成合计" />
-        <StatCard title="分销佣金" value={money(summary.distributionCommission)} hint="转介绍佣金合计" />
+      <ModuleOverview modules={reportModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
+        {activeModule === "payments" && (
         <section className="panel">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="实收拆分" />
         <div className="bar-list">
@@ -4362,7 +4505,9 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           ))}
         </div>
         </section>
-        <section className="panel wide">
+        )}
+        {activeModule === "summary" && (
+        <section className="panel">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action="核心指标" />
         <DataTable
           columns={["指标", "结果", "说明"]}
@@ -4374,7 +4519,9 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           ]}
         />
         </section>
-        <section className="panel wide">
+        )}
+        {activeModule === "daily" && (
+        <section className="panel">
         <PanelTitle icon={<ClipboardList size={18} />} title="财务日结" action="营业日锁定记录" />
         <DailyCloseControl
           businessDate={businessDate}
@@ -4397,9 +4544,11 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           ])}
         />
         </section>
+        )}
 
         {/* 员工业绩排行 (B) */}
-        <section className="panel wide">
+        {activeModule === "staff" && (
+        <section className="panel">
           <PanelTitle icon={<BadgeCent size={18} />} title="员工业绩排行" action="按实收排序" />
           <DataTable
             columns={["员工", "角色", "订单数", "实收业绩", "提成合计"]}
@@ -4412,9 +4561,11 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
             ])}
           />
         </section>
+        )}
 
         {/* 会员分析 (B) */}
-        <section className="panel wide">
+        {activeModule === "members" && (
+        <section className="panel">
           <PanelTitle icon={<UsersRound size={18} />} title="会员分析" action="客户资产概览" />
           <DataTable
             columns={["指标", "数值", "说明"]}
@@ -4426,15 +4577,18 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
             ]}
           />
         </section>
+        )}
 
         {/* Top 服务项目排行 (B 深化) */}
-        <section className="panel wide">
+        {activeModule === "services" && (
+        <section className="panel">
           <PanelTitle icon={<Sparkles size={18} />} title="热门项目排行" action="按实收" />
           <DataTable
             columns={["项目", "实收金额"]}
             rows={serviceRevenue.map(s => [s.name, money(s.revenue)])}
           />
         </section>
+        )}
       </div>
     </div>
   );
@@ -4445,6 +4599,7 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
   const [targetId, setTargetId] = useState("manual");
   const [amount, setAmount] = useState(100);
   const [reason, setReason] = useState("门店例外处理");
+  const [activeModule, setActiveModule] = useState<"submit" | "pending" | "passed" | "rejected" | "all" | undefined>();
 
   const createApproval = (event: FormEvent) => {
     event.preventDefault();
@@ -4454,6 +4609,20 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
   const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
   const passedApprovals = data.approvalRequests.filter((item) => item.status === "已通过").length;
   const rejectedApprovals = data.approvalRequests.filter((item) => item.status === "已拒绝").length;
+  const approvalRows = data.approvalRequests.filter((approval) => {
+    if (activeModule === "pending") return approval.status === "待审批";
+    if (activeModule === "passed") return approval.status === "已通过";
+    if (activeModule === "rejected") return approval.status === "已拒绝";
+    return true;
+  });
+  type ApprovalModuleKey = NonNullable<typeof activeModule>;
+  const approvalModules: Array<FeatureModule<ApprovalModuleKey>> = [
+    { key: "submit", title: "提交审批", desc: "改价、退款和门店例外处理", icon: ShieldCheck, tone: "violet", meta: "申请入口" },
+    { key: "pending", title: "待审批", desc: "需要处理的风险单据", icon: ClipboardList, tone: "rose", meta: `${pendingApprovals} 单` },
+    { key: "passed", title: "已通过", desc: "已批准可用于业务", icon: ShieldCheck, tone: "teal", meta: `${passedApprovals} 单` },
+    { key: "rejected", title: "已拒绝", desc: "已拦截的异常申请", icon: LockKeyhole, tone: "amber", meta: `${rejectedApprovals} 单` },
+    { key: "all", title: "全部记录", desc: "查看完整审批流水", icon: ClipboardList, tone: "plum", meta: `${data.approvalRequests.length} 条` },
+  ];
 
   return (
     <div className="page-stack">
@@ -4468,7 +4637,10 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
           { label: "已拒绝", value: `${rejectedApprovals} 单`, hint: "风险拦截", icon: <LockKeyhole size={18} /> },
         ]}
       />
-      <div className="content-grid">
+      <ModuleOverview modules={approvalModules} activeKey={activeModule} onSelect={setActiveModule} />
+      <div className="module-detail-stack">
+        {!activeModule && <ModuleDetailHint />}
+        {activeModule === "submit" && (
         <section className="panel">
         <PanelTitle icon={<ShieldCheck size={18} />} title="提交审批" action="改价/退款" />
         <form className="form" onSubmit={createApproval}>
@@ -4479,11 +4651,13 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
           <button className="primary-button">提交审批</button>
         </form>
         </section>
-        <section className="panel wide">
-        <PanelTitle icon={<ShieldCheck size={18} />} title="审批列表" action={`${data.approvalRequests.length} 条`} />
+        )}
+        {(activeModule === "pending" || activeModule === "passed" || activeModule === "rejected" || activeModule === "all") && (
+        <section className="panel">
+        <PanelTitle icon={<ShieldCheck size={18} />} title="审批列表" action={`${approvalRows.length} 条`} />
         <DataTable
           columns={["类型", "对象", "金额", "原因", "申请人", "状态", "时间", "操作"]}
-          rows={data.approvalRequests.map((approval) => [
+          rows={approvalRows.map((approval) => [
             approval.type,
             approval.targetId,
             money(approval.amount),
@@ -4502,6 +4676,7 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
           ])}
         />
         </section>
+        )}
       </div>
     </div>
   );
