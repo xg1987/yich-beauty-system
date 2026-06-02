@@ -179,6 +179,13 @@ function displayStaffRole(role: string) {
   return role === "老板" || role === "主管" ? "店长" : role;
 }
 
+function userRoleForStaffRole(role: string): UserRole {
+  if (role === "店长" || role === "主管") return "manager";
+  if (role === "前台") return "frontdesk";
+  if (role === "财务") return "finance";
+  return "therapist";
+}
+
 function displayUserRole(role: UserRole) {
   const labels: Record<UserRole, string> = {
     superadmin: "系统管理员",
@@ -478,22 +485,52 @@ function ManagementCenter({
     account: session.user.account,
     role: session.user.role,
   }, data.authUsers);
-  const latestStaffInvite = data.staffInvites.find((invite) => invite.status === "待加入");
+  const latestStaffInvite = data.staffInvites.find((invite) => invite.status === "待加入" && (!invite.expiresAt || +new Date(invite.expiresAt) > Date.now()));
   const managementInviteCode = systemInviteCode ?? latestStaffInvite?.inviteCode ?? "";
   const canManageStaffInvite = hasPermission(session, "staff:manage");
   const showInviteSection = Boolean(systemInviteCode) || canManageStaffInvite;
   const inviteSectionTitle = systemInviteCode ? "系统邀请码" : "员工邀请码";
   const inviteSectionHint = systemInviteCode ? "平台授权入口" : "系统自动生成，员工加入门店";
+  const inviteCandidateStaff = businessStaffOf(data).find(
+    (staff) => staff.status === "active" && !staff.accountId && !data.authUsers.some((user) => user.staffId === staff.id),
+  );
+  const inviteCandidateAccount = inviteCandidateStaff?.phone.trim() ?? "";
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteGenerating, setInviteGenerating] = useState(false);
+  const [inviteError, setInviteError] = useState("");
 
   const copyInviteCode = () => {
     if (!managementInviteCode) return;
     void navigator.clipboard?.writeText(managementInviteCode);
     setInviteCopied(true);
     window.setTimeout(() => setInviteCopied(false), 1400);
+  };
+
+  const generateManagementStaffInvite = () => {
+    if (!canManageStaffInvite) return;
+    if (!inviteCandidateStaff || !inviteCandidateAccount) {
+      setInviteError("请先在人员账号建员工档案，并填写员工手机号。");
+      return;
+    }
+    setInviteGenerating(true);
+    setInviteError("");
+    void runMutation(() =>
+      actions.createStaffInvite({
+        staffId: inviteCandidateStaff.id,
+        account: inviteCandidateAccount,
+        role: userRoleForStaffRole(inviteCandidateStaff.role),
+      }),
+    )
+      .then(() => {
+        setInviteVisible(true);
+      })
+      .catch((caught) => {
+        setInviteError(caught instanceof Error ? caught.message : "邀请码生成失败");
+      })
+      .finally(() => setInviteGenerating(false));
   };
 
   type ManagementCard = {
@@ -590,9 +627,15 @@ function ManagementCenter({
               </button>
             </div>
             {inviteCopied && <small className="admin-invite-copied">已复制</small>}
+            {inviteError && <small className="admin-invite-error">{inviteError}</small>}
             {!managementInviteCode && (
-              <button type="button" className="admin-invite-link" onClick={() => setView("staff", { fromAdmin: true })}>
-                去人员账号生成
+              <button
+                type="button"
+                className="admin-invite-link"
+                onClick={inviteCandidateStaff ? generateManagementStaffInvite : () => setView("staff", { fromAdmin: true })}
+                disabled={inviteGenerating}
+              >
+                {inviteCandidateStaff ? (inviteGenerating ? "生成中" : "系统生成邀请码") : "先建员工档案"}
               </button>
             )}
           </div>

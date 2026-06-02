@@ -8105,6 +8105,146 @@ textarea,
   color: var(--night-muted);
 }
 
+/* Final visual sync: reference-style centered hero and clearer module icons. */
+.page-hero,
+.platform-admin-page .page-hero {
+  height: 170px;
+  min-height: 170px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  padding: 22px 28px;
+  border: 0;
+  border-radius: 28px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 22px 54px rgba(168, 57, 76, 0.18);
+}
+
+.page-hero-copy {
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.page-hero h1,
+.page-hero h2,
+.platform-admin-page .page-hero h1 {
+  margin: 0;
+  color: #fff;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: clamp(31px, 2.4vw, 40px);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.page-hero p,
+.platform-admin-page .page-hero p {
+  max-width: none;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.page-hero .eyebrow {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.page-hero .eyebrow svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.4;
+}
+
+.module-entry-card::after {
+  display: none;
+}
+
+.module-entry-card .admin-module-icon,
+.module-metric-card .metric-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(31, 18, 48, 0.22);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.26),
+    0 10px 24px rgba(29, 16, 42, 0.12);
+  opacity: 1;
+}
+
+.module-entry-card .admin-module-icon svg,
+.module-metric-card .metric-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.5;
+}
+
+.module-metric-card .metric-icon {
+  background: rgba(111, 66, 193, 0.14);
+  color: var(--yich-purple-deep);
+  box-shadow: inset 0 0 0 1px rgba(111, 66, 193, 0.12);
+}
+
+.admin-invite-error {
+  color: #fff0d7;
+  font-weight: 800;
+}
+
+.theme-day .admin-invite-error {
+  color: #7c2d12;
+}
+
+.theme-night .page-hero,
+.theme-night .platform-admin-page .page-hero {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26);
+}
+
+.theme-night .module-entry-card .admin-module-icon,
+.theme-night .module-metric-card .metric-icon {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 900px) {
+  .page-hero,
+  .platform-admin-page .page-hero {
+    height: 150px;
+    min-height: 150px;
+    border-radius: 24px;
+    padding: 20px;
+  }
+
+  .page-hero h1,
+  .page-hero h2,
+  .platform-admin-page .page-hero h1 {
+    font-size: 29px;
+  }
+}
+
 /* Module-first business pages: keep hero clean, then route users into focused blocks. */
 .page-hero,
 .platform-admin-page .page-hero {
@@ -9072,4 +9212,71 @@ textarea,
 .theme-night .settings-version,
 .theme-night .account-menu-version {
   color: var(--night-muted);
+}
+
+/* Current design lock: keep these after every previous theme override. */
+.page-hero,
+.platform-admin-page .page-hero {
+  height: 170px;
+  min-height: 170px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  border: 0;
+  border-radius: 28px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
+  text-align: center;
+}
+
+.theme-night .page-hero,
+.theme-night .platform-admin-page .page-hero {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
+}
+
+.page-hero-copy {
+  justify-items: center;
+  text-align: center;
+}
+
+.page-hero h1,
+.page-hero h2,
+.platform-admin-page .page-hero h1 {
+  color: #fff;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: clamp(31px, 2.4vw, 40px);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.page-hero p,
+.platform-admin-page .page-hero p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.module-entry-card::after {
+  display: none;
+}
+
+.module-entry-card .admin-module-icon,
+.module-entry-card .admin-module-icon.jade,
+.module-entry-card .admin-module-icon.plum {
+  width: 44px;
+  height: 44px;
+  background: rgba(31, 18, 48, 0.22);
+  color: #fff;
+  opacity: 1;
+}
+
+.module-entry-card .admin-module-icon svg,
+.module-metric-card .metric-icon svg {
+  stroke-width: 2.5;
 }
