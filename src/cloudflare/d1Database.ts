@@ -1,4 +1,5 @@
 import { seedData } from "../domain/seed";
+import { normalizeSystemConfigs } from "../domain/business";
 import type {
   AppData,
   ApprovalRequest,
@@ -103,7 +104,7 @@ export class D1BeautyDatabase {
       storeProfiles: await this.all("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC", mapJsonPayload<StoreProfile>),
       onlineStorefronts: await this.all("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC", mapJsonPayload<OnlineStorefront>),
       authUsers: await this.all("SELECT payload_json FROM authUsers ORDER BY rowid ASC", mapJsonPayload<AuthUser>),
-      systemConfigs: await this.all("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC", mapJsonPayload<SystemConfig>),
+      systemConfigs: normalizeSystemConfigs(await this.all("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC", mapJsonPayload<SystemConfig>)),
       staffInvites: await this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>),
       storeOwnerInvites: await this.all("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC", mapJsonPayload<StoreOwnerInvite>),
       storeOwnerApplications: await this.all("SELECT payload_json FROM storeOwnerApplications ORDER BY rowid DESC", mapJsonPayload<StoreOwnerApplication>),

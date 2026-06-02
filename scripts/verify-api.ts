@@ -48,6 +48,7 @@ try {
   const initialData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(initialData.customers.length, 3, "test fixture should seed customers");
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
+  assert.equal(initialData.systemConfigs.length, 4, "API data should include normalized system configs");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
 
   const adminSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {

@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { seedData } from "../src/domain/seed";
+import { normalizeSystemConfigs } from "../src/domain/business";
 import type {
   AppData,
   ApprovalRequest,
@@ -129,7 +130,7 @@ export class BeautyDatabase {
       storeProfiles: this.db.prepare("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC").all().map(mapJsonPayload<StoreProfile>),
       onlineStorefronts: this.db.prepare("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC").all().map(mapJsonPayload<OnlineStorefront>),
       authUsers: this.db.prepare("SELECT payload_json FROM authUsers ORDER BY rowid ASC").all().map(mapJsonPayload<AuthUser>),
-      systemConfigs: this.db.prepare("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC").all().map(mapJsonPayload<SystemConfig>),
+      systemConfigs: normalizeSystemConfigs(this.db.prepare("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC").all().map(mapJsonPayload<SystemConfig>)),
       staffInvites: this.db.prepare("SELECT payload_json FROM staffInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StaffInvite>),
       storeOwnerInvites: this.db.prepare("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StoreOwnerInvite>),
       storeOwnerApplications: this.db.prepare("SELECT payload_json FROM storeOwnerApplications ORDER BY rowid DESC").all().map(mapJsonPayload<StoreOwnerApplication>),
