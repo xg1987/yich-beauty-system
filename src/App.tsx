@@ -100,7 +100,7 @@ function ModuleOverview<Key extends string>({
 }: {
   modules: Array<FeatureModule<Key>>;
   activeKey?: Key;
-  onSelect: (key?: Key) => void;
+  onSelect: (key: Key) => void;
 }) {
   return (
     <section className="module-overview" aria-label="功能模块">
@@ -112,7 +112,7 @@ function ModuleOverview<Key extends string>({
             aria-pressed={activeKey === item.key}
             className={`module-entry-card ${item.tone}${activeKey === item.key ? " active" : ""}`}
             key={item.key}
-            onClick={() => onSelect(activeKey === item.key ? undefined : item.key)}
+            onClick={() => onSelect(item.key)}
           >
             <span className={`admin-module-icon ${item.tone}`}><Icon size={20} /></span>
             <strong>{item.title}</strong>
@@ -125,11 +125,23 @@ function ModuleOverview<Key extends string>({
   );
 }
 
-function ModuleDetailHint() {
+function ModuleSubpageHeader({
+  parentTitle,
+  moduleTitle,
+  onBack,
+}: {
+  parentTitle: string;
+  moduleTitle: string;
+  onBack: () => void;
+}) {
   return (
-    <p className="module-detail-hint">
-      请选择上方功能模块，系统只会展开当前要处理的内容。
-    </p>
+    <div className="module-subpage-header">
+      <button type="button" className="back-to-admin" onClick={onBack}>
+        <ArrowLeft size={18} />
+        返回{parentTitle}
+      </button>
+      <strong>{moduleTitle}</strong>
+    </div>
   );
 }
 
@@ -2519,9 +2531,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     { key: "rooms", title: "房间设置", desc: "房间数量、房名和今日占用", icon: Building2, tone: "teal", meta: `${roomUsage.availableRoomCount} 间` },
     { key: "online", title: "线上申请", desc: "线上预约转入门店预约", icon: Share2, tone: "plum", meta: `${pendingOnlineRequests.length} 个待处理` },
   ];
+  const activeModuleTitle = activeModule ? appointmentModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<CalendarDays size={15} />}
         eyebrow="预约管理"
@@ -2536,8 +2549,8 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         ]}
       />
       <ModuleOverview modules={appointmentModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="预约管理" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {activeModule === "new" && (
         <section className="panel">
           <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="员工时间锁定" />
@@ -2927,9 +2940,10 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     { key: "refunds", title: "退款处理", desc: "订单退款和审批编号", icon: RefreshCw, tone: "rose", meta: `${data.refunds.length} 条` },
     { key: "cards", title: "会员卡核销", desc: "会员卡支付和卡扣记录", icon: BadgeCent, tone: "teal", meta: `${activeCards} 张` },
   ];
+  const activeModuleTitle = activeModule ? posModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<CreditCard size={15} />}
         eyebrow="开单收银"
@@ -2942,8 +2956,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         ]}
       />
       <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="开单收银" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {(activeModule === "quick" || activeModule === "discount" || activeModule === "cards") && (
         <section className="panel">
         <PanelTitle
@@ -3393,9 +3407,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     { key: "signature", title: "客户签名", desc: "生成确认链接和签名记录", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 条` },
     { key: "distribution", title: "分销关系", desc: "推荐归属和成交佣金", icon: Share2, tone: "teal", meta: `${activeDistributorCount} 个` },
   ];
+  const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<UsersRound size={15} />}
         eyebrow="客户会员"
@@ -3408,8 +3423,8 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         ]}
       />
       <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="客户会员" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {activeModule && (
         <section className="panel">
         {activeModule === "profile" && (
@@ -3756,7 +3771,7 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
-  const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "list" | undefined>();
+  const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList" | undefined>();
   const consumableOptions = data.products
     .filter((product) => product.type === "consumable")
     .map((product) => ({ value: product.id, label: `${product.name} · ${product.stock}${product.unit}` }));
@@ -3805,11 +3820,14 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
     { key: "service", title: "新增项目", desc: "服务名称、价格、时长和默认耗材", icon: Sparkles, tone: "violet", meta: "服务目录" },
     { key: "recipe", title: "项目配方", desc: "配置项目消耗的耗材", icon: PackagePlus, tone: "jade", meta: "自动扣库存" },
     { key: "product", title: "新增商品", desc: "新增商品、耗材和初始库存", icon: Boxes, tone: "teal", meta: "库存资料" },
-    { key: "list", title: "项目商品列表", desc: "查看服务、商品和耗材配置", icon: ClipboardList, tone: "amber", meta: `${data.services.length + data.products.length} 项` },
+    { key: "serviceList", title: "项目目录", desc: "查看服务项目、价格和时长", icon: ClipboardList, tone: "rose", meta: `${data.services.length} 个` },
+    { key: "productList", title: "商品耗材", desc: "查看商品、耗材和库存预警", icon: Boxes, tone: "amber", meta: `${data.products.length} 个` },
+    { key: "formulaList", title: "配方总览", desc: "查看项目对应耗材消耗", icon: PackagePlus, tone: "plum", meta: "扣库存规则" },
   ];
+  const activeModuleTitle = activeModule ? catalogModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<Sparkles size={15} />}
         eyebrow="项目商品"
@@ -3822,8 +3840,8 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         ]}
       />
       <ModuleOverview modules={catalogModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="项目商品" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {activeModule === "service" && (
         <section className="panel">
         <PanelTitle icon={<Sparkles size={18} />} title="新增项目" action="服务目录" />
@@ -3874,10 +3892,9 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         </form>
         </section>
         )}
-        {activeModule === "list" && (
+        {activeModule === "serviceList" && (
         <section className="panel">
-        <PanelTitle icon={<Sparkles size={18} />} title="项目与商品" action="价格/库存" />
-        <div className="split-list">
+        <PanelTitle icon={<Sparkles size={18} />} title="项目目录" action={`${data.services.length} 个服务项目`} />
           <DataTable
             columns={["项目", "分类", "价格", "时长", "耗材配方"]}
             rows={data.services.map((item) => [
@@ -3888,8 +3905,21 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
               serviceFormulaSummary(item, data.products),
             ])}
           />
-          <DataTable columns={["商品", "类型", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.type === "sale" ? "销售商品" : "服务耗材", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
-        </div>
+        </section>
+        )}
+        {activeModule === "productList" && (
+        <section className="panel">
+        <PanelTitle icon={<Boxes size={18} />} title="商品耗材" action="库存资料" />
+        <DataTable columns={["商品", "类型", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.type === "sale" ? "销售商品" : "服务耗材", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
+        </section>
+        )}
+        {activeModule === "formulaList" && (
+        <section className="panel">
+        <PanelTitle icon={<PackagePlus size={18} />} title="配方总览" action="项目扣库存规则" />
+        <DataTable
+          columns={["项目", "分类", "耗材配方"]}
+          rows={data.services.map((item) => [item.name, item.category, serviceFormulaSummary(item, data.products)])}
+        />
         </section>
         )}
       </div>
@@ -4028,9 +4058,10 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     { key: "commissions", title: "提成记录", desc: "订单提成、比例和状态", icon: BadgeCent, tone: "violet", meta: `${data.commissions.filter((item) => staffIds.has(item.staffId)).length} 条` },
     { key: "distribution", title: "分销佣金", desc: "推荐归属和待结佣金", icon: Share2, tone: "teal", meta: money(pendingDistributionCommission) },
   ];
+  const activeModuleTitle = activeModule ? staffModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<BadgeCent size={15} />}
         eyebrow="人员账号"
@@ -4044,8 +4075,8 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         ]}
       />
       <ModuleOverview modules={staffModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="人员账号" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {(activeModule === "profile" || activeModule === "invite") && (
         <section className="panel">
         <PanelTitle
@@ -4312,9 +4343,10 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
     { key: "list", title: "库存列表", desc: "库存状态和低库存提醒", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
     { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
   ];
+  const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<Boxes size={15} />}
         eyebrow="库存管理"
@@ -4327,8 +4359,8 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
         ]}
       />
       <ModuleOverview modules={inventoryModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="库存管理" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {activeModule === "adjust" && (
         <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="库存操作" action="入库/报损/盘点" />
@@ -4474,9 +4506,10 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
     { key: "members", title: "会员资产", desc: "会员卡余额和客户规模", icon: UsersRound, tone: "teal", meta: `${activeMembers} 张` },
     { key: "services", title: "项目排行", desc: "热门项目和项目实收", icon: Sparkles, tone: "plum", meta: `${serviceRevenue.length} 项` },
   ];
+  const activeModuleTitle = activeModule ? reportModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<ChartNoAxesColumnIncreasing size={15} />}
         eyebrow="报表分析"
@@ -4490,8 +4523,8 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         ]}
       />
       <ModuleOverview modules={reportModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="报表分析" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {activeModule === "payments" && (
         <section className="panel">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="实收拆分" />
@@ -4599,7 +4632,7 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
   const [targetId, setTargetId] = useState("manual");
   const [amount, setAmount] = useState(100);
   const [reason, setReason] = useState("门店例外处理");
-  const [activeModule, setActiveModule] = useState<"submit" | "pending" | "passed" | "rejected" | "all" | undefined>();
+  const [activeModule, setActiveModule] = useState<"submit" | "pending" | "refund" | "passed" | "rejected" | "all" | undefined>();
 
   const createApproval = (event: FormEvent) => {
     event.preventDefault();
@@ -4611,21 +4644,25 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
   const rejectedApprovals = data.approvalRequests.filter((item) => item.status === "已拒绝").length;
   const approvalRows = data.approvalRequests.filter((approval) => {
     if (activeModule === "pending") return approval.status === "待审批";
+    if (activeModule === "refund") return approval.type === "订单退款";
     if (activeModule === "passed") return approval.status === "已通过";
     if (activeModule === "rejected") return approval.status === "已拒绝";
     return true;
   });
+  const refundApprovals = data.approvalRequests.filter((item) => item.type === "订单退款").length;
   type ApprovalModuleKey = NonNullable<typeof activeModule>;
   const approvalModules: Array<FeatureModule<ApprovalModuleKey>> = [
     { key: "submit", title: "提交审批", desc: "改价、退款和门店例外处理", icon: ShieldCheck, tone: "violet", meta: "申请入口" },
     { key: "pending", title: "待审批", desc: "需要处理的风险单据", icon: ClipboardList, tone: "rose", meta: `${pendingApprovals} 单` },
+    { key: "refund", title: "退款审批", desc: "订单退款申请和处理记录", icon: RefreshCw, tone: "jade", meta: `${refundApprovals} 单` },
     { key: "passed", title: "已通过", desc: "已批准可用于业务", icon: ShieldCheck, tone: "teal", meta: `${passedApprovals} 单` },
     { key: "rejected", title: "已拒绝", desc: "已拦截的异常申请", icon: LockKeyhole, tone: "amber", meta: `${rejectedApprovals} 单` },
     { key: "all", title: "全部记录", desc: "查看完整审批流水", icon: ClipboardList, tone: "plum", meta: `${data.approvalRequests.length} 条` },
   ];
+  const activeModuleTitle = activeModule ? approvalModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="page-stack">
+    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<ShieldCheck size={15} />}
         eyebrow="审批中心"
@@ -4638,8 +4675,8 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
         ]}
       />
       <ModuleOverview modules={approvalModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {activeModule && <ModuleSubpageHeader parentTitle="审批中心" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {!activeModule && <ModuleDetailHint />}
         {activeModule === "submit" && (
         <section className="panel">
         <PanelTitle icon={<ShieldCheck size={18} />} title="提交审批" action="改价/退款" />
@@ -4652,7 +4689,7 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
         </form>
         </section>
         )}
-        {(activeModule === "pending" || activeModule === "passed" || activeModule === "rejected" || activeModule === "all") && (
+        {(activeModule === "pending" || activeModule === "refund" || activeModule === "passed" || activeModule === "rejected" || activeModule === "all") && (
         <section className="panel">
         <PanelTitle icon={<ShieldCheck size={18} />} title="审批列表" action={`${approvalRows.length} 条`} />
         <DataTable
