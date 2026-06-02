@@ -3153,6 +3153,7 @@ export function signCustomerSignature(
   if (signature.expiresAt && +new Date(signature.expiresAt) <= +new Date(signedAt)) throw new Error("签名链接已过期");
   if (!signerName) throw new Error("请输入签名人姓名");
   if (!signatureText) throw new Error("请输入签名确认内容");
+  if (signatureText.length > 120_000) throw new Error("签名图片过大，请清除后重新签名");
   return {
     ...data,
     customerSignatures: (data.customerSignatures ?? []).map((item) =>

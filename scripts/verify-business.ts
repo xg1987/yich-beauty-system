@@ -1110,13 +1110,19 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(withSignature.customerSignatures[0].status, "待签名", "customer signature should start pending");
   assert.equal(withSignature.customerSignatures[0].expiresAt, "2026-05-27T01:00:00.000Z", "customer signature should persist expiry");
+  assert.throws(
+    () => signCustomerSignature(withSignature, { token: withSignature.customerSignatures[0].token, signerName: "周女士", signatureText: `data:image/png;base64,${"A".repeat(120_001)}` }, { now: fixedNow }),
+    /签名图片过大/,
+    "customer signature should reject oversized image payload",
+  );
   const signed = signCustomerSignature(
     withSignature,
-    { token: withSignature.customerSignatures[0].token, signerName: "周女士", signatureText: "周女士确认" },
+    { token: withSignature.customerSignatures[0].token, signerName: "周女士", signatureText: "data:image/png;base64,abc123" },
     { now: fixedNow },
   );
   assert.equal(signed.customerSignatures[0].status, "已签名", "customer signature should be signed");
   assert.equal(signed.customerSignatures[0].signerName, "周女士", "customer signature should persist signer");
+  assert.match(signed.customerSignatures[0].signatureText ?? "", /^data:image\/png;base64,/, "customer signature should persist handwritten image data");
   assert.throws(
     () =>
       addCustomerServiceRecord(

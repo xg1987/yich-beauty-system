@@ -884,12 +884,13 @@ try {
   const publicSignature = await request<{ signature: { status: string }; customer: { phone: string } }>(baseUrl, `/api/public/customer-signatures/${signatureToken}`);
   assert.equal(publicSignature.signature.status, "待签名", "public signature API should expose pending signature");
   assert.match(publicSignature.customer.phone, /\*\*\*\*/, "public signature API should mask phone");
-  const signedSignature = await request<{ signature: { status: string; signerName: string } }>(baseUrl, `/api/public/customer-signatures/${signatureToken}/sign`, {
+  const signedSignature = await request<{ signature: { status: string; signerName: string; signatureText?: string } }>(baseUrl, `/api/public/customer-signatures/${signatureToken}/sign`, {
     method: "POST",
-    body: { signerName: "周女士", signatureText: "周女士确认" },
+    body: { signerName: "周女士", signatureText: "data:image/png;base64,api123" },
   });
   assert.equal(signedSignature.signature.status, "已签名", "public signature API should sign signature");
   assert.equal(signedSignature.signature.signerName, "周女士", "public signature API should persist signer");
+  assert.match(signedSignature.signature.signatureText ?? "", /^data:image\/png;base64,/, "public signature API should persist handwritten image data");
   const afterAllNotificationsRead = await request<AppData>(baseUrl, "/api/notifications/read-all", {
     method: "POST",
     token: session.token,

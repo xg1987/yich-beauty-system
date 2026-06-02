@@ -1,5 +1,5 @@
 import { ClipboardList, LockKeyhole } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, type PointerEvent, useEffect, useRef, useState } from "react";
 import type { PublicCustomerSignaturePayload } from "../../api/client";
 import { PanelTitle } from "../../components/layout/PanelTitle";
 import { money, shortDate } from "../../domain/utils";
@@ -15,7 +15,9 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [signerName, setSignerName] = useState("");
-  const [signatureText, setSignatureText] = useState("");
+  const [hasSignature, setHasSignature] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawingRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -42,9 +44,60 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError(undefined);
-    void signSignature(token, { signerName, signatureText })
+    const canvas = canvasRef.current;
+    if (!canvas || !hasSignature) {
+      setError("请完成手写签名");
+      return;
+    }
+    void signSignature(token, { signerName, signatureText: canvas.toDataURL("image/png") })
       .then(setPayload)
       .catch((caught) => setError(caught instanceof Error ? caught.message : "签名提交失败"));
+  };
+
+  const signaturePoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const startSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    drawingRef.current = true;
+    const point = signaturePoint(event);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const drawSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const context = event.currentTarget.getContext("2d");
+    if (!context) return;
+    const point = signaturePoint(event);
+    context.lineWidth = 4;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.strokeStyle = "#15141a";
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    setHasSignature(true);
+  };
+
+  const stopSignature = () => {
+    drawingRef.current = false;
+  };
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSignature(false);
   };
 
   const signature = payload?.signature;
@@ -89,13 +142,30 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                 <PanelTitle icon={<LockKeyhole size={18} />} title={isSigned ? "已完成签名" : "签名确认"} action={signature.signedAt ? shortDate(signature.signedAt) : undefined} />
                 {isSigned ? (
                   <div className="signed-box">
-                    <strong>{signature.signatureText}</strong>
+                    {signature.signatureText?.startsWith("data:image/") ? (
+                      <img src={signature.signatureText} alt="客户签名" style={{ width: "100%", maxWidth: 360, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, background: "#fff" }} />
+                    ) : (
+                      <strong>{signature.signatureText}</strong>
+                    )}
                     <span>{signature.signerName} · {signature.signedAt ? shortDate(signature.signedAt) : ""}</span>
                   </div>
                 ) : (
                   <>
                     <label>签名人姓名<input value={signerName} onChange={(event) => setSignerName(event.target.value)} /></label>
-                    <label>签名确认<input value={signatureText} onChange={(event) => setSignatureText(event.target.value)} placeholder="请填写本人姓名或确认文字" /></label>
+                    <label>
+                      手写签名
+                      <canvas
+                        ref={canvasRef}
+                        width={640}
+                        height={220}
+                        onPointerDown={startSignature}
+                        onPointerMove={drawSignature}
+                        onPointerUp={stopSignature}
+                        onPointerCancel={stopSignature}
+                        style={{ display: "block", width: "100%", height: 180, marginTop: 8, border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, background: "#fff", touchAction: "none" }}
+                      />
+                    </label>
+                    <button type="button" className="secondary-button" onClick={clearSignature}>清除签名</button>
                     <button className="primary-button">
                       <LockKeyhole size={17} />
                       确认签名
