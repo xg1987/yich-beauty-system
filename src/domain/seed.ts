@@ -1,4 +1,5 @@
 import type { AppData } from "./types";
+import { defaultSystemConfigs } from "./business";
 
 export const seedData: AppData = {
   storeProfiles: [],
@@ -38,6 +39,7 @@ export const seedData: AppData = {
   inventoryLogs: [],
   memberCardTransactions: [],
   operationLogs: [],
+  systemConfigs: defaultSystemConfigs({ now: () => "2026-05-30T00:00:00.000Z" }),
   notifications: [],
   dailyCloses: [],
   approvalRequests: [],

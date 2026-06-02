@@ -94,6 +94,44 @@ try {
   assert.equal(afterAccountProfile.session.user.name, "API 管理员", "account profile API should update session name");
   assert.equal(afterAccountProfile.session.user.avatarUrl, uploadedAvatar.avatarUrl, "account profile API should update session avatar");
   assert.equal(afterAccountProfile.data.authUsers.find((user) => user.id === "u_superadmin")?.name, "API 管理员", "account profile API should persist user name");
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/system-configs/invite_default_days", {
+        method: "PATCH",
+        token: session.token,
+        body: { value: "10" },
+      }),
+    /只有平台 Admin/,
+    "manager should not update platform system config",
+  );
+  const afterSystemConfig = await request<AppData>(baseUrl, "/api/system-configs/invite_default_days", {
+    method: "PATCH",
+    token: adminSession.token,
+    body: { value: "10" },
+  });
+  assert.equal(
+    afterSystemConfig.systemConfigs.find((item) => item.key === "invite_default_days")?.value,
+    "10",
+    "admin should update system config",
+  );
+  assert.equal(afterSystemConfig.operationLogs[0].action, "更新系统配置", "system config API should write operation log");
+  const ownerInviteWithDefaultDays = await request<AppData>(baseUrl, "/api/store-owner-invites", {
+    method: "POST",
+    token: adminSession.token,
+    body: {
+      storeName: "API 配置有效期门店",
+      ownerName: "配置有效期老板",
+      phone: "13900007777",
+      account: "api-configured-owner@test.local",
+    },
+  });
+  const ownerInvite = ownerInviteWithDefaultDays.storeOwnerInvites[0];
+  assert.ok(ownerInvite.expiresAt, "store owner invite API should persist expiry");
+  assert.equal(
+    Math.round((+new Date(ownerInvite.expiresAt ?? "") - +new Date(ownerInvite.createdAt)) / 86400000),
+    10,
+    "store owner invite API should use configured default days",
+  );
   const blockedAdminBusinessWrites: Array<{ label: string; path: string; method: string; body?: unknown }> = [
     {
       label: "admin should not create appointments",

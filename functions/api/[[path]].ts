@@ -48,6 +48,7 @@ import {
   updateStaffMember,
   updateAccountProfile,
   updateStoreProfile,
+  updateSystemConfig,
   updateMemberCardStatus,
   platformInviteIssuerId,
 } from "../../src/domain/business";
@@ -56,7 +57,7 @@ import { hashPassword } from "../../src/lib/password";
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
+import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
@@ -331,6 +332,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         role: session.user.role,
         staffId: session.user.staffId,
       });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/system-configs/")) {
+      if (session.user.role !== "superadmin") {
+        throw new Error("只有平台 Admin 可以修改系统配置");
+      }
+      const key = decodeURIComponent(pathname.split("/").at(-1) ?? "") as SystemConfigKey;
+      const body = await readJson(context.request);
+      const nextData = updateData(
+        await database.readData(),
+        session,
+        {
+          action: "更新系统配置",
+          targetType: "systemConfig",
+          targetId: key,
+          summary: `${session.user.name} 更新系统配置 ${key}`,
+        },
+        (data) => updateSystemConfig(data, { key, value: requiredString(body, "value"), updatedBy: session.user.id }),
+      );
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }
@@ -1258,6 +1280,9 @@ function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD") return false;
   if (method === "PATCH" && pathname === "/api/account-profile") return false;
   if (method === "POST" && pathname === "/api/account-avatar") return false;
+  if (method === "PATCH" && pathname.startsWith("/api/system-configs/")) return false;
+  if (method === "POST" && pathname === "/api/store-owner-invites") return false;
+  if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;
   if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
   if (method === "POST" && pathname === "/api/notifications/read-all") return false;
   return true;

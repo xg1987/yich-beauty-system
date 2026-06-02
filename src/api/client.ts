@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, TagDefinition, TagScope, UserRole, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, WorkerUsageSnapshot } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -60,6 +60,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
     markAllNotificationsRead: () =>
       request<AppData>("/api/notifications/read-all", { method: "POST", token: getToken() }),
+    updateSystemConfig: (key: SystemConfigKey, value: string) =>
+      request<AppData>(`/api/system-configs/${encodeURIComponent(key)}`, { method: "PATCH", body: { value }, token: getToken() }),
     updateStoreProfile: (body: { name: string; phone: string; address: string; businessHours: string }) =>
       request<AppData>("/api/store-profile", { method: "PATCH", body, token: getToken() }),
     addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>

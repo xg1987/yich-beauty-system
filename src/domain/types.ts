@@ -393,6 +393,17 @@ export type OperationLog = {
   createdAt: string;
 };
 
+export type SystemConfigKey = "invite_default_days" | "allow_registration" | "maintenance_mode" | "system_announcement";
+
+export type SystemConfig = {
+  id: string;
+  key: SystemConfigKey;
+  value: string;
+  description: string;
+  updatedAt: string;
+  updatedBy?: string;
+};
+
 export type SystemNotification = {
   id: string;
   title: string;
@@ -562,6 +573,7 @@ export type AppData = {
   inventoryLogs: InventoryLog[];
   memberCardTransactions: MemberCardTransaction[];
   operationLogs: OperationLog[];
+  systemConfigs: SystemConfig[];
   notifications: SystemNotification[];
   dailyCloses: DailyClose[];
   approvalRequests: ApprovalRequest[];

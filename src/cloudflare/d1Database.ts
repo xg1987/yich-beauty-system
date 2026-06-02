@@ -29,6 +29,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  SystemConfig,
   StoreOwnerApplication,
   StoreOwnerInvite,
   SystemNotification,
@@ -45,6 +46,7 @@ const tableNames: TableName[] = [
   "storeProfiles",
   "onlineStorefronts",
   "authUsers",
+  "systemConfigs",
   "staffInvites",
   "storeOwnerInvites",
   "storeOwnerApplications",
@@ -101,6 +103,7 @@ export class D1BeautyDatabase {
       storeProfiles: await this.all("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC", mapJsonPayload<StoreProfile>),
       onlineStorefronts: await this.all("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC", mapJsonPayload<OnlineStorefront>),
       authUsers: await this.all("SELECT payload_json FROM authUsers ORDER BY rowid ASC", mapJsonPayload<AuthUser>),
+      systemConfigs: await this.all("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC", mapJsonPayload<SystemConfig>),
       staffInvites: await this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>),
       storeOwnerInvites: await this.all("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC", mapJsonPayload<StoreOwnerInvite>),
       storeOwnerApplications: await this.all("SELECT payload_json FROM storeOwnerApplications ORDER BY rowid DESC", mapJsonPayload<StoreOwnerApplication>),
@@ -165,6 +168,7 @@ export class D1BeautyDatabase {
     this.writeJsonTable(statements, "storeProfiles", data.storeProfiles);
     this.writeJsonTable(statements, "onlineStorefronts", data.onlineStorefronts);
     this.writeJsonTable(statements, "authUsers", data.authUsers);
+    this.writeJsonTable(statements, "systemConfigs", data.systemConfigs);
     this.writeJsonTable(statements, "staffInvites", data.staffInvites);
     this.writeJsonTable(statements, "storeOwnerInvites", data.storeOwnerInvites ?? []);
     this.writeJsonTable(statements, "storeOwnerApplications", data.storeOwnerApplications ?? []);

@@ -49,9 +49,11 @@ import {
   updateAccountProfile,
   updateStaffMember,
   updateStoreProfile,
+  updateSystemConfig,
   updateTagDefinition,
   updateMemberCardStatus,
   upsertOnlineStorefront,
+  inviteDefaultDays,
 } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
@@ -124,6 +126,51 @@ function card(data: AppData, cardId: string) {
   assert.ok(allRead.notifications[0].readByUserIds.includes("u_therapist"), "target staff should mark visible notifications read");
   const hiddenRead = markAllVisibleNotificationsRead(withNotification, { userId: "u_other", role: "therapist", staffId: "s9" });
   assert.ok(!hiddenRead.notifications[0].readByUserIds.includes("u_other"), "unrelated therapist should not read hidden notification");
+}
+
+{
+  const configured = updateSystemConfig(
+    cloneSeed(),
+    { key: "invite_default_days", value: "12", updatedBy: "u_superadmin" },
+    { now: fixedNow },
+  );
+  assert.equal(inviteDefaultDays(configured), 12, "system config should update default invite days");
+  assert.equal(configured.systemConfigs.find((item) => item.key === "invite_default_days")?.updatedBy, "u_superadmin", "system config should keep updater");
+  assert.throws(
+    () => updateSystemConfig(cloneSeed(), { key: "invite_default_days", value: "0", updatedBy: "u_superadmin" }),
+    /1 到 90/,
+    "system config should reject invalid invite days",
+  );
+  assert.throws(
+    () => updateSystemConfig(cloneSeed(), { key: "maintenance_mode", value: "yes", updatedBy: "u_superadmin" }),
+    /true 或 false/,
+    "system config should reject invalid boolean switches",
+  );
+
+  const withNewStaff = addStaffMember(configured, { name: "配置验证员工", phone: "13900009999", role: "员工" }, { idFactory: testId, now: fixedNow });
+  const defaultStaffInvite = createStaffInvite(
+    withNewStaff,
+    {
+      staffId: withNewStaff.staff[0].id,
+      account: "configured-staff@test.local",
+      role: "therapist",
+      createdBy: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(defaultStaffInvite.staffInvites[0].expiresAt, "2026-06-05T01:00:00.000Z", "staff invite should use configured default days");
+  const defaultOwnerInvite = createStoreOwnerInvite(
+    configured,
+    {
+      storeName: "配置有效期门店",
+      ownerName: "配置老板",
+      phone: "13900008888",
+      account: "configured-owner@test.local",
+      createdBy: "u_superadmin",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(defaultOwnerInvite.storeOwnerInvites[0].expiresAt, "2026-06-05T01:00:00.000Z", "store owner invite should use configured default days");
 }
 
 {

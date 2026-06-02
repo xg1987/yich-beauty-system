@@ -29,6 +29,8 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  SystemConfig,
+  SystemConfigKey,
   StoreOwnerApplication,
   StoreOwnerInvite,
   SystemNotification,
@@ -46,6 +48,100 @@ type IdFactory = (prefix: string) => string;
 
 const PLATFORM_INVITE_PREFIX = "YC";
 const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+const DEFAULT_INVITE_VALID_DAYS = 7;
+
+export function defaultSystemConfigs(options: { now?: () => string } = {}): SystemConfig[] {
+  const updatedAt = (options.now ?? nowIso)();
+  return [
+    {
+      id: "cfg_invite_default_days",
+      key: "invite_default_days",
+      value: `${DEFAULT_INVITE_VALID_DAYS}`,
+      description: "员工和门店老板邀请码默认有效期",
+      updatedAt,
+    },
+    {
+      id: "cfg_allow_registration",
+      key: "allow_registration",
+      value: "true",
+      description: "是否开放门店注册入口",
+      updatedAt,
+    },
+    {
+      id: "cfg_maintenance_mode",
+      key: "maintenance_mode",
+      value: "false",
+      description: "是否启用系统维护模式",
+      updatedAt,
+    },
+    {
+      id: "cfg_system_announcement",
+      key: "system_announcement",
+      value: "",
+      description: "平台公告内容",
+      updatedAt,
+    },
+  ];
+}
+
+export function normalizeSystemConfigs(configs?: SystemConfig[], options: { now?: () => string } = {}) {
+  const defaults = defaultSystemConfigs(options);
+  const currentConfigs = configs ?? [];
+  return defaults.map((defaultConfig) => {
+    const currentConfig = currentConfigs.find((item) => item.key === defaultConfig.key);
+    return currentConfig ? { ...defaultConfig, ...currentConfig, id: defaultConfig.id } : defaultConfig;
+  });
+}
+
+export function systemConfigValue(data: AppData, key: SystemConfigKey) {
+  return normalizeSystemConfigs(data.systemConfigs).find((item) => item.key === key)?.value ?? "";
+}
+
+export function inviteDefaultDays(data: AppData) {
+  const parsedDays = Number(systemConfigValue(data, "invite_default_days"));
+  return Number.isInteger(parsedDays) && parsedDays >= 1 && parsedDays <= 90 ? parsedDays : DEFAULT_INVITE_VALID_DAYS;
+}
+
+export function updateSystemConfig(
+  data: AppData,
+  input: { key: SystemConfigKey; value: string; updatedBy: string },
+  options: { now?: () => string } = {},
+): AppData {
+  const configs = normalizeSystemConfigs(data.systemConfigs, options);
+  const nextValue = validateSystemConfigValue(input.key, input.value);
+  const targetConfig = configs.find((item) => item.key === input.key);
+  if (!targetConfig) throw new Error("系统配置不存在");
+  const updatedAt = (options.now ?? nowIso)();
+  return {
+    ...data,
+    systemConfigs: configs.map((config) =>
+      config.key === input.key
+        ? { ...config, value: nextValue, updatedAt, updatedBy: input.updatedBy }
+        : config,
+    ),
+  };
+}
+
+function validateSystemConfigValue(key: SystemConfigKey, value: string) {
+  const trimmedValue = value.trim();
+  if (key === "invite_default_days") {
+    const validDays = Number(trimmedValue);
+    if (!Number.isInteger(validDays) || validDays < 1 || validDays > 90) {
+      throw new Error("邀请码默认有效期必须是 1 到 90 天的整数");
+    }
+    return `${validDays}`;
+  }
+  if (key === "allow_registration" || key === "maintenance_mode") {
+    if (trimmedValue !== "true" && trimmedValue !== "false") {
+      throw new Error("开关配置只能是 true 或 false");
+    }
+    return trimmedValue;
+  }
+  if (trimmedValue.length > 200) {
+    throw new Error("系统公告不能超过 200 个字");
+  }
+  return trimmedValue;
+}
 
 function stableInviteNumber(value: string) {
   let hash = 2166136261;
@@ -1219,7 +1315,7 @@ export function createStaffInvite(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  const validDays = input.validDays ?? 7;
+  const validDays = input.validDays ?? inviteDefaultDays(data);
   const account = input.account.trim();
   const staff = data.staff.find((item) => item.id === input.staffId);
   if (!staff) throw new Error("员工不存在");
@@ -1258,7 +1354,7 @@ export function createStoreOwnerInvite(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  const validDays = input.validDays ?? 7;
+  const validDays = input.validDays ?? inviteDefaultDays(data);
   const storeName = input.storeName.trim();
   const ownerName = input.ownerName.trim();
   const phone = input.phone.trim();

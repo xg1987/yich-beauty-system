@@ -32,6 +32,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  SystemConfig,
   StoreOwnerApplication,
   StoreOwnerInvite,
   SystemNotification,
@@ -49,6 +50,7 @@ const tableNames: TableName[] = [
   "storeProfiles",
   "onlineStorefronts",
   "authUsers",
+  "systemConfigs",
   "staffInvites",
   "storeOwnerInvites",
   "storeOwnerApplications",
@@ -127,6 +129,7 @@ export class BeautyDatabase {
       storeProfiles: this.db.prepare("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC").all().map(mapJsonPayload<StoreProfile>),
       onlineStorefronts: this.db.prepare("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC").all().map(mapJsonPayload<OnlineStorefront>),
       authUsers: this.db.prepare("SELECT payload_json FROM authUsers ORDER BY rowid ASC").all().map(mapJsonPayload<AuthUser>),
+      systemConfigs: this.db.prepare("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC").all().map(mapJsonPayload<SystemConfig>),
       staffInvites: this.db.prepare("SELECT payload_json FROM staffInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StaffInvite>),
       storeOwnerInvites: this.db.prepare("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC").all().map(mapJsonPayload<StoreOwnerInvite>),
       storeOwnerApplications: this.db.prepare("SELECT payload_json FROM storeOwnerApplications ORDER BY rowid DESC").all().map(mapJsonPayload<StoreOwnerApplication>),
@@ -189,6 +192,7 @@ export class BeautyDatabase {
     this.writeJsonTable("storeProfiles", data.storeProfiles);
     this.writeJsonTable("onlineStorefronts", data.onlineStorefronts);
     this.writeJsonTable("authUsers", data.authUsers);
+    this.writeJsonTable("systemConfigs", data.systemConfigs);
     this.writeJsonTable("staffInvites", data.staffInvites);
     this.writeJsonTable("storeOwnerInvites", data.storeOwnerInvites ?? []);
     this.writeJsonTable("storeOwnerApplications", data.storeOwnerApplications ?? []);
@@ -453,6 +457,11 @@ export class BeautyDatabase {
       );
 
       CREATE TABLE IF NOT EXISTS authUsers (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS systemConfigs (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
       );

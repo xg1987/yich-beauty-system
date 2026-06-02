@@ -41,7 +41,7 @@ import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary } from "./domain/business";
 import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
@@ -282,6 +282,8 @@ export default function App() {
                 session={session}
                 setView={navigate}
                 openAccountSettings={() => setAccountSettingsOpen(true)}
+                actions={actions}
+                runMutation={runMutation}
               />
             )}
           </>
@@ -307,11 +309,15 @@ function ManagementCenter({
   session,
   setView,
   openAccountSettings,
+  actions,
+  runMutation,
 }: {
   data: AppData;
   session: UserSession;
   setView: NavigateToView;
   openAccountSettings: () => void;
+  actions: ApiActions;
+  runMutation: RunMutation;
 }) {
   const systemInviteCode = platformInviteCodeForPlatformAdmin({
     id: session.user.id,
@@ -426,6 +432,10 @@ function ManagementCenter({
         </section>
       )}
 
+      {session.user.role === "superadmin" && (
+        <PlatformSystemConfigPanel data={data} actions={actions} runMutation={runMutation} />
+      )}
+
       <section className="admin-module-section">
         <div className="admin-section-title">
           <span>管理入口</span>
@@ -441,6 +451,80 @@ function ManagementCenter({
         </div>
       </section>
     </div>
+  );
+}
+
+function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  const configValue = (key: SystemConfigKey, fallback: string) =>
+    (data.systemConfigs ?? []).find((item) => item.key === key)?.value ?? fallback;
+  const [inviteDays, setInviteDays] = useState(configValue("invite_default_days", "7"));
+  const [allowRegistration, setAllowRegistration] = useState(configValue("allow_registration", "true"));
+  const [maintenanceMode, setMaintenanceMode] = useState(configValue("maintenance_mode", "false"));
+  const [announcement, setAnnouncement] = useState(configValue("system_announcement", ""));
+  const [savedKey, setSavedKey] = useState<SystemConfigKey | undefined>();
+
+  useEffect(() => {
+    setInviteDays(configValue("invite_default_days", "7"));
+    setAllowRegistration(configValue("allow_registration", "true"));
+    setMaintenanceMode(configValue("maintenance_mode", "false"));
+    setAnnouncement(configValue("system_announcement", ""));
+  }, [data.systemConfigs]);
+
+  const saveConfig = (key: SystemConfigKey, value: string) => {
+    void runMutation(() => actions.updateSystemConfig(key, value)).then(() => {
+      setSavedKey(key);
+      window.setTimeout(() => setSavedKey(undefined), 1400);
+    });
+  };
+
+  return (
+    <section className="panel dashboard-panel" aria-label="平台配置">
+      <PanelTitle icon={<Settings size={18} />} title="平台配置" action={`${(data.systemConfigs ?? []).length || 4} 项`} />
+      <div style={{ display: "grid", gap: "14px", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <label>
+          <span className="field-label">邀请码有效期</span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input type="number" min={1} max={90} value={inviteDays} onChange={(event) => setInviteDays(event.target.value)} />
+            <button type="button" onClick={() => saveConfig("invite_default_days", inviteDays)}>
+              {savedKey === "invite_default_days" ? "已保存" : "保存"}
+            </button>
+          </div>
+        </label>
+        <label>
+          <span className="field-label">门店注册</span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <select value={allowRegistration} onChange={(event) => setAllowRegistration(event.target.value)}>
+              <option value="true">开启</option>
+              <option value="false">关闭</option>
+            </select>
+            <button type="button" onClick={() => saveConfig("allow_registration", allowRegistration)}>
+              {savedKey === "allow_registration" ? "已保存" : "保存"}
+            </button>
+          </div>
+        </label>
+        <label>
+          <span className="field-label">维护模式</span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <select value={maintenanceMode} onChange={(event) => setMaintenanceMode(event.target.value)}>
+              <option value="false">关闭</option>
+              <option value="true">开启</option>
+            </select>
+            <button type="button" onClick={() => saveConfig("maintenance_mode", maintenanceMode)}>
+              {savedKey === "maintenance_mode" ? "已保存" : "保存"}
+            </button>
+          </div>
+        </label>
+      </div>
+      <label style={{ display: "block", marginTop: "14px" }}>
+        <span className="field-label">系统公告</span>
+        <textarea value={announcement} maxLength={200} rows={3} onChange={(event) => setAnnouncement(event.target.value)} />
+      </label>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+        <button type="button" onClick={() => saveConfig("system_announcement", announcement)}>
+          {savedKey === "system_announcement" ? "已保存" : "保存公告"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -1349,9 +1433,53 @@ function PlatformPermissionReadOnlyView({
 }
 
 function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
-  const logs = [...(data.operationLogs ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const [searchTerm, setSearchTerm] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [userFilter, setUserFilter] = useState("");
+  const allLogs = [...(data.operationLogs ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const logs = allLogs.filter((log) => {
+    const userName = data.authUsers.find((user) => user.id === log.userId)?.name ?? "系统";
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const matchesSearch = !normalizedSearchTerm
+      || log.summary.toLowerCase().includes(normalizedSearchTerm)
+      || log.action.toLowerCase().includes(normalizedSearchTerm)
+      || log.targetType.toLowerCase().includes(normalizedSearchTerm)
+      || userName.toLowerCase().includes(normalizedSearchTerm);
+    const matchesAction = !actionFilter || log.action === actionFilter;
+    const matchesUser = !userFilter || log.userId === userFilter;
+    return matchesSearch && matchesAction && matchesUser;
+  });
   const actionCount = new Set(logs.map((item) => item.action)).size;
   const userCount = new Set(logs.map((item) => item.userId)).size;
+  const uniqueActions = Array.from(new Set(allLogs.map((item) => item.action))).sort((a, b) => a.localeCompare(b));
+  const uniqueUserIds = Array.from(new Set(allLogs.map((item) => item.userId))).sort((a, b) => {
+    const leftName = data.authUsers.find((user) => user.id === a)?.name ?? a;
+    const rightName = data.authUsers.find((user) => user.id === b)?.name ?? b;
+    return leftName.localeCompare(rightName);
+  });
+
+  const exportLogs = () => {
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const csv = [
+      ["时间", "操作人", "动作", "对象类型", "摘要"].map(escapeCsv).join(","),
+      ...logs.map((log) =>
+        [
+          log.createdAt,
+          data.authUsers.find((user) => user.id === log.userId)?.name ?? "系统",
+          log.action,
+          log.targetType,
+          log.summary,
+        ].map(escapeCsv).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `平台操作日志_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
 
   return (
     <div className="admin-center-page platform-admin-page">
@@ -1371,6 +1499,28 @@ function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData;
 
       <section className="panel dashboard-panel">
         <PanelTitle icon={<ClipboardList size={18} />} title="最近操作" action={`${logs.length} 条`} />
+        <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="text"
+            placeholder="搜索操作、对象、摘要或账号"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            style={{ flex: 1, minWidth: "220px" }}
+          />
+          <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
+            <option value="">所有动作</option>
+            {uniqueActions.map((action) => (
+              <option key={action} value={action}>{action}</option>
+            ))}
+          </select>
+          <select value={userFilter} onChange={(event) => setUserFilter(event.target.value)}>
+            <option value="">所有账号</option>
+            {uniqueUserIds.map((userId) => (
+              <option key={userId} value={userId}>{data.authUsers.find((user) => user.id === userId)?.name ?? userId}</option>
+            ))}
+          </select>
+          <button type="button" onClick={exportLogs}>导出 CSV</button>
+        </div>
         <DataTable
           columns={["时间", "操作人", "动作", "对象类型", "摘要"]}
           rows={logs.slice(0, 120).map((log) => [

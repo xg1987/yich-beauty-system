@@ -1,4 +1,5 @@
 import type { AppData } from "./types";
+import { defaultSystemConfigs } from "./business";
 import { nowIso, tomorrowAt } from "./utils";
 
 export const testFixtureData: AppData = {
@@ -174,6 +175,7 @@ export const testFixtureData: AppData = {
   inventoryLogs: [],
   memberCardTransactions: [],
   operationLogs: [],
+  systemConfigs: defaultSystemConfigs(),
   notifications: [],
   dailyCloses: [],
   approvalRequests: [],
