@@ -139,6 +139,7 @@ export function useApiData() {
     fetchDataQuality: client.fetchDataQuality,
     cleanupFormalData: client.cleanupFormalData,
     uploadAccountAvatar: client.uploadAccountAvatar,
+    updateAuthUserStatus: client.updateAuthUserStatus,
     updateSystemConfig: client.updateSystemConfig,
     createStaffInvite: client.createStaffInvite,
     createStoreOwnerInvite: client.createStoreOwnerInvite,

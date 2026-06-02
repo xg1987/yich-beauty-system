@@ -56,6 +56,8 @@ export function createApiClient(getToken: () => string | undefined) {
     },
     updateAccountProfile: (body: { name: string; avatarUrl?: string }) =>
       request<{ session: UserSession; data: AppData }>("/api/account-profile", { method: "PATCH", body, token: getToken() }),
+    updateAuthUserStatus: (userId: string, status: "active" | "disabled") =>
+      request<AppData>(`/api/auth-users/${encodeURIComponent(userId)}/status`, { method: "PATCH", body: { status }, token: getToken() }),
     markNotificationRead: (notificationId: string) =>
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
     markAllNotificationsRead: () =>

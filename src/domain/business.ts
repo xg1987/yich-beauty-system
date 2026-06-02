@@ -334,6 +334,12 @@ export type AccountProfileInput = {
   avatarUrl?: string;
 };
 
+export type AuthUserStatusInput = {
+  userId: string;
+  status: AuthUser["status"];
+  operatedBy: string;
+};
+
 export type CheckoutInput = {
   customerId: string;
   staffId: string;
@@ -1342,6 +1348,33 @@ export function updateAccountProfile(data: AppData, input: AccountProfileInput):
     staff: user.staffId
       ? data.staff.map((staff) => (staff.id === user.staffId ? { ...staff, name } : staff))
       : data.staff,
+  };
+}
+
+export function updateAuthUserStatus(data: AppData, input: AuthUserStatusInput): AppData {
+  const user = data.authUsers.find((item) => item.id === input.userId);
+  if (!user) throw new Error("账号不存在");
+  if (input.status !== "active" && input.status !== "disabled") throw new Error("账号状态不正确");
+  if (user.id === input.operatedBy && input.status === "disabled") throw new Error("不能停用当前登录账号");
+  const activeSuperadminCount = data.authUsers.filter((item) => effectiveRoleForUser(item) === "superadmin" && item.status === "active").length;
+  if (effectiveRoleForUser(user) === "superadmin" && user.status === "active" && input.status === "disabled" && activeSuperadminCount <= 1) {
+    throw new Error("至少保留一个启用的系统管理员");
+  }
+  return {
+    ...data,
+    authUsers: data.authUsers.map((item) => item.id === user.id ? { ...item, status: input.status } : item),
+    operationLogs: [
+      {
+        id: makeId("op"),
+        userId: input.operatedBy,
+        action: input.status === "active" ? "启用账号" : "停用账号",
+        targetType: "authUser",
+        targetId: user.id,
+        summary: `${input.status === "active" ? "启用" : "停用"}账号 ${user.account}`,
+        createdAt: nowIso(),
+      },
+      ...data.operationLogs,
+    ],
   };
 }
 

@@ -48,6 +48,7 @@ import {
   transferMemberCard,
   updateAppointmentStatus,
   updateAccountProfile,
+  updateAuthUserStatus,
   updateStaffMember,
   updateStoreProfile,
   updateSystemConfig,
@@ -268,6 +269,14 @@ function card(data: AppData, cardId: string) {
     () => updateAccountProfile(cloneSeed(), { userId: "u_manager", name: "新主管名", avatarUrl: "data:image/png;base64,AA==" }),
     /头像文件过大/,
     "account profile should reject inline image blobs",
+  );
+  const disabledAccount = updateAuthUserStatus(cloneSeed(), { userId: "u_frontdesk", status: "disabled", operatedBy: "u_superadmin" });
+  assert.equal(disabledAccount.authUsers.find((user) => user.id === "u_frontdesk")?.status, "disabled", "admin should disable account");
+  assert.equal(disabledAccount.operationLogs[0].action, "停用账号", "account status should write operation log");
+  assert.throws(
+    () => updateAuthUserStatus(cloneSeed(), { userId: "u_superadmin", status: "disabled", operatedBy: "u_superadmin" }),
+    /不能停用当前登录账号/,
+    "admin should not disable current account",
   );
   assert.throws(
     () => updateStoreProfile(updatedStore, { name: "", phone: "13900000002", address: "测试新地址", businessHours: "09:30 - 22:00" }),

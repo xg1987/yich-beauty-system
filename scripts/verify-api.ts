@@ -97,6 +97,32 @@ try {
   assert.equal(afterAccountProfile.data.authUsers.find((user) => user.id === "u_superadmin")?.name, "API 管理员", "account profile API should persist user name");
   await assert.rejects(
     () =>
+      request<AppData>(baseUrl, "/api/auth-users/u_superadmin/status", {
+        method: "PATCH",
+        token: adminSession.token,
+        body: { status: "disabled" },
+      }),
+    /不能停用当前登录账号/,
+    "admin should not disable current account",
+  );
+  const afterDisableFrontdesk = await request<AppData>(baseUrl, "/api/auth-users/u_frontdesk/status", {
+    method: "PATCH",
+    token: adminSession.token,
+    body: { status: "disabled" },
+  });
+  assert.equal(afterDisableFrontdesk.authUsers.find((user) => user.id === "u_frontdesk")?.status, "disabled", "admin should disable account");
+  assert.equal(afterDisableFrontdesk.operationLogs[0].action, "停用账号", "account status API should write operation log");
+  await assert.rejects(
+    () =>
+      request<{ token: string }>(baseUrl, "/api/auth/login", {
+        method: "POST",
+        body: { account: "frontdesk@test.local", password: "test-password" },
+      }),
+    /账号或密码不正确/,
+    "disabled account should not login",
+  );
+  await assert.rejects(
+    () =>
       request<AppData>(baseUrl, "/api/system-configs/invite_default_days", {
         method: "PATCH",
         token: session.token,

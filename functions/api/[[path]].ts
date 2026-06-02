@@ -48,6 +48,7 @@ import {
   updateTagDefinition,
   updateStaffMember,
   updateAccountProfile,
+  updateAuthUserStatus,
   updateStoreProfile,
   updateSystemConfig,
   updateMemberCardStatus,
@@ -277,6 +278,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!updatedUser) throw new Error("账号不存在");
       const nextSession = buildSession(session.token, updatedUser);
       return sendJson(200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) });
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) {
+      if (session.user.role !== "superadmin") {
+        throw new Error("只有平台 Admin 可以管理账号状态");
+      }
+      const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const nextData = updateAuthUserStatus(await database.readData(), {
+        userId,
+        status: requiredString(body, "status") as "active" | "disabled",
+        operatedBy: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
     }
 
     if (context.request.method === "GET" && pathname === "/api/data") {
@@ -1292,6 +1308,7 @@ function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD") return false;
   if (method === "PATCH" && pathname === "/api/account-profile") return false;
   if (method === "POST" && pathname === "/api/account-avatar") return false;
+  if (method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) return false;
   if (method === "PATCH" && pathname.startsWith("/api/system-configs/")) return false;
   if (method === "POST" && pathname === "/api/store-owner-invites") return false;
   if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;

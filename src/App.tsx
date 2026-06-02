@@ -273,7 +273,7 @@ export default function App() {
             {activeView === "reports" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Reports data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Approvals data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "logs" && (isPlatformAdmin ? <PlatformAuditReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
-            {activeView === "accounts" && <PlatformAccountAdminView data={data} setView={navigate} showBack={showAdminDetailBack} />}
+            {activeView === "accounts" && <PlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
             {activeView === "settings" && (
@@ -1280,7 +1280,21 @@ function PlatformApprovalsReadOnlyView({ data, setView, showBack }: { data: AppD
   );
 }
 
-function PlatformAccountAdminView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+function PlatformAccountAdminView({
+  data,
+  session,
+  setView,
+  showBack,
+  actions,
+  runMutation,
+}: {
+  data: AppData;
+  session: UserSession;
+  setView: (view: ViewKey) => void;
+  showBack?: boolean;
+  actions: ApiActions;
+  runMutation: RunMutation;
+}) {
   const adminAccounts = data.authUsers.filter((user) => user.role === "superadmin");
   const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
   const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
@@ -1316,13 +1330,24 @@ function PlatformAccountAdminView({ data, setView, showBack }: { data: AppData; 
         <div className="panel dashboard-panel">
           <PanelTitle icon={<UsersRound size={18} />} title="账号列表" action={`${data.authUsers.length} 个账号`} />
           <DataTable
-            columns={["姓名", "账号", "角色", "状态", "创建时间"]}
+            columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
             rows={data.authUsers.map((user) => [
               user.name,
               user.account,
               user.role === "superadmin" ? "系统管理员" : user.roleName,
               <Badge key={`${user.id}-status`} text={user.status === "active" ? "启用" : "停用"} tone={user.status === "active" ? "ok" : "warn"} />,
               shortDate(user.createdAt),
+              user.id === session.user.id ? (
+                <span key={`${user.id}-self`}>当前账号</span>
+              ) : (
+                <button
+                  key={`${user.id}-toggle`}
+                  type="button"
+                  onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, user.status === "active" ? "disabled" : "active"))}
+                >
+                  {user.status === "active" ? "停用" : "启用"}
+                </button>
+              ),
             ])}
           />
         </div>

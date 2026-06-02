@@ -52,6 +52,7 @@ import {
   updateTagDefinition,
   updateStaffMember,
   updateAccountProfile,
+  updateAuthUserStatus,
   updateStoreProfile,
   updateSystemConfig,
   updateMemberCardStatus,
@@ -278,6 +279,22 @@ export function createApiServer(database = new BeautyDatabase()) {
         if (!updatedUser) throw new Error("账号不存在");
         const nextSession = refreshSessionUser(session.token, updatedUser);
         sendJson(response, 200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) });
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/auth-users/") && url.pathname.endsWith("/status")) {
+        if (session.user.role !== "superadmin") {
+          throw new Error("只有平台 Admin 可以管理账号状态");
+        }
+        const userId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        const nextData = updateAuthUserStatus(database.readData(), {
+          userId,
+          status: requiredString(body, "status") as "active" | "disabled",
+          operatedBy: session.user.id,
+        });
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
 
@@ -1344,6 +1361,7 @@ function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "GET" || method === "HEAD") return false;
   if (method === "PATCH" && pathname === "/api/account-profile") return false;
   if (method === "POST" && pathname === "/api/account-avatar") return false;
+  if (method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) return false;
   if (method === "PATCH" && pathname.startsWith("/api/system-configs/")) return false;
   if (method === "POST" && pathname === "/api/store-owner-invites") return false;
   if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;
