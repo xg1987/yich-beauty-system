@@ -1,6 +1,7 @@
 import { CalendarDays, LockKeyhole, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { PanelTitle } from "../../components/layout/PanelTitle";
+import { DateTimeInput } from "../../components/ui/DateTimeInput";
 import { Select } from "../../components/ui/Select";
 import type { OnlineStorefront, Service, StoreProfile } from "../../domain/types";
 import { money, toLocalInputValue, tomorrowAt } from "../../domain/utils";
@@ -115,7 +116,7 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
                 <label>姓名<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="请输入到店人姓名" /></label>
                 <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于门店联系确认" /></label>
                 <Select label="预约项目" value={serviceId} onChange={setServiceId} options={services.map(optionOf)} />
-                <label>期望到店时间<input type="datetime-local" value={preferredAt} onChange={(event) => setPreferredAt(event.target.value)} /></label>
+                <DateTimeInput label="期望到店时间" value={preferredAt} onChange={setPreferredAt} />
                 <label>备注<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="例如皮肤状态、想咨询的问题" /></label>
                 <button className="primary-button" disabled={!serviceId}>
                   <LockKeyhole size={17} />

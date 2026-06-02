@@ -417,6 +417,68 @@ button:disabled {
   gap: 12px;
 }
 
+.datetime-field {
+  display: grid;
+  gap: 8px;
+}
+
+.datetime-field > span {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.datetime-field-control {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.2);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--yich-ink);
+  cursor: pointer;
+}
+
+.datetime-field-control input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.datetime-field-control input:focus {
+  outline: 0;
+  box-shadow: none;
+}
+
+.datetime-field-control input::-webkit-calendar-picker-indicator {
+  width: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+}
+
+.datetime-field-control:focus-within {
+  border-color: rgba(111, 66, 193, 0.5);
+  box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.12);
+}
+
+.datetime-field-control svg {
+  flex: 0 0 auto;
+  color: currentColor;
+  pointer-events: none;
+}
+
 .form-note {
   margin: 0;
   padding: 10px 12px;
@@ -10343,9 +10405,11 @@ textarea,
 .theme-day .appointment-create-panel select,
 .theme-day .appointment-create-panel input,
 .theme-day .appointment-create-panel textarea,
+.theme-day .appointment-create-panel .datetime-field-control,
 .theme-night .appointment-create-panel select,
 .theme-night .appointment-create-panel input,
-.theme-night .appointment-create-panel textarea {
+.theme-night .appointment-create-panel textarea,
+.theme-night .appointment-create-panel .datetime-field-control {
   border-color: rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
@@ -10359,6 +10423,13 @@ textarea,
 .theme-day .appointment-create-panel option,
 .theme-night .appointment-create-panel option {
   color: #2f2925;
+}
+
+.theme-day .appointment-create-panel .datetime-field-control input,
+.theme-night .appointment-create-panel .datetime-field-control input {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .theme-day .appointment-create-panel .appointment-room-choice-note,

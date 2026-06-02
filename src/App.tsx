@@ -37,6 +37,7 @@ import { StatCard } from "./components/layout/StatCard";
 import { Badge } from "./components/ui/Badge";
 import { CheckboxGroup } from "./components/ui/CheckboxGroup";
 import { DataTable } from "./components/ui/DataTable";
+import { DateTimeInput } from "./components/ui/DateTimeInput";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
@@ -2619,10 +2620,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
               <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
               <Select label="服务员工" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
               <Select label="服务项目" value={serviceId} onChange={setServiceId} options={data.services.map(optionOf)} />
-              <label>
-                预约时间
-                <input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
-              </label>
+              <DateTimeInput label="预约时间" value={startAt} onChange={setStartAt} />
               <Select
                 label="房间"
                 value={roomName}
@@ -3510,7 +3508,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>服务后记录<textarea value={afterNote} onChange={(event) => setAfterNote(event.target.value)} /></label>
           <label>客户反馈<textarea value={customerFeedback} onChange={(event) => setCustomerFeedback(event.target.value)} /></label>
           <label>下次护理建议<textarea value={nextCareAdvice} onChange={(event) => setNextCareAdvice(event.target.value)} /></label>
-          <label>下次回访<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></label>
+          <DateTimeInput label="下次回访" value={followUpAt} onChange={setFollowUpAt} />
           <button className="primary-button" disabled={!recordStaffId}>保存档案</button>
         </form>
         </>
