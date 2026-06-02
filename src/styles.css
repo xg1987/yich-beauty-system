@@ -10176,3 +10176,90 @@ textarea,
     grid-column: auto;
   }
 }
+
+/* Appointment room board readability override. This page is a work board, not a colored module card. */
+.theme-day .appointment-room-panel.panel,
+.theme-night .appointment-room-panel.panel,
+.theme-day .appointment-create-panel.panel,
+.theme-night .appointment-create-panel.panel {
+  border-color: rgba(116, 88, 69, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 250, 247, 0.94));
+  color: #2f2925;
+  box-shadow: 0 18px 42px rgba(72, 48, 35, 0.08);
+}
+
+.theme-day .appointment-room-panel .panel-title h2,
+.theme-night .appointment-room-panel .panel-title h2,
+.theme-day .appointment-create-panel .panel-title h2,
+.theme-night .appointment-create-panel .panel-title h2,
+.theme-day .appointment-room-panel strong,
+.theme-night .appointment-room-panel strong,
+.theme-day .appointment-create-panel strong,
+.theme-night .appointment-create-panel strong {
+  color: #2f2925;
+}
+
+.theme-day .appointment-room-panel .panel-title span,
+.theme-night .appointment-room-panel .panel-title span,
+.theme-day .appointment-create-panel .panel-title span,
+.theme-night .appointment-create-panel .panel-title span,
+.theme-day .appointment-room-panel span,
+.theme-night .appointment-room-panel span,
+.theme-day .appointment-room-panel small,
+.theme-night .appointment-room-panel small,
+.theme-day .appointment-create-panel span,
+.theme-night .appointment-create-panel span,
+.theme-day .appointment-create-panel small,
+.theme-night .appointment-create-panel small,
+.theme-day .appointment-create-panel label,
+.theme-night .appointment-create-panel label {
+  color: rgba(47, 41, 37, 0.68);
+}
+
+.theme-day .appointment-room-panel .panel-title svg,
+.theme-night .appointment-room-panel .panel-title svg,
+.theme-day .appointment-create-panel .panel-title svg,
+.theme-night .appointment-create-panel .panel-title svg {
+  color: #6f42c1;
+}
+
+.theme-day .appointment-room-summary > div,
+.theme-night .appointment-room-summary > div {
+  border-color: rgba(116, 88, 69, 0.12);
+  background: #fff;
+  box-shadow: inset 4px 0 0 rgba(111, 66, 193, 0.26);
+}
+
+.theme-day .appointment-room-summary strong,
+.theme-night .appointment-room-summary strong {
+  color: #5a2fa8;
+}
+
+.theme-day .appointment-room-state-card,
+.theme-night .appointment-room-state-card {
+  border-color: rgba(116, 88, 69, 0.14);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(72, 48, 35, 0.07);
+}
+
+.theme-day .appointment-room-state-card strong,
+.theme-night .appointment-room-state-card strong {
+  color: #2f2925;
+}
+
+.theme-day .appointment-room-state-card span,
+.theme-night .appointment-room-state-card span,
+.theme-day .appointment-room-state-card small,
+.theme-night .appointment-room-state-card small {
+  color: rgba(47, 41, 37, 0.62);
+}
+
+.appointment-room-add-button {
+  background: linear-gradient(135deg, #5b2ca8, #c74363);
+  border: 2px solid rgba(255, 214, 91, 0.92);
+}
+
+.appointment-create-page .module-subpage-header {
+  margin-bottom: 4px;
+}
