@@ -89,10 +89,16 @@ export function calculateAppointmentRoomUsage(
   const activeAppointments = appointments.filter(isActiveRoomAppointment);
   const bookedRoomSlots = Math.min(activeAppointments.length, roomCapacity);
   const remainingRoomSlots = Math.max(0, roomCapacity - bookedRoomSlots);
-  const roomAssignments = activeAppointments.slice(0, availableRoomCount).map((appointment, index) => ({
-    appointment,
-    roomName: roomNames[index] ?? `护理房 ${index + 1}`,
-  }));
+  const availableRoomNames = roomNames.slice(0, availableRoomCount);
+  const usedRoomNames = new Set<string>();
+  const roomAssignments = activeAppointments.slice(0, availableRoomCount).map((appointment) => {
+    const savedRoomName = appointment.roomName?.trim();
+    const roomName = savedRoomName && roomNames.includes(savedRoomName) && !usedRoomNames.has(savedRoomName)
+      ? savedRoomName
+      : availableRoomNames.find((name) => !usedRoomNames.has(name)) ?? "";
+    if (roomName) usedRoomNames.add(roomName);
+    return { appointment, roomName };
+  }).filter((assignment) => assignment.roomName);
 
   return {
     availableRoomCount,

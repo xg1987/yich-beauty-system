@@ -514,6 +514,7 @@ export type AppointmentInput = {
   staffId: string;
   serviceId: string;
   startAt: string;
+  roomName?: string;
   note?: string;
 };
 
@@ -528,6 +529,7 @@ export type AppointmentRescheduleInput = {
   staffId?: string;
   serviceId?: string;
   startAt: string;
+  roomName?: string;
   note?: string;
 };
 
@@ -2743,11 +2745,13 @@ export function createAppointment(
   options: { idFactory?: IdFactory; now?: () => string } = {},
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
+  const roomName = resolveAppointmentRoomName(data, input);
   validateAppointmentSchedule(data, {
     customerId: input.customerId,
     staffId: input.staffId,
     serviceId: input.serviceId,
     startAt: input.startAt,
+    roomName,
   });
 
   return {
@@ -2759,6 +2763,7 @@ export function createAppointment(
         staffId: input.staffId,
         serviceId: input.serviceId,
         startAt: input.startAt,
+        roomName,
         status: "待确认",
         note: input.note ?? "",
         updatedAt: (options.now ?? nowIso)(),
@@ -2830,11 +2835,18 @@ export function rescheduleAppointment(
 
   const nextStaffId = input.staffId ?? appointment.staffId;
   const nextServiceId = input.serviceId ?? appointment.serviceId;
+  const nextRoomName = input.roomName?.trim() || appointment.roomName || resolveAppointmentRoomName(data, {
+    customerId: appointment.customerId,
+    staffId: nextStaffId,
+    serviceId: nextServiceId,
+    startAt: input.startAt,
+  });
   validateAppointmentSchedule(data, {
     customerId: appointment.customerId,
     staffId: nextStaffId,
     serviceId: nextServiceId,
     startAt: input.startAt,
+    roomName: nextRoomName,
     excludeAppointmentId: appointment.id,
   });
 
@@ -2848,6 +2860,7 @@ export function rescheduleAppointment(
         staffId: nextStaffId,
         serviceId: nextServiceId,
         startAt: input.startAt,
+        roomName: nextRoomName,
         note: input.note ?? item.note,
         status: item.status === "待确认" ? "待确认" : "已确认",
         rescheduledAt: currentTime,
@@ -2861,6 +2874,42 @@ function isAppointmentStatus(status: string): status is Appointment["status"] {
   return ["待确认", "已确认", "已到店", "已完成", "已取消", "爽约"].includes(status);
 }
 
+function roomNamesOf(data: AppData) {
+  const names = data.storeProfiles[0]?.roomNames?.map((roomName) => roomName.trim()).filter(Boolean) ?? [];
+  return names.length > 0 ? names : DEFAULT_ROOM_NAMES;
+}
+
+function maintenanceRoomCountOf(data: AppData, roomNames: string[]) {
+  const count = data.storeProfiles[0]?.maintenanceRoomCount ?? 0;
+  return Math.max(0, Math.min(roomNames.length, count));
+}
+
+function isActiveAppointmentForRoom(appointment: Appointment) {
+  return !["已完成", "已取消", "爽约"].includes(appointment.status);
+}
+
+function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
+  const roomNames = roomNamesOf(data);
+  const maintenanceRoomCount = maintenanceRoomCountOf(data, roomNames);
+  const availableRoomNames = roomNames.slice(0, Math.max(0, roomNames.length - maintenanceRoomCount));
+  const requestedRoomName = input.roomName?.trim();
+  if (requestedRoomName) return requestedRoomName;
+
+  const selectedService = data.services.find((item) => item.id === input.serviceId);
+  const startAt = new Date(input.startAt);
+  const endAt = new Date(startAt.getTime() + (selectedService?.duration ?? 60) * 60 * 1000);
+  return availableRoomNames.find((roomName) =>
+    !data.appointments.some((appointment) => {
+      if (!isActiveAppointmentForRoom(appointment)) return false;
+      if ((appointment.roomName ?? "") !== roomName) return false;
+      const service = data.services.find((item) => item.id === appointment.serviceId);
+      const appointmentStart = new Date(appointment.startAt);
+      const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+      return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
+    }),
+  ) ?? availableRoomNames[0] ?? "";
+}
+
 function validateAppointmentSchedule(
   data: AppData,
   input: {
@@ -2868,6 +2917,7 @@ function validateAppointmentSchedule(
     staffId: string;
     serviceId: string;
     startAt: string;
+    roomName?: string;
     excludeAppointmentId?: string;
   },
 ) {
@@ -2883,6 +2933,13 @@ function validateAppointmentSchedule(
   const startAt = new Date(input.startAt);
   if (Number.isNaN(startAt.getTime())) throw new Error("预约时间不正确");
   const endAt = new Date(startAt.getTime() + selectedService.duration * 60 * 1000);
+  const selectedRoomName = input.roomName?.trim();
+  if (!selectedRoomName) throw new Error("请选择预约房间");
+  const roomNames = roomNamesOf(data);
+  const maintenanceRoomCount = maintenanceRoomCountOf(data, roomNames);
+  const availableRoomNames = roomNames.slice(0, Math.max(0, roomNames.length - maintenanceRoomCount));
+  if (!roomNames.includes(selectedRoomName)) throw new Error("预约房间不存在");
+  if (!availableRoomNames.includes(selectedRoomName)) throw new Error("该房间维护中，不能预约");
 
   const hasAppointmentConflict = data.appointments.some((appointment) => {
     if (appointment.id === input.excludeAppointmentId) return false;
@@ -2905,6 +2962,20 @@ function validateAppointmentSchedule(
 
   if (hasUnavailableConflict) {
     throw new Error("该员工在此时间段不可预约");
+  }
+
+  const hasRoomConflict = data.appointments.some((appointment) => {
+    if (appointment.id === input.excludeAppointmentId) return false;
+    if (!isActiveAppointmentForRoom(appointment)) return false;
+    if ((appointment.roomName ?? "") !== selectedRoomName) return false;
+    const service = data.services.find((item) => item.id === appointment.serviceId);
+    const appointmentStart = new Date(appointment.startAt);
+    const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+    return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
+  });
+
+  if (hasRoomConflict) {
+    throw new Error("该房间在此时间段已有预约");
   }
 
   const shiftsForDay = data.staffShifts.filter(

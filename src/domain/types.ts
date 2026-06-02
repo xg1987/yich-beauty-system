@@ -216,6 +216,7 @@ export type Appointment = {
   staffId: string;
   serviceId: string;
   startAt: string;
+  roomName?: string;
   status: "待确认" | "已确认" | "已到店" | "已完成" | "已取消" | "爽约";
   note: string;
   arrivedAt?: string;

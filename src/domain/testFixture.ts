@@ -120,8 +120,8 @@ export const testFixtureData: AppData = {
     { id: "p4", name: "家用补水面膜", type: "sale", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8 },
   ],
   appointments: [
-    { id: "a1", customerId: "c1", staffId: "s2", serviceId: "v1", startAt: tomorrowAt(10), status: "已确认", note: "做完需回访" },
-    { id: "a2", customerId: "c3", staffId: "s1", serviceId: "v3", startAt: tomorrowAt(14), status: "待确认", note: "老客套餐咨询" },
+    { id: "a1", customerId: "c1", staffId: "s2", serviceId: "v1", startAt: tomorrowAt(10), roomName: "护理房 1", status: "已确认", note: "做完需回访" },
+    { id: "a2", customerId: "c3", staffId: "s1", serviceId: "v3", startAt: tomorrowAt(14), roomName: "VIP护理房", status: "待确认", note: "老客套餐咨询" },
   ],
   onlineBookingRequests: [],
   staffUnavailableSlots: [],

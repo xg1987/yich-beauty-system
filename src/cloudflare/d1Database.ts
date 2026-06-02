@@ -238,12 +238,13 @@ export class D1BeautyDatabase {
 
     for (const appointment of data.appointments) {
       statements.push(
-        this.statement("INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           appointment.id,
           appointment.customerId,
           appointment.staffId,
           appointment.serviceId,
           appointment.startAt,
+          appointment.roomName ?? null,
           appointment.status,
           appointment.note,
           appointment.arrivedAt ?? null,
@@ -494,6 +495,7 @@ function mapAppointment(row: unknown): Appointment {
   const value = row as Appointment;
   return {
     ...value,
+    roomName: value.roomName ?? undefined,
     arrivedAt: value.arrivedAt ?? undefined,
     completedAt: value.completedAt ?? undefined,
     canceledAt: value.canceledAt ?? undefined,

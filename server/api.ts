@@ -669,6 +669,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             staffId: requiredString(body, "staffId"),
             serviceId: requiredString(body, "serviceId"),
             startAt: requiredString(body, "startAt"),
+            roomName: requiredString(body, "roomName"),
             note: optionalString(body, "note") ?? "",
           }),
         );
@@ -734,6 +735,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             staffId: optionalString(body, "staffId"),
             serviceId: optionalString(body, "serviceId"),
             startAt: requiredString(body, "startAt"),
+            roomName: optionalString(body, "roomName"),
             note: optionalString(body, "note"),
           }),
         );

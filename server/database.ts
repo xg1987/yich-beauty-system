@@ -247,7 +247,7 @@ export class BeautyDatabase {
     for (const appointment of data.appointments) {
       this.db
         .prepare(
-          "INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           appointment.id,
@@ -255,6 +255,7 @@ export class BeautyDatabase {
           appointment.staffId,
           appointment.serviceId,
           appointment.startAt,
+          appointment.roomName ?? null,
           appointment.status,
           appointment.note,
           appointment.arrivedAt ?? null,
@@ -524,6 +525,7 @@ export class BeautyDatabase {
         staffId TEXT NOT NULL,
         serviceId TEXT NOT NULL,
         startAt TEXT NOT NULL,
+        roomName TEXT,
         status TEXT NOT NULL,
         note TEXT NOT NULL,
         arrivedAt TEXT,
@@ -745,6 +747,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("appointments", "noShowAt", "TEXT");
     this.addColumnIfMissing("appointments", "rescheduledAt", "TEXT");
     this.addColumnIfMissing("appointments", "updatedAt", "TEXT");
+    this.addColumnIfMissing("appointments", "roomName", "TEXT");
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
@@ -802,6 +805,7 @@ function mapAppointment(row: unknown): Appointment {
   const value = row as Appointment;
   return {
     ...value,
+    roomName: value.roomName ?? undefined,
     arrivedAt: value.arrivedAt ?? undefined,
     completedAt: value.completedAt ?? undefined,
     canceledAt: value.canceledAt ?? undefined,

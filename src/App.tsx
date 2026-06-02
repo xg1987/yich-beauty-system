@@ -18,14 +18,12 @@ import {
   Megaphone,
   MessageCircle,
   PackagePlus,
-  Plus,
   RefreshCw,
   Save,
   Settings,
   Share2,
   ShieldCheck,
   Sparkles,
-  Trash2,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -217,6 +215,14 @@ function parseRoomNames(value: string) {
     .map((roomName) => roomName.trim())
     .filter(Boolean)
     .slice(0, 20);
+}
+
+function hasTimeOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
+  return startA < endB && startB < endA;
+}
+
+function isActiveRoomAppointment(appointment: Appointment) {
+  return !["已完成", "已取消", "爽约"].includes(appointment.status);
 }
 
 async function copyTextToClipboard(text: string) {
@@ -2465,10 +2471,8 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const staffOptions = serviceStaff.map(optionOf);
   const serviceStaffIds = new Set(serviceStaff.map((staff) => staff.id));
   const roomNames = roomNamesOf(data);
-  const roomSignature = roomNames.join("\n");
-  const [roomNamesText, setRoomNamesText] = useState(roomSignature);
-  const [roomSaved, setRoomSaved] = useState(false);
-  const [activeModule, setActiveModule] = useState<"new" | "list" | "schedule" | "blocked" | "rooms" | "online" | undefined>();
+  const [roomName, setRoomName] = useState(roomNames[0] ?? "");
+  const [activeModule, setActiveModule] = useState<"new" | "rooms" | undefined>();
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -2479,13 +2483,9 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     if (!serviceStaff.some((staff) => staff.id === rescheduleStaffId)) setRescheduleStaffId(firstStaffId);
   }, [blockedStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
 
-  useEffect(() => {
-    setRoomNamesText(roomSignature);
-  }, [roomSignature]);
-
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.addAppointment({ customerId, staffId, serviceId, startAt: new Date(startAt).toISOString(), note }));
+    void runMutation(() => actions.addAppointment({ customerId, staffId, serviceId, startAt: new Date(startAt).toISOString(), roomName, note }));
     setNote("");
   };
 
@@ -2557,26 +2557,6 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     );
   };
 
-  const saveRooms = (event: FormEvent) => {
-    event.preventDefault();
-    const store = data.storeProfiles[0];
-    const nextRoomNames = parseRoomNames(roomNamesText);
-    if (!store || nextRoomNames.length === 0) return;
-    void runMutation(() =>
-      actions.updateStoreProfile({
-        name: store.name,
-        phone: store.phone,
-        address: store.address,
-        businessHours: store.businessHours,
-        roomNames: nextRoomNames,
-        maintenanceRoomCount: Math.min(store.maintenanceRoomCount ?? 0, nextRoomNames.length),
-      }),
-    ).then(() => {
-      setRoomSaved(true);
-      window.setTimeout(() => setRoomSaved(false), 1400);
-    });
-  };
-
   // 排班增强：简单冲突检测
   const checkAvailability = (staffId: string, start: string, end: string) => {
     const conflicts = data.staffUnavailableSlots.filter(slot =>
@@ -2595,33 +2575,40 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, maintenanceRoomCountOf(data));
-  const roomNameFields = roomNamesText.split("\n").slice(0, 20);
-  const roomDraftNames = roomNameFields.map((roomName, index) => roomName.trim() || `房间 ${index + 1}`);
-  const draftMaintenanceRoomCount = Math.min(maintenanceRoomCountOf(data), roomDraftNames.length);
-  const draftRoomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomDraftNames, draftMaintenanceRoomCount);
-  const parsedRoomCount = parseRoomNames(roomNamesText).length;
-  const updateRoomName = (index: number, nextName: string) => {
-    const nextRoomNames = [...roomNameFields];
-    nextRoomNames[index] = nextName;
-    setRoomNamesText(nextRoomNames.join("\n"));
-  };
-  const addRoom = () => {
-    if (roomNameFields.length >= 20) return;
-    const nextName = `护理房 ${roomNameFields.length + 1}`;
-    setRoomNamesText([...roomNameFields, nextName].join("\n"));
-  };
-  const removeRoom = (index: number) => {
-    if (roomNameFields.length <= 1) return;
-    setRoomNamesText(roomNameFields.filter((_, roomIndex) => roomIndex !== index).join("\n"));
-  };
+  const selectedService = data.services.find((item) => item.id === serviceId);
+  const selectedStartAt = new Date(startAt);
+  const selectedEndAt = new Date(selectedStartAt.getTime() + (selectedService?.duration ?? 60) * 60 * 1000);
+  const maintenanceRoomCount = maintenanceRoomCountOf(data);
+  const maintenanceRoomNames = new Set(roomNames.slice(Math.max(0, roomNames.length - maintenanceRoomCount)));
+  const roomAvailabilityOptions = roomNames.map((name) => {
+    const isMaintenance = maintenanceRoomNames.has(name);
+    const conflictAppointment = data.appointments.find((appointment) => {
+      if (!isActiveRoomAppointment(appointment)) return false;
+      if ((appointment.roomName ?? "") !== name) return false;
+      const appointmentService = data.services.find((item) => item.id === appointment.serviceId);
+      const appointmentStart = new Date(appointment.startAt);
+      const appointmentEnd = new Date(appointmentStart.getTime() + (appointmentService?.duration ?? 60) * 60 * 1000);
+      return hasTimeOverlap(selectedStartAt, selectedEndAt, appointmentStart, appointmentEnd);
+    });
+    const disabled = isMaintenance || Boolean(conflictAppointment);
+    const reason = isMaintenance ? "维护中" : conflictAppointment ? "该时间已预约" : "可预约";
+    return {
+      value: name,
+      label: `${name} · ${reason}`,
+      disabled,
+      conflictAppointment,
+      isMaintenance,
+    };
+  });
+  const firstAvailableRoom = roomAvailabilityOptions.find((option) => !option.disabled)?.value ?? "";
+  useEffect(() => {
+    const selectedRoom = roomAvailabilityOptions.find((option) => option.value === roomName);
+    if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
+  }, [firstAvailableRoom, roomAvailabilityOptions, roomName]);
   type AppointmentModuleKey = NonNullable<typeof activeModule>;
   const appointmentModules: Array<FeatureModule<AppointmentModuleKey>> = [
-    { key: "new", title: "新增预约", desc: "客户、项目、员工和预约时间", icon: CalendarDays, tone: "violet", meta: "开单前入口" },
-    { key: "list", title: "预约列表", desc: "确认、到店、改约和取消", icon: ClipboardList, tone: "rose", meta: `${data.appointments.length} 条` },
-    { key: "schedule", title: "员工排班", desc: "设置上班时段和班次说明", icon: UsersRound, tone: "jade", meta: `${data.staffShifts.length} 条` },
-    { key: "blocked", title: "不可预约", desc: "锁定休息、培训和占用时间", icon: LockKeyhole, tone: "amber", meta: `${data.staffUnavailableSlots.length} 条` },
-    { key: "rooms", title: "房间设置", desc: "房间数量、房名和今日占用", icon: Building2, tone: "teal", meta: `${roomUsage.availableRoomCount} 间` },
-    { key: "online", title: "线上申请", desc: "线上预约转入门店预约", icon: Share2, tone: "plum", meta: `${pendingOnlineRequests.length} 个待处理` },
+    { key: "rooms", title: "当前房间使用情况", desc: "查看今日房间空闲、占用和维护", icon: Building2, tone: "teal", meta: `${roomUsage.availableRoomCount} 间可用` },
+    { key: "new", title: "新增预约", desc: "客户 / 项目 / 员工 / 时间 / 房间", icon: CalendarDays, tone: "violet", meta: "点击创建" },
   ];
   const activeModuleTitle = activeModule ? appointmentModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
@@ -2631,21 +2618,14 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         icon={<CalendarDays size={15} />}
         eyebrow="预约管理"
         title="预约管理"
-        desc="管理客户预约、员工排班、不可预约时段与到店确认。"
-        stats={[
-          { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "当天服务计划", icon: <CalendarDays size={18} /> },
-          { label: "待到店", value: `${pendingArrival} 单`, hint: "需确认或接待", icon: <ClipboardList size={18} /> },
-          { label: "线上申请", value: `${pendingOnlineRequests.length} 单`, hint: "线上预约提交", icon: <Share2 size={18} /> },
-          { label: "可服务员工", value: `${availableStaff} 人`, hint: "扣除锁定时段", icon: <UsersRound size={18} /> },
-          { label: "可用房间", value: `${roomUsage.availableRoomCount} 间`, hint: "预约看板可见", icon: <Building2 size={18} /> },
-        ]}
+        desc="选择预约时间并分配可用房间，已占用或维护中的房间不能重复预约。"
       />
       <ModuleOverview modules={appointmentModules} activeKey={activeModule} onSelect={setActiveModule} />
       {activeModule && <ModuleSubpageHeader parentTitle="预约管理" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
         {activeModule === "new" && (
         <section className="panel">
-          <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="员工时间锁定" />
+          <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="选择可用房间" />
           <form className="form" onSubmit={addAppointment}>
           <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           <Select label="服务员工" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
@@ -2654,235 +2634,72 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             预约时间
             <input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
           </label>
+          <Select
+            label="房间"
+            value={roomName}
+            onChange={setRoomName}
+            options={roomAvailabilityOptions.length ? roomAvailabilityOptions : [{ value: "", label: "请先到管理中心设置房间", disabled: true }]}
+          />
+          <div className="appointment-room-choice-note">
+            <strong>可预约</strong>
+            <span>{roomAvailabilityOptions.filter((option) => !option.disabled).map((option) => option.value).join("、") || "暂无可用房间"}</span>
+          </div>
           <label>
             备注
             <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
           </label>
           {selectedTimeConflict && <p style={{color: 'red', fontSize: 13}}>⚠️ 该员工在此时间段有不可预约安排，建议调整时间</p>}
-          <button className="primary-button" disabled={!staffId}>保存预约</button>
+          <button className="primary-button" disabled={!staffId || !roomName}>保存预约</button>
         </form>
-        </section>
-        )}
-        {activeModule === "blocked" && (
-        <section className="panel">
-        <PanelTitle icon={<CalendarDays size={18} />} title="锁定员工时间" action="不可预约" />
-        <form className="form" onSubmit={addBlockedSlot}>
-          <Select label="员工" value={blockedStaffId} onChange={setBlockedStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-          <label>
-            开始时间
-            <input type="datetime-local" value={blockedStartAt} onChange={(event) => setBlockedStartAt(event.target.value)} />
-          </label>
-          <label>
-            结束时间
-            <input type="datetime-local" value={blockedEndAt} onChange={(event) => setBlockedEndAt(event.target.value)} />
-          </label>
-          <label>
-            原因
-            <input value={blockedReason} onChange={(event) => setBlockedReason(event.target.value)} />
-          </label>
-          <button className="primary-button" disabled={!blockedStaffId}>锁定时间</button>
-        </form>
-        <div className="divider" />
-        <PanelTitle icon={<CalendarDays size={18} />} title="不可预约时段" action={`${data.staffUnavailableSlots.length} 条`} />
-        <DataTable
-          columns={["员工", "开始", "结束", "原因", "创建时间"]}
-          rows={data.staffUnavailableSlots.map((slot) => [
-            nameOf(data.staff, slot.staffId),
-            shortDate(slot.startAt),
-            shortDate(slot.endAt),
-            slot.reason,
-            shortDate(slot.createdAt),
-          ])}
-        />
-        </section>
-        )}
-        {activeModule === "schedule" && (
-        <section className="panel">
-        <PanelTitle icon={<CalendarDays size={18} />} title="员工排班" action="预约校验" />
-        <form className="form" onSubmit={addShift}>
-          <Select label="员工" value={shiftStaffId} onChange={setShiftStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-          <label>
-            上班时间
-            <input type="datetime-local" value={shiftStartAt} onChange={(event) => setShiftStartAt(event.target.value)} />
-          </label>
-          <label>
-            下班时间
-            <input type="datetime-local" value={shiftEndAt} onChange={(event) => setShiftEndAt(event.target.value)} />
-          </label>
-          <label>
-            班次说明
-            <input value={shiftNote} onChange={(event) => setShiftNote(event.target.value)} />
-          </label>
-          <button className="primary-button" disabled={!shiftStaffId}>保存班次</button>
-        </form>
-        <div className="divider" />
-        <PanelTitle icon={<CalendarDays size={18} />} title="班次列表" action={`${data.staffShifts.length} 条`} />
-        <DataTable
-          columns={["员工", "上班", "下班", "说明", "创建时间"]}
-          rows={data.staffShifts.map((shift) => [
-            nameOf(data.staff, shift.staffId),
-            shortDate(shift.startAt),
-            shortDate(shift.endAt),
-            shift.note,
-            shortDate(shift.createdAt),
-          ])}
-        />
         </section>
         )}
         {activeModule === "rooms" && (
         <section className="panel">
-          <PanelTitle icon={<Building2 size={18} />} title="房间设置" action={`${roomNames.length} 间`} />
-          <form className="room-settings-card" onSubmit={saveRooms}>
-            <div className="appointment-room-summary">
-              <div>
-                <span>设置房间</span>
-                <strong>{roomDraftNames.length}</strong>
-                <small>逐间管理</small>
-              </div>
-              <div>
-                <span>今日占用</span>
-                <strong>{draftRoomUsage.bookedRoomSlots}</strong>
-                <small>预约房间</small>
-              </div>
-              <div>
-                <span>今日剩余</span>
-                <strong>{draftRoomUsage.remainingRoomSlots}</strong>
-                <small>可继续预约</small>
-              </div>
-              <div>
-                <span>维护中</span>
-                <strong>{draftRoomUsage.maintenanceRoomCount}</strong>
-                <small>暂不可约</small>
-              </div>
+          <PanelTitle icon={<Building2 size={18} />} title="当前房间使用情况" action={`${roomUsage.remainingRoomSlots} 间可预约`} />
+          <div className="appointment-room-summary">
+            <div>
+              <span>可用房间</span>
+              <strong>{roomUsage.availableRoomCount}</strong>
+              <small>管理中心配置</small>
             </div>
-            <div className="room-settings-toolbar">
-              <strong>{roomDraftNames.length} 个房间组件</strong>
-              <button type="button" onClick={addRoom} disabled={roomNameFields.length >= 20}>
-                <Plus size={16} />
-                新增房间
-              </button>
+            <div>
+              <span>今日占用</span>
+              <strong>{roomUsage.bookedRoomSlots}</strong>
+              <small>已有预约</small>
             </div>
-            <div className="room-editor-grid">
-              {roomDraftNames.map((roomName, index) => {
-                const assignment = draftRoomUsage.roomAssignments[index]?.appointment;
-                const isMaintenance = draftRoomUsage.maintenanceRoomCount > 0 && index >= roomDraftNames.length - draftRoomUsage.maintenanceRoomCount;
-                const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "空闲";
-                const statusHint = isMaintenance
-                  ? "暂不可预约"
-                  : assignment
-                    ? `${nameOf(data.customers, assignment.customerId)} · ${nameOf(data.services, assignment.serviceId)}`
-                    : "今日可预约";
-                return (
-                <article className={`room-editor-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${roomName}-${index}`}>
-                  <div className="room-editor-card-header">
+            <div>
+              <span>当前剩余</span>
+              <strong>{roomUsage.remainingRoomSlots}</strong>
+              <small>可继续预约</small>
+            </div>
+            <div>
+              <span>维护中</span>
+              <strong>{roomUsage.maintenanceRoomCount}</strong>
+              <small>不可预约</small>
+            </div>
+          </div>
+          <div className="appointment-room-state-grid">
+            {roomNames.map((name, index) => {
+              const assignment = roomUsage.roomAssignments.find((item) => item.roomName === name)?.appointment;
+              const isMaintenance = maintenanceRoomNames.has(name);
+              const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "空闲";
+              const statusHint = isMaintenance
+                ? "暂不可预约"
+                : assignment
+                  ? `${nameOf(data.customers, assignment.customerId)} · ${shortDate(assignment.startAt)}`
+                  : "今日暂无预约";
+              return (
+                <article className={`appointment-room-state-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${name}-${index}`}>
+                  <div>
                     <span>房间 {index + 1}</span>
-                    <strong>{statusText}</strong>
+                    <strong>{name}</strong>
                   </div>
-                  <label>
-                    房间名称
-                    <input value={roomNameFields[index] ?? ""} onChange={(event) => updateRoomName(index, event.target.value)} />
-                  </label>
-                  <div className="room-editor-card-meta">
-                    <span>{statusHint}</span>
-                    <small>{assignment ? shortDate(assignment.startAt) : "无预约占用"}</small>
-                  </div>
-                  <button type="button" className="room-editor-remove" onClick={() => removeRoom(index)} disabled={roomNameFields.length <= 1}>
-                    <Trash2 size={15} />
-                    删除
-                  </button>
+                  <b>{statusText}</b>
+                  <small>{statusHint}</small>
                 </article>
-                );
-              })}
-            </div>
-            <button className="primary-button" disabled={parsedRoomCount === 0}>{roomSaved ? "已保存" : "保存房间设置"}</button>
-          </form>
-        </section>
-        )}
-        {activeModule === "online" && (
-        <section className="panel">
-          <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${pendingOnlineRequests.length} 个待处理`} />
-        <div className="inline-form online-request-toolbar">
-          <Select label="转预约员工" value={onlineRequestStaffId} onChange={setOnlineRequestStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-        </div>
-        <div className="card-list">
-          {data.onlineBookingRequests.map((request) => (
-            <article className="record-card" key={request.id}>
-              <div>
-                <strong>{request.customerName} · {request.phone}</strong>
-                <span>{shortDate(request.preferredAt)} · {nameOf(data.services, request.serviceId)}</span>
-                {request.note && <small>{request.note}</small>}
-              </div>
-              <div className="row-actions">
-                <Badge text={request.status} tone={request.status === "已转预约" ? "ok" : request.status === "已关闭" ? "warn" : undefined} />
-                {request.status === "待处理" && (
-                  <button disabled={!onlineRequestStaffId} onClick={() => void runMutation(() => actions.convertOnlineBookingRequest(request.id, onlineRequestStaffId))}>转预约</button>
-                )}
-              </div>
-            </article>
-          ))}
-          {data.onlineBookingRequests.length === 0 && <p className="empty">暂无线上预约申请</p>}
-        </div>
-        </section>
-        )}
-        {activeModule === "list" && (
-        <section className="panel">
-          <PanelTitle icon={<ClipboardList size={18} />} title="预约列表" action="支持到店确认" />
-        <div className="card-list">
-          {data.appointments.map((item) => (
-            <article className="record-card" key={item.id}>
-              <div>
-                <strong>{nameOf(data.customers, item.customerId)}</strong>
-                <span>{shortDate(item.startAt)} · {nameOf(data.services, item.serviceId)} · {nameOf(data.staff, item.staffId)}</span>
-                {item.note && <small>{item.note}</small>}
-                {item.rescheduledAt && <small>最近改约：{shortDate(item.rescheduledAt)}</small>}
-                {item.arrivedAt && <small>到店：{shortDate(item.arrivedAt)}</small>}
-                {item.completedAt && <small>完成：{shortDate(item.completedAt)}</small>}
-                {item.cancelReason && <small>取消原因：{item.cancelReason}</small>}
-              </div>
-              <div className="row-actions">
-                <Badge text={item.status} tone={appointmentTone(item)} />
-                {item.status === "待确认" && <button onClick={() => setStatus(item.id, "已确认")}>确认</button>}
-                {(item.status === "待确认" || item.status === "已确认") && <button onClick={() => setStatus(item.id, "已到店")}>到店</button>}
-                {item.status === "已到店" && <button onClick={() => setStatus(item.id, "已完成")}>完成</button>}
-                {(item.status === "待确认" || item.status === "已确认") && <button onClick={() => openReschedule(item)}>改约</button>}
-                {(item.status === "待确认" || item.status === "已确认" || item.status === "已到店") && (
-                  <button onClick={() => openCancel(item)}>取消</button>
-                )}
-                {(item.status === "待确认" || item.status === "已确认") && <button onClick={() => setStatus(item.id, "爽约")}>爽约</button>}
-              </div>
-              {activeAppointmentId === item.id && activeAppointmentAction === "reschedule" && (
-                <form className="appointment-action-form" onSubmit={submitReschedule}>
-                  <Select label="服务员工" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-                  <Select label="服务项目" value={rescheduleServiceId} onChange={setRescheduleServiceId} options={data.services.map(optionOf)} />
-                  <label>
-                    新预约时间
-                    <input type="datetime-local" value={rescheduleStartAt} onChange={(event) => setRescheduleStartAt(event.target.value)} />
-                  </label>
-                  <label>
-                    改约备注
-                    <input value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} />
-                  </label>
-                  <div className="row-actions">
-                    <button className="primary-button">保存改约</button>
-                    <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>收起</button>
-                  </div>
-                </form>
-              )}
-              {activeAppointmentId === item.id && activeAppointmentAction === "cancel" && (
-                <form className="appointment-action-form" onSubmit={submitCancel}>
-                  <label>
-                    取消原因
-                    <input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="例如客户临时取消、时间冲突" />
-                  </label>
-                  <div className="row-actions">
-                    <button className="primary-button">确认取消</button>
-                    <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>收起</button>
-                  </div>
-                </form>
-              )}
-            </article>
-          ))}
-        </div>
+              );
+            })}
+          </div>
         </section>
         )}
       </div>

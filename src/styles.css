@@ -7335,6 +7335,89 @@ textarea,
   box-shadow: 0 0 0 4px rgba(111, 66, 193, 0.08);
 }
 
+.appointment-room-choice-note {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid rgba(42, 143, 125, 0.18);
+  border-radius: 16px;
+  background: rgba(42, 143, 125, 0.08);
+}
+
+.appointment-room-choice-note strong {
+  color: #1f6f61;
+  font-size: 13px;
+  font-weight: 920;
+}
+
+.appointment-room-choice-note span {
+  color: rgba(49, 40, 36, 0.66);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
+.appointment-room-state-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 12px;
+}
+
+.appointment-room-state-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid rgba(188, 139, 126, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 252, 249, 0.88);
+  box-shadow: 0 14px 34px rgba(139, 91, 79, 0.07);
+}
+
+.appointment-room-state-card span,
+.appointment-room-state-card small {
+  color: rgba(49, 40, 36, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.appointment-room-state-card strong {
+  display: block;
+  margin-top: 6px;
+  color: #312824;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.appointment-room-state-card b {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.appointment-room-state-card small {
+  grid-column: 1 / -1;
+  line-height: 1.45;
+}
+
+.appointment-room-state-card.available b {
+  background: #2a8f7d;
+}
+
+.appointment-room-state-card.occupied b {
+  background: #c74363;
+}
+
+.appointment-room-state-card.maintenance b {
+  background: #b87621;
+}
+
 .room-settings-toolbar {
   display: flex;
   align-items: center;
