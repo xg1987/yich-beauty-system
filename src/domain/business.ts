@@ -44,7 +44,6 @@ import { makeId, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
 
-export const DEFAULT_OWNER_INVITE_CODE = "YC8M6P";
 const PLATFORM_INVITE_PREFIX = "YC";
 const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -1309,8 +1308,7 @@ export function joinStoreOwnerInvite(
   const inviteCode = input.inviteCode.trim().toUpperCase();
   const invite = (data.storeOwnerInvites ?? []).find((item) => item.inviteCode.trim().toUpperCase() === inviteCode && item.status === "待加入");
   const inviteIssuerId = invite?.createdBy ?? platformInviteIssuerId(data, inviteCode);
-  const isLegacyInvite = inviteCode === DEFAULT_OWNER_INVITE_CODE;
-  if (!invite && !inviteIssuerId && !isLegacyInvite) throw new Error("邀请不存在或已失效");
+  if (!invite && !inviteIssuerId) throw new Error("邀请不存在或已失效");
   if (invite?.expiresAt && +new Date(invite.expiresAt) <= +new Date(createdAt)) throw new Error("邀请码已过期");
   const ownerName = input.name.trim() || invite?.ownerName || "";
   const storeName = (input.storeName ?? invite?.storeName ?? "").trim();
@@ -1472,8 +1470,7 @@ export function joinInviteByCode(
 ): AppData {
   const inviteCode = input.inviteCode.trim().toUpperCase();
   if (
-    inviteCode === DEFAULT_OWNER_INVITE_CODE
-    || platformInviteIssuerId(data, inviteCode)
+    platformInviteIssuerId(data, inviteCode)
     || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === inviteCode && item.status === "待加入")
   ) {
     return joinStoreOwnerInvite(data, input, options);
@@ -1481,10 +1478,9 @@ export function joinInviteByCode(
   return joinStaffInvite(data, input, options);
 }
 
-export function accountForInvite(data: AppData, inviteCode: string, fallbackAccount?: string) {
+export function accountForInvite(data: AppData, inviteCode: string) {
   const normalizedInviteCode = inviteCode.trim().toUpperCase();
-  return (normalizedInviteCode === DEFAULT_OWNER_INVITE_CODE ? fallbackAccount : undefined)
-    ?? (data.storeOwnerInvites ?? []).find((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode)?.account
+  return (data.storeOwnerInvites ?? []).find((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode)?.account
     ?? data.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode)?.account;
 }
 

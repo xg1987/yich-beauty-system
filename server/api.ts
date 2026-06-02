@@ -29,7 +29,6 @@ import {
   createStocktake,
   decideStoreOwnerApplication,
   completeCustomerFollowUp,
-  DEFAULT_OWNER_INVITE_CODE,
   decideApprovalRequest,
   extendMemberCard,
   receivePurchaseOrder,
@@ -181,7 +180,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           return;
         }
 
-        const joinedAccount = accountForInvite(currentData, inviteCode, optionalString(body, "account"));
+        const joinedAccount = accountForInvite(currentData, inviteCode);
         if (!joinedAccount) throw new Error("邀请账号不存在");
         const loginResult = await login(joinedAccount, plainPassword, nextData.authUsers);
         sendJson(response, 201, loginResult.session);
@@ -1362,8 +1361,7 @@ function publicSignaturePayload(data: AppData, token: string) {
 
 function isStoreOwnerInviteCode(data: AppData, inviteCode: string) {
   const normalizedInviteCode = inviteCode.trim().toUpperCase();
-  return normalizedInviteCode === DEFAULT_OWNER_INVITE_CODE
-    || Boolean(platformInviteIssuerId(data, normalizedInviteCode))
+  return Boolean(platformInviteIssuerId(data, normalizedInviteCode))
     || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode && item.status === "待加入");
 }
 

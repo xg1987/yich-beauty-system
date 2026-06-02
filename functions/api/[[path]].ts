@@ -40,7 +40,6 @@ import {
   updateAppointmentStatus,
   transferMemberCard,
   upsertOnlineStorefront,
-  DEFAULT_OWNER_INVITE_CODE,
   joinInviteByCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
@@ -1332,8 +1331,7 @@ function shortTimeText(value: string) {
 
 function isStoreOwnerInviteCode(data: AppData, inviteCode: string) {
   const normalizedInviteCode = inviteCode.trim().toUpperCase();
-  return normalizedInviteCode === DEFAULT_OWNER_INVITE_CODE
-    || Boolean(platformInviteIssuerId(data, normalizedInviteCode))
+  return Boolean(platformInviteIssuerId(data, normalizedInviteCode))
     || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode && item.status === "待加入");
 }
 

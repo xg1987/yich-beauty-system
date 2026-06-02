@@ -17,7 +17,6 @@ import {
   createStaffInvite,
   createStaffUnavailableSlot,
   createStocktake,
-  DEFAULT_OWNER_INVITE_CODE,
   completeCustomerFollowUp,
   createTagDefinition,
   decideApprovalRequest,
@@ -30,6 +29,7 @@ import {
   formalDataAudit,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  platformInviteCodeForUser,
   previewFormalDataCleanup,
   receivePurchaseOrder,
   rechargeMemberCard,
@@ -140,10 +140,30 @@ function card(data: AppData, cardId: string) {
   assert.equal(registered.storeProfiles[0].name, "测试美业门店", "store registration should update store profile");
   assert.equal(registered.authUsers[0].role, "owner", "store registration should create owner account");
   assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
+  const platformAdmin = cloneSeed().authUsers.find((user) => user.role === "superadmin");
+  assert.ok(platformAdmin, "test fixture should include a platform admin");
+  assert.throws(
+    () =>
+      joinInviteByCode(
+        cloneSeed(),
+        {
+          inviteCode: "YC8M6P",
+          storeName: "固定码门店",
+          name: "固定码老板",
+          phone: "13900001000",
+          address: "固定码地址",
+          account: "fixed-owner@test.local",
+          password: "secret",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /邀请不存在或已失效/,
+    "fixed owner invite code should not be accepted",
+  );
   const ownerJoined = joinInviteByCode(
     cloneSeed(),
     {
-      inviteCode: DEFAULT_OWNER_INVITE_CODE,
+      inviteCode: platformInviteCodeForUser(platformAdmin),
       storeName: "邀请制门店",
       name: "邀请老板",
       phone: "13900001111",
@@ -153,9 +173,11 @@ function card(data: AppData, cardId: string) {
     },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(ownerJoined.authUsers[0].role, "owner", "owner invite should create owner account");
-  assert.equal(ownerJoined.storeProfiles[0].name, "邀请制门店", "owner invite should create store");
-  assert.equal(ownerJoined.authUsers[0].account, "invited-owner@test.local", "owner invite should use submitted account");
+  assert.equal(ownerJoined.storeOwnerApplications[0].status, "待审批", "owner invite should create pending application");
+  assert.equal(ownerJoined.storeOwnerApplications[0].storeName, "邀请制门店", "owner invite should keep submitted store");
+  assert.equal(ownerJoined.storeOwnerApplications[0].account, "invited-owner@test.local", "owner invite should keep submitted account");
+  assert.equal(ownerJoined.storeProfiles.length, cloneSeed().storeProfiles.length, "owner invite should not create store before approval");
+  assert.equal(ownerJoined.authUsers.length, cloneSeed().authUsers.length, "owner invite should not create user before approval");
   const updatedStore = updateStoreProfile(registered, {
     name: "测试皮肤管理中心",
     phone: "13900000002",

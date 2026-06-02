@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { Server } from "node:http";
 import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
-import { DEFAULT_OWNER_INVITE_CODE } from "../src/domain/business";
+import { platformInviteCodeForUser } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData, WorkerUsageSnapshot } from "../src/domain/types";
 
@@ -202,10 +202,30 @@ try {
     "legacy phone admin account should be readonly for business writes",
   );
 
-  const invitedOwnerSession = await request<{ token: string; user: { roleName: string; account: string } }>(baseUrl, "/api/auth/join-invite", {
+  await assert.rejects(
+    () =>
+      request<{ status: string }>(baseUrl, "/api/auth/join-invite", {
+        method: "POST",
+        body: {
+          inviteCode: "YC8M6P",
+          name: "固定码老板",
+          storeName: "固定码门店",
+          phone: "13900001000",
+          address: "固定码地址",
+          account: "fixed-invited-owner@test.local",
+          password: "secret",
+        },
+      }),
+    /邀请不存在或已失效/,
+    "fixed owner invite code should not submit an application",
+  );
+
+  const platformAdmin = testFixtureData.authUsers.find((user) => user.role === "superadmin");
+  assert.ok(platformAdmin, "test fixture should include a platform admin");
+  const invitedOwnerResult = await request<{ status: string; message: string; applicationId?: string }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
     body: {
-      inviteCode: DEFAULT_OWNER_INVITE_CODE,
+      inviteCode: platformInviteCodeForUser(platformAdmin),
       name: "API 老板",
       storeName: "API 邀请门店",
       phone: "13900001111",
@@ -214,8 +234,17 @@ try {
       password: "secret",
     },
   });
-  assert.equal(invitedOwnerSession.user.roleName, "老板", "owner invite should join as owner");
-  assert.equal(invitedOwnerSession.user.account, "api-invited-owner@test.local", "owner invite should login configured account");
+  assert.equal(invitedOwnerResult.status, "pending_approval", "owner invite should wait for approval");
+  assert.ok(invitedOwnerResult.applicationId, "owner invite should return application id");
+  const dataAfterOwnerApplication = await request<AppData>(baseUrl, "/api/data", { token: adminSession.token });
+  assert.ok(
+    dataAfterOwnerApplication.storeOwnerApplications.some((application) => application.id === invitedOwnerResult.applicationId && application.status === "待审批"),
+    "owner invite should create a pending application record",
+  );
+  assert.ok(
+    dataAfterOwnerApplication.authUsers.every((user) => user.account !== "api-invited-owner@test.local"),
+    "owner invite should not create owner account before approval",
+  );
 
   const afterStoreProfile = await request<AppData>(baseUrl, "/api/store-profile", {
     method: "PATCH",
