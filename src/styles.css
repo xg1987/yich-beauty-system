@@ -9441,6 +9441,103 @@ textarea,
   color: rgba(255, 255, 255, 0.82);
 }
 
+/* Workbench card parity: the signed-in first screen uses the same colored card system. */
+.workbench-metric-row .dashboard-metric,
+.workbench-action-row button,
+.workbench-panel,
+.workbench-quick-list button,
+.workbench-insight-list button {
+  border-color: rgba(109, 69, 196, 0.32);
+  background: linear-gradient(135deg, #5b2ca8 0%, #8751dd 56%, #b88af1 100%);
+  color: #fff;
+  box-shadow: 0 18px 42px rgba(69, 37, 127, 0.14);
+}
+
+.workbench-metric-row .dashboard-metric:nth-child(2),
+.workbench-action-row button:nth-child(2),
+.workbench-content-grid > .workbench-panel:nth-child(2),
+.workbench-quick-list button:nth-child(2),
+.workbench-insight-list button:nth-child(2) {
+  border-color: rgba(31, 151, 131, 0.34);
+  background: linear-gradient(135deg, #177a6a 0%, #28a990 58%, #79d7c1 100%);
+}
+
+.workbench-metric-row .dashboard-metric:nth-child(3),
+.workbench-action-row button:nth-child(3),
+.workbench-quick-list button:nth-child(3),
+.workbench-insight-list button:nth-child(3) {
+  border-color: rgba(207, 76, 112, 0.34);
+  background: linear-gradient(135deg, #b93459 0%, #dc657c 58%, #efa0ad 100%);
+}
+
+.workbench-metric-row .dashboard-metric:nth-child(4),
+.workbench-action-row button:nth-child(4),
+.workbench-quick-list button:nth-child(4),
+.workbench-insight-list button:nth-child(4) {
+  border-color: rgba(184, 126, 42, 0.36);
+  background: linear-gradient(135deg, #9a6424 0%, #c88b3a 58%, #e6bd6f 100%);
+}
+
+.workbench-panel .panel-title h2,
+.workbench-panel .panel-title span,
+.workbench-metric-row .dashboard-metric strong,
+.workbench-action-row strong,
+.workbench-quick-list strong,
+.workbench-insight-list button strong,
+.workbench-quick-list span,
+.workbench-insight-list span {
+  color: #fff;
+}
+
+.workbench-metric-row .dashboard-metric span:not(.metric-icon),
+.workbench-metric-row .dashboard-metric small,
+.workbench-action-row span,
+.workbench-quick-list small,
+.workbench-insight-list small,
+.workbench-panel .panel-title > span {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.workbench-metric-row .metric-icon,
+.workbench-action-row svg {
+  background: rgba(31, 18, 48, 0.24);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 10px 24px rgba(29, 16, 42, 0.14);
+}
+
+.workbench-panel .timeline-item,
+.workbench-panel .care-item,
+.workbench-panel .empty {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.workbench-panel .timeline-item strong,
+.workbench-panel .care-item strong {
+  color: #fff;
+}
+
+.workbench-panel .timeline-item span,
+.workbench-panel .care-item span,
+.workbench-panel .care-item small,
+.workbench-panel .timeline-item time {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.workbench-action-row button:hover,
+.workbench-action-row button:focus-visible,
+.workbench-quick-list button:hover,
+.workbench-quick-list button:focus-visible,
+.workbench-insight-list button:hover,
+.workbench-insight-list button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.46);
+  background: linear-gradient(135deg, #5b2ca8 0%, #8751dd 56%, #b88af1 100%);
+  filter: saturate(1.08);
+}
+
 @media (max-width: 680px) {
   .admin-center-page:not(.platform-admin-page) .admin-module-grid {
     grid-template-columns: 1fr;

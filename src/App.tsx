@@ -2097,7 +2097,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         <span className="workbench-hero-kicker"><Sparkles size={15} /> {dashboardContent.title}</span>
         <h2>{heroLine}</h2>
         <p>{heroStats}</p>
-        <small>{todayLabel} · {dashboardContent.desc}</small>
+        <small>{todayLabel}</small>
       </section>
 
       <section className="workbench-metric-row" aria-label="今日关键数据">
