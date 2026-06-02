@@ -6904,6 +6904,76 @@ textarea,
   line-height: 1;
 }
 
+.appointment-room-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appointment-room-summary > div {
+  min-height: 82px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgba(188, 139, 126, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.appointment-room-summary span,
+.appointment-room-summary small {
+  color: rgba(49, 40, 36, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.appointment-room-summary strong {
+  color: var(--yich-purple-deep);
+  font-size: 26px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.appointment-room-list {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-room-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid rgba(188, 139, 126, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.appointment-room-card strong {
+  display: block;
+  color: var(--yich-ink);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.appointment-room-card span,
+.appointment-room-card time {
+  display: block;
+  margin-top: 4px;
+  color: rgba(49, 40, 36, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.appointment-room-card time {
+  margin-top: 0;
+  text-align: right;
+}
+
 .appointment-panel-divider {
   height: 1px;
   background: rgba(188, 139, 126, 0.16);
@@ -6922,6 +6992,18 @@ textarea,
 
   .appointment-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .appointment-room-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-room-card {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-room-card time {
+    text-align: left;
   }
 }
 
@@ -7656,6 +7738,26 @@ textarea,
 .theme-night .theme-auto-note,
 .theme-night .settings-version,
 .theme-night .account-menu-version {
+  color: var(--night-muted);
+}
+
+.theme-night .appointment-room-summary > div,
+.theme-night .appointment-room-card {
+  border-color: var(--night-line);
+  background:
+    radial-gradient(circle at 84% 12%, rgba(143, 88, 242, 0.12), transparent 34%),
+    rgba(36, 28, 25, 0.92);
+}
+
+.theme-night .appointment-room-summary strong,
+.theme-night .appointment-room-card strong {
+  color: var(--night-text);
+}
+
+.theme-night .appointment-room-summary span,
+.theme-night .appointment-room-summary small,
+.theme-night .appointment-room-card span,
+.theme-night .appointment-room-card time {
   color: var(--night-muted);
 }
 

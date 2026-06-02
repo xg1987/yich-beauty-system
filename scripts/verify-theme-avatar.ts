@@ -19,8 +19,16 @@ if (!appSource.includes("setThemeMode(\"auto\")}>自动</button>")) {
   violations.push("Appearance settings must include an 自动 option.");
 }
 
-if (!appSource.includes("window.matchMedia(\"(prefers-color-scheme: dark)\")")) {
-  violations.push("Auto theme must follow prefers-color-scheme.");
+if (!appSource.includes('const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";')) {
+  violations.push("Auto theme must use Asia/Shanghai time.");
+}
+
+if (!appSource.includes("AUTO_THEME_DAY_START_HOUR") || !appSource.includes("AUTO_THEME_NIGHT_START_HOUR")) {
+  violations.push("Auto theme must have explicit day/night hour boundaries.");
+}
+
+if (!appSource.includes("window.setInterval(syncSystemTheme, 60_000)")) {
+  violations.push("Auto theme must refresh while the app is open.");
 }
 
 if (!userAvatarSource.includes("showImage = false")) {

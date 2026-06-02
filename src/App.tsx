@@ -59,6 +59,11 @@ type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
 const APP_BUILD_DATE = "2026-06-02";
+const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
+const AUTO_THEME_DAY_START_HOUR = 8;
+const AUTO_THEME_NIGHT_START_HOUR = 19;
+const APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const APPOINTMENT_ROOM_MAINTENANCE_COUNT = 0;
 const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
 
 function isThemeMode(value: string | null): value is ThemeMode {
@@ -66,8 +71,22 @@ function isThemeMode(value: string | null): value is ThemeMode {
 }
 
 function getSystemThemeMode(): EffectiveThemeMode {
-  if (typeof window === "undefined") return "day";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "night" : "day";
+  const shanghaiHourText = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    timeZone: AUTO_THEME_TIME_ZONE,
+  }).format(new Date());
+  const shanghaiHour = Number(shanghaiHourText === "24" ? "0" : shanghaiHourText);
+  if (!Number.isFinite(shanghaiHour)) return "day";
+  return shanghaiHour >= AUTO_THEME_DAY_START_HOUR && shanghaiHour < AUTO_THEME_NIGHT_START_HOUR ? "day" : "night";
+}
+
+function countCalendarDays(start: Date, end: Date) {
+  const startDay = new Date(start);
+  const endDay = new Date(end);
+  startDay.setHours(0, 0, 0, 0);
+  endDay.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.floor((endDay.getTime() - startDay.getTime()) / 86_400_000) + 1);
 }
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
@@ -112,11 +131,10 @@ export default function App() {
   }, [themeMode, effectiveThemeMode]);
 
   useEffect(() => {
-    const themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const syncSystemTheme = () => setSystemThemeMode(themeQuery.matches ? "night" : "day");
+    const syncSystemTheme = () => setSystemThemeMode(getSystemThemeMode());
     syncSystemTheme();
-    themeQuery.addEventListener("change", syncSystemTheme);
-    return () => themeQuery.removeEventListener("change", syncSystemTheme);
+    const timer = window.setInterval(syncSystemTheme, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -444,6 +462,16 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
   const rangeAppointments = filterAppointmentsByRange(data.appointments, appointmentRange);
   const rangePending = rangeAppointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const rangeCompleted = rangeAppointments.filter((item) => item.status === "已完成").length;
+  const rangeActiveAppointments = rangeAppointments.filter((item) => item.status !== "已取消" && item.status !== "爽约");
+  const roomDayCount = countCalendarDays(selectedAppointmentRange.start, selectedAppointmentRange.end);
+  const availableRoomCount = Math.max(0, APPOINTMENT_ROOM_NAMES.length - APPOINTMENT_ROOM_MAINTENANCE_COUNT);
+  const roomCapacity = availableRoomCount * roomDayCount;
+  const bookedRoomSlots = Math.min(rangeActiveAppointments.length, roomCapacity);
+  const remainingRoomSlots = Math.max(0, roomCapacity - bookedRoomSlots);
+  const roomAssignments = rangeActiveAppointments.slice(0, availableRoomCount).map((item, index) => ({
+    appointment: item,
+    roomName: APPOINTMENT_ROOM_NAMES[index] ?? `护理房 ${index + 1}`,
+  }));
   const rows = rangeAppointments
     .slice(0, 120)
     .map((item) => [
@@ -532,6 +560,42 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
               <strong>{onlinePending}</strong>
               <small>待前台处理</small>
             </div>
+          </div>
+          <div className="appointment-panel-divider" />
+          <PanelTitle icon={<Building2 size={18} />} title="房间使用情况" action={selectedAppointmentRange.label} />
+          <div className="appointment-room-summary">
+            <div>
+              <span>房间总数</span>
+              <strong>{availableRoomCount}</strong>
+              <small>可预约房间</small>
+            </div>
+            <div>
+              <span>已预约</span>
+              <strong>{bookedRoomSlots}</strong>
+              <small>房间占用</small>
+            </div>
+            <div>
+              <span>剩余可约</span>
+              <strong>{remainingRoomSlots}</strong>
+              <small>{roomDayCount > 1 ? `${roomDayCount} 天容量` : "今日容量"}</small>
+            </div>
+            <div>
+              <span>维护中</span>
+              <strong>{APPOINTMENT_ROOM_MAINTENANCE_COUNT}</strong>
+              <small>暂不可约</small>
+            </div>
+          </div>
+          <div className="appointment-room-list">
+            {roomAssignments.map(({ appointment, roomName }) => (
+              <article className="appointment-room-card" key={`${appointment.id}-room`}>
+                <div>
+                  <strong>{roomName}</strong>
+                  <span>{nameOf(data.customers, appointment.customerId)}</span>
+                </div>
+                <time>{shortDate(appointment.startAt)}</time>
+              </article>
+            ))}
+            {roomAssignments.length === 0 && <p className="appointment-soft-empty">暂无房间占用</p>}
           </div>
           <div className="appointment-panel-divider" />
           <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${onlinePending} 条待处理`} />
