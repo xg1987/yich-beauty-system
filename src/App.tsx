@@ -65,6 +65,34 @@ const AUTO_THEME_NIGHT_START_HOUR = 19;
 const APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const APPOINTMENT_ROOM_MAINTENANCE_COUNT = 0;
 const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
+const viewTitles: Record<ViewKey, string> = {
+  dashboard: "工作台",
+  appointments: "预约管理",
+  pos: "开单收银",
+  customers: "客户会员",
+  catalog: "项目商品",
+  staff: "人员账号",
+  inventory: "库存管理",
+  reports: "报表分析",
+  approvals: "审批中心",
+  logs: "操作日志",
+  accounts: "账号管理",
+  permissions: "权限审批",
+  usage: "服务器用量监控",
+  settings: "管理中心",
+};
+
+function isBusinessStaff(staff: Staff) {
+  return staff.role !== "老板";
+}
+
+function businessStaffOf(data: AppData) {
+  return data.staff.filter(isBusinessStaff);
+}
+
+function firstBusinessStaffId(data: AppData) {
+  return businessStaffOf(data)[0]?.id ?? "";
+}
 
 function isThemeMode(value: string | null): value is ThemeMode {
   return value === "auto" || value === "day" || value === "night";
@@ -194,7 +222,8 @@ export default function App() {
   };
 
   const isPlatformAdmin = session.user.role === "superadmin";
-  const showAdminDetailBack = isPlatformAdmin && adminDetailFromCenter;
+  const showAdminDetailBack = false;
+  const showManagementBack = adminDetailFromCenter && activeView !== "settings";
 
   return (
     <div className={`app-shell theme-${effectiveThemeMode}`}>
@@ -263,6 +292,15 @@ export default function App() {
           />
         ) : (
           <>
+            {showManagementBack && (
+              <div className="management-back-row">
+                <button type="button" className="back-to-admin" onClick={() => navigate("settings")}>
+                  <ArrowLeft size={18} />
+                  管理中心
+                  <span>{viewTitles[activeView]}</span>
+                </button>
+              </div>
+            )}
             {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && (isPlatformAdmin ? <PlatformAppointmentsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Appointments data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Pos data={data} actions={actions} runMutation={runMutation} />)}
@@ -1134,8 +1172,10 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
 }
 
 function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
-  const activeStaff = data.staff.filter((item) => item.status === "active").length;
-  const pendingCommission = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const staffRows = businessStaffOf(data);
+  const staffIds = new Set(staffRows.map((staff) => staff.id));
+  const activeStaff = staffRows.filter((item) => item.status === "active").length;
+  const pendingCommission = data.commissions.filter((item) => staffIds.has(item.staffId) && item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <div className="admin-center-page platform-admin-page">
@@ -1147,17 +1187,17 @@ function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData;
           <p>员工账号、邀请码状态、底薪配置和提成流水。</p>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="员工数" value={`${data.staff.length} 人`} hint={`${activeStaff} 人启用`} />
+          <StatCard title="员工数" value={`${staffRows.length} 人`} hint={`${activeStaff} 人启用`} />
           <StatCard title="待结算提成" value={money(pendingCommission)} hint="员工提成合计" />
           <StatCard title="员工邀请码" value={`${data.staffInvites.length} 个`} hint="邀请码状态" />
         </div>
       </section>
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="员工列表" action={`${data.staff.length} 人`} />
+          <PanelTitle icon={<UsersRound size={18} />} title="员工列表" action={`${staffRows.length} 人`} />
           <DataTable
             columns={["姓名", "手机", "岗位", "状态", "底薪", "提成比例"]}
-            rows={data.staff.map((staff) => [
+            rows={staffRows.map((staff) => [
               staff.name,
               staff.phone,
               staff.role,
@@ -1171,7 +1211,7 @@ function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData;
           <PanelTitle icon={<BadgeCent size={18} />} title="提成流水" action={`${data.commissions.length} 条`} />
           <DataTable
             columns={["员工", "类型", "基数", "比例", "金额", "状态", "时间"]}
-            rows={data.commissions.map((commission) => [
+            rows={data.commissions.filter((commission) => staffIds.has(commission.staffId)).map((commission) => [
               nameOf(data.staff, commission.staffId),
               commission.type,
               money(commission.baseAmount),
@@ -2191,27 +2231,39 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
 function Appointments({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  const serviceStaff = businessStaffOf(data);
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [staffId, setStaffId] = useState(data.staff[0]?.id ?? "");
+  const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [startAt, setStartAt] = useState(toLocalInputValue(tomorrowAt(11)));
   const [note, setNote] = useState("");
-  const [blockedStaffId, setBlockedStaffId] = useState(data.staff[1]?.id ?? data.staff[0]?.id ?? "");
+  const [blockedStaffId, setBlockedStaffId] = useState(serviceStaff[1]?.id ?? serviceStaff[0]?.id ?? "");
   const [blockedStartAt, setBlockedStartAt] = useState(toLocalInputValue(tomorrowAt(16)));
   const [blockedEndAt, setBlockedEndAt] = useState(toLocalInputValue(tomorrowAt(17)));
   const [blockedReason, setBlockedReason] = useState("员工休息/培训");
-  const [shiftStaffId, setShiftStaffId] = useState(data.staff[0]?.id ?? "");
+  const [shiftStaffId, setShiftStaffId] = useState(firstBusinessStaffId(data));
   const [shiftStartAt, setShiftStartAt] = useState(toLocalInputValue(tomorrowAt(9)));
   const [shiftEndAt, setShiftEndAt] = useState(toLocalInputValue(tomorrowAt(21)));
   const [shiftNote, setShiftNote] = useState("正常班");
-  const [onlineRequestStaffId, setOnlineRequestStaffId] = useState(data.staff[0]?.id ?? "");
+  const [onlineRequestStaffId, setOnlineRequestStaffId] = useState(firstBusinessStaffId(data));
   const [activeAppointmentAction, setActiveAppointmentAction] = useState<"reschedule" | "cancel" | undefined>();
   const [activeAppointmentId, setActiveAppointmentId] = useState("");
-  const [rescheduleStaffId, setRescheduleStaffId] = useState(data.staff[0]?.id ?? "");
+  const [rescheduleStaffId, setRescheduleStaffId] = useState(firstBusinessStaffId(data));
   const [rescheduleServiceId, setRescheduleServiceId] = useState(data.services[0]?.id ?? "");
   const [rescheduleStartAt, setRescheduleStartAt] = useState(toLocalInputValue(tomorrowAt(12)));
   const [rescheduleNote, setRescheduleNote] = useState("");
   const [cancelReason, setCancelReason] = useState("客户临时取消");
+  const staffOptions = serviceStaff.map(optionOf);
+  const serviceStaffIds = new Set(serviceStaff.map((staff) => staff.id));
+
+  useEffect(() => {
+    const firstStaffId = serviceStaff[0]?.id ?? "";
+    if (!serviceStaff.some((staff) => staff.id === staffId)) setStaffId(firstStaffId);
+    if (!serviceStaff.some((staff) => staff.id === blockedStaffId)) setBlockedStaffId(firstStaffId);
+    if (!serviceStaff.some((staff) => staff.id === shiftStaffId)) setShiftStaffId(firstStaffId);
+    if (!serviceStaff.some((staff) => staff.id === onlineRequestStaffId)) setOnlineRequestStaffId(firstStaffId);
+    if (!serviceStaff.some((staff) => staff.id === rescheduleStaffId)) setRescheduleStaffId(firstStaffId);
+  }, [blockedStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
@@ -2301,7 +2353,8 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const today = new Date();
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const pendingArrival = todayAppointments.filter((item) => item.status === "已确认" || item.status === "待确认").length;
-  const availableStaff = Math.max(0, data.staff.filter((staff) => staff.status === "active").length - data.staffUnavailableSlots.length);
+  const lockedServiceStaff = new Set(data.staffUnavailableSlots.filter((slot) => serviceStaffIds.has(slot.staffId)).map((slot) => slot.staffId));
+  const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
 
   return (
@@ -2323,7 +2376,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="员工时间锁定" />
           <form className="form" onSubmit={addAppointment}>
           <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
-          <Select label="服务员工" value={staffId} onChange={setStaffId} options={data.staff.map(optionOf)} />
+          <Select label="服务员工" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
           <Select label="服务项目" value={serviceId} onChange={setServiceId} options={data.services.map(optionOf)} />
           <label>
             预约时间
@@ -2334,12 +2387,12 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
           </label>
           {selectedTimeConflict && <p style={{color: 'red', fontSize: 13}}>⚠️ 该员工在此时间段有不可预约安排，建议调整时间</p>}
-          <button className="primary-button">保存预约</button>
+          <button className="primary-button" disabled={!staffId}>保存预约</button>
         </form>
         <div className="divider" />
         <PanelTitle icon={<CalendarDays size={18} />} title="锁定员工时间" action="不可预约" />
         <form className="form" onSubmit={addBlockedSlot}>
-          <Select label="员工" value={blockedStaffId} onChange={setBlockedStaffId} options={data.staff.map(optionOf)} />
+          <Select label="员工" value={blockedStaffId} onChange={setBlockedStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
           <label>
             开始时间
             <input type="datetime-local" value={blockedStartAt} onChange={(event) => setBlockedStartAt(event.target.value)} />
@@ -2352,12 +2405,12 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             原因
             <input value={blockedReason} onChange={(event) => setBlockedReason(event.target.value)} />
           </label>
-          <button className="primary-button">锁定时间</button>
+          <button className="primary-button" disabled={!blockedStaffId}>锁定时间</button>
         </form>
         <div className="divider" />
         <PanelTitle icon={<CalendarDays size={18} />} title="员工排班" action="预约校验" />
         <form className="form" onSubmit={addShift}>
-          <Select label="员工" value={shiftStaffId} onChange={setShiftStaffId} options={data.staff.map(optionOf)} />
+          <Select label="员工" value={shiftStaffId} onChange={setShiftStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
           <label>
             上班时间
             <input type="datetime-local" value={shiftStartAt} onChange={(event) => setShiftStartAt(event.target.value)} />
@@ -2370,13 +2423,13 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
             班次说明
             <input value={shiftNote} onChange={(event) => setShiftNote(event.target.value)} />
           </label>
-          <button className="primary-button">保存班次</button>
+          <button className="primary-button" disabled={!shiftStaffId}>保存班次</button>
         </form>
         </section>
         <section className="panel wide">
           <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${pendingOnlineRequests.length} 个待处理`} />
         <div className="inline-form online-request-toolbar">
-          <Select label="转预约员工" value={onlineRequestStaffId} onChange={setOnlineRequestStaffId} options={data.staff.map(optionOf)} />
+          <Select label="转预约员工" value={onlineRequestStaffId} onChange={setOnlineRequestStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
         </div>
         <div className="card-list">
           {data.onlineBookingRequests.map((request) => (
@@ -2389,7 +2442,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
               <div className="row-actions">
                 <Badge text={request.status} tone={request.status === "已转预约" ? "ok" : request.status === "已关闭" ? "warn" : undefined} />
                 {request.status === "待处理" && (
-                  <button onClick={() => void runMutation(() => actions.convertOnlineBookingRequest(request.id, onlineRequestStaffId))}>转预约</button>
+                  <button disabled={!onlineRequestStaffId} onClick={() => void runMutation(() => actions.convertOnlineBookingRequest(request.id, onlineRequestStaffId))}>转预约</button>
                 )}
               </div>
             </article>
@@ -2423,7 +2476,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
               </div>
               {activeAppointmentId === item.id && activeAppointmentAction === "reschedule" && (
                 <form className="appointment-action-form" onSubmit={submitReschedule}>
-                  <Select label="服务员工" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={data.staff.map(optionOf)} />
+                  <Select label="服务员工" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
                   <Select label="服务项目" value={rescheduleServiceId} onChange={setRescheduleServiceId} options={data.services.map(optionOf)} />
                   <label>
                     新预约时间
@@ -2485,10 +2538,11 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
 }
 
 function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  const serviceStaff = businessStaffOf(data);
   const [appointmentId, setAppointmentId] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
-  const [staffId, setStaffId] = useState(data.staff[1]?.id ?? data.staff[0]?.id ?? "");
+  const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
   const [collaboratorStaffIds, setCollaboratorStaffIds] = useState<string[]>([]);
   const [productId, setProductId] = useState("");
   const [payMethod, setPayMethod] = useState<Order["payMethod"]>("微信");
@@ -2500,6 +2554,16 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [approvalReason, setApprovalReason] = useState("客户维护价");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
+  const staffOptions = serviceStaff.map(optionOf);
+
+  useEffect(() => {
+    const firstStaffId = serviceStaff[0]?.id ?? "";
+    if (!serviceStaff.some((staff) => staff.id === staffId)) setStaffId(firstStaffId);
+    setCollaboratorStaffIds((previous) => {
+      const next = previous.filter((id) => serviceStaff.some((staff) => staff.id === id) && id !== staffId);
+      return next.length === previous.length && next.every((id, index) => id === previous[index]) ? previous : next;
+    });
+  }, [serviceStaff, staffId]);
 
   const availableCards = data.memberCards.filter((item) => item.customerId === customerId && item.status === "正常");
   const total = calculateOrderTotal(data, serviceId, productId || undefined);
@@ -2665,13 +2729,13 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
               setStaffId(value);
               setCollaboratorStaffIds((previous) => previous.filter((id) => id !== value));
             }}
-            options={data.staff.map(optionOf)}
+            options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]}
           />
           <CheckboxGroup
             label="协作员工"
             values={collaboratorStaffIds}
             onChange={setCollaboratorStaffIds}
-            options={data.staff.filter((item) => item.id !== staffId).map(optionOf)}
+            options={serviceStaff.filter((item) => item.id !== staffId).map(optionOf)}
           />
           <Select label="附加商品" value={productId} onChange={setProductId} options={[{ value: "", label: "不销售商品" }, ...data.products.filter((item) => item.type === "sale").map(optionOf)]} />
           <Select label="支付方式" value={payMethod} onChange={(value) => setPayMethod(value as Order["payMethod"])} options={["微信", "支付宝", "现金", "银行卡", "会员卡"].map((item) => ({ value: item, label: item }))} />
@@ -2728,7 +2792,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
             <strong>{money(paidTotal)}</strong>
             {selectedDistributor && <small>分销归属：{selectedDistributor.name}，成交后生成 {Math.round(selectedDistributor.rate * 100)}% 分销佣金</small>}
           </div>
-          <button className="primary-button" disabled={payMethod === "会员卡" && !cardId}>完成收银</button>
+          <button className="primary-button" disabled={!staffId || (payMethod === "会员卡" && !cardId)}>完成收银</button>
         </form>
         </section>
         <section className="panel wide">
@@ -2786,6 +2850,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
 }
 
 function Customers({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  const serviceStaff = businessStaffOf(data);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
@@ -2801,7 +2866,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [extendTo, setExtendTo] = useState("2027-12-31");
   const [transferToCustomerId, setTransferToCustomerId] = useState(data.customers[1]?.id ?? data.customers[0]?.id ?? "");
   const [recordCustomerId, setRecordCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [recordStaffId, setRecordStaffId] = useState(data.staff[1]?.id ?? data.staff[0]?.id ?? "");
+  const [recordStaffId, setRecordStaffId] = useState(serviceStaff[1]?.id ?? serviceStaff[0]?.id ?? "");
   const [recordServiceId, setRecordServiceId] = useState(data.services[0]?.id ?? "");
   const [recordOrderId, setRecordOrderId] = useState("");
   const [skinCondition, setSkinCondition] = useState("敏感偏干");
@@ -2822,7 +2887,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [tagFilter, setTagFilter] = useState("");
   const [distributorType, setDistributorType] = useState<"客户" | "员工">("客户");
   const [distributorCustomerId, setDistributorCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [distributorStaffId, setDistributorStaffId] = useState(data.staff[0]?.id ?? "");
+  const [distributorStaffId, setDistributorStaffId] = useState(firstBusinessStaffId(data));
   const [distributorRate, setDistributorRate] = useState(0.08);
   const [referralDistributorId, setReferralDistributorId] = useState(data.distributors[0]?.id ?? "");
   const [referralCustomerId, setReferralCustomerId] = useState(data.customers[1]?.id ?? data.customers[0]?.id ?? "");
@@ -2974,6 +3039,13 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const filteredCustomers = tagFilter ? data.customers.filter((customer) => customer.tags.includes(tagFilter)) : data.customers;
   const tagColorOf = (tagName: string) => data.tagDefinitions.find((tag) => tag.name === tagName)?.color ?? "#6d28d9";
   const recordLinkedOrderIds = new Set(data.customerServiceRecords.map((record) => record.orderId).filter(Boolean));
+  const staffOptions = serviceStaff.map(optionOf);
+
+  useEffect(() => {
+    const firstStaffId = serviceStaff[0]?.id ?? "";
+    if (!serviceStaff.some((staff) => staff.id === recordStaffId)) setRecordStaffId(firstStaffId);
+    if (!serviceStaff.some((staff) => staff.id === distributorStaffId)) setDistributorStaffId(firstStaffId);
+  }, [distributorStaffId, recordStaffId, serviceStaff]);
   const serviceProductSummary = (order: Order) => {
     const service = data.services.find((item) => item.id === order.serviceId);
     const consumables =
@@ -3128,10 +3200,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           {distributorType === "客户" ? (
             <Select label="客户分销员" value={distributorCustomerId} onChange={setDistributorCustomerId} options={data.customers.map(optionOf)} />
           ) : (
-            <Select label="员工分销员" value={distributorStaffId} onChange={setDistributorStaffId} options={data.staff.map(optionOf)} />
+            <Select label="员工分销员" value={distributorStaffId} onChange={setDistributorStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
           )}
           <label>分销比例<input type="number" step="0.01" value={distributorRate} onChange={(event) => setDistributorRate(Number(event.target.value))} /></label>
-          <button className="primary-button">启用分销员</button>
+          <button className="primary-button" disabled={distributorType === "员工" && !distributorStaffId}>启用分销员</button>
         </form>
         <form className="form compact-form" onSubmit={bindReferral}>
           <Select label="分销员" value={referralDistributorId} onChange={setReferralDistributorId} options={data.distributors.filter((item) => item.status === "启用").map(optionOf)} />
@@ -3191,7 +3263,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         <form className="form" onSubmit={addServiceRecord}>
           <Select label="客户" value={recordCustomerId} onChange={setRecordCustomerId} options={data.customers.map(optionOf)} />
           <Select label="关联订单" value={recordOrderId} onChange={hydrateServiceRecordFromOrder} options={recordOrderOptions} />
-          <Select label="员工" value={recordStaffId} onChange={setRecordStaffId} options={data.staff.map(optionOf)} />
+          <Select label="员工" value={recordStaffId} onChange={setRecordStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
           <Select label="项目" value={recordServiceId} onChange={setRecordServiceId} options={data.services.map(optionOf)} />
           <label>皮肤情况<input value={skinCondition} onChange={(event) => setSkinCondition(event.target.value)} /></label>
           <label>服务前记录<textarea value={beforeNote} onChange={(event) => setBeforeNote(event.target.value)} /></label>
@@ -3201,7 +3273,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>客户反馈<textarea value={customerFeedback} onChange={(event) => setCustomerFeedback(event.target.value)} /></label>
           <label>下次护理建议<textarea value={nextCareAdvice} onChange={(event) => setNextCareAdvice(event.target.value)} /></label>
           <label>下次回访<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></label>
-          <button className="primary-button">保存档案</button>
+          <button className="primary-button" disabled={!recordStaffId}>保存档案</button>
         </form>
         <div className="divider" />
         <PanelTitle icon={<LockKeyhole size={18} />} title="客户签名" action="生成确认链接" />
@@ -3503,7 +3575,9 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
 
 function StaffCommissions({ data, session, actions, runMutation }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation }) {
   const canManageStaff = hasPermission(session, "staff:manage");
-  const staffRoleOptions = ["主管", "员工", "前台"].map((item) => ({ value: item, label: item }));
+  const staffRows = businessStaffOf(data);
+  const staffIds = new Set(staffRows.map((staff) => staff.id));
+  const staffRoleOptions = ["店长", "员工", "前台"].map((item) => ({ value: item, label: item }));
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("员工");
@@ -3516,11 +3590,13 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const [editingBaseSalary, setEditingBaseSalary] = useState(0);
   const [editingCommissionRate, setEditingCommissionRate] = useState(0);
   const [editingStatus, setEditingStatus] = useState<Staff["status"]>("active");
-  const [inviteStaffId, setInviteStaffId] = useState(data.staff[0]?.id ?? "");
+  const [inviteStaffId, setInviteStaffId] = useState(staffRows[0]?.id ?? "");
   const [inviteAccount, setInviteAccount] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("therapist");
   const [inviteValidDays, setInviteValidDays] = useState(7);
-  const editingStaff = data.staff.find((staff) => staff.id === editingStaffId);
+  const [lastInviteCode, setLastInviteCode] = useState("");
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const editingStaff = staffRows.find((staff) => staff.id === editingStaffId);
 
   const settleAll = () => {
     void runMutation(actions.settleCommissions);
@@ -3574,15 +3650,27 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
 
   const createInvite = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account: inviteAccount, role: inviteRole, validDays: inviteValidDays }))
-      .then(() => setInviteAccount(""));
+    const account = inviteAccount;
+    void runMutation(() => actions.createStaffInvite({ staffId: inviteStaffId, account, role: inviteRole, validDays: inviteValidDays }))
+      .then((nextData) => {
+        const nextInvite = nextData.staffInvites.find((invite) => invite.staffId === inviteStaffId && invite.account === account && invite.status === "待加入");
+        setLastInviteCode(nextInvite?.inviteCode ?? "");
+        setInviteAccount("");
+      });
   };
 
-  const activeStaff = data.staff.filter((staff) => staff.status === "active").length;
+  const copyLastInviteCode = () => {
+    if (!lastInviteCode) return;
+    void navigator.clipboard?.writeText(lastInviteCode);
+    setInviteCopied(true);
+    window.setTimeout(() => setInviteCopied(false), 1400);
+  };
+
+  const activeStaff = staffRows.filter((staff) => staff.status === "active").length;
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
-  const pendingCommission = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
+  const pendingCommission = data.commissions.filter((item) => staffIds.has(item.staffId) && item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
   const pendingDistributionCommission = data.distributionCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
-  const inviteStaffOptions = data.staff
+  const inviteStaffOptions = staffRows
     .filter((staff) => !staff.accountId && !data.authUsers.some((user) => user.staffId === staff.id))
     .map(optionOf);
 
@@ -3591,7 +3679,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
       setInviteStaffId(inviteStaffOptions[0]?.value ?? "");
     }
   }, [inviteStaffId, inviteStaffOptions]);
-  const salaryRows = data.staff.map((staff) => {
+  const salaryRows = staffRows.map((staff) => {
     const staffCommissions = data.commissions.filter((item) => item.staffId === staff.id && item.status !== "已冲销");
     const pending = staffCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
     const settled = staffCommissions.filter((item) => item.status === "已结算").reduce((sum, item) => sum + item.amount, 0);
@@ -3615,7 +3703,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         title="人员账号"
         desc="管理员工档案、邀请码、岗位权限与基础提成。"
         stats={[
-          { label: "在职员工", value: `${activeStaff} 人`, hint: `${data.staff.length} 人档案`, icon: <UsersRound size={18} /> },
+          { label: "在职员工", value: `${activeStaff} 人`, hint: `${staffRows.length} 人档案`, icon: <UsersRound size={18} /> },
           { label: "待加入员工", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
           { label: "待结提成", value: money(pendingCommission), hint: "财务待处理", icon: <BadgeCent size={18} /> },
           { label: "分销佣金", value: money(pendingDistributionCommission), hint: "待财务结算", icon: <Share2 size={18} /> },
@@ -3644,7 +3732,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
                 value={inviteRole}
                 onChange={(value) => setInviteRole(value as UserRole)}
                 options={[
-                  { value: "manager", label: "主管" },
+                  { value: "manager", label: "店长" },
                   { value: "frontdesk", label: "前台" },
                   { value: "therapist", label: "员工" },
                 ]}
@@ -3652,6 +3740,14 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
               <label>有效期（天）<input type="number" min={1} value={inviteValidDays} onChange={(event) => setInviteValidDays(Number(event.target.value))} /></label>
               <button className="primary-button" disabled={!inviteStaffId}>生成邀请</button>
             </form>
+            {lastInviteCode && (
+              <div className="invite-result-card">
+                <span>员工邀请码</span>
+                <strong>{lastInviteCode}</strong>
+                <small>把这个邀请码发给员工，员工在登录页选择“加入门店”，填写邀请码、姓名和密码后开通账号。</small>
+                <button type="button" onClick={copyLastInviteCode}>{inviteCopied ? "已复制" : "复制邀请码"}</button>
+              </div>
+            )}
           </>
         ) : (
           <div className="settings-card compact">
@@ -3662,7 +3758,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         )}
         </section>
         <section className="panel wide">
-        <PanelTitle icon={<UsersRound size={18} />} title="员工档案" action={`${data.staff.length} 人`} />
+        <PanelTitle icon={<UsersRound size={18} />} title="员工档案" action={`${staffRows.length} 人`} />
         {canManageStaff && editingStaff && (
           <form className="staff-edit-form" onSubmit={saveStaffEdit}>
             <div className="staff-edit-head">
@@ -3691,7 +3787,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         )}
         <DataTable
           columns={["员工", "岗位", "手机号", "状态", "账号", "底薪", "提成比例", "操作"]}
-          rows={data.staff.map((staff) => [
+          rows={staffRows.map((staff) => [
             staff.name,
             staff.role,
             staff.phone,
@@ -3768,7 +3864,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         />
         <DataTable
           columns={["员工", "类型", "订单", "计算基数", "比例", "提成", "状态", "结算批次", "时间"]}
-          rows={data.commissions.map((item) => [
+          rows={data.commissions.filter((item) => staffIds.has(item.staffId)).map((item) => [
             nameOf(data.staff, item.staffId),
             item.type,
             data.orders.find((order) => order.id === item.orderId)?.orderNo ?? item.orderId,
@@ -3954,7 +4050,7 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   }));
 
   // 员工业绩排行 (B feature)
-  const staffPerformance = data.staff
+  const staffPerformance = businessStaffOf(data)
     .map((staff) => {
       const staffOrders = data.orders.filter((o) => o.staffId === staff.id);
       const revenue = staffOrders.reduce((sum, o) => sum + o.paidAmount, 0);

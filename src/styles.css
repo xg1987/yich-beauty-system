@@ -428,6 +428,41 @@ button:disabled {
   font-weight: 650;
 }
 
+.invite-result-card {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.2);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(243, 238, 251, 0.96), rgba(255, 253, 250, 0.92));
+  box-shadow: 0 14px 34px rgba(69, 37, 127, 0.08);
+}
+
+.invite-result-card span,
+.invite-result-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.invite-result-card strong {
+  color: var(--purple-dark);
+  font-size: 28px;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
+.invite-result-card button {
+  width: fit-content;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--purple);
+  color: #fff;
+  font-weight: 850;
+  cursor: pointer;
+}
+
 label {
   display: grid;
   gap: 7px;
@@ -3661,13 +3696,18 @@ html[data-theme="day"],
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
+.management-back-row {
+  width: min(1360px, 100%);
+  margin: 0 auto -2px;
+}
+
 .back-to-admin {
   width: fit-content;
   min-height: 36px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 0 auto 12px;
+  margin: 0;
   padding: 0 12px;
   border: 1px solid rgba(111, 66, 193, 0.16);
   border-radius: 8px;
@@ -3675,6 +3715,13 @@ html[data-theme="day"],
   color: var(--yich-purple-deep);
   font-weight: 900;
   box-shadow: 0 10px 24px rgba(69, 37, 127, 0.08);
+  cursor: pointer;
+}
+
+.back-to-admin span {
+  color: var(--yich-muted);
+  font-size: 12px;
+  font-weight: 760;
 }
 
 .theme-night .account-menu {
@@ -3699,6 +3746,26 @@ html[data-theme="day"],
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(20, 18, 16, 0.72);
   color: #d7c3ff;
+}
+
+.theme-night .back-to-admin span {
+  color: rgba(255, 244, 237, 0.58);
+}
+
+.theme-night .invite-result-card {
+  border-color: rgba(167, 139, 250, 0.24);
+  background:
+    radial-gradient(circle at 90% 0%, rgba(163, 34, 49, 0.1), transparent 32%),
+    rgba(28, 22, 20, 0.82);
+}
+
+.theme-night .invite-result-card strong {
+  color: #d7c3ff;
+}
+
+.theme-night .invite-result-card span,
+.theme-night .invite-result-card small {
+  color: rgba(255, 244, 237, 0.64);
 }
 
 .page-stack {

@@ -197,6 +197,46 @@ function card(data: AppData, cardId: string) {
   assert.equal(registered.storeProfiles[0].name, "测试美业门店", "store registration should update store profile");
   assert.equal(registered.authUsers[0].role, "owner", "store registration should create owner account");
   assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
+  assert.throws(
+    () =>
+      createStaffInvite(
+        registered,
+        { staffId: registered.staff[0].id, account: "owner-as-staff@test.local", role: "manager", createdBy: "u_manager", validDays: 3 },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /老板账号不走员工邀请码/,
+    "owner should not use staff invite flow",
+  );
+  assert.throws(
+    () =>
+      checkoutOrder(
+        registered,
+        {
+          customerId: "c1",
+          staffId: registered.staff[0].id,
+          serviceId: "v1",
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /服务员工不存在或已停用/,
+    "owner should not be selected as service staff for checkout",
+  );
+  assert.throws(
+    () =>
+      createAppointment(
+        registered,
+        {
+          customerId: "c1",
+          staffId: registered.staff[0].id,
+          serviceId: "v1",
+          startAt: "2026-05-25T11:00:00.000Z",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /服务员工不存在或已停用/,
+    "owner should not be selected as service staff for appointment",
+  );
   const platformAdmin = cloneSeed().authUsers.find((user) => user.role === "superadmin");
   assert.ok(platformAdmin, "test fixture should include a platform admin");
   const ownerUser = cloneSeed().authUsers.find((user) => user.role === "owner");

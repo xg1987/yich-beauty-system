@@ -50,6 +50,15 @@ type IdFactory = (prefix: string) => string;
 const PLATFORM_INVITE_PREFIX = "YC";
 const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DEFAULT_INVITE_VALID_DAYS = 7;
+const STAFF_BUSINESS_ROLES = new Set(["店长", "主管", "员工", "前台"]);
+
+function isBusinessStaff(staff: Staff) {
+  return staff.role !== "老板";
+}
+
+function assertBusinessStaff(staff: Staff | undefined, message = "服务员工不存在或已停用") {
+  if (!staff || staff.status !== "active" || !isBusinessStaff(staff)) throw new Error(message);
+}
 
 export function defaultSystemConfigs(options: { now?: () => string } = {}): SystemConfig[] {
   const updatedAt = (options.now ?? nowIso)();
@@ -1225,6 +1234,7 @@ export function availableStaffForOnlineBooking(data: AppData, serviceId: string,
   const endAt = new Date(startAt.getTime() + selectedService.duration * 60 * 1000);
 
   return data.staff.filter((staff) => {
+    if (!isBusinessStaff(staff)) return false;
     if (staff.status !== "active") return false;
     const hasAppointmentConflict = data.appointments.some((appointment) => {
       if (appointment.staffId !== staff.id) return false;
@@ -1321,6 +1331,7 @@ export function addStaffMember(
   if (!name) throw new Error("请输入员工姓名");
   if (!phone) throw new Error("请输入员工手机号");
   if (!role) throw new Error("请选择员工岗位");
+  if (!STAFF_BUSINESS_ROLES.has(role)) throw new Error("员工岗位只能选择店长、员工或前台");
   if ((input.baseSalary ?? 0) < 0) throw new Error("底薪不能小于 0");
   if ((input.commissionRate ?? 0) < 0) throw new Error("提成比例不能小于 0");
   const staff: Staff = {
@@ -1344,6 +1355,7 @@ export function updateStaffMember(data: AppData, input: StaffUpdateInput): AppDa
   if (input.name !== undefined && !name) throw new Error("请输入员工姓名");
   if (input.phone !== undefined && !phone) throw new Error("请输入员工手机号");
   if (input.role !== undefined && !role) throw new Error("请选择员工岗位");
+  if (role && !STAFF_BUSINESS_ROLES.has(role)) throw new Error("员工岗位只能选择店长、员工或前台");
   if (input.baseSalary !== undefined && input.baseSalary < 0) throw new Error("底薪不能小于 0");
   if (input.commissionRate !== undefined && input.commissionRate < 0) throw new Error("提成比例不能小于 0");
   return {
@@ -1430,6 +1442,7 @@ export function createStaffInvite(
   const account = input.account.trim();
   const staff = data.staff.find((item) => item.id === input.staffId);
   if (!staff) throw new Error("员工不存在");
+  if (!isBusinessStaff(staff)) throw new Error("老板账号不走员工邀请码");
   if (!account) throw new Error("请输入员工登录账号");
   if (validDays <= 0) throw new Error("邀请码有效期必须大于 0 天");
   if (!["manager", "frontdesk", "therapist", "finance"].includes(input.role)) throw new Error("账号角色不正确");
@@ -1771,6 +1784,7 @@ export function createDistributor(
   const staff = input.staffId ? data.staff.find((item) => item.id === input.staffId) : undefined;
   if (input.type === "客户" && !customer) throw new Error("客户分销员不存在");
   if (input.type === "员工" && !staff) throw new Error("员工分销员不存在");
+  if (input.type === "员工" && staff && !isBusinessStaff(staff)) throw new Error("老板不能设置为员工分销员");
   if (input.type === "客户" && data.distributors.some((item) => item.customerId === input.customerId && item.status === "启用")) {
     throw new Error("该客户已是启用分销员");
   }
@@ -1837,6 +1851,12 @@ export function checkoutOrder(
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
   const selectedService = data.services.find((item) => item.id === input.serviceId);
+  const selectedStaff = data.staff.find((item) => item.id === input.staffId);
+  assertBusinessStaff(selectedStaff);
+  (input.collaboratorStaffIds ?? []).forEach((staffId) => {
+    const collaborator = data.staff.find((item) => item.id === staffId);
+    assertBusinessStaff(collaborator, "协作员工不存在或已停用");
+  });
 
   if (!selectedService) {
     throw new Error("服务项目不存在");
@@ -2716,9 +2736,7 @@ function validateAppointmentSchedule(
   if (!data.customers.some((item) => item.id === input.customerId)) {
     throw new Error("客户不存在");
   }
-  if (!data.staff.some((item) => item.id === input.staffId && item.status === "active")) {
-    throw new Error("服务员工不存在或已停用");
-  }
+  assertBusinessStaff(data.staff.find((item) => item.id === input.staffId));
   const selectedService = data.services.find((item) => item.id === input.serviceId);
   if (!selectedService) {
     throw new Error("服务项目不存在");
@@ -2771,7 +2789,7 @@ export function createStaffShift(
   const createdAt = (options.now ?? nowIso)();
   const startAt = new Date(input.startAt);
   const endAt = new Date(input.endAt);
-  if (!data.staff.some((staff) => staff.id === input.staffId)) throw new Error("员工不存在");
+  assertBusinessStaff(data.staff.find((staff) => staff.id === input.staffId), "员工不存在或已停用");
   if (!(startAt < endAt)) throw new Error("班次结束时间必须晚于开始时间");
   const hasShiftConflict = data.staffShifts.some(
     (shift) => shift.staffId === input.staffId && hasTimeOverlap(startAt, endAt, new Date(shift.startAt), new Date(shift.endAt)),
@@ -2802,9 +2820,7 @@ export function createStaffUnavailableSlot(
   const startAt = new Date(input.startAt);
   const endAt = new Date(input.endAt);
 
-  if (!data.staff.some((staff) => staff.id === input.staffId)) {
-    throw new Error("员工不存在");
-  }
+  assertBusinessStaff(data.staff.find((staff) => staff.id === input.staffId), "员工不存在或已停用");
 
   if (!(startAt < endAt)) {
     throw new Error("不可预约结束时间必须晚于开始时间");
@@ -3176,7 +3192,9 @@ export function addCustomerServiceRecord(
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
   if (!data.customers.some((customer) => customer.id === input.customerId)) throw new Error("客户不存在");
-  if (!data.staff.some((staff) => staff.id === input.staffId)) throw new Error("员工不存在");
+  const staff = data.staff.find((item) => item.id === input.staffId);
+  if (!staff) throw new Error("员工不存在");
+  if (!isBusinessStaff(staff)) throw new Error("老板不能作为服务员工");
   const service = data.services.find((item) => item.id === input.serviceId);
   if (!service) throw new Error("服务项目不存在");
   let memberCardTransactionId: string | undefined;
@@ -3431,7 +3449,7 @@ function roleNameOf(role: UserRole) {
   const names: Record<UserRole, string> = {
     superadmin: "系统管理员",
     owner: "老板",
-    manager: "主管",
+    manager: "店长",
     frontdesk: "前台",
     therapist: "员工",
     finance: "财务",
