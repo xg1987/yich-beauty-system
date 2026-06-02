@@ -18,12 +18,14 @@ import {
   Megaphone,
   MessageCircle,
   PackagePlus,
+  Plus,
   RefreshCw,
   Save,
   Settings,
   Share2,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -2593,7 +2595,25 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, maintenanceRoomCountOf(data));
+  const roomNameFields = roomNamesText.split("\n").slice(0, 20);
+  const roomDraftNames = roomNameFields.map((roomName, index) => roomName.trim() || `房间 ${index + 1}`);
+  const draftMaintenanceRoomCount = Math.min(maintenanceRoomCountOf(data), roomDraftNames.length);
+  const draftRoomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomDraftNames, draftMaintenanceRoomCount);
   const parsedRoomCount = parseRoomNames(roomNamesText).length;
+  const updateRoomName = (index: number, nextName: string) => {
+    const nextRoomNames = [...roomNameFields];
+    nextRoomNames[index] = nextName;
+    setRoomNamesText(nextRoomNames.join("\n"));
+  };
+  const addRoom = () => {
+    if (roomNameFields.length >= 20) return;
+    const nextName = `护理房 ${roomNameFields.length + 1}`;
+    setRoomNamesText([...roomNameFields, nextName].join("\n"));
+  };
+  const removeRoom = (index: number) => {
+    if (roomNameFields.length <= 1) return;
+    setRoomNamesText(roomNameFields.filter((_, roomIndex) => roomIndex !== index).join("\n"));
+  };
   type AppointmentModuleKey = NonNullable<typeof activeModule>;
   const appointmentModules: Array<FeatureModule<AppointmentModuleKey>> = [
     { key: "new", title: "新增预约", desc: "客户、项目、员工和预约时间", icon: CalendarDays, tone: "violet", meta: "开单前入口" },
@@ -2713,47 +2733,66 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         <section className="panel">
           <PanelTitle icon={<Building2 size={18} />} title="房间设置" action={`${roomNames.length} 间`} />
           <form className="room-settings-card" onSubmit={saveRooms}>
-            <label>
-              房间名称
-              <textarea
-                value={roomNamesText}
-                onChange={(event) => setRoomNamesText(event.target.value)}
-                placeholder={"护理房 1\n护理房 2\nVIP护理房"}
-              />
-            </label>
             <div className="appointment-room-summary">
               <div>
                 <span>设置房间</span>
-                <strong>{parsedRoomCount}</strong>
-                <small>每行 1 间房</small>
+                <strong>{roomDraftNames.length}</strong>
+                <small>逐间管理</small>
               </div>
               <div>
                 <span>今日占用</span>
-                <strong>{roomUsage.bookedRoomSlots}</strong>
+                <strong>{draftRoomUsage.bookedRoomSlots}</strong>
                 <small>预约房间</small>
               </div>
               <div>
                 <span>今日剩余</span>
-                <strong>{roomUsage.remainingRoomSlots}</strong>
+                <strong>{draftRoomUsage.remainingRoomSlots}</strong>
                 <small>可继续预约</small>
               </div>
               <div>
                 <span>维护中</span>
-                <strong>{roomUsage.maintenanceRoomCount}</strong>
+                <strong>{draftRoomUsage.maintenanceRoomCount}</strong>
                 <small>暂不可约</small>
               </div>
             </div>
-            <div className="appointment-room-list compact">
-              {roomUsage.roomAssignments.map(({ appointment, roomName }) => (
-                <article className="appointment-room-card" key={`${appointment.id}-store-room`}>
-                  <div>
-                    <strong>{roomName}</strong>
-                    <span>{nameOf(data.customers, appointment.customerId)} · {nameOf(data.services, appointment.serviceId)}</span>
+            <div className="room-settings-toolbar">
+              <strong>{roomDraftNames.length} 个房间组件</strong>
+              <button type="button" onClick={addRoom} disabled={roomNameFields.length >= 20}>
+                <Plus size={16} />
+                新增房间
+              </button>
+            </div>
+            <div className="room-editor-grid">
+              {roomDraftNames.map((roomName, index) => {
+                const assignment = draftRoomUsage.roomAssignments[index]?.appointment;
+                const isMaintenance = draftRoomUsage.maintenanceRoomCount > 0 && index >= roomDraftNames.length - draftRoomUsage.maintenanceRoomCount;
+                const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "空闲";
+                const statusHint = isMaintenance
+                  ? "暂不可预约"
+                  : assignment
+                    ? `${nameOf(data.customers, assignment.customerId)} · ${nameOf(data.services, assignment.serviceId)}`
+                    : "今日可预约";
+                return (
+                <article className={`room-editor-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${roomName}-${index}`}>
+                  <div className="room-editor-card-header">
+                    <span>房间 {index + 1}</span>
+                    <strong>{statusText}</strong>
                   </div>
-                  <time>{shortDate(appointment.startAt)}</time>
+                  <label>
+                    房间名称
+                    <input value={roomNameFields[index] ?? ""} onChange={(event) => updateRoomName(index, event.target.value)} />
+                  </label>
+                  <div className="room-editor-card-meta">
+                    <span>{statusHint}</span>
+                    <small>{assignment ? shortDate(assignment.startAt) : "无预约占用"}</small>
+                  </div>
+                  <button type="button" className="room-editor-remove" onClick={() => removeRoom(index)} disabled={roomNameFields.length <= 1}>
+                    <Trash2 size={15} />
+                    删除
+                  </button>
                 </article>
-              ))}
-              {roomUsage.roomAssignments.length === 0 && <p className="appointment-soft-empty">今日暂无房间占用</p>}
+                );
+              })}
             </div>
             <button className="primary-button" disabled={parsedRoomCount === 0}>{roomSaved ? "已保存" : "保存房间设置"}</button>
           </form>

@@ -7335,6 +7335,153 @@ textarea,
   box-shadow: 0 0 0 4px rgba(111, 66, 193, 0.08);
 }
 
+.room-settings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.room-settings-toolbar strong {
+  color: #312824;
+  font-size: 14px;
+  font-weight: 920;
+}
+
+.room-settings-toolbar button,
+.room-editor-remove {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(111, 66, 193, 0.22);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--yich-purple-deep);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 880;
+  cursor: pointer;
+}
+
+.room-settings-toolbar button {
+  padding: 0 14px;
+}
+
+.room-settings-toolbar button:disabled,
+.room-editor-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.room-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+  gap: 12px;
+}
+
+.room-editor-card {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.22), transparent 36%),
+    rgba(255, 255, 255, 0.18);
+  box-shadow: 0 16px 32px rgba(69, 37, 127, 0.12);
+}
+
+.room-editor-card.available {
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.24), transparent 36%),
+    linear-gradient(135deg, rgba(42, 143, 125, 0.78), rgba(93, 201, 178, 0.68));
+}
+
+.room-editor-card.occupied {
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.24), transparent 36%),
+    linear-gradient(135deg, rgba(111, 66, 193, 0.82), rgba(166, 100, 226, 0.68));
+}
+
+.room-editor-card.maintenance {
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.24), transparent 36%),
+    linear-gradient(135deg, rgba(188, 118, 33, 0.82), rgba(232, 166, 72, 0.68));
+}
+
+.room-editor-card-header,
+.room-editor-card-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.room-editor-card-header span,
+.room-editor-card-meta span,
+.room-editor-card-meta small {
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.room-editor-card-header strong {
+  flex: 0 0 auto;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 920;
+}
+
+.room-editor-card label {
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.room-editor-card input {
+  min-width: 0;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 13px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.room-editor-card input:focus {
+  border-color: rgba(255, 255, 255, 0.58);
+  outline: 0;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12);
+}
+
+.room-editor-card-meta {
+  align-items: flex-start;
+}
+
+.room-editor-card-meta span,
+.room-editor-card-meta small {
+  line-height: 1.45;
+}
+
+.room-editor-card-meta small {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.room-editor-remove {
+  width: 100%;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
 @media (max-width: 1000px) {
   .appointment-page-grid {
     grid-template-columns: 1fr;
@@ -7359,6 +7506,20 @@ textarea,
   }
 
   .appointment-room-card time {
+    text-align: left;
+  }
+
+  .room-settings-toolbar,
+  .room-editor-card-meta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .room-settings-toolbar button {
+    width: 100%;
+  }
+
+  .room-editor-card-meta small {
     text-align: left;
   }
 }
@@ -8572,6 +8733,16 @@ textarea,
 .theme-night .room-settings-card textarea {
   border-color: var(--night-line);
   background: rgba(255, 255, 255, 0.04);
+  color: var(--night-text);
+}
+
+.theme-night .room-settings-toolbar strong {
+  color: var(--night-text);
+}
+
+.theme-night .room-settings-toolbar button {
+  border-color: var(--night-line);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--night-text);
 }
 
