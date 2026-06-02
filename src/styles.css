@@ -9263,6 +9263,26 @@ textarea,
   font-weight: 850;
 }
 
+.page-hero,
+.platform-admin-page .page-hero,
+.admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
+  color: #fff8f4;
+  box-shadow: 0 22px 54px rgba(69, 37, 127, 0.18);
+}
+
+.theme-night .page-hero,
+.theme-night .platform-admin-page .page-hero,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #36205f 0%, #5c35a3 58%, #76572f 100%);
+}
+
 .module-entry-card::after {
   display: none;
 }
@@ -9303,106 +9323,7 @@ textarea,
   stroke-width: 2.5;
 }
 
-/* Final route visual lock: keep primary heroes and entry modules visually consistent. */
-.workbench-hero,
-.page-hero,
-.platform-admin-page .page-hero,
-.admin-center-page:not(.platform-admin-page) .admin-profile-hero {
-  height: 170px;
-  min-height: 170px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: center;
-  align-items: center;
-  align-content: center;
-  gap: 8px;
-  padding: 22px 28px;
-  border: 0;
-  border-radius: 28px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
-  color: #fff;
-  text-align: center;
-  box-shadow: 0 22px 54px rgba(168, 57, 76, 0.18);
-}
-
-.workbench-hero > *,
-.page-hero > *,
-.platform-admin-page .page-hero > *,
-.admin-center-page:not(.platform-admin-page) .admin-profile-hero > * {
-  position: relative;
-  z-index: 1;
-}
-
-.admin-center-page:not(.platform-admin-page) .admin-profile-hero {
-  grid-template-rows: auto auto;
-}
-
-.admin-center-page:not(.platform-admin-page) .admin-hero-pattern {
-  display: none;
-}
-
-.admin-center-page:not(.platform-admin-page) .admin-avatar {
-  width: 58px;
-  height: 58px;
-}
-
-.workbench-hero h2,
-.page-hero h1,
-.page-hero h2,
-.platform-admin-page .page-hero h1,
-.admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
-  margin: 0;
-  color: #fff;
-  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
-  font-size: 34px;
-  font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: 0;
-  text-align: center;
-}
-
-.workbench-hero p,
-.workbench-hero small,
-.page-hero p,
-.platform-admin-page .page-hero p,
-.admin-center-page:not(.platform-admin-page) .admin-profile-copy p {
-  max-width: none;
-  margin: 0;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
-  font-weight: 850;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.workbench-hero-kicker,
-.page-hero .eyebrow,
-.admin-center-page:not(.platform-admin-page) .admin-role-pill {
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 5px 13px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.13);
-  color: rgba(255, 255, 255, 0.96);
-  font-size: 12px;
-  font-weight: 850;
-  letter-spacing: 0;
-}
-
-.admin-center-page:not(.platform-admin-page) .admin-profile-copy {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  text-align: center;
-}
-
+/* Final card-only visual lock: do not override hero styling here. */
 .admin-center-page:not(.platform-admin-page) .admin-module-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
@@ -9476,35 +9397,48 @@ textarea,
   opacity: 1;
 }
 
-.theme-night .workbench-hero,
-.theme-night .page-hero,
-.theme-night .platform-admin-page .page-hero,
-.theme-night .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
-  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26);
+.module-metric-strip .module-metric-card {
+  border-color: rgba(109, 69, 196, 0.28);
+  background: linear-gradient(135deg, #5b2ca8 0%, #8751dd 56%, #b88af1 100%);
+  color: #fff;
+  box-shadow: 0 18px 42px rgba(69, 37, 127, 0.14);
 }
 
-@media (max-width: 900px) {
-  .workbench-hero,
-  .page-hero,
-  .platform-admin-page .page-hero,
-  .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
-    height: 150px;
-    min-height: 150px;
-    border-radius: 24px;
-    padding: 20px;
-  }
+.module-metric-strip .module-metric-card:nth-child(2) {
+  border-color: rgba(31, 151, 131, 0.34);
+  background: linear-gradient(135deg, #177a6a 0%, #28a990 58%, #79d7c1 100%);
+}
 
-  .workbench-hero h2,
-  .page-hero h1,
-  .page-hero h2,
-  .platform-admin-page .page-hero h1,
-  .admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
-    font-size: 29px;
-  }
+.module-metric-strip .module-metric-card:nth-child(3) {
+  border-color: rgba(207, 76, 112, 0.34);
+  background: linear-gradient(135deg, #b93459 0%, #dc657c 58%, #efa0ad 100%);
+}
+
+.module-metric-strip .module-metric-card:nth-child(4) {
+  border-color: rgba(184, 126, 42, 0.36);
+  background: linear-gradient(135deg, #9a6424 0%, #c88b3a 58%, #e6bd6f 100%);
+}
+
+.module-metric-strip .module-metric-card:nth-child(5) {
+  border-color: rgba(144, 65, 159, 0.34);
+  background: linear-gradient(135deg, #7a2f91 0%, #b057b6 58%, #d989c9 100%);
+}
+
+.module-metric-strip .module-metric-card .metric-icon {
+  background: rgba(31, 18, 48, 0.24);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 10px 24px rgba(29, 16, 42, 0.14);
+}
+
+.module-metric-strip .module-metric-card strong {
+  color: #fff;
+}
+
+.module-metric-strip .module-metric-card small,
+.module-metric-strip .module-metric-card em {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 @media (max-width: 680px) {
