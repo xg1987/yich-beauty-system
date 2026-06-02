@@ -324,10 +324,11 @@ try {
   const afterStoreProfile = await request<AppData>(baseUrl, "/api/store-profile", {
     method: "PATCH",
     token: session.token,
-    body: { name: "API 皮肤管理中心", phone: "13900000002", address: "API 新地址", businessHours: "09:30 - 22:00" },
+    body: { name: "API 皮肤管理中心", phone: "13900000002", address: "API 新地址", businessHours: "09:30 - 22:00", roomNames: ["API 护理房 1", "API 护理房 2"] },
   });
   assert.equal(afterStoreProfile.storeProfiles[0].name, "API 皮肤管理中心", "store profile API should update store name");
   assert.equal(afterStoreProfile.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile API should update business hours");
+  assert.deepEqual(afterStoreProfile.storeProfiles[0].roomNames, ["API 护理房 1", "API 护理房 2"], "store profile API should update room names");
   const afterStoreDisabled = await request<AppData>(baseUrl, `/api/stores/${afterStoreProfile.storeProfiles[0].id}/status`, {
     method: "PATCH",
     token: adminSession.token,

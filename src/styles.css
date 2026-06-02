@@ -2343,6 +2343,19 @@ td {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.78fr);
 }
 
+.account-admin-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.account-admin-stack .dashboard-panel {
+  width: 100%;
+}
+
+.account-admin-stack .table-wrap {
+  border-radius: 18px;
+}
+
 .timeline-list,
 .care-list {
   display: grid;
@@ -7209,6 +7222,11 @@ textarea,
   gap: 10px;
 }
 
+.appointment-room-list.compact {
+  max-height: 260px;
+  overflow: auto;
+}
+
 .appointment-room-card {
   min-width: 0;
   display: grid;
@@ -7246,6 +7264,37 @@ textarea,
 .appointment-panel-divider {
   height: 1px;
   background: rgba(188, 139, 126, 0.16);
+}
+
+.room-settings-card {
+  display: grid;
+  gap: 14px;
+}
+
+.room-settings-card label {
+  display: grid;
+  gap: 8px;
+  color: rgba(49, 40, 36, 0.66);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.room-settings-card textarea {
+  min-height: 118px;
+  resize: vertical;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--yich-ink);
+  font: inherit;
+  line-height: 1.55;
+}
+
+.room-settings-card textarea:focus {
+  border-color: rgba(111, 66, 193, 0.48);
+  outline: 0;
+  box-shadow: 0 0 0 4px rgba(111, 66, 193, 0.08);
 }
 
 @media (max-width: 1000px) {
@@ -8026,8 +8075,15 @@ textarea,
 .theme-night .appointment-room-summary span,
 .theme-night .appointment-room-summary small,
 .theme-night .appointment-room-card span,
-.theme-night .appointment-room-card time {
+.theme-night .appointment-room-card time,
+.theme-night .room-settings-card label {
   color: var(--night-muted);
+}
+
+.theme-night .room-settings-card textarea {
+  border-color: var(--night-line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--night-text);
 }
 
 /* Night theme completion pass.

@@ -421,6 +421,8 @@ export function createApiServer(database = new BeautyDatabase()) {
             phone: requiredString(body, "phone"),
             address: optionalString(body, "address") ?? "",
             businessHours: requiredString(body, "businessHours"),
+            roomNames: optionalStringArray(body, "roomNames"),
+            maintenanceRoomCount: optionalNumber(body, "maintenanceRoomCount"),
           }),
           {
             userId: session.user.id,

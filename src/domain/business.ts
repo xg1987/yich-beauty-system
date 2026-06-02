@@ -51,6 +51,7 @@ const PLATFORM_INVITE_PREFIX = "YC";
 const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DEFAULT_INVITE_VALID_DAYS = 7;
 const STAFF_BUSINESS_ROLES = new Set(["店长", "主管", "员工", "前台"]);
+const DEFAULT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 
 function isBusinessStaff(staff: Staff) {
   return staff.role !== "老板";
@@ -260,6 +261,8 @@ export type StoreProfileInput = {
   phone: string;
   address: string;
   businessHours: string;
+  roomNames?: string[];
+  maintenanceRoomCount?: number;
 };
 
 export type StoreStatusInput = {
@@ -753,6 +756,8 @@ export function registerStore(
         phone: input.phone,
         address: input.address ?? "",
         businessHours: "10:00 - 21:00",
+        roomNames: DEFAULT_ROOM_NAMES,
+        maintenanceRoomCount: 0,
         status: "active",
         createdAt,
       },
@@ -835,9 +840,17 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
   const phone = input.phone.trim();
   const address = input.address.trim();
   const businessHours = input.businessHours.trim();
+  const roomNames = (input.roomNames ?? current.roomNames ?? DEFAULT_ROOM_NAMES)
+    .map((roomName) => roomName.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+  const maintenanceRoomCount = Number.isFinite(input.maintenanceRoomCount)
+    ? Math.max(0, Math.min(roomNames.length, Math.trunc(input.maintenanceRoomCount ?? 0)))
+    : current.maintenanceRoomCount ?? 0;
   if (!name) throw new Error("请输入门店名称");
   if (!phone) throw new Error("请输入门店电话");
   if (!businessHours) throw new Error("请输入营业时间");
+  if (roomNames.length === 0) throw new Error("请至少设置 1 间房间");
 
   return {
     ...data,
@@ -848,6 +861,8 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
         phone,
         address,
         businessHours,
+        roomNames,
+        maintenanceRoomCount,
       },
       ...data.storeProfiles.slice(1),
     ],
@@ -1694,6 +1709,8 @@ export function decideStoreOwnerApplication(
         phone: application.phone,
         address: application.address ?? "",
         businessHours: "10:00 - 21:00",
+        roomNames: DEFAULT_ROOM_NAMES,
+        maintenanceRoomCount: 0,
         status: "active",
         createdAt: decidedAt,
       },

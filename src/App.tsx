@@ -62,8 +62,9 @@ const APP_BUILD_DATE = "2026-06-02";
 const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
 const AUTO_THEME_DAY_START_HOUR = 8;
 const AUTO_THEME_NIGHT_START_HOUR = 19;
-const APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
-const APPOINTMENT_ROOM_MAINTENANCE_COUNT = 0;
+const DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
+const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
 const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
 const viewTitles: Record<ViewKey, string> = {
   dashboard: "工作台",
@@ -92,6 +93,41 @@ function businessStaffOf(data: AppData) {
 
 function firstBusinessStaffId(data: AppData) {
   return businessStaffOf(data)[0]?.id ?? "";
+}
+
+function normalizedAccount(account: string) {
+  return account.trim().toLowerCase();
+}
+
+function isVisibleAccount(user: { account: string }) {
+  return !HIDDEN_ACCOUNT_LIST_ACCOUNTS.has(normalizedAccount(user.account));
+}
+
+function isVisiblePlatformAdmin(user: { account: string; role: UserRole }) {
+  return normalizedAccount(user.account) === VISIBLE_PLATFORM_ADMIN_ACCOUNT || user.role === "superadmin";
+}
+
+function displayRoleName(user: { account: string; role: UserRole; roleName: string }) {
+  return isVisiblePlatformAdmin(user) ? "系统管理员" : user.roleName;
+}
+
+function roomNamesOf(data: AppData) {
+  const names = data.storeProfiles[0]?.roomNames?.map((roomName) => roomName.trim()).filter(Boolean) ?? [];
+  return names.length > 0 ? names : DEFAULT_APPOINTMENT_ROOM_NAMES;
+}
+
+function maintenanceRoomCountOf(data: AppData) {
+  const roomCount = roomNamesOf(data).length;
+  const count = data.storeProfiles[0]?.maintenanceRoomCount ?? 0;
+  return Math.max(0, Math.min(roomCount, count));
+}
+
+function parseRoomNames(value: string) {
+  return value
+    .split(/\n|,|，/)
+    .map((roomName) => roomName.trim())
+    .filter(Boolean)
+    .slice(0, 20);
 }
 
 function isThemeMode(value: string | null): value is ThemeMode {
@@ -400,6 +436,7 @@ function ManagementCenter({
   ];
   const storeManagementCards: ManagementCard[] = [
     { title: "预约管理", desc: "预约记录 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
+    { title: "房间设置", desc: "房间数量 / 预约看板", icon: Building2, tone: "teal", view: "appointments" },
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
@@ -571,9 +608,10 @@ function PlatformAdminView({
 }: {
   data: AppData;
 }) {
-  const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
-  const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
-  const activeAccounts = data.authUsers.filter((user) => user.status === "active").length;
+  const visibleAuthUsers = data.authUsers.filter(isVisibleAccount);
+  const ownerAccounts = visibleAuthUsers.filter((user) => user.role === "owner" && !isVisiblePlatformAdmin(user));
+  const staffAccounts = visibleAuthUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
+  const activeAccounts = visibleAuthUsers.filter((user) => user.status === "active").length;
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
   const platformMetrics = [
@@ -635,11 +673,12 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
   const rangeAppointments = filterAppointmentsByRange(data.appointments, appointmentRange);
   const rangePending = rangeAppointments.filter((item) => item.status === "待确认" || item.status === "已确认").length;
   const rangeCompleted = rangeAppointments.filter((item) => item.status === "已完成").length;
+  const roomNames = roomNamesOf(data);
   const roomUsage = calculateAppointmentRoomUsage(
     rangeAppointments,
     selectedAppointmentRange,
-    APPOINTMENT_ROOM_NAMES,
-    APPOINTMENT_ROOM_MAINTENANCE_COUNT,
+    roomNames,
+    maintenanceRoomCountOf(data),
   );
   const rows = rangeAppointments
     .slice(0, 120)
@@ -1335,11 +1374,15 @@ function PlatformAccountAdminView({
   actions: ApiActions;
   runMutation: RunMutation;
 }) {
-  const adminAccounts = data.authUsers.filter((user) => user.role === "superadmin");
-  const ownerAccounts = data.authUsers.filter((user) => user.role === "owner");
-  const staffAccounts = data.authUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
+  const visibleAuthUsers = data.authUsers.filter(isVisibleAccount);
+  const adminAccounts = visibleAuthUsers.filter(isVisiblePlatformAdmin);
+  const ownerAccounts = visibleAuthUsers.filter((user) => user.role === "owner" && !isVisiblePlatformAdmin(user));
+  const staffAccounts = visibleAuthUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const storeRows = data.storeProfiles.map((store) => {
-    const ownerStaff = data.staff.find((staff) => staff.role === "老板");
+    const ownerStaff = data.staff.find((staff) => {
+      const linkedUser = data.authUsers.find((user) => user.staffId === staff.id);
+      return staff.role === "老板" && (!linkedUser || !isVisiblePlatformAdmin(linkedUser));
+    });
     const ownerUser = ownerStaff ? data.authUsers.find((user) => user.staffId === ownerStaff.id) : ownerAccounts[0];
     return [
       store.name,
@@ -1374,15 +1417,15 @@ function PlatformAccountAdminView({
         </div>
       </section>
 
-      <section className="dashboard-columns">
+      <section className="account-admin-stack">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="账号列表" action={`${data.authUsers.length} 个账号`} />
+          <PanelTitle icon={<UsersRound size={18} />} title="账号列表" action={`${visibleAuthUsers.length} 个账号`} />
           <DataTable
             columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
-            rows={data.authUsers.map((user) => [
+            rows={visibleAuthUsers.map((user) => [
               user.name,
               user.account,
-              user.role === "superadmin" ? "系统管理员" : user.roleName,
+              displayRoleName(user),
               <Badge key={`${user.id}-status`} text={user.status === "active" ? "启用" : "停用"} tone={user.status === "active" ? "ok" : "warn"} />,
               shortDate(user.createdAt),
               user.id === session.user.id ? (
@@ -2255,6 +2298,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const [cancelReason, setCancelReason] = useState("客户临时取消");
   const staffOptions = serviceStaff.map(optionOf);
   const serviceStaffIds = new Set(serviceStaff.map((staff) => staff.id));
+  const roomNames = roomNamesOf(data);
+  const roomSignature = roomNames.join("\n");
+  const [roomNamesText, setRoomNamesText] = useState(roomSignature);
+  const [roomSaved, setRoomSaved] = useState(false);
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -2264,6 +2311,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     if (!serviceStaff.some((staff) => staff.id === onlineRequestStaffId)) setOnlineRequestStaffId(firstStaffId);
     if (!serviceStaff.some((staff) => staff.id === rescheduleStaffId)) setRescheduleStaffId(firstStaffId);
   }, [blockedStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
+
+  useEffect(() => {
+    setRoomNamesText(roomSignature);
+  }, [roomSignature]);
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
@@ -2339,6 +2390,26 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     );
   };
 
+  const saveRooms = (event: FormEvent) => {
+    event.preventDefault();
+    const store = data.storeProfiles[0];
+    const nextRoomNames = parseRoomNames(roomNamesText);
+    if (!store || nextRoomNames.length === 0) return;
+    void runMutation(() =>
+      actions.updateStoreProfile({
+        name: store.name,
+        phone: store.phone,
+        address: store.address,
+        businessHours: store.businessHours,
+        roomNames: nextRoomNames,
+        maintenanceRoomCount: Math.min(store.maintenanceRoomCount ?? 0, nextRoomNames.length),
+      }),
+    ).then(() => {
+      setRoomSaved(true);
+      window.setTimeout(() => setRoomSaved(false), 1400);
+    });
+  };
+
   // 排班增强：简单冲突检测
   const checkAvailability = (staffId: string, start: string, end: string) => {
     const conflicts = data.staffUnavailableSlots.filter(slot =>
@@ -2356,6 +2427,8 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const lockedServiceStaff = new Set(data.staffUnavailableSlots.filter((slot) => serviceStaffIds.has(slot.staffId)).map((slot) => slot.staffId));
   const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
+  const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, maintenanceRoomCountOf(data));
+  const parsedRoomCount = parseRoomNames(roomNamesText).length;
 
   return (
     <div className="page-stack">
@@ -2369,6 +2442,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           { label: "待到店", value: `${pendingArrival} 单`, hint: "需确认或接待", icon: <ClipboardList size={18} /> },
           { label: "线上申请", value: `${pendingOnlineRequests.length} 单`, hint: "线上预约提交", icon: <Share2 size={18} /> },
           { label: "可服务员工", value: `${availableStaff} 人`, hint: "扣除锁定时段", icon: <UsersRound size={18} /> },
+          { label: "可用房间", value: `${roomUsage.availableRoomCount} 间`, hint: "预约看板可见", icon: <Building2 size={18} /> },
         ]}
       />
       <div className="content-grid">
@@ -2427,6 +2501,53 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         </form>
         </section>
         <section className="panel wide">
+          <PanelTitle icon={<Building2 size={18} />} title="房间设置" action={`${roomNames.length} 间`} />
+          <form className="room-settings-card" onSubmit={saveRooms}>
+            <label>
+              房间名称
+              <textarea
+                value={roomNamesText}
+                onChange={(event) => setRoomNamesText(event.target.value)}
+                placeholder={"护理房 1\n护理房 2\nVIP护理房"}
+              />
+            </label>
+            <div className="appointment-room-summary">
+              <div>
+                <span>设置房间</span>
+                <strong>{parsedRoomCount}</strong>
+                <small>每行 1 间房</small>
+              </div>
+              <div>
+                <span>今日占用</span>
+                <strong>{roomUsage.bookedRoomSlots}</strong>
+                <small>预约房间</small>
+              </div>
+              <div>
+                <span>今日剩余</span>
+                <strong>{roomUsage.remainingRoomSlots}</strong>
+                <small>可继续预约</small>
+              </div>
+              <div>
+                <span>维护中</span>
+                <strong>{roomUsage.maintenanceRoomCount}</strong>
+                <small>暂不可约</small>
+              </div>
+            </div>
+            <div className="appointment-room-list compact">
+              {roomUsage.roomAssignments.map(({ appointment, roomName }) => (
+                <article className="appointment-room-card" key={`${appointment.id}-store-room`}>
+                  <div>
+                    <strong>{roomName}</strong>
+                    <span>{nameOf(data.customers, appointment.customerId)} · {nameOf(data.services, appointment.serviceId)}</span>
+                  </div>
+                  <time>{shortDate(appointment.startAt)}</time>
+                </article>
+              ))}
+              {roomUsage.roomAssignments.length === 0 && <p className="appointment-soft-empty">今日暂无房间占用</p>}
+            </div>
+            <button className="primary-button" disabled={parsedRoomCount === 0}>{roomSaved ? "已保存" : "保存房间设置"}</button>
+          </form>
+          <div className="divider" />
           <PanelTitle icon={<Share2 size={18} />} title="线上预约申请" action={`${pendingOnlineRequests.length} 个待处理`} />
         <div className="inline-form online-request-toolbar">
           <Select label="转预约员工" value={onlineRequestStaffId} onChange={setOnlineRequestStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
