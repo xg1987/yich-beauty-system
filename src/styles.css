@@ -9528,3 +9528,298 @@ textarea,
     text-overflow: ellipsis;
   }
 }
+
+/* Full-system component parity lock: all role/admin/business cards use the same colored module language. */
+.theme-day .panel,
+.theme-day .dashboard-panel,
+.theme-day .workbench-panel,
+.theme-day .appointment-panel,
+.theme-day .cashier-panel,
+.theme-day .customer-panel,
+.theme-day .settings-static-panel,
+.theme-day .settings-profile-card,
+.theme-day .settings-contact-card,
+.theme-day .usage-card,
+.theme-day .admin-code-panel,
+.theme-day .admin-permission-panel,
+.theme-day .theme-switch-panel,
+.theme-day .notification-panel,
+.theme-day .record-card,
+.theme-day .settings-card,
+.theme-day .quick-card,
+.theme-day .stat-card,
+.theme-day .sub-panel {
+  border-color: rgba(109, 69, 196, 0.32);
+  background: linear-gradient(135deg, #5b2ca8 0%, #8751dd 56%, #b88af1 100%);
+  color: #fff;
+  box-shadow: 0 18px 42px rgba(69, 37, 127, 0.14);
+}
+
+.theme-night .panel,
+.theme-night .dashboard-panel,
+.theme-night .workbench-panel,
+.theme-night .appointment-panel,
+.theme-night .cashier-panel,
+.theme-night .customer-panel,
+.theme-night .settings-static-panel,
+.theme-night .settings-profile-card,
+.theme-night .settings-contact-card,
+.theme-night .usage-card,
+.theme-night .admin-code-panel,
+.theme-night .admin-permission-panel,
+.theme-night .theme-switch-panel,
+.theme-night .notification-panel,
+.theme-night .record-card,
+.theme-night .settings-card,
+.theme-night .quick-card,
+.theme-night .stat-card,
+.theme-night .sub-panel {
+  border-color: rgba(109, 69, 196, 0.3);
+  background: linear-gradient(135deg, #4e2691 0%, #7c3ed0 58%, #9c6ee1 100%);
+  color: #fff;
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.32);
+}
+
+.theme-day .content-grid > .panel:nth-child(2),
+.theme-day .page-grid > .panel:nth-child(2),
+.theme-day .dashboard-columns > .dashboard-panel:nth-child(2),
+.theme-day .dashboard-columns.lower > .dashboard-panel:nth-child(2),
+.theme-day .workbench-content-grid > .workbench-panel:nth-child(2),
+.theme-day .appointment-page-grid > .appointment-panel:nth-child(2),
+.theme-day .cashier-page-grid > .cashier-panel:nth-child(2),
+.theme-day .cashier-page-grid.lower > .cashier-panel:nth-child(2),
+.theme-day .customer-page-grid > .customer-panel:nth-child(2),
+.theme-day .customer-page-grid.lower > .customer-panel:nth-child(2) {
+  border-color: rgba(31, 151, 131, 0.34);
+  background: linear-gradient(135deg, #177a6a 0%, #28a990 58%, #79d7c1 100%);
+}
+
+.theme-night .content-grid > .panel:nth-child(2),
+.theme-night .page-grid > .panel:nth-child(2),
+.theme-night .dashboard-columns > .dashboard-panel:nth-child(2),
+.theme-night .dashboard-columns.lower > .dashboard-panel:nth-child(2),
+.theme-night .workbench-content-grid > .workbench-panel:nth-child(2),
+.theme-night .appointment-page-grid > .appointment-panel:nth-child(2),
+.theme-night .cashier-page-grid > .cashier-panel:nth-child(2),
+.theme-night .cashier-page-grid.lower > .cashier-panel:nth-child(2),
+.theme-night .customer-page-grid > .customer-panel:nth-child(2),
+.theme-night .customer-page-grid.lower > .customer-panel:nth-child(2) {
+  border-color: rgba(31, 151, 131, 0.32);
+  background: linear-gradient(135deg, #15675a 0%, #249c82 58%, #5fc4aa 100%);
+}
+
+.theme-day .content-grid > .panel:nth-child(3),
+.theme-day .page-grid > .panel:nth-child(3),
+.theme-day .workbench-content-grid > .workbench-panel:nth-child(3),
+.theme-day .appointment-page-grid > .appointment-panel:nth-child(3),
+.theme-day .cashier-page-grid > .cashier-panel:nth-child(3),
+.theme-day .cashier-page-grid.lower > .cashier-panel:nth-child(3),
+.theme-day .customer-page-grid > .customer-panel:nth-child(3),
+.theme-day .customer-page-grid.lower > .customer-panel:nth-child(3) {
+  border-color: rgba(207, 76, 112, 0.34);
+  background: linear-gradient(135deg, #b93459 0%, #dc657c 58%, #efa0ad 100%);
+}
+
+.theme-night .content-grid > .panel:nth-child(3),
+.theme-night .page-grid > .panel:nth-child(3),
+.theme-night .workbench-content-grid > .workbench-panel:nth-child(3),
+.theme-night .appointment-page-grid > .appointment-panel:nth-child(3),
+.theme-night .cashier-page-grid > .cashier-panel:nth-child(3),
+.theme-night .cashier-page-grid.lower > .cashier-panel:nth-child(3),
+.theme-night .customer-page-grid > .customer-panel:nth-child(3),
+.theme-night .customer-page-grid.lower > .customer-panel:nth-child(3) {
+  border-color: rgba(207, 76, 112, 0.32);
+  background: linear-gradient(135deg, #8f2d45 0%, #c64f67 58%, #dc7b8c 100%);
+}
+
+.theme-day .content-grid > .panel:nth-child(4),
+.theme-day .page-grid > .panel:nth-child(4),
+.theme-day .workbench-content-grid > .workbench-panel:nth-child(4),
+.theme-day .appointment-page-grid > .appointment-panel:nth-child(4),
+.theme-day .cashier-page-grid > .cashier-panel:nth-child(4),
+.theme-day .cashier-page-grid.lower > .cashier-panel:nth-child(4),
+.theme-day .customer-page-grid > .customer-panel:nth-child(4),
+.theme-day .customer-page-grid.lower > .customer-panel:nth-child(4) {
+  border-color: rgba(184, 126, 42, 0.36);
+  background: linear-gradient(135deg, #9a6424 0%, #c88b3a 58%, #e6bd6f 100%);
+}
+
+.theme-night .content-grid > .panel:nth-child(4),
+.theme-night .page-grid > .panel:nth-child(4),
+.theme-night .workbench-content-grid > .workbench-panel:nth-child(4),
+.theme-night .appointment-page-grid > .appointment-panel:nth-child(4),
+.theme-night .cashier-page-grid > .cashier-panel:nth-child(4),
+.theme-night .cashier-page-grid.lower > .cashier-panel:nth-child(4),
+.theme-night .customer-page-grid > .customer-panel:nth-child(4),
+.theme-night .customer-page-grid.lower > .customer-panel:nth-child(4) {
+  border-color: rgba(184, 126, 42, 0.34);
+  background: linear-gradient(135deg, #80531d 0%, #b5792d 58%, #d0a24f 100%);
+}
+
+.theme-day .panel-title h2,
+.theme-day .panel-title span,
+.theme-day .panel strong,
+.theme-day .dashboard-panel strong,
+.theme-day .workbench-panel strong,
+.theme-day .appointment-panel strong,
+.theme-day .cashier-panel strong,
+.theme-day .customer-panel strong,
+.theme-day .settings-static-panel strong,
+.theme-day .settings-profile-card strong,
+.theme-day .settings-contact-card strong,
+.theme-day .usage-card strong,
+.theme-day .admin-code-panel strong,
+.theme-day .record-card strong,
+.theme-day .settings-card strong,
+.theme-day .quick-card strong,
+.theme-day .stat-card strong,
+.theme-day .sub-panel strong,
+.theme-night .panel-title h2,
+.theme-night .panel-title span,
+.theme-night .panel strong,
+.theme-night .dashboard-panel strong,
+.theme-night .workbench-panel strong,
+.theme-night .appointment-panel strong,
+.theme-night .cashier-panel strong,
+.theme-night .customer-panel strong,
+.theme-night .settings-static-panel strong,
+.theme-night .settings-profile-card strong,
+.theme-night .settings-contact-card strong,
+.theme-night .usage-card strong,
+.theme-night .admin-code-panel strong,
+.theme-night .record-card strong,
+.theme-night .settings-card strong,
+.theme-night .quick-card strong,
+.theme-night .stat-card strong,
+.theme-night .sub-panel strong {
+  color: #fff;
+}
+
+.theme-day .panel span,
+.theme-day .panel small,
+.theme-day .panel p,
+.theme-day .dashboard-panel span,
+.theme-day .dashboard-panel small,
+.theme-day .workbench-panel span,
+.theme-day .workbench-panel small,
+.theme-day .appointment-panel span,
+.theme-day .appointment-panel small,
+.theme-day .cashier-panel span,
+.theme-day .cashier-panel small,
+.theme-day .customer-panel span,
+.theme-day .customer-panel small,
+.theme-day .settings-static-panel span,
+.theme-day .settings-profile-card span,
+.theme-day .settings-contact-card span,
+.theme-day .usage-card span,
+.theme-day .admin-code-panel p,
+.theme-day .record-card span,
+.theme-day .record-card small,
+.theme-day .settings-card span,
+.theme-day .quick-card small,
+.theme-day .stat-card span,
+.theme-day .stat-card small,
+.theme-day .sub-panel span,
+.theme-day .sub-panel small,
+.theme-night .panel span,
+.theme-night .panel small,
+.theme-night .panel p,
+.theme-night .dashboard-panel span,
+.theme-night .dashboard-panel small,
+.theme-night .workbench-panel span,
+.theme-night .workbench-panel small,
+.theme-night .appointment-panel span,
+.theme-night .appointment-panel small,
+.theme-night .cashier-panel span,
+.theme-night .cashier-panel small,
+.theme-night .customer-panel span,
+.theme-night .customer-panel small,
+.theme-night .settings-static-panel span,
+.theme-night .settings-profile-card span,
+.theme-night .settings-contact-card span,
+.theme-night .usage-card span,
+.theme-night .admin-code-panel p,
+.theme-night .record-card span,
+.theme-night .record-card small,
+.theme-night .settings-card span,
+.theme-night .quick-card small,
+.theme-night .stat-card span,
+.theme-night .stat-card small,
+.theme-night .sub-panel span,
+.theme-night .sub-panel small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.theme-day .cashier-revenue-card,
+.theme-day .cashier-status-grid > div,
+.theme-day .cashier-method-list article,
+.theme-day .cashier-tip-list > div,
+.theme-day .cashier-order-card,
+.theme-day .appointment-status-grid > div,
+.theme-day .appointment-schedule-card,
+.theme-day .appointment-request-card,
+.theme-day .appointment-empty-state,
+.theme-day .customer-focus-card,
+.theme-day .customer-status-grid > div,
+.theme-day .customer-tip-list > div,
+.theme-day .customer-level-list article,
+.theme-day .customer-mini-card,
+.theme-day .timeline-item,
+.theme-day .care-item,
+.theme-day .empty,
+.theme-day .appointment-soft-empty,
+.theme-day .cashier-soft-empty,
+.theme-day .customer-soft-empty,
+.theme-day .form-readonly,
+.theme-day .table-wrap,
+.theme-night .cashier-revenue-card,
+.theme-night .cashier-status-grid > div,
+.theme-night .cashier-method-list article,
+.theme-night .cashier-tip-list > div,
+.theme-night .cashier-order-card,
+.theme-night .appointment-status-grid > div,
+.theme-night .appointment-schedule-card,
+.theme-night .appointment-request-card,
+.theme-night .appointment-empty-state,
+.theme-night .customer-focus-card,
+.theme-night .customer-status-grid > div,
+.theme-night .customer-tip-list > div,
+.theme-night .customer-level-list article,
+.theme-night .customer-mini-card,
+.theme-night .timeline-item,
+.theme-night .care-item,
+.theme-night .empty,
+.theme-night .appointment-soft-empty,
+.theme-night .cashier-soft-empty,
+.theme-night .customer-soft-empty,
+.theme-night .form-readonly,
+.theme-night .table-wrap {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: none;
+}
+
+.theme-day .cashier-method-list em,
+.theme-day .cashier-order-card em,
+.theme-day .customer-level-list em,
+.theme-day .customer-mini-card em,
+.theme-night .cashier-method-list em,
+.theme-night .cashier-order-card em,
+.theme-night .customer-level-list em,
+.theme-night .customer-mini-card em {
+  color: #fff;
+}
+
+.theme-day .panel-title svg,
+.theme-day .workbench-panel svg,
+.theme-day .appointment-panel svg,
+.theme-day .cashier-panel svg,
+.theme-day .customer-panel svg,
+.theme-night .panel-title svg,
+.theme-night .workbench-panel svg,
+.theme-night .appointment-panel svg,
+.theme-night .cashier-panel svg,
+.theme-night .customer-panel svg {
+  color: #fff;
+}
