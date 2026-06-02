@@ -276,7 +276,14 @@ export default function App() {
             {activeView === "accounts" && <PlatformAccountAdminView data={data} setView={navigate} showBack={showAdminDetailBack} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
-            {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
+            {activeView === "settings" && (
+              <ManagementCenter
+                data={data}
+                session={session}
+                setView={navigate}
+                openAccountSettings={() => setAccountSettingsOpen(true)}
+              />
+            )}
           </>
         )}
       </main>
@@ -299,10 +306,12 @@ function ManagementCenter({
   data,
   session,
   setView,
+  openAccountSettings,
 }: {
   data: AppData;
   session: UserSession;
   setView: NavigateToView;
+  openAccountSettings: () => void;
 }) {
   const systemInviteCode = platformInviteCodeForPlatformAdmin({
     id: session.user.id,
@@ -321,7 +330,16 @@ function ManagementCenter({
     window.setTimeout(() => setInviteCopied(false), 1400);
   };
 
-  const managementCards = [
+  type ManagementCard = {
+    title: string;
+    desc: string;
+    icon: typeof LayoutDashboard;
+    tone: "rose" | "violet" | "teal" | "amber";
+    view?: ViewKey;
+    onClick?: () => void;
+  };
+
+  const platformManagementCards: ManagementCard[] = [
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
     { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
@@ -335,13 +353,43 @@ function ManagementCenter({
     { title: "库存管理", desc: "库存预警 / 出入库记录", icon: Boxes, tone: "teal", view: "inventory" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
-  ] satisfies Array<{
-    title: string;
-    desc: string;
-    icon: typeof LayoutDashboard;
-    tone: "rose" | "violet" | "teal" | "amber";
-    view: ViewKey;
-  }>;
+  ];
+  const storeManagementCards: ManagementCard[] = [
+    { title: "预约管理", desc: "预约记录 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
+    { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
+    { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
+    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
+    { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "库存管理", desc: "库存预警 / 出入库记录", icon: Boxes, tone: "teal", view: "inventory" },
+    { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
+    { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
+    { title: "系统设置", desc: "个人资料 / 通知外观", icon: Settings, tone: "violet", onClick: openAccountSettings },
+  ];
+  const staffManagementCards: ManagementCard[] = [
+    { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
+    { title: "工作台", desc: "今日任务 / 服务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
+    { title: "预约管理", desc: "我的预约 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
+    { title: "客户会员", desc: "客户资料 / 护理记录", icon: HeartHandshake, tone: "violet", view: "customers" },
+    { title: "我的提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "外观通知", desc: "自动模式 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
+  ];
+  const financeManagementCards: ManagementCard[] = [
+    { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
+    { title: "工作台", desc: "今日任务 / 财务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
+    { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
+    { title: "外观通知", desc: "自动模式 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
+  ];
+  const managementCards = session.user.role === "superadmin"
+    ? platformManagementCards
+    : session.user.role === "owner" || session.user.role === "manager"
+      ? storeManagementCards
+      : session.user.role === "finance"
+        ? financeManagementCards
+        : staffManagementCards;
+  const visibleManagementCards = managementCards.filter((item) => !item.view || canAccessView(session, item.view));
 
   return (
     <div className="admin-center-page">
@@ -383,8 +431,12 @@ function ManagementCenter({
           <span>管理入口</span>
         </div>
         <div className="admin-module-grid">
-          {managementCards.filter((item) => canAccessView(session, item.view)).map((item) => (
-            <AdminCenterCard key={item.title} item={item} onClick={() => setView(item.view, { fromAdmin: true })} />
+          {visibleManagementCards.map((item) => (
+            <AdminCenterCard
+              key={item.title}
+              item={item}
+              onClick={() => item.onClick ? item.onClick() : item.view && setView(item.view, { fromAdmin: true })}
+            />
           ))}
         </div>
       </section>
@@ -1660,10 +1712,13 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   const actionItems = dashboardContent.actions.filter((item) => canAccessView(session, item.view));
   const roleTasks = roleHomeCards(data, session).filter((item) => canAccessView(session, item.view));
   const todayLabel = today.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
-  const heroLine = session.user.role === "therapist" ? "护理有序，客户安心" : "今日有序，门店有数";
+  const isOrdinaryEmployee = session.user.role === "therapist" || session.user.role === "frontdesk";
+  const heroLine = session.user.role === "therapist" ? "护理有序，客户安心" : session.user.role === "frontdesk" ? "到店有序，客户清晰" : "今日有序，门店有数";
   const heroStats = session.user.role === "therapist"
     ? `我的预约 ${todayAppointments} · 待回访 ${pendingFollowUps} · 提成 ${money(myCommission)}`
-    : `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 营业额 ${money(todayRevenue)}`;
+    : isOrdinaryEmployee
+      ? `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 客户 ${data.customers.length}`
+      : `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 营业额 ${money(todayRevenue)}`;
   const primaryActions = actionItems.slice(0, 3);
   const insightItems = [
     { label: "待审批", value: `${pendingApprovals} 条`, hint: "改价与退款审批", view: "approvals" as ViewKey },
@@ -1674,7 +1729,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   return (
     <div className="dashboard-page">
       <section className={`workbench-hero role-hero-${session.user.role}`}>
-        <span className="workbench-hero-kicker"><Sparkles size={15} /> {session.user.roleName}工作台</span>
+        <span className="workbench-hero-kicker"><Sparkles size={15} /> {dashboardContent.title}</span>
         <h2>{heroLine}</h2>
         <p>{heroStats}</p>
         <small>{todayLabel} · {dashboardContent.desc}</small>
@@ -1820,7 +1875,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   if (input.role === "frontdesk") {
     return {
       title: "前台到店工作台",
-      desc: "把预约确认、线上到店申请、开单收银和客户建档放在首屏，前台按到店流程连续处理。",
+      desc: "把预约确认、线上到店申请和客户建档放在首屏，前台按到店流程连续处理。",
       scheduleTitle: "今日到店安排",
       emptySchedule: "今日暂无预约，可从预约栏新增到店计划",
       followTitle: "待联系客户",
@@ -1828,18 +1883,17 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       metrics: [
         { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待确认到店" },
         { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
-        { icon: <CreditCard size={18} />, label: "今日收银", value: money(input.todayRevenue), hint: "当天开单实收" },
+        { icon: <UsersRound size={18} />, label: "客户会员", value: `${input.activeCards} 张`, hint: "有效卡项" },
       ],
       healthMetrics: [
         { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待处理" },
         { icon: <CalendarDays size={18} />, label: "到店安排", value: `${input.todayAppointments} 单`, hint: `完成 ${input.completedAppointments} 单` },
-        { icon: <CreditCard size={18} />, label: "今日收银", value: money(input.todayRevenue), hint: "收款核对" },
         { icon: <UsersRound size={18} />, label: "会员资产", value: `${input.activeCards} 张`, hint: "有效卡项" },
+        { icon: <HeartHandshake size={18} />, label: "待回访", value: `${input.pendingFollowUps} 位`, hint: "客户关怀" },
       ],
       actions: [
         { icon: <Share2 size={18} />, label: "线上预约", value: `${input.onlineRequests}`, view: "appointments" },
         { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments}`, view: "appointments" },
-        { icon: <CreditCard size={18} />, label: "开单收银", value: "收银", view: "pos" },
         { icon: <UsersRound size={18} />, label: "客户建档", value: "客户", view: "customers" },
       ],
     };
@@ -1870,36 +1924,10 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       ],
     };
   }
-  if (input.role === "manager") {
-    return {
-      title: "主管运营工作台",
-      desc: "主管首屏关注预约到店、客户回访、员工执行和库存预警，便于当天协调人效和转化。",
-      scheduleTitle: "今日服务动线",
-      emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",
-      followTitle: "客户关怀",
-      healthTitle: "门店执行概览",
-      metrics: [
-        { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
-        { icon: <HeartHandshake size={18} />, label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "客户关怀任务" },
-        { icon: <PackagePlus size={18} />, label: "库存预警", value: `${input.lowStockCount} 项`, hint: "耗材与商品" },
-      ],
-      healthMetrics: [
-        { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "当天收银" },
-        { icon: <CalendarDays size={18} />, label: "预约完成", value: `${input.completedAppointments}/${input.todayAppointments}`, hint: "今日服务" },
-        { icon: <HeartHandshake size={18} />, label: "待回访", value: `${input.pendingFollowUps} 位`, hint: "客户关怀" },
-        { icon: <PackagePlus size={18} />, label: "库存预警", value: `${input.lowStockCount} 项`, hint: "采购与盘点" },
-      ],
-      actions: [
-        { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments}`, view: "appointments" },
-        { icon: <HeartHandshake size={18} />, label: "客户回访", value: `${input.pendingFollowUps}`, view: "customers" },
-        { icon: <PackagePlus size={18} />, label: "低库存", value: `${input.lowStockCount}`, view: "inventory" },
-        { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals}`, view: "approvals" },
-      ],
-    };
-  }
+  const operatorLabel = input.role === "manager" ? "店长" : "老板";
   return {
-    title: "老板经营看板",
-    desc: "老板首屏看现金流、客户资产、审批风险和库存风险，用一页判断门店今天是否健康。",
+    title: `${operatorLabel}经营看板`,
+    desc: `${operatorLabel}首屏看现金流、客户资产、审批风险和库存风险，用一页判断门店今天是否健康。`,
     scheduleTitle: "今日服务动线",
     emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",
     followTitle: "客户关怀",
@@ -1950,13 +1978,14 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
     return [
       { title: "我的预约", value: `${todayAppointments} 单`, hint: "今日服务安排", view: "appointments" },
       { title: "待回访客户", value: `${pendingFollowUps} 位`, hint: "护理后跟进", view: "customers" },
+      { title: "我的提成", value: money(myCommission), hint: "个人结算", view: "staff" },
     ];
   }
   if (session.user.role === "frontdesk") {
     return [
       { title: "今日预约", value: `${todayAppointments} 单`, hint: "确认到店与改约", view: "appointments" },
-      { title: "快速开单", value: "收银", hint: "办卡/消费/退款", view: "pos" },
       { title: "客户会员", value: `${data.customers.length} 人`, hint: "建档与卡项", view: "customers" },
+      { title: "待联系客户", value: `${pendingFollowUps} 位`, hint: "到店与回访", view: "customers" },
     ];
   }
   if (session.user.role === "finance") {
