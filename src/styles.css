@@ -4109,32 +4109,12 @@ html[data-theme="day"],
   color: #fff;
 }
 
-.login-hero::before,
-.login-hero::after {
-  content: "";
-  position: absolute;
-  left: 34px;
-  right: 34px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
-  pointer-events: none;
-}
-
-.login-hero::before {
-  top: 28px;
-}
-
-.login-hero::after {
-  bottom: 28px;
-}
-
 .login-hero-copy {
   display: grid;
   gap: 10px;
   width: min(620px, 100%);
   max-width: 620px;
   padding: 18px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
   text-align: center;
 }
 
@@ -8116,10 +8096,7 @@ textarea,
   padding: 22px 28px;
   border: 0;
   border-radius: 28px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
+  background: linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
   color: #fff;
   text-align: center;
   box-shadow: 0 22px 54px rgba(168, 57, 76, 0.18);
@@ -8215,10 +8192,7 @@ textarea,
 
 .theme-night .page-hero,
 .theme-night .platform-admin-page .page-hero {
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
+  background: linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26);
 }
 
@@ -9225,19 +9199,13 @@ textarea,
   align-items: center;
   border: 0;
   border-radius: 28px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
+  background: linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
   text-align: center;
 }
 
 .theme-night .page-hero,
 .theme-night .platform-admin-page .page-hero {
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
+  background: linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
 }
 
 .page-hero-copy {
@@ -9266,10 +9234,7 @@ textarea,
 .page-hero,
 .platform-admin-page .page-hero,
 .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
+  background: linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);
   color: #fff8f4;
   box-shadow: 0 22px 54px rgba(69, 37, 127, 0.18);
 }
@@ -9277,10 +9242,7 @@ textarea,
 .theme-night .page-hero,
 .theme-night .platform-admin-page .page-hero,
 .theme-night .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
-    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
-    linear-gradient(135deg, #36205f 0%, #5c35a3 58%, #76572f 100%);
+  background: linear-gradient(135deg, #36205f 0%, #5c35a3 58%, #76572f 100%);
 }
 
 .module-entry-card::after {
