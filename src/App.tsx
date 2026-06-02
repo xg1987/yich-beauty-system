@@ -2659,7 +2659,16 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
       />
       <div className="module-detail-stack">
         <section className="panel appointment-room-panel">
-          <PanelTitle icon={<Building2 size={18} />} title="当前房间使用情况" action={`${roomUsage.remainingRoomSlots} 间可预约`} />
+          <div className="appointment-room-board-head">
+            <div>
+              <span><Building2 size={18} /> 当前房间使用情况</span>
+              <strong>{roomUsage.remainingRoomSlots} 间可预约</strong>
+            </div>
+            <button type="button" className="appointment-room-add-button" onClick={() => setShowAppointmentForm(true)}>
+              <CalendarDays size={18} />
+              新增预约
+            </button>
+          </div>
           <div className="appointment-room-summary">
             <div>
               <span>可用房间</span>
@@ -2681,12 +2690,6 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
               <strong>{roomUsage.maintenanceRoomCount}</strong>
               <small>不可预约</small>
             </div>
-          </div>
-          <div className="appointment-room-action-row">
-            <button type="button" className="appointment-room-add-button" onClick={() => setShowAppointmentForm(true)}>
-              <CalendarDays size={18} />
-              新增预约
-            </button>
           </div>
           <div className="appointment-room-state-grid">
             {roomNames.map((name, index) => {
