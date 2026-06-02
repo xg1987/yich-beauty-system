@@ -315,7 +315,7 @@ function ManagementCenter({
   const systemInviteCode = platformInviteCodeForUser({
     id: session.user.id,
     account: session.user.account,
-  });
+  }, data.authUsers);
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
   const [inviteVisible, setInviteVisible] = useState(false);

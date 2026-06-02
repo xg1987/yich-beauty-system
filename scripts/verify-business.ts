@@ -16,6 +16,7 @@ import {
   createStaffShift,
   createStaffInvite,
   createStaffUnavailableSlot,
+  createStoreOwnerInvite,
   createStocktake,
   completeCustomerFollowUp,
   createTagDefinition,
@@ -163,7 +164,7 @@ function card(data: AppData, cardId: string) {
   const ownerJoined = joinInviteByCode(
     cloneSeed(),
     {
-      inviteCode: platformInviteCodeForUser(platformAdmin),
+      inviteCode: platformInviteCodeForUser(platformAdmin, cloneSeed().authUsers),
       storeName: "邀请制门店",
       name: "邀请老板",
       phone: "13900001111",
@@ -178,6 +179,25 @@ function card(data: AppData, cardId: string) {
   assert.equal(ownerJoined.storeOwnerApplications[0].account, "invited-owner@test.local", "owner invite should keep submitted account");
   assert.equal(ownerJoined.storeProfiles.length, cloneSeed().storeProfiles.length, "owner invite should not create store before approval");
   assert.equal(ownerJoined.authUsers.length, cloneSeed().authUsers.length, "owner invite should not create user before approval");
+  const platformInviteCode = platformInviteCodeForUser(platformAdmin, cloneSeed().authUsers);
+  const ownerInviteCodes = [platformInviteCode, "BOSS-UNIQUE"];
+  const ownerInvite = createStoreOwnerInvite(
+    cloneSeed(),
+    {
+      storeName: "唯一邀请码门店",
+      ownerName: "唯一老板",
+      phone: "13900002222",
+      address: "唯一地址",
+      account: "unique-owner@test.local",
+      createdBy: platformAdmin.id,
+      validDays: 7,
+    },
+    {
+      idFactory: (prefix) => (prefix === "boss" ? ownerInviteCodes.shift() ?? "BOSS-FALLBACK" : testId(prefix)),
+      now: fixedNow,
+    },
+  );
+  assert.equal(ownerInvite.storeOwnerInvites[0].inviteCode, "BOSS-UNIQUE", "store owner invite should avoid platform invite code collisions");
   const updatedStore = updateStoreProfile(registered, {
     name: "测试皮肤管理中心",
     phone: "13900000002",
@@ -266,6 +286,21 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(revoked.staffInvites[0].status, "已作废", "staff invite should be revocable");
   assert.equal(revoked.staffInvites[0].revokedBy, "u_manager", "staff invite should preserve revoke operator");
+  const withSecondStaff = addStaffMember(
+    invited,
+    { name: "第二员工", phone: "13900000003", role: "员工", baseSalary: 5000, commissionRate: 0.08 },
+    { idFactory: testId, now: fixedNow },
+  );
+  const staffInviteCodes = [invited.staffInvites[0].inviteCode, platformInviteCode, "JOIN-UNIQUE"];
+  const uniqueStaffInvite = createStaffInvite(
+    withSecondStaff,
+    { staffId: withSecondStaff.staff[0].id, account: "therapist-second@test.local", role: "therapist", createdBy: "u_manager", validDays: 3 },
+    {
+      idFactory: (prefix) => (prefix === "join" ? staffInviteCodes.shift() ?? "JOIN-FALLBACK" : testId(prefix)),
+      now: fixedNow,
+    },
+  );
+  assert.equal(uniqueStaffInvite.staffInvites[0].inviteCode, "JOIN-UNIQUE", "staff invite should avoid existing and platform invite code collisions");
 }
 
 {

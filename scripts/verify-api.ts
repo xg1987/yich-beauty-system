@@ -225,7 +225,7 @@ try {
   const invitedOwnerResult = await request<{ status: string; message: string; applicationId?: string }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
     body: {
-      inviteCode: platformInviteCodeForUser(platformAdmin),
+      inviteCode: platformInviteCodeForUser(platformAdmin, testFixtureData.authUsers),
       name: "API 老板",
       storeName: "API 邀请门店",
       phone: "13900001111",

@@ -67,9 +67,32 @@ function encodeInviteSuffix(value: number) {
   return suffix;
 }
 
-export function platformInviteCodeForUser(user: Pick<AuthUser, "id" | "account">) {
-  const source = `${user.id}:${user.account}`.toLowerCase();
+function platformInviteCandidateForUser(user: Pick<AuthUser, "id" | "account">, salt = 0) {
+  const source = `${user.id}:${user.account}:${salt}`.toLowerCase();
   return `${PLATFORM_INVITE_PREFIX}${encodeInviteSuffix(stableInviteNumber(source))}`;
+}
+
+function sameInviteUser(left: Pick<AuthUser, "id" | "account">, right: Pick<AuthUser, "id" | "account">) {
+  return left.id === right.id && left.account === right.account;
+}
+
+export function platformInviteCodeForUser(
+  user: Pick<AuthUser, "id" | "account">,
+  users?: Array<Pick<AuthUser, "id" | "account">>,
+) {
+  if (!users?.length) return platformInviteCandidateForUser(user);
+  const usedCodes = new Set<string>();
+  const orderedUsers = [...users].sort((left, right) => `${left.id}:${left.account}`.localeCompare(`${right.id}:${right.account}`));
+  for (const item of orderedUsers) {
+    for (let salt = 0; salt < 50; salt += 1) {
+      const candidate = platformInviteCandidateForUser(item, salt);
+      if (usedCodes.has(candidate)) continue;
+      usedCodes.add(candidate);
+      if (sameInviteUser(item, user)) return candidate;
+      break;
+    }
+  }
+  return platformInviteCandidateForUser(user);
 }
 
 export function isPlatformInviteCodeFormat(inviteCode: string) {
@@ -81,9 +104,32 @@ export function platformInviteIssuerId(data: AppData, inviteCode: string) {
   const issuer = data.authUsers.find((user) => {
     return user.status === "active"
       && effectiveRoleForUser(user) === "superadmin"
-      && platformInviteCodeForUser(user) === normalizedInviteCode;
+      && platformInviteCodeForUser(user, data.authUsers) === normalizedInviteCode;
   });
   return issuer?.id;
+}
+
+function normalizedInviteCode(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function reservedInviteCodes(data: AppData) {
+  const codes = new Set<string>();
+  data.staffInvites.forEach((invite) => codes.add(normalizedInviteCode(invite.inviteCode)));
+  (data.storeOwnerInvites ?? []).forEach((invite) => codes.add(normalizedInviteCode(invite.inviteCode)));
+  data.authUsers
+    .filter((user) => effectiveRoleForUser(user) === "superadmin")
+    .forEach((user) => codes.add(normalizedInviteCode(platformInviteCodeForUser(user, data.authUsers))));
+  return codes;
+}
+
+function createUniqueInviteCode(data: AppData, prefix: string, idFactory: IdFactory) {
+  const reservedCodes = reservedInviteCodes(data);
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const candidate = idFactory(prefix);
+    if (!reservedCodes.has(normalizedInviteCode(candidate))) return candidate;
+  }
+  throw new Error("邀请码生成失败，请重试");
 }
 
 export type RegisterStoreInput = {
@@ -1186,7 +1232,7 @@ export function createStaffInvite(
     account,
     role: input.role,
     status: "待加入",
-    inviteCode: idFactory("join"),
+    inviteCode: createUniqueInviteCode(data, "join", idFactory),
     createdBy: input.createdBy,
     createdAt,
     expiresAt: new Date(+new Date(createdAt) + validDays * 24 * 60 * 60 * 1000).toISOString(),
@@ -1229,7 +1275,7 @@ export function createStoreOwnerInvite(
     address: input.address?.trim() || undefined,
     account,
     status: "待加入",
-    inviteCode: idFactory("boss"),
+    inviteCode: createUniqueInviteCode(data, "boss", idFactory),
     createdBy: input.createdBy,
     createdAt,
     expiresAt: new Date(+new Date(createdAt) + validDays * 24 * 60 * 60 * 1000).toISOString(),
