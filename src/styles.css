@@ -390,6 +390,28 @@ button:disabled {
   white-space: nowrap;
 }
 
+.admin-approval-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-approval-actions button {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--purple);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.admin-approval-actions button + button {
+  background: rgba(163, 29, 43, 0.12);
+  color: var(--brand-red);
+}
+
 .form {
   display: grid;
   gap: 12px;
@@ -3835,6 +3857,25 @@ html[data-theme="day"],
   background: #fff5f6;
   color: #9f1239;
   box-shadow: 0 18px 50px rgba(74, 14, 39, 0.26);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.login-notice-toast {
+  position: fixed;
+  z-index: 20;
+  top: 24px;
+  left: 50%;
+  width: min(460px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  padding: 14px 18px;
+  border: 1px solid rgba(109, 40, 217, 0.22);
+  border-radius: 16px;
+  background: #f7f1ff;
+  color: #4c1d95;
+  box-shadow: 0 18px 50px rgba(40, 15, 84, 0.22);
   font-size: 15px;
   font-weight: 750;
   line-height: 1.45;

@@ -38,7 +38,7 @@ import { Badge } from "./components/ui/Badge";
 import { CheckboxGroup } from "./components/ui/CheckboxGroup";
 import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
-import { calculateOrderTotal, DEFAULT_OWNER_INVITE_CODE, reportSummary } from "./domain/business";
+import { calculateOrderTotal, platformInviteCodeForUser, reportSummary } from "./domain/business";
 import { appointmentRangeMap, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
@@ -282,7 +282,7 @@ export default function App() {
             {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Approvals data={data} actions={actions} runMutation={runMutation} />)}
             {activeView === "logs" && (isPlatformAdmin ? <PlatformAuditReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} setView={navigate} showBack={showAdminDetailBack} />}
-            {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />}
+            {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
             {activeView === "settings" && <ManagementCenter data={data} session={session} setView={navigate} />}
           </>
@@ -312,7 +312,10 @@ function ManagementCenter({
   session: UserSession;
   setView: NavigateToView;
 }) {
-  const systemInviteCode = DEFAULT_OWNER_INVITE_CODE;
+  const systemInviteCode = platformInviteCodeForUser({
+    id: session.user.id,
+    account: session.user.account,
+  });
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayName === "admin" ? "系统管理员" : session.user.roleName;
   const [inviteVisible, setInviteVisible] = useState(false);
@@ -1207,10 +1210,23 @@ function PlatformAccountAdminView({ data, setView, showBack }: { data: AppData; 
   );
 }
 
-function PlatformPermissionReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+function PlatformPermissionReadOnlyView({
+  data,
+  setView,
+  showBack,
+  actions,
+  runMutation,
+}: {
+  data: AppData;
+  setView: (view: ViewKey) => void;
+  showBack?: boolean;
+  actions: ApiActions;
+  runMutation: (mutation: () => Promise<AppData>) => Promise<AppData>;
+}) {
   const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
   const pendingStaffInvites = data.staffInvites.filter((item) => item.status === "待加入").length;
-  const pendingOwnerInvites = data.storeOwnerInvites.filter((item) => item.status === "待加入").length;
+  const storeOwnerApplications = data.storeOwnerApplications ?? [];
+  const pendingOwnerApplications = storeOwnerApplications.filter((item) => item.status === "待审批").length;
   const roleRows = [
     ["系统管理员", "账号管理、权限审批、平台数据、操作日志、服务器用量", "平台管理"],
     ["老板", "门店经营、员工、库存、报表、审批", "门店级管理"],
@@ -1232,11 +1248,39 @@ function PlatformPermissionReadOnlyView({ data, setView, showBack }: { data: App
         <div className="page-hero-stats">
           <StatCard title="待审批" value={`${pendingApprovals} 单`} hint="关键审批" />
           <StatCard title="员工邀请码" value={`${pendingStaffInvites} 个`} hint="待加入" />
-          <StatCard title="门店邀请码" value={`${pendingOwnerInvites} 个`} hint="待加入" />
+          <StatCard title="门店申请" value={`${pendingOwnerApplications} 个`} hint="待审批" />
         </div>
       </section>
 
       <section className="dashboard-columns">
+        <div className="panel dashboard-panel">
+          <PanelTitle icon={<Building2 size={18} />} title="门店申请" action={`${storeOwnerApplications.length} 条`} />
+          <DataTable
+            columns={["门店", "申请人", "账号", "电话", "状态", "申请时间", "操作"]}
+            rows={storeOwnerApplications.map((application) => [
+              application.storeName,
+              application.ownerName,
+              application.account,
+              application.phone,
+              <Badge
+                key={`${application.id}-store-application-status`}
+                text={application.status}
+                tone={application.status === "已通过" ? "ok" : application.status === "已拒绝" ? "warn" : undefined}
+              />,
+              shortDate(application.createdAt),
+              application.status === "待审批" ? (
+                <div className="admin-approval-actions" key={`${application.id}-store-application-actions`}>
+                  <button type="button" onClick={() => void runMutation(() => actions.decideStoreOwnerApplication(application.id, true))}>
+                    通过
+                  </button>
+                  <button type="button" onClick={() => void runMutation(() => actions.decideStoreOwnerApplication(application.id, false))}>
+                    拒绝
+                  </button>
+                </div>
+              ) : application.decidedAt ? shortDate(application.decidedAt) : "-",
+            ])}
+          />
+        </div>
         <div className="panel dashboard-panel">
           <PanelTitle icon={<ShieldCheck size={18} />} title="角色权限" action="权限边界" />
           <DataTable columns={["角色", "可见模块", "范围"]} rows={roleRows} />

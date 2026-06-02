@@ -138,6 +138,27 @@ export type StoreOwnerInvite = {
   revokedBy?: string;
 };
 
+export type StoreOwnerApplication = {
+  id: string;
+  inviteId?: string;
+  inviteIssuerId?: string;
+  inviteCode: string;
+  storeName: string;
+  ownerName: string;
+  phone: string;
+  address?: string;
+  account: string;
+  password: string;
+  status: "待审批" | "已通过" | "已拒绝";
+  createdAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  rejectReason?: string;
+  storeId?: string;
+  staffId?: string;
+  userId?: string;
+};
+
 export type Customer = {
   id: string;
   name: string;
@@ -520,6 +541,7 @@ export type AppData = {
   authUsers: AuthUser[];
   staffInvites: StaffInvite[];
   storeOwnerInvites: StoreOwnerInvite[];
+  storeOwnerApplications: StoreOwnerApplication[];
   staff: Staff[];
   customers: Customer[];
   tagDefinitions: TagDefinition[];

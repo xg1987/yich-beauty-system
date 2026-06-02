@@ -2,6 +2,7 @@ import type {
   AppData,
   ApprovalRequest,
   Appointment,
+  AuthUser,
   CustomerFollowUp,
   CustomerSignature,
   CustomerServiceRecord,
@@ -28,6 +29,7 @@ import type {
   StaffInvite,
   StaffShift,
   StaffUnavailableSlot,
+  StoreOwnerApplication,
   StoreOwnerInvite,
   SystemNotification,
   Stocktake,
@@ -37,11 +39,53 @@ import type {
   UserRole,
   ViewKey,
 } from "./types";
+import { effectiveRoleForUser } from "./auth";
 import { makeId, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
 
 export const DEFAULT_OWNER_INVITE_CODE = "YC8M6P";
+const PLATFORM_INVITE_PREFIX = "YC";
+const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+function stableInviteNumber(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function encodeInviteSuffix(value: number) {
+  const base = PLATFORM_INVITE_ALPHABET.length;
+  let nextValue = value;
+  let suffix = "";
+  for (let index = 0; index < 4; index += 1) {
+    suffix = PLATFORM_INVITE_ALPHABET[nextValue % base] + suffix;
+    nextValue = Math.floor(nextValue / base);
+  }
+  return suffix;
+}
+
+export function platformInviteCodeForUser(user: Pick<AuthUser, "id" | "account">) {
+  const source = `${user.id}:${user.account}`.toLowerCase();
+  return `${PLATFORM_INVITE_PREFIX}${encodeInviteSuffix(stableInviteNumber(source))}`;
+}
+
+export function isPlatformInviteCodeFormat(inviteCode: string) {
+  return new RegExp(`^${PLATFORM_INVITE_PREFIX}[${PLATFORM_INVITE_ALPHABET}]{4}$`).test(inviteCode.trim().toUpperCase());
+}
+
+export function platformInviteIssuerId(data: AppData, inviteCode: string) {
+  const normalizedInviteCode = inviteCode.trim().toUpperCase();
+  const issuer = data.authUsers.find((user) => {
+    return user.status === "active"
+      && effectiveRoleForUser(user) === "superadmin"
+      && platformInviteCodeForUser(user) === normalizedInviteCode;
+  });
+  return issuer?.id;
+}
 
 export type RegisterStoreInput = {
   storeName: string;
@@ -121,6 +165,13 @@ export type JoinInviteInput = {
   phone?: string;
   address?: string;
   account?: string;
+};
+
+export type DecideStoreOwnerApplicationInput = {
+  applicationId: string;
+  userId: string;
+  approved: boolean;
+  rejectReason?: string;
 };
 
 export type RevokeStaffInviteInput = {
@@ -1257,8 +1308,9 @@ export function joinStoreOwnerInvite(
   const createdAt = (options.now ?? nowIso)();
   const inviteCode = input.inviteCode.trim().toUpperCase();
   const invite = (data.storeOwnerInvites ?? []).find((item) => item.inviteCode.trim().toUpperCase() === inviteCode && item.status === "待加入");
-  const isFixedInvite = inviteCode === DEFAULT_OWNER_INVITE_CODE;
-  if (!invite && !isFixedInvite) throw new Error("邀请不存在或已失效");
+  const inviteIssuerId = invite?.createdBy ?? platformInviteIssuerId(data, inviteCode);
+  const isLegacyInvite = inviteCode === DEFAULT_OWNER_INVITE_CODE;
+  if (!invite && !inviteIssuerId && !isLegacyInvite) throw new Error("邀请不存在或已失效");
   if (invite?.expiresAt && +new Date(invite.expiresAt) <= +new Date(createdAt)) throw new Error("邀请码已过期");
   const ownerName = input.name.trim() || invite?.ownerName || "";
   const storeName = (input.storeName ?? invite?.storeName ?? "").trim();
@@ -1271,6 +1323,81 @@ export function joinStoreOwnerInvite(
   if (!account) throw new Error("请输入老板登录账号");
   if (!input.password) throw new Error("请输入密码");
   if (data.authUsers.some((user) => user.account === account)) throw new Error("登录账号已存在");
+  const hasPendingApplication = (data.storeOwnerApplications ?? []).some((application) => {
+    if (application.status !== "待审批") return false;
+    return application.account === account || application.phone === phone || application.storeName === storeName;
+  });
+  if (hasPendingApplication) throw new Error("该门店、手机号或账号已有待审批申请");
+  const application: StoreOwnerApplication = {
+    id: idFactory("soa"),
+    inviteId: invite?.id,
+    inviteIssuerId,
+    inviteCode,
+    storeName,
+    ownerName,
+    phone,
+    address: address || undefined,
+    account,
+    password: input.password,
+    status: "待审批",
+    createdAt,
+  };
+  return {
+    ...data,
+    storeOwnerApplications: [application, ...(data.storeOwnerApplications ?? [])],
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId: "system",
+        action: "门店申请提交",
+        targetType: "storeOwnerApplication",
+        targetId: application.id,
+        summary: `${storeName} 提交门店开通申请`,
+        createdAt,
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function decideStoreOwnerApplication(
+  data: AppData,
+  input: DecideStoreOwnerApplicationInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const decidedAt = (options.now ?? nowIso)();
+  const application = (data.storeOwnerApplications ?? []).find((item) => item.id === input.applicationId);
+  if (!application) throw new Error("门店申请不存在");
+  if (application.status !== "待审批") throw new Error("该门店申请已处理");
+
+  if (!input.approved) {
+    return {
+      ...data,
+      storeOwnerApplications: (data.storeOwnerApplications ?? []).map((item) =>
+        item.id === application.id
+          ? { ...item, status: "已拒绝", decidedAt, decidedBy: input.userId, rejectReason: input.rejectReason?.trim() || "未通过" }
+          : item,
+      ),
+      operationLogs: [
+        {
+          id: idFactory("op"),
+          userId: input.userId,
+          action: "门店申请拒绝",
+          targetType: "storeOwnerApplication",
+          targetId: application.id,
+          summary: `${application.storeName} 门店开通申请未通过`,
+          createdAt: decidedAt,
+        },
+        ...data.operationLogs,
+      ],
+    };
+  }
+
+  if (data.authUsers.some((user) => user.account === application.account)) throw new Error("登录账号已存在");
+  if (data.storeProfiles.some((store) => store.phone === application.phone || store.name === application.storeName)) {
+    throw new Error("该门店或手机号已开通");
+  }
   const storeId = idFactory("store");
   const staffId = idFactory("s");
   const userId = idFactory("u");
@@ -1279,23 +1406,23 @@ export function joinStoreOwnerInvite(
     storeProfiles: [
       {
         id: storeId,
-        name: storeName,
-        phone,
-        address,
+        name: application.storeName,
+        phone: application.phone,
+        address: application.address ?? "",
         businessHours: "10:00 - 21:00",
-        createdAt,
+        createdAt: decidedAt,
       },
       ...data.storeProfiles,
     ],
     staff: [
       {
         id: staffId,
-        name: ownerName,
-        phone,
+        name: application.ownerName,
+        phone: application.phone,
         role: "老板",
         status: "active",
         accountId: userId,
-        hiredAt: createdAt.slice(0, 10),
+        hiredAt: decidedAt.slice(0, 10),
         baseSalary: 0,
         commissionRate: 0,
       },
@@ -1304,29 +1431,34 @@ export function joinStoreOwnerInvite(
     authUsers: [
       {
         id: userId,
-        name: ownerName,
-        account,
-        password: input.password,
+        name: application.ownerName,
+        account: application.account,
+        password: application.password,
         role: "owner",
         roleName: roleNameOf("owner"),
         staffId,
         status: "active",
-        createdAt,
+        createdAt: decidedAt,
       },
       ...data.authUsers,
     ],
+    storeOwnerApplications: (data.storeOwnerApplications ?? []).map((item) =>
+      item.id === application.id
+        ? { ...item, status: "已通过", decidedAt, decidedBy: input.userId, storeId, staffId, userId }
+        : item,
+    ),
     storeOwnerInvites: (data.storeOwnerInvites ?? []).map((item) =>
-      item.id === invite?.id ? { ...item, status: "已加入", joinedAt: createdAt } : item,
+      item.id === application.inviteId ? { ...item, status: "已加入", joinedAt: decidedAt } : item,
     ),
     operationLogs: [
       {
         id: idFactory("op"),
-        userId,
-        action: "老板邀请码注册",
+        userId: input.userId,
+        action: "门店申请审批通过",
         targetType: "store",
         targetId: storeId,
-        summary: `${storeName} 通过系统邀请码开通负责人账号`,
-        createdAt,
+        summary: `${application.storeName} 开通负责人账号`,
+        createdAt: decidedAt,
       },
       ...data.operationLogs,
     ],
@@ -1339,7 +1471,11 @@ export function joinInviteByCode(
   options: { idFactory?: IdFactory; now?: () => string } = {},
 ): AppData {
   const inviteCode = input.inviteCode.trim().toUpperCase();
-  if (inviteCode === DEFAULT_OWNER_INVITE_CODE || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === inviteCode && item.status === "待加入")) {
+  if (
+    inviteCode === DEFAULT_OWNER_INVITE_CODE
+    || platformInviteIssuerId(data, inviteCode)
+    || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === inviteCode && item.status === "待加入")
+  ) {
     return joinStoreOwnerInvite(data, input, options);
   }
   return joinStaffInvite(data, input, options);
@@ -1349,7 +1485,7 @@ export function accountForInvite(data: AppData, inviteCode: string, fallbackAcco
   const normalizedInviteCode = inviteCode.trim().toUpperCase();
   return (normalizedInviteCode === DEFAULT_OWNER_INVITE_CODE ? fallbackAccount : undefined)
     ?? (data.storeOwnerInvites ?? []).find((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode)?.account
-    ?? data.staffInvites.find((item) => item.inviteCode === inviteCode.trim())?.account;
+    ?? data.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode)?.account;
 }
 
 export function createDistributor(

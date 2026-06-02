@@ -1,15 +1,20 @@
 import { LockKeyhole } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { DEFAULT_OWNER_INVITE_CODE } from "../../domain/business";
+import { isPlatformInviteCodeFormat } from "../../domain/business";
 import type { UserSession } from "../../domain/auth";
+import type { JoinInviteResult } from "../../api/client";
 
 type LoginPageProps = {
   onLogin: (account: string, password: string) => Promise<void>;
-  onJoin: (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }) => Promise<UserSession>;
+  onJoin: (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }) => Promise<JoinInviteResult>;
   authenticate: (authAction: () => Promise<UserSession>) => Promise<void>;
   loading: boolean;
   error?: string;
 };
+
+function isPendingApprovalResult(result: JoinInviteResult): result is Extract<JoinInviteResult, { status: "pending_approval" }> {
+  return "status" in result && result.status === "pending_approval";
+}
 
 export default function LoginPage({ onLogin, onJoin, authenticate, loading, error }: LoginPageProps) {
   const [mode, setMode] = useState<"login" | "join">("login");
@@ -21,16 +26,19 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
   const [joinPhone, setJoinPhone] = useState("");
   const [joinAddress, setJoinAddress] = useState("");
   const [joinAccount, setJoinAccount] = useState("");
-  const isOwnerInvite = inviteCode.trim().toUpperCase() === DEFAULT_OWNER_INVITE_CODE;
+  const [joinNotice, setJoinNotice] = useState<string | undefined>();
+  const isOwnerInvite = isPlatformInviteCodeFormat(inviteCode);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    setJoinNotice(undefined);
     if (mode === "login") {
       void onLogin(account.trim(), password);
       return;
     }
-    void authenticate(() =>
-      onJoin({
+    let result: JoinInviteResult;
+    try {
+      result = await onJoin({
         inviteCode,
         name: joinName,
         password,
@@ -38,8 +46,19 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
         phone: isOwnerInvite ? joinPhone : undefined,
         address: isOwnerInvite ? joinAddress : undefined,
         account: isOwnerInvite ? joinAccount : undefined,
-      }),
-    );
+      });
+    } catch {
+      return;
+    }
+
+    if (isPendingApprovalResult(result)) {
+      setJoinNotice(result.message);
+      setMode("login");
+      setPassword("");
+      return;
+    }
+
+    await authenticate(() => Promise.resolve(result));
   };
 
   return (
@@ -47,6 +66,11 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
       {error && (
         <div className="login-error-toast" role="alert" aria-live="assertive">
           {error}
+        </div>
+      )}
+      {joinNotice && (
+        <div className="login-notice-toast" role="status" aria-live="polite">
+          {joinNotice}
         </div>
       )}
       <section className="login-panel">

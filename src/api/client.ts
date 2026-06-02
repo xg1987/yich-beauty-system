@@ -20,6 +20,9 @@ export type PublicCustomerSignaturePayload = {
 };
 
 export type ApiClient = ReturnType<typeof createApiClient>;
+export type JoinInviteResult =
+  | UserSession
+  | { status: "pending_approval"; message: string; applicationId?: string };
 
 export function createApiClient(getToken: () => string | undefined) {
   return {
@@ -31,7 +34,7 @@ export function createApiClient(getToken: () => string | undefined) {
     registerStore: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; password: string }) =>
       request<UserSession>("/api/auth/register-store", { method: "POST", body }),
     joinInvite: (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }) =>
-      request<UserSession>("/api/auth/join-invite", { method: "POST", body }),
+      request<JoinInviteResult>("/api/auth/join-invite", { method: "POST", body }),
     fetchPublicStore: (shareCode: string) =>
       request<{ store?: StoreProfile; storefront: OnlineStorefront; services: Service[] }>(`/api/public/store/${encodeURIComponent(shareCode)}`),
     createPublicBookingRequest: (body: { shareCode: string; customerName: string; phone: string; serviceId: string; preferredAt: string; note?: string }) =>
@@ -67,6 +70,12 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/staff-invites", { method: "POST", body, token: getToken() }),
     createStoreOwnerInvite: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; validDays?: number }) =>
       request<AppData>("/api/store-owner-invites", { method: "POST", body, token: getToken() }),
+    decideStoreOwnerApplication: (applicationId: string, approved: boolean, rejectReason?: string) =>
+      request<AppData>(`/api/store-owner-applications/${encodeURIComponent(applicationId)}`, {
+        method: "PATCH",
+        body: { approved, rejectReason },
+        token: getToken(),
+      }),
     revokeStaffInvite: (inviteId: string) =>
       request<AppData>(`/api/staff-invites/${encodeURIComponent(inviteId)}`, { method: "PATCH", token: getToken() }),
     updateOnlineStorefront: (body: { shareCode: string; status?: "启用" | "停用"; headline: string; description: string; enabledServiceIds: string[] }) =>

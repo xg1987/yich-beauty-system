@@ -35,6 +35,7 @@ export const testFixtureData: AppData = {
   ],
   staffInvites: [],
   storeOwnerInvites: [],
+  storeOwnerApplications: [],
   staff: [
     { id: "s1", name: "林主管", phone: "13800000001", role: "主管", status: "active", accountId: "u_manager", hiredAt: "2025-01-01", baseSalary: 9000, commissionRate: 0.12 },
     { id: "s2", name: "小雅", phone: "13800000002", role: "员工", status: "active", accountId: "u_therapist", hiredAt: "2025-03-01", baseSalary: 6500, commissionRate: 0.12 },

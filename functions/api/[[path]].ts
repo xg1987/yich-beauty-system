@@ -7,7 +7,6 @@ import {
   signCustomerSignature,
   addStaffMember,
   addSupplier,
-  accountForInvite,
   adjustInventory,
   bindReferralRelation,
   cleanupFormalData,
@@ -26,6 +25,7 @@ import {
   createStocktake,
   completeCustomerFollowUp,
   decideApprovalRequest,
+  decideStoreOwnerApplication,
   extendMemberCard,
   receivePurchaseOrder,
   rechargeMemberCard,
@@ -40,6 +40,7 @@ import {
   updateAppointmentStatus,
   transferMemberCard,
   upsertOnlineStorefront,
+  DEFAULT_OWNER_INVITE_CODE,
   joinInviteByCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
@@ -49,6 +50,7 @@ import {
   updateAccountProfile,
   updateStoreProfile,
   updateMemberCardStatus,
+  platformInviteIssuerId,
 } from "../../src/domain/business";
 import { hashPassword } from "../../src/lib/password";
 
@@ -159,7 +161,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const hashedPassword = await hashPassword(plainPassword);
       const inviteCode = requiredString(body, "inviteCode");
 
-      const nextData = joinInviteByCode(await database.readData(), {
+      const currentData = await database.readData();
+      const isStoreOwnerInvite = isStoreOwnerInviteCode(currentData, inviteCode);
+      const nextData = joinInviteByCode(currentData, {
         inviteCode,
         name: requiredString(body, "name"),
         password: hashedPassword,
@@ -170,9 +174,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
       await database.replaceData(nextData);
 
-      const joinedAccount = accountForInvite(nextData, inviteCode, optionalString(body, "account"));
-      if (!joinedAccount) throw new Error("邀请账号不存在");
-      const loginResult = await loginWithD1(context.env.DB, joinedAccount, plainPassword);
+      if (isStoreOwnerInvite) {
+        const account = optionalString(body, "account");
+        const application = [...(nextData.storeOwnerApplications ?? [])].find((item) => {
+          if (item.status !== "待审批") return false;
+          if (item.inviteCode.trim().toUpperCase() !== inviteCode.trim().toUpperCase()) return false;
+          return account ? item.account === account : true;
+        });
+        return sendJson(202, {
+          status: "pending_approval",
+          message: "门店申请已提交，请等待管理员审批后再登录。",
+          applicationId: application?.id,
+        });
+      }
+
+      const staffInvite = currentData.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === inviteCode.trim().toUpperCase());
+      if (!staffInvite) throw new Error("邀请账号不存在");
+      const loginResult = await loginWithD1(context.env.DB, staffInvite.account, plainPassword);
       return sendJson(201, loginResult.session);
     }
 
@@ -419,6 +437,22 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
       await database.replaceData(nextData);
       return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) {
+      if (session.user.role !== "superadmin") {
+        throw new Error("只有平台 Admin 可以审批门店申请");
+      }
+      const applicationId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      const body = await readJson(context.request);
+      const nextData = decideStoreOwnerApplication(await database.readData(), {
+        applicationId,
+        userId: session.user.id,
+        approved: optionalBoolean(body, "approved") ?? true,
+        rejectReason: optionalString(body, "rejectReason"),
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/staff-invites/")) {
@@ -1296,10 +1330,18 @@ function shortTimeText(value: string) {
   return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+function isStoreOwnerInviteCode(data: AppData, inviteCode: string) {
+  const normalizedInviteCode = inviteCode.trim().toUpperCase();
+  return normalizedInviteCode === DEFAULT_OWNER_INVITE_CODE
+    || Boolean(platformInviteIssuerId(data, normalizedInviteCode))
+    || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode && item.status === "待加入");
+}
+
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sanitizedData = {
     ...data,
     authUsers: data.authUsers.map((user) => ({ ...user, password: "" })),
+    storeOwnerApplications: (data.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
     notifications: (data.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
   };
   if (session.user.role !== "therapist" || !session.user.staffId) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createApiClient } from "../api/client";
+import { createApiClient, type JoinInviteResult } from "../api/client";
 import { normalizeUserSession, type UserSession } from "../domain/auth";
 import type { AppData } from "../domain/types";
 
@@ -55,6 +55,19 @@ export function useApiData() {
       setData(nextData);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "认证失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const joinInvite = async (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }): Promise<JoinInviteResult> => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      return await client.joinInvite(body);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "加入门店失败");
+      throw caught;
     } finally {
       setLoading(false);
     }
@@ -128,6 +141,7 @@ export function useApiData() {
     uploadAccountAvatar: client.uploadAccountAvatar,
     createStaffInvite: client.createStaffInvite,
     createStoreOwnerInvite: client.createStoreOwnerInvite,
+    decideStoreOwnerApplication: client.decideStoreOwnerApplication,
     revokeStaffInvite: client.revokeStaffInvite,
     updateOnlineStorefront: client.updateOnlineStorefront,
     convertOnlineBookingRequest: client.convertOnlineBookingRequest,
@@ -178,7 +192,7 @@ export function useApiData() {
     error,
     login,
     registerStore: client.registerStore,
-    joinInvite: client.joinInvite,
+    joinInvite,
     fetchPublicStore: client.fetchPublicStore,
     createPublicBookingRequest: client.createPublicBookingRequest,
     fetchPublicCustomerSignature: client.fetchPublicCustomerSignature,

@@ -27,7 +27,9 @@ import {
   createStoreOwnerInvite,
   createStaffInvite,
   createStocktake,
+  decideStoreOwnerApplication,
   completeCustomerFollowUp,
+  DEFAULT_OWNER_INVITE_CODE,
   decideApprovalRequest,
   extendMemberCard,
   receivePurchaseOrder,
@@ -52,6 +54,7 @@ import {
   updateAccountProfile,
   updateStoreProfile,
   updateMemberCardStatus,
+  platformInviteIssuerId,
 } from "../src/domain/business";
 import { hashPassword } from "../src/lib/password";
 
@@ -150,7 +153,9 @@ export function createApiServer(database = new BeautyDatabase()) {
         const hashedPassword = await hashPassword(plainPassword);
         const inviteCode = requiredString(body, "inviteCode");
 
-        const nextData = joinInviteByCode(database.readData(), {
+        const currentData = database.readData();
+        const isStoreOwnerInvite = isStoreOwnerInviteCode(currentData, inviteCode);
+        const nextData = joinInviteByCode(currentData, {
           inviteCode,
           name: requiredString(body, "name"),
           password: hashedPassword,
@@ -161,7 +166,22 @@ export function createApiServer(database = new BeautyDatabase()) {
         });
         database.replaceData(nextData);
 
-        const joinedAccount = accountForInvite(nextData, inviteCode, optionalString(body, "account"));
+        if (isStoreOwnerInvite) {
+          const account = optionalString(body, "account");
+          const application = [...(nextData.storeOwnerApplications ?? [])].find((item) => {
+            if (item.status !== "待审批") return false;
+            if (item.inviteCode.trim().toUpperCase() !== inviteCode.trim().toUpperCase()) return false;
+            return account ? item.account === account : true;
+          });
+          sendJson(response, 202, {
+            status: "pending_approval",
+            message: "门店申请已提交，请等待管理员审批后再登录。",
+            applicationId: application?.id,
+          });
+          return;
+        }
+
+        const joinedAccount = accountForInvite(currentData, inviteCode, optionalString(body, "account"));
         if (!joinedAccount) throw new Error("邀请账号不存在");
         const loginResult = await login(joinedAccount, plainPassword, nextData.authUsers);
         sendJson(response, 201, loginResult.session);
@@ -432,6 +452,23 @@ export function createApiServer(database = new BeautyDatabase()) {
         });
         database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/store-owner-applications/")) {
+        if (session.user.role !== "superadmin") {
+          throw new Error("只有平台 Admin 可以审批门店申请");
+        }
+        const applicationId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        const body = await readJson(request);
+        const nextData = decideStoreOwnerApplication(database.readData(), {
+          applicationId,
+          userId: session.user.id,
+          approved: optionalBoolean(body, "approved") ?? true,
+          rejectReason: optionalString(body, "rejectReason"),
+        });
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
       }
 
@@ -1323,6 +1360,13 @@ function publicSignaturePayload(data: AppData, token: string) {
   };
 }
 
+function isStoreOwnerInviteCode(data: AppData, inviteCode: string) {
+  const normalizedInviteCode = inviteCode.trim().toUpperCase();
+  return normalizedInviteCode === DEFAULT_OWNER_INVITE_CODE
+    || Boolean(platformInviteIssuerId(data, normalizedInviteCode))
+    || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode && item.status === "待加入");
+}
+
 function sanitizePublicSignature(signature: CustomerSignature) {
   return {
     id: signature.id,
@@ -1348,6 +1392,7 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sanitizedData = {
     ...data,
     authUsers: data.authUsers.map((user) => ({ ...user, password: "" })),
+    storeOwnerApplications: (data.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
     notifications: (data.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
   };
   if (session.user.role !== "therapist" || !session.user.staffId) {
