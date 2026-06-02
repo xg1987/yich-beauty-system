@@ -8130,11 +8130,8 @@ textarea,
 .theme-night .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
   border-color: rgba(255, 221, 216, 0.12);
   background:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
     radial-gradient(circle at 76% 16%, rgba(255, 205, 151, 0.13), transparent 30%),
     linear-gradient(105deg, #442079 0%, #6c3bd5 48%, #8b5d3a 100%);
-  background-size: 72px 72px, 72px 72px, auto, auto;
   color: #fff;
   box-shadow: 0 24px 58px rgba(0, 0, 0, 0.38);
 }
