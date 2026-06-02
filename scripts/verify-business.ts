@@ -41,6 +41,7 @@ import {
   reportSummary,
   revokeStaffInvite,
   reverseDailyClose,
+  restockLowInventory,
   rescheduleAppointment,
   settleDistributionCommissions,
   settleCommissions,
@@ -1199,6 +1200,24 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(productStock(purchased, "p1"), 21, "purchase order should increase stock");
   assert.equal(purchased.inventoryLogs[0].type, "采购入库", "purchase order should log inbound stock");
+
+  const lowStockData = {
+    ...cloneSeed(),
+    suppliers: [],
+    products: cloneSeed().products.map((product) => product.id === "p1" ? { ...product, stock: 2, warningStock: 5 } : product),
+  };
+  const restocked = restockLowInventory(lowStockData, { userId: "u_manager" }, { idFactory: testId, now: fixedNow });
+  assert.equal(restocked.suppliers[0].name, "默认供应商", "restock should create a default supplier when none exists");
+  assert.equal(restocked.purchaseOrders.length, 1, "restock should create purchase order for low stock item");
+  assert.equal(restocked.purchaseOrders[0].quantity, 10, "restock should replenish at least ten units");
+  assert.equal(productStock(restocked, "p1"), 12, "restock should update product stock");
+  assert.equal(restocked.inventoryLogs[0].type, "采购入库", "restock should write inventory log");
+  assert.equal(restocked.operationLogs[0].action, "一键补货", "restock should write operation log");
+  assert.throws(
+    () => restockLowInventory(cloneSeed(), { userId: "u_manager" }),
+    /当前没有需要补货/,
+    "restock should reject when there are no low stock items",
+  );
 
   const counted = createStocktake(
     purchased,

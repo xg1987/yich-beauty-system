@@ -38,6 +38,7 @@ import {
   registerStore,
   revokeStaffInvite,
   reverseDailyClose,
+  restockLowInventory,
   rescheduleAppointment,
   settleDistributionCommissions,
   settleCommissions,
@@ -1185,6 +1186,18 @@ export function createApiServer(database = new BeautyDatabase()) {
           productId: requiredString(body, "productId"),
           quantity: requiredNumber(body, "quantity"),
           unitCost: requiredNumber(body, "unitCost"),
+          userId: session.user.id,
+        });
+        database.replaceData(nextData);
+        sendJson(response, 201, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/inventory/restock-low") {
+        requirePermission(session, "inventory:manage");
+        const body = await readJson(request);
+        const nextData = restockLowInventory(database.readData(), {
+          supplierId: optionalString(body, "supplierId"),
           userId: session.user.id,
         });
         database.replaceData(nextData);

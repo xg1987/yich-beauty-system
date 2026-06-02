@@ -178,6 +178,7 @@ export function useApiData() {
     addProduct: client.addProduct,
     addSupplier: client.addSupplier,
     receivePurchaseOrder: client.receivePurchaseOrder,
+    restockLowInventory: client.restockLowInventory,
     createStocktake: client.createStocktake,
     settleCommissions: client.settleCommissions,
     createDailyClose: client.createDailyClose,

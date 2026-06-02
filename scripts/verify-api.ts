@@ -947,6 +947,20 @@ try {
     body: { supplierId, productId: "p1", quantity: 3, unitCost: 60 },
   });
   assert.equal(afterPurchase.inventoryLogs[0].type, "采购入库", "purchase API should create inbound inventory log");
+  const afterLowStockProduct = await request<AppData>(baseUrl, "/api/products", {
+    method: "POST",
+    token: session.token,
+    body: { name: "API 低库存耗材", type: "consumable", stock: 1, warningStock: 5, unit: "瓶", price: 30, cost: 12 },
+  });
+  const lowStockProductId = afterLowStockProduct.products[0].id;
+  const afterRestock = await request<AppData>(baseUrl, "/api/inventory/restock-low", {
+    method: "POST",
+    token: session.token,
+    body: { supplierId },
+  });
+  assert.ok(afterRestock.purchaseOrders.some((order) => order.productId === lowStockProductId), "restock API should create purchase order for low stock product");
+  assert.ok((afterRestock.products.find((product) => product.id === lowStockProductId)?.stock ?? 0) > 5, "restock API should replenish stock above warning line");
+  assert.equal(afterRestock.operationLogs[0].action, "一键补货", "restock API should write operation log");
   const afterStocktake = await request<AppData>(baseUrl, "/api/stocktakes", {
     method: "POST",
     token: session.token,

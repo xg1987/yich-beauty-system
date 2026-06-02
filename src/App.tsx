@@ -3807,16 +3807,9 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
   const lowStock = lowStockItems.length;
   const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
 
-  // 库存预警增强：低库存一键生成补货建议
-  const generateRestockSuggestions = () => {
+  const restockLowInventory = () => {
     if (lowStockItems.length === 0) return;
-    const suggestions = lowStockItems.map(item => ({
-      productId: item.id,
-      quantity: Math.max(10, item.warningStock * 2 - item.stock), // 建议补到预警*2
-      estimatedCost: (item as any).cost || 50
-    }));
-    alert(`已生成 ${suggestions.length} 个补货建议（未来可自动创建采购单）。低库存商品：${lowStockItems.map(i => i.name).join(', ')}`);
-    // 实际可扩展为调用 actions.createPurchaseOrder 或类似
+    void runMutation(() => actions.restockLowInventory(supplierId || undefined));
   };
 
   return (
@@ -3869,8 +3862,8 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
         <PanelTitle icon={<Boxes size={18} />} title="库存列表" action="低库存自动标记" />
         {lowStock > 0 && (
           <div style={{margin: '8px 0', padding: '8px 12px', background: '#fff3cd', borderRadius: 6, fontSize: 14}}>
-            ⚠️ <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
-            <button style={{marginLeft: 12}} onClick={generateRestockSuggestions}>一键生成补货建议</button>
+            <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
+            <button style={{marginLeft: 12}} onClick={restockLowInventory}>一键补货入库</button>
           </div>
         )}
         <DataTable

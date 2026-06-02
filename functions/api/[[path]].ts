@@ -34,6 +34,7 @@ import {
   registerStore,
   revokeStaffInvite,
   reverseDailyClose,
+  restockLowInventory,
   rescheduleAppointment,
   settleDistributionCommissions,
   settleCommissions,
@@ -1148,6 +1149,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         productId: requiredString(body, "productId"),
         quantity: requiredNumber(body, "quantity"),
         unitCost: requiredNumber(body, "unitCost"),
+        userId: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(201, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/inventory/restock-low") {
+      requirePermission(session, "inventory:manage");
+      const body = await readJson(context.request);
+      const nextData = restockLowInventory(await database.readData(), {
+        supplierId: optionalString(body, "supplierId"),
         userId: session.user.id,
       });
       await database.replaceData(nextData);

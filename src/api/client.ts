@@ -223,6 +223,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/suppliers", { method: "POST", body, token: getToken() }),
     receivePurchaseOrder: (body: { supplierId: string; productId: string; quantity: number; unitCost: number }) =>
       request<AppData>("/api/purchase-orders", { method: "POST", body, token: getToken() }),
+    restockLowInventory: (supplierId?: string) =>
+      request<AppData>("/api/inventory/restock-low", { method: "POST", body: { supplierId }, token: getToken() }),
     createStocktake: (body: { productId: string; actualStock: number; reason: string }) =>
       request<AppData>("/api/stocktakes", { method: "POST", body, token: getToken() }),
     settleCommissions: () => request<AppData>("/api/commissions/settle", { method: "POST", token: getToken() }),

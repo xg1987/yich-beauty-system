@@ -563,6 +563,11 @@ export type PurchaseOrderInput = {
   userId: string;
 };
 
+export type RestockLowInventoryInput = {
+  supplierId?: string;
+  userId: string;
+};
+
 export type StocktakeInput = {
   productId: string;
   actualStock: number;
@@ -2913,6 +2918,81 @@ export function receivePurchaseOrder(
         createdAt,
       },
       ...data.inventoryLogs,
+    ],
+  };
+}
+
+export function restockLowInventory(
+  data: AppData,
+  input: RestockLowInventoryInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const currentTime = options.now ?? nowIso;
+  const createdAt = currentTime();
+  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  const lowStockProducts = data.products.filter((product) => product.stock <= product.warningStock);
+  if (lowStockProducts.length === 0) throw new Error("当前没有需要补货的商品");
+
+  const existingSupplier = input.supplierId
+    ? data.suppliers.find((supplier) => supplier.id === input.supplierId)
+    : data.suppliers.find((supplier) => supplier.status === "active") ?? data.suppliers[0];
+  if (input.supplierId && !existingSupplier) throw new Error("供应商不存在");
+
+  const supplier: Supplier = existingSupplier ?? {
+    id: idFactory("sp"),
+    name: "默认供应商",
+    phone: "",
+    contact: "采购联系人",
+    status: "active",
+  };
+  const purchaseOrders: PurchaseOrder[] = [];
+  const inventoryLogs: InventoryLog[] = [];
+  const stockByProduct = new Map<string, number>();
+
+  for (const product of lowStockProducts) {
+    const quantity = Math.max(10, product.warningStock * 2 - product.stock);
+    const stockAfter = product.stock + quantity;
+    const purchaseOrder: PurchaseOrder = {
+      id: idFactory("po"),
+      supplierId: supplier.id,
+      productId: product.id,
+      quantity,
+      unitCost: product.cost,
+      status: "已入库",
+      createdBy: input.userId,
+      createdAt,
+    };
+    purchaseOrders.push(purchaseOrder);
+    inventoryLogs.push({
+      id: idFactory("il"),
+      productId: product.id,
+      type: "采购入库",
+      delta: quantity,
+      stockAfter,
+      note: purchaseOrder.id,
+      createdAt,
+    });
+    stockByProduct.set(product.id, stockAfter);
+  }
+
+  return {
+    ...data,
+    suppliers: existingSupplier ? data.suppliers : [supplier, ...data.suppliers],
+    products: data.products.map((product) => stockByProduct.has(product.id) ? { ...product, stock: stockByProduct.get(product.id) ?? product.stock } : product),
+    purchaseOrders: [...purchaseOrders, ...data.purchaseOrders],
+    inventoryLogs: [...inventoryLogs, ...data.inventoryLogs],
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId: input.userId,
+        action: "一键补货",
+        targetType: "inventory",
+        targetId: "low-stock",
+        summary: `低库存商品自动补货 ${purchaseOrders.length} 项`,
+        createdAt,
+      },
+      ...data.operationLogs,
     ],
   };
 }
