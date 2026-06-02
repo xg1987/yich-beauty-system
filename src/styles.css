@@ -6083,6 +6083,128 @@ textarea,
   margin: 18px 0 22px;
 }
 
+.permission-admin-page {
+  gap: 16px;
+}
+
+.permission-admin-page .page-hero {
+  min-height: 158px;
+  height: auto;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 470px);
+  gap: 20px;
+  padding: 22px 24px;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(70, 34, 132, 0.98) 0%, rgba(104, 60, 190, 0.94) 48%, rgba(141, 95, 74, 0.9) 100%);
+}
+
+.permission-admin-page .page-hero h1 {
+  font-size: clamp(28px, 2.8vw, 36px);
+}
+
+.permission-admin-page .page-hero p {
+  max-width: 440px;
+}
+
+.permission-admin-page .page-hero-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.permission-admin-page .page-hero .stat-card {
+  min-height: 78px;
+  padding: 11px 12px;
+  border-radius: 12px;
+}
+
+.permission-dashboard-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.permission-support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.permission-store-card,
+.permission-role-card,
+.permission-approval-card {
+  padding: 16px;
+}
+
+.permission-store-card .table-wrap,
+.permission-role-card .table-wrap,
+.permission-approval-card .table-wrap {
+  border: 1px solid rgba(230, 222, 214, 0.62);
+  border-radius: 8px;
+  background: rgba(255, 252, 249, 0.42);
+}
+
+.permission-store-card table {
+  min-width: 760px;
+}
+
+.permission-role-card table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.permission-role-card th,
+.permission-role-card td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.permission-role-card th:first-child,
+.permission-role-card td:first-child {
+  width: 98px;
+  font-weight: 800;
+}
+
+.permission-role-card th:last-child,
+.permission-role-card td:last-child {
+  width: 92px;
+}
+
+.permission-approval-card table {
+  min-width: 520px;
+}
+
+.permission-approval-card .empty {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border: 1px solid rgba(230, 222, 214, 0.62);
+  border-radius: 8px;
+  background: rgba(255, 252, 249, 0.42);
+}
+
+@media (max-width: 900px) {
+  .permission-admin-page .page-hero,
+  .permission-support-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .permission-admin-page .page-hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .permission-admin-page .page-hero-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .permission-store-card,
+  .permission-role-card,
+  .permission-approval-card {
+    padding: 14px;
+  }
+}
+
 .usage-monitor-page {
   gap: 18px;
 }
@@ -8206,6 +8328,14 @@ textarea,
   background: rgba(28, 22, 20, 0.72);
   color: #fff8f3;
   box-shadow: none;
+}
+
+.theme-night .permission-store-card .table-wrap,
+.theme-night .permission-role-card .table-wrap,
+.theme-night .permission-approval-card .table-wrap,
+.theme-night .permission-approval-card .empty {
+  border-color: rgba(232, 174, 180, 0.13);
+  background: rgba(20, 15, 17, 0.56);
 }
 
 .theme-night .panel,

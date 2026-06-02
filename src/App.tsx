@@ -1389,16 +1389,16 @@ function PlatformPermissionReadOnlyView({
   const storeOwnerApplications = data.storeOwnerApplications ?? [];
   const pendingOwnerApplications = storeOwnerApplications.filter((item) => item.status === "待审批").length;
   const roleRows = [
-    ["系统管理员", "账号管理、权限审批、平台数据、操作日志、服务器用量", "平台管理"],
-    ["老板", "门店经营、员工、库存、报表、审批", "门店级管理"],
-    ["店长", "预约、收银、客户、库存、提成、报表", "门店级执行"],
+    ["系统管理员", "账号、权限、平台数据、日志、用量", "平台级"],
+    ["老板", "门店经营、员工、库存、报表、审批", "门店级"],
+    ["店长", "预约、收银、客户、库存、提成、报表", "执行级"],
     ["前台", "预约、收银、客户登记", "到店业务"],
     ["美容师", "预约、服务开单、客户记录、个人提成", "本人服务"],
     ["财务", "报表、日结、提成结算、审批", "财务处理"],
   ];
 
   return (
-    <div className="admin-center-page platform-admin-page">
+    <div className="admin-center-page platform-admin-page permission-admin-page">
       {showBack && <PlatformPageTitle title="权限审批" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
@@ -1413,8 +1413,8 @@ function PlatformPermissionReadOnlyView({
         </div>
       </section>
 
-      <section className="dashboard-columns">
-        <div className="panel dashboard-panel">
+      <section className="permission-dashboard-grid">
+        <div className="panel dashboard-panel permission-store-card">
           <PanelTitle icon={<Building2 size={18} />} title="门店申请" action={`${storeOwnerApplications.length} 条`} />
           <DataTable
             columns={["门店", "申请人", "账号", "电话", "状态", "申请时间", "操作"]}
@@ -1442,23 +1442,25 @@ function PlatformPermissionReadOnlyView({
             ])}
           />
         </div>
-        <div className="panel dashboard-panel">
-          <PanelTitle icon={<ShieldCheck size={18} />} title="角色权限" action="权限边界" />
-          <DataTable columns={["角色", "可见模块", "范围"]} rows={roleRows} />
-        </div>
-        <div className="panel dashboard-panel">
-          <PanelTitle icon={<ClipboardList size={18} />} title="关键审批" action={`${data.approvalRequests.length} 条`} />
-          <DataTable
-            columns={["类型", "目标", "金额", "申请人", "状态", "申请时间"]}
-            rows={data.approvalRequests.map((request) => [
-              request.type,
-              request.targetId,
-              money(request.amount),
-              data.authUsers.find((user) => user.id === request.requestedBy)?.name ?? "系统",
-              <Badge key={`${request.id}-permission-status`} text={request.status} tone={request.status === "已通过" ? "ok" : request.status === "已拒绝" ? "warn" : undefined} />,
-              shortDate(request.createdAt),
-            ])}
-          />
+        <div className="permission-support-grid">
+          <div className="panel dashboard-panel permission-role-card">
+            <PanelTitle icon={<ShieldCheck size={18} />} title="角色权限" action="权限边界" />
+            <DataTable columns={["角色", "可见模块", "范围"]} rows={roleRows} />
+          </div>
+          <div className="panel dashboard-panel permission-approval-card">
+            <PanelTitle icon={<ClipboardList size={18} />} title="关键审批" action={`${data.approvalRequests.length} 条`} />
+            <DataTable
+              columns={["类型", "目标", "金额", "申请人", "状态", "申请时间"]}
+              rows={data.approvalRequests.map((request) => [
+                request.type,
+                request.targetId,
+                money(request.amount),
+                data.authUsers.find((user) => user.id === request.requestedBy)?.name ?? "系统",
+                <Badge key={`${request.id}-permission-status`} text={request.status} tone={request.status === "已通过" ? "ok" : request.status === "已拒绝" ? "warn" : undefined} />,
+                shortDate(request.createdAt),
+              ])}
+            />
+          </div>
         </div>
       </section>
     </div>
