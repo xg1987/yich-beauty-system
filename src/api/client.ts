@@ -60,6 +60,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/auth-users/${encodeURIComponent(userId)}/status`, { method: "PATCH", body: { status }, token: getToken() }),
     markNotificationRead: (notificationId: string) =>
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
+    archiveNotification: (notificationId: string) =>
+      request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/archive`, { method: "PATCH", token: getToken() }),
     markAllNotificationsRead: () =>
       request<AppData>("/api/notifications/read-all", { method: "POST", token: getToken() }),
     updateSystemConfig: (key: SystemConfigKey, value: string) =>

@@ -545,6 +545,14 @@ try {
     token: session.token,
   });
   assert.ok(afterNotificationRead.notifications.find((item) => item.id === afterAppointment.notifications[0].id)?.readByUserIds.includes("u_manager"), "notification API should mark one item read");
+  const afterNotificationArchive = await request<AppData>(baseUrl, `/api/notifications/${afterAppointment.notifications[0].id}/archive`, {
+    method: "PATCH",
+    token: session.token,
+  });
+  assert.ok(
+    afterNotificationArchive.notifications.find((item) => item.id === afterAppointment.notifications[0].id)?.archivedByUserIds?.includes("u_manager"),
+    "notification API should archive one item for current user",
+  );
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {

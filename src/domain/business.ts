@@ -435,6 +435,11 @@ export type NotificationReadInput = {
   userId: string;
 };
 
+export type NotificationArchiveInput = {
+  notificationId: string;
+  userId: string;
+};
+
 export type NotificationReadAllInput = {
   userId: string;
   role: UserRole;
@@ -2513,6 +2518,7 @@ export function addSystemNotification(
     audienceRoles: input.audienceRoles,
     staffId: input.staffId,
     readByUserIds: [],
+    archivedByUserIds: [],
     createdAt: currentTime(),
   };
 
@@ -2528,6 +2534,17 @@ export function markNotificationRead(data: AppData, input: NotificationReadInput
     notifications: (data.notifications ?? []).map((notification) =>
       notification.id === input.notificationId && !notification.readByUserIds.includes(input.userId)
         ? { ...notification, readByUserIds: [input.userId, ...notification.readByUserIds] }
+        : notification,
+    ),
+  };
+}
+
+export function archiveNotification(data: AppData, input: NotificationArchiveInput): AppData {
+  return {
+    ...data,
+    notifications: (data.notifications ?? []).map((notification) =>
+      notification.id === input.notificationId && !(notification.archivedByUserIds ?? []).includes(input.userId)
+        ? { ...notification, archivedByUserIds: [input.userId, ...(notification.archivedByUserIds ?? [])] }
         : notification,
     ),
   };

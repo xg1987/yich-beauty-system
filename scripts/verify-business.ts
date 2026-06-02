@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   addCustomerServiceRecord,
+  archiveNotification,
   createCustomerSignature,
   addStaffMember,
   addSupplier,
@@ -129,6 +130,10 @@ function card(data: AppData, cardId: string) {
   assert.ok(allRead.notifications[0].readByUserIds.includes("u_therapist"), "target staff should mark visible notifications read");
   const hiddenRead = markAllVisibleNotificationsRead(withNotification, { userId: "u_other", role: "therapist", staffId: "s9" });
   assert.ok(!hiddenRead.notifications[0].readByUserIds.includes("u_other"), "unrelated therapist should not read hidden notification");
+  const archived = archiveNotification(withNotification, { notificationId: withNotification.notifications[0].id, userId: "u_manager" });
+  assert.deepEqual(archived.notifications[0].archivedByUserIds, ["u_manager"], "notification should archive for one user");
+  const archivedAgain = archiveNotification(archived, { notificationId: withNotification.notifications[0].id, userId: "u_manager" });
+  assert.deepEqual(archivedAgain.notifications[0].archivedByUserIds, ["u_manager"], "notification archive should not duplicate user ids");
 }
 
 {

@@ -3,6 +3,7 @@ import {
   addSystemNotification,
   addCustomerFollowUp,
   addCustomerServiceRecord,
+  archiveNotification,
   createCustomerSignature,
   signCustomerSignature,
   addStaffMember,
@@ -340,6 +341,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) {
       const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const nextData = markNotificationRead(await database.readData(), { notificationId, userId: session.user.id });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) {
+      const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const nextData = archiveNotification(await database.readData(), { notificationId, userId: session.user.id });
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }
@@ -1330,6 +1338,7 @@ function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "POST" && pathname === "/api/store-owner-invites") return false;
   if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;
   if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
+  if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) return false;
   if (method === "POST" && pathname === "/api/notifications/read-all") return false;
   return true;
 }

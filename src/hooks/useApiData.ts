@@ -186,6 +186,7 @@ export function useApiData() {
     createDailyClose: client.createDailyClose,
     reverseDailyClose: client.reverseDailyClose,
     markNotificationRead: client.markNotificationRead,
+    archiveNotification: client.archiveNotification,
     markAllNotificationsRead: client.markAllNotificationsRead,
   };
 

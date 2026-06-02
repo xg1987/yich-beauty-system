@@ -6,6 +6,7 @@ import {
   addSystemNotification,
   addCustomerFollowUp,
   addCustomerServiceRecord,
+  archiveNotification,
   createCustomerSignature,
   signCustomerSignature,
   addStaffMember,
@@ -350,6 +351,14 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "PATCH" && url.pathname.startsWith("/api/notifications/") && url.pathname.endsWith("/read")) {
         const notificationId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const nextData = markNotificationRead(database.readData(), { notificationId, userId: session.user.id });
+        database.replaceData(nextData);
+        sendJson(response, 200, scopeDataForSession(nextData, session));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/notifications/") && url.pathname.endsWith("/archive")) {
+        const notificationId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const nextData = archiveNotification(database.readData(), { notificationId, userId: session.user.id });
         database.replaceData(nextData);
         sendJson(response, 200, scopeDataForSession(nextData, session));
         return;
@@ -1384,6 +1393,7 @@ function isSuperadminBusinessWrite(method: string, pathname: string) {
   if (method === "POST" && pathname === "/api/store-owner-invites") return false;
   if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;
   if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
+  if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) return false;
   if (method === "POST" && pathname === "/api/notifications/read-all") return false;
   return true;
 }

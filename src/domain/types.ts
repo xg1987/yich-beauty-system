@@ -415,6 +415,7 @@ export type SystemNotification = {
   audienceRoles: UserRole[];
   staffId?: string;
   readByUserIds: string[];
+  archivedByUserIds?: string[];
   createdAt: string;
 };
 
