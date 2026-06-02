@@ -307,6 +307,16 @@ try {
     "owner invite should create a pending application record",
   );
   assert.ok(
+    dataAfterOwnerApplication.notifications.some(
+      (notification) =>
+        notification.targetId === invitedOwnerResult.applicationId &&
+        notification.targetType === "storeOwnerApplication" &&
+        notification.view === "permissions" &&
+        notification.audienceRoles.includes("superadmin"),
+    ),
+    "owner invite should notify admin about pending store application",
+  );
+  assert.ok(
     dataAfterOwnerApplication.authUsers.every((user) => user.account !== "api-invited-owner@test.local"),
     "owner invite should not create owner account before approval",
   );

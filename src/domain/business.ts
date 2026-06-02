@@ -1601,7 +1601,7 @@ export function joinStoreOwnerInvite(
     status: "待审批",
     createdAt,
   };
-  return {
+  const nextData: AppData = {
     ...data,
     storeOwnerApplications: [application, ...(data.storeOwnerApplications ?? [])],
     operationLogs: [
@@ -1617,6 +1617,18 @@ export function joinStoreOwnerInvite(
       ...data.operationLogs,
     ],
   };
+  return addSystemNotification(
+    nextData,
+    {
+      title: "新的门店申请",
+      desc: `${storeName} · ${ownerName} 提交开通申请`,
+      view: "permissions",
+      targetType: "storeOwnerApplication",
+      targetId: application.id,
+      audienceRoles: ["superadmin"],
+    },
+    { idFactory, now: () => createdAt },
+  );
 }
 
 export function decideStoreOwnerApplication(

@@ -237,6 +237,9 @@ function card(data: AppData, cardId: string) {
   assert.equal(ownerJoined.storeOwnerApplications[0].status, "待审批", "owner invite should create pending application");
   assert.equal(ownerJoined.storeOwnerApplications[0].storeName, "邀请制门店", "owner invite should keep submitted store");
   assert.equal(ownerJoined.storeOwnerApplications[0].account, "invited-owner@test.local", "owner invite should keep submitted account");
+  assert.equal(ownerJoined.notifications[0].targetId, ownerJoined.storeOwnerApplications[0].id, "owner invite should notify admin about pending store application");
+  assert.ok(ownerJoined.notifications[0].audienceRoles.includes("superadmin"), "owner invite notification should be visible to admin");
+  assert.equal(ownerJoined.notifications[0].view, "permissions", "owner invite notification should route to permission approvals");
   assert.equal(ownerJoined.storeProfiles.length, cloneSeed().storeProfiles.length, "owner invite should not create store before approval");
   assert.equal(ownerJoined.authUsers.length, cloneSeed().authUsers.length, "owner invite should not create user before approval");
   const platformInviteCode = platformInviteCodeForUser(platformAdmin, cloneSeed().authUsers);
