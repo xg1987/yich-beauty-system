@@ -43,6 +43,7 @@ import {
   transferMemberCard,
   upsertOnlineStorefront,
   joinInviteByCode,
+  isStoreStaffInviteCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
   previewFormalDataCleanup,
@@ -193,8 +194,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       const staffInvite = currentData.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === inviteCode.trim().toUpperCase());
-      if (!staffInvite) throw new Error("邀请账号不存在");
-      const loginResult = await loginWithD1(context.env.DB, staffInvite.account, plainPassword);
+      const joinedAccount = staffInvite?.account ?? (isStoreStaffInviteCode(currentData, inviteCode) ? optionalString(body, "account") : undefined);
+      if (!joinedAccount) throw new Error("邀请账号不存在");
+      const loginResult = await loginWithD1(context.env.DB, joinedAccount, plainPassword);
       return sendJson(201, loginResult.session);
     }
 

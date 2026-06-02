@@ -8312,6 +8312,7 @@ textarea,
 }
 
 .module-subpage .page-hero,
+.module-subpage .module-metric-strip,
 .module-subpage .module-overview {
   display: none;
 }
@@ -9300,4 +9301,237 @@ textarea,
 .module-entry-card .admin-module-icon svg,
 .module-metric-card .metric-icon svg {
   stroke-width: 2.5;
+}
+
+/* Final route visual lock: keep primary heroes and entry modules visually consistent. */
+.workbench-hero,
+.page-hero,
+.platform-admin-page .page-hero,
+.admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  height: 170px;
+  min-height: 170px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 22px 28px;
+  border: 0;
+  border-radius: 28px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.055) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #d95566 0%, #dd6572 58%, #cf5768 100%);
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 22px 54px rgba(168, 57, 76, 0.18);
+}
+
+.workbench-hero > *,
+.page-hero > *,
+.platform-admin-page .page-hero > *,
+.admin-center-page:not(.platform-admin-page) .admin-profile-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  grid-template-rows: auto auto;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-hero-pattern {
+  display: none;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-avatar {
+  width: 58px;
+  height: 58px;
+}
+
+.workbench-hero h2,
+.page-hero h1,
+.page-hero h2,
+.platform-admin-page .page-hero h1,
+.admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
+  margin: 0;
+  color: #fff;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.workbench-hero p,
+.workbench-hero small,
+.page-hero p,
+.platform-admin-page .page-hero p,
+.admin-center-page:not(.platform-admin-page) .admin-profile-copy p {
+  max-width: none;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.workbench-hero-kicker,
+.page-hero .eyebrow,
+.admin-center-page:not(.platform-admin-page) .admin-role-pill {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-profile-copy {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card {
+  min-height: 176px;
+  align-content: start;
+  justify-items: start;
+  gap: 10px;
+  padding: 22px;
+  border-radius: 16px;
+  color: #fff;
+  text-align: left;
+  box-shadow: 0 18px 42px rgba(69, 37, 127, 0.14);
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.violet {
+  border-color: rgba(109, 69, 196, 0.42);
+  background: linear-gradient(135deg, #5b2ca8 0%, #8751dd 56%, #b88af1 100%);
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.rose {
+  border-color: rgba(207, 76, 112, 0.42);
+  background: linear-gradient(135deg, #b93459 0%, #dc657c 58%, #efa0ad 100%);
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.teal,
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.jade {
+  border-color: rgba(31, 151, 131, 0.42);
+  background: linear-gradient(135deg, #177a6a 0%, #28a990 58%, #79d7c1 100%);
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.amber {
+  border-color: rgba(184, 126, 42, 0.46);
+  background: linear-gradient(135deg, #9a6424 0%, #c88b3a 58%, #e6bd6f 100%);
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.plum {
+  border-color: rgba(144, 65, 159, 0.44);
+  background: linear-gradient(135deg, #7a2f91 0%, #b057b6 58%, #d989c9 100%);
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card strong {
+  color: #fff;
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card small,
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card em {
+  min-height: 0;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card em {
+  margin-top: auto;
+  color: rgba(255, 255, 255, 0.96);
+  font-weight: 850;
+}
+
+.admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card .admin-module-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(31, 18, 48, 0.24);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 10px 24px rgba(29, 16, 42, 0.14);
+  opacity: 1;
+}
+
+.theme-night .workbench-hero,
+.theme-night .page-hero,
+.theme-night .platform-admin-page .page-hero,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 240px 100%,
+    repeating-linear-gradient(0deg, transparent 0 28px, rgba(255, 255, 255, 0.05) 28px 30px, transparent 30px 62px),
+    linear-gradient(135deg, #b94154 0%, #d45c6a 58%, #b84056 100%);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26);
+}
+
+@media (max-width: 900px) {
+  .workbench-hero,
+  .page-hero,
+  .platform-admin-page .page-hero,
+  .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+    height: 150px;
+    min-height: 150px;
+    border-radius: 24px;
+    padding: 20px;
+  }
+
+  .workbench-hero h2,
+  .page-hero h1,
+  .page-hero h2,
+  .platform-admin-page .page-hero h1,
+  .admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
+    font-size: 29px;
+  }
+}
+
+@media (max-width: 680px) {
+  .admin-center-page:not(.platform-admin-page) .admin-module-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card {
+    min-height: 148px;
+  }
+
+  .admin-invite-section {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-invite-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .admin-invite-code {
+    grid-template-columns: minmax(0, 1fr) 42px 42px;
+  }
+
+  .admin-invite-code strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }

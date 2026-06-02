@@ -179,6 +179,11 @@ function platformInviteCandidateForUser(user: Pick<AuthUser, "id" | "account">, 
   return `${PLATFORM_INVITE_PREFIX}${encodeInviteSuffix(stableInviteNumber(source))}`;
 }
 
+function storeStaffInviteCandidateForUser(user: Pick<AuthUser, "id" | "account">, salt = 0) {
+  const source = `staff:${user.id}:${user.account}:${salt}`.toLowerCase();
+  return `YG${encodeInviteSuffix(stableInviteNumber(source))}`;
+}
+
 function sameInviteUser(left: Pick<AuthUser, "id" | "account">, right: Pick<AuthUser, "id" | "account">) {
   return left.id === right.id && left.account === right.account;
 }
@@ -210,6 +215,43 @@ export function platformInviteCodeForPlatformAdmin(
   return platformInviteCodeForUser(user, users);
 }
 
+export function storeStaffInviteCodeForStoreUser(
+  user: Pick<AuthUser, "id" | "account" | "role">,
+  users?: Array<Pick<AuthUser, "id" | "account" | "role">>,
+) {
+  const role = effectiveRoleForUser(user);
+  if (role !== "owner" && role !== "manager") return undefined;
+  if (!users?.length) return storeStaffInviteCandidateForUser(user);
+  const usedCodes = new Set<string>();
+  const orderedUsers = [...users]
+    .filter((item) => {
+      const itemRole = effectiveRoleForUser(item);
+      return itemRole === "owner" || itemRole === "manager";
+    })
+    .sort((left, right) => `${left.id}:${left.account}`.localeCompare(`${right.id}:${right.account}`));
+  for (const item of orderedUsers) {
+    for (let salt = 0; salt < 50; salt += 1) {
+      const candidate = storeStaffInviteCandidateForUser(item, salt);
+      if (usedCodes.has(candidate)) continue;
+      usedCodes.add(candidate);
+      if (sameInviteUser(item, user)) return candidate;
+      break;
+    }
+  }
+  return storeStaffInviteCandidateForUser(user);
+}
+
+export function storeStaffInviteIssuerId(data: AppData, inviteCode: string) {
+  const normalizedInviteCode = inviteCode.trim().toUpperCase();
+  const issuer = data.authUsers.find((user) => {
+    if (user.status !== "active") return false;
+    const role = effectiveRoleForUser(user);
+    if (role !== "owner" && role !== "manager") return false;
+    return storeStaffInviteCodeForStoreUser(user, data.authUsers) === normalizedInviteCode;
+  });
+  return issuer?.id;
+}
+
 export function isPlatformInviteCodeFormat(inviteCode: string) {
   return new RegExp(`^${PLATFORM_INVITE_PREFIX}[${PLATFORM_INVITE_ALPHABET}]{4}$`).test(inviteCode.trim().toUpperCase());
 }
@@ -235,6 +277,15 @@ function reservedInviteCodes(data: AppData) {
   data.authUsers
     .filter((user) => effectiveRoleForUser(user) === "superadmin")
     .forEach((user) => codes.add(normalizedInviteCode(platformInviteCodeForUser(user, data.authUsers))));
+  data.authUsers
+    .filter((user) => {
+      const role = effectiveRoleForUser(user);
+      return role === "owner" || role === "manager";
+    })
+    .forEach((user) => {
+      const code = storeStaffInviteCodeForStoreUser(user, data.authUsers);
+      if (code) codes.add(normalizedInviteCode(code));
+    });
   return codes;
 }
 
@@ -1659,6 +1710,73 @@ export function joinStoreOwnerInvite(
   );
 }
 
+export function joinStoreStaffInvite(
+  data: AppData,
+  input: JoinInviteInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const inviteCode = input.inviteCode.trim().toUpperCase();
+  const issuerId = storeStaffInviteIssuerId(data, inviteCode);
+  if (!issuerId) throw new Error("邀请不存在或已失效");
+  const name = input.name.trim();
+  const account = (input.account ?? "").trim();
+  if (!name) throw new Error("请输入姓名");
+  if (!account) throw new Error("请输入员工登录账号");
+  if (!input.password) throw new Error("请输入密码");
+  if (data.authUsers.some((user) => user.account === account)) throw new Error("登录账号已存在");
+  const staffId = idFactory("s");
+  const userId = idFactory("u");
+  return {
+    ...data,
+    staff: [
+      {
+        id: staffId,
+        name,
+        phone: account,
+        role: "员工",
+        status: "active",
+        accountId: userId,
+        hiredAt: createdAt.slice(0, 10),
+        baseSalary: 0,
+        commissionRate: 0,
+      },
+      ...data.staff,
+    ],
+    authUsers: [
+      {
+        id: userId,
+        name,
+        account,
+        password: input.password,
+        role: "therapist",
+        roleName: roleNameOf("therapist"),
+        staffId,
+        status: "active",
+        createdAt,
+      },
+      ...data.authUsers,
+    ],
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId,
+        action: "员工加入门店",
+        targetType: "staff",
+        targetId: staffId,
+        summary: `${name} 通过门店员工邀请码加入`,
+        createdAt,
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function isStoreStaffInviteCode(data: AppData, inviteCode: string) {
+  return Boolean(storeStaffInviteIssuerId(data, inviteCode));
+}
+
 export function decideStoreOwnerApplication(
   data: AppData,
   input: DecideStoreOwnerApplicationInput,
@@ -1778,6 +1896,9 @@ export function joinInviteByCode(
     || (data.storeOwnerInvites ?? []).some((item) => item.inviteCode.trim().toUpperCase() === inviteCode && item.status === "待加入")
   ) {
     return joinStoreOwnerInvite(data, input, options);
+  }
+  if (isStoreStaffInviteCode(data, inviteCode)) {
+    return joinStoreStaffInvite(data, input, options);
   }
   return joinStaffInvite(data, input, options);
 }

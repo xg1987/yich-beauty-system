@@ -59,6 +59,7 @@ import {
   updateSystemConfig,
   updateMemberCardStatus,
   platformInviteIssuerId,
+  isStoreStaffInviteCode,
 } from "../src/domain/business";
 import { hashPassword } from "../src/lib/password";
 
@@ -185,7 +186,8 @@ export function createApiServer(database = new BeautyDatabase()) {
           return;
         }
 
-        const joinedAccount = accountForInvite(currentData, inviteCode);
+        const joinedAccount = accountForInvite(currentData, inviteCode)
+          || (isStoreStaffInviteCode(currentData, inviteCode) ? optionalString(body, "account") : undefined);
         if (!joinedAccount) throw new Error("邀请账号不存在");
         const loginResult = await login(joinedAccount, plainPassword, nextData.authUsers);
         sendJson(response, 201, loginResult.session);

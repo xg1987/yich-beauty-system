@@ -38,7 +38,7 @@ import { Badge } from "./components/ui/Badge";
 import { CheckboxGroup } from "./components/ui/CheckboxGroup";
 import { DataTable } from "./components/ui/DataTable";
 import { Select } from "./components/ui/Select";
-import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary } from "./domain/business";
+import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
@@ -485,22 +485,19 @@ function ManagementCenter({
     account: session.user.account,
     role: session.user.role,
   }, data.authUsers);
-  const latestStaffInvite = data.staffInvites.find((invite) => invite.status === "待加入" && (!invite.expiresAt || +new Date(invite.expiresAt) > Date.now()));
-  const managementInviteCode = systemInviteCode ?? latestStaffInvite?.inviteCode ?? "";
-  const canManageStaffInvite = hasPermission(session, "staff:manage");
-  const showInviteSection = Boolean(systemInviteCode) || canManageStaffInvite;
+  const storeStaffInviteCode = storeStaffInviteCodeForStoreUser({
+    id: session.user.id,
+    account: session.user.account,
+    role: session.user.role,
+  }, data.authUsers);
+  const managementInviteCode = systemInviteCode ?? storeStaffInviteCode ?? "";
+  const showInviteSection = Boolean(managementInviteCode);
   const inviteSectionTitle = systemInviteCode ? "系统邀请码" : "员工邀请码";
-  const inviteSectionHint = systemInviteCode ? "平台授权入口" : "系统自动生成，员工加入门店";
-  const inviteCandidateStaff = businessStaffOf(data).find(
-    (staff) => staff.status === "active" && !staff.accountId && !data.authUsers.some((user) => user.staffId === staff.id),
-  );
-  const inviteCandidateAccount = inviteCandidateStaff?.phone.trim() ?? "";
+  const inviteSectionHint = systemInviteCode ? "店长/门店加入或开通" : "员工加入门店";
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
-  const [inviteGenerating, setInviteGenerating] = useState(false);
-  const [inviteError, setInviteError] = useState("");
 
   const copyInviteCode = () => {
     if (!managementInviteCode) return;
@@ -509,35 +506,11 @@ function ManagementCenter({
     window.setTimeout(() => setInviteCopied(false), 1400);
   };
 
-  const generateManagementStaffInvite = () => {
-    if (!canManageStaffInvite) return;
-    if (!inviteCandidateStaff || !inviteCandidateAccount) {
-      setInviteError("请先在人员账号建员工档案，并填写员工手机号。");
-      return;
-    }
-    setInviteGenerating(true);
-    setInviteError("");
-    void runMutation(() =>
-      actions.createStaffInvite({
-        staffId: inviteCandidateStaff.id,
-        account: inviteCandidateAccount,
-        role: userRoleForStaffRole(inviteCandidateStaff.role),
-      }),
-    )
-      .then(() => {
-        setInviteVisible(true);
-      })
-      .catch((caught) => {
-        setInviteError(caught instanceof Error ? caught.message : "邀请码生成失败");
-      })
-      .finally(() => setInviteGenerating(false));
-  };
-
   type ManagementCard = {
     title: string;
     desc: string;
     icon: typeof LayoutDashboard;
-    tone: "rose" | "violet" | "teal" | "amber";
+    tone: ModuleTone;
     view?: ViewKey;
     onClick?: () => void;
   };
@@ -559,7 +532,7 @@ function ManagementCenter({
   ];
   const storeManagementCards: ManagementCard[] = [
     { title: "预约管理", desc: "预约记录 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "房间设置", desc: "房间数量 / 预约看板", icon: Building2, tone: "teal", view: "appointments" },
+    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", view: "appointments" },
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
@@ -616,9 +589,9 @@ function ManagementCenter({
             <small>{inviteSectionHint}</small>
           </div>
           <div className="admin-invite-card">
-            <span>邀请码</span>
+            <span>{inviteSectionTitle}</span>
             <div className="admin-invite-code">
-              <strong>{managementInviteCode ? (inviteVisible ? managementInviteCode : "••••••") : "点击生成"}</strong>
+              <strong>{inviteVisible ? managementInviteCode : "••••••"}</strong>
               <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)} disabled={!managementInviteCode}>
                 {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
@@ -627,17 +600,6 @@ function ManagementCenter({
               </button>
             </div>
             {inviteCopied && <small className="admin-invite-copied">已复制</small>}
-            {inviteError && <small className="admin-invite-error">{inviteError}</small>}
-            {!managementInviteCode && (
-              <button
-                type="button"
-                className="admin-invite-link"
-                onClick={generateManagementStaffInvite}
-                disabled={inviteGenerating}
-              >
-                {inviteGenerating ? "生成中" : "系统生成邀请码"}
-              </button>
-            )}
           </div>
         </section>
       )}
@@ -4095,7 +4057,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   type StaffModuleKey = NonNullable<typeof activeModule>;
   const staffModules: Array<FeatureModule<StaffModuleKey>> = [
     { key: "profile", title: "员工档案", desc: "建档、岗位、底薪和状态", icon: UsersRound, tone: "violet", meta: `${staffRows.length} 人` },
-    { key: "invite", title: "员工邀请码", desc: "系统自动生成，员工自行加入", icon: LockKeyhole, tone: "rose", meta: `${pendingInvites} 个待加入` },
+    { key: "invite", title: "员工邀请码", desc: "创建一次性邀请，员工自行加入", icon: LockKeyhole, tone: "rose", meta: `${pendingInvites} 个待加入` },
     { key: "salary", title: "薪资汇总", desc: "底薪、项目提成和预计薪资", icon: HeartHandshake, tone: "teal", meta: money(pendingCommission) },
     { key: "settlements", title: "结算流水", desc: "批量结算记录和操作人", icon: ClipboardList, tone: "amber", meta: `${data.commissionSettlements.length} 批` },
     { key: "commissions", title: "提成记录", desc: "订单提成、比例和状态", icon: BadgeCent, tone: "violet", meta: `${data.commissions.filter((item) => staffIds.has(item.staffId)).length} 条` },
@@ -4125,7 +4087,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         <PanelTitle
           icon={activeModule === "invite" ? <LockKeyhole size={18} /> : <BadgeCent size={18} />}
           title={activeModule === "invite" ? "邀请员工" : "员工档案"}
-          action={activeModule === "invite" ? "系统自动生成邀请码" : canManageStaff ? "先建档，再邀请加入" : "个人视图"}
+          action={activeModule === "invite" ? "一次性员工邀请" : canManageStaff ? "先建档，再邀请加入" : "个人视图"}
         />
         {canManageStaff && activeModule === "profile" ? (
           <>
@@ -4154,11 +4116,11 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
                 ]}
               />
               <label>有效期（天）<input type="number" min={1} value={inviteValidDays} onChange={(event) => setInviteValidDays(Number(event.target.value))} /></label>
-              <button className="primary-button" disabled={!inviteStaffId}>系统生成邀请码</button>
+              <button className="primary-button" disabled={!inviteStaffId}>创建一次性邀请</button>
             </form>
             {lastInviteCode && (
               <div className="invite-result-card">
-                <span>系统生成的邀请码</span>
+                <span>员工一次性邀请码</span>
                 <strong>{lastInviteCode}</strong>
                 <small>把这个邀请码发给员工，员工在登录页选择“加入门店”，填写邀请码、姓名和密码后开通账号。</small>
                 <button type="button" onClick={copyLastInviteCode}>{inviteCopied ? "已复制" : "复制邀请码"}</button>
@@ -5177,12 +5139,12 @@ function AdminCenterCard({
   item,
   onClick,
 }: {
-  item: { title: string; desc: string; metric?: string; icon: typeof LayoutDashboard; tone: "rose" | "violet" | "teal" | "amber" };
+  item: { title: string; desc: string; metric?: string; icon: typeof LayoutDashboard; tone: ModuleTone };
   onClick: () => void;
 }) {
   const Icon = item.icon;
   return (
-    <button className="admin-module-card" onClick={onClick}>
+    <button type="button" className={`admin-module-card module-entry-card ${item.tone}`} onClick={onClick}>
       <span className={`admin-module-icon ${item.tone}`}><Icon size={22} /></span>
       <strong>{item.title}</strong>
       <small>{item.desc}</small>

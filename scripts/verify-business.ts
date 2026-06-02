@@ -46,6 +46,7 @@ import {
   rescheduleAppointment,
   settleDistributionCommissions,
   settleCommissions,
+  storeStaffInviteCodeForStoreUser,
   transferMemberCard,
   updateAppointmentStatus,
   updateAccountProfile,
@@ -197,6 +198,16 @@ function card(data: AppData, cardId: string) {
   assert.equal(registered.storeProfiles[0].name, "测试美业门店", "store registration should update store profile");
   assert.equal(registered.authUsers[0].role, "owner", "store registration should create owner account");
   assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
+  const storeStaffInviteCode = storeStaffInviteCodeForStoreUser(registered.authUsers[0], registered.authUsers);
+  assert.ok(storeStaffInviteCode, "owner should have a stable staff invite code after registration");
+  const joinedByStoreInvite = joinInviteByCode(
+    registered,
+    { inviteCode: storeStaffInviteCode, name: "门店新员工", account: "store-staff@test.local", password: "secret" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(joinedByStoreInvite.authUsers[0].account, "store-staff@test.local", "store staff invite should create employee login account");
+  assert.equal(joinedByStoreInvite.authUsers[0].role, "therapist", "store staff invite should create employee role");
+  assert.equal(joinedByStoreInvite.staff[0].role, "员工", "store staff invite should create employee profile");
   assert.throws(
     () =>
       createStaffInvite(
