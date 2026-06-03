@@ -9169,6 +9169,22 @@ textarea,
   color: rgba(255, 255, 255, 0.82);
 }
 
+.module-entry-points {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.module-entry-points i {
+  display: block;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
 .customer-module-page.module-hub .module-overview,
 .cashier-module-page.module-hub .module-overview {
   min-height: 0;
@@ -12050,6 +12066,7 @@ textarea,
 .theme-day .customer-module-page.module-hub .module-metric-card em,
 .theme-day .cashier-module-page.module-hub .module-entry-card small,
 .theme-day .cashier-module-page.module-hub .module-entry-card em,
+.theme-day .cashier-module-page.module-hub .module-entry-points i,
 .theme-day .customer-module-page.module-hub .module-entry-card small,
 .theme-day .customer-module-page.module-hub .module-entry-card em,
 .theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card small,
@@ -12142,7 +12159,7 @@ textarea,
 }
 
 .cashier-module-page.module-hub .module-overview {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (max-width: 1200px) {
@@ -12194,34 +12211,51 @@ textarea,
     linear-gradient(135deg, #fffdf8, #ffeac2);
 }
 
-/* Cashier home density pass: fill the page with existing cashier content only. */
+/* Cashier home: only two high-frequency work areas stay on the landing view. */
 .cashier-module-page.module-hub {
   gap: 16px;
   padding-bottom: 28px;
 }
 
 .cashier-module-page.module-hub .module-overview {
-  grid-auto-rows: minmax(214px, auto);
-  gap: 16px;
+  min-height: clamp(360px, calc(100dvh - 355px), 520px);
+  grid-auto-rows: 1fr;
+  gap: 18px;
 }
 
 .cashier-module-page.module-hub .module-entry-card {
-  min-height: 214px;
-  padding: 24px;
+  min-height: 320px;
+  align-content: center;
+  gap: 16px;
+  padding: 34px;
 }
 
 .cashier-module-page.module-hub .module-entry-card .admin-module-icon {
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
 }
 
 .cashier-module-page.module-hub .module-entry-card strong {
-  font-size: 20px;
+  font-size: 25px;
+}
+
+.cashier-module-page.module-hub .module-entry-card small,
+.cashier-module-page.module-hub .module-entry-card em,
+.cashier-module-page.module-hub .module-entry-points i {
+  font-size: 13px;
+}
+
+.cashier-module-page.module-hub .module-entry-card em {
+  margin-top: 8px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
 }
 
 @media (max-width: 1200px) {
   .cashier-module-page.module-hub .module-overview {
-    grid-auto-rows: minmax(188px, auto);
+    min-height: auto;
+    grid-auto-rows: minmax(260px, auto);
   }
 }
 

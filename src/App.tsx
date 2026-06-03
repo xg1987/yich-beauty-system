@@ -93,6 +93,7 @@ type FeatureModule<Key extends string> = {
   icon: typeof LayoutDashboard;
   tone: ModuleTone;
   meta?: string;
+  points?: string[];
 };
 
 function ModuleOverview<Key extends string>({
@@ -119,6 +120,11 @@ function ModuleOverview<Key extends string>({
             <span className={`admin-module-icon ${item.tone}`}><Icon size={20} /></span>
             <strong>{item.title}</strong>
             <small>{item.desc}</small>
+            {item.points && (
+              <span className="module-entry-points">
+                {item.points.map((point) => <i key={point}>{point}</i>)}
+              </span>
+            )}
             {item.meta && <em>{item.meta}</em>}
           </button>
         );
@@ -2937,10 +2943,9 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [approvalId, setApprovalId] = useState("");
   const [distributorId, setDistributorId] = useState("");
-  const [approvalReason, setApprovalReason] = useState("客户维护价");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
-  const [activeModule, setActiveModule] = useState<"quick" | "arrived" | "orders" | "discount" | "refunds" | "cards" | undefined>();
+  const [activeModule, setActiveModule] = useState<"quick" | "orders" | undefined>();
   const staffOptions = serviceStaff.map(optionOf);
 
   useEffect(() => {
@@ -3065,24 +3070,26 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setDistributorId("");
   };
 
-  const requestDiscountApproval = () => {
-    void runMutation(() =>
-      actions.createApproval({
-        type: "改价折扣",
-        targetId: `${customerId}:${serviceId}`,
-        amount: discountAmount,
-        reason: approvalReason,
-      }),
-    );
-  };
   type PosModuleKey = NonNullable<typeof activeModule>;
   const posModules: Array<FeatureModule<PosModuleKey>> = [
-    { key: "quick", title: "快速开单", desc: "客户、项目、员工和支付", icon: CreditCard, tone: "rose", meta: "收银入口" },
-    { key: "arrived", title: "到店收银", desc: "处理已到店预约转收银", icon: CalendarDays, tone: "violet", meta: `${arrivedAppointments.length} 单` },
-    { key: "orders", title: "订单流水", desc: "查看订单、支付和实收记录", icon: ClipboardList, tone: "amber", meta: `${data.orders.length} 单` },
-    { key: "discount", title: "改价审批", desc: "折扣、原因和审批单", icon: ShieldCheck, tone: "violet", meta: money(discountAmount) },
-    { key: "refunds", title: "退款处理", desc: "订单退款和审批编号", icon: RefreshCw, tone: "rose", meta: `${data.refunds.length} 条` },
-    { key: "cards", title: "会员卡核销", desc: "会员卡支付和卡扣记录", icon: BadgeCent, tone: "teal", meta: `${activeCards} 张` },
+    {
+      key: "quick",
+      title: "快速开单",
+      desc: "客户、项目、员工和支付",
+      icon: CreditCard,
+      tone: "rose",
+      meta: "开始收银",
+      points: ["可关联到店预约", "支持会员卡支付", "自动提成与扣库存"],
+    },
+    {
+      key: "orders",
+      title: "订单流水",
+      desc: "查看收款记录、小票和退款入口",
+      icon: ClipboardList,
+      tone: "amber",
+      meta: `${data.orders.length} 单`,
+      points: ["最近订单", "支付记录", "退款从订单进入"],
+    },
   ];
   const activeModuleTitle = activeModule ? posModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
@@ -3094,20 +3101,20 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         title="开单收银"
         desc="完成项目开单、会员卡扣款、支付记录、提成计算与库存扣减。"
         stats={[
-          { label: "当前应收", value: money(paidTotal), hint: "按已选项目计算", icon: <CreditCard size={18} /> },
           { label: "今日收款", value: money(todayPaid), hint: `${todayOrders.length} 笔订单`, icon: <ChartNoAxesColumnIncreasing size={18} /> },
-          { label: "有效会员卡", value: `${activeCards} 张`, hint: "可用于卡扣", icon: <BadgeCent size={18} /> },
+          { label: "今日订单", value: `${todayOrders.length} 单`, hint: "当日收银记录", icon: <ClipboardList size={18} /> },
+          { label: "会员卡可用", value: `${activeCards} 张`, hint: "支持卡扣支付", icon: <BadgeCent size={18} /> },
         ]}
       />
       <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />
       {activeModule && <ModuleSubpageHeader parentTitle="开单收银" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
-        {(activeModule === "quick" || activeModule === "discount" || activeModule === "cards") && (
+        {activeModule === "quick" && (
         <section className="panel">
         <PanelTitle
           icon={<CreditCard size={18} />}
-          title={activeModule === "cards" ? "会员卡核销" : activeModule === "discount" ? "改价审批开单" : "快速开单"}
-          action={activeModule === "discount" ? "折扣需审批" : activeModule === "cards" ? "会员卡支付" : "自动提成/扣库存"}
+          title="快速开单"
+          action="可关联预约"
         />
         <form className="form" onSubmit={checkout}>
           <Select
@@ -3173,13 +3180,8 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           </label>
           {discountAmount > 0 && (
             <div className="sub-panel">
-              <label>
-                审批原因
-                <input value={approvalReason} onChange={(event) => setApprovalReason(event.target.value)} />
-              </label>
-              <button type="button" onClick={requestDiscountApproval}>提交改价审批</button>
               <Select
-                label="已通过审批"
+                label="已通过改价审批"
                 value={approvalId}
                 onChange={setApprovalId}
                 options={[
@@ -3189,6 +3191,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
                     .map((item) => ({ value: item.id, label: `${item.reason} · ${money(item.amount)}` })),
                 ]}
               />
+              <p className="form-note">改价审批请到管理中心的审批中心提交并通过后再选择。</p>
             </div>
           )}
           <div className="checkout-total">
@@ -3200,17 +3203,16 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         </form>
         </section>
         )}
-        {(activeModule === "orders" || activeModule === "refunds" || activeModule === "arrived") && (
+        {activeModule === "orders" && (
         <section className="panel">
         <PanelTitle
           icon={<ClipboardList size={18} />}
-          title={activeModule === "arrived" ? "到店待收银" : activeModule === "refunds" ? "退款处理" : "订单流水"}
-          action={activeModule === "arrived" ? `${arrivedAppointments.length} 单` : "最近订单"}
+          title="订单流水"
+          action="最近订单"
         />
           <DataTable
           columns={["单号", "客户", "项目", "员工", "来源", "支付", "实收", "状态", "时间", "操作"]}
           rows={data.orders
-            .filter((order) => activeModule !== "arrived" || arrivedAppointments.some((appointment) => appointment.id === order.appointmentId))
             .map((order) => [
             order.orderNo,
             nameOf(data.customers, order.customerId),
