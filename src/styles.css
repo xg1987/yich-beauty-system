@@ -11299,3 +11299,198 @@ textarea,
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
+
+/* Final system background pass: primary app pages use the same purple board language as appointments. */
+.app-shell .main > .dashboard-page.workbench-visual-page,
+.app-shell .main > .page-stack.module-hub,
+.app-shell .main > .page-stack.appointment-room-page,
+.app-shell .main > .admin-center-page:not(.platform-admin-page),
+.app-shell .main > .admin-center-page.platform-admin-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(20px, 2.6vw, 32px);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 34px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1100' viewBox='0 0 1600 1100'%3E%3Cdefs%3E%3CradialGradient id='soft' cx='.66' cy='.16' r='.72'%3E%3Cstop offset='0' stop-color='%23ffffff' stop-opacity='.34'/%3E%3Cstop offset='.52' stop-color='%23ffffff' stop-opacity='.09'/%3E%3Cstop offset='1' stop-color='%23ffffff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='1600' height='1100' fill='url(%23soft)'/%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='.16'%3E%3Cpath d='M0 132h1600M0 296h1600M0 460h1600M0 624h1600M0 788h1600M0 952h1600M160 0v1100M440 0v1100M720 0v1100M1000 0v1100M1280 0v1100'/%3E%3C/g%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='2.4' opacity='.2'%3E%3Cpath d='M-80 790C128 652 300 674 516 526S884 218 1164 302s318 354 512 236'/%3E%3Cpath d='M60 372c214-124 390-96 590 18s394 112 604-32 346-116 476-26'/%3E%3Cpath d='M166 1002c150-154 334-216 560-196s366 110 560 28 302-186 424-152'/%3E%3C/g%3E%3Cg transform='translate(1040 58)' opacity='.3'%3E%3Cpath d='M132 286C28 230 0 116 92 42c48-38 114-32 150 16 38-56 118-76 176-30 88 70 66 194-42 262-86 54-168 52-244-4Z' fill='%23ffffff' fill-opacity='.18' stroke='%23ffffff' stroke-opacity='.34' stroke-width='2.2'/%3E%3Cpath d='M232 288c-38-92-12-178 66-250M228 286C162 208 150 120 196 36M230 286c32-82 98-144 190-190' fill='none' stroke='%23ffe0a6' stroke-width='2.2' stroke-opacity='.35'/%3E%3C/g%3E%3Cg transform='translate(80 590)' opacity='.24'%3E%3Cpath d='M130 194C38 144 12 54 88 18c46-22 94 0 116 40 26-46 88-64 136-32 76 50 52 150-46 188-60 24-112 16-164-20Z' fill='%23ffffff' fill-opacity='.16' stroke='%23ffffff' stroke-opacity='.34' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(circle at 12% 16%, rgba(255, 255, 255, 0.15), transparent 32%),
+    radial-gradient(circle at 92% 8%, rgba(255, 231, 164, 0.18), transparent 28%),
+    linear-gradient(135deg, #56299f 0%, #7c46d6 50%, #a36def 100%);
+  background-size: cover, auto, auto, auto;
+  background-position: center;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 26px 70px rgba(69, 37, 127, 0.2);
+}
+
+.app-shell .main > .dashboard-page.workbench-visual-page::before,
+.app-shell .main > .dashboard-page.workbench-visual-page::after,
+.app-shell .main > .page-stack.module-hub::before,
+.app-shell .main > .page-stack.module-hub::after {
+  display: none;
+}
+
+.app-shell .main > .dashboard-page.workbench-visual-page > *,
+.app-shell .main > .page-stack.module-hub > *,
+.app-shell .main > .page-stack.appointment-room-page > *,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) > *,
+.app-shell .main > .admin-center-page.platform-admin-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-hero,
+.app-shell .main > .page-stack.module-hub .page-hero,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-hero,
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background:
+    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(135deg, rgba(64, 29, 132, 0.62), rgba(120, 70, 212, 0.5) 56%, rgba(145, 107, 62, 0.34));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 20px 48px rgba(47, 24, 89, 0.18);
+}
+
+.app-shell .main > .dashboard-page.workbench-visual-page .dashboard-metric,
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button,
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-panel,
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button,
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-insight-list button,
+.app-shell .main > .page-stack.module-hub .module-metric-card,
+.app-shell .main > .page-stack.module-hub .module-entry-card,
+.app-shell .main > .page-stack.module-hub .customer-home-brief,
+.app-shell .main > .page-stack.module-hub .customer-home-brief article,
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-panel.panel,
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-summary > div,
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-invite-card,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card,
+.app-shell .main > .admin-center-page.platform-admin-page .panel,
+.app-shell .main > .admin-center-page.platform-admin-page .dashboard-panel,
+.app-shell .main > .admin-center-page.platform-admin-page .stat-card {
+  border-color: rgba(255, 255, 255, 0.24);
+  background:
+    radial-gradient(circle at 88% 10%, rgba(255, 255, 255, 0.18), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.1));
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
+  backdrop-filter: blur(14px);
+}
+
+.app-shell .main > .page-stack.module-hub .module-entry-card.violet,
+.app-shell .main > .page-stack.module-hub .module-entry-card.rose,
+.app-shell .main > .page-stack.module-hub .module-entry-card.teal,
+.app-shell .main > .page-stack.module-hub .module-entry-card.amber,
+.app-shell .main > .page-stack.module-hub .module-entry-card.jade,
+.app-shell .main > .page-stack.module-hub .module-entry-card.plum {
+  background:
+    radial-gradient(circle at 88% 10%, rgba(255, 255, 255, 0.2), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.1));
+}
+
+.app-shell .main > .page-stack.module-hub .module-entry-card:nth-child(4n + 1),
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button:nth-child(4n + 1),
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button:nth-child(4n + 1),
+.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card:nth-child(4n + 1) {
+  box-shadow:
+    inset 4px 0 0 rgba(113, 231, 207, 0.74),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
+}
+
+.app-shell .main > .page-stack.module-hub .module-entry-card:nth-child(4n + 2),
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button:nth-child(4n + 2),
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button:nth-child(4n + 2),
+.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card:nth-child(4n + 2) {
+  box-shadow:
+    inset 4px 0 0 rgba(241, 113, 143, 0.78),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
+}
+
+.app-shell .main > .page-stack.module-hub .module-entry-card:nth-child(4n + 3),
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button:nth-child(4n + 3),
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button:nth-child(4n + 3),
+.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card:nth-child(4n + 3) {
+  box-shadow:
+    inset 4px 0 0 rgba(244, 190, 96, 0.82),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
+}
+
+.app-shell .main > .dashboard-page.workbench-visual-page h1,
+.app-shell .main > .dashboard-page.workbench-visual-page h2,
+.app-shell .main > .dashboard-page.workbench-visual-page h3,
+.app-shell .main > .dashboard-page.workbench-visual-page strong,
+.app-shell .main > .page-stack.module-hub h1,
+.app-shell .main > .page-stack.module-hub h2,
+.app-shell .main > .page-stack.module-hub h3,
+.app-shell .main > .page-stack.module-hub strong,
+.app-shell .main > .page-stack.appointment-room-page h1,
+.app-shell .main > .page-stack.appointment-room-page h2,
+.app-shell .main > .page-stack.appointment-room-page h3,
+.app-shell .main > .page-stack.appointment-room-page strong,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) h1,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) h2,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) h3,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) strong,
+.app-shell .main > .admin-center-page.platform-admin-page h1,
+.app-shell .main > .admin-center-page.platform-admin-page h2,
+.app-shell .main > .admin-center-page.platform-admin-page h3,
+.app-shell .main > .admin-center-page.platform-admin-page strong {
+  color: #fff;
+}
+
+.app-shell .main > .dashboard-page.workbench-visual-page span,
+.app-shell .main > .dashboard-page.workbench-visual-page small,
+.app-shell .main > .dashboard-page.workbench-visual-page p,
+.app-shell .main > .dashboard-page.workbench-visual-page em,
+.app-shell .main > .page-stack.module-hub span,
+.app-shell .main > .page-stack.module-hub small,
+.app-shell .main > .page-stack.module-hub p,
+.app-shell .main > .page-stack.module-hub em,
+.app-shell .main > .page-stack.appointment-room-page span,
+.app-shell .main > .page-stack.appointment-room-page small,
+.app-shell .main > .page-stack.appointment-room-page p,
+.app-shell .main > .page-stack.appointment-room-page em,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) span,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) small,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) p,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) em,
+.app-shell .main > .admin-center-page.platform-admin-page span,
+.app-shell .main > .admin-center-page.platform-admin-page small,
+.app-shell .main > .admin-center-page.platform-admin-page p,
+.app-shell .main > .admin-center-page.platform-admin-page em {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.app-shell .main > .page-stack.module-hub .admin-module-icon,
+.app-shell .main > .dashboard-page.workbench-visual-page .metric-icon,
+.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row svg,
+.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-icon,
+.app-shell .main > .admin-center-page.platform-admin-page .admin-module-icon {
+  background: rgba(31, 18, 48, 0.22);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    0 10px 24px rgba(29, 16, 42, 0.14);
+}
+
+.app-shell .main > .page-stack.module-hub .customer-home-brief {
+  padding: 12px;
+}
+
+@media (max-width: 900px) {
+  .app-shell .main > .dashboard-page.workbench-visual-page,
+  .app-shell .main > .page-stack.module-hub,
+  .app-shell .main > .page-stack.appointment-room-page,
+  .app-shell .main > .admin-center-page:not(.platform-admin-page),
+  .app-shell .main > .admin-center-page.platform-admin-page {
+    padding: 14px;
+    border-radius: 26px;
+  }
+}
