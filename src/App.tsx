@@ -573,6 +573,7 @@ function ManagementCenter({
   const displayRole = displayRoleName(session.user);
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopyStatus, setInviteCopyStatus] = useState<"idle" | "copied" | "selected">("idle");
+  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const inviteInputRef = useRef<HTMLInputElement>(null);
 
   const copyInviteCode = () => {
@@ -618,7 +619,7 @@ function ManagementCenter({
   ];
   const storeManagementCards: ManagementCard[] = [
     { title: "预约管理", desc: "预约记录 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", view: "roomSettings" },
+    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
@@ -720,6 +721,15 @@ function ManagementCenter({
           ))}
         </div>
       </section>
+      <Modal
+        open={roomSettingsOpen}
+        title="房间设置"
+        subtitle="设置房间数量、房间名称和指定房间维护状态"
+        size="large"
+        onClose={() => setRoomSettingsOpen(false)}
+      >
+        <RoomSettingsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setRoomSettingsOpen(false)} modal />
+      </Modal>
     </div>
   );
 }
@@ -2584,6 +2594,27 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
 }
 
 function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
+  return (
+    <div className="page-stack module-subpage room-settings-page">
+      <ModuleSubpageHeader parentTitle="管理中心" moduleTitle="房间设置" onBack={() => setView("settings")} />
+      <RoomSettingsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setView("settings")} />
+    </div>
+  );
+}
+
+function RoomSettingsContent({
+  data,
+  actions,
+  runMutation,
+  onClose,
+  modal = false,
+}: {
+  data: AppData;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  onClose: () => void;
+  modal?: boolean;
+}) {
   const storeProfile = data.storeProfiles[0];
   const [roomNames, setRoomNames] = useState(() => roomNamesOf(data));
   const [maintenanceRoomNames, setMaintenanceRoomNames] = useState(() => maintenanceRoomNamesOf(data));
@@ -2682,9 +2713,7 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
   };
 
   return (
-    <div className="page-stack module-subpage room-settings-page">
-      <ModuleSubpageHeader parentTitle="管理中心" moduleTitle="房间设置" onBack={() => setView("settings")} />
-      <div className="module-detail-stack">
+      <div className={`module-detail-stack ${modal ? "room-settings-modal-detail" : ""}`}>
         <section className="panel room-settings-panel">
           <PanelTitle icon={<Building2 size={18} />} title="房间设置" action={`${normalizedRoomNames.length} 间`} />
           <div className="room-settings-summary">
@@ -2768,12 +2797,11 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
                 <Save size={16} />
                 {isSaving ? "保存中..." : saved ? "已保存" : "保存房间设置"}
               </button>
-              <button type="button" onClick={() => setView("settings")}>取消</button>
+              <button type="button" onClick={onClose}>取消</button>
             </div>
           </form>
         </section>
       </div>
-    </div>
   );
 }
 
