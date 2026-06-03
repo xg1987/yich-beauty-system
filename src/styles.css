@@ -12162,3 +12162,34 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+/* Workbench reminders are not availability states, so keep them violet instead of green. */
+.theme-day .workbench-content-grid > .workbench-panel:nth-child(2),
+.theme-day .workbench-content-grid.lower > .workbench-panel:nth-child(2) {
+  border-color: rgba(111, 66, 193, 0.28);
+  border-left-color: #6f42c1;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(111, 66, 193, 0.2), transparent 36%),
+    linear-gradient(135deg, #fffaff, #eee3ff);
+  color: #2f255f;
+}
+
+.theme-day .workbench-content-grid > .workbench-panel:nth-child(2) .panel-title h2,
+.theme-day .workbench-content-grid > .workbench-panel:nth-child(2) .panel-title span,
+.theme-day .workbench-content-grid.lower > .workbench-panel:nth-child(2) .panel-title h2,
+.theme-day .workbench-content-grid.lower > .workbench-panel:nth-child(2) .panel-title span {
+  color: #2f255f;
+}
+
+.theme-day .workbench-content-grid > .workbench-panel:nth-child(2) .panel-title svg,
+.theme-day .workbench-content-grid.lower > .workbench-panel:nth-child(2) .panel-title svg {
+  color: #6f42c1;
+}
+
+.theme-day .workbench-content-grid.lower > .workbench-panel:nth-child(2) .workbench-insight-list button:nth-child(2) {
+  border-color: rgba(184, 118, 33, 0.38);
+  border-left-color: #b87621;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(184, 118, 33, 0.24), transparent 36%),
+    linear-gradient(135deg, #fffdf8, #ffeac2);
+}
