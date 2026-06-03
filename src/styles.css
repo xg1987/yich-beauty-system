@@ -11914,3 +11914,251 @@ textarea,
     border-radius: 18px;
   }
 }
+
+/* System-wide appointment-style mapping: light surfaces, clear status color, no line textures. */
+.workbench-visual-page::before,
+.workbench-visual-page::after {
+  display: none;
+}
+
+.theme-day .workbench-visual-page,
+.theme-day .cashier-module-page.module-hub,
+.theme-day .customer-module-page.module-hub,
+.theme-day .admin-center-page:not(.platform-admin-page),
+.theme-day .settings-profile-page {
+  color: #2f255f;
+}
+
+.theme-day .workbench-metric-row .dashboard-metric,
+.theme-day .workbench-action-row button,
+.theme-day .workbench-panel,
+.theme-day .workbench-quick-list button,
+.theme-day .workbench-insight-list button,
+.theme-day .cashier-module-page.module-hub .module-metric-card,
+.theme-day .customer-module-page.module-hub .module-metric-card,
+.theme-day .cashier-module-page.module-hub .module-entry-card,
+.theme-day .customer-module-page.module-hub .module-entry-card,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card,
+.theme-day .customer-home-brief article,
+.theme-day .settings-static-panel,
+.theme-day .settings-profile-card,
+.theme-day .settings-contact-card {
+  border: 1px solid rgba(111, 66, 193, 0.24);
+  border-left: 6px solid #6f42c1;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(111, 66, 193, 0.18), transparent 34%),
+    linear-gradient(135deg, #ffffff, #ede3ff);
+  color: #2f255f;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.76),
+    0 14px 30px rgba(47, 27, 99, 0.08);
+}
+
+.theme-day .workbench-metric-row .dashboard-metric:nth-child(2),
+.theme-day .workbench-action-row button:nth-child(2),
+.theme-day .workbench-quick-list button:nth-child(2),
+.theme-day .workbench-insight-list button:nth-child(2),
+.theme-day .cashier-module-page.module-hub .module-metric-card:nth-child(2),
+.theme-day .customer-module-page.module-hub .module-metric-card:nth-child(2),
+.theme-day .cashier-module-page.module-hub .module-entry-card.teal,
+.theme-day .cashier-module-page.module-hub .module-entry-card.jade,
+.theme-day .customer-module-page.module-hub .module-entry-card.teal,
+.theme-day .customer-module-page.module-hub .module-entry-card.jade,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.teal,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.jade,
+.theme-day .customer-home-brief article:nth-child(2) {
+  border-color: rgba(42, 143, 125, 0.34);
+  border-left-color: #2a8f7d;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(42, 143, 125, 0.2), transparent 36%),
+    linear-gradient(135deg, #f8fffd, #dff4ee);
+}
+
+.theme-day .workbench-metric-row .dashboard-metric:nth-child(3),
+.theme-day .workbench-action-row button:nth-child(3),
+.theme-day .workbench-quick-list button:nth-child(3),
+.theme-day .workbench-insight-list button:nth-child(3),
+.theme-day .cashier-module-page.module-hub .module-metric-card:nth-child(3),
+.theme-day .customer-module-page.module-hub .module-metric-card:nth-child(3),
+.theme-day .cashier-module-page.module-hub .module-entry-card.rose,
+.theme-day .customer-module-page.module-hub .module-entry-card.rose,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.rose,
+.theme-day .customer-home-brief article:nth-child(3) {
+  border-color: rgba(199, 67, 99, 0.36);
+  border-left-color: #c74363;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(199, 67, 99, 0.22), transparent 36%),
+    linear-gradient(135deg, #fff9fb, #ffdce7);
+}
+
+.theme-day .workbench-metric-row .dashboard-metric:nth-child(4),
+.theme-day .workbench-action-row button:nth-child(4),
+.theme-day .workbench-quick-list button:nth-child(4),
+.theme-day .workbench-insight-list button:nth-child(4),
+.theme-day .cashier-module-page.module-hub .module-metric-card:nth-child(4),
+.theme-day .customer-module-page.module-hub .module-metric-card:nth-child(4),
+.theme-day .cashier-module-page.module-hub .module-entry-card.amber,
+.theme-day .customer-module-page.module-hub .module-entry-card.amber,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.amber,
+.theme-day .customer-home-brief article:nth-child(4) {
+  border-color: rgba(184, 118, 33, 0.38);
+  border-left-color: #b87621;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(184, 118, 33, 0.24), transparent 36%),
+    linear-gradient(135deg, #fffdf8, #ffeac2);
+}
+
+.theme-day .cashier-module-page.module-hub .module-entry-card.plum,
+.theme-day .customer-module-page.module-hub .module-entry-card.plum,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.plum {
+  border-color: rgba(154, 74, 172, 0.34);
+  border-left-color: #9a4aac;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(154, 74, 172, 0.2), transparent 36%),
+    linear-gradient(135deg, #fffaff, #f0def7);
+}
+
+.theme-day .workbench-panel .panel-title h2,
+.theme-day .workbench-panel .panel-title span,
+.theme-day .workbench-metric-row .dashboard-metric strong,
+.theme-day .workbench-action-row strong,
+.theme-day .workbench-quick-list strong,
+.theme-day .workbench-insight-list button strong,
+.theme-day .workbench-quick-list span,
+.theme-day .workbench-insight-list span,
+.theme-day .cashier-module-page.module-hub .module-metric-card strong,
+.theme-day .customer-module-page.module-hub .module-metric-card strong,
+.theme-day .cashier-module-page.module-hub .module-entry-card strong,
+.theme-day .customer-module-page.module-hub .module-entry-card strong,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card strong,
+.theme-day .customer-home-brief strong,
+.theme-day .settings-static-panel strong,
+.theme-day .settings-profile-card strong,
+.theme-day .settings-contact-card strong {
+  color: #2f255f;
+}
+
+.theme-day .workbench-metric-row .dashboard-metric span:not(.metric-icon),
+.theme-day .workbench-metric-row .dashboard-metric small,
+.theme-day .workbench-action-row span,
+.theme-day .workbench-quick-list small,
+.theme-day .workbench-insight-list small,
+.theme-day .workbench-panel .panel-title > span,
+.theme-day .cashier-module-page.module-hub .module-metric-card small,
+.theme-day .cashier-module-page.module-hub .module-metric-card em,
+.theme-day .customer-module-page.module-hub .module-metric-card small,
+.theme-day .customer-module-page.module-hub .module-metric-card em,
+.theme-day .cashier-module-page.module-hub .module-entry-card small,
+.theme-day .cashier-module-page.module-hub .module-entry-card em,
+.theme-day .customer-module-page.module-hub .module-entry-card small,
+.theme-day .customer-module-page.module-hub .module-entry-card em,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card small,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card em,
+.theme-day .customer-home-brief span,
+.theme-day .customer-home-brief small,
+.theme-day .settings-static-panel span,
+.theme-day .settings-profile-card span,
+.theme-day .settings-contact-card span {
+  color: rgba(47, 37, 95, 0.68);
+}
+
+.theme-day .workbench-metric-row .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-metric-card .metric-icon,
+.theme-day .customer-module-page.module-hub .module-metric-card .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-entry-card .admin-module-icon,
+.theme-day .customer-module-page.module-hub .module-entry-card .admin-module-icon,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card .admin-module-icon {
+  background: #6f42c1;
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(111, 66, 193, 0.18);
+}
+
+.theme-day .workbench-metric-row .dashboard-metric:nth-child(2) .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-metric-card:nth-child(2) .metric-icon,
+.theme-day .customer-module-page.module-hub .module-metric-card:nth-child(2) .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-entry-card.teal .admin-module-icon,
+.theme-day .cashier-module-page.module-hub .module-entry-card.jade .admin-module-icon,
+.theme-day .customer-module-page.module-hub .module-entry-card.teal .admin-module-icon,
+.theme-day .customer-module-page.module-hub .module-entry-card.jade .admin-module-icon,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.teal .admin-module-icon,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.jade .admin-module-icon {
+  background: #2a8f7d;
+}
+
+.theme-day .workbench-metric-row .dashboard-metric:nth-child(3) .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-metric-card:nth-child(3) .metric-icon,
+.theme-day .customer-module-page.module-hub .module-metric-card:nth-child(3) .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-entry-card.rose .admin-module-icon,
+.theme-day .customer-module-page.module-hub .module-entry-card.rose .admin-module-icon,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.rose .admin-module-icon {
+  background: #c74363;
+}
+
+.theme-day .workbench-metric-row .dashboard-metric:nth-child(4) .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-metric-card:nth-child(4) .metric-icon,
+.theme-day .customer-module-page.module-hub .module-metric-card:nth-child(4) .metric-icon,
+.theme-day .cashier-module-page.module-hub .module-entry-card.amber .admin-module-icon,
+.theme-day .customer-module-page.module-hub .module-entry-card.amber .admin-module-icon,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.amber .admin-module-icon {
+  background: #b87621;
+}
+
+.theme-day .cashier-module-page.module-hub .module-entry-card.plum .admin-module-icon,
+.theme-day .customer-module-page.module-hub .module-entry-card.plum .admin-module-icon,
+.theme-day .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.plum .admin-module-icon {
+  background: #9a4aac;
+}
+
+.theme-day .customer-home-brief,
+.theme-day .cashier-home-brief {
+  border-color: rgba(111, 66, 193, 0.2);
+  background:
+    radial-gradient(circle at 90% 6%, rgba(111, 66, 193, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(250, 247, 255, 0.92), rgba(241, 234, 251, 0.9));
+}
+
+.theme-day .workbench-panel .timeline-item,
+.theme-day .workbench-panel .care-item,
+.theme-day .workbench-panel .empty {
+  border-color: rgba(111, 66, 193, 0.14);
+  background: rgba(255, 255, 255, 0.62);
+  color: #2f255f;
+}
+
+.theme-day .workbench-panel .timeline-item strong,
+.theme-day .workbench-panel .care-item strong {
+  color: #2f255f;
+}
+
+.theme-day .workbench-panel .timeline-item span,
+.theme-day .workbench-panel .care-item span,
+.theme-day .workbench-panel .care-item small,
+.theme-day .workbench-panel .timeline-item time {
+  color: rgba(47, 37, 95, 0.68);
+}
+
+.customer-module-page.module-hub .module-overview {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cashier-module-page.module-hub .module-overview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1200px) {
+  .customer-module-page.module-hub .module-overview,
+  .cashier-module-page.module-hub .module-overview,
+  .admin-center-page:not(.platform-admin-page) .admin-module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .customer-module-page.module-hub .module-overview,
+  .cashier-module-page.module-hub .module-overview,
+  .admin-center-page:not(.platform-admin-page) .admin-module-grid,
+  .customer-home-brief,
+  .cashier-home-brief {
+    grid-template-columns: 1fr;
+  }
+}
