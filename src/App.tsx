@@ -3221,7 +3221,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const activeModuleTitle = activeModule ? posModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack cashier-module-page ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack cashier-module-page module-hub">
       <PageHero
         icon={<CreditCard size={15} />}
         eyebrow="开单收银"
@@ -3234,8 +3234,15 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         ]}
       />
       <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="开单收银" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "开单收银"}
+        subtitle="处理完成后可直接返回收银页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回收银页面</button>}
+      >
+      <div className="module-detail-stack cashier-modal-detail">
         {activeModule === "quick" && (
         <section className="panel">
         <PanelTitle
@@ -3387,6 +3394,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         </section>
         )}
       </div>
+      </Modal>
     </div>
   );
 }
