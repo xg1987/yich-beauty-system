@@ -2452,6 +2452,7 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
   const [maintenanceRoomCount, setMaintenanceRoomCount] = useState(() => maintenanceRoomCountOf(data));
   const [settingsError, setSettingsError] = useState<string | undefined>();
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setRoomNames(roomNamesOf(data));
@@ -2460,6 +2461,11 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
 
   const normalizedRoomNames = roomNames.map((roomName) => roomName.trim()).filter(Boolean);
   const clampedMaintenanceCount = Math.max(0, Math.min(normalizedRoomNames.length, maintenanceRoomCount));
+  const persistedRoomNames = roomNamesOf(data);
+  const persistedMaintenanceCount = maintenanceRoomCountOf(data);
+  const hasUnsavedChanges =
+    normalizedRoomNames.join("\n") !== persistedRoomNames.join("\n") || clampedMaintenanceCount !== persistedMaintenanceCount;
+  const saveStateText = isSaving ? "保存中..." : saved ? "已同步到预约页" : hasUnsavedChanges ? "有未保存修改" : "当前设置已同步";
   const maintenanceStartIndex = Math.max(0, roomNames.length - clampedMaintenanceCount);
   const draftRoomUsage = calculateAppointmentRoomUsage(
     filterAppointmentsByRange(data.appointments, "today"),
@@ -2491,6 +2497,7 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
 
   const saveRoomSettings = (event: FormEvent) => {
     event.preventDefault();
+    if (isSaving) return;
     setSettingsError(undefined);
     setSaved(false);
     if (!storeProfile) {
@@ -2506,6 +2513,7 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
       setSettingsError(`房间名称不能重复：${duplicatedRoomName}`);
       return;
     }
+    setIsSaving(true);
     void runMutation(() =>
       actions.updateStoreProfile({
         name: storeProfile.name,
@@ -2515,7 +2523,7 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
         roomNames: normalizedRoomNames,
         maintenanceRoomCount: clampedMaintenanceCount,
       }),
-    ).then(() => setSaved(true)).catch((caught) => setSettingsError(caught instanceof Error ? caught.message : "房间设置保存失败"));
+    ).then(() => setSaved(true)).catch((caught) => setSettingsError(caught instanceof Error ? caught.message : "房间设置保存失败")).finally(() => setIsSaving(false));
   };
 
   return (
@@ -2548,7 +2556,10 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
           </div>
           <form className="room-settings-form" onSubmit={saveRoomSettings}>
             <div className="room-settings-toolbar">
-              <strong>{roomNames.length} 个房间组件</strong>
+              <div>
+                <strong>{roomNames.length} 个房间组件</strong>
+                <span className={`room-save-status ${isSaving ? "saving" : saved ? "saved" : hasUnsavedChanges ? "dirty" : ""}`}>{saveStateText}</span>
+              </div>
               <button type="button" onClick={addRoom} disabled={roomNames.length >= 20}>
                 <PackagePlus size={16} />
                 新增房间
@@ -2598,9 +2609,9 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
             {settingsError && <p className="form-error">{settingsError}</p>}
             {saved && <p className="form-success">房间设置已保存，预约页会按新数量显示。</p>}
             <div className="row-actions">
-              <button className="primary-button">
+              <button className="primary-button" disabled={isSaving}>
                 <Save size={16} />
-                保存房间设置
+                {isSaving ? "保存中..." : saved ? "已保存" : "保存房间设置"}
               </button>
               <button type="button" onClick={() => setView("settings")}>取消</button>
             </div>
@@ -2856,25 +2867,31 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
               <small>不可预约</small>
             </div>
           </div>
-          <div className="appointment-room-state-grid">
-            {roomNames.map((name, index) => {
-              const assignment = roomUsage.roomAssignments.find((item) => item.roomName === name)?.appointment;
-              const isMaintenance = maintenanceRoomNames.has(name);
-              const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "空闲";
-              const statusHint = isMaintenance
-                ? "暂不可预约"
-                : assignment
-                  ? `${nameOf(data.customers, assignment.customerId)} · ${shortDate(assignment.startAt)}`
-                  : "今日暂无预约";
-              return (
-                <article className={`appointment-room-state-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${name}-${index}`}>
-                  <span>房间 {index + 1}</span>
-                  <b>{statusText}</b>
-                  <strong>{name}</strong>
-                  <small>{statusHint}</small>
-                </article>
-              );
-            })}
+          <div className="appointment-room-list-head">
+            <strong>房间列表（共 {roomNames.length} 间）</strong>
+            <small>房间数量来自管理中心的房间设置</small>
+          </div>
+          <div className="appointment-room-state-scroll">
+            <div className="appointment-room-state-grid">
+              {roomNames.map((name, index) => {
+                const assignment = roomUsage.roomAssignments.find((item) => item.roomName === name)?.appointment;
+                const isMaintenance = maintenanceRoomNames.has(name);
+                const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "空闲";
+                const statusHint = isMaintenance
+                  ? "暂不可预约"
+                  : assignment
+                    ? `${nameOf(data.customers, assignment.customerId)} · ${shortDate(assignment.startAt)}`
+                    : "今日暂无预约";
+                return (
+                  <article className={`appointment-room-state-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${name}-${index}`}>
+                    <span>房间 {index + 1}</span>
+                    <b>{statusText}</b>
+                    <strong>{name}</strong>
+                    <small>{statusHint}</small>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </section>
       </div>
