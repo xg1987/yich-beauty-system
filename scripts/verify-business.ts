@@ -324,6 +324,131 @@ function card(data: AppData, cardId: string) {
   assert.equal(updatedStore.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile should update business hours");
   assert.deepEqual(updatedStore.storeProfiles[0].roomNames, ["护理房 A", "护理房 B", "VIP 房"], "store profile should update appointment room names");
   assert.deepEqual(updatedStore.storeProfiles[0].maintenanceRoomNames, ["护理房 B"], "store profile should update specified maintenance rooms");
+  assert.throws(
+    () =>
+      createAppointment(
+        updatedStore,
+        {
+          customerId: "c1",
+          staffId: "s3",
+          serviceId: "v1",
+          startAt: "2026-06-10T02:00:00.000Z",
+          roomName: "护理房 B",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /维护中/,
+    "appointment should reject rooms marked as maintenance",
+  );
+  const roomBookedStore = createAppointment(
+    updatedStore,
+    {
+      customerId: "c1",
+      staffId: "s3",
+      serviceId: "v1",
+      startAt: "2026-06-10T02:00:00.000Z",
+      roomName: "护理房 A",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const firstRoomAppointmentId = roomBookedStore.appointments[0].id;
+  assert.throws(
+    () =>
+      createAppointment(
+        roomBookedStore,
+        {
+          customerId: "c2",
+          staffId: "s1",
+          serviceId: "v1",
+          startAt: "2026-06-10T02:30:00.000Z",
+          roomName: "护理房 A",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /该房间在此时间段已有预约/,
+    "appointment should reject overlapping bookings for the same room",
+  );
+  const legacyRoomlessStore: AppData = {
+    ...updatedStore,
+    appointments: [
+      {
+        id: "a_legacy_roomless",
+        customerId: "c1",
+        staffId: "s3",
+        serviceId: "v1",
+        startAt: "2026-06-10T02:00:00.000Z",
+        status: "待确认",
+        note: "旧预约未保存房间",
+      },
+      ...updatedStore.appointments,
+    ],
+  };
+  assert.throws(
+    () =>
+      createAppointment(
+        legacyRoomlessStore,
+        {
+          customerId: "c2",
+          staffId: "s1",
+          serviceId: "v1",
+          startAt: "2026-06-10T02:30:00.000Z",
+          roomName: "护理房 A",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /该房间在此时间段已有预约/,
+    "appointment should reject the room temporarily assigned to a legacy roomless booking",
+  );
+  const autoRoomFromLegacyStore = createAppointment(
+    legacyRoomlessStore,
+    {
+      customerId: "c2",
+      staffId: "s1",
+      serviceId: "v1",
+      startAt: "2026-06-10T02:30:00.000Z",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(autoRoomFromLegacyStore.appointments[0].roomName, "VIP 房", "appointment should skip maintenance and legacy-occupied rooms when auto-selecting a room");
+  const roomBookedAgainStore = createAppointment(
+    roomBookedStore,
+    {
+      customerId: "c2",
+      staffId: "s1",
+      serviceId: "v1",
+      startAt: "2026-06-10T03:00:00.000Z",
+      roomName: "护理房 A",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(roomBookedAgainStore.appointments[0].roomName, "护理房 A", "appointment should allow the same room after the prior booking ends");
+  const rescheduleConflictStore = createAppointment(
+    roomBookedStore,
+    {
+      customerId: "c2",
+      staffId: "s1",
+      serviceId: "v1",
+      startAt: "2026-06-10T04:00:00.000Z",
+      roomName: "护理房 A",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.throws(
+    () =>
+      rescheduleAppointment(
+        rescheduleConflictStore,
+        {
+          appointmentId: firstRoomAppointmentId,
+          staffId: "s3",
+          serviceId: "v1",
+          startAt: "2026-06-10T04:30:00.000Z",
+          roomName: "护理房 A",
+        },
+        { now: fixedNow },
+      ),
+    /该房间在此时间段已有预约/,
+    "appointment reschedule should reject overlapping bookings for the same room",
+  );
   const disabledStore = updateStoreStatus(updatedStore, { storeId: updatedStore.storeProfiles[0].id, status: "disabled", userId: "u_superadmin" }, { idFactory: testId, now: fixedNow });
   assert.equal(disabledStore.storeProfiles[0].status, "disabled", "admin should disable store");
   assert.equal(disabledStore.operationLogs[0].action, "停用门店", "store status should write operation log");

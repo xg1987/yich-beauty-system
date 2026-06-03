@@ -42,7 +42,7 @@ import { DateTimeInput } from "./components/ui/DateTimeInput";
 import { Modal } from "./components/ui/Modal";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
-import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
+import { appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
@@ -3133,8 +3133,6 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     return conflicts.length > 0;
   };
 
-  const selectedTimeConflict = checkAvailability(staffId, startAt, startAt); // 简化检查
-
   const today = new Date();
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const pendingArrival = todayAppointments.filter((item) => item.status === "已确认" || item.status === "待确认").length;
@@ -3146,16 +3144,22 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(selectedStartAt.getTime() + (selectedService?.duration ?? 60) * 60 * 1000);
+  const selectedTimeConflict = checkAvailability(staffId, startAt, selectedEndAt.toISOString());
+  const overlappingRoomAssignments = assignAppointmentRooms(
+    data.appointments
+      .filter(isActiveRoomAppointment)
+      .filter((appointment) => {
+        const appointmentService = data.services.find((item) => item.id === appointment.serviceId);
+        const appointmentStart = new Date(appointment.startAt);
+        const appointmentEnd = new Date(appointmentStart.getTime() + (appointmentService?.duration ?? 60) * 60 * 1000);
+        return hasTimeOverlap(selectedStartAt, selectedEndAt, appointmentStart, appointmentEnd);
+      }),
+    roomNames,
+    Array.from(maintenanceRoomNames),
+  );
   const roomAvailabilityOptions = roomNames.map((name) => {
     const isMaintenance = maintenanceRoomNames.has(name);
-    const conflictAppointment = data.appointments.find((appointment) => {
-      if (!isActiveRoomAppointment(appointment)) return false;
-      if ((appointment.roomName ?? "") !== name) return false;
-      const appointmentService = data.services.find((item) => item.id === appointment.serviceId);
-      const appointmentStart = new Date(appointment.startAt);
-      const appointmentEnd = new Date(appointmentStart.getTime() + (appointmentService?.duration ?? 60) * 60 * 1000);
-      return hasTimeOverlap(selectedStartAt, selectedEndAt, appointmentStart, appointmentEnd);
-    });
+    const conflictAppointment = overlappingRoomAssignments.find((assignment) => assignment.roomName === name)?.appointment;
     const disabled = isMaintenance || Boolean(conflictAppointment);
     const reason = isMaintenance ? "维护中" : conflictAppointment ? "该时间已预约" : "可预约";
     return {

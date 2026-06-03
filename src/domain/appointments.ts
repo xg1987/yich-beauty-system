@@ -91,16 +91,7 @@ export function calculateAppointmentRoomUsage(
   const activeAppointments = appointments.filter(isActiveRoomAppointment);
   const bookedRoomSlots = Math.min(activeAppointments.length, roomCapacity);
   const remainingRoomSlots = Math.max(0, roomCapacity - bookedRoomSlots);
-  const availableRoomNames = roomNames.filter((roomName) => !maintenanceRoomNames.includes(roomName));
-  const usedRoomNames = new Set<string>();
-  const roomAssignments = activeAppointments.slice(0, availableRoomCount).map((appointment) => {
-    const savedRoomName = appointment.roomName?.trim();
-    const roomName = savedRoomName && availableRoomNames.includes(savedRoomName) && !usedRoomNames.has(savedRoomName)
-      ? savedRoomName
-      : availableRoomNames.find((name) => !usedRoomNames.has(name)) ?? "";
-    if (roomName) usedRoomNames.add(roomName);
-    return { appointment, roomName };
-  }).filter((assignment) => assignment.roomName);
+  const roomAssignments = assignAppointmentRooms(activeAppointments.slice(0, availableRoomCount), roomNames, maintenanceRoomNames);
 
   return {
     availableRoomCount,
@@ -112,6 +103,24 @@ export function calculateAppointmentRoomUsage(
     roomAssignments,
     roomCapacity,
   };
+}
+
+export function assignAppointmentRooms(
+  appointments: Appointment[],
+  roomNames: string[],
+  maintenanceRooms: number | string[] = 0,
+): AppointmentRoomAssignment[] {
+  const maintenanceRoomNames = normalizeMaintenanceRoomNames(roomNames, maintenanceRooms);
+  const availableRoomNames = roomNames.filter((roomName) => !maintenanceRoomNames.includes(roomName));
+  const usedRoomNames = new Set<string>();
+  return appointments.map((appointment) => {
+    const savedRoomName = appointment.roomName?.trim();
+    const roomName = savedRoomName && availableRoomNames.includes(savedRoomName) && !usedRoomNames.has(savedRoomName)
+      ? savedRoomName
+      : availableRoomNames.find((name) => !usedRoomNames.has(name)) ?? "";
+    if (roomName) usedRoomNames.add(roomName);
+    return { appointment, roomName };
+  }).filter((assignment) => assignment.roomName);
 }
 
 function normalizeMaintenanceRoomNames(roomNames: string[], maintenanceRooms: number | string[]) {

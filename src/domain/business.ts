@@ -43,6 +43,7 @@ import type {
   ViewKey,
 } from "./types";
 import { effectiveRoleForUser } from "./auth";
+import { assignAppointmentRooms } from "./appointments";
 import { makeId, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
@@ -2914,15 +2915,20 @@ function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
   const selectedService = data.services.find((item) => item.id === input.serviceId);
   const startAt = new Date(input.startAt);
   const endAt = new Date(startAt.getTime() + (selectedService?.duration ?? 60) * 60 * 1000);
+  const overlappingRoomNames = new Set(assignAppointmentRooms(
+    data.appointments
+      .filter(isActiveAppointmentForRoom)
+      .filter((appointment) => {
+        const service = data.services.find((item) => item.id === appointment.serviceId);
+        const appointmentStart = new Date(appointment.startAt);
+        const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+        return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
+      }),
+    roomNames,
+    maintenanceRoomNames,
+  ).map((assignment) => assignment.roomName));
   return availableRoomNames.find((roomName) =>
-    !data.appointments.some((appointment) => {
-      if (!isActiveAppointmentForRoom(appointment)) return false;
-      if ((appointment.roomName ?? "") !== roomName) return false;
-      const service = data.services.find((item) => item.id === appointment.serviceId);
-      const appointmentStart = new Date(appointment.startAt);
-      const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
-      return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
-    }),
+    !overlappingRoomNames.has(roomName),
   ) ?? availableRoomNames[0] ?? "";
 }
 
@@ -2979,15 +2985,19 @@ function validateAppointmentSchedule(
     throw new Error("该员工在此时间段不可预约");
   }
 
-  const hasRoomConflict = data.appointments.some((appointment) => {
-    if (appointment.id === input.excludeAppointmentId) return false;
-    if (!isActiveAppointmentForRoom(appointment)) return false;
-    if ((appointment.roomName ?? "") !== selectedRoomName) return false;
-    const service = data.services.find((item) => item.id === appointment.serviceId);
-    const appointmentStart = new Date(appointment.startAt);
-    const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
-    return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
-  });
+  const hasRoomConflict = assignAppointmentRooms(
+    data.appointments
+      .filter((appointment) => appointment.id !== input.excludeAppointmentId)
+      .filter(isActiveAppointmentForRoom)
+      .filter((appointment) => {
+        const service = data.services.find((item) => item.id === appointment.serviceId);
+        const appointmentStart = new Date(appointment.startAt);
+        const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+        return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
+      }),
+    roomNames,
+    maintenanceRoomNames,
+  ).some((assignment) => assignment.roomName === selectedRoomName);
 
   if (hasRoomConflict) {
     throw new Error("该房间在此时间段已有预约");
