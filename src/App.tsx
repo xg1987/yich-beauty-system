@@ -601,6 +601,7 @@ function ManagementCenter({
     view?: ViewKey;
     onClick?: () => void;
   };
+  const [activeManagementCard, setActiveManagementCard] = useState<ManagementCard | undefined>();
 
   const platformManagementCards: ManagementCard[] = [
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
@@ -654,6 +655,13 @@ function ManagementCenter({
         ? financeManagementCards
         : staffManagementCards;
   const visibleManagementCards = managementCards.filter((item) => !item.view || canAccessView(session, item.view));
+  const activeManagementDetails = activeManagementCard ? managementEntryDetails(activeManagementCard, data, session) : undefined;
+  const enterManagementCardPage = () => {
+    if (!activeManagementCard?.view) return;
+    const nextView = activeManagementCard.view;
+    setActiveManagementCard(undefined);
+    setView(nextView, { fromAdmin: true });
+  };
 
   return (
     <div className="admin-center-page">
@@ -716,7 +724,7 @@ function ManagementCenter({
             <AdminCenterCard
               key={item.title}
               item={item}
-              onClick={() => item.onClick ? item.onClick() : item.view && setView(item.view, { fromAdmin: true })}
+              onClick={() => item.onClick ? item.onClick() : item.view && setActiveManagementCard(item)}
             />
           ))}
         </div>
@@ -730,8 +738,203 @@ function ManagementCenter({
       >
         <RoomSettingsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setRoomSettingsOpen(false)} modal />
       </Modal>
+      <Modal
+        open={Boolean(activeManagementCard)}
+        title={activeManagementCard?.title ?? "管理入口"}
+        subtitle={activeManagementCard?.desc}
+        size="medium"
+        onClose={() => setActiveManagementCard(undefined)}
+        footer={(
+          <>
+            <button type="button" onClick={() => setActiveManagementCard(undefined)}>取消</button>
+            <button type="button" className="primary-button" onClick={enterManagementCardPage}>进入完整页面</button>
+          </>
+        )}
+      >
+        {activeManagementCard && activeManagementDetails && (
+          <div className="workbench-dialog-content admin-entry-dialog-content">
+            <div className={`workbench-dialog-icon ${activeManagementDetails.tone}`}>
+              {activeManagementDetails.icon}
+            </div>
+            <div className="workbench-dialog-summary">
+              <span>{activeManagementDetails.label}</span>
+              <strong>{activeManagementDetails.value}</strong>
+              <small>{activeManagementDetails.description}</small>
+            </div>
+            <div className="workbench-dialog-list">
+              {activeManagementDetails.items.map((item) => (
+                <article key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <small>{item.hint}</small>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
+}
+
+function managementEntryDetails(
+  item: { title: string; desc: string; icon: typeof LayoutDashboard; tone: ModuleTone; view?: ViewKey },
+  data: AppData,
+  session: UserSession,
+) {
+  const today = new Date();
+  const todayAppointments = data.appointments.filter((appointment) => new Date(appointment.startAt).toDateString() === today.toDateString());
+  const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
+  const todayRevenue = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
+  const pendingApprovals = data.approvalRequests.filter((request) => request.status === "待审批").length;
+  const lowStock = data.products.filter((product) => product.stock <= product.warningStock).length;
+  const businessStaff = businessStaffOf(data);
+  const rooms = roomNamesOf(data);
+  const maintenanceRooms = maintenanceRoomNamesOf(data, rooms).length;
+  const operationLogs = data.operationLogs ?? [];
+  const Icon = item.icon;
+  const base = {
+    tone: item.tone,
+    icon: <Icon size={24} />,
+    label: item.title,
+    value: item.view ? viewTitles[item.view] : item.title,
+    description: item.desc,
+  };
+
+  if (item.view === "appointments") {
+    return {
+      ...base,
+      value: `${todayAppointments.length} 单`,
+      items: [
+        { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "待确认、到店和已完成" },
+        { label: "房间数量", value: `${rooms.length} 间`, hint: "来自房间设置" },
+        { label: "维护房间", value: `${maintenanceRooms} 间`, hint: "预约不可选择" },
+      ],
+    };
+  }
+  if (item.view === "pos") {
+    return {
+      ...base,
+      value: money(todayRevenue),
+      items: [
+        { label: "今日收款", value: money(todayRevenue), hint: `${todayOrders.length} 笔订单` },
+        { label: "累计实收", value: money(totalRevenue), hint: "全部订单实收" },
+        { label: "有效会员卡", value: `${activeCards} 张`, hint: "可用于卡扣" },
+      ],
+    };
+  }
+  if (item.view === "customers") {
+    return {
+      ...base,
+      value: `${data.customers.length} 位`,
+      items: [
+        { label: "客户总数", value: `${data.customers.length} 位`, hint: "门店客户档案" },
+        { label: "有效项目卡", value: `${activeCards} 张`, hint: "客户资产" },
+        { label: "待签名", value: `${data.customerSignatures.filter((signature) => signature.status === "待签名").length} 份`, hint: "服务完成确认" },
+      ],
+    };
+  }
+  if (item.view === "catalog") {
+    return {
+      ...base,
+      value: `${data.services.length + data.products.length} 项`,
+      items: [
+        { label: "服务项目", value: `${data.services.length} 项`, hint: "预约和开单可选" },
+        { label: "商品耗材", value: `${data.products.length} 项`, hint: "销售品和服务耗材" },
+        { label: "低库存", value: `${lowStock} 项`, hint: "需要补货或盘点" },
+      ],
+    };
+  }
+  if (item.view === "staff") {
+    const scopedCommissions = session.user.staffId
+      ? data.commissions.filter((commission) => commission.staffId === session.user.staffId)
+      : data.commissions;
+    return {
+      ...base,
+      value: `${businessStaff.length} 人`,
+      items: [
+        { label: "员工档案", value: `${businessStaff.length} 人`, hint: "岗位、状态和账号" },
+        { label: "提成记录", value: `${scopedCommissions.length} 条`, hint: "按权限查看" },
+        { label: "待结算", value: money(scopedCommissions.filter((commission) => commission.status === "待结算").reduce((sum, commission) => sum + commission.amount, 0)), hint: "当前待处理" },
+      ],
+    };
+  }
+  if (item.view === "inventory") {
+    return {
+      ...base,
+      value: `${lowStock} 项`,
+      items: [
+        { label: "低库存", value: `${lowStock} 项`, hint: "低于安全库存" },
+        { label: "商品耗材", value: `${data.products.length} 项`, hint: "库存基础资料" },
+        { label: "库存流水", value: `${data.inventoryLogs.length} 条`, hint: "出入库和盘点" },
+      ],
+    };
+  }
+  if (item.view === "reports") {
+    return {
+      ...base,
+      value: money(todayRevenue),
+      items: [
+        { label: "今日实收", value: money(todayRevenue), hint: "当天收入" },
+        { label: "今日订单", value: `${todayOrders.length} 单`, hint: "当天收银记录" },
+        { label: "累计实收", value: money(totalRevenue), hint: "经营汇总" },
+      ],
+    };
+  }
+  if (item.view === "approvals" || item.view === "permissions") {
+    return {
+      ...base,
+      value: `${pendingApprovals} 单`,
+      items: [
+        { label: "待审批", value: `${pendingApprovals} 单`, hint: "需要处理" },
+        { label: "已通过", value: `${data.approvalRequests.filter((request) => request.status === "已通过").length} 单`, hint: "审批结果" },
+        { label: "已拒绝", value: `${data.approvalRequests.filter((request) => request.status === "已拒绝").length} 单`, hint: "审批结果" },
+      ],
+    };
+  }
+  if (item.view === "logs") {
+    return {
+      ...base,
+      value: `${operationLogs.length} 条`,
+      items: [
+        { label: "操作记录", value: `${operationLogs.length} 条`, hint: "登录和业务操作" },
+        { label: "操作类型", value: `${new Set(operationLogs.map((log) => log.action)).size} 类`, hint: "审计范围" },
+        { label: "账号数量", value: `${data.authUsers.length} 个`, hint: "可追溯账号" },
+      ],
+    };
+  }
+  if (item.view === "accounts") {
+    return {
+      ...base,
+      value: `${data.authUsers.length} 个`,
+      items: [
+        { label: "账号数量", value: `${data.authUsers.length} 个`, hint: "平台和门店账号" },
+        { label: "员工档案", value: `${businessStaff.length} 人`, hint: "可绑定账号" },
+        { label: "待加入邀请", value: `${data.staffInvites.filter((invite) => invite.status === "待加入").length} 个`, hint: "邀请码状态" },
+      ],
+    };
+  }
+  if (item.view === "usage") {
+    return {
+      ...base,
+      value: "实时读取",
+      items: [
+        { label: "Worker 指标", value: "实时", hint: "进入页面后读取请求量" },
+        { label: "R2 容量", value: "实时", hint: "进入页面后读取存储用量" },
+        { label: "系统配置", value: `${data.systemConfigs?.length ?? 0} 项`, hint: "平台设置" },
+      ],
+    };
+  }
+  return {
+    ...base,
+    items: [
+      { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "工作台统计" },
+      { label: "今日收款", value: money(todayRevenue), hint: "经营统计" },
+      { label: "待审批", value: `${pendingApprovals} 单`, hint: "管理事项" },
+    ],
+  };
 }
 
 function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
