@@ -12154,10 +12154,6 @@ textarea,
   color: rgba(47, 37, 95, 0.68);
 }
 
-.customer-module-page.module-hub .module-overview {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
 .cashier-module-page.module-hub .module-overview {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -12211,6 +12207,47 @@ textarea,
     linear-gradient(135deg, #fffdf8, #ffeac2);
 }
 
+/* Customer home: four equal service blocks form the page body. */
+.customer-module-page.module-hub {
+  gap: 16px;
+  padding-bottom: 28px;
+}
+
+.customer-module-page.module-hub .module-overview {
+  min-height: clamp(480px, calc(100dvh - 355px), 620px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 18px;
+}
+
+.customer-module-page.module-hub .module-entry-card {
+  min-height: 230px;
+  align-content: center;
+  gap: 14px;
+  padding: 30px;
+}
+
+.customer-module-page.module-hub .module-entry-card .admin-module-icon {
+  width: 52px;
+  height: 52px;
+}
+
+.customer-module-page.module-hub .module-entry-card strong {
+  font-size: 24px;
+}
+
+.customer-module-page.module-hub .module-entry-card small,
+.customer-module-page.module-hub .module-entry-card em {
+  font-size: 13px;
+}
+
+.customer-module-page.module-hub .module-entry-card em {
+  margin-top: 6px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
 /* Cashier home: only two high-frequency work areas stay on the landing view. */
 .cashier-module-page.module-hub {
   gap: 16px;
@@ -12253,6 +12290,11 @@ textarea,
 }
 
 @media (max-width: 1200px) {
+  .customer-module-page.module-hub .module-overview {
+    min-height: auto;
+    grid-auto-rows: minmax(220px, auto);
+  }
+
   .cashier-module-page.module-hub .module-overview {
     min-height: auto;
     grid-auto-rows: minmax(260px, auto);
@@ -12260,6 +12302,7 @@ textarea,
 }
 
 @media (max-width: 720px) {
+  .customer-module-page.module-hub .module-entry-card,
   .cashier-module-page.module-hub .module-entry-card {
     min-height: 148px;
   }

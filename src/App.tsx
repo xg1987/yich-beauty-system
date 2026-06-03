@@ -1183,7 +1183,6 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
     .slice()
     .sort((a, b) => +new Date(b.lastVisit) - +new Date(a.lastVisit))
     .slice(0, 5);
-  const latestCustomer = recentCustomers[0];
   const rows = data.customers.slice(0, 120).map((customer) => [
     customer.name,
     customer.phone,
@@ -1225,30 +1224,6 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
         ]}
       />
       <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {!activeModule && (
-        <section className="customer-home-brief" aria-label="客户服务概览">
-          <article>
-            <span>最近客户</span>
-            <strong>{latestCustomer?.name ?? "暂无"}</strong>
-            <small>{latestCustomer ? `${shortDate(latestCustomer.lastVisit)} 到店` : "暂无到店记录"}</small>
-          </article>
-          <article>
-            <span>项目卡剩余</span>
-            <strong>{totalRemainingTimes} 次</strong>
-            <small>{activeCards} 张有效项目卡</small>
-          </article>
-          <article>
-            <span>待回访</span>
-            <strong>{pendingFollowUps} 位</strong>
-            <small>护理后跟进</small>
-          </article>
-          <article>
-            <span>待签名</span>
-            <strong>{pendingSignatures} 份</strong>
-            <small>服务完成确认</small>
-          </article>
-        </section>
-      )}
       {activeModule && <ModuleSubpageHeader parentTitle="客户档案" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
 
       <div className="module-detail-stack">
@@ -3384,7 +3359,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
 
   const activeCards = data.memberCards.filter((card) => card.status === "正常");
   const totalRemainingTimes = activeCards.reduce((sum, card) => sum + card.remainingTimes, 0);
-  const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
   const pendingSignatures = data.customerSignatures.filter((signature) => signature.status === "待签名").length;
   const recordLinkedOrderIds = new Set(data.customerServiceRecords.map((record) => record.orderId).filter(Boolean));
   const staffOptions = serviceStaff.map(optionOf);
@@ -3474,9 +3448,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
   }).length;
-  const latestCustomer = data.customers
-    .slice()
-    .sort((a, b) => +new Date(b.lastVisit) - +new Date(a.lastVisit))[0];
   type CustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
     { key: "profile", title: "客户档案", desc: "新增客户和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
@@ -3500,30 +3471,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         ]}
       />
       <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {!activeModule && (
-        <section className="customer-home-brief" aria-label="客户服务概览">
-          <article>
-            <span>最近客户</span>
-            <strong>{latestCustomer?.name ?? "暂无"}</strong>
-            <small>{latestCustomer ? `${shortDate(latestCustomer.lastVisit)} 到店` : "暂无到店记录"}</small>
-          </article>
-          <article>
-            <span>项目卡剩余</span>
-            <strong>{totalRemainingTimes} 次</strong>
-            <small>{activeCards.length} 张有效项目卡</small>
-          </article>
-          <article>
-            <span>待回访</span>
-            <strong>{pendingFollowUps} 位</strong>
-            <small>护理后跟进</small>
-          </article>
-          <article>
-            <span>待签名</span>
-            <strong>{pendingSignatures} 份</strong>
-            <small>服务完成确认</small>
-          </article>
-        </section>
-      )}
       {activeModule && <ModuleSubpageHeader parentTitle="客户档案" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
         {activeModule && (
