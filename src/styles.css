@@ -6540,6 +6540,22 @@ textarea,
   line-height: 1;
 }
 
+.customer-modal-detail {
+  gap: 16px;
+}
+
+.customer-modal-detail > .panel {
+  border-color: rgba(111, 66, 193, 0.18);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+}
+
+.customer-modal-detail .table-wrap {
+  max-height: 360px;
+  overflow: auto;
+  border-radius: 16px;
+}
+
 .theme-day .workbench-hero {
   border-color: rgba(193, 125, 112, 0.2);
   background: linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);

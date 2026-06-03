@@ -3610,7 +3610,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack customer-module-page ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack customer-module-page module-hub">
       <PageHero
         icon={<UsersRound size={15} />}
         eyebrow="客户档案"
@@ -3623,8 +3623,15 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         ]}
       />
       <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="客户档案" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "客户档案"}
+        subtitle="处理完成后可直接返回客户页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回客户页面</button>}
+      >
+      <div className="module-detail-stack customer-modal-detail">
         {activeModule && (
         <section className="panel">
         {activeModule === "profile" && (
@@ -3853,6 +3860,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         )}
 
       </div>
+      </Modal>
     </div>
   );
 }
