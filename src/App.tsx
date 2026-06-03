@@ -28,7 +28,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { CSSProperties, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "./components/business/AccountMenu";
 import { NotificationPanel, visibleNotifications } from "./components/business/NotificationPanel";
 import { UserAvatar } from "./components/business/UserAvatar";
@@ -43,7 +43,7 @@ import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
+import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
@@ -67,12 +67,11 @@ const AUTO_THEME_NIGHT_START_HOUR = 19;
 const DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
 const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
-const tagColorOptions = ["#6d28d9", "#db2777", "#0d9488", "#b45309", "#2563eb", "#be123c"];
 const viewTitles: Record<ViewKey, string> = {
   dashboard: "工作台",
   appointments: "预约管理",
   pos: "开单收银",
-  customers: "客户会员",
+  customers: "客户档案",
   catalog: "项目商品",
   staff: "人员账号",
   inventory: "库存管理",
@@ -295,7 +294,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "dashboard", label: "工作台", icon: LayoutDashboard },
   { key: "appointments", label: "预约管理", icon: CalendarDays },
   { key: "pos", label: "开单收银", icon: CreditCard },
-  { key: "customers", label: "客户会员", icon: UsersRound },
+  { key: "customers", label: "客户档案", icon: UsersRound },
   { key: "inventory", label: "库存管理", icon: Boxes },
   { key: "reports", label: "报表分析", icon: ChartNoAxesColumnIncreasing },
   { key: "approvals", label: "审批中心", icon: ShieldCheck },
@@ -406,6 +405,15 @@ export default function App() {
   const isPlatformAdmin = session.user.role === "superadmin";
   const showAdminDetailBack = false;
   const showManagementBack = adminDetailFromCenter && activeView !== "settings" && activeView !== "roomSettings";
+  const shellRoleLabel: Record<UserRole, string> = {
+    superadmin: "管理后台",
+    owner: "门店老板",
+    manager: "门店主管",
+    frontdesk: "前台营业",
+    therapist: "员工页面",
+    finance: "财务后台",
+  };
+  const shellDisplayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
 
   return (
     <div className={`app-shell theme-${effectiveThemeMode}`}>
@@ -413,8 +421,8 @@ export default function App() {
         <div className="rail-admin">
           <div className="brand-mark">D</div>
           <div>
-            <strong>管理后台</strong>
-            <span>admin</span>
+            <strong>{shellRoleLabel[session.user.role]}</strong>
+            <span>{shellDisplayName}</span>
           </div>
         </div>
       </aside>
@@ -423,8 +431,8 @@ export default function App() {
           <div className="topbar-brand">
             <div className="brand-mark">D</div>
             <div>
-              <strong>管理后台</strong>
-              <span>admin</span>
+              <strong>{shellRoleLabel[session.user.role]}</strong>
+              <span>{shellDisplayName}</span>
             </div>
           </div>
           <div className="topbar-title">
@@ -594,7 +602,7 @@ function ManagementCenter({
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
     { title: "预约管理", desc: "预约记录 / 到店状态", icon: CalendarDays, tone: "violet", view: "appointments" },
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
-    { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
+    { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "库存管理", desc: "库存预警 / 出入库记录", icon: Boxes, tone: "teal", view: "inventory" },
@@ -605,7 +613,7 @@ function ManagementCenter({
     { title: "预约管理", desc: "预约记录 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
     { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", view: "roomSettings" },
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
-    { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
+    { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "库存管理", desc: "库存预警 / 出入库记录", icon: Boxes, tone: "teal", view: "inventory" },
@@ -618,7 +626,7 @@ function ManagementCenter({
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
     { title: "工作台", desc: "今日任务 / 服务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
     { title: "预约管理", desc: "我的预约 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "客户会员", desc: "客户资料 / 护理记录", icon: HeartHandshake, tone: "violet", view: "customers" },
+    { title: "客户档案", desc: "客户资料 / 护理记录", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "我的提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "外观通知", desc: "自动模式 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
@@ -1141,7 +1149,7 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
             <div>
               <span>有效会员卡</span>
               <strong>{data.memberCards.filter((card) => card.status === "正常").length} 张</strong>
-              <small>会员资产规模</small>
+              <small>项目卡规模</small>
             </div>
           </div>
         </div>
@@ -1160,31 +1168,23 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
 }
 
 function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>();
   const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
-  const totalCardBalance = data.memberCards.reduce((sum, card) => sum + card.balance, 0);
+  const totalRemainingTimes = data.memberCards.reduce((sum, card) => sum + card.remainingTimes, 0);
   const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
   const pendingSignatures = data.customerSignatures.filter((item) => item.status === "待签名").length;
   const recentCustomers = data.customers
     .slice()
     .sort((a, b) => +new Date(b.lastVisit) - +new Date(a.lastVisit))
     .slice(0, 5);
-  const levelSummary = Array.from(
-    data.customers.reduce((map, customer) => map.set(customer.level, (map.get(customer.level) ?? 0) + 1), new Map<string, number>()),
-  ).sort((a, b) => b[1] - a[1]);
-  const tagSummary = Array.from(
-    data.customers
-      .flatMap((customer) => customer.tags)
-      .reduce((map, tag) => map.set(tag, (map.get(tag) ?? 0) + 1), new Map<string, number>()),
-  )
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6);
+  const latestCustomer = recentCustomers[0];
   const rows = data.customers.slice(0, 120).map((customer) => [
     customer.name,
     customer.phone,
-    customer.level,
-    customer.source,
-    customer.tags.length > 0 ? customer.tags.join(" / ") : "-",
     shortDate(customer.lastVisit),
+    `${data.memberCards.filter((card) => card.customerId === customer.id).length} 张`,
+    `${data.customerServiceRecords.filter((record) => record.customerId === customer.id).length} 条`,
+    `${data.customerSignatures.filter((signature) => signature.customerId === customer.id).length} 份`,
   ]);
   const cardRows = data.memberCards.slice(0, 120).map((card) => [
     nameOf(data.customers, card.customerId),
@@ -1195,148 +1195,147 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
     <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "正常" ? "ok" : "warn"} />,
     shortDate(card.expiresAt),
   ]);
+  type PlatformCustomerModuleKey = NonNullable<typeof activeModule>;
+  const customerModules: Array<FeatureModule<PlatformCustomerModuleKey>> = [
+    { key: "profile", title: "客户档案", desc: "客户资料和最近到店记录", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
+    { key: "cards", title: "项目次数卡", desc: "储值卡、次数卡和套餐卡", icon: CreditCard, tone: "rose", meta: `${activeCards} 张` },
+    { key: "records", title: "服务记录", desc: "护理过程和回访计划", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
+    { key: "signature", title: "服务确认签名", desc: "平板现场签名记录", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures.length} 份` },
+  ];
+  const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className="admin-center-page platform-admin-page">
-      {showBack && <PlatformPageTitle title="客户会员" onBack={() => setView("settings")} />}
-      <section className="page-hero platform-admin-readonly-hero">
-        <div>
-          <span className="eyebrow"><HeartHandshake size={15} /> 客户会员</span>
-          <h1>客户会员资产</h1>
-          <p>客户档案、会员卡资产、标签和分销关系。</p>
-        </div>
-        <div className="page-hero-stats">
-          <StatCard title="客户总数" value={`${data.customers.length} 人`} hint="客户档案" />
-          <StatCard title="会员卡" value={`${data.memberCards.length} 张`} hint="卡项资产" />
-          <StatCard title="有效卡" value={`${activeCards} 张`} hint="正常状态" />
-        </div>
-      </section>
+    <div className={`page-stack customer-module-page ${activeModule ? "module-subpage" : "module-hub"}`}>
+      {showBack && <PlatformPageTitle title="客户档案" onBack={() => setView("settings")} />}
+      <PageHero
+        icon={<HeartHandshake size={15} />}
+        eyebrow="客户档案"
+        title="客户服务档案"
+        desc="客户资料、项目次数卡、到店服务记录和现场签名确认。"
+        stats={[
+          { label: "客户总数", value: `${data.customers.length} 人`, hint: "客户档案", icon: <UsersRound size={18} /> },
+          { label: "项目卡", value: `${data.memberCards.length} 张`, hint: `${totalRemainingTimes} 次可核销`, icon: <CreditCard size={18} /> },
+          { label: "待签名", value: `${pendingSignatures} 份`, hint: "服务确认", icon: <LockKeyhole size={18} /> },
+        ]}
+      />
+      <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!activeModule && (
+        <section className="customer-home-brief" aria-label="客户服务概览">
+          <article>
+            <span>最近客户</span>
+            <strong>{latestCustomer?.name ?? "暂无"}</strong>
+            <small>{latestCustomer ? `${shortDate(latestCustomer.lastVisit)} 到店` : "暂无到店记录"}</small>
+          </article>
+          <article>
+            <span>项目卡剩余</span>
+            <strong>{totalRemainingTimes} 次</strong>
+            <small>{activeCards} 张有效项目卡</small>
+          </article>
+          <article>
+            <span>待回访</span>
+            <strong>{pendingFollowUps} 位</strong>
+            <small>护理后跟进</small>
+          </article>
+          <article>
+            <span>待签名</span>
+            <strong>{pendingSignatures} 份</strong>
+            <small>服务完成确认</small>
+          </article>
+        </section>
+      )}
+      {activeModule && <ModuleSubpageHeader parentTitle="客户档案" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
 
-      <section className="customer-page-grid">
-        <div className="customer-panel customer-board-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="客户资产看板" action={`${data.customers.length} 人`} />
-          <div className="customer-focus-card">
-            <span>客户总数</span>
-            <strong>{data.customers.length}</strong>
-            <small>记录客户档案、来源、标签和最近到店信息。</small>
-          </div>
-          <div className="customer-status-grid">
-            <div>
-              <span>会员卡</span>
-              <strong>{data.memberCards.length}</strong>
-              <small>{activeCards} 张有效卡</small>
-            </div>
-            <div>
-              <span>卡余额</span>
-              <strong>{money(totalCardBalance)}</strong>
-              <small>储值资产合计</small>
-            </div>
-            <div>
-              <span>待回访</span>
-              <strong>{pendingFollowUps}</strong>
-              <small>护理后跟进</small>
-            </div>
-          </div>
-        </div>
-
-        <div className="customer-panel">
-          <PanelTitle icon={<HeartHandshake size={18} />} title="客户分层" action="会员结构" />
-          <div className="customer-level-list">
-            {levelSummary.map(([level, count]) => (
-              <article key={level}>
-                <div>
-                  <strong>{level}</strong>
-                  <span>{count} 位客户</span>
-                </div>
-                <em>{data.customers.length ? Math.round((count / data.customers.length) * 100) : 0}%</em>
-              </article>
-            ))}
-            {levelSummary.length === 0 && <p className="customer-soft-empty">暂无客户分层数据</p>}
-          </div>
-        </div>
-      </section>
-
-      <section className="customer-page-grid lower">
-        <div className="customer-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="最近客户" action="最近到店" />
-          <div className="customer-card-list">
-            {recentCustomers.map((customer) => (
-              <article className="customer-mini-card" key={customer.id}>
-                <div className="customer-avatar">{customer.name.slice(0, 1)}</div>
-                <div>
-                  <strong>{customer.name}</strong>
-                  <span>{customer.phone} · {customer.level}</span>
-                  <small>{customer.tags.length > 0 ? customer.tags.join(" / ") : customer.source}</small>
-                </div>
-                <em>{shortDate(customer.lastVisit)}</em>
-              </article>
-            ))}
-            {recentCustomers.length === 0 && <p className="customer-soft-empty">暂无客户档案</p>}
-          </div>
-        </div>
-
-        <div className="customer-panel">
-          <PanelTitle icon={<MessageCircle size={18} />} title="客户跟进" action="服务状态" />
-          <div className="customer-tip-list">
-            <div>
-              <span>待回访客户</span>
-              <strong>{pendingFollowUps} 位</strong>
-              <small>回访计划</small>
-            </div>
-            <div>
-              <span>待签名确认</span>
-              <strong>{pendingSignatures} 份</strong>
-              <small>签署记录</small>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="customer-page-grid lower">
-        <div className="customer-panel">
-          <PanelTitle icon={<Megaphone size={18} />} title="客户标签" action={`${tagSummary.length} 个常用`} />
-          <div className="customer-tag-cloud">
-            {tagSummary.map(([tag, count]) => (
-              <span key={tag}>{tag}<em>{count}</em></span>
-            ))}
-            {tagSummary.length === 0 && <p className="customer-soft-empty">暂无客户标签</p>}
-          </div>
-        </div>
-
-        <div className="customer-panel">
-          <PanelTitle icon={<CreditCard size={18} />} title="会员卡概况" action="余额/次数" />
-          <div className="customer-tip-list">
-            <div>
-              <span>有效会员卡</span>
-              <strong>{activeCards} 张</strong>
-              <small>会员资产</small>
-            </div>
-            <div>
-              <span>总余额</span>
-              <strong>{money(totalCardBalance)}</strong>
-              <small>储值卡余额合计</small>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="customer-panel">
-        <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
-        {rows.length > 0 ? (
-          <DataTable columns={["客户", "手机", "等级", "来源", "标签", "最近到店"]} rows={rows} />
-        ) : (
-          <p className="customer-soft-empty">暂无客户列表</p>
+      <div className="module-detail-stack">
+        {activeModule === "profile" && (
+          <>
+            <section className="panel">
+              <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
+              {rows.length > 0 ? (
+                <DataTable columns={["客户", "手机", "最近到店", "项目卡", "服务记录", "签名"]} rows={rows} />
+              ) : (
+                <p className="customer-soft-empty">暂无客户列表</p>
+              )}
+            </section>
+            <section className="panel">
+              <PanelTitle icon={<UsersRound size={18} />} title="最近客户" action="最近到店" />
+              <div className="customer-card-list">
+                {recentCustomers.map((customer) => (
+                  <article className="customer-mini-card" key={customer.id}>
+                    <div className="customer-avatar">{customer.name.slice(0, 1)}</div>
+                    <div>
+                      <strong>{customer.name}</strong>
+                      <span>{customer.phone}</span>
+                      <small>{data.memberCards.filter((card) => card.customerId === customer.id).length} 张项目卡</small>
+                    </div>
+                    <em>{shortDate(customer.lastVisit)}</em>
+                  </article>
+                ))}
+                {recentCustomers.length === 0 && <p className="customer-soft-empty">暂无客户档案</p>}
+              </div>
+            </section>
+          </>
         )}
-      </section>
-
-      <section className="customer-panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="会员卡列表" action="余额/次数/状态" />
-        {cardRows.length > 0 ? (
-          <DataTable columns={["客户", "卡名", "类型", "余额", "次数", "状态", "有效期"]} rows={cardRows} />
-        ) : (
-          <p className="customer-soft-empty">暂无会员卡列表</p>
+        {activeModule === "cards" && (
+          <section className="panel">
+            <PanelTitle icon={<CreditCard size={18} />} title="项目卡列表" action="余额/次数/状态" />
+            {cardRows.length > 0 ? (
+              <DataTable columns={["客户", "卡名", "类型", "余额", "次数", "状态", "有效期"]} rows={cardRows} />
+            ) : (
+              <p className="customer-soft-empty">暂无项目卡列表</p>
+            )}
+          </section>
         )}
-      </section>
+        {activeModule === "records" && (
+          <>
+            <section className="panel">
+              <PanelTitle icon={<ClipboardList size={18} />} title="服务记录" action={`${data.customerServiceRecords.length} 条`} />
+              <DataTable
+                columns={["客户", "员工", "项目", "订单", "卡项消耗", "护理步骤", "客户反馈", "下次建议", "时间"]}
+                rows={data.customerServiceRecords.map((record) => [
+                  nameOf(data.customers, record.customerId),
+                  nameOf(data.staff, record.staffId),
+                  nameOf(data.services, record.serviceId),
+                  record.orderId ? data.orders.find((order) => order.id === record.orderId)?.orderNo ?? record.orderId : "未关联",
+                  record.memberCardTransactionId ? "已关联项目卡核销" : "未扣卡",
+                  record.careSteps || "未记录",
+                  record.customerFeedback || "未记录",
+                  record.nextCareAdvice || "未记录",
+                  shortDate(record.createdAt),
+                ])}
+              />
+            </section>
+            <section className="panel">
+              <PanelTitle icon={<MessageCircle size={18} />} title="客户跟进" action={`${pendingFollowUps} 位待跟进`} />
+              <DataTable
+                columns={["客户", "员工", "方式", "计划时间", "状态", "备注"]}
+                rows={data.customerFollowUps.map((followUp) => [
+                  nameOf(data.customers, followUp.customerId),
+                  nameOf(data.staff, followUp.staffId),
+                  followUp.method,
+                  shortDate(followUp.dueAt),
+                  <Badge key={`${followUp.id}-status`} text={followUp.status} />,
+                  followUp.note,
+                ])}
+              />
+            </section>
+          </>
+        )}
+        {activeModule === "signature" && (
+          <section className="panel">
+            <PanelTitle icon={<LockKeyhole size={18} />} title="服务签名记录" action={`${data.customerSignatures.length} 份`} />
+            <DataTable
+              columns={["客户", "标题", "状态", "签名人", "创建/签名时间"]}
+              rows={data.customerSignatures.map((signature) => [
+                nameOf(data.customers, signature.customerId),
+                signature.title,
+                <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+                signature.signerName ?? "-",
+                `${shortDate(signature.createdAt)}${signature.signedAt ? ` / ${shortDate(signature.signedAt)}` : ""}`,
+              ])}
+            />
+          </section>
+        )}
+      </div>
     </div>
   );
 }
@@ -1941,7 +1940,7 @@ function PlatformUsageReadOnlyView({
     products: "商品资料",
     appointments: "预约记录",
     orders: "收银订单",
-    memberCards: "会员资产",
+    memberCards: "项目卡",
     inventoryLogs: "库存流水",
     operationLogs: "操作日志",
     approvalRequests: "审批记录",
@@ -2175,7 +2174,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   ].filter((item) => canAccessView(session, item.view));
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page workbench-visual-page">
       <section className={`workbench-hero role-hero-${session.user.role}`}>
         <span className="workbench-hero-kicker"><Sparkles size={15} /> {dashboardContent.title}</span>
         <h2>{heroLine}</h2>
@@ -2331,12 +2330,12 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       metrics: [
         { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待确认到店" },
         { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
-        { icon: <UsersRound size={18} />, label: "客户会员", value: `${input.activeCards} 张`, hint: "有效卡项" },
+        { icon: <UsersRound size={18} />, label: "项目卡", value: `${input.activeCards} 张`, hint: "有效卡项" },
       ],
       healthMetrics: [
         { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待处理" },
         { icon: <CalendarDays size={18} />, label: "到店安排", value: `${input.todayAppointments} 单`, hint: `完成 ${input.completedAppointments} 单` },
-        { icon: <UsersRound size={18} />, label: "会员资产", value: `${input.activeCards} 张`, hint: "有效卡项" },
+        { icon: <UsersRound size={18} />, label: "项目卡", value: `${input.activeCards} 张`, hint: "有效卡项" },
         { icon: <HeartHandshake size={18} />, label: "待回访", value: `${input.pendingFollowUps} 位`, hint: "客户关怀" },
       ],
       actions: [
@@ -2375,20 +2374,20 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   const operatorLabel = "店长";
   return {
     title: `${operatorLabel}经营看板`,
-    desc: `${operatorLabel}首屏看现金流、客户资产、审批风险和库存风险，用一页判断门店今天是否健康。`,
+    desc: `${operatorLabel}首屏看现金流、客户档案、审批风险和库存风险，用一页判断门店今天是否健康。`,
     scheduleTitle: "今日服务动线",
     emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",
     followTitle: "客户关怀",
     healthTitle: "经营健康度",
     metrics: [
       { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "当天收银汇总" },
-      { icon: <UsersRound size={18} />, label: "会员资产", value: `${input.activeCards} 张`, hint: "有效会员卡" },
+      { icon: <UsersRound size={18} />, label: "项目卡", value: `${input.activeCards} 张`, hint: "有效卡项" },
       { icon: <HeartHandshake size={18} />, label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "客户关怀任务" },
     ],
     healthMetrics: [
       { icon: <CreditCard size={18} />, label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
       { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "待财务结算" },
-      { icon: <UsersRound size={18} />, label: "有效会员卡", value: `${input.activeCards} 张`, hint: "客户资产" },
+      { icon: <UsersRound size={18} />, label: "有效项目卡", value: `${input.activeCards} 张`, hint: "客户档案" },
       { icon: <PackagePlus size={18} />, label: "库存预警", value: `${input.lowStockCount} 项`, hint: "低于预警值" },
     ],
     actions: [
@@ -2432,7 +2431,7 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
   if (session.user.role === "frontdesk") {
     return [
       { title: "今日预约", value: `${todayAppointments} 单`, hint: "确认到店与改约", view: "appointments" },
-      { title: "客户会员", value: `${data.customers.length} 人`, hint: "建档与卡项", view: "customers" },
+      { title: "客户档案", value: `${data.customers.length} 人`, hint: "建档与项目卡", view: "customers" },
       { title: "待联系客户", value: `${pendingFollowUps} 位`, hint: "到店与回访", view: "customers" },
     ];
   }
@@ -2446,7 +2445,7 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
   return [
     { title: "经营收入", value: money(revenue), hint: "全店实收", view: "reports" },
     { title: "待审批", value: `${pendingApprovals} 单`, hint: "风险控制", view: "approvals" },
-    { title: "客户会员", value: `${data.customers.length} 人`, hint: "客户资产", view: "customers" },
+    { title: "客户档案", value: `${data.customers.length} 人`, hint: "客户资料", view: "customers" },
     { title: "库存预警", value: `${lowStock} 项`, hint: "采购与盘点", view: "inventory" },
   ];
 }
@@ -3085,7 +3084,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const activeModuleTitle = activeModule ? posModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className={`page-stack cashier-module-page ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<CreditCard size={15} />}
         eyebrow="开单收银"
@@ -3265,10 +3264,10 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [cardName, setCardName] = useState("新客储值卡");
-  const [cardType, setCardType] = useState<CardType>("储值卡");
-  const [cardAmount, setCardAmount] = useState(1000);
-  const [cardTimes, setCardTimes] = useState(0);
+  const [cardName, setCardName] = useState("面部护理十次卡");
+  const [cardType, setCardType] = useState<CardType>("次数卡");
+  const [cardAmount, setCardAmount] = useState(2980);
+  const [cardTimes, setCardTimes] = useState(10);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
   const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
   const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
@@ -3288,35 +3287,13 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [customerFeedback, setCustomerFeedback] = useState("体验舒适，接受下次护理建议");
   const [nextCareAdvice, setNextCareAdvice] = useState("7 天内加强保湿防晒，下次复查泛红情况");
   const [followUpAt, setFollowUpAt] = useState(toLocalInputValue(tomorrowAt(18)));
-  const [tagCustomerId, setTagCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [customerLevel, setCustomerLevel] = useState(data.customers[0]?.level ?? "普通会员");
-  const [customerSource, setCustomerSource] = useState(data.customers[0]?.source ?? "门店登记");
-  const [customerTags, setCustomerTags] = useState<string[]>(data.customers[0]?.tags ?? []);
-  const [tagName, setTagName] = useState("");
-  const [tagScope, setTagScope] = useState<TagScope>("客户");
-  const [tagColor, setTagColor] = useState(tagColorOptions[0]);
-  const [tagFilter, setTagFilter] = useState("");
-  const [distributorType, setDistributorType] = useState<"客户" | "员工">("客户");
-  const [distributorCustomerId, setDistributorCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [distributorStaffId, setDistributorStaffId] = useState(firstBusinessStaffId(data));
-  const [distributorRate, setDistributorRate] = useState(0.08);
-  const [referralDistributorId, setReferralDistributorId] = useState(data.distributors[0]?.id ?? "");
-  const [referralCustomerId, setReferralCustomerId] = useState(data.customers[1]?.id ?? data.customers[0]?.id ?? "");
   const [signatureCustomerId, setSignatureCustomerId] = useState(data.customers[0]?.id ?? "");
   const [signatureRecordId, setSignatureRecordId] = useState("");
   const [signatureOrderId, setSignatureOrderId] = useState("");
-  const [signatureTitle, setSignatureTitle] = useState("客户服务确认签名");
-  const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务、消费记录和服务档案内容无误。");
+  const [signatureTitle, setSignatureTitle] = useState("服务完成确认签名");
+  const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务已完成，服务项目、项目卡核销和服务档案内容无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
-  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "tags" | "records" | "signature" | "distribution" | undefined>();
-
-  useEffect(() => {
-    const customer = data.customers.find((item) => item.id === tagCustomerId);
-    if (!customer) return;
-    setCustomerLevel(customer.level);
-    setCustomerSource(customer.source);
-    setCustomerTags(customer.tags);
-  }, [tagCustomerId, data.customers]);
+  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>();
 
   useEffect(() => {
     if (recordOrderId && !data.orders.some((order) => order.id === recordOrderId && order.customerId === recordCustomerId)) {
@@ -3386,46 +3363,6 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     );
   };
 
-  const updateCustomerTags = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.updateCustomer(tagCustomerId, {
-        level: customerLevel,
-        source: customerSource,
-        tags: customerTags,
-      }),
-    );
-  };
-
-  const createTag = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() => actions.createTag({ name: tagName, scope: tagScope, color: tagColor }));
-    setTagName("");
-  };
-
-  const createDistributor = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.createDistributor({
-        type: distributorType,
-        customerId: distributorType === "客户" ? distributorCustomerId : undefined,
-        staffId: distributorType === "员工" ? distributorStaffId : undefined,
-        rate: distributorRate,
-      }),
-    );
-  };
-
-  const bindReferral = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() =>
-      actions.bindReferralRelation({
-        distributorId: referralDistributorId,
-        customerId: referralCustomerId,
-        source: "手工绑定",
-      }),
-    );
-  };
-
   const createSignature = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() =>
@@ -3441,23 +3378,16 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   };
 
   const activeCards = data.memberCards.filter((card) => card.status === "正常");
+  const totalRemainingTimes = activeCards.reduce((sum, card) => sum + card.remainingTimes, 0);
   const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
-  const existingCustomerTags = Array.from(new Set(data.customers.flatMap((customer) => customer.tags))).filter(Boolean);
-  const activeCustomerTagNames = data.tagDefinitions
-    .filter((tag) => tag.scope === "客户" && tag.status === "启用")
-    .map((tag) => tag.name);
-  const allTags = Array.from(new Set([...activeCustomerTagNames, ...existingCustomerTags])).filter(Boolean);
-  const customerTagOptions = allTags.map((tag) => ({ value: tag, label: tag }));
-  const filteredCustomers = tagFilter ? data.customers.filter((customer) => customer.tags.includes(tagFilter)) : data.customers;
-  const tagColorOf = (tagName: string) => data.tagDefinitions.find((tag) => tag.name === tagName)?.color ?? "#6d28d9";
+  const pendingSignatures = data.customerSignatures.filter((signature) => signature.status === "待签名").length;
   const recordLinkedOrderIds = new Set(data.customerServiceRecords.map((record) => record.orderId).filter(Boolean));
   const staffOptions = serviceStaff.map(optionOf);
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
     if (!serviceStaff.some((staff) => staff.id === recordStaffId)) setRecordStaffId(firstStaffId);
-    if (!serviceStaff.some((staff) => staff.id === distributorStaffId)) setDistributorStaffId(firstStaffId);
-  }, [distributorStaffId, recordStaffId, serviceStaff]);
+  }, [recordStaffId, serviceStaff]);
   const serviceProductSummary = (order: Order) => {
     const service = data.services.find((item) => item.id === order.serviceId);
     const consumables =
@@ -3539,39 +3469,63 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
   }).length;
-  const activeDistributorCount = data.distributors.filter((distributor) => distributor.status === "启用").length;
+  const latestCustomer = data.customers
+    .slice()
+    .sort((a, b) => +new Date(b.lastVisit) - +new Date(a.lastVisit))[0];
   type CustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
     { key: "profile", title: "客户档案", desc: "新增客户和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
-    { key: "cards", title: "会员卡项", desc: "开卡、充值、冻结和退卡", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
-    { key: "tags", title: "标签分层", desc: "客户标签、等级和来源", icon: Megaphone, tone: "amber", meta: `${allTags.length} 个标签` },
-    { key: "records", title: "服务档案", desc: "护理记录和客户回访", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
-    { key: "signature", title: "客户签名", desc: "生成确认链接和签名记录", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 条` },
-    { key: "distribution", title: "分销关系", desc: "推荐归属和成交佣金", icon: Share2, tone: "teal", meta: `${activeDistributorCount} 个` },
+    { key: "cards", title: "项目次数卡", desc: "开项目卡、充值次数和核销记录", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
+    { key: "records", title: "服务记录", desc: "护理过程、项目卡消耗和回访", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
+    { key: "signature", title: "服务确认签名", desc: "客户到店后用平板现场签名", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className={`page-stack customer-module-page ${activeModule ? "module-subpage" : "module-hub"}`}>
       <PageHero
         icon={<UsersRound size={15} />}
-        eyebrow="客户会员"
-        title="客户会员"
-        desc="管理客户档案、会员卡项、护理记录与回访计划。"
+        eyebrow="客户档案"
+        title="客户服务档案"
+        desc="管理客户资料、项目次数卡、到店服务记录和现场签名确认。"
         stats={[
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
-          { label: "有效卡项", value: `${activeCards.length} 张`, hint: "储值与次数卡", icon: <CreditCard size={18} /> },
-          { label: "分销员", value: `${activeDistributorCount} 个`, hint: "推荐归属", icon: <Share2 size={18} /> },
+          { label: "有效项目卡", value: `${activeCards.length} 张`, hint: `${totalRemainingTimes} 次可核销`, icon: <CreditCard size={18} /> },
+          { label: "待签名", value: `${pendingSignatures} 份`, hint: "服务完成确认", icon: <LockKeyhole size={18} /> },
         ]}
       />
       <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="客户会员" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
+      {!activeModule && (
+        <section className="customer-home-brief" aria-label="客户服务概览">
+          <article>
+            <span>最近客户</span>
+            <strong>{latestCustomer?.name ?? "暂无"}</strong>
+            <small>{latestCustomer ? `${shortDate(latestCustomer.lastVisit)} 到店` : "暂无到店记录"}</small>
+          </article>
+          <article>
+            <span>项目卡剩余</span>
+            <strong>{totalRemainingTimes} 次</strong>
+            <small>{activeCards.length} 张有效项目卡</small>
+          </article>
+          <article>
+            <span>待回访</span>
+            <strong>{pendingFollowUps} 位</strong>
+            <small>护理后跟进</small>
+          </article>
+          <article>
+            <span>待签名</span>
+            <strong>{pendingSignatures} 份</strong>
+            <small>服务完成确认</small>
+          </article>
+        </section>
+      )}
+      {activeModule && <ModuleSubpageHeader parentTitle="客户档案" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
         {activeModule && (
         <section className="panel">
         {activeModule === "profile" && (
         <>
-        <PanelTitle icon={<UsersRound size={18} />} title="新增客户" action="客户资产沉淀" />
+        <PanelTitle icon={<UsersRound size={18} />} title="新增客户" action="客户档案沉淀" />
         <form className="form" onSubmit={addCustomer}>
           <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
           <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
@@ -3579,79 +3533,12 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         </form>
         </>
         )}
-        {activeModule === "tags" && (
-        <>
-        <PanelTitle icon={<Megaphone size={18} />} title="标签管理" action={`${data.tagDefinitions.length} 个标签`} />
-        <form className="form" onSubmit={createTag}>
-          <label>标签名称<input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="如：敏感肌 / 高消费 / 高复购" required /></label>
-          <Select label="标签分类" value={tagScope} onChange={(value) => setTagScope(value as TagScope)} options={["客户", "项目", "员工"].map((item) => ({ value: item, label: item }))} />
-          <fieldset className="color-group">
-            <legend>标签颜色</legend>
-            {tagColorOptions.map((color) => (
-              <button
-                aria-label={color}
-                className={tagColor === color ? "active" : ""}
-                key={color}
-                onClick={() => setTagColor(color)}
-                style={{ background: color }}
-                type="button"
-              />
-            ))}
-          </fieldset>
-          <button className="primary-button">新增标签</button>
-        </form>
-        <div className="tag-admin-list">
-          {data.tagDefinitions.length === 0 ? (
-            <p className="empty">暂无客户标签</p>
-          ) : (
-            data.tagDefinitions.map((tag) => (
-              <div className="tag-admin-row" key={tag.id}>
-                <span className="tag-pill" style={{ "--tag-color": tag.color } as CSSProperties}>{tag.name}</span>
-                <small>{tag.scope} · {tag.status}</small>
-                <button type="button" onClick={() => void runMutation(() => actions.updateTag(tag.id, { status: tag.status === "启用" ? "停用" : "启用" }))}>
-                  {tag.status === "启用" ? "停用" : "启用"}
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="divider" />
-        <PanelTitle icon={<UsersRound size={18} />} title="客户标签" action="分层筛选" />
-        <form className="form" onSubmit={updateCustomerTags}>
-          <Select label="客户" value={tagCustomerId} onChange={setTagCustomerId} options={data.customers.map(optionOf)} />
-          <label>会员等级<input value={customerLevel} onChange={(event) => setCustomerLevel(event.target.value)} placeholder="普通会员 / VIP / 黑金会员" /></label>
-          <label>客户来源<input value={customerSource} onChange={(event) => setCustomerSource(event.target.value)} placeholder="门店登记 / 转介绍 / 线上预约" /></label>
-          <CheckboxGroup label="客户标签" values={customerTags} onChange={setCustomerTags} options={customerTagOptions} />
-          <button className="primary-button">保存标签</button>
-        </form>
-        </>
-        )}
-        {activeModule === "distribution" && (
-        <>
-        <PanelTitle icon={<Share2 size={18} />} title="分销设置" action="推荐归属/成交佣金" />
-        <form className="form" onSubmit={createDistributor}>
-          <Select label="分销员类型" value={distributorType} onChange={(value) => setDistributorType(value as "客户" | "员工")} options={["客户", "员工"].map((item) => ({ value: item, label: item }))} />
-          {distributorType === "客户" ? (
-            <Select label="客户分销员" value={distributorCustomerId} onChange={setDistributorCustomerId} options={data.customers.map(optionOf)} />
-          ) : (
-            <Select label="员工分销员" value={distributorStaffId} onChange={setDistributorStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-          )}
-          <label>分销比例<input type="number" step="0.01" value={distributorRate} onChange={(event) => setDistributorRate(Number(event.target.value))} /></label>
-          <button className="primary-button" disabled={distributorType === "员工" && !distributorStaffId}>启用分销员</button>
-        </form>
-        <form className="form compact-form" onSubmit={bindReferral}>
-          <Select label="分销员" value={referralDistributorId} onChange={setReferralDistributorId} options={data.distributors.filter((item) => item.status === "启用").map(optionOf)} />
-          <Select label="绑定客户" value={referralCustomerId} onChange={setReferralCustomerId} options={data.customers.map(optionOf)} />
-          <button className="primary-button" disabled={!referralDistributorId}>绑定客户归属</button>
-        </form>
-        </>
-        )}
         {activeModule === "cards" && (
         <>
-        <PanelTitle icon={<CreditCard size={18} />} title="开卡/办卡" action="储值或次数" />
+        <PanelTitle icon={<CreditCard size={18} />} title="开项目卡" action="储值/次数/套餐" />
         <form className="form" onSubmit={openCard}>
           <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
-          <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} /></label>
+          <label>项目卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} /></label>
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡"].map((item) => ({ value: item, label: item }))} />
           {cardType === "储值卡" && (
             <label>储值金额<input type="number" value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
@@ -3661,15 +3548,15 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           )}
           {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={setCardServiceId} options={data.services.map(optionOf)} />}
           {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
-          <button className="primary-button">开卡</button>
+          <button className="primary-button">保存项目卡</button>
         </form>
         <div className="divider" />
-        <PanelTitle icon={<CreditCard size={18} />} title="卡项操作" action="充值/冻结/延期/转卡" />
+        <PanelTitle icon={<CreditCard size={18} />} title="项目卡操作" action="充值/加次/冻结/延期" />
         <form className="form" onSubmit={rechargeCard}>
-          <Select label="会员卡" value={operationCardId} onChange={setOperationCardId} options={data.memberCards.map((card) => ({ value: card.id, label: `${nameOf(data.customers, card.customerId)} · ${card.name}` }))} />
+          <Select label="项目卡" value={operationCardId} onChange={setOperationCardId} options={data.memberCards.map((card) => ({ value: card.id, label: `${nameOf(data.customers, card.customerId)} · ${card.name}` }))} />
           <label>充值金额<input type="number" value={rechargeAmount} onChange={(event) => setRechargeAmount(Number(event.target.value))} /></label>
-          <label>充值次数<input type="number" value={rechargeTimes} onChange={(event) => setRechargeTimes(Number(event.target.value))} /></label>
-          <button className="primary-button">充值</button>
+          <label>增加次数<input type="number" value={rechargeTimes} onChange={(event) => setRechargeTimes(Number(event.target.value))} /></label>
+          <button className="primary-button">保存调整</button>
         </form>
         <div className="inline-actions">
           <button onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "冻结", "门店冻结"))}>冻结</button>
@@ -3687,7 +3574,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         )}
         {activeModule === "records" && (
         <>
-        <PanelTitle icon={<ClipboardList size={18} />} title="服务档案" action="护理记录/回访" />
+        <PanelTitle icon={<ClipboardList size={18} />} title="服务记录" action="护理记录/项目卡核销" />
         <div className="order-record-shortcuts">
           {data.orders
             .filter((order) => !recordLinkedOrderIds.has(order.id) && order.status !== "已退款")
@@ -3719,7 +3606,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         )}
         {activeModule === "signature" && (
         <>
-        <PanelTitle icon={<LockKeyhole size={18} />} title="客户签名" action="生成确认链接" />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="服务确认签名" action="平板现场签名" />
         <form className="form" onSubmit={createSignature}>
           <Select label="客户" value={signatureCustomerId} onChange={(value) => { setSignatureCustomerId(value); setSignatureRecordId(""); setSignatureOrderId(""); }} options={data.customers.map(optionOf)} />
           <Select label="关联档案" value={signatureRecordId} onChange={setSignatureRecordId} options={signatureRecordOptions} />
@@ -3727,46 +3614,36 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           <label>签名标题<input value={signatureTitle} onChange={(event) => setSignatureTitle(event.target.value)} /></label>
           <label>确认内容<textarea value={signatureContent} onChange={(event) => setSignatureContent(event.target.value)} /></label>
           <label>有效期（天）<input type="number" min={1} value={signatureValidDays} onChange={(event) => setSignatureValidDays(Number(event.target.value))} /></label>
-          <button className="primary-button" disabled={!signatureCustomerId}>生成客户签名链接</button>
+          <button className="primary-button" disabled={!signatureCustomerId}>生成现场签名页</button>
         </form>
         </>
         )}
         </section>
         )}
-        {(activeModule === "profile" || activeModule === "tags") && (
+        {activeModule === "profile" && (
         <section className="panel">
-        <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${filteredCustomers.length}/${data.customers.length} 位客户`} />
-        <div className="inline-actions">
-          <button className={!tagFilter ? "active" : ""} onClick={() => setTagFilter("")}>全部</button>
-          {allTags.map((tag) => (
-            <button className={tagFilter === tag ? "active" : ""} key={tag} onClick={() => setTagFilter(tag)}>{tag}</button>
-          ))}
-        </div>
+        <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
         <DataTable
-          columns={["客户", "手机", "等级", "标签", "最近到店", "卡项"]}
-          rows={filteredCustomers.map((customer) => [
+          columns={["客户", "手机", "最近到店", "项目卡", "服务记录", "签名"]}
+          rows={data.customers.map((customer) => [
             customer.name,
             customer.phone,
-            customer.level,
-            <span className="tag-cell" key={`${customer.id}-tags`}>
-              {customer.tags.length === 0 ? "无标签" : customer.tags.map((tag) => (
-                <span className="tag-pill" key={tag} style={{ "--tag-color": tagColorOf(tag) } as CSSProperties}>{tag}</span>
-              ))}
-            </span>,
             shortDate(customer.lastVisit),
             data.memberCards
               .filter((card) => card.customerId === customer.id)
               .map((card) => `${card.name}(${projectScope(card.serviceId, card.serviceIds)})`)
               .join("，") || "未开卡",
+            `${data.customerServiceRecords.filter((record) => record.customerId === customer.id).length} 条`,
+            `${data.customerSignatures.filter((signature) => signature.customerId === customer.id).length} 份`,
           ])}
         />
         </section>
         )}
         {activeModule === "cards" && (
         <section className="panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="会员卡列表" action="余额/次数/退卡" />
+        <PanelTitle icon={<CreditCard size={18} />} title="项目卡列表" action="余额/次数/退卡" />
         <DataTable
-          columns={["客户", "卡项", "类型", "余额", "次数", "绑定项目", "状态", "操作"]}
+          columns={["客户", "项目卡", "类型", "余额", "剩余次数", "适用项目", "状态", "操作"]}
           rows={data.memberCards.map((card) => [
             nameOf(data.customers, card.customerId),
             card.name,
@@ -3785,7 +3662,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           ])}
         />
         <div className="divider" />
-        <PanelTitle icon={<CreditCard size={18} />} title="卡项流水" action="开卡/消费/退款" />
+        <PanelTitle icon={<CreditCard size={18} />} title="项目卡流水" action="开卡/核销/退款" />
         <DataTable
           columns={["卡项", "类型", "金额变动", "次数变动", "余额", "剩余次数", "备注", "时间"]}
           rows={data.memberCardTransactions.map((transaction) => [
@@ -3801,35 +3678,9 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         />
         </section>
         )}
-        {activeModule === "distribution" && (
-        <section className="panel">
-        <PanelTitle icon={<Share2 size={18} />} title="分销关系" action={`${data.distributors.length} 个分销员`} />
-        <DataTable
-          columns={["分销员", "类型", "手机号", "比例", "邀请码", "状态"]}
-          rows={data.distributors.map((distributor) => [
-            distributor.name,
-            distributor.type,
-            distributor.phone,
-            `${Math.round(distributor.rate * 100)}%`,
-            distributor.inviteCode,
-            <Badge key={`${distributor.id}-status`} text={distributor.status} tone={distributor.status === "启用" ? "ok" : "warn"} />,
-          ])}
-        />
-        <DataTable
-          columns={["客户", "归属分销员", "来源", "状态", "绑定时间"]}
-          rows={data.referralRelations.map((relation) => [
-            nameOf(data.customers, relation.customerId),
-            nameOf(data.distributors, relation.distributorId),
-            relation.source,
-            <Badge key={`${relation.id}-status`} text={relation.status} tone={relation.status === "有效" ? "ok" : "warn"} />,
-            shortDate(relation.createdAt),
-          ])}
-        />
-        </section>
-        )}
         {activeModule === "records" && (
         <section className="panel">
-        <PanelTitle icon={<ClipboardList size={18} />} title="护理档案" action={`${data.customerServiceRecords.length} 条`} />
+        <PanelTitle icon={<ClipboardList size={18} />} title="服务记录" action={`${data.customerServiceRecords.length} 条`} />
         <DataTable
           columns={["客户", "员工", "项目", "订单", "卡项消耗", "皮肤情况", "服务前", "护理步骤", "使用产品", "服务后", "客户反馈", "下次建议", "时间"]}
           rows={data.customerServiceRecords.map((record) => [
@@ -3841,7 +3692,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
               ? (() => {
                   const transaction = data.memberCardTransactions.find((item) => item.id === record.memberCardTransactionId);
                   const card = transaction ? data.memberCards.find((item) => item.id === transaction.memberCardId) : undefined;
-                  return transaction ? `${card?.name ?? "会员卡"} · ${transaction.amountDelta ? `${Math.abs(transaction.amountDelta)} 元` : `${Math.abs(transaction.timesDelta)} 次`}` : "未扣卡";
+                  return transaction ? `${card?.name ?? "项目卡"} · ${transaction.amountDelta ? `${Math.abs(transaction.amountDelta)} 元` : `${Math.abs(transaction.timesDelta)} 次`}` : "未扣卡";
                 })()
               : "未扣卡",
             record.skinCondition,
@@ -3876,16 +3727,16 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
         )}
         {activeModule === "signature" && (
         <section className="panel">
-        <PanelTitle icon={<LockKeyhole size={18} />} title="签名记录" action={`${data.customerSignatures?.length ?? 0} 条`} />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="服务签名记录" action={`${data.customerSignatures?.length ?? 0} 份`} />
         <DataTable
-          columns={["客户", "标题", "状态", "签名链接", "签名人", "创建/签名时间"]}
+          columns={["客户", "标题", "状态", "现场签名页", "签名人", "创建/签名时间"]}
           rows={(data.customerSignatures ?? []).map((signature) => [
             nameOf(data.customers, signature.customerId),
             signature.title,
             <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
             signature.status === "待签名" ? (
               <a key={`${signature.id}-link`} href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
-                打开签名页
+                打开现场签名页
               </a>
             ) : (
               "已完成"
