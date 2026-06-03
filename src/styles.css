@@ -4056,16 +4056,12 @@ html[data-theme="day"],
   gap: 18px;
 }
 
-.workbench-visual-page,
-.cashier-module-page.module-hub,
-.customer-module-page.module-hub {
+.workbench-visual-page {
   position: relative;
   isolation: isolate;
 }
 
-.workbench-visual-page::before,
-.cashier-module-page.module-hub::before,
-.customer-module-page.module-hub::before {
+.workbench-visual-page::before {
   content: "";
   position: absolute;
   z-index: -1;
@@ -4082,9 +4078,7 @@ html[data-theme="day"],
   pointer-events: none;
 }
 
-.workbench-visual-page::after,
-.cashier-module-page.module-hub::after,
-.customer-module-page.module-hub::after {
+.workbench-visual-page::after {
   content: "";
   position: absolute;
   z-index: -1;
@@ -9175,75 +9169,90 @@ textarea,
   color: rgba(255, 255, 255, 0.82);
 }
 
-.customer-module-page.module-hub .module-overview {
+.customer-module-page.module-hub .module-overview,
+.cashier-module-page.module-hub .module-overview {
   min-height: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: minmax(108px, auto);
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(176px, auto);
+  gap: 14px;
 }
 
-.customer-module-page.module-hub {
-  min-height: calc(100dvh - var(--yich-global-header-height) - 112px);
-  align-content: space-between;
-  gap: 12px;
+.customer-module-page.module-hub,
+.cashier-module-page.module-hub {
+  min-height: 0;
+  align-content: start;
+  gap: 14px;
 }
 
-.customer-module-page.module-hub .page-hero {
+.customer-module-page.module-hub .page-hero,
+.cashier-module-page.module-hub .page-hero {
   height: 148px;
   min-height: 148px;
   padding: 18px 24px;
   border-radius: 24px;
 }
 
-.customer-module-page.module-hub .page-hero h2 {
+.customer-module-page.module-hub .page-hero h2,
+.cashier-module-page.module-hub .page-hero h2 {
   font-size: clamp(28px, 2.8vw, 35px);
 }
 
-.customer-module-page.module-hub .page-hero p {
+.customer-module-page.module-hub .page-hero p,
+.cashier-module-page.module-hub .page-hero p {
   font-size: 12px;
 }
 
-.customer-module-page.module-hub .module-metric-card {
+.customer-module-page.module-hub .module-metric-card,
+.cashier-module-page.module-hub .module-metric-card {
   min-height: 78px;
   padding: 11px 14px;
 }
 
-.customer-module-page.module-hub .module-metric-card strong {
+.customer-module-page.module-hub .module-metric-card strong,
+.cashier-module-page.module-hub .module-metric-card strong {
   font-size: 22px;
   margin: 2px 0;
 }
 
 .customer-module-page.module-hub .module-metric-card small,
-.customer-module-page.module-hub .module-metric-card em {
+.customer-module-page.module-hub .module-metric-card em,
+.cashier-module-page.module-hub .module-metric-card small,
+.cashier-module-page.module-hub .module-metric-card em {
   font-size: 11px;
 }
 
-.customer-module-page .module-entry-card {
-  min-height: 108px;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: 14px;
+.customer-module-page.module-hub .module-entry-card,
+.cashier-module-page.module-hub .module-entry-card {
+  min-height: 176px;
+  gap: 10px;
+  padding: 22px;
+  border-radius: 16px;
 }
 
-.customer-module-page .module-entry-card::after {
-  width: 108px;
-  height: 108px;
-  inset: auto -30px -42px auto;
+.customer-module-page.module-hub .module-entry-card::after,
+.cashier-module-page.module-hub .module-entry-card::after {
+  width: 150px;
+  height: 150px;
+  inset: auto -36px -52px auto;
 }
 
-.customer-module-page .module-entry-card .admin-module-icon {
-  width: 42px;
-  height: 42px;
+.customer-module-page.module-hub .module-entry-card .admin-module-icon,
+.cashier-module-page.module-hub .module-entry-card .admin-module-icon {
+  width: 44px;
+  height: 44px;
 }
 
-.customer-module-page .module-entry-card strong {
-  font-size: 17px;
+.customer-module-page.module-hub .module-entry-card strong,
+.cashier-module-page.module-hub .module-entry-card strong {
+  font-size: 19px;
 }
 
-.customer-module-page .module-entry-card small,
-.customer-module-page .module-entry-card em {
-  font-size: 11px;
-  line-height: 1.35;
+.customer-module-page.module-hub .module-entry-card small,
+.customer-module-page.module-hub .module-entry-card em,
+.cashier-module-page.module-hub .module-entry-card small,
+.cashier-module-page.module-hub .module-entry-card em {
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .customer-home-brief {
@@ -11325,9 +11334,27 @@ textarea,
 }
 
 .appointment-room-state-scroll {
-  min-height: clamp(460px, 58vh, 660px);
-  max-height: clamp(500px, 62vh, 720px);
+  height: clamp(392px, 48vh, 470px);
+  min-height: 0;
+  max-height: clamp(392px, 48vh, 470px);
+  overflow-y: scroll;
   padding-right: 14px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.appointment-room-state-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.appointment-room-state-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.appointment-room-state-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.44);
 }
 
 .appointment-room-state-grid,

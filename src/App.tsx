@@ -2961,6 +2961,10 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayPaid = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const todayRefundAmount = data.refunds
+    .filter((refund) => new Date(refund.createdAt).toDateString() === today.toDateString())
+    .reduce((sum, refund) => sum + refund.amount, 0);
+  const latestOrder = [...data.orders].sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))[0];
   const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
@@ -3100,6 +3104,30 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         ]}
       />
       <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!activeModule && (
+        <section className="customer-home-brief cashier-home-brief" aria-label="收银概览">
+          <article>
+            <span>最近订单</span>
+            <strong>{latestOrder?.orderNo ?? "暂无"}</strong>
+            <small>{latestOrder ? `${nameOf(data.customers, latestOrder.customerId)} · ${shortDate(latestOrder.createdAt)}` : "暂无订单记录"}</small>
+          </article>
+          <article>
+            <span>今日订单</span>
+            <strong>{todayOrders.length} 单</strong>
+            <small>今日已记录订单</small>
+          </article>
+          <article>
+            <span>退款处理</span>
+            <strong>{data.refunds.length} 条</strong>
+            <small>{todayRefundAmount ? `今日退款 ${money(todayRefundAmount)}` : "暂无今日退款"}</small>
+          </article>
+          <article>
+            <span>今日收款</span>
+            <strong>{money(todayPaid)}</strong>
+            <small>实收金额汇总</small>
+          </article>
+        </section>
+      )}
       {activeModule && <ModuleSubpageHeader parentTitle="开单收银" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
       <div className="module-detail-stack">
         {(activeModule === "quick" || activeModule === "discount" || activeModule === "cards") && (
