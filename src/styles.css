@@ -11665,35 +11665,35 @@ textarea,
 .theme-day .appointment-room-page .appointment-room-summary > div,
 .theme-night .appointment-room-page .appointment-room-summary > div {
   min-height: 92px;
-  border: 1px solid rgba(111, 66, 193, 0.18);
+  border: 1px solid rgba(111, 66, 193, 0.24);
   background:
-    radial-gradient(circle at 92% 12%, rgba(111, 66, 193, 0.12), transparent 32%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(245, 239, 255, 0.9));
+    radial-gradient(circle at 92% 12%, rgba(111, 66, 193, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(237, 227, 255, 0.92));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
 
 .theme-day .appointment-room-page .appointment-room-summary > div:nth-child(2),
 .theme-night .appointment-room-page .appointment-room-summary > div:nth-child(2) {
-  border-color: rgba(42, 143, 125, 0.22);
+  border-color: rgba(42, 143, 125, 0.3);
   background:
-    radial-gradient(circle at 92% 12%, rgba(42, 143, 125, 0.13), transparent 32%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(232, 248, 244, 0.92));
+    radial-gradient(circle at 92% 12%, rgba(42, 143, 125, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(218, 244, 238, 0.94));
 }
 
 .theme-day .appointment-room-page .appointment-room-summary > div:nth-child(3),
 .theme-night .appointment-room-page .appointment-room-summary > div:nth-child(3) {
-  border-color: rgba(199, 67, 99, 0.2);
+  border-color: rgba(199, 67, 99, 0.28);
   background:
-    radial-gradient(circle at 92% 12%, rgba(199, 67, 99, 0.12), transparent 32%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 239, 244, 0.92));
+    radial-gradient(circle at 92% 12%, rgba(199, 67, 99, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 225, 234, 0.94));
 }
 
 .theme-day .appointment-room-page .appointment-room-summary > div:nth-child(4),
 .theme-night .appointment-room-page .appointment-room-summary > div:nth-child(4) {
-  border-color: rgba(184, 118, 33, 0.22);
+  border-color: rgba(184, 118, 33, 0.3);
   background:
-    radial-gradient(circle at 92% 12%, rgba(184, 118, 33, 0.14), transparent 32%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 247, 230, 0.94));
+    radial-gradient(circle at 92% 12%, rgba(184, 118, 33, 0.2), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 239, 205, 0.96));
 }
 
 .theme-day .appointment-room-page .appointment-room-summary strong,
@@ -11725,12 +11725,14 @@ textarea,
   min-height: 0;
   overflow-y: scroll;
   padding: 14px;
-  border: 1px solid rgba(111, 66, 193, 0.2);
+  border: 1px solid rgba(111, 66, 193, 0.24);
   border-radius: 22px;
   background:
-    radial-gradient(circle at 90% 6%, rgba(111, 66, 193, 0.08), transparent 32%),
-    rgba(255, 255, 255, 0.78);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+    radial-gradient(circle at 90% 6%, rgba(111, 66, 193, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(250, 247, 255, 0.92), rgba(241, 234, 251, 0.9));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 14px 34px rgba(47, 27, 99, 0.06);
   scrollbar-gutter: stable both-edges;
 }
 
@@ -11762,12 +11764,12 @@ textarea,
   height: 100%;
   min-height: 0;
   padding: 16px;
-  border: 1px solid rgba(42, 143, 125, 0.28);
-  border-left: 5px solid rgba(42, 143, 125, 0.72);
+  border: 1px solid rgba(42, 143, 125, 0.4);
+  border-left: 6px solid #2a8f7d;
   border-radius: 18px;
   background:
-    radial-gradient(circle at 88% 10%, rgba(42, 143, 125, 0.13), transparent 36%),
-    linear-gradient(135deg, #ffffff, #eaf8f4);
+    radial-gradient(circle at 88% 10%, rgba(42, 143, 125, 0.2), transparent 38%),
+    linear-gradient(135deg, #f8fffd, #dff4ee);
   color: #2f255f;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.8),
@@ -11778,21 +11780,21 @@ textarea,
 .app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied,
 .theme-day .appointment-room-page .appointment-room-state-card.occupied,
 .theme-night .appointment-room-page .appointment-room-state-card.occupied {
-  border-color: rgba(199, 67, 99, 0.3);
-  border-left-color: rgba(199, 67, 99, 0.74);
+  border-color: rgba(199, 67, 99, 0.42);
+  border-left-color: #c74363;
   background:
-    radial-gradient(circle at 88% 10%, rgba(199, 67, 99, 0.14), transparent 36%),
-    linear-gradient(135deg, #ffffff, #ffedf3);
+    radial-gradient(circle at 88% 10%, rgba(199, 67, 99, 0.22), transparent 38%),
+    linear-gradient(135deg, #fff9fb, #ffdce7);
 }
 
 .app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance,
 .theme-day .appointment-room-page .appointment-room-state-card.maintenance,
 .theme-night .appointment-room-page .appointment-room-state-card.maintenance {
-  border-color: rgba(184, 118, 33, 0.34);
-  border-left-color: rgba(184, 118, 33, 0.78);
+  border-color: rgba(184, 118, 33, 0.46);
+  border-left-color: #b87621;
   background:
-    radial-gradient(circle at 88% 10%, rgba(184, 118, 33, 0.16), transparent 36%),
-    linear-gradient(135deg, #ffffff, #fff4dc);
+    radial-gradient(circle at 88% 10%, rgba(184, 118, 33, 0.24), transparent 38%),
+    linear-gradient(135deg, #fffdf8, #ffeac2);
 }
 
 .app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card strong,
@@ -11819,25 +11821,25 @@ textarea,
 .app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card b,
 .theme-day .appointment-room-page .appointment-room-state-card b,
 .theme-night .appointment-room-page .appointment-room-state-card b {
-  background: rgba(42, 143, 125, 0.18);
-  color: #146456;
-  box-shadow: inset 0 0 0 1px rgba(42, 143, 125, 0.26);
+  background: #2a8f7d;
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(42, 143, 125, 0.18);
 }
 
 .app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied b,
 .theme-day .appointment-room-page .appointment-room-state-card.occupied b,
 .theme-night .appointment-room-page .appointment-room-state-card.occupied b {
-  background: rgba(199, 67, 99, 0.18);
-  color: #9d2948;
-  box-shadow: inset 0 0 0 1px rgba(199, 67, 99, 0.26);
+  background: #c74363;
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(199, 67, 99, 0.18);
 }
 
 .app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance b,
 .theme-day .appointment-room-page .appointment-room-state-card.maintenance b,
 .theme-night .appointment-room-page .appointment-room-state-card.maintenance b {
-  background: rgba(184, 118, 33, 0.2);
-  color: #7c4b09;
-  box-shadow: inset 0 0 0 1px rgba(184, 118, 33, 0.28);
+  background: #b87621;
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(184, 118, 33, 0.18);
 }
 
 .theme-day .appointment-create-page .appointment-create-panel select,
