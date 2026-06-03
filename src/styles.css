@@ -6572,6 +6572,38 @@ textarea,
   border-radius: 16px;
 }
 
+.appointment-modal-detail {
+  gap: 16px;
+}
+
+.appointment-create-form {
+  padding: 2px;
+}
+
+.appointment-modal-detail .appointment-room-choice-note {
+  border-color: rgba(42, 143, 125, 0.22);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(232, 248, 244, 0.82));
+}
+
+.appointment-modal-detail .appointment-room-choice-note strong {
+  color: #1f6f61;
+}
+
+.appointment-modal-detail .appointment-room-choice-note span {
+  color: rgba(47, 37, 95, 0.72);
+}
+
+.appointment-modal-detail .row-actions {
+  justify-content: flex-end;
+}
+
+.form-warning {
+  margin: 0;
+  color: #b87621;
+  font-size: 13px;
+  font-weight: 820;
+}
+
 .theme-day .workbench-hero {
   border-color: rgba(193, 125, 112, 0.2);
   background: linear-gradient(135deg, #45257f 0%, #6f42c1 54%, #8b6a3c 100%);

@@ -2941,44 +2941,6 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
   }, [firstAvailableRoom, roomAvailabilityOptions, roomName]);
 
-  if (showAppointmentForm) {
-    return (
-      <div className="page-stack module-subpage appointment-create-page">
-        <ModuleSubpageHeader parentTitle="预约管理" moduleTitle="新增预约" onBack={() => setShowAppointmentForm(false)} />
-        <div className="module-detail-stack">
-          <section className="panel appointment-create-panel">
-            <PanelTitle icon={<CalendarDays size={18} />} title="新增预约" action="选择可用房间" />
-            <form className="form" onSubmit={addAppointment}>
-              <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
-              <Select label="服务员工" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-              <Select label="服务项目" value={serviceId} onChange={setServiceId} options={data.services.map(optionOf)} />
-              <DateTimeInput label="预约时间" value={startAt} onChange={setStartAt} />
-              <Select
-                label="房间"
-                value={roomName}
-                onChange={setRoomName}
-                options={roomAvailabilityOptions.length ? roomAvailabilityOptions : [{ value: "", label: "请先到管理中心设置房间", disabled: true }]}
-              />
-              <div className="appointment-room-choice-note">
-                <strong>可预约</strong>
-                <span>{roomAvailabilityOptions.filter((option) => !option.disabled).map((option) => option.value).join("、") || "暂无可用房间"}</span>
-              </div>
-              <label>
-                备注
-                <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
-              </label>
-              {selectedTimeConflict && <p style={{color: 'red', fontSize: 13}}>⚠️ 该员工在此时间段有不可预约安排，建议调整时间</p>}
-              <div className="row-actions">
-                <button className="primary-button" disabled={!staffId || !roomName}>保存预约</button>
-                <button type="button" onClick={() => setShowAppointmentForm(false)}>取消</button>
-              </div>
-            </form>
-          </section>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="page-stack appointment-room-page">
       <PageHero
@@ -3052,6 +3014,41 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           </div>
         </section>
       </div>
+      <Modal
+        open={showAppointmentForm}
+        title="新增预约"
+        subtitle="选择预约时间后，系统会自动筛选可用房间"
+        size="large"
+        onClose={() => setShowAppointmentForm(false)}
+      >
+        <div className="module-detail-stack appointment-modal-detail">
+          <form className="form appointment-create-form" onSubmit={addAppointment}>
+            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
+            <Select label="服务员工" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
+            <Select label="服务项目" value={serviceId} onChange={setServiceId} options={data.services.map(optionOf)} />
+            <DateTimeInput label="预约时间" value={startAt} onChange={setStartAt} />
+            <Select
+              label="房间"
+              value={roomName}
+              onChange={setRoomName}
+              options={roomAvailabilityOptions.length ? roomAvailabilityOptions : [{ value: "", label: "请先到管理中心设置房间", disabled: true }]}
+            />
+            <div className="appointment-room-choice-note">
+              <strong>可预约</strong>
+              <span>{roomAvailabilityOptions.filter((option) => !option.disabled).map((option) => option.value).join("、") || "暂无可用房间"}</span>
+            </div>
+            <label>
+              备注
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
+            </label>
+            {selectedTimeConflict && <p className="form-warning">该员工在此时间段有不可预约安排，建议调整时间</p>}
+            <div className="row-actions">
+              <button className="primary-button" disabled={!staffId || !roomName}>保存预约</button>
+              <button type="button" onClick={() => setShowAppointmentForm(false)}>取消</button>
+            </div>
+          </form>
+        </div>
+      </Modal>
     </div>
   );
 }
