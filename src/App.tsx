@@ -9,6 +9,7 @@ import {
   Copy,
   CreditCard,
   Database,
+  DoorOpen,
   ArrowLeft,
   Eye,
   EyeOff,
@@ -2596,7 +2597,10 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
                 return (
                   <article className={`room-editor-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`room-${index}`}>
                     <div className="room-editor-card-header">
-                      <span>房间 {index + 1}</span>
+                      <span className="room-card-index">
+                        <DoorOpen size={16} />
+                        <em>{index + 1}</em>
+                      </span>
                       <strong>{statusText}</strong>
                     </div>
                     <label>

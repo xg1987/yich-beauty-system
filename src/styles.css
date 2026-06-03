@@ -10974,15 +10974,15 @@ textarea,
   color: var(--yich-purple-deep);
 }
 
-/* Room settings final state: calm configuration surface, not a purple dashboard card. */
+/* Room settings final state: keep the full-system colored module language. */
 .theme-day .room-settings-panel.panel,
 .theme-night .room-settings-panel.panel {
-  border-color: rgba(111, 66, 193, 0.18);
+  border-color: rgba(109, 69, 196, 0.34);
   background:
-    radial-gradient(circle at 92% 0%, rgba(111, 66, 193, 0.08), transparent 32%),
-    rgba(255, 253, 250, 0.96);
-  color: var(--yich-ink);
-  box-shadow: 0 18px 42px rgba(69, 37, 127, 0.12);
+    radial-gradient(circle at 86% 12%, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(135deg, #5b2ca8 0%, #8751dd 56%, #b88af1 100%);
+  color: #fff;
+  box-shadow: 0 22px 54px rgba(69, 37, 127, 0.2);
 }
 
 .theme-day .room-settings-panel .panel-title h2,
@@ -10993,50 +10993,115 @@ textarea,
 .theme-night .room-settings-panel .panel-title svg,
 .theme-day .room-settings-panel .room-settings-toolbar > div > strong,
 .theme-night .room-settings-panel .room-settings-toolbar > div > strong {
-  color: var(--yich-purple-deep);
+  color: #fff;
 }
 
 .theme-day .room-settings-panel .room-settings-summary > div,
 .theme-night .room-settings-panel .room-settings-summary > div {
-  border-color: rgba(111, 66, 193, 0.14);
-  background:
-    radial-gradient(circle at 88% 10%, rgba(111, 66, 193, 0.08), transparent 36%),
-    rgba(255, 255, 255, 0.88);
-  box-shadow: 0 10px 24px rgba(69, 37, 127, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.theme-day .room-settings-panel .room-settings-summary > div span,
+.theme-day .room-settings-panel .room-settings-summary > div small,
+.theme-night .room-settings-panel .room-settings-summary > div span,
+.theme-night .room-settings-panel .room-settings-summary > div small {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.theme-day .room-settings-panel .room-settings-summary > div strong,
+.theme-night .room-settings-panel .room-settings-summary > div strong {
+  color: #fff;
 }
 
 .theme-day .room-settings-panel .room-editor-card,
 .theme-night .room-settings-panel .room-editor-card {
-  border-color: rgba(111, 66, 193, 0.16);
+  min-height: 236px;
+  border-color: rgba(255, 255, 255, 0.24);
   background:
-    radial-gradient(circle at 92% 0%, rgba(111, 66, 193, 0.06), transparent 38%),
-    rgba(255, 255, 255, 0.9);
-  color: var(--yich-ink);
-  box-shadow: 0 14px 30px rgba(69, 37, 127, 0.09);
+    radial-gradient(circle at 92% 10%, rgba(255, 255, 255, 0.22), transparent 38%),
+    linear-gradient(135deg, rgba(91, 44, 168, 0.94), rgba(135, 81, 221, 0.86) 58%, rgba(184, 138, 241, 0.78));
+  color: #fff;
+  box-shadow:
+    inset 4px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
 }
 
 .theme-day .room-settings-panel .room-editor-card.available,
 .theme-night .room-settings-panel .room-editor-card.available {
-  border-color: rgba(42, 143, 125, 0.2);
+  border-color: rgba(31, 151, 131, 0.5);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(255, 255, 255, 0.22), transparent 38%),
+    linear-gradient(135deg, #177a6a, #28a990 58%, #79d7c1);
   box-shadow:
-    inset 4px 0 0 rgba(42, 143, 125, 0.7),
-    0 14px 30px rgba(69, 37, 127, 0.09);
+    inset 4px 0 0 rgba(113, 231, 207, 0.78),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
 }
 
 .theme-day .room-settings-panel .room-editor-card.occupied,
 .theme-night .room-settings-panel .room-editor-card.occupied {
-  border-color: rgba(199, 67, 99, 0.24);
+  border-color: rgba(207, 76, 112, 0.5);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(255, 255, 255, 0.2), transparent 38%),
+    linear-gradient(135deg, #b93459, #dc657c 58%, #efa0ad);
   box-shadow:
-    inset 4px 0 0 rgba(199, 67, 99, 0.72),
-    0 14px 30px rgba(69, 37, 127, 0.09);
+    inset 4px 0 0 rgba(241, 113, 143, 0.82),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
 }
 
 .theme-day .room-settings-panel .room-editor-card.maintenance,
 .theme-night .room-settings-panel .room-editor-card.maintenance {
-  border-color: rgba(184, 118, 33, 0.26);
+  border-color: rgba(184, 126, 42, 0.56);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(255, 255, 255, 0.22), transparent 38%),
+    linear-gradient(135deg, #9a6424, #c88b3a 58%, #e6bd6f);
   box-shadow:
-    inset 4px 0 0 rgba(184, 118, 33, 0.78),
-    0 14px 30px rgba(69, 37, 127, 0.09);
+    inset 4px 0 0 rgba(244, 190, 96, 0.86),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
+}
+
+.theme-day .room-settings-panel .room-card-index,
+.theme-night .room-settings-panel .room-card-index {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 920;
+}
+
+.theme-day .room-settings-panel .room-card-index em,
+.theme-night .room-settings-panel .room-card-index em {
+  font-style: normal;
+  line-height: 1;
+}
+
+.theme-day .room-settings-panel .room-editor-card-header span,
+.theme-day .room-settings-panel .room-editor-card-meta span,
+.theme-day .room-settings-panel .room-editor-card-meta small,
+.theme-day .room-settings-panel .room-editor-card label,
+.theme-night .room-settings-panel .room-editor-card-header span,
+.theme-night .room-settings-panel .room-editor-card-meta span,
+.theme-night .room-settings-panel .room-editor-card-meta small,
+.theme-night .room-settings-panel .room-editor-card label {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.theme-day .room-settings-panel .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card-header strong,
+.theme-day .room-settings-panel .room-editor-card.occupied .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card.occupied .room-editor-card-header strong,
+.theme-day .room-settings-panel .room-editor-card.maintenance .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card.maintenance .room-editor-card-header strong {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .theme-day .room-settings-panel .room-editor-card input,
@@ -11044,10 +11109,19 @@ textarea,
 .theme-day .room-settings-panel .room-editor-card select,
 .theme-night .room-settings-panel .room-editor-card select {
   min-height: 42px;
-  border-color: rgba(111, 66, 193, 0.2);
-  background: rgba(255, 255, 255, 0.94);
-  color: #2f255f;
-  -webkit-text-fill-color: #2f255f;
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.theme-day .room-settings-panel .room-editor-card input:focus,
+.theme-night .room-settings-panel .room-editor-card input:focus,
+.theme-day .room-settings-panel .room-editor-card select:focus,
+.theme-night .room-settings-panel .room-editor-card select:focus {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12);
 }
 
 .theme-day .room-settings-panel .room-editor-card select,
@@ -11056,11 +11130,23 @@ textarea,
   font-weight: 880;
 }
 
+.theme-day .room-settings-panel .room-editor-card option,
+.theme-night .room-settings-panel .room-editor-card option {
+  color: #2f255f;
+}
+
 .theme-day .room-settings-panel .room-settings-toolbar button,
 .theme-night .room-settings-panel .room-settings-toolbar button,
 .theme-day .room-settings-panel .room-editor-remove,
 .theme-night .room-settings-panel .room-editor-remove {
-  border-color: rgba(111, 66, 193, 0.2);
-  background: rgba(111, 66, 193, 0.08);
-  color: var(--yich-purple-deep);
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.theme-day .room-settings-panel .room-save-status,
+.theme-night .room-settings-panel .room-save-status {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
