@@ -55,18 +55,19 @@ const roomUsage = calculateAppointmentRoomUsage(
   ],
   ranges.today,
   ["护理房 1", "护理房 2", "VIP护理房"],
-  1,
+  ["护理房 2"],
 );
 
 assert.equal(roomUsage.availableRoomCount, 2, "room usage should subtract maintenance rooms");
+assert.deepEqual(roomUsage.maintenanceRoomNames, ["护理房 2"], "room usage should keep specified maintenance rooms");
 assert.equal(roomUsage.dayCount, 1, "today room usage should count one day");
 assert.equal(roomUsage.roomCapacity, 2, "room capacity should be available rooms times day count");
 assert.equal(roomUsage.bookedRoomSlots, 2, "active appointments should occupy rooms");
 assert.equal(roomUsage.remainingRoomSlots, 0, "full room usage should leave no remaining slots");
 assert.deepEqual(
   roomUsage.roomAssignments.map((item) => `${item.roomName}:${item.appointment.id}`),
-  ["护理房 1:active-1", "护理房 2:active-2"],
-  "room assignments should map active appointments to rooms in appointment order",
+  ["护理房 1:active-1", "VIP护理房:active-2"],
+  "room assignments should skip specified maintenance rooms",
 );
 
 console.log("预约日期范围筛选验证通过。");

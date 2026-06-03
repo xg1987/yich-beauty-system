@@ -24,6 +24,7 @@ export type StoreProfile = {
   address: string;
   businessHours: string;
   roomNames?: string[];
+  maintenanceRoomNames?: string[];
   maintenanceRoomCount?: number;
   status?: "active" | "disabled";
   createdAt: string;

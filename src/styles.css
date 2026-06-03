@@ -10973,3 +10973,94 @@ textarea,
 .theme-night .room-settings-panel .room-editor-remove {
   color: var(--yich-purple-deep);
 }
+
+/* Room settings final state: calm configuration surface, not a purple dashboard card. */
+.theme-day .room-settings-panel.panel,
+.theme-night .room-settings-panel.panel {
+  border-color: rgba(111, 66, 193, 0.18);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(111, 66, 193, 0.08), transparent 32%),
+    rgba(255, 253, 250, 0.96);
+  color: var(--yich-ink);
+  box-shadow: 0 18px 42px rgba(69, 37, 127, 0.12);
+}
+
+.theme-day .room-settings-panel .panel-title h2,
+.theme-night .room-settings-panel .panel-title h2,
+.theme-day .room-settings-panel .panel-title span,
+.theme-night .room-settings-panel .panel-title span,
+.theme-day .room-settings-panel .panel-title svg,
+.theme-night .room-settings-panel .panel-title svg,
+.theme-day .room-settings-panel .room-settings-toolbar > div > strong,
+.theme-night .room-settings-panel .room-settings-toolbar > div > strong {
+  color: var(--yich-purple-deep);
+}
+
+.theme-day .room-settings-panel .room-settings-summary > div,
+.theme-night .room-settings-panel .room-settings-summary > div {
+  border-color: rgba(111, 66, 193, 0.14);
+  background:
+    radial-gradient(circle at 88% 10%, rgba(111, 66, 193, 0.08), transparent 36%),
+    rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(69, 37, 127, 0.07);
+}
+
+.theme-day .room-settings-panel .room-editor-card,
+.theme-night .room-settings-panel .room-editor-card {
+  border-color: rgba(111, 66, 193, 0.16);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(111, 66, 193, 0.06), transparent 38%),
+    rgba(255, 255, 255, 0.9);
+  color: var(--yich-ink);
+  box-shadow: 0 14px 30px rgba(69, 37, 127, 0.09);
+}
+
+.theme-day .room-settings-panel .room-editor-card.available,
+.theme-night .room-settings-panel .room-editor-card.available {
+  border-color: rgba(42, 143, 125, 0.2);
+  box-shadow:
+    inset 4px 0 0 rgba(42, 143, 125, 0.7),
+    0 14px 30px rgba(69, 37, 127, 0.09);
+}
+
+.theme-day .room-settings-panel .room-editor-card.occupied,
+.theme-night .room-settings-panel .room-editor-card.occupied {
+  border-color: rgba(199, 67, 99, 0.24);
+  box-shadow:
+    inset 4px 0 0 rgba(199, 67, 99, 0.72),
+    0 14px 30px rgba(69, 37, 127, 0.09);
+}
+
+.theme-day .room-settings-panel .room-editor-card.maintenance,
+.theme-night .room-settings-panel .room-editor-card.maintenance {
+  border-color: rgba(184, 118, 33, 0.26);
+  box-shadow:
+    inset 4px 0 0 rgba(184, 118, 33, 0.78),
+    0 14px 30px rgba(69, 37, 127, 0.09);
+}
+
+.theme-day .room-settings-panel .room-editor-card input,
+.theme-night .room-settings-panel .room-editor-card input,
+.theme-day .room-settings-panel .room-editor-card select,
+.theme-night .room-settings-panel .room-editor-card select {
+  min-height: 42px;
+  border-color: rgba(111, 66, 193, 0.2);
+  background: rgba(255, 255, 255, 0.94);
+  color: #2f255f;
+  -webkit-text-fill-color: #2f255f;
+}
+
+.theme-day .room-settings-panel .room-editor-card select,
+.theme-night .room-settings-panel .room-editor-card select {
+  font-size: 14px;
+  font-weight: 880;
+}
+
+.theme-day .room-settings-panel .room-settings-toolbar button,
+.theme-night .room-settings-panel .room-settings-toolbar button,
+.theme-day .room-settings-panel .room-editor-remove,
+.theme-night .room-settings-panel .room-editor-remove {
+  border-color: rgba(111, 66, 193, 0.2);
+  background: rgba(111, 66, 193, 0.08);
+  color: var(--yich-purple-deep);
+}

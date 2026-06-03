@@ -18,6 +18,7 @@ export type AppointmentRoomUsage = {
   bookedRoomSlots: number;
   dayCount: number;
   maintenanceRoomCount: number;
+  maintenanceRoomNames: string[];
   remainingRoomSlots: number;
   roomAssignments: AppointmentRoomAssignment[];
   roomCapacity: number;
@@ -81,19 +82,20 @@ export function calculateAppointmentRoomUsage(
   appointments: Appointment[],
   rangeMeta: AppointmentRangeMeta,
   roomNames: string[],
-  maintenanceRoomCount = 0,
+  maintenanceRooms: number | string[] = 0,
 ): AppointmentRoomUsage {
-  const availableRoomCount = Math.max(0, roomNames.length - maintenanceRoomCount);
+  const maintenanceRoomNames = normalizeMaintenanceRoomNames(roomNames, maintenanceRooms);
+  const availableRoomCount = Math.max(0, roomNames.length - maintenanceRoomNames.length);
   const dayCount = countCalendarDays(rangeMeta.start, rangeMeta.end);
   const roomCapacity = availableRoomCount * dayCount;
   const activeAppointments = appointments.filter(isActiveRoomAppointment);
   const bookedRoomSlots = Math.min(activeAppointments.length, roomCapacity);
   const remainingRoomSlots = Math.max(0, roomCapacity - bookedRoomSlots);
-  const availableRoomNames = roomNames.slice(0, availableRoomCount);
+  const availableRoomNames = roomNames.filter((roomName) => !maintenanceRoomNames.includes(roomName));
   const usedRoomNames = new Set<string>();
   const roomAssignments = activeAppointments.slice(0, availableRoomCount).map((appointment) => {
     const savedRoomName = appointment.roomName?.trim();
-    const roomName = savedRoomName && roomNames.includes(savedRoomName) && !usedRoomNames.has(savedRoomName)
+    const roomName = savedRoomName && availableRoomNames.includes(savedRoomName) && !usedRoomNames.has(savedRoomName)
       ? savedRoomName
       : availableRoomNames.find((name) => !usedRoomNames.has(name)) ?? "";
     if (roomName) usedRoomNames.add(roomName);
@@ -104,9 +106,18 @@ export function calculateAppointmentRoomUsage(
     availableRoomCount,
     bookedRoomSlots,
     dayCount,
-    maintenanceRoomCount,
+    maintenanceRoomCount: maintenanceRoomNames.length,
+    maintenanceRoomNames,
     remainingRoomSlots,
     roomAssignments,
     roomCapacity,
   };
+}
+
+function normalizeMaintenanceRoomNames(roomNames: string[], maintenanceRooms: number | string[]) {
+  if (Array.isArray(maintenanceRooms)) {
+    return Array.from(new Set(maintenanceRooms.map((roomName) => roomName.trim()).filter((roomName) => roomNames.includes(roomName))));
+  }
+  const maintenanceRoomCount = Math.max(0, Math.min(roomNames.length, Math.trunc(maintenanceRooms)));
+  return roomNames.slice(Math.max(0, roomNames.length - maintenanceRoomCount));
 }

@@ -318,10 +318,12 @@ function card(data: AppData, cardId: string) {
     address: "测试新地址",
     businessHours: "09:30 - 22:00",
     roomNames: ["护理房 A", "护理房 B", "VIP 房"],
+    maintenanceRoomNames: ["护理房 B"],
   });
   assert.equal(updatedStore.storeProfiles[0].name, "测试皮肤管理中心", "store profile should update store name");
   assert.equal(updatedStore.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile should update business hours");
   assert.deepEqual(updatedStore.storeProfiles[0].roomNames, ["护理房 A", "护理房 B", "VIP 房"], "store profile should update appointment room names");
+  assert.deepEqual(updatedStore.storeProfiles[0].maintenanceRoomNames, ["护理房 B"], "store profile should update specified maintenance rooms");
   const disabledStore = updateStoreStatus(updatedStore, { storeId: updatedStore.storeProfiles[0].id, status: "disabled", userId: "u_superadmin" }, { idFactory: testId, now: fixedNow });
   assert.equal(disabledStore.storeProfiles[0].status, "disabled", "admin should disable store");
   assert.equal(disabledStore.operationLogs[0].action, "停用门店", "store status should write operation log");

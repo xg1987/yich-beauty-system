@@ -313,6 +313,7 @@ export type StoreProfileInput = {
   address: string;
   businessHours: string;
   roomNames?: string[];
+  maintenanceRoomNames?: string[];
   maintenanceRoomCount?: number;
 };
 
@@ -810,6 +811,7 @@ export function registerStore(
         address: input.address ?? "",
         businessHours: "10:00 - 21:00",
         roomNames: DEFAULT_ROOM_NAMES,
+        maintenanceRoomNames: [],
         maintenanceRoomCount: 0,
         status: "active",
         createdAt,
@@ -900,6 +902,10 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
   const maintenanceRoomCount = Number.isFinite(input.maintenanceRoomCount)
     ? Math.max(0, Math.min(roomNames.length, Math.trunc(input.maintenanceRoomCount ?? 0)))
     : current.maintenanceRoomCount ?? 0;
+  const maintenanceRoomNames = normalizeMaintenanceRoomNames(
+    roomNames,
+    input.maintenanceRoomNames ?? current.maintenanceRoomNames ?? maintenanceRoomCount,
+  );
   if (!name) throw new Error("请输入门店名称");
   if (!phone) throw new Error("请输入门店电话");
   if (!businessHours) throw new Error("请输入营业时间");
@@ -915,7 +921,8 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
         address,
         businessHours,
         roomNames,
-        maintenanceRoomCount,
+        maintenanceRoomNames,
+        maintenanceRoomCount: maintenanceRoomNames.length,
       },
       ...data.storeProfiles.slice(1),
     ],
@@ -1830,6 +1837,7 @@ export function decideStoreOwnerApplication(
         address: application.address ?? "",
         businessHours: "10:00 - 21:00",
         roomNames: DEFAULT_ROOM_NAMES,
+        maintenanceRoomNames: [],
         maintenanceRoomCount: 0,
         status: "active",
         createdAt: decidedAt,
@@ -2879,9 +2887,17 @@ function roomNamesOf(data: AppData) {
   return names.length > 0 ? names : DEFAULT_ROOM_NAMES;
 }
 
-function maintenanceRoomCountOf(data: AppData, roomNames: string[]) {
-  const count = data.storeProfiles[0]?.maintenanceRoomCount ?? 0;
-  return Math.max(0, Math.min(roomNames.length, count));
+function maintenanceRoomNamesOf(data: AppData, roomNames: string[]) {
+  const storeProfile = data.storeProfiles[0];
+  return normalizeMaintenanceRoomNames(roomNames, storeProfile?.maintenanceRoomNames ?? storeProfile?.maintenanceRoomCount ?? 0);
+}
+
+function normalizeMaintenanceRoomNames(roomNames: string[], maintenanceRooms: number | string[]) {
+  if (Array.isArray(maintenanceRooms)) {
+    return Array.from(new Set(maintenanceRooms.map((roomName) => roomName.trim()).filter((roomName) => roomNames.includes(roomName))));
+  }
+  const maintenanceRoomCount = Math.max(0, Math.min(roomNames.length, Math.trunc(maintenanceRooms)));
+  return roomNames.slice(Math.max(0, roomNames.length - maintenanceRoomCount));
 }
 
 function isActiveAppointmentForRoom(appointment: Appointment) {
@@ -2890,8 +2906,8 @@ function isActiveAppointmentForRoom(appointment: Appointment) {
 
 function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
   const roomNames = roomNamesOf(data);
-  const maintenanceRoomCount = maintenanceRoomCountOf(data, roomNames);
-  const availableRoomNames = roomNames.slice(0, Math.max(0, roomNames.length - maintenanceRoomCount));
+  const maintenanceRoomNames = maintenanceRoomNamesOf(data, roomNames);
+  const availableRoomNames = roomNames.filter((roomName) => !maintenanceRoomNames.includes(roomName));
   const requestedRoomName = input.roomName?.trim();
   if (requestedRoomName) return requestedRoomName;
 
@@ -2936,10 +2952,9 @@ function validateAppointmentSchedule(
   const selectedRoomName = input.roomName?.trim();
   if (!selectedRoomName) throw new Error("请选择预约房间");
   const roomNames = roomNamesOf(data);
-  const maintenanceRoomCount = maintenanceRoomCountOf(data, roomNames);
-  const availableRoomNames = roomNames.slice(0, Math.max(0, roomNames.length - maintenanceRoomCount));
+  const maintenanceRoomNames = maintenanceRoomNamesOf(data, roomNames);
   if (!roomNames.includes(selectedRoomName)) throw new Error("预约房间不存在");
-  if (!availableRoomNames.includes(selectedRoomName)) throw new Error("该房间维护中，不能预约");
+  if (maintenanceRoomNames.includes(selectedRoomName)) throw new Error("该房间维护中，不能预约");
 
   const hasAppointmentConflict = data.appointments.some((appointment) => {
     if (appointment.id === input.excludeAppointmentId) return false;

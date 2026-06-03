@@ -410,6 +410,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           address: optionalString(body, "address") ?? "",
           businessHours: requiredString(body, "businessHours"),
           roomNames: optionalStringArray(body, "roomNames"),
+          maintenanceRoomNames: optionalStringArray(body, "maintenanceRoomNames"),
           maintenanceRoomCount: optionalNumber(body, "maintenanceRoomCount"),
         }),
         {

@@ -205,10 +205,14 @@ function roomNamesOf(data: AppData) {
   return names.length > 0 ? names : DEFAULT_APPOINTMENT_ROOM_NAMES;
 }
 
-function maintenanceRoomCountOf(data: AppData) {
-  const roomCount = roomNamesOf(data).length;
-  const count = data.storeProfiles[0]?.maintenanceRoomCount ?? 0;
-  return Math.max(0, Math.min(roomCount, count));
+function maintenanceRoomNamesOf(data: AppData, roomNames = roomNamesOf(data)) {
+  const storeProfile = data.storeProfiles[0];
+  const savedNames = storeProfile?.maintenanceRoomNames;
+  if (savedNames?.length) {
+    return Array.from(new Set(savedNames.map((roomName) => roomName.trim()).filter((roomName) => roomNames.includes(roomName))));
+  }
+  const legacyCount = Math.max(0, Math.min(roomNames.length, storeProfile?.maintenanceRoomCount ?? 0));
+  return roomNames.slice(Math.max(0, roomNames.length - legacyCount));
 }
 
 function parseRoomNames(value: string) {
@@ -853,7 +857,7 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
     rangeAppointments,
     selectedAppointmentRange,
     roomNames,
-    maintenanceRoomCountOf(data),
+    maintenanceRoomNamesOf(data, roomNames),
   );
   const rows = rangeAppointments
     .slice(0, 120)
@@ -2449,35 +2453,40 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
 function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
   const storeProfile = data.storeProfiles[0];
   const [roomNames, setRoomNames] = useState(() => roomNamesOf(data));
-  const [maintenanceRoomCount, setMaintenanceRoomCount] = useState(() => maintenanceRoomCountOf(data));
+  const [maintenanceRoomNames, setMaintenanceRoomNames] = useState(() => maintenanceRoomNamesOf(data));
   const [settingsError, setSettingsError] = useState<string | undefined>();
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setRoomNames(roomNamesOf(data));
-    setMaintenanceRoomCount(maintenanceRoomCountOf(data));
+    const nextRoomNames = roomNamesOf(data);
+    setRoomNames(nextRoomNames);
+    setMaintenanceRoomNames(maintenanceRoomNamesOf(data, nextRoomNames));
   }, [data.storeProfiles]);
 
   const normalizedRoomNames = roomNames.map((roomName) => roomName.trim()).filter(Boolean);
-  const clampedMaintenanceCount = Math.max(0, Math.min(normalizedRoomNames.length, maintenanceRoomCount));
+  const normalizedMaintenanceRoomNames = normalizedRoomNames.filter((roomName) => maintenanceRoomNames.includes(roomName));
   const persistedRoomNames = roomNamesOf(data);
-  const persistedMaintenanceCount = maintenanceRoomCountOf(data);
+  const persistedMaintenanceRoomNames = maintenanceRoomNamesOf(data, persistedRoomNames);
   const hasUnsavedChanges =
-    normalizedRoomNames.join("\n") !== persistedRoomNames.join("\n") || clampedMaintenanceCount !== persistedMaintenanceCount;
+    normalizedRoomNames.join("\n") !== persistedRoomNames.join("\n") || normalizedMaintenanceRoomNames.join("\n") !== persistedMaintenanceRoomNames.join("\n");
   const saveStateText = isSaving ? "保存中..." : saved ? "已同步到预约页" : hasUnsavedChanges ? "有未保存修改" : "当前设置已同步";
-  const maintenanceStartIndex = Math.max(0, roomNames.length - clampedMaintenanceCount);
   const draftRoomUsage = calculateAppointmentRoomUsage(
     filterAppointmentsByRange(data.appointments, "today"),
     appointmentRangeMap().today,
     normalizedRoomNames,
-    clampedMaintenanceCount,
+    normalizedMaintenanceRoomNames,
   );
 
   const updateRoomName = (index: number, value: string) => {
     setSaved(false);
     setSettingsError(undefined);
+    const oldRoomName = roomNames[index]?.trim();
+    const nextRoomName = value.trim();
     setRoomNames((current) => current.map((roomName, roomIndex) => roomIndex === index ? value : roomName));
+    if (oldRoomName && maintenanceRoomNames.includes(oldRoomName)) {
+      setMaintenanceRoomNames((current) => current.map((roomName) => roomName === oldRoomName ? nextRoomName : roomName).filter(Boolean));
+    }
   };
 
   const addRoom = () => {
@@ -2491,8 +2500,20 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
     if (roomNames.length <= 1) return;
     setSaved(false);
     setSettingsError(undefined);
+    const removedRoomName = roomNames[index]?.trim();
     setRoomNames((current) => current.filter((_, roomIndex) => roomIndex !== index));
-    setMaintenanceRoomCount((current) => Math.min(current, roomNames.length - 1));
+    setMaintenanceRoomNames((current) => current.filter((roomName) => roomName !== removedRoomName));
+  };
+
+  const updateRoomMaintenance = (roomName: string, isMaintenance: boolean) => {
+    const normalizedRoomName = roomName.trim();
+    if (!normalizedRoomName) return;
+    setSaved(false);
+    setSettingsError(undefined);
+    setMaintenanceRoomNames((current) => {
+      const nextNames = current.filter((name) => name !== normalizedRoomName);
+      return isMaintenance ? [...nextNames, normalizedRoomName] : nextNames;
+    });
   };
 
   const saveRoomSettings = (event: FormEvent) => {
@@ -2521,7 +2542,8 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
         address: storeProfile.address,
         businessHours: storeProfile.businessHours,
         roomNames: normalizedRoomNames,
-        maintenanceRoomCount: clampedMaintenanceCount,
+        maintenanceRoomNames: normalizedMaintenanceRoomNames,
+        maintenanceRoomCount: normalizedMaintenanceRoomNames.length,
       }),
     ).then(() => setSaved(true)).catch((caught) => setSettingsError(caught instanceof Error ? caught.message : "房间设置保存失败")).finally(() => setIsSaving(false));
   };
@@ -2550,8 +2572,8 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
             </div>
             <div>
               <span>维护中</span>
-              <strong>{clampedMaintenanceCount}</strong>
-              <small>暂不可预约</small>
+              <strong>{normalizedMaintenanceRoomNames.length}</strong>
+              <small>{normalizedMaintenanceRoomNames.length ? normalizedMaintenanceRoomNames.join("、") : "暂无维护房间"}</small>
             </div>
           </div>
           <form className="room-settings-form" onSubmit={saveRoomSettings}>
@@ -2567,8 +2589,9 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
             </div>
             <div className="room-editor-grid">
               {roomNames.map((roomName, index) => {
-                const isMaintenance = index >= maintenanceStartIndex && clampedMaintenanceCount > 0;
-                const assignment = draftRoomUsage.roomAssignments.find((item) => item.roomName === roomName.trim())?.appointment;
+                const normalizedRoomName = roomName.trim();
+                const isMaintenance = normalizedMaintenanceRoomNames.includes(normalizedRoomName);
+                const assignment = draftRoomUsage.roomAssignments.find((item) => item.roomName === normalizedRoomName)?.appointment;
                 const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "可预约";
                 return (
                   <article className={`room-editor-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`room-${index}`}>
@@ -2580,9 +2603,20 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
                       房间名称
                       <input value={roomName} onChange={(event) => updateRoomName(index, event.target.value)} placeholder={`房间 ${index + 1}`} />
                     </label>
+                    <label>
+                      房间状态
+                      <select
+                        value={isMaintenance ? "maintenance" : "available"}
+                        onChange={(event) => updateRoomMaintenance(normalizedRoomName, event.target.value === "maintenance")}
+                        disabled={!normalizedRoomName}
+                      >
+                        <option value="available">可预约</option>
+                        <option value="maintenance">维护中</option>
+                      </select>
+                    </label>
                     <div className="room-editor-card-meta">
                       <span>{isMaintenance ? "该房间暂不可预约" : assignment ? `${nameOf(data.customers, assignment.customerId)} · ${shortDate(assignment.startAt)}` : "预约页会显示为可选房间"}</span>
-                      <small>{roomName.trim() || "未命名房间"}</small>
+                      <small>{normalizedRoomName || "未命名房间"}</small>
                     </div>
                     <button type="button" className="room-editor-remove" onClick={() => removeRoom(index)} disabled={roomNames.length <= 1}>
                       删除
@@ -2591,23 +2625,8 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
                 );
               })}
             </div>
-            <label className="room-maintenance-field">
-              维护中房间数量
-              <input
-                type="number"
-                min={0}
-                max={roomNames.length}
-                value={clampedMaintenanceCount}
-                onChange={(event) => {
-                  setSaved(false);
-                  const nextCount = Number(event.target.value);
-                  setMaintenanceRoomCount(Number.isFinite(nextCount) ? nextCount : 0);
-                }}
-              />
-              <span>维护房间会从列表末尾开始标记，预约时不可选择。</span>
-            </label>
             {settingsError && <p className="form-error">{settingsError}</p>}
-            {saved && <p className="form-success">房间设置已保存，预约页会按新数量显示。</p>}
+            {saved && <p className="form-success">房间设置已保存，预约页会按指定房间状态筛选。</p>}
             <div className="row-actions">
               <button className="primary-button" disabled={isSaving}>
                 <Save size={16} />
@@ -2755,12 +2774,11 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const lockedServiceStaff = new Set(data.staffUnavailableSlots.filter((slot) => serviceStaffIds.has(slot.staffId)).map((slot) => slot.staffId));
   const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
-  const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, maintenanceRoomCountOf(data));
+  const maintenanceRoomNames = new Set(maintenanceRoomNamesOf(data, roomNames));
+  const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, Array.from(maintenanceRoomNames));
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(selectedStartAt.getTime() + (selectedService?.duration ?? 60) * 60 * 1000);
-  const maintenanceRoomCount = maintenanceRoomCountOf(data);
-  const maintenanceRoomNames = new Set(roomNames.slice(Math.max(0, roomNames.length - maintenanceRoomCount)));
   const roomAvailabilityOptions = roomNames.map((name) => {
     const isMaintenance = maintenanceRoomNames.has(name);
     const conflictAppointment = data.appointments.find((appointment) => {
