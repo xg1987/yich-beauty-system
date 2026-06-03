@@ -2137,8 +2137,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     todayAppointments,
     todayRevenue,
   });
-  const actionItems = dashboardContent.actions.filter((item) => canAccessView(session, item.view));
-  const roleTasks = roleHomeCards(data, session).filter((item) => canAccessView(session, item.view));
+  const roleTasks = roleHomeCards(data, session).filter((item) => canAccessView(session, item.view)).slice(0, 4);
   const todayLabel = today.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
   const isOrdinaryEmployee = session.user.role === "therapist" || session.user.role === "frontdesk";
   const heroLine = session.user.role === "therapist" ? "护理有序，客户安心" : session.user.role === "frontdesk" ? "到店有序，客户清晰" : "今日有序，门店有数";
@@ -2147,12 +2146,6 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     : isOrdinaryEmployee
       ? `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 客户 ${data.customers.length}`
       : `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 营业额 ${money(todayRevenue)}`;
-  const primaryActions = actionItems.slice(0, 3);
-  const insightItems = [
-    { label: "待审批", value: `${pendingApprovals} 条`, hint: "改价与退款审批", view: "approvals" as ViewKey },
-    { label: "库存预警", value: `${lowStock.length} 项`, hint: "低于安全库存", view: "inventory" as ViewKey },
-    { label: "线上预约", value: `${onlineRequests} 条`, hint: "待前台处理", view: "appointments" as ViewKey },
-  ].filter((item) => canAccessView(session, item.view));
 
   return (
     <div className="dashboard-page workbench-visual-page">
@@ -2166,16 +2159,6 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
       <section className="workbench-metric-row" aria-label="今日关键数据">
         {dashboardContent.metrics.map((item) => (
           <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
-        ))}
-      </section>
-
-      <section className="workbench-action-row" aria-label="快捷操作">
-        {primaryActions.map((item) => (
-          <button key={item.label} onClick={() => setView(item.view)}>
-            {item.icon}
-            <strong>{item.value}</strong>
-            <span>{item.label}</span>
-          </button>
         ))}
       </section>
 
@@ -2214,33 +2197,16 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         </div>
       </section>
 
-      <section className="workbench-content-grid lower">
-        <div className="workbench-panel">
-          <PanelTitle icon={<LayoutDashboard size={18} />} title="常用入口" action="按当前账号权限显示" />
-          <div className="workbench-quick-list">
-            {roleTasks.map((item) => (
-              <button key={item.title} onClick={() => setView(item.view)}>
-                <strong>{item.value}</strong>
-                <span>{item.title}</span>
-                <small>{item.hint}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="workbench-panel">
-          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="营业提示" action="实时提醒" />
-          <div className="workbench-insight-list">
-            {insightItems.map((item) => (
-              <button key={item.label} onClick={() => setView(item.view)}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <small>{item.hint}</small>
-              </button>
-            ))}
-            {lowStock.length > 0 && lowStock.slice(0, 2).map((item) => <InventoryLine key={item.id} product={item} />)}
-            {insightItems.length === 0 && lowStock.length === 0 && <p className="empty">暂无需要处理的提醒</p>}
-          </div>
+      <section className="workbench-panel workbench-quick-panel">
+        <PanelTitle icon={<LayoutDashboard size={18} />} title="快捷入口" action="高频操作" />
+        <div className="workbench-quick-list">
+          {roleTasks.map((item) => (
+            <button key={item.title} onClick={() => setView(item.view)}>
+              <strong>{item.value}</strong>
+              <span>{item.title}</span>
+              <small>{item.hint}</small>
+            </button>
+          ))}
         </div>
       </section>
     </div>
@@ -2361,9 +2327,9 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
     followTitle: "客户关怀",
     healthTitle: "经营健康度",
     metrics: [
+      { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
       { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "当天收银汇总" },
-      { icon: <UsersRound size={18} />, label: "项目卡", value: `${input.activeCards} 张`, hint: "有效卡项" },
-      { icon: <HeartHandshake size={18} />, label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "客户关怀任务" },
+      { icon: <ShieldCheck size={18} />, label: "待处理", value: `${input.pendingApprovals + input.lowStockCount + input.onlineRequests} 项`, hint: "审批、库存和线上预约" },
     ],
     healthMetrics: [
       { icon: <CreditCard size={18} />, label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
@@ -2424,10 +2390,10 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
     ];
   }
   return [
-    { title: "经营收入", value: money(revenue), hint: "全店实收", view: "reports" },
-    { title: "待审批", value: `${pendingApprovals} 单`, hint: "风险控制", view: "approvals" },
-    { title: "客户档案", value: `${data.customers.length} 人`, hint: "客户资料", view: "customers" },
-    { title: "库存预警", value: `${lowStock} 项`, hint: "采购与盘点", view: "inventory" },
+    { title: "预约管理", value: `${todayAppointments} 单`, hint: "今日预约和到店", view: "appointments" },
+    { title: "开单收银", value: money(revenue), hint: "收银和订单流水", view: "pos" },
+    { title: "客户档案", value: `${data.customers.length} 人`, hint: "客户资料和服务档案", view: "customers" },
+    { title: "管理中心", value: `${pendingApprovals + lowStock} 项`, hint: "审批、库存和设置", view: "settings" },
   ];
 }
 
@@ -5102,15 +5068,6 @@ function appointmentTone(appointment: Appointment): "ok" | "warn" | undefined {
   if (appointment.status === "已到店" || appointment.status === "已完成") return "ok";
   if (appointment.status === "已取消" || appointment.status === "爽约") return "warn";
   return undefined;
-}
-
-function InventoryLine({ product }: { product: Product }) {
-  return (
-    <div className="inventory-line">
-      <strong>{product.name}</strong>
-      <span>{product.stock}{product.unit} / 预警 {product.warningStock}{product.unit}</span>
-    </div>
-  );
 }
 
 function serviceConsumablesOf(service?: Service): ServiceConsumable[] {

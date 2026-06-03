@@ -6245,6 +6245,22 @@ textarea,
   min-height: 100%;
 }
 
+.workbench-quick-panel {
+  padding: 16px;
+}
+
+.workbench-quick-panel .workbench-quick-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.workbench-quick-panel .workbench-quick-list button {
+  min-height: 86px;
+}
+
+.workbench-quick-panel .workbench-quick-list button:last-child:nth-child(odd) {
+  grid-column: auto;
+}
+
 .workbench-quick-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6318,6 +6334,10 @@ textarea,
   .workbench-content-grid,
   .workbench-content-grid.lower {
     grid-template-columns: 1fr;
+  }
+
+  .workbench-quick-panel .workbench-quick-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
