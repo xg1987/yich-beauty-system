@@ -12219,23 +12219,6 @@ textarea,
   font-size: 20px;
 }
 
-.cashier-module-page.module-hub .customer-home-brief.cashier-home-brief {
-  min-height: 118px;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 20px;
-}
-
-.cashier-module-page.module-hub .customer-home-brief.cashier-home-brief article {
-  min-height: 90px;
-  padding: 14px 18px;
-  border-radius: 16px;
-}
-
-.cashier-module-page.module-hub .customer-home-brief.cashier-home-brief strong {
-  font-size: 24px;
-}
-
 @media (max-width: 1200px) {
   .cashier-module-page.module-hub .module-overview {
     grid-auto-rows: minmax(188px, auto);
@@ -12243,8 +12226,7 @@ textarea,
 }
 
 @media (max-width: 720px) {
-  .cashier-module-page.module-hub .module-entry-card,
-  .cashier-module-page.module-hub .customer-home-brief.cashier-home-brief article {
+  .cashier-module-page.module-hub .module-entry-card {
     min-height: 148px;
   }
 }
