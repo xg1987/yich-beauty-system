@@ -10894,3 +10894,82 @@ textarea,
     width: 100%;
   }
 }
+
+/* Room settings contains editable light cards inside the colored management panel. */
+.theme-day .room-settings-panel .room-settings-summary > div span,
+.theme-day .room-settings-panel .room-settings-summary > div small,
+.theme-night .room-settings-panel .room-settings-summary > div span,
+.theme-night .room-settings-panel .room-settings-summary > div small {
+  color: rgba(47, 37, 95, 0.62);
+}
+
+.theme-day .room-settings-panel .room-settings-summary > div strong,
+.theme-night .room-settings-panel .room-settings-summary > div strong {
+  color: var(--yich-purple-deep);
+}
+
+.theme-day .room-settings-panel .room-settings-toolbar > div > strong,
+.theme-night .room-settings-panel .room-settings-toolbar > div > strong,
+.theme-day .room-settings-panel .room-maintenance-field,
+.theme-night .room-settings-panel .room-maintenance-field,
+.theme-day .room-settings-panel .room-maintenance-field span,
+.theme-night .room-settings-panel .room-maintenance-field span {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.theme-day .room-settings-panel .room-save-status,
+.theme-night .room-settings-panel .room-save-status {
+  color: rgba(49, 40, 36, 0.68);
+}
+
+.theme-day .room-settings-panel .room-save-status.dirty,
+.theme-night .room-settings-panel .room-save-status.dirty {
+  color: #88540e;
+}
+
+.theme-day .room-settings-panel .room-save-status.saving,
+.theme-night .room-settings-panel .room-save-status.saving {
+  color: var(--yich-purple-deep);
+}
+
+.theme-day .room-settings-panel .room-save-status.saved,
+.theme-night .room-settings-panel .room-save-status.saved {
+  color: #1f6f61;
+}
+
+.theme-day .room-settings-panel .room-editor-card-header span,
+.theme-day .room-settings-panel .room-editor-card-meta span,
+.theme-day .room-settings-panel .room-editor-card-meta small,
+.theme-day .room-settings-panel .room-editor-card label,
+.theme-night .room-settings-panel .room-editor-card-header span,
+.theme-night .room-settings-panel .room-editor-card-meta span,
+.theme-night .room-settings-panel .room-editor-card-meta small,
+.theme-night .room-settings-panel .room-editor-card label {
+  color: rgba(47, 37, 95, 0.68);
+}
+
+.theme-day .room-settings-panel .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card-header strong {
+  color: #1f6f61;
+}
+
+.theme-day .room-settings-panel .room-editor-card.occupied .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card.occupied .room-editor-card-header strong {
+  color: #a33250;
+}
+
+.theme-day .room-settings-panel .room-editor-card.maintenance .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card.maintenance .room-editor-card-header strong {
+  color: #88540e;
+}
+
+.theme-day .room-settings-panel .room-editor-card input,
+.theme-night .room-settings-panel .room-editor-card input {
+  color: #2f255f;
+  -webkit-text-fill-color: #2f255f;
+}
+
+.theme-day .room-settings-panel .room-editor-remove,
+.theme-night .room-settings-panel .room-editor-remove {
+  color: var(--yich-purple-deep);
+}
