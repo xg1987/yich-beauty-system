@@ -12,6 +12,7 @@ export type ViewKey =
   | "accounts"
   | "permissions"
   | "usage"
+  | "roomSettings"
   | "settings";
 
 export type UserRole = "superadmin" | "owner" | "manager" | "frontdesk" | "therapist" | "finance";

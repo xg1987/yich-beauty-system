@@ -81,6 +81,7 @@ const viewTitles: Record<ViewKey, string> = {
   accounts: "账号管理",
   permissions: "权限审批",
   usage: "服务器用量监控",
+  roomSettings: "房间设置",
   settings: "管理中心",
 };
 
@@ -399,7 +400,7 @@ export default function App() {
 
   const isPlatformAdmin = session.user.role === "superadmin";
   const showAdminDetailBack = false;
-  const showManagementBack = adminDetailFromCenter && activeView !== "settings";
+  const showManagementBack = adminDetailFromCenter && activeView !== "settings" && activeView !== "roomSettings";
 
   return (
     <div className={`app-shell theme-${effectiveThemeMode}`}>
@@ -490,6 +491,7 @@ export default function App() {
             {activeView === "accounts" && <PlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
+            {activeView === "roomSettings" && <RoomSettings data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "settings" && (
               <ManagementCenter
                 data={data}
@@ -596,7 +598,7 @@ function ManagementCenter({
   ];
   const storeManagementCards: ManagementCard[] = [
     { title: "预约管理", desc: "预约记录 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", view: "appointments" },
+    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", view: "roomSettings" },
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户会员", desc: "客户档案 / 会员资产", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
@@ -2104,7 +2106,7 @@ function workbarForView(view: ViewKey): WorkbarKey {
   if (view === "appointments") return "appointments";
   if (view === "pos") return "cashier";
   if (view === "customers") return "customers";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "usage"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "usage", "roomSettings"].includes(view)) return "admin";
   return "workbench";
 }
 
@@ -2444,6 +2446,171 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
   ];
 }
 
+function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
+  const storeProfile = data.storeProfiles[0];
+  const [roomNames, setRoomNames] = useState(() => roomNamesOf(data));
+  const [maintenanceRoomCount, setMaintenanceRoomCount] = useState(() => maintenanceRoomCountOf(data));
+  const [settingsError, setSettingsError] = useState<string | undefined>();
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setRoomNames(roomNamesOf(data));
+    setMaintenanceRoomCount(maintenanceRoomCountOf(data));
+  }, [data.storeProfiles]);
+
+  const normalizedRoomNames = roomNames.map((roomName) => roomName.trim()).filter(Boolean);
+  const clampedMaintenanceCount = Math.max(0, Math.min(normalizedRoomNames.length, maintenanceRoomCount));
+  const maintenanceStartIndex = Math.max(0, roomNames.length - clampedMaintenanceCount);
+  const draftRoomUsage = calculateAppointmentRoomUsage(
+    filterAppointmentsByRange(data.appointments, "today"),
+    appointmentRangeMap().today,
+    normalizedRoomNames,
+    clampedMaintenanceCount,
+  );
+
+  const updateRoomName = (index: number, value: string) => {
+    setSaved(false);
+    setSettingsError(undefined);
+    setRoomNames((current) => current.map((roomName, roomIndex) => roomIndex === index ? value : roomName));
+  };
+
+  const addRoom = () => {
+    if (roomNames.length >= 20) return;
+    setSaved(false);
+    setSettingsError(undefined);
+    setRoomNames((current) => [...current, `房间 ${current.length + 1}`]);
+  };
+
+  const removeRoom = (index: number) => {
+    if (roomNames.length <= 1) return;
+    setSaved(false);
+    setSettingsError(undefined);
+    setRoomNames((current) => current.filter((_, roomIndex) => roomIndex !== index));
+    setMaintenanceRoomCount((current) => Math.min(current, roomNames.length - 1));
+  };
+
+  const saveRoomSettings = (event: FormEvent) => {
+    event.preventDefault();
+    setSettingsError(undefined);
+    setSaved(false);
+    if (!storeProfile) {
+      setSettingsError("请先完成门店注册");
+      return;
+    }
+    if (normalizedRoomNames.length === 0) {
+      setSettingsError("请至少设置 1 间房间");
+      return;
+    }
+    const duplicatedRoomName = normalizedRoomNames.find((roomName, index) => normalizedRoomNames.indexOf(roomName) !== index);
+    if (duplicatedRoomName) {
+      setSettingsError(`房间名称不能重复：${duplicatedRoomName}`);
+      return;
+    }
+    void runMutation(() =>
+      actions.updateStoreProfile({
+        name: storeProfile.name,
+        phone: storeProfile.phone,
+        address: storeProfile.address,
+        businessHours: storeProfile.businessHours,
+        roomNames: normalizedRoomNames,
+        maintenanceRoomCount: clampedMaintenanceCount,
+      }),
+    ).then(() => setSaved(true)).catch((caught) => setSettingsError(caught instanceof Error ? caught.message : "房间设置保存失败"));
+  };
+
+  return (
+    <div className="page-stack module-subpage room-settings-page">
+      <ModuleSubpageHeader parentTitle="管理中心" moduleTitle="房间设置" onBack={() => setView("settings")} />
+      <div className="module-detail-stack">
+        <section className="panel room-settings-panel">
+          <PanelTitle icon={<Building2 size={18} />} title="房间设置" action={`${normalizedRoomNames.length} 间`} />
+          <div className="room-settings-summary">
+            <div>
+              <span>房间数量</span>
+              <strong>{normalizedRoomNames.length}</strong>
+              <small>预约页按这里生成房间组件</small>
+            </div>
+            <div>
+              <span>可预约</span>
+              <strong>{draftRoomUsage.availableRoomCount}</strong>
+              <small>新增预约可选择</small>
+            </div>
+            <div>
+              <span>今日占用</span>
+              <strong>{draftRoomUsage.bookedRoomSlots}</strong>
+              <small>当前预约占房</small>
+            </div>
+            <div>
+              <span>维护中</span>
+              <strong>{clampedMaintenanceCount}</strong>
+              <small>暂不可预约</small>
+            </div>
+          </div>
+          <form className="room-settings-form" onSubmit={saveRoomSettings}>
+            <div className="room-settings-toolbar">
+              <strong>{roomNames.length} 个房间组件</strong>
+              <button type="button" onClick={addRoom} disabled={roomNames.length >= 20}>
+                <PackagePlus size={16} />
+                新增房间
+              </button>
+            </div>
+            <div className="room-editor-grid">
+              {roomNames.map((roomName, index) => {
+                const isMaintenance = index >= maintenanceStartIndex && clampedMaintenanceCount > 0;
+                const assignment = draftRoomUsage.roomAssignments.find((item) => item.roomName === roomName.trim())?.appointment;
+                const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "可预约";
+                return (
+                  <article className={`room-editor-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`room-${index}`}>
+                    <div className="room-editor-card-header">
+                      <span>房间 {index + 1}</span>
+                      <strong>{statusText}</strong>
+                    </div>
+                    <label>
+                      房间名称
+                      <input value={roomName} onChange={(event) => updateRoomName(index, event.target.value)} placeholder={`房间 ${index + 1}`} />
+                    </label>
+                    <div className="room-editor-card-meta">
+                      <span>{isMaintenance ? "该房间暂不可预约" : assignment ? `${nameOf(data.customers, assignment.customerId)} · ${shortDate(assignment.startAt)}` : "预约页会显示为可选房间"}</span>
+                      <small>{roomName.trim() || "未命名房间"}</small>
+                    </div>
+                    <button type="button" className="room-editor-remove" onClick={() => removeRoom(index)} disabled={roomNames.length <= 1}>
+                      删除
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+            <label className="room-maintenance-field">
+              维护中房间数量
+              <input
+                type="number"
+                min={0}
+                max={roomNames.length}
+                value={clampedMaintenanceCount}
+                onChange={(event) => {
+                  setSaved(false);
+                  const nextCount = Number(event.target.value);
+                  setMaintenanceRoomCount(Number.isFinite(nextCount) ? nextCount : 0);
+                }}
+              />
+              <span>维护房间会从列表末尾开始标记，预约时不可选择。</span>
+            </label>
+            {settingsError && <p className="form-error">{settingsError}</p>}
+            {saved && <p className="form-success">房间设置已保存，预约页会按新数量显示。</p>}
+            <div className="row-actions">
+              <button className="primary-button">
+                <Save size={16} />
+                保存房间设置
+              </button>
+              <button type="button" onClick={() => setView("settings")}>取消</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
 function Appointments({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
@@ -2701,11 +2868,9 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
                   : "今日暂无预约";
               return (
                 <article className={`appointment-room-state-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${name}-${index}`}>
-                  <div>
-                    <span>房间 {index + 1}</span>
-                    <strong>{name}</strong>
-                  </div>
+                  <span>房间 {index + 1}</span>
                   <b>{statusText}</b>
+                  <strong>{name}</strong>
                   <small>{statusHint}</small>
                 </article>
               );

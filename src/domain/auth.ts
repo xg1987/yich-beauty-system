@@ -122,6 +122,7 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   accounts: "settings:view",
   permissions: "settings:view",
   usage: "settings:view",
+  roomSettings: "settings:view",
   settings: "settings:view",
 };
 

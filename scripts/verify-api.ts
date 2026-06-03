@@ -261,7 +261,7 @@ try {
       request<AppData>(baseUrl, "/api/appointments", {
         method: "POST",
         token: phoneAdminSession.token,
-        body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), note: "" },
+        body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), roomName: "护理房 1", note: "" },
       }),
     /当前账号无此操作权限/,
     "legacy phone admin account should be readonly for business writes",
@@ -530,6 +530,7 @@ try {
           staffId: "s2",
           serviceId: "v1",
           startAt: conflictStartAt,
+          roomName: "护理房 1",
           note: "冲突预约",
         },
       }),
@@ -545,6 +546,7 @@ try {
       staffId: "s3",
       serviceId: "v1",
       startAt: futureIso(31, "02:00"),
+      roomName: "护理房 1",
       note: "API 预约",
     },
   });
@@ -601,6 +603,7 @@ try {
       staffId: "s3",
       serviceId: "v1",
       startAt: futureIso(32, "05:00"),
+      roomName: "护理房 1",
       note: "API 改约测试",
     },
   });
@@ -612,6 +615,7 @@ try {
       staffId: "s3",
       serviceId: "v2",
       startAt: futureIso(32, "06:00"),
+      roomName: "护理房 2",
       note: "API 已改约",
     },
   });
@@ -655,6 +659,7 @@ try {
           staffId: "s3",
           serviceId: "v1",
           startAt: futureIso(33, "02:15"),
+          roomName: "护理房 1",
           note: "不可预约冲突",
         },
       }),
@@ -683,6 +688,7 @@ try {
           staffId: "s3",
           serviceId: "v1",
           startAt: futureIso(34, "04:00"),
+          roomName: "护理房 1",
           note: "班次外预约",
         },
       }),
@@ -1115,6 +1121,7 @@ try {
       staffId: "s3",
       serviceId: "v1",
       startAt: futureIso(36, "08:00"),
+      roomName: "护理房 1",
       note: "API 预约收银",
     },
   });

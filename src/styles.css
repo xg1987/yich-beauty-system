@@ -787,6 +787,18 @@ textarea:focus {
   line-height: 1.45;
 }
 
+.form-success {
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(42, 143, 125, 0.18);
+  border-radius: 10px;
+  background: rgba(42, 143, 125, 0.08);
+  color: #1f6f61;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -7565,6 +7577,49 @@ textarea,
   box-shadow: 0 0 0 4px rgba(111, 66, 193, 0.08);
 }
 
+.room-settings-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.room-settings-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.room-settings-summary > div {
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(111, 66, 193, 0.1), transparent 36%),
+    rgba(255, 255, 255, 0.76);
+}
+
+.room-settings-summary span,
+.room-settings-summary small {
+  color: rgba(49, 40, 36, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.room-settings-summary strong {
+  color: var(--yich-purple-deep);
+  font-size: 28px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.room-settings-form {
+  display: grid;
+  gap: 14px;
+}
+
 .appointment-room-choice-note {
   min-width: 0;
   display: grid;
@@ -7651,7 +7706,8 @@ textarea,
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px 12px;
   align-items: start;
   padding: 16px;
   border: 1px solid rgba(188, 139, 126, 0.14);
@@ -7669,10 +7725,15 @@ textarea,
 
 .appointment-room-state-card strong {
   display: block;
-  margin-top: 6px;
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  margin: 0;
   color: #312824;
-  font-size: 17px;
+  font-size: 24px;
   font-weight: 950;
+  line-height: 1.18;
+  text-align: center;
 }
 
 .appointment-room-state-card b {
@@ -7686,6 +7747,7 @@ textarea,
 
 .appointment-room-state-card small {
   grid-column: 1 / -1;
+  align-self: end;
   line-height: 1.45;
 }
 
@@ -7848,6 +7910,24 @@ textarea,
   color: #fff;
 }
 
+.room-maintenance-field {
+  display: grid;
+  gap: 8px;
+  color: rgba(49, 40, 36, 0.66);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.room-maintenance-field input {
+  max-width: 180px;
+}
+
+.room-maintenance-field span {
+  color: rgba(49, 40, 36, 0.56);
+  font-size: 12px;
+  font-weight: 760;
+}
+
 @media (max-width: 1000px) {
   .appointment-page-grid {
     grid-template-columns: 1fr;
@@ -7873,6 +7953,10 @@ textarea,
 
   .appointment-room-card time {
     text-align: left;
+  }
+
+  .room-settings-summary {
+    grid-template-columns: 1fr;
   }
 
   .room-settings-toolbar,
@@ -10534,7 +10618,7 @@ textarea,
 .theme-day .appointment-room-state-card,
 .theme-night .appointment-room-state-card {
   min-height: 154px;
-  align-content: space-between;
+  align-content: stretch;
   position: relative;
   overflow: hidden;
   border-color: rgba(255, 255, 255, 0.24);
