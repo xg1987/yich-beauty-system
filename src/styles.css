@@ -11300,197 +11300,278 @@ textarea,
   color: #fff;
 }
 
-/* Final system background pass: primary app pages use the same purple board language as appointments. */
-.app-shell .main > .dashboard-page.workbench-visual-page,
-.app-shell .main > .page-stack.module-hub,
-.app-shell .main > .page-stack.appointment-room-page,
-.app-shell .main > .admin-center-page:not(.platform-admin-page),
-.app-shell .main > .admin-center-page.platform-admin-page {
-  position: relative;
-  isolation: isolate;
+/* Room pages: stable card rhythm without harsh vertical gutters. */
+.appointment-room-page,
+.room-settings-page {
+  padding-bottom: 92px;
+}
+
+.appointment-room-page .appointment-room-panel.panel,
+.room-settings-page .room-settings-panel.panel {
   overflow: hidden;
-  padding: clamp(20px, 2.6vw, 32px);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 34px;
+}
+
+.appointment-room-state-scroll,
+.room-settings-page .room-editor-grid {
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 22px;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1100' viewBox='0 0 1600 1100'%3E%3Cdefs%3E%3CradialGradient id='soft' cx='.66' cy='.16' r='.72'%3E%3Cstop offset='0' stop-color='%23ffffff' stop-opacity='.34'/%3E%3Cstop offset='.52' stop-color='%23ffffff' stop-opacity='.09'/%3E%3Cstop offset='1' stop-color='%23ffffff' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='1600' height='1100' fill='url(%23soft)'/%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='.16'%3E%3Cpath d='M0 132h1600M0 296h1600M0 460h1600M0 624h1600M0 788h1600M0 952h1600M160 0v1100M440 0v1100M720 0v1100M1000 0v1100M1280 0v1100'/%3E%3C/g%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='2.4' opacity='.2'%3E%3Cpath d='M-80 790C128 652 300 674 516 526S884 218 1164 302s318 354 512 236'/%3E%3Cpath d='M60 372c214-124 390-96 590 18s394 112 604-32 346-116 476-26'/%3E%3Cpath d='M166 1002c150-154 334-216 560-196s366 110 560 28 302-186 424-152'/%3E%3C/g%3E%3Cg transform='translate(1040 58)' opacity='.3'%3E%3Cpath d='M132 286C28 230 0 116 92 42c48-38 114-32 150 16 38-56 118-76 176-30 88 70 66 194-42 262-86 54-168 52-244-4Z' fill='%23ffffff' fill-opacity='.18' stroke='%23ffffff' stroke-opacity='.34' stroke-width='2.2'/%3E%3Cpath d='M232 288c-38-92-12-178 66-250M228 286C162 208 150 120 196 36M230 286c32-82 98-144 190-190' fill='none' stroke='%23ffe0a6' stroke-width='2.2' stroke-opacity='.35'/%3E%3C/g%3E%3Cg transform='translate(80 590)' opacity='.24'%3E%3Cpath d='M130 194C38 144 12 54 88 18c46-22 94 0 116 40 26-46 88-64 136-32 76 50 52 150-46 188-60 24-112 16-164-20Z' fill='%23ffffff' fill-opacity='.16' stroke='%23ffffff' stroke-opacity='.34' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E"),
-    radial-gradient(circle at 12% 16%, rgba(255, 255, 255, 0.15), transparent 32%),
-    radial-gradient(circle at 92% 8%, rgba(255, 231, 164, 0.18), transparent 28%),
-    linear-gradient(135deg, #56299f 0%, #7c46d6 50%, #a36def 100%);
-  background-size: cover, auto, auto, auto;
-  background-position: center;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 26px 70px rgba(69, 37, 127, 0.2);
-}
-
-.app-shell .main > .dashboard-page.workbench-visual-page::before,
-.app-shell .main > .dashboard-page.workbench-visual-page::after,
-.app-shell .main > .page-stack.module-hub::before,
-.app-shell .main > .page-stack.module-hub::after {
-  display: none;
-}
-
-.app-shell .main > .dashboard-page.workbench-visual-page > *,
-.app-shell .main > .page-stack.module-hub > *,
-.app-shell .main > .page-stack.appointment-room-page > *,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) > *,
-.app-shell .main > .admin-center-page.platform-admin-page > * {
-  position: relative;
-  z-index: 1;
-}
-
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-hero,
-.app-shell .main > .page-stack.module-hub .page-hero,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-hero,
-.app-shell .main > .admin-center-page.platform-admin-page .page-hero {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background:
-    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, 0.2), transparent 34%),
-    linear-gradient(135deg, rgba(64, 29, 132, 0.62), rgba(120, 70, 212, 0.5) 56%, rgba(145, 107, 62, 0.34));
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 20px 48px rgba(47, 24, 89, 0.18);
-}
-
-.app-shell .main > .dashboard-page.workbench-visual-page .dashboard-metric,
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button,
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-panel,
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button,
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-insight-list button,
-.app-shell .main > .page-stack.module-hub .module-metric-card,
-.app-shell .main > .page-stack.module-hub .module-entry-card,
-.app-shell .main > .page-stack.module-hub .customer-home-brief,
-.app-shell .main > .page-stack.module-hub .customer-home-brief article,
-.app-shell .main > .page-stack.appointment-room-page .appointment-room-panel.panel,
-.app-shell .main > .page-stack.appointment-room-page .appointment-room-summary > div,
-.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-invite-card,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card,
-.app-shell .main > .admin-center-page.platform-admin-page .panel,
-.app-shell .main > .admin-center-page.platform-admin-page .dashboard-panel,
-.app-shell .main > .admin-center-page.platform-admin-page .stat-card {
-  border-color: rgba(255, 255, 255, 0.24);
-  background:
-    radial-gradient(circle at 88% 10%, rgba(255, 255, 255, 0.18), transparent 38%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.1));
-  color: #fff;
+    radial-gradient(circle at 82% 8%, rgba(255, 255, 255, 0.16), transparent 30%),
+    rgba(255, 255, 255, 0.11);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 16px 34px rgba(47, 27, 99, 0.16);
+    0 16px 34px rgba(47, 27, 99, 0.1);
+}
+
+.appointment-room-state-scroll {
+  min-height: clamp(460px, 58vh, 660px);
+  max-height: clamp(500px, 62vh, 720px);
+  padding-right: 14px;
+}
+
+.appointment-room-state-grid,
+.room-settings-page .room-editor-grid {
+  gap: 12px;
+}
+
+.appointment-room-state-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 178px;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card,
+.theme-day .appointment-room-state-card,
+.theme-night .appointment-room-state-card {
+  min-height: 0;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid rgba(230, 215, 255, 0.66);
+  background:
+    radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.72), transparent 36%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(246, 240, 255, 0.72));
+  color: #2f255f;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 14px 28px rgba(47, 27, 99, 0.12);
   backdrop-filter: blur(14px);
 }
 
-.app-shell .main > .page-stack.module-hub .module-entry-card.violet,
-.app-shell .main > .page-stack.module-hub .module-entry-card.rose,
-.app-shell .main > .page-stack.module-hub .module-entry-card.teal,
-.app-shell .main > .page-stack.module-hub .module-entry-card.amber,
-.app-shell .main > .page-stack.module-hub .module-entry-card.jade,
-.app-shell .main > .page-stack.module-hub .module-entry-card.plum {
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.available,
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied,
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance,
+.theme-day .appointment-room-state-card.available,
+.theme-night .appointment-room-state-card.available,
+.theme-day .appointment-room-state-card.occupied,
+.theme-night .appointment-room-state-card.occupied,
+.theme-day .appointment-room-state-card.maintenance,
+.theme-night .appointment-room-state-card.maintenance {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 14px 28px rgba(47, 27, 99, 0.12);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.available,
+.theme-day .appointment-room-state-card.available,
+.theme-night .appointment-room-state-card.available {
+  border-color: rgba(92, 192, 170, 0.42);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied,
+.theme-day .appointment-room-state-card.occupied,
+.theme-night .appointment-room-state-card.occupied {
+  border-color: rgba(218, 102, 128, 0.42);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance,
+.theme-day .appointment-room-state-card.maintenance,
+.theme-night .appointment-room-state-card.maintenance {
+  border-color: rgba(220, 166, 76, 0.46);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card strong,
+.theme-day .appointment-room-state-card strong,
+.theme-night .appointment-room-state-card strong {
+  color: #2f255f;
+  font-size: clamp(24px, 1.8vw, 31px);
+  text-shadow: none;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card span,
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card small,
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card em,
+.theme-day .appointment-room-state-card span,
+.theme-day .appointment-room-state-card small,
+.theme-day .appointment-room-state-card em,
+.theme-night .appointment-room-state-card span,
+.theme-night .appointment-room-state-card small,
+.theme-night .appointment-room-state-card em {
+  color: rgba(47, 37, 95, 0.68);
+}
+
+.appointment-room-card-index,
+.room-card-index {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.appointment-room-card-index svg,
+.room-card-index svg {
+  flex: 0 0 auto;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card b,
+.theme-day .appointment-room-state-card b,
+.theme-night .appointment-room-state-card b {
+  min-width: 46px;
+  justify-self: end;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(42, 143, 125, 0.14);
+  color: #1f6f61;
+  font-size: 12px;
+  font-weight: 940;
+  line-height: 1;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(42, 143, 125, 0.2);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied b,
+.theme-day .appointment-room-state-card.occupied b,
+.theme-night .appointment-room-state-card.occupied b {
+  background: rgba(199, 67, 99, 0.14);
+  color: #a33250;
+  box-shadow: inset 0 0 0 1px rgba(199, 67, 99, 0.2);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance b,
+.theme-day .appointment-room-state-card.maintenance b,
+.theme-night .appointment-room-state-card.maintenance b {
+  background: rgba(184, 118, 33, 0.16);
+  color: #88540e;
+  box-shadow: inset 0 0 0 1px rgba(184, 118, 33, 0.22);
+}
+
+.room-settings-page .room-editor-grid {
+  grid-auto-rows: minmax(238px, auto);
+}
+
+.theme-day .room-settings-panel .room-editor-card,
+.theme-night .room-settings-panel .room-editor-card {
+  border: 1px solid rgba(230, 215, 255, 0.62);
   background:
-    radial-gradient(circle at 88% 10%, rgba(255, 255, 255, 0.2), transparent 38%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.1));
-}
-
-.app-shell .main > .page-stack.module-hub .module-entry-card:nth-child(4n + 1),
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button:nth-child(4n + 1),
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button:nth-child(4n + 1),
-.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card:nth-child(4n + 1) {
+    radial-gradient(circle at 88% 8%, rgba(255, 255, 255, 0.68), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(246, 240, 255, 0.74));
+  color: #2f255f;
   box-shadow:
-    inset 4px 0 0 rgba(113, 231, 207, 0.74),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 16px 34px rgba(47, 27, 99, 0.16);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 14px 28px rgba(47, 27, 99, 0.12);
 }
 
-.app-shell .main > .page-stack.module-hub .module-entry-card:nth-child(4n + 2),
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button:nth-child(4n + 2),
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button:nth-child(4n + 2),
-.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card:nth-child(4n + 2) {
-  box-shadow:
-    inset 4px 0 0 rgba(241, 113, 143, 0.78),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 16px 34px rgba(47, 27, 99, 0.16);
+.theme-day .room-settings-panel .room-editor-card.available,
+.theme-night .room-settings-panel .room-editor-card.available {
+  border-color: rgba(92, 192, 170, 0.42);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(255, 255, 255, 0.68), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(246, 240, 255, 0.74));
 }
 
-.app-shell .main > .page-stack.module-hub .module-entry-card:nth-child(4n + 3),
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row button:nth-child(4n + 3),
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-quick-list button:nth-child(4n + 3),
-.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-card:nth-child(4n + 3) {
-  box-shadow:
-    inset 4px 0 0 rgba(244, 190, 96, 0.82),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 16px 34px rgba(47, 27, 99, 0.16);
+.theme-day .room-settings-panel .room-editor-card.occupied,
+.theme-night .room-settings-panel .room-editor-card.occupied {
+  border-color: rgba(218, 102, 128, 0.42);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(255, 255, 255, 0.68), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(246, 240, 255, 0.74));
 }
 
-.app-shell .main > .dashboard-page.workbench-visual-page h1,
-.app-shell .main > .dashboard-page.workbench-visual-page h2,
-.app-shell .main > .dashboard-page.workbench-visual-page h3,
-.app-shell .main > .dashboard-page.workbench-visual-page strong,
-.app-shell .main > .page-stack.module-hub h1,
-.app-shell .main > .page-stack.module-hub h2,
-.app-shell .main > .page-stack.module-hub h3,
-.app-shell .main > .page-stack.module-hub strong,
-.app-shell .main > .page-stack.appointment-room-page h1,
-.app-shell .main > .page-stack.appointment-room-page h2,
-.app-shell .main > .page-stack.appointment-room-page h3,
-.app-shell .main > .page-stack.appointment-room-page strong,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) h1,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) h2,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) h3,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) strong,
-.app-shell .main > .admin-center-page.platform-admin-page h1,
-.app-shell .main > .admin-center-page.platform-admin-page h2,
-.app-shell .main > .admin-center-page.platform-admin-page h3,
-.app-shell .main > .admin-center-page.platform-admin-page strong {
-  color: #fff;
+.theme-day .room-settings-panel .room-editor-card.maintenance,
+.theme-night .room-settings-panel .room-editor-card.maintenance {
+  border-color: rgba(220, 166, 76, 0.46);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(255, 255, 255, 0.68), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(246, 240, 255, 0.74));
 }
 
-.app-shell .main > .dashboard-page.workbench-visual-page span,
-.app-shell .main > .dashboard-page.workbench-visual-page small,
-.app-shell .main > .dashboard-page.workbench-visual-page p,
-.app-shell .main > .dashboard-page.workbench-visual-page em,
-.app-shell .main > .page-stack.module-hub span,
-.app-shell .main > .page-stack.module-hub small,
-.app-shell .main > .page-stack.module-hub p,
-.app-shell .main > .page-stack.module-hub em,
-.app-shell .main > .page-stack.appointment-room-page span,
-.app-shell .main > .page-stack.appointment-room-page small,
-.app-shell .main > .page-stack.appointment-room-page p,
-.app-shell .main > .page-stack.appointment-room-page em,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) span,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) small,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) p,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) em,
-.app-shell .main > .admin-center-page.platform-admin-page span,
-.app-shell .main > .admin-center-page.platform-admin-page small,
-.app-shell .main > .admin-center-page.platform-admin-page p,
-.app-shell .main > .admin-center-page.platform-admin-page em {
-  color: rgba(255, 255, 255, 0.82);
+.theme-day .room-settings-panel .room-editor-card-header span,
+.theme-day .room-settings-panel .room-editor-card-meta span,
+.theme-day .room-settings-panel .room-editor-card-meta small,
+.theme-day .room-settings-panel .room-editor-card label,
+.theme-night .room-settings-panel .room-editor-card-header span,
+.theme-night .room-settings-panel .room-editor-card-meta span,
+.theme-night .room-settings-panel .room-editor-card-meta small,
+.theme-night .room-settings-panel .room-editor-card label {
+  color: rgba(47, 37, 95, 0.72);
 }
 
-.app-shell .main > .page-stack.module-hub .admin-module-icon,
-.app-shell .main > .dashboard-page.workbench-visual-page .metric-icon,
-.app-shell .main > .dashboard-page.workbench-visual-page .workbench-action-row svg,
-.app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-module-icon,
-.app-shell .main > .admin-center-page.platform-admin-page .admin-module-icon {
-  background: rgba(31, 18, 48, 0.22);
-  color: #fff;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
-    0 10px 24px rgba(29, 16, 42, 0.14);
+.theme-day .room-settings-panel .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card-header strong {
+  background: rgba(42, 143, 125, 0.14);
+  color: #1f6f61;
+  box-shadow: inset 0 0 0 1px rgba(42, 143, 125, 0.2);
 }
 
-.app-shell .main > .page-stack.module-hub .customer-home-brief {
-  padding: 12px;
+.theme-day .room-settings-panel .room-editor-card.occupied .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card.occupied .room-editor-card-header strong {
+  background: rgba(199, 67, 99, 0.14);
+  color: #a33250;
+  box-shadow: inset 0 0 0 1px rgba(199, 67, 99, 0.2);
 }
 
-@media (max-width: 900px) {
-  .app-shell .main > .dashboard-page.workbench-visual-page,
-  .app-shell .main > .page-stack.module-hub,
-  .app-shell .main > .page-stack.appointment-room-page,
-  .app-shell .main > .admin-center-page:not(.platform-admin-page),
-  .app-shell .main > .admin-center-page.platform-admin-page {
-    padding: 14px;
-    border-radius: 26px;
+.theme-day .room-settings-panel .room-editor-card.maintenance .room-editor-card-header strong,
+.theme-night .room-settings-panel .room-editor-card.maintenance .room-editor-card-header strong {
+  background: rgba(184, 118, 33, 0.16);
+  color: #88540e;
+  box-shadow: inset 0 0 0 1px rgba(184, 118, 33, 0.22);
+}
+
+.theme-day .room-settings-panel .room-editor-card input,
+.theme-night .room-settings-panel .room-editor-card input,
+.theme-day .room-settings-panel .room-editor-card select,
+.theme-night .room-settings-panel .room-editor-card select {
+  border-color: rgba(111, 66, 193, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  color: #2f255f;
+  box-shadow: none;
+}
+
+.theme-day .room-settings-panel .room-editor-card input:focus,
+.theme-night .room-settings-panel .room-editor-card input:focus,
+.theme-day .room-settings-panel .room-editor-card select:focus,
+.theme-night .room-settings-panel .room-editor-card select:focus {
+  border-color: rgba(111, 66, 193, 0.5);
+  box-shadow: 0 0 0 4px rgba(111, 66, 193, 0.12);
+}
+
+.theme-day .room-settings-panel .room-editor-remove,
+.theme-night .room-settings-panel .room-editor-remove {
+  border-color: rgba(111, 66, 193, 0.2);
+  background: rgba(111, 66, 193, 0.08);
+  color: var(--yich-purple-deep);
+}
+
+@media (max-width: 1280px) {
+  .appointment-room-state-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .appointment-room-state-grid,
+  .room-settings-page .room-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .appointment-room-state-grid,
+  .room-settings-page .room-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-room-state-scroll,
+  .room-settings-page .room-editor-grid {
+    padding: 10px;
+    border-radius: 18px;
   }
 }

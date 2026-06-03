@@ -2905,7 +2905,10 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
                     : "今日暂无预约";
                 return (
                   <article className={`appointment-room-state-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${name}-${index}`}>
-                    <span>房间 {index + 1}</span>
+                    <span className="room-card-index appointment-room-card-index">
+                      <DoorOpen size={16} />
+                      <em>{index + 1}</em>
+                    </span>
                     <b>{statusText}</b>
                     <strong>{name}</strong>
                     <small>{statusHint}</small>
