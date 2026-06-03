@@ -39,6 +39,7 @@ import { Badge } from "./components/ui/Badge";
 import { CheckboxGroup } from "./components/ui/CheckboxGroup";
 import { DataTable } from "./components/ui/DataTable";
 import { DateTimeInput } from "./components/ui/DateTimeInput";
+import { Modal } from "./components/ui/Modal";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
@@ -60,7 +61,7 @@ type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-02";
+const APP_BUILD_DATE = "2026-06-04";
 const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
 const AUTO_THEME_DAY_START_HOUR = 8;
 const AUTO_THEME_NIGHT_START_HOUR = 19;
@@ -2096,7 +2097,9 @@ function workbarForView(view: ViewKey): WorkbarKey {
 }
 
 function Dashboard({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
+  type DashboardQuickTask = ReturnType<typeof roleHomeCards>[number];
   const paidRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const [activeQuickTask, setActiveQuickTask] = useState<DashboardQuickTask | undefined>();
   const today = new Date();
   const todayAppointmentsList = data.appointments
     .filter((item) => new Date(item.startAt).toDateString() === today.toDateString())
@@ -2146,6 +2149,23 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     : isOrdinaryEmployee
       ? `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 客户 ${data.customers.length}`
       : `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 营业额 ${money(todayRevenue)}`;
+  const quickTaskDetails = activeQuickTask ? workbenchQuickTaskDetails(activeQuickTask.view, {
+    activeCards,
+    customerCount: data.customers.length,
+    lowStockCount: lowStock.length,
+    onlineRequests,
+    paidRevenue,
+    pendingApprovals,
+    pendingFollowUps,
+    todayAppointments,
+    todayRevenue,
+  }) : undefined;
+  const openQuickTaskView = () => {
+    if (!activeQuickTask) return;
+    const nextView = activeQuickTask.view;
+    setActiveQuickTask(undefined);
+    setView(nextView);
+  };
 
   return (
     <div className="dashboard-page workbench-visual-page">
@@ -2201,7 +2221,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         <PanelTitle icon={<LayoutDashboard size={18} />} title="快捷入口" action="高频操作" />
         <div className="workbench-quick-list">
           {roleTasks.map((item) => (
-            <button key={item.title} onClick={() => setView(item.view)}>
+            <button key={item.title} onClick={() => setActiveQuickTask(item)}>
               <strong>{item.value}</strong>
               <span>{item.title}</span>
               <small>{item.hint}</small>
@@ -2209,8 +2229,174 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
           ))}
         </div>
       </section>
+
+      <Modal
+        open={Boolean(activeQuickTask)}
+        title={activeQuickTask?.title ?? "快捷入口"}
+        subtitle={activeQuickTask?.hint}
+        size="medium"
+        onClose={() => setActiveQuickTask(undefined)}
+        footer={(
+          <>
+            <button type="button" onClick={() => setActiveQuickTask(undefined)}>返回工作台</button>
+            <button type="button" className="primary-button" onClick={openQuickTaskView}>进入完整页面</button>
+          </>
+        )}
+      >
+        {activeQuickTask && quickTaskDetails && (
+          <div className="workbench-dialog-content">
+            <div className={`workbench-dialog-icon ${quickTaskDetails.tone}`}>
+              {quickTaskDetails.icon}
+            </div>
+            <div className="workbench-dialog-summary">
+              <span>{quickTaskDetails.label}</span>
+              <strong>{activeQuickTask.value}</strong>
+              <small>{quickTaskDetails.description}</small>
+            </div>
+            <div className="workbench-dialog-list">
+              {quickTaskDetails.items.map((item) => (
+                <article key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <small>{item.hint}</small>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
+}
+
+type WorkbenchQuickDetailInput = {
+  activeCards: number;
+  customerCount: number;
+  lowStockCount: number;
+  onlineRequests: number;
+  paidRevenue: number;
+  pendingApprovals: number;
+  pendingFollowUps: number;
+  todayAppointments: number;
+  todayRevenue: number;
+};
+
+function workbenchQuickTaskDetails(view: ViewKey, input: WorkbenchQuickDetailInput) {
+  if (view === "appointments") {
+    return {
+      tone: "violet",
+      icon: <CalendarDays size={24} />,
+      label: "预约管理",
+      description: "查看今日预约、房间安排和到店状态。",
+      items: [
+        { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "当前工作台统计" },
+        { label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待转门店预约" },
+        { label: "客户跟进", value: `${input.pendingFollowUps} 位`, hint: "护理后待联系" },
+      ],
+    };
+  }
+  if (view === "pos") {
+    return {
+      tone: "teal",
+      icon: <CreditCard size={24} />,
+      label: "开单收银",
+      description: "进入快速开单或查看订单流水。",
+      items: [
+        { label: "今日实收", value: money(input.todayRevenue), hint: "当天收银汇总" },
+        { label: "累计实收", value: money(input.paidRevenue), hint: "全部订单实收" },
+        { label: "有效项目卡", value: `${input.activeCards} 张`, hint: "可用于卡扣" },
+      ],
+    };
+  }
+  if (view === "customers") {
+    return {
+      tone: "rose",
+      icon: <UsersRound size={24} />,
+      label: "客户档案",
+      description: "维护客户资料、项目次数卡和服务记录。",
+      items: [
+        { label: "客户总数", value: `${input.customerCount} 人`, hint: "当前门店客户档案" },
+        { label: "有效项目卡", value: `${input.activeCards} 张`, hint: "客户资产" },
+        { label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "客户关怀任务" },
+      ],
+    };
+  }
+  if (view === "settings") {
+    return {
+      tone: "amber",
+      icon: <Settings size={24} />,
+      label: "管理中心",
+      description: "房间设置、审批、库存和门店配置集中管理。",
+      items: [
+        { label: "待审批", value: `${input.pendingApprovals} 单`, hint: "退款和改价" },
+        { label: "库存预警", value: `${input.lowStockCount} 项`, hint: "低于安全库存" },
+        { label: "房间设置", value: "独立入口", hint: "房间数量和维护状态" },
+      ],
+    };
+  }
+  if (view === "staff") {
+    return {
+      tone: "amber",
+      icon: <BadgeCent size={24} />,
+      label: "员工结算",
+      description: "查看个人提成、员工提成和结算记录。",
+      items: [
+        { label: "待结事项", value: `${input.pendingApprovals} 项`, hint: "按权限查看" },
+        { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "关联服务" },
+        { label: "累计实收", value: money(input.paidRevenue), hint: "经营参考" },
+      ],
+    };
+  }
+  if (view === "reports") {
+    return {
+      tone: "violet",
+      icon: <ChartNoAxesColumnIncreasing size={24} />,
+      label: "经营报表",
+      description: "查看收入、订单和经营指标。",
+      items: [
+        { label: "今日实收", value: money(input.todayRevenue), hint: "当天收入" },
+        { label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
+        { label: "低库存", value: `${input.lowStockCount} 项`, hint: "经营风险" },
+      ],
+    };
+  }
+  if (view === "approvals") {
+    return {
+      tone: "rose",
+      icon: <ShieldCheck size={24} />,
+      label: "审批中心",
+      description: "处理退款、改价和关键业务审批。",
+      items: [
+        { label: "待审批", value: `${input.pendingApprovals} 单`, hint: "需要处理" },
+        { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "业务参考" },
+        { label: "今日实收", value: money(input.todayRevenue), hint: "财务参考" },
+      ],
+    };
+  }
+  if (view === "inventory") {
+    return {
+      tone: "amber",
+      icon: <PackagePlus size={24} />,
+      label: "库存管理",
+      description: "查看库存预警、采购和出入库记录。",
+      items: [
+        { label: "低库存", value: `${input.lowStockCount} 项`, hint: "低于安全库存" },
+        { label: "今日实收", value: money(input.todayRevenue), hint: "经营参考" },
+        { label: "客户项目卡", value: `${input.activeCards} 张`, hint: "可能影响耗材" },
+      ],
+    };
+  }
+  return {
+    tone: "violet",
+    icon: <LayoutDashboard size={24} />,
+    label: "功能入口",
+    description: "打开对应功能页面继续处理。",
+    items: [
+      { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "工作台统计" },
+      { label: "今日实收", value: money(input.todayRevenue), hint: "工作台统计" },
+      { label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "工作台统计" },
+    ],
+  };
 }
 
 type RoleDashboardInput = {
