@@ -479,6 +479,174 @@ button:disabled {
   pointer-events: none;
 }
 
+.datetime-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(31, 21, 55, 0.28);
+  backdrop-filter: blur(3px);
+}
+
+.datetime-picker-dialog {
+  width: min(520px, calc(100vw - 32px));
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 18px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 92% 10%, rgba(184, 138, 241, 0.2), transparent 34%),
+    #fff;
+  color: var(--yich-ink);
+  box-shadow: 0 28px 80px rgba(53, 31, 105, 0.28);
+}
+
+.datetime-picker-head {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+}
+
+.datetime-picker-head strong {
+  color: var(--purple-dark);
+  font-size: 17px;
+  font-weight: 920;
+  text-align: center;
+}
+
+.datetime-picker-head button,
+.datetime-picker-calendar button,
+.datetime-picker-time button,
+.datetime-picker-actions button {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.datetime-picker-head button {
+  width: 40px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.1);
+  color: var(--purple-dark);
+}
+
+.datetime-picker-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 154px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.datetime-picker-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  align-content: start;
+}
+
+.datetime-picker-calendar span {
+  color: rgba(49, 40, 36, 0.56);
+  font-size: 12px;
+  font-weight: 860;
+  text-align: center;
+}
+
+.datetime-picker-calendar button {
+  min-height: 34px;
+  border-radius: 10px;
+  background: rgba(111, 66, 193, 0.08);
+  color: rgba(49, 40, 36, 0.82);
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.datetime-picker-calendar button.muted {
+  background: rgba(49, 40, 36, 0.04);
+  color: rgba(49, 40, 36, 0.36);
+}
+
+.datetime-picker-calendar button.selected,
+.datetime-picker-time button.selected {
+  background: linear-gradient(135deg, #6f42c1, #9a68e6);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(111, 66, 193, 0.22);
+}
+
+.datetime-picker-time {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.datetime-picker-time > div {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+}
+
+.datetime-picker-time span {
+  color: rgba(49, 40, 36, 0.56);
+  font-size: 12px;
+  font-weight: 860;
+  text-align: center;
+}
+
+.datetime-picker-time > div > div {
+  max-height: 248px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.datetime-picker-time button {
+  min-height: 32px;
+  border-radius: 10px;
+  background: rgba(111, 66, 193, 0.08);
+  color: rgba(49, 40, 36, 0.82);
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.datetime-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.datetime-picker-actions button {
+  min-width: 76px;
+  min-height: 38px;
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.1);
+  color: var(--purple-dark);
+  font-weight: 860;
+}
+
+.datetime-picker-actions button.primary {
+  background: linear-gradient(135deg, #6f42c1, #c74363);
+  color: #fff;
+}
+
+@media (max-width: 560px) {
+  .datetime-picker-body {
+    grid-template-columns: 1fr;
+  }
+
+  .datetime-picker-time {
+    min-height: 180px;
+  }
+}
+
 .form-note {
   margin: 0;
   padding: 10px 12px;
@@ -7425,6 +7593,21 @@ textarea,
   gap: 18px;
 }
 
+.appointment-room-page {
+  min-height: calc(100dvh - 118px);
+  align-content: start;
+}
+
+.appointment-room-page .module-detail-stack {
+  min-height: clamp(620px, calc(100dvh - 270px), 820px);
+  display: flex;
+}
+
+.appointment-room-page .appointment-room-panel.panel {
+  min-height: inherit;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
 .appointment-room-action-row {
   display: flex;
   justify-content: center;
@@ -10343,18 +10526,25 @@ textarea,
 
 .appointment-room-state-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(150px, 1fr));
   gap: 14px;
+  align-items: stretch;
 }
 
 .theme-day .appointment-room-state-card,
 .theme-night .appointment-room-state-card {
-  min-height: 146px;
+  min-height: 154px;
   align-content: space-between;
-  border-color: rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.24);
   background:
-    radial-gradient(circle at 86% 12%, rgba(255, 255, 255, 0.16), transparent 42%),
-    linear-gradient(135deg, rgba(23, 122, 106, 0.96), rgba(95, 196, 170, 0.9));
-  box-shadow: 0 16px 34px rgba(47, 27, 99, 0.18);
+    radial-gradient(circle at 90% 12%, rgba(255, 255, 255, 0.22), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.11));
+  box-shadow:
+    inset 4px 0 0 rgba(113, 231, 207, 0.78),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
 }
 
 .theme-day .appointment-room-state-card strong,
@@ -10372,22 +10562,40 @@ textarea,
 .theme-day .appointment-room-state-card.occupied,
 .theme-night .appointment-room-state-card.occupied {
   background:
-    radial-gradient(circle at 86% 12%, rgba(255, 255, 255, 0.16), transparent 42%),
-    linear-gradient(135deg, rgba(185, 52, 89, 0.96), rgba(239, 160, 173, 0.92));
+    radial-gradient(circle at 90% 12%, rgba(255, 255, 255, 0.2), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.1));
+  box-shadow:
+    inset 4px 0 0 rgba(241, 113, 143, 0.82),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
 }
 
 .theme-day .appointment-room-state-card.maintenance,
 .theme-night .appointment-room-state-card.maintenance {
   background:
-    radial-gradient(circle at 86% 12%, rgba(255, 255, 255, 0.16), transparent 42%),
-    linear-gradient(135deg, rgba(154, 100, 36, 0.96), rgba(230, 189, 111, 0.92));
+    radial-gradient(circle at 90% 12%, rgba(255, 255, 255, 0.2), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.1));
+  box-shadow:
+    inset 4px 0 0 rgba(244, 190, 96, 0.86),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 34px rgba(47, 27, 99, 0.16);
 }
 
 .theme-day .appointment-room-state-card b,
 .theme-night .appointment-room-state-card b {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(40, 148, 127, 0.9);
   color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.theme-day .appointment-room-state-card.occupied b,
+.theme-night .appointment-room-state-card.occupied b {
+  background: rgba(199, 67, 99, 0.92);
+}
+
+.theme-day .appointment-room-state-card.maintenance b,
+.theme-night .appointment-room-state-card.maintenance b {
+  background: rgba(181, 120, 41, 0.94);
 }
 
 .appointment-room-add-button {
@@ -10432,6 +10640,21 @@ textarea,
   box-shadow: none;
 }
 
+.theme-day .appointment-create-panel .datetime-picker-dialog,
+.theme-night .appointment-create-panel .datetime-picker-dialog {
+  color: var(--yich-ink);
+}
+
+.theme-day .appointment-create-panel .datetime-picker-dialog strong,
+.theme-night .appointment-create-panel .datetime-picker-dialog strong {
+  color: var(--purple-dark);
+}
+
+.theme-day .appointment-create-panel .datetime-picker-dialog span,
+.theme-night .appointment-create-panel .datetime-picker-dialog span {
+  color: rgba(49, 40, 36, 0.56);
+}
+
 .theme-day .appointment-create-panel .appointment-room-choice-note,
 .theme-night .appointment-create-panel .appointment-room-choice-note {
   border-color: rgba(255, 255, 255, 0.24);
@@ -10441,6 +10664,7 @@ textarea,
 @media (max-width: 1100px) {
   .appointment-room-state-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
   }
 }
 
