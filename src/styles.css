@@ -12642,25 +12642,25 @@ textarea,
 }
 
 .cashier-module-page.module-hub .module-overview {
-  min-height: clamp(360px, calc(100dvh - 355px), 520px);
-  grid-auto-rows: 1fr;
+  min-height: 0;
+  grid-auto-rows: minmax(236px, auto);
   gap: 18px;
 }
 
 .cashier-module-page.module-hub .module-entry-card {
-  min-height: 320px;
+  min-height: 236px;
   align-content: center;
-  gap: 16px;
-  padding: 34px;
+  gap: 10px;
+  padding: 26px 28px;
 }
 
 .cashier-module-page.module-hub .module-entry-card .admin-module-icon {
-  width: 54px;
-  height: 54px;
+  width: 50px;
+  height: 50px;
 }
 
 .cashier-module-page.module-hub .module-entry-card strong {
-  font-size: 25px;
+  font-size: 24px;
 }
 
 .cashier-module-page.module-hub .module-entry-card small,
@@ -12670,10 +12670,25 @@ textarea,
 }
 
 .cashier-module-page.module-hub .module-entry-card em {
-  margin-top: 8px;
+  margin-top: 4px;
   padding: 8px 13px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.58);
+}
+
+.cashier-module-page.module-hub .module-entry-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.cashier-module-page.module-hub .module-entry-points i {
+  padding: 6px 10px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.46);
+  line-height: 1.2;
 }
 
 @media (max-width: 1200px) {
@@ -12684,7 +12699,7 @@ textarea,
 
   .cashier-module-page.module-hub .module-overview {
     min-height: auto;
-    grid-auto-rows: minmax(260px, auto);
+    grid-auto-rows: minmax(220px, auto);
   }
 }
 
