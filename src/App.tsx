@@ -1394,7 +1394,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "客户档案"}
-        subtitle="处理完成后可直接返回客户页面"
+        subtitle="客户资料、项目卡和服务确认记录"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回客户页面</button>}
@@ -3348,7 +3348,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "开单收银"}
-        subtitle="处理完成后可直接返回收银页面"
+        subtitle="开单收银、支付记录和到店转收银"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回收银页面</button>}
@@ -3732,7 +3732,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "客户档案"}
-        subtitle="处理完成后可直接返回客户页面"
+        subtitle="客户资料、项目卡和服务确认记录"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回客户页面</button>}
@@ -4054,7 +4054,7 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "项目商品"}
-        subtitle="处理完成后可直接返回项目商品页面"
+        subtitle="服务项目、商品耗材和库存关联资料"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回项目商品页面</button>}
@@ -4292,7 +4292,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "人员账号"}
-        subtitle="处理完成后可直接返回人员账号页面"
+        subtitle="员工档案、提成结算和账号信息"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回人员账号页面</button>}
@@ -4562,7 +4562,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "库存管理"}
-        subtitle="处理完成后可直接返回库存管理页面"
+        subtitle="库存预警、出入库流水和采购记录"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回库存管理页面</button>}
@@ -4734,7 +4734,7 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "报表分析"}
-        subtitle="查看完成后可直接返回报表分析页面"
+        subtitle="经营指标、收银流水和财务日结数据"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回报表分析页面</button>}
@@ -4894,7 +4894,7 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "审批中心"}
-        subtitle="处理完成后可直接返回审批中心页面"
+        subtitle="改价退款、待审事项和审批记录"
         size="large"
         onClose={() => setActiveModule(undefined)}
         footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回审批中心页面</button>}

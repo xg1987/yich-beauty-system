@@ -13709,3 +13709,111 @@ textarea,
     margin-top: -18px;
   }
 }
+
+/* Modal detail parity: keep page cards colorful, but modal content stays light, readable, and consistent. */
+.theme-day .system-modal .module-detail-stack > .panel,
+.theme-night .system-modal .module-detail-stack > .panel {
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 10%, rgba(111, 66, 193, 0.08), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(247, 241, 255, 0.9));
+  color: #2f255f;
+  box-shadow: none;
+}
+
+.theme-day .system-modal .module-detail-stack > .panel:nth-child(n),
+.theme-night .system-modal .module-detail-stack > .panel:nth-child(n) {
+  border-color: rgba(111, 66, 193, 0.18);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(111, 66, 193, 0.08), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(247, 241, 255, 0.9));
+}
+
+.theme-day .system-modal .module-detail-stack .panel-title h2,
+.theme-day .system-modal .module-detail-stack .panel-title span,
+.theme-day .system-modal .module-detail-stack .panel-title svg,
+.theme-day .system-modal .module-detail-stack > .panel strong,
+.theme-night .system-modal .module-detail-stack .panel-title h2,
+.theme-night .system-modal .module-detail-stack .panel-title span,
+.theme-night .system-modal .module-detail-stack .panel-title svg,
+.theme-night .system-modal .module-detail-stack > .panel strong {
+  color: #2f255f;
+}
+
+.theme-day .system-modal .module-detail-stack > .panel span,
+.theme-day .system-modal .module-detail-stack > .panel small,
+.theme-day .system-modal .module-detail-stack > .panel p,
+.theme-night .system-modal .module-detail-stack > .panel span,
+.theme-night .system-modal .module-detail-stack > .panel small,
+.theme-night .system-modal .module-detail-stack > .panel p {
+  color: rgba(47, 37, 95, 0.68);
+}
+
+.theme-day .system-modal .module-detail-stack .table-wrap,
+.theme-night .system-modal .module-detail-stack .table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f255f;
+  box-shadow: none;
+}
+
+.theme-day .system-modal .module-detail-stack table,
+.theme-night .system-modal .module-detail-stack table {
+  color: #2f255f;
+}
+
+.theme-day .system-modal .module-detail-stack th,
+.theme-night .system-modal .module-detail-stack th {
+  background: rgba(111, 66, 193, 0.08);
+  color: rgba(47, 37, 95, 0.62);
+}
+
+.theme-day .system-modal .module-detail-stack td,
+.theme-night .system-modal .module-detail-stack td {
+  border-color: rgba(111, 66, 193, 0.1);
+  color: #2f255f;
+}
+
+.theme-day .system-modal .module-detail-stack tr:last-child td,
+.theme-night .system-modal .module-detail-stack tr:last-child td {
+  border-bottom: 0;
+}
+
+.theme-day .system-modal .module-detail-stack .empty,
+.theme-night .system-modal .module-detail-stack .empty {
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(47, 37, 95, 0.64);
+}
+
+.theme-day .system-modal .module-detail-stack .bar-row,
+.theme-night .system-modal .module-detail-stack .bar-row {
+  color: #2f255f;
+}
+
+.theme-day .system-modal .module-detail-stack .bar-row div,
+.theme-night .system-modal .module-detail-stack .bar-row div {
+  background: rgba(111, 66, 193, 0.12);
+}
+
+.theme-day .system-modal .module-detail-stack .bar-row i,
+.theme-night .system-modal .module-detail-stack .bar-row i {
+  background: linear-gradient(90deg, #6f42c1, #2a8f7d);
+}
+
+@media (max-width: 680px) {
+  .theme-day .system-modal .module-detail-stack > .panel,
+  .theme-night .system-modal .module-detail-stack > .panel {
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .theme-day .system-modal .module-detail-stack .table-wrap,
+  .theme-night .system-modal .module-detail-stack .table-wrap {
+    border-radius: 14px;
+  }
+}
