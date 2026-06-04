@@ -13469,3 +13469,243 @@ textarea,
     white-space: nowrap;
   }
 }
+
+/* Desktop density pass: reduce overall scale without changing page structure. */
+@media (min-width: 1181px) {
+  :root {
+    --yich-workbench-width: 1240px;
+    --yich-global-header-height: 78px;
+    --yich-topbar-h: 78px;
+    --yich-bottom-nav-h: 70px;
+    --yich-safe-x: clamp(22px, 3vw, 70px);
+  }
+
+  .app-shell {
+    padding-top: var(--yich-global-header-height);
+  }
+
+  .app-shell .main {
+    padding-top: 14px;
+    padding-right: var(--yich-safe-x);
+    padding-left: var(--yich-safe-x);
+  }
+
+  .app-shell .main > .topbar {
+    min-height: var(--yich-global-header-height);
+    padding-right: 28px;
+    padding-left: 28px;
+  }
+
+  .topbar-brand {
+    gap: 9px;
+  }
+
+  .topbar-brand .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    font-size: 17px;
+  }
+
+  .topbar-brand strong,
+  .topbar-brand span {
+    font-size: 12px;
+  }
+
+  .topbar-actions .icon-button,
+  .topbar-actions .account-avatar-button {
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+  }
+
+  .app-shell .main > .dashboard-page,
+  .app-shell .main > .admin-center-page,
+  .app-shell .main > .page-stack {
+    gap: 14px;
+  }
+
+  .workbench-hero,
+  .page-hero,
+  .platform-admin-page .page-hero,
+  .customer-module-page.module-hub .page-hero,
+  .cashier-module-page.module-hub .page-hero,
+  .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+    height: 154px;
+    min-height: 154px;
+    border-radius: 28px;
+  }
+
+  .workbench-hero {
+    gap: 6px;
+    padding: 20px 26px;
+  }
+
+  .workbench-hero-kicker,
+  .page-hero .eyebrow,
+  .admin-center-page:not(.platform-admin-page) .admin-role-pill {
+    min-height: 28px;
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+
+  .workbench-hero h2,
+  .page-hero h1,
+  .page-hero h2 {
+    font-size: clamp(28px, 3vw, 42px);
+  }
+
+  .workbench-hero p,
+  .page-hero p {
+    font-size: 13px;
+  }
+
+  .workbench-hero small {
+    font-size: 11px;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+    padding: 22px 28px;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-avatar {
+    width: 70px;
+    border-radius: 22px;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
+    font-size: clamp(26px, 2.4vw, 36px);
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-profile-copy p {
+    font-size: 12px;
+  }
+
+  .admin-invite-section {
+    min-height: 76px;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 22px;
+  }
+
+  .admin-invite-card {
+    min-height: 56px;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .admin-invite-code {
+    grid-template-columns: minmax(0, 1fr) 32px 32px;
+    gap: 7px;
+  }
+
+  .admin-invite-code strong,
+  .admin-invite-value {
+    font-size: clamp(19px, 1.8vw, 24px);
+  }
+
+  .admin-invite-code button {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .workbench-metric-row,
+  .module-metric-strip,
+  .admin-center-page:not(.platform-admin-page) .admin-module-grid,
+  .customer-module-page.module-hub .module-overview,
+  .cashier-module-page.module-hub .module-overview {
+    gap: 12px;
+  }
+
+  .workbench-metric-row .dashboard-metric,
+  .module-metric-card {
+    min-height: 78px;
+    padding: 12px 14px;
+  }
+
+  .workbench-metric-row .dashboard-metric strong,
+  .module-metric-card strong {
+    font-size: clamp(20px, 1.7vw, 24px);
+  }
+
+  .module-hub .module-overview,
+  .customer-module-page.module-hub .module-overview,
+  .cashier-module-page.module-hub .module-overview {
+    grid-auto-rows: minmax(150px, auto);
+  }
+
+  .module-entry-card,
+  .customer-module-page.module-hub .module-entry-card,
+  .cashier-module-page.module-hub .module-entry-card,
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card {
+    min-height: 150px;
+    gap: 8px;
+    padding: 18px;
+    border-radius: 14px;
+  }
+
+  .module-entry-card .admin-module-icon,
+  .customer-module-page.module-hub .module-entry-card .admin-module-icon,
+  .cashier-module-page.module-hub .module-entry-card .admin-module-icon,
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card .admin-module-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .module-entry-card strong,
+  .customer-module-page.module-hub .module-entry-card strong,
+  .cashier-module-page.module-hub .module-entry-card strong,
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card strong {
+    font-size: 17px;
+  }
+
+  .module-entry-card small,
+  .module-entry-card em,
+  .customer-module-page.module-hub .module-entry-card small,
+  .customer-module-page.module-hub .module-entry-card em,
+  .cashier-module-page.module-hub .module-entry-card small,
+  .cashier-module-page.module-hub .module-entry-card em,
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card small,
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card em {
+    font-size: 11px;
+  }
+
+  .workbench-panel {
+    gap: 12px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .workbench-quick-panel .workbench-quick-list button {
+    min-height: 108px;
+    padding: 18px;
+  }
+
+  .workbench-quick-list button {
+    min-height: 62px;
+    padding: 12px 14px;
+  }
+
+  .workbar {
+    min-height: var(--yich-bottom-nav-h);
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .workbar button {
+    min-height: 50px;
+    gap: 3px;
+    font-size: 11px;
+  }
+
+  .workbar button.active,
+  .theme-day .workbar button.active,
+  .theme-night .workbar button.active {
+    width: 62px;
+    height: 62px;
+    margin-top: -18px;
+  }
+}
