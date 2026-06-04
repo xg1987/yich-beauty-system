@@ -12,8 +12,6 @@ import type {
   Commission,
   CommissionSettlement,
   DailyClose,
-  DistributionCommission,
-  Distributor,
   InventoryLog,
   MemberCardTransaction,
   OnlineBookingRequest,
@@ -21,7 +19,6 @@ import type {
   OperationLog,
   Order,
   PurchaseOrder,
-  ReferralRelation,
   Refund,
   Service,
   ServiceConsumable,
@@ -421,25 +418,9 @@ export type CheckoutInput = {
   discountAmount?: number;
   adjustmentReason?: string;
   approvalId?: string;
-  distributorId?: string;
   appointmentId?: string;
   payMethod: Order["payMethod"];
   cardId?: string;
-};
-
-export type DistributorInput = {
-  type: Distributor["type"];
-  customerId?: string;
-  staffId?: string;
-  name?: string;
-  phone?: string;
-  rate: number;
-};
-
-export type ReferralRelationInput = {
-  distributorId: string;
-  customerId: string;
-  source?: ReferralRelation["source"];
 };
 
 export type InventoryAdjustmentInput = {
@@ -1920,78 +1901,6 @@ export function accountForInvite(data: AppData, inviteCode: string) {
     ?? data.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode)?.account;
 }
 
-export function createDistributor(
-  data: AppData,
-  input: DistributorInput,
-  options: { idFactory?: IdFactory; now?: () => string } = {},
-): AppData {
-  const idFactory = options.idFactory ?? makeId;
-  const createdAt = (options.now ?? nowIso)();
-  if (input.rate <= 0 || input.rate > 0.5) throw new Error("分销比例必须在 0 到 50% 之间");
-
-  const customer = input.customerId ? data.customers.find((item) => item.id === input.customerId) : undefined;
-  const staff = input.staffId ? data.staff.find((item) => item.id === input.staffId) : undefined;
-  if (input.type === "客户" && !customer) throw new Error("客户分销员不存在");
-  if (input.type === "员工" && !staff) throw new Error("员工分销员不存在");
-  if (input.type === "员工" && staff && !isBusinessStaff(staff)) throw new Error("老板不能设置为员工分销员");
-  if (input.type === "客户" && data.distributors.some((item) => item.customerId === input.customerId && item.status === "启用")) {
-    throw new Error("该客户已是启用分销员");
-  }
-  if (input.type === "员工" && data.distributors.some((item) => item.staffId === input.staffId && item.status === "启用")) {
-    throw new Error("该员工已是启用分销员");
-  }
-
-  const baseName = customer?.name ?? staff?.name ?? input.name;
-  const basePhone = customer?.phone ?? staff?.phone ?? input.phone;
-  if (!baseName || !basePhone) throw new Error("分销员姓名和手机号不能为空");
-
-  const distributor: Distributor = {
-    id: idFactory("ds"),
-    type: input.type,
-    customerId: customer?.id,
-    staffId: staff?.id,
-    name: baseName,
-    phone: basePhone,
-    rate: input.rate,
-    status: "启用",
-    inviteCode: idFactory("share"),
-    createdAt,
-  };
-  return {
-    ...data,
-    distributors: [distributor, ...data.distributors],
-  };
-}
-
-export function bindReferralRelation(
-  data: AppData,
-  input: ReferralRelationInput,
-  options: { idFactory?: IdFactory; now?: () => string } = {},
-): AppData {
-  const idFactory = options.idFactory ?? makeId;
-  const createdAt = (options.now ?? nowIso)();
-  const distributor = data.distributors.find((item) => item.id === input.distributorId && item.status === "启用");
-  if (!distributor) throw new Error("分销员不存在或已停用");
-  if (!data.customers.some((item) => item.id === input.customerId)) throw new Error("客户不存在");
-  if (distributor.customerId === input.customerId) throw new Error("分销员不能绑定自己为客户");
-  if (data.referralRelations.some((item) => item.customerId === input.customerId && item.status === "有效")) {
-    throw new Error("该客户已有有效分销归属");
-  }
-
-  const relation: ReferralRelation = {
-    id: idFactory("rr"),
-    distributorId: distributor.id,
-    customerId: input.customerId,
-    source: input.source ?? "手工绑定",
-    status: "有效",
-    createdAt,
-  };
-  return {
-    ...data,
-    referralRelations: [relation, ...data.referralRelations],
-  };
-}
-
 export function checkoutOrder(
   data: AppData,
   input: CheckoutInput,
@@ -2064,19 +1973,6 @@ export function checkoutOrder(
   if (selectedCard?.type === "储值卡" && selectedCard.balance < paidAmount) {
     throw new Error("会员卡余额不足");
   }
-  const existingReferral = data.referralRelations.find((item) => item.customerId === input.customerId && item.status === "有效");
-  const selectedDistributor = input.distributorId
-    ? data.distributors.find((item) => item.id === input.distributorId)
-    : existingReferral
-      ? data.distributors.find((item) => item.id === existingReferral.distributorId)
-      : undefined;
-  if (input.distributorId && !selectedDistributor) throw new Error("分销员不存在");
-  if (selectedDistributor && selectedDistributor.status !== "启用") {
-    throw new Error("分销员已停用");
-  }
-  if (selectedDistributor?.customerId === input.customerId) {
-    throw new Error("分销员不能给自己产生分销佣金");
-  }
   const order: Order = {
     id: orderId,
     orderNo: `SO${Date.now().toString().slice(-8)}`,
@@ -2090,7 +1986,6 @@ export function checkoutOrder(
     discountAmount: totalDiscount,
     adjustmentReason: input.adjustmentReason,
     approvalId: input.approvalId,
-    distributorId: selectedDistributor?.id,
     appointmentId: appointment?.id,
     payMethod: input.payMethod,
     status: "已支付",
@@ -2184,35 +2079,6 @@ export function checkoutOrder(
     staffCommissionRate(data, input.staffId),
   );
   const commissions: Commission[] = salesCommission ? [salesCommission, ...serviceCommissions] : serviceCommissions;
-  const shouldCreateReferralRelation =
-    selectedDistributor && !existingReferral && !data.referralRelations.some((item) => item.customerId === input.customerId && item.status === "有效");
-  const referralRelations = shouldCreateReferralRelation
-    ? [
-        {
-          id: idFactory("rr"),
-          distributorId: selectedDistributor.id,
-          customerId: input.customerId,
-          source: "手工绑定" as const,
-          status: "有效" as const,
-          createdAt,
-        },
-        ...data.referralRelations,
-      ]
-    : data.referralRelations;
-  const distributionCommission: DistributionCommission | undefined = selectedDistributor
-    ? {
-        id: idFactory("dc"),
-        distributorId: selectedDistributor.id,
-        customerId: input.customerId,
-        orderId,
-        baseAmount: paidAmount,
-        rate: selectedDistributor.rate,
-        amount: Math.round(paidAmount * selectedDistributor.rate),
-        status: "待结算",
-        createdAt,
-      }
-    : undefined;
-
   return {
     ...data,
     products,
@@ -2220,7 +2086,6 @@ export function checkoutOrder(
     inventoryLogs,
     orders: [order, ...data.orders],
     memberCardTransactions,
-    referralRelations,
     customers: data.customers.map((customer) => (customer.id === input.customerId ? { ...customer, lastVisit: createdAt } : customer)),
     appointments: appointment
       ? data.appointments.map((item) =>
@@ -2228,7 +2093,6 @@ export function checkoutOrder(
         )
       : data.appointments,
     commissions: [...commissions, ...data.commissions],
-    distributionCommissions: distributionCommission ? [distributionCommission, ...data.distributionCommissions] : data.distributionCommissions,
   };
 }
 
@@ -2349,15 +2213,6 @@ export function refundOrder(
         : item,
     ),
     commissions: data.commissions.map((item) =>
-      item.orderId === order.id
-        ? {
-            ...item,
-            amount: isFullRefund ? item.amount : Math.round(item.amount * ((order.paidAmount - refundAmount) / order.paidAmount)),
-            status: isFullRefund ? "已冲销" : item.status,
-          }
-        : item,
-    ),
-    distributionCommissions: data.distributionCommissions.map((item) =>
       item.orderId === order.id
         ? {
             ...item,
@@ -3620,40 +3475,11 @@ export function settleCommissions(
   };
 }
 
-export function settleDistributionCommissions(
-  data: AppData,
-  input: SettleCommissionInput,
-  options: { idFactory?: IdFactory; now?: () => string } = {},
-): AppData {
-  const idFactory = options.idFactory ?? makeId;
-  const createdAt = (options.now ?? nowIso)();
-  const pending = data.distributionCommissions.filter((item) => item.status === "待结算");
-  if (!pending.length) throw new Error("暂无待结算分销佣金");
-  const settlementId = idFactory("cs");
-  const settlement: CommissionSettlement = {
-    id: settlementId,
-    type: "分销佣金",
-    commissionIds: pending.map((item) => item.id),
-    amount: pending.reduce((sum, item) => sum + item.amount, 0),
-    count: pending.length,
-    createdBy: input.userId,
-    createdAt,
-  };
-  return {
-    ...data,
-    distributionCommissions: data.distributionCommissions.map((item) =>
-      item.status === "待结算" ? { ...item, status: "已结算", settledAt: createdAt, settlementId } : item,
-    ),
-    commissionSettlements: [settlement, ...data.commissionSettlements],
-  };
-}
-
 export function reportSummary(data: AppData) {
   const revenue = data.orders.reduce((sum, item) => sum + item.paidAmount, 0);
   const refundAmount = data.refunds.reduce((sum, item) => sum + item.amount, 0);
   const cardBalance = data.memberCards.reduce((sum, item) => sum + item.balance, 0);
   const commission = data.commissions.filter((item) => item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0);
-  const distributionCommission = data.distributionCommissions.filter((item) => item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0);
   const serviceCount = data.orders.filter((item) => item.status !== "已退款").length;
 
   return {
@@ -3661,7 +3487,6 @@ export function reportSummary(data: AppData) {
     refundAmount,
     cardBalance,
     commission,
-    distributionCommission,
     serviceCount,
     averageOrderValue: serviceCount ? revenue / serviceCount : 0,
     lowStockCount: data.products.filter((item) => item.stock <= item.warningStock).length,

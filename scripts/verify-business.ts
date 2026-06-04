@@ -6,12 +6,10 @@ import {
   addStaffMember,
   addSupplier,
   adjustInventory,
-  bindReferralRelation,
   checkoutOrder,
   convertOnlineBookingRequest,
   createAppointment,
   createApprovalRequest,
-  createDistributor,
   createDailyClose,
   createOnlineBookingRequest,
   createStaffShift,
@@ -44,7 +42,6 @@ import {
   reverseDailyClose,
   restockLowInventory,
   rescheduleAppointment,
-  settleDistributionCommissions,
   settleCommissions,
   storeStaffInviteCodeForStoreUser,
   transferMemberCard,
@@ -696,23 +693,9 @@ function card(data: AppData, cardId: string) {
 }
 
 {
-  const distributorCreated = createDistributor(
-    cloneSeed(),
-    { type: "员工", staffId: "s3", rate: 0.06 },
-    { idFactory: testId, now: fixedNow },
-  );
-  const distributorId = distributorCreated.distributors[0].id;
-  assert.equal(distributorCreated.distributors[0].name, "阿宁", "distributor should inherit staff profile");
-
-  const relationBound = bindReferralRelation(
-    distributorCreated,
-    { distributorId, customerId: "c3" },
-    { idFactory: testId, now: fixedNow },
-  );
-  assert.equal(relationBound.referralRelations[0].status, "有效", "referral relation should bind customer to distributor");
-
+  const seed = cloneSeed();
   const checkedOut = checkoutOrder(
-    relationBound,
+    seed,
     {
       customerId: "c3",
       staffId: "s2",
@@ -721,26 +704,10 @@ function card(data: AppData, cardId: string) {
     },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(checkedOut.orders[0].distributorId, distributorId, "checkout should use referral distributor");
-  assert.equal(checkedOut.distributionCommissions[0].amount, 24, "checkout should create distribution commission");
-  assert.equal(checkedOut.distributionCommissions[0].status, "待结算", "distribution commission should wait settlement");
-  const settledDistribution = settleDistributionCommissions(checkedOut, { userId: "u_manager" }, { idFactory: testId, now: fixedNow });
-  assert.equal(settledDistribution.commissionSettlements[0].type, "分销佣金", "settlement should create distribution commission batch");
-  assert.equal(settledDistribution.distributionCommissions[0].settlementId, settledDistribution.commissionSettlements[0].id, "distribution settlement should stamp commission records");
-
-  const partialRefund = refundOrder(
-    checkedOut,
-    { orderId: checkedOut.orders[0].id, amount: 100, reason: "客户部分退款", userId: "u_manager" },
-    { idFactory: testId, now: fixedNow },
-  );
-  assert.equal(partialRefund.distributionCommissions[0].amount, 18, "partial refund should reduce distribution commission");
-
-  const fullRefund = refundOrder(
-    checkedOut,
-    { orderId: checkedOut.orders[0].id, reason: "客户全额退款", userId: "u_manager" },
-    { idFactory: testId, now: fixedNow },
-  );
-  assert.equal(fullRefund.distributionCommissions[0].status, "已冲销", "full refund should reverse distribution commission");
+  assert.equal(checkedOut.orders[0].distributorId, undefined, "base checkout should not attach distributor");
+  assert.equal(checkedOut.distributors.length, seed.distributors.length, "base checkout should not create distributors");
+  assert.equal(checkedOut.referralRelations.length, seed.referralRelations.length, "base checkout should not create referral relations");
+  assert.equal(checkedOut.distributionCommissions.length, seed.distributionCommissions.length, "base checkout should not create distribution commissions");
 }
 
 {

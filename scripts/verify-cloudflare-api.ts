@@ -259,32 +259,35 @@ const afterApprovalDecision = await request<AppData>(baseUrl, `/api/approvals/${
 });
 assert.equal(afterApprovalDecision.approvalRequests[0].status, "已通过", "D1 should approve requests");
 
-const afterDistributor = await request<AppData>(baseUrl, "/api/distributors", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { type: "客户", customerId, rate: 0.07 },
-});
-const distributorId = afterDistributor.distributors[0].id;
-assert.equal(afterDistributor.distributors[0].status, "启用", "D1 should create active distributor");
-const afterReferral = await request<AppData>(baseUrl, "/api/referral-relations", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { distributorId, customerId: secondCustomerId },
-});
-assert.equal(afterReferral.referralRelations[0].customerId, secondCustomerId, "D1 should bind referral relation");
-const afterDistributionCheckout = await request<AppData>(baseUrl, "/api/checkout", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { customerId: secondCustomerId, staffId: therapistStaffId, serviceId, payMethod: "微信" },
-});
-assert.equal(afterDistributionCheckout.orders[0].distributorId, distributorId, "D1 checkout should apply referral distributor");
-assert.equal(afterDistributionCheckout.distributionCommissions[0].amount, 28, "D1 should create distribution commission");
-const afterDistributionSettle = await request<AppData>(baseUrl, "/api/distribution-commissions/settle", {
-  method: "POST",
-  token: ownerSession.token,
-});
-assert.equal(afterDistributionSettle.distributionCommissions[0].status, "已结算", "D1 should settle distribution commission");
-assert.equal(afterDistributionSettle.commissionSettlements[0].type, "分销佣金", "D1 should create distribution settlement batch");
+await assert.rejects(
+  () =>
+    request<AppData>(baseUrl, "/api/distributors", {
+      method: "POST",
+      token: ownerSession.token,
+      body: { type: "客户", customerId, rate: 0.07 },
+    }),
+  /Not found/,
+  "D1 base API should not expose distributor creation",
+);
+await assert.rejects(
+  () =>
+    request<AppData>(baseUrl, "/api/referral-relations", {
+      method: "POST",
+      token: ownerSession.token,
+      body: { distributorId: "disabled", customerId: secondCustomerId },
+    }),
+  /Not found/,
+  "D1 base API should not expose referral binding",
+);
+await assert.rejects(
+  () =>
+    request<AppData>(baseUrl, "/api/distribution-commissions/settle", {
+      method: "POST",
+      token: ownerSession.token,
+    }),
+  /Not found/,
+  "D1 base API should not expose distribution settlement",
+);
 
 const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",

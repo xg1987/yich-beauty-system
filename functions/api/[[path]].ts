@@ -9,14 +9,12 @@ import {
   addStaffMember,
   addSupplier,
   adjustInventory,
-  bindReferralRelation,
   cleanupFormalData,
   convertOnlineBookingRequest,
   checkoutOrder,
   createAppointment,
   createOnlineBookingRequest,
   createApprovalRequest,
-  createDistributor,
   createTagDefinition,
   createDailyClose,
   createStaffShift,
@@ -37,7 +35,6 @@ import {
   reverseDailyClose,
   restockLowInventory,
   rescheduleAppointment,
-  settleDistributionCommissions,
   settleCommissions,
   updateAppointmentStatus,
   transferMemberCard,
@@ -567,7 +564,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           discountAmount: optionalNumber(body, "discountAmount"),
           adjustmentReason: optionalString(body, "adjustmentReason"),
           approvalId: optionalString(body, "approvalId"),
-          distributorId: optionalString(body, "distributorId"),
           appointmentId: optionalString(body, "appointmentId"),
           payMethod: requiredString(body, "payMethod") as Order["payMethod"],
           cardId: optionalString(body, "cardId"),
@@ -1238,59 +1234,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(200, scopeDataForSession(nextData, session));
     }
 
-    if (context.request.method === "POST" && pathname === "/api/distributors") {
-      requirePermission(session, "customers:manage");
-      const body = await readJson(context.request);
-      const nextData = updateData(await database.readData(), session, {
-        action: "新增分销员",
-        targetType: "distributor",
-        targetId: "latest",
-        summary: `${session.user.name} 新增分销员`,
-      }, (data) =>
-        createDistributor(data, {
-          type: requiredString(body, "type") as "客户" | "员工",
-          customerId: optionalString(body, "customerId"),
-          staffId: optionalString(body, "staffId"),
-          name: optionalString(body, "name"),
-          phone: optionalString(body, "phone"),
-          rate: requiredNumber(body, "rate"),
-        }),
-      );
-      await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
-    }
-
-    if (context.request.method === "POST" && pathname === "/api/referral-relations") {
-      requirePermission(session, "customers:manage");
-      const body = await readJson(context.request);
-      const nextData = updateData(await database.readData(), session, {
-        action: "绑定分销客户",
-        targetType: "referral",
-        targetId: requiredString(body, "customerId"),
-        summary: `${session.user.name} 绑定分销客户`,
-      }, (data) =>
-        bindReferralRelation(data, {
-          distributorId: requiredString(body, "distributorId"),
-          customerId: requiredString(body, "customerId"),
-          source: optionalString(body, "source") as "手工绑定" | "邀请码" | undefined,
-        }),
-      );
-      await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
-    }
-
-    if (context.request.method === "POST" && pathname === "/api/distribution-commissions/settle") {
-      requirePermission(session, "commissions:settle");
-      const nextData = updateData(await database.readData(), session, {
-        action: "结算分销佣金",
-        targetType: "distributionCommission",
-        targetId: "all",
-        summary: `${session.user.name} 结算全部待结算分销佣金`,
-      }, (data) => settleDistributionCommissions(data, { userId: session.user.id }));
-      await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
-    }
-
     if (context.request.method === "POST" && pathname === "/api/daily-close") {
       requirePermission(session, "reports:view");
       const body = await readJson(context.request);
@@ -1429,6 +1372,10 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     authUsers: data.authUsers.map((user) => ({ ...user, password: "" })),
     storeOwnerApplications: (data.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
     notifications: (data.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
+    distributors: [],
+    referralRelations: [],
+    distributionCommissions: [],
+    commissionSettlements: data.commissionSettlements.filter((item) => item.type !== "分销佣金"),
   };
   if (session.user.role !== "therapist" || !session.user.staffId) {
     return sanitizedData;
@@ -1450,14 +1397,14 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     orders,
     refunds: sanitizedData.refunds.filter((item) => orderIds.has(item.orderId)),
     commissions: sanitizedData.commissions.filter((item) => item.staffId === staffId),
-    distributors: sanitizedData.distributors.filter((item) => item.staffId === staffId || orders.some((order) => order.distributorId === item.id)),
-    referralRelations: sanitizedData.referralRelations.filter((item) => customerIds.has(item.customerId)),
+    distributors: [],
+    referralRelations: [],
     approvalRequests: [],
     authUsers: sanitizedData.authUsers.filter((item) => item.staffId === staffId || item.id === session.user.id),
     staffInvites: [],
     onlineStorefronts: [],
     onlineBookingRequests: sanitizedData.onlineBookingRequests.filter((item) => item.appointmentId && appointmentIds.has(item.appointmentId)),
-    distributionCommissions: sanitizedData.distributionCommissions.filter((item) => orderIds.has(item.orderId)),
+    distributionCommissions: [],
     customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
     customerSignatures: (sanitizedData.customerSignatures ?? []).filter((item) => customerIds.has(item.customerId)),
     customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),

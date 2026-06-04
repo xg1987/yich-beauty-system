@@ -3285,7 +3285,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [discountAmount, setDiscountAmount] = useState(0);
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [approvalId, setApprovalId] = useState("");
-  const [distributorId, setDistributorId] = useState("");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
   const [activeModule, setActiveModule] = useState<"quick" | "orders" | undefined>();
@@ -3302,9 +3301,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
 
   const availableCards = data.memberCards.filter((item) => item.customerId === customerId && item.status === "正常");
   const total = calculateOrderTotal(data, serviceId, productId || undefined);
-  const customerReferral = data.referralRelations.find((relation) => relation.customerId === customerId && relation.status === "有效");
-  const activeDistributors = data.distributors.filter((distributor) => distributor.status === "启用" && distributor.customerId !== customerId);
-  const selectedDistributor = data.distributors.find((distributor) => distributor.id === (distributorId || customerReferral?.distributorId));
   const paidTotal = Math.max(0, total - discountAmount);
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
@@ -3383,7 +3379,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setServiceId(appointment.serviceId);
     setCollaboratorStaffIds([]);
     setCardId("");
-    setDistributorId("");
   };
 
   const checkout = (event: FormEvent) => {
@@ -3398,7 +3393,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
         discountAmount: discountAmount || undefined,
         adjustmentReason: adjustmentReason || undefined,
         approvalId: approvalId || undefined,
-        distributorId: distributorId || undefined,
         appointmentId: appointmentId || undefined,
         payMethod,
         cardId: payMethod === "会员卡" ? cardId : undefined,
@@ -3410,7 +3404,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     setDiscountAmount(0);
     setAdjustmentReason("");
     setApprovalId("");
-    setDistributorId("");
   };
 
   type PosModuleKey = NonNullable<typeof activeModule>;
@@ -3480,7 +3473,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
             ]}
           />
           {appointmentId && <p className="form-note">已带入预约信息，收银完成后预约会自动标记为已完成。</p>}
-          <Select label="客户" value={customerId} onChange={(value) => { clearAppointment(); setCustomerId(value); setCardId(""); setDistributorId(""); }} options={data.customers.map(optionOf)} />
+          <Select label="客户" value={customerId} onChange={(value) => { clearAppointment(); setCustomerId(value); setCardId(""); }} options={data.customers.map(optionOf)} />
           <Select label="服务项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); }} options={data.services.map(optionOf)} />
           <Select
             label="服务员工"
@@ -3500,18 +3493,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           />
           <Select label="附加商品" value={productId} onChange={setProductId} options={[{ value: "", label: "不销售商品" }, ...data.products.filter((item) => item.type === "sale").map(optionOf)]} />
           <Select label="支付方式" value={payMethod} onChange={(value) => setPayMethod(value as Order["payMethod"])} options={["微信", "支付宝", "现金", "银行卡", "会员卡"].map((item) => ({ value: item, label: item }))} />
-          <Select
-            label="分销归属"
-            value={distributorId}
-            onChange={setDistributorId}
-            options={[
-              { value: "", label: customerReferral ? `自动归属：${nameOf(data.distributors, customerReferral.distributorId)}` : "不指定分销员" },
-              ...activeDistributors.map((distributor) => ({
-                value: distributor.id,
-                label: `${distributor.name} · ${distributor.type} · ${Math.round(distributor.rate * 100)}%`,
-              })),
-            ]}
-          />
           {payMethod === "会员卡" && (
             <Select
               label="选择会员卡"
@@ -3547,7 +3528,6 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           <div className="checkout-total">
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
-            {selectedDistributor && <small>分销归属：{selectedDistributor.name}，成交后生成 {Math.round(selectedDistributor.rate * 100)}% 分销佣金</small>}
           </div>
           <button className="primary-button" disabled={!staffId || (payMethod === "会员卡" && !cardId)}>完成收银</button>
         </form>
@@ -4287,15 +4267,11 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const [inviteValidDays, setInviteValidDays] = useState(7);
   const [lastInviteCode, setLastInviteCode] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
-  const [activeModule, setActiveModule] = useState<"profile" | "invite" | "salary" | "settlements" | "commissions" | "distribution" | undefined>();
+  const [activeModule, setActiveModule] = useState<"profile" | "invite" | "salary" | "settlements" | "commissions" | undefined>();
   const editingStaff = staffRows.find((staff) => staff.id === editingStaffId);
 
   const settleAll = () => {
     void runMutation(actions.settleCommissions);
-  };
-
-  const settleDistributionAll = () => {
-    void runMutation(actions.settleDistributionCommissions);
   };
 
   const addStaff = (event: FormEvent) => {
@@ -4363,7 +4339,6 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const activeStaff = staffRows.filter((staff) => staff.status === "active").length;
   const pendingInvites = data.staffInvites.filter((invite) => invite.status === "待加入").length;
   const pendingCommission = data.commissions.filter((item) => staffIds.has(item.staffId) && item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
-  const pendingDistributionCommission = data.distributionCommissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
   const inviteStaffOptions = staffRows
     .filter((staff) => !staff.accountId && !data.authUsers.some((user) => user.staffId === staff.id))
     .map(optionOf);
@@ -4395,7 +4370,6 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     { key: "salary", title: "薪资汇总", desc: "底薪、项目提成和预计薪资", icon: HeartHandshake, tone: "teal", meta: money(pendingCommission) },
     { key: "settlements", title: "结算流水", desc: "批量结算记录和操作人", icon: ClipboardList, tone: "amber", meta: `${data.commissionSettlements.length} 批` },
     { key: "commissions", title: "提成记录", desc: "订单提成、比例和状态", icon: BadgeCent, tone: "violet", meta: `${data.commissions.filter((item) => staffIds.has(item.staffId)).length} 条` },
-    { key: "distribution", title: "分销佣金", desc: "推荐归属和待结佣金", icon: Share2, tone: "teal", meta: money(pendingDistributionCommission) },
   ];
   const activeModuleTitle = activeModule ? staffModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
@@ -4410,7 +4384,6 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           { label: "在职员工", value: `${activeStaff} 人`, hint: `${staffRows.length} 人档案`, icon: <UsersRound size={18} /> },
           { label: "待加入员工", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
           { label: "待结提成", value: money(pendingCommission), hint: "财务待处理", icon: <BadgeCent size={18} /> },
-          { label: "分销佣金", value: money(pendingDistributionCommission), hint: "待财务结算", icon: <Share2 size={18} /> },
         ]}
       />
       <ModuleOverview modules={staffModules} activeKey={activeModule} onSelect={setActiveModule} />
@@ -4606,28 +4579,6 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
             money(item.amount),
             <Badge key={item.id} text={item.status} />,
             item.settlementId ?? "-",
-            shortDate(item.createdAt),
-          ])}
-        />
-        </section>
-        )}
-        {activeModule === "distribution" && (
-        <section className="panel">
-        <PanelTitle
-          icon={<Share2 size={18} />}
-          title="分销佣金"
-          action={hasPermission(session, "commissions:settle") ? <button onClick={settleDistributionAll}>全部结算</button> : "仅查看"}
-        />
-        <DataTable
-          columns={["分销员", "客户", "订单", "计算基数", "比例", "佣金", "状态", "时间"]}
-          rows={data.distributionCommissions.map((item) => [
-            nameOf(data.distributors, item.distributorId),
-            nameOf(data.customers, item.customerId),
-            data.orders.find((order) => order.id === item.orderId)?.orderNo ?? item.orderId,
-            money(item.baseAmount),
-            `${Math.round(item.rate * 100)}%`,
-            money(item.amount),
-            <Badge key={item.id} text={item.status} />,
             shortDate(item.createdAt),
           ])}
         />
@@ -4861,12 +4812,12 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         icon={<ChartNoAxesColumnIncreasing size={15} />}
         eyebrow="报表分析"
         title="报表分析"
-        desc="查看实收、退款、会员储值、员工提成、分销佣金与营业日结。"
+        desc="查看实收、退款、会员储值、员工提成与营业日结。"
         stats={[
           { label: "实收现金流", value: money(summary.revenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
           { label: "项目服务数", value: `${summary.serviceCount} 单`, hint: "已完成收银", icon: <Sparkles size={18} /> },
           { label: "员工提成", value: money(summary.commission), hint: "服务提成合计", icon: <BadgeCent size={18} /> },
-          { label: "分销佣金", value: money(summary.distributionCommission), hint: "转介绍待结算", icon: <Share2 size={18} /> },
+          { label: "会员资产", value: `${activeMembers} 张`, hint: `余额 ${money(summary.cardBalance)}`, icon: <UsersRound size={18} /> },
         ]}
       />
       <ModuleOverview modules={reportModules} activeKey={activeModule} onSelect={setActiveModule} />
