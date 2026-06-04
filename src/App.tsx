@@ -4976,7 +4976,7 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
   const activeModuleTitle = activeModule ? approvalModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack module-hub approvals-module-page">
       <PageHero
         icon={<ShieldCheck size={15} />}
         eyebrow="审批中心"
@@ -4989,8 +4989,15 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
         ]}
       />
       <ModuleOverview modules={approvalModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="审批中心" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "审批中心"}
+        subtitle="处理完成后可直接返回审批中心页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回审批中心页面</button>}
+      >
+      <div className="module-detail-stack approvals-modal-detail">
         {activeModule === "submit" && (
         <section className="panel">
         <PanelTitle icon={<ShieldCheck size={18} />} title="提交审批" action="改价/退款" />
@@ -5029,6 +5036,7 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
         </section>
         )}
       </div>
+      </Modal>
     </div>
   );
 }
