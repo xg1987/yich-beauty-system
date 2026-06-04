@@ -552,10 +552,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const body = await readJson(context.request);
       const nextData = addOperationLog(
         checkoutOrder(await database.readData(), {
-          customerId: requiredString(body, "customerId"),
+          customerId: optionalString(body, "customerId"),
           staffId: requiredString(body, "staffId"),
           collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
-          serviceId: requiredString(body, "serviceId"),
+          serviceId: optionalString(body, "serviceId"),
           productId: optionalString(body, "productId"),
           discountAmount: optionalNumber(body, "discountAmount"),
           adjustmentReason: optionalString(body, "adjustmentReason"),

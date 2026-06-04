@@ -12771,6 +12771,197 @@ textarea,
   line-height: 1.2;
 }
 
+.cashier-workflow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.cashier-workflow-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-height: 152px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-left: 6px solid #6f42c1;
+  border-radius: 18px;
+  padding: 26px 30px;
+  text-align: left;
+  color: #2f255f;
+  box-shadow: 0 18px 44px rgba(58, 41, 91, 0.09);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.cashier-workflow-card:hover,
+.cashier-workflow-card.active {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 54px rgba(58, 41, 91, 0.14);
+}
+
+.cashier-workflow-primary {
+  min-height: 206px;
+  border-color: rgba(207, 65, 104, 0.3);
+  border-left-color: #cf4168;
+  background:
+    radial-gradient(circle at 90% 12%, rgba(207, 65, 104, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 252, 255, 0.98), rgba(255, 232, 240, 0.78));
+}
+
+.cashier-workflow-secondary {
+  min-height: 148px;
+  border-color: rgba(196, 126, 34, 0.32);
+  border-left-color: #c47e22;
+  background:
+    radial-gradient(circle at 90% 12%, rgba(196, 126, 34, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 252, 247, 0.98), rgba(255, 241, 211, 0.82));
+}
+
+.cashier-workflow-card .admin-module-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 15px;
+}
+
+.cashier-workflow-copy {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.cashier-workflow-copy strong {
+  color: #2f255f;
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.cashier-workflow-copy small {
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.cashier-workflow-card em {
+  justify-self: end;
+  align-self: start;
+  min-width: 86px;
+  border-radius: 999px;
+  padding: 9px 15px;
+  background: rgba(255, 255, 255, 0.64);
+  color: #4c2a82;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+
+.cashier-workflow-card .module-entry-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cashier-workflow-card .module-entry-points i {
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.58);
+  color: rgba(47, 37, 95, 0.72);
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.2;
+}
+
+.checkout-mode-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.checkout-segmented.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.checkout-context-note {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-left: 5px solid #cf4168;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(207, 65, 104, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(255, 252, 255, 0.96), rgba(255, 235, 242, 0.76));
+  color: #2f255f;
+}
+
+.checkout-context-note strong {
+  font-size: 15px;
+}
+
+.checkout-context-note span {
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.checkout-customer-search {
+  display: grid;
+  gap: 10px;
+}
+
+.checkout-customer-result-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.checkout-customer-result-list button {
+  min-height: 58px;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-left: 5px solid rgba(111, 66, 193, 0.5);
+  border-radius: 14px;
+  padding: 10px 13px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(111, 66, 193, 0.1), transparent 34%),
+    rgba(255, 255, 255, 0.72);
+  color: #2f255f;
+  text-align: left;
+}
+
+.checkout-customer-result-list button.active {
+  border-left-color: #6f42c1;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(111, 66, 193, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(246, 240, 255, 0.88));
+  box-shadow: 0 12px 24px rgba(58, 41, 91, 0.1);
+}
+
+.checkout-customer-result-list strong {
+  font-size: 14px;
+}
+
+.checkout-customer-result-list span,
+.checkout-customer-empty {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+}
+
+.checkout-customer-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed rgba(111, 66, 193, 0.18);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
 @media (max-width: 1200px) {
   .customer-module-page.module-hub .module-overview {
     min-height: auto;
@@ -12787,6 +12978,25 @@ textarea,
   .customer-module-page.module-hub .module-entry-card,
   .cashier-module-page.module-hub .module-entry-card {
     min-height: 148px;
+  }
+
+  .cashier-workflow-card {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    min-height: 0;
+    padding: 22px;
+  }
+
+  .cashier-workflow-card em {
+    justify-self: start;
+  }
+
+  .cashier-workflow-copy strong {
+    font-size: 22px;
+  }
+
+  .checkout-customer-result-list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -14458,6 +14668,95 @@ textarea,
 .theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.plum .admin-module-icon {
   background: #9d4edd;
   color: #fff;
+}
+
+.theme-night .cashier-workflow-card {
+  border-color: rgba(202, 184, 255, 0.2);
+  background:
+    radial-gradient(circle at 90% 10%, rgba(139, 92, 246, 0.12), transparent 36%),
+    linear-gradient(135deg, rgba(56, 45, 76, 0.9), rgba(40, 32, 56, 0.86));
+  color: var(--night-text);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 18px 42px rgba(15, 10, 24, 0.3);
+}
+
+.theme-night .cashier-workflow-primary {
+  border-color: rgba(239, 116, 150, 0.28);
+  border-left-color: #d04b6f;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(208, 75, 111, 0.18), transparent 36%),
+    linear-gradient(135deg, rgba(66, 41, 62, 0.92), rgba(48, 34, 54, 0.88));
+}
+
+.theme-night .cashier-workflow-secondary {
+  border-color: rgba(219, 166, 84, 0.28);
+  border-left-color: #c28a3d;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(194, 138, 61, 0.18), transparent 36%),
+    linear-gradient(135deg, rgba(66, 51, 47, 0.92), rgba(48, 38, 45, 0.88));
+}
+
+.theme-night .cashier-workflow-copy strong {
+  color: var(--night-text);
+}
+
+.theme-night .cashier-workflow-copy small,
+.theme-night .cashier-workflow-card .module-entry-points i {
+  color: var(--night-muted);
+}
+
+.theme-night .cashier-workflow-card em,
+.theme-night .cashier-workflow-card .module-entry-points i {
+  border-color: rgba(202, 184, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.theme-night .cashier-workflow-card em {
+  color: var(--night-text);
+}
+
+.theme-night .checkout-context-note {
+  border-color: rgba(239, 116, 150, 0.26);
+  border-left-color: #d04b6f;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(208, 75, 111, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(66, 41, 62, 0.9), rgba(48, 34, 54, 0.86));
+  color: var(--night-text);
+}
+
+.theme-night .checkout-context-note strong {
+  color: var(--night-text);
+}
+
+.theme-night .checkout-context-note span {
+  color: var(--night-muted);
+}
+
+.theme-night .checkout-customer-result-list button {
+  border-color: rgba(202, 184, 255, 0.16);
+  border-left-color: rgba(139, 92, 246, 0.62);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.08);
+  color: var(--night-text);
+}
+
+.theme-night .checkout-customer-result-list button.active {
+  border-left-color: #8b5cf6;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(58, 47, 80, 0.9), rgba(42, 34, 60, 0.86));
+}
+
+.theme-night .checkout-customer-result-list span,
+.theme-night .checkout-customer-empty {
+  color: var(--night-muted);
+}
+
+.theme-night .checkout-customer-empty {
+  border-color: rgba(202, 184, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .theme-night .admin-invite-section,

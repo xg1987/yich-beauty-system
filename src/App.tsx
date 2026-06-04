@@ -61,7 +61,7 @@ type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-04";
+const APP_BUILD_DATE = "2026-06-05";
 const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
 const AUTO_THEME_DAY_START_HOUR = 8;
 const AUTO_THEME_NIGHT_START_HOUR = 19;
@@ -3277,6 +3277,9 @@ function Pos({
 }) {
   const serviceStaff = businessStaffOf(data);
   const [appointmentId, setAppointmentId] = useState("");
+  const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("customer");
+  const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product" | "mixed">("service");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
@@ -3291,6 +3294,19 @@ function Pos({
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
   const [activeModule, setActiveModule] = useState<"quick" | "orders" | undefined>(fromManagement ? "quick" : undefined);
   const staffOptions = serviceStaff.map(optionOf);
+  const saleProducts = data.products.filter((item) => item.type === "sale");
+  const firstSaleProductId = saleProducts[0]?.id ?? "";
+  const usesCustomer = checkoutCustomerMode === "customer";
+  const usesService = checkoutContentMode !== "product";
+  const usesProduct = checkoutContentMode !== "service";
+  const selectedCustomer = data.customers.find((item) => item.id === customerId);
+  const normalizedCustomerSearch = customerSearch.trim().toLowerCase();
+  const customerSearchResults = data.customers
+    .filter((customer) => {
+      if (!normalizedCustomerSearch) return true;
+      return `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedCustomerSearch);
+    })
+    .slice(0, 8);
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -3301,8 +3317,28 @@ function Pos({
     });
   }, [serviceStaff, staffId]);
 
-  const availableCards = data.memberCards.filter((item) => item.customerId === customerId && item.status === "正常");
-  const total = calculateOrderTotal(data, serviceId, productId || undefined);
+  useEffect(() => {
+    if (!usesCustomer) {
+      setAppointmentId("");
+      setCardId("");
+      if (payMethod === "会员卡") setPayMethod("微信");
+    }
+    if (!usesService) {
+      setAppointmentId("");
+      setCollaboratorStaffIds([]);
+      setCardId("");
+    }
+    if (usesProduct && !productId && firstSaleProductId) setProductId(firstSaleProductId);
+    if (!usesProduct && productId) setProductId("");
+  }, [firstSaleProductId, payMethod, productId, usesCustomer, usesProduct, usesService]);
+
+  const availableCards = usesCustomer
+    ? data.memberCards.filter((item) => {
+        if (item.customerId !== customerId || item.status !== "正常") return false;
+        return usesService || item.type === "储值卡";
+      })
+    : [];
+  const total = calculateOrderTotal(data, usesService ? serviceId : undefined, usesProduct ? productId || undefined : undefined);
   const paidTotal = Math.max(0, total - discountAmount);
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
@@ -3314,6 +3350,13 @@ function Pos({
 
   const clearAppointment = () => {
     setAppointmentId("");
+  };
+
+  const orderCustomerName = (order: Order) => order.customerId ? nameOf(data.customers, order.customerId) : "散客";
+  const orderItemName = (order: Order) => {
+    const serviceName = order.serviceId ? nameOf(data.services, order.serviceId) : "";
+    const productName = order.productId ? nameOf(data.products, order.productId) : "";
+    return [serviceName !== "-" ? serviceName : "", productName !== "-" ? productName : ""].filter(Boolean).join(" + ") || "产品销售";
   };
 
   // 打印小票功能
@@ -3330,8 +3373,8 @@ function Pos({
         <hr />
         <p>订单号: ${order.orderNo}</p>
         <p>时间: ${new Date(order.createdAt).toLocaleString('zh-CN')}</p>
-        <p>客户: ${customer?.name || ''} (${customer?.phone || ''})</p>
-        <p>服务: ${service?.name || ''}</p>
+        <p>客户: ${customer?.name || '散客'}${customer?.phone ? ` (${customer.phone})` : ''}</p>
+        <p>服务: ${service?.name || '无服务项目'}</p>
         ${product ? `<p>商品: ${product.name} ×1</p>` : ''}
         <p>服务人员: ${staff?.name || ''}</p>
         <hr />
@@ -3376,7 +3419,10 @@ function Pos({
     if (!id) return;
     const appointment = data.appointments.find((item) => item.id === id);
     if (!appointment) return;
+    setCheckoutCustomerMode("customer");
+    setCheckoutContentMode("service");
     setCustomerId(appointment.customerId);
+    setCustomerSearch("");
     setStaffId(appointment.staffId);
     setServiceId(appointment.serviceId);
     setCollaboratorStaffIds([]);
@@ -3387,21 +3433,21 @@ function Pos({
     event.preventDefault();
     void runMutation(() =>
       actions.checkout({
-        customerId,
+        customerId: usesCustomer ? customerId : undefined,
         staffId,
-        collaboratorStaffIds,
-        serviceId,
-        productId: productId || undefined,
+        collaboratorStaffIds: usesService ? collaboratorStaffIds : [],
+        serviceId: usesService ? serviceId : undefined,
+        productId: usesProduct ? productId || undefined : undefined,
         discountAmount: discountAmount || undefined,
         adjustmentReason: adjustmentReason || undefined,
         approvalId: approvalId || undefined,
-        appointmentId: appointmentId || undefined,
+        appointmentId: usesCustomer && usesService ? appointmentId || undefined : undefined,
         payMethod,
-        cardId: payMethod === "会员卡" ? cardId : undefined,
+        cardId: usesCustomer && payMethod === "会员卡" ? cardId : undefined,
       }),
     );
     setAppointmentId("");
-    setProductId("");
+    if (!usesProduct) setProductId("");
     setCollaboratorStaffIds([]);
     setDiscountAmount(0);
     setAdjustmentReason("");
@@ -3413,11 +3459,11 @@ function Pos({
     {
       key: "quick",
       title: "快速开单",
-      desc: "客户、项目、员工和支付",
+      desc: "散客、客户、项目、产品和支付",
       icon: CreditCard,
       tone: "rose",
       meta: "开始收银",
-      points: ["可关联到店预约", "支持会员卡支付", "自动提成与扣库存"],
+      points: ["散客服务", "客户服务", "产品销售", "项目+产品"],
     },
     {
       key: "orders",
@@ -3451,11 +3497,53 @@ function Pos({
           { label: "会员卡可用", value: `${activeCards} 张`, hint: "支持卡扣支付", icon: <BadgeCent size={18} /> },
         ]}
       />
-      {!fromManagement && <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />}
+      {!fromManagement && (
+        <section className="cashier-workflow" aria-label="收银工作区">
+          <button
+            type="button"
+            className={`cashier-workflow-card cashier-workflow-primary ${activeModule === "quick" ? "active" : ""}`}
+            onClick={() => setActiveModule("quick")}
+          >
+            <span className="admin-module-icon rose">
+              <CreditCard size={22} />
+            </span>
+            <span className="cashier-workflow-copy">
+              <strong>快速开单</strong>
+              <small>VIP会员、散客服务、产品销售都从这里完成收款。</small>
+              <span className="module-entry-points">
+                <i>VIP会员</i>
+                <i>散客服务</i>
+                <i>产品销售</i>
+                <i>项目+产品</i>
+              </span>
+            </span>
+            <em>开始收银</em>
+          </button>
+          <button
+            type="button"
+            className={`cashier-workflow-card cashier-workflow-secondary ${activeModule === "orders" ? "active" : ""}`}
+            onClick={() => setActiveModule("orders")}
+          >
+            <span className="admin-module-icon amber">
+              <ClipboardList size={22} />
+            </span>
+            <span className="cashier-workflow-copy">
+              <strong>订单流水</strong>
+              <small>查看最近订单、支付记录、小票和退款入口。</small>
+              <span className="module-entry-points">
+                <i>最近订单</i>
+                <i>支付记录</i>
+                <i>退款从订单进入</i>
+              </span>
+            </span>
+            <em>{data.orders.length} 单</em>
+          </button>
+        </section>
+      )}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "开单收银"}
-        subtitle="开单收银、支付记录和到店转收银"
+        subtitle="VIP会员、散客服务、产品销售和订单记录"
         size="large"
         onClose={closeModule}
       >
@@ -3465,26 +3553,100 @@ function Pos({
         <PanelTitle
           icon={<CreditCard size={18} />}
           title="快速开单"
-          action="可关联预约"
+          action="散客 / 客户 / 产品"
         />
         <form className="form" onSubmit={checkout}>
+          <div className="checkout-mode-panel">
+            <label>开单对象</label>
+            <div className="segmented checkout-segmented two">
+              <button
+                type="button"
+                className={checkoutCustomerMode === "customer" ? "active" : ""}
+                onClick={() => {
+                  setCheckoutCustomerMode("customer");
+                  setCheckoutContentMode("service");
+                }}
+              >
+                老客户
+              </button>
+              <button type="button" className={checkoutCustomerMode === "walkin" ? "active" : ""} onClick={() => setCheckoutCustomerMode("walkin")}>散客</button>
+            </div>
+          </div>
+          <div className="checkout-mode-panel">
+            <label>消费类型</label>
+            <div className="segmented checkout-segmented">
+              <button type="button" className={checkoutContentMode === "service" ? "active" : ""} onClick={() => setCheckoutContentMode("service")}>{usesCustomer ? "VIP会员" : "单次服务"}</button>
+              <button type="button" className={checkoutContentMode === "product" ? "active" : ""} onClick={() => setCheckoutContentMode("product")}>产品购买</button>
+              <button type="button" className={checkoutContentMode === "mixed" ? "active" : ""} onClick={() => setCheckoutContentMode("mixed")}>服务+产品</button>
+            </div>
+          </div>
+          {usesCustomer ? (
+            <div className="checkout-customer-search">
+              <label>
+                客户
+                <input
+                  value={customerSearch}
+                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  placeholder={selectedCustomer ? `${selectedCustomer.name} · ${selectedCustomer.phone}` : "输入客户姓名或手机号搜索"}
+                />
+              </label>
+              <div className="checkout-customer-result-list">
+                {customerSearchResults.length ? customerSearchResults.map((customer) => (
+                  <button
+                    type="button"
+                    key={customer.id}
+                    className={customer.id === customerId ? "active" : ""}
+                    onClick={() => {
+                      clearAppointment();
+                      setCustomerId(customer.id);
+                      setCustomerSearch("");
+                      setCardId("");
+                    }}
+                  >
+                    <strong>{customer.name}</strong>
+                    <span>{customer.phone}</span>
+                  </button>
+                )) : (
+                  <div className="checkout-customer-empty">没有找到客户，可切换为散客开单。</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="checkout-context-note">
+              <strong>散客开单</strong>
+              <span>不绑定客户档案，适合临时到店、单次服务或只购买产品的顾客。</span>
+            </div>
+          )}
+          {usesCustomer && usesService && (
+            <>
+              <Select
+                label="关联到店预约（可选）"
+                value={appointmentId}
+                onChange={useAppointmentForCheckout}
+                options={[
+                  { value: "", label: arrivedAppointments.length ? "不关联预约，直接开单" : "暂无待收银到店预约" },
+                  ...arrivedAppointments.map((appointment) => ({
+                    value: appointment.id,
+                    label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`,
+                  })),
+                ]}
+              />
+              {appointmentId && <p className="form-note">已带入预约信息，收银完成后预约会自动标记为已完成。</p>}
+            </>
+          )}
+          {usesService && (
+            <Select label="服务项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); }} options={data.services.map(optionOf)} />
+          )}
+          {usesProduct && (
+            <Select
+              label={usesService ? "销售商品" : "购买产品"}
+              value={productId}
+              onChange={setProductId}
+              options={saleProducts.length ? saleProducts.map(optionOf) : [{ value: "", label: "请先到项目商品新增产品" }]}
+            />
+          )}
           <Select
-            label="到店预约"
-            value={appointmentId}
-            onChange={useAppointmentForCheckout}
-            options={[
-              { value: "", label: arrivedAppointments.length ? "手工开单，不关联预约" : "暂无待收银到店预约" },
-              ...arrivedAppointments.map((appointment) => ({
-                value: appointment.id,
-                label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`,
-              })),
-            ]}
-          />
-          {appointmentId && <p className="form-note">已带入预约信息，收银完成后预约会自动标记为已完成。</p>}
-          <Select label="客户" value={customerId} onChange={(value) => { clearAppointment(); setCustomerId(value); setCardId(""); }} options={data.customers.map(optionOf)} />
-          <Select label="服务项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); }} options={data.services.map(optionOf)} />
-          <Select
-            label="服务员工"
+            label={usesService ? "服务员工" : "收银员工"}
             value={staffId}
             onChange={(value) => {
               clearAppointment();
@@ -3493,20 +3655,28 @@ function Pos({
             }}
             options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]}
           />
-          <CheckboxGroup
-            label="协作员工"
-            values={collaboratorStaffIds}
-            onChange={setCollaboratorStaffIds}
-            options={serviceStaff.filter((item) => item.id !== staffId).map(optionOf)}
+          {usesService && (
+            <CheckboxGroup
+              label="协作员工"
+              values={collaboratorStaffIds}
+              onChange={setCollaboratorStaffIds}
+              options={serviceStaff.filter((item) => item.id !== staffId).map(optionOf)}
+            />
+          )}
+          <Select
+            label="支付方式"
+            value={payMethod}
+            onChange={(value) => setPayMethod(value as Order["payMethod"])}
+            options={(usesCustomer ? ["微信", "支付宝", "现金", "银行卡", "会员卡"] : ["微信", "支付宝", "现金", "银行卡"]).map((item) => ({ value: item, label: item }))}
           />
-          <Select label="附加商品" value={productId} onChange={setProductId} options={[{ value: "", label: "不销售商品" }, ...data.products.filter((item) => item.type === "sale").map(optionOf)]} />
-          <Select label="支付方式" value={payMethod} onChange={(value) => setPayMethod(value as Order["payMethod"])} options={["微信", "支付宝", "现金", "银行卡", "会员卡"].map((item) => ({ value: item, label: item }))} />
           {payMethod === "会员卡" && (
             <Select
               label="选择会员卡"
               value={cardId}
               onChange={setCardId}
-              options={availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${item.balance ? money(item.balance) : `${item.remainingTimes} 次`}` }))}
+              options={availableCards.length
+                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${item.balance ? money(item.balance) : `${item.remainingTimes} 次`}` }))
+                : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "产品购买仅支持储值卡" }]}
             />
           )}
           <label>
@@ -3537,7 +3707,18 @@ function Pos({
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
           </div>
-          <button className="primary-button" disabled={!staffId || (payMethod === "会员卡" && !cardId)}>完成收银</button>
+          <button
+            className="primary-button"
+            disabled={
+              !staffId
+              || (usesCustomer && !customerId)
+              || (usesService && !serviceId)
+              || (usesProduct && !productId)
+              || (payMethod === "会员卡" && (!usesCustomer || !cardId))
+            }
+          >
+            完成收银
+          </button>
         </form>
         </section>
         )}
@@ -3553,8 +3734,8 @@ function Pos({
           rows={data.orders
             .map((order) => [
             order.orderNo,
-            nameOf(data.customers, order.customerId),
-            nameOf(data.services, order.serviceId),
+            orderCustomerName(order),
+            orderItemName(order),
             nameOf(data.staff, order.staffId),
             order.appointmentId ? "预约到店" : "手工开单",
             order.payMethod,
@@ -3791,7 +3972,7 @@ function Customers({
   const recordOrderOptions = [
     { value: "", label: "不关联订单" },
     ...data.orders
-      .filter((order) => order.customerId === recordCustomerId && !recordLinkedOrderIds.has(order.id) && order.status !== "已退款")
+      .filter((order) => order.customerId === recordCustomerId && order.serviceId && !recordLinkedOrderIds.has(order.id) && order.status !== "已退款")
       .map((order) => ({
         value: order.id,
         label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}${cardConsumptionSummary(order) ? ` · ${cardConsumptionSummary(order)}` : ""}`,
@@ -3809,7 +3990,7 @@ function Customers({
   const signatureOrderOptions = [
     { value: "", label: "不关联订单" },
     ...data.orders
-      .filter((order) => order.customerId === signatureCustomerId && order.status !== "已退款")
+      .filter((order) => order.customerId === signatureCustomerId && order.serviceId && order.status !== "已退款")
       .map((order) => ({
         value: order.id,
         label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}`,

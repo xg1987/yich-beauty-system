@@ -424,10 +424,10 @@ export type AuthUserStatusInput = {
 };
 
 export type CheckoutInput = {
-  customerId: string;
+  customerId?: string;
   staffId: string;
   collaboratorStaffIds?: string[];
-  serviceId: string;
+  serviceId?: string;
   productId?: string;
   discountAmount?: number;
   adjustmentReason?: string;
@@ -668,7 +668,7 @@ export type TagDefinitionUpdateInput = {
   status?: TagDefinition["status"];
 };
 
-export function calculateOrderTotal(data: AppData, serviceId: string, productId?: string) {
+export function calculateOrderTotal(data: AppData, serviceId?: string, productId?: string) {
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedProduct = data.products.find((item) => item.id === productId);
   return (selectedService?.price ?? 0) + (selectedProduct?.price ?? 0);
@@ -1922,7 +1922,11 @@ export function checkoutOrder(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
-  const selectedService = data.services.find((item) => item.id === input.serviceId);
+  const customerId = input.customerId ?? "";
+  const serviceId = input.serviceId ?? "";
+  const selectedCustomer = customerId ? data.customers.find((item) => item.id === customerId) : undefined;
+  const selectedService = serviceId ? data.services.find((item) => item.id === serviceId) : undefined;
+  const selectedProduct = input.productId ? data.products.find((item) => item.id === input.productId) : undefined;
   const selectedStaff = data.staff.find((item) => item.id === input.staffId);
   assertBusinessStaff(selectedStaff);
   (input.collaboratorStaffIds ?? []).forEach((staffId) => {
@@ -1930,8 +1934,20 @@ export function checkoutOrder(
     assertBusinessStaff(collaborator, "协作员工不存在或已停用");
   });
 
-  if (!selectedService) {
+  if (customerId && !selectedCustomer) {
+    throw new Error("客户不存在");
+  }
+  if (serviceId && !selectedService) {
     throw new Error("服务项目不存在");
+  }
+  if (input.productId && !selectedProduct) {
+    throw new Error("销售商品不存在");
+  }
+  if (selectedProduct && selectedProduct.type !== "sale") {
+    throw new Error("只能销售商品，耗材不可直接开单");
+  }
+  if (!selectedService && !selectedProduct) {
+    throw new Error("请选择服务项目或销售商品");
   }
 
   assertBusinessDateOpen(data, currentTime().slice(0, 10));
@@ -1943,7 +1959,7 @@ export function checkoutOrder(
     if (appointment.status !== "已到店") {
       throw new Error("只有已到店预约可以直接收银");
     }
-    if (appointment.customerId !== input.customerId || appointment.staffId !== input.staffId || appointment.serviceId !== input.serviceId) {
+    if (appointment.customerId !== customerId || appointment.staffId !== input.staffId || appointment.serviceId !== serviceId) {
       throw new Error("收银信息与预约不一致");
     }
     if (data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款")) {
@@ -1952,24 +1968,30 @@ export function checkoutOrder(
   }
 
   const selectedCard = input.payMethod === "会员卡"
-    ? data.memberCards.find((item) => item.id === input.cardId && item.customerId === input.customerId)
+    ? data.memberCards.find((item) => item.id === input.cardId && item.customerId === customerId)
     : undefined;
   if (input.payMethod === "会员卡") {
+    if (!customerId) {
+      throw new Error("散客不能使用会员卡支付");
+    }
     if (!selectedCard || selectedCard.status !== "正常") {
       throw new Error("请选择有效会员卡");
+    }
+    if (!selectedService && selectedCard.type !== "储值卡") {
+      throw new Error("次数卡或套餐卡只能用于服务项目");
     }
     if (selectedCard.type !== "储值卡" && selectedCard.remainingTimes <= 0) {
       throw new Error("会员卡次数不足");
     }
-    if (selectedCard.type !== "储值卡" && selectedCard.serviceId && selectedCard.serviceId !== input.serviceId) {
+    if (selectedCard.type !== "储值卡" && selectedCard.serviceId && selectedCard.serviceId !== serviceId) {
       throw new Error("该次数卡不可用于当前项目");
     }
-    if (selectedCard.type !== "储值卡" && selectedCard.serviceIds?.length && !selectedCard.serviceIds.includes(input.serviceId)) {
+    if (selectedCard.type !== "储值卡" && selectedCard.serviceIds?.length && !selectedCard.serviceIds.includes(serviceId)) {
       throw new Error("该套餐卡不可用于当前项目");
     }
   }
 
-  const total = calculateOrderTotal(data, input.serviceId, input.productId);
+  const total = calculateOrderTotal(data, serviceId, input.productId);
   const discountAmount = input.discountAmount ?? 0;
   if (discountAmount < 0) {
     throw new Error("折扣金额无效");
@@ -1990,9 +2012,9 @@ export function checkoutOrder(
   const order: Order = {
     id: orderId,
     orderNo: `SO${Date.now().toString().slice(-8)}`,
-    customerId: input.customerId,
+    customerId,
     staffId: input.staffId,
-    serviceId: input.serviceId,
+    serviceId,
     productId: input.productId,
     cardId: input.payMethod === "会员卡" ? input.cardId : undefined,
     totalAmount: total,
@@ -2006,7 +2028,7 @@ export function checkoutOrder(
     createdAt,
   };
 
-  const serviceConsumption = serviceConsumables(selectedService);
+  const serviceConsumption = selectedService ? serviceConsumables(selectedService) : [];
   const consumptionByProduct = new Map<string, number>();
   for (const item of serviceConsumption) {
     consumptionByProduct.set(item.productId, (consumptionByProduct.get(item.productId) ?? 0) + item.quantity);
@@ -2065,7 +2087,6 @@ export function checkoutOrder(
           ...data.memberCardTransactions,
         ]
       : data.memberCardTransactions;
-  const selectedProduct = input.productId ? data.products.find((item) => item.id === input.productId) : undefined;
   const productCommissionBase = selectedProduct ? Math.round(paidAmount * (selectedProduct.price / total)) : 0;
   const serviceCommissionBase = Math.round(paidAmount) - productCommissionBase;
   const commissionStaffIds = uniqueIds([input.staffId, ...(input.collaboratorStaffIds ?? [])]);
@@ -2100,7 +2121,7 @@ export function checkoutOrder(
     inventoryLogs,
     orders: [order, ...data.orders],
     memberCardTransactions,
-    customers: data.customers.map((customer) => (customer.id === input.customerId ? { ...customer, lastVisit: createdAt } : customer)),
+    customers: data.customers.map((customer) => (customer.id === customerId ? { ...customer, lastVisit: createdAt } : customer)),
     appointments: appointment
       ? data.appointments.map((item) =>
           item.id === appointment.id ? { ...item, status: "已完成", completedAt: createdAt, updatedAt: createdAt } : item,

@@ -95,10 +95,10 @@ export function createApiClient(getToken: () => string | undefined) {
         token: getToken(),
       }),
     checkout: (body: {
-      customerId: string;
+      customerId?: string;
       staffId: string;
       collaboratorStaffIds?: string[];
-      serviceId: string;
+      serviceId?: string;
       productId?: string;
       discountAmount?: number;
       adjustmentReason?: string;
