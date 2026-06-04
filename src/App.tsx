@@ -4644,7 +4644,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
   const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack module-hub inventory-module-page">
       <PageHero
         icon={<Boxes size={15} />}
         eyebrow="库存管理"
@@ -4657,8 +4657,15 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
         ]}
       />
       <ModuleOverview modules={inventoryModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="库存管理" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "库存管理"}
+        subtitle="处理完成后可直接返回库存管理页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回库存管理页面</button>}
+      >
+      <div className="module-detail-stack inventory-modal-detail">
         {activeModule === "adjust" && (
         <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="库存操作" action="入库/报损/盘点" />
@@ -4755,6 +4762,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
         </section>
         )}
       </div>
+      </Modal>
     </div>
   );
 }
