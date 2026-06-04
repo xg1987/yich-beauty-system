@@ -4815,7 +4815,7 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   const activeModuleTitle = activeModule ? reportModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack module-hub reports-module-page">
       <PageHero
         icon={<ChartNoAxesColumnIncreasing size={15} />}
         eyebrow="报表分析"
@@ -4829,8 +4829,15 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         ]}
       />
       <ModuleOverview modules={reportModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="报表分析" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "报表分析"}
+        subtitle="查看完成后可直接返回报表分析页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回报表分析页面</button>}
+      >
+      <div className="module-detail-stack reports-modal-detail">
         {activeModule === "payments" && (
         <section className="panel">
         <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="实收拆分" />
@@ -4929,6 +4936,7 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         </section>
         )}
       </div>
+      </Modal>
     </div>
   );
 }
