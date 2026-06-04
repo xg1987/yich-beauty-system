@@ -601,7 +601,6 @@ function ManagementCenter({
     view?: ViewKey;
     onClick?: () => void;
   };
-  const [activeManagementCard, setActiveManagementCard] = useState<ManagementCard | undefined>();
 
   const platformManagementCards: ManagementCard[] = [
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
@@ -655,13 +654,6 @@ function ManagementCenter({
         ? financeManagementCards
         : staffManagementCards;
   const visibleManagementCards = managementCards.filter((item) => !item.view || canAccessView(session, item.view));
-  const activeManagementDetails = activeManagementCard ? managementEntryDetails(activeManagementCard, data, session) : undefined;
-  const enterManagementCardPage = () => {
-    if (!activeManagementCard?.view) return;
-    const nextView = activeManagementCard.view;
-    setActiveManagementCard(undefined);
-    setView(nextView, { fromAdmin: true });
-  };
 
   return (
     <div className="admin-center-page">
@@ -724,7 +716,7 @@ function ManagementCenter({
             <AdminCenterCard
               key={item.title}
               item={item}
-              onClick={() => item.onClick ? item.onClick() : item.view && setActiveManagementCard(item)}
+              onClick={() => item.onClick ? item.onClick() : item.view && setView(item.view, { fromAdmin: true })}
             />
           ))}
         </div>
@@ -737,41 +729,6 @@ function ManagementCenter({
         onClose={() => setRoomSettingsOpen(false)}
       >
         <RoomSettingsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setRoomSettingsOpen(false)} modal />
-      </Modal>
-      <Modal
-        open={Boolean(activeManagementCard)}
-        title={activeManagementCard?.title ?? "管理入口"}
-        subtitle={activeManagementCard?.desc}
-        size="medium"
-        onClose={() => setActiveManagementCard(undefined)}
-        footer={(
-          <>
-            <button type="button" onClick={() => setActiveManagementCard(undefined)}>取消</button>
-            <button type="button" className="primary-button" onClick={enterManagementCardPage}>进入完整页面</button>
-          </>
-        )}
-      >
-        {activeManagementCard && activeManagementDetails && (
-          <div className="workbench-dialog-content admin-entry-dialog-content">
-            <div className={`workbench-dialog-icon ${activeManagementDetails.tone}`}>
-              {activeManagementDetails.icon}
-            </div>
-            <div className="workbench-dialog-summary">
-              <span>{activeManagementDetails.label}</span>
-              <strong>{activeManagementDetails.value}</strong>
-              <small>{activeManagementDetails.description}</small>
-            </div>
-            <div className="workbench-dialog-list">
-              {activeManagementDetails.items.map((item) => (
-                <article key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                  <small>{item.hint}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
       </Modal>
     </div>
   );
@@ -2294,9 +2251,7 @@ function workbarForView(view: ViewKey): WorkbarKey {
 }
 
 function Dashboard({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
-  type DashboardQuickTask = ReturnType<typeof roleHomeCards>[number];
   const paidRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
-  const [activeQuickTask, setActiveQuickTask] = useState<DashboardQuickTask | undefined>();
   const today = new Date();
   const todayAppointmentsList = data.appointments
     .filter((item) => new Date(item.startAt).toDateString() === today.toDateString())
@@ -2346,23 +2301,6 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     : isOrdinaryEmployee
       ? `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 客户 ${data.customers.length}`
       : `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 营业额 ${money(todayRevenue)}`;
-  const quickTaskDetails = activeQuickTask ? workbenchQuickTaskDetails(activeQuickTask.view, {
-    activeCards,
-    customerCount: data.customers.length,
-    lowStockCount: lowStock.length,
-    onlineRequests,
-    paidRevenue,
-    pendingApprovals,
-    pendingFollowUps,
-    todayAppointments,
-    todayRevenue,
-  }) : undefined;
-  const openQuickTaskView = () => {
-    if (!activeQuickTask) return;
-    const nextView = activeQuickTask.view;
-    setActiveQuickTask(undefined);
-    setView(nextView);
-  };
 
   return (
     <div className="dashboard-page workbench-visual-page">
@@ -2418,7 +2356,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         <PanelTitle icon={<LayoutDashboard size={18} />} title="快捷入口" action="高频操作" />
         <div className="workbench-quick-list">
           {roleTasks.map((item) => (
-            <button key={item.title} onClick={() => setActiveQuickTask(item)}>
+            <button key={item.title} onClick={() => setView(item.view)}>
               <strong>{item.value}</strong>
               <span>{item.title}</span>
               <small>{item.hint}</small>
@@ -2426,42 +2364,6 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
           ))}
         </div>
       </section>
-
-      <Modal
-        open={Boolean(activeQuickTask)}
-        title={activeQuickTask?.title ?? "快捷入口"}
-        subtitle={activeQuickTask?.hint}
-        size="medium"
-        onClose={() => setActiveQuickTask(undefined)}
-        footer={(
-          <>
-            <button type="button" onClick={() => setActiveQuickTask(undefined)}>返回工作台</button>
-            <button type="button" className="primary-button" onClick={openQuickTaskView}>进入完整页面</button>
-          </>
-        )}
-      >
-        {activeQuickTask && quickTaskDetails && (
-          <div className="workbench-dialog-content">
-            <div className={`workbench-dialog-icon ${quickTaskDetails.tone}`}>
-              {quickTaskDetails.icon}
-            </div>
-            <div className="workbench-dialog-summary">
-              <span>{quickTaskDetails.label}</span>
-              <strong>{activeQuickTask.value}</strong>
-              <small>{quickTaskDetails.description}</small>
-            </div>
-            <div className="workbench-dialog-list">
-              {quickTaskDetails.items.map((item) => (
-                <article key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                  <small>{item.hint}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }
