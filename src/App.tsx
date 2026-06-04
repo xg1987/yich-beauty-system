@@ -426,7 +426,7 @@ export default function App() {
     <div className={`app-shell theme-${effectiveThemeMode}`}>
       <aside className="sidebar">
         <div className="rail-admin">
-          <div className="brand-mark">D</div>
+          <div className="brand-mark">祝</div>
           <div>
             <strong>{shellRoleLabel[session.user.role]}</strong>
             <span>{shellDisplayName}</span>
@@ -436,14 +436,14 @@ export default function App() {
       <main className="main">
         <header className="topbar">
           <div className="topbar-brand">
-            <div className="brand-mark">D</div>
+            <div className="brand-mark">祝</div>
             <div>
               <strong>{shellRoleLabel[session.user.role]}</strong>
               <span>{shellDisplayName}</span>
             </div>
           </div>
           <div className="topbar-title">
-            <p>一宸 YiCh 美业门店系统</p>
+              <p>祝融｜坤锋 美业门店系统</p>
           </div>
           <div className="topbar-actions" ref={topbarActionsRef}>
             {error && <span className="error-chip">{error}</span>}
@@ -3236,7 +3236,7 @@ function Pos({
 
     const printContent = `
       <div style="font-family: monospace; padding: 20px; max-width: 300px; margin: 0 auto;">
-        <h2 style="text-align: center; margin: 0;">${data.storeProfiles[0]?.name || '一宸美业'}</h2>
+        <h2 style="text-align: center; margin: 0;">${data.storeProfiles[0]?.name || '祝融｜坤锋美业'}</h2>
         <p style="text-align: center; margin: 4px 0; font-size: 12px;">${data.storeProfiles[0]?.phone || ''}</p>
         <hr />
         <p>订单号: ${order.orderNo}</p>
@@ -4029,6 +4029,7 @@ function Catalog({
   const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
+  const [showServiceCreate, setShowServiceCreate] = useState(false);
   const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList" | undefined>(fromManagement ? "serviceList" : undefined);
   const consumableOptions = data.products
     .filter((product) => product.type === "consumable")
@@ -4051,6 +4052,7 @@ function Catalog({
     setServiceName("");
     setServiceConsumableProductId("");
     setServiceConsumableQty(1);
+    setShowServiceCreate(false);
   };
 
   const selectedRecipeService = data.services.find((service) => service.id === recipeServiceId);
@@ -4165,7 +4167,19 @@ function Catalog({
         )}
         {activeModule === "serviceList" && (
         <section className="panel">
-        <PanelTitle icon={<Sparkles size={18} />} title="项目目录" action={`${data.services.length} 个服务项目`} />
+        <PanelTitle
+          icon={<Sparkles size={18} />}
+          title="项目目录"
+          action={
+            <div className="module-panel-actions">
+              <span>{data.services.length} 个服务项目</span>
+              <button type="button" onClick={() => setShowServiceCreate((visible) => !visible)}>
+                {showServiceCreate ? "收起新增" : "新增项目"}
+              </button>
+            </div>
+          }
+        />
+          {(showServiceCreate || data.services.length === 0) && (
           <div className="catalog-inline-control">
             <div>
               <strong>新增项目</strong>
@@ -4187,14 +4201,18 @@ function Catalog({
               <button className="primary-button">保存项目</button>
             </form>
           </div>
+          )}
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "耗材配方"]}
+            columns={["项目", "分类", "价格", "时长", "耗材配方", "操作"]}
             rows={data.services.map((item) => [
               item.name,
               item.category,
               money(item.price),
               `${item.duration} 分钟`,
               serviceFormulaSummary(item, data.products),
+              <button key={`${item.id}-recipe`} type="button" onClick={() => { setRecipeServiceId(item.id); setActiveModule("recipe"); }}>
+                配方
+              </button>,
             ])}
           />
         </section>
@@ -4610,11 +4628,43 @@ function Inventory({
   const [unitCost, setUnitCost] = useState(68);
   const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
   const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
+  const [newInventoryProductName, setNewInventoryProductName] = useState("");
+  const [newInventoryProductType, setNewInventoryProductType] = useState<Product["type"]>("consumable");
+  const [newInventoryProductUnit, setNewInventoryProductUnit] = useState("件");
+  const [newInventoryProductStock, setNewInventoryProductStock] = useState(10);
+  const [newInventoryWarningStock, setNewInventoryWarningStock] = useState(5);
+  const [showInventoryCreate, setShowInventoryCreate] = useState(false);
+  const [showInventoryStockIn, setShowInventoryStockIn] = useState(false);
   const [activeModule, setActiveModule] = useState<"adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs" | undefined>(fromManagement ? "list" : undefined);
 
   const changeStock = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() => actions.adjustInventory({ productId, type, quantity }));
+  };
+
+  const addInventoryProduct = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.addProduct({
+        name: newInventoryProductName,
+        stock: newInventoryProductStock,
+        type: newInventoryProductType,
+        unit: newInventoryProductUnit,
+        warningStock: newInventoryWarningStock,
+      }),
+    );
+    setNewInventoryProductName("");
+    setNewInventoryProductStock(10);
+    setNewInventoryWarningStock(5);
+    setShowInventoryCreate(false);
+  };
+
+  const openInventoryStockChange = (nextProductId: string, nextType: InventoryLog["type"] = "入库") => {
+    setProductId(nextProductId);
+    setType(nextType);
+    setQuantity(1);
+    setShowInventoryStockIn(true);
+    setShowInventoryCreate(false);
   };
 
   const addSupplier = (event: FormEvent) => {
@@ -4725,21 +4775,77 @@ function Inventory({
         )}
         {activeModule === "list" && (
         <section className="panel">
-        <PanelTitle icon={<Boxes size={18} />} title="库存列表" action="低库存自动标记" />
+        <PanelTitle
+          icon={<Boxes size={18} />}
+          title="库存列表"
+          action={
+            <div className="module-panel-actions">
+              <span>低库存自动标记</span>
+              <button type="button" onClick={() => { setShowInventoryCreate((visible) => !visible); setShowInventoryStockIn(false); }}>
+                {showInventoryCreate ? "收起新增" : "新增物品"}
+              </button>
+              <button type="button" onClick={() => { setShowInventoryStockIn((visible) => !visible); setShowInventoryCreate(false); }} disabled={data.products.length === 0}>
+                入库
+              </button>
+            </div>
+          }
+        />
+        {(showInventoryCreate || data.products.length === 0) && (
+          <div className="catalog-inline-control inventory-inline-control">
+            <div>
+              <strong>新增物品</strong>
+              <span>录入商品、耗材、单位、初始库存和预警库存</span>
+            </div>
+            <form className="form catalog-inline-form" onSubmit={addInventoryProduct}>
+              <label>物品名称<input value={newInventoryProductName} onChange={(event) => setNewInventoryProductName(event.target.value)} required /></label>
+              <Select
+                label="物品类型"
+                value={newInventoryProductType}
+                onChange={(value) => setNewInventoryProductType(value as Product["type"])}
+                options={[
+                  { value: "consumable", label: "服务耗材" },
+                  { value: "sale", label: "销售商品" },
+                ]}
+              />
+              <label>单位<input value={newInventoryProductUnit} onChange={(event) => setNewInventoryProductUnit(event.target.value)} required /></label>
+              <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(Number(event.target.value))} /></label>
+              <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(Number(event.target.value))} /></label>
+              <button className="primary-button">保存物品</button>
+            </form>
+          </div>
+        )}
+        {showInventoryStockIn && data.products.length > 0 && (
+          <div className="catalog-inline-control inventory-inline-control">
+            <div>
+              <strong>{type === "入库" ? "物品入库" : "库存调整"}</strong>
+              <span>选择已有物品后记录入库、报损或盘点调整流水</span>
+            </div>
+            <form className="form catalog-inline-form" onSubmit={changeStock}>
+              <Select label="商品/耗材" value={productId} onChange={setProductId} options={data.products.map(optionOf)} />
+              <Select label="操作类型" value={type} onChange={(value) => setType(value as InventoryLog["type"])} options={["入库", "报损", "盘点调整"].map((item) => ({ value: item, label: item }))} />
+              <label>数量<input type="number" min={0.01} step={0.01} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
+              <button className="primary-button">保存库存流水</button>
+            </form>
+          </div>
+        )}
         {lowStock > 0 && (
-          <div style={{margin: '8px 0', padding: '8px 12px', background: '#fff3cd', borderRadius: 6, fontSize: 14}}>
+          <div className="inventory-warning-row">
             <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
-            <button style={{marginLeft: 12}} onClick={restockLowInventory}>一键补货入库</button>
+            <button type="button" onClick={restockLowInventory}>一键补货入库</button>
           </div>
         )}
         <DataTable
-          columns={["名称", "类型", "库存", "预警", "状态"]}
+          columns={["名称", "类型", "库存", "预警", "状态", "操作"]}
           rows={data.products.map((item) => [
             item.name,
             item.type === "sale" ? "销售商品" : "服务耗材",
             `${item.stock}${item.unit}`,
             `${item.warningStock}${item.unit}`,
             <Badge key={item.id} text={item.stock <= item.warningStock ? "需补货" : "正常"} tone={item.stock <= item.warningStock ? "warn" : "ok"} />,
+            <div key={`${item.id}-actions`} className="inventory-row-actions">
+              <button type="button" onClick={() => openInventoryStockChange(item.id, "入库")}>入库</button>
+              <button type="button" onClick={() => openInventoryStockChange(item.id, "报损")}>报损</button>
+            </div>,
           ])}
         />
         </section>
@@ -5497,8 +5603,8 @@ function SettingsView({
       </div>
 
       <footer className="settings-version" aria-label="软件版本">
-        <strong>一宸 YiCh 美业门店系统 · v{APP_VERSION}</strong>
-        <span>© 2026 一宸 YiCh · 构建于 {APP_BUILD_DATE}</span>
+        <strong>祝融｜坤锋 美业门店系统 · v{APP_VERSION}</strong>
+        <span>© 2026 祝融｜坤锋 · 构建于 {APP_BUILD_DATE}</span>
       </footer>
     </div>
   );

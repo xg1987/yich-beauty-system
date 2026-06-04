@@ -77,9 +77,9 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
         <div className="login-unified-card">
           <div className="login-hero">
             <div className="login-brand">
-              <div className="brand-mark">D</div>
+              <div className="brand-mark">祝</div>
               <div>
-                <strong>一宸 YiCh 美业门店系统</strong>
+                <strong>祝融｜坤锋 美业门店系统</strong>
                 <span>门店经营管理平台</span>
               </div>
             </div>

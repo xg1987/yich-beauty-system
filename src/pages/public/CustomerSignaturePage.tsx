@@ -107,7 +107,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
     <div className="public-store-page signature-page">
       <main className="public-store-shell">
         <section className="public-store-hero signature-hero">
-          <div className="public-store-mark">D</div>
+          <div className="public-store-mark">祝</div>
           <span>客户确认签名</span>
           <h1>{signature?.title ?? "客户服务确认"}</h1>
           <p>{payload?.customer ? `${payload.customer.name} · ${payload.customer.phone}` : "请核对服务内容后签名确认"}</p>

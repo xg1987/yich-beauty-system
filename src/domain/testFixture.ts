@@ -6,7 +6,7 @@ export const testFixtureData: AppData = {
   storeProfiles: [
     {
       id: "store1",
-      name: "一宸 YiCh 美学门店",
+      name: "祝融｜坤锋美学门店",
       phone: "021-8888-0000",
       address: "上海市静安区示例路 88 号",
       businessHours: "10:00 - 21:00",
@@ -20,7 +20,7 @@ export const testFixtureData: AppData = {
       storeId: "store1",
       shareCode: "yich-store",
       status: "启用",
-      headline: "一宸 YiCh 美业门店系统",
+      headline: "祝融｜坤锋 美业门店系统",
       description: "线上查看项目并提交到店预约意向",
       enabledServiceIds: ["v1", "v2", "v3"],
       createdAt: nowIso(),
@@ -154,7 +154,7 @@ export const testFixtureData: AppData = {
       phone: "13600000001",
       rate: 0.08,
       status: "启用",
-      inviteCode: "YICH-C1",
+      inviteCode: "ZRKF-C1",
       createdAt: nowIso(),
     },
   ],
@@ -184,7 +184,7 @@ export const testFixtureData: AppData = {
   customerSignatures: [],
   customerFollowUps: [],
   suppliers: [
-    { id: "sp1", name: "一宸耗材供应商", phone: "021-6666-0000", contact: "张经理", status: "active" },
+    { id: "sp1", name: "祝融｜坤锋耗材供应商", phone: "021-6666-0000", contact: "张经理", status: "active" },
   ],
   purchaseOrders: [],
   stocktakes: [],

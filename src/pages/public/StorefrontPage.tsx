@@ -83,9 +83,9 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
     <div className="public-store-page">
       <main className="public-store-shell">
         <section className="public-store-hero">
-          <div className="public-store-mark">D</div>
-          <span>{payload?.store?.name ?? "一宸 YiCh"}</span>
-          <h1>{payload?.storefront.headline ?? "一宸 YiCh 美业门店系统"}</h1>
+          <div className="public-store-mark">祝</div>
+          <span>{payload?.store?.name ?? "祝融｜坤锋"}</span>
+          <h1>{payload?.storefront.headline ?? "祝融｜坤锋 美业门店系统"}</h1>
           <p>{payload?.storefront.description ?? "门店经营管理平台"}</p>
         </section>
         <section className="public-store-panel">

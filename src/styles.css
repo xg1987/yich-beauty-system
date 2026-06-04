@@ -3310,7 +3310,7 @@ html[data-theme="day"],
   box-shadow: 0 14px 32px rgba(150, 54, 77, 0.24);
 }
 
-/* YiCh final brand pass: topbar is logo-only, purple is the product primary color. */
+/* Final brand pass: topbar is logo-only, purple is the product primary color. */
 :root {
   --yich-purple: #6f42c1;
   --yich-purple-deep: #45257f;
@@ -13849,6 +13849,47 @@ textarea,
   background: linear-gradient(90deg, #6f42c1, #2a8f7d);
 }
 
+.module-panel-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.module-panel-actions span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.module-panel-actions button,
+.inventory-row-actions button,
+.inventory-warning-row button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 11px;
+  background: rgba(111, 66, 193, 0.1);
+  color: #45257f;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.module-panel-actions button:hover,
+.module-panel-actions button:focus-visible,
+.inventory-row-actions button:hover,
+.inventory-row-actions button:focus-visible,
+.inventory-warning-row button:hover,
+.inventory-warning-row button:focus-visible {
+  border-color: rgba(111, 66, 193, 0.34);
+  background: rgba(111, 66, 193, 0.16);
+  outline: none;
+}
+
 .catalog-inline-control {
   display: grid;
   gap: 14px;
@@ -13891,6 +13932,45 @@ textarea,
   min-height: 44px;
 }
 
+.inventory-inline-control {
+  border-color: rgba(42, 143, 125, 0.18);
+  background:
+    radial-gradient(circle at 92% 6%, rgba(42, 143, 125, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.72);
+}
+
+.inventory-warning-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(185, 149, 85, 0.24);
+  border-radius: 14px;
+  background: rgba(255, 248, 232, 0.82);
+  color: #5f3a0a;
+  font-size: 14px;
+}
+
+.inventory-warning-row strong {
+  color: #5f3a0a;
+}
+
+.inventory-warning-row button {
+  border-color: rgba(185, 149, 85, 0.28);
+  background: rgba(185, 149, 85, 0.12);
+  color: #5f3a0a;
+}
+
+.inventory-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 1023px) {
   .catalog-inline-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -13910,6 +13990,11 @@ textarea,
 
   .catalog-inline-form {
     grid-template-columns: 1fr;
+  }
+
+  .module-panel-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 }
 
