@@ -500,13 +500,13 @@ export default function App() {
             )}
             {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && (isPlatformAdmin ? <PlatformAppointmentsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Appointments data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Pos data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "customers" && (isPlatformAdmin ? <PlatformCustomersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Customers data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "catalog" && (isPlatformAdmin ? <PlatformCatalogReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Catalog data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "staff" && (isPlatformAdmin ? <PlatformStaffReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} />)}
-            {activeView === "inventory" && (isPlatformAdmin ? <PlatformInventoryReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Inventory data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "reports" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Reports data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Approvals data={data} actions={actions} runMutation={runMutation} />)}
+            {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
+            {activeView === "customers" && (isPlatformAdmin ? <PlatformCustomersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
+            {activeView === "catalog" && (isPlatformAdmin ? <PlatformCatalogReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
+            {activeView === "staff" && (isPlatformAdmin ? <PlatformStaffReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
+            {activeView === "inventory" && (isPlatformAdmin ? <PlatformInventoryReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
+            {activeView === "reports" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Reports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
+            {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Approvals data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
             {activeView === "logs" && (isPlatformAdmin ? <PlatformAuditReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
@@ -1397,7 +1397,6 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
         subtitle="客户资料、项目卡和服务确认记录"
         size="large"
         onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回客户页面</button>}
       >
       <div className="module-detail-stack customer-modal-detail">
         {activeModule === "profile" && (
@@ -3174,7 +3173,19 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   );
 }
 
-function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+function Pos({
+  data,
+  actions,
+  runMutation,
+  fromManagement = false,
+  onReturnManagement,
+}: {
+  data: AppData;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  fromManagement?: boolean;
+  onReturnManagement?: () => void;
+}) {
   const serviceStaff = businessStaffOf(data);
   const [appointmentId, setAppointmentId] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
@@ -3189,7 +3200,7 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   const [approvalId, setApprovalId] = useState("");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
-  const [activeModule, setActiveModule] = useState<"quick" | "orders" | undefined>();
+  const [activeModule, setActiveModule] = useState<"quick" | "orders" | undefined>(fromManagement ? "quick" : undefined);
   const staffOptions = serviceStaff.map(optionOf);
 
   useEffect(() => {
@@ -3330,6 +3341,13 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
     },
   ];
   const activeModuleTitle = activeModule ? posModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const closeModule = () => {
+    if (fromManagement && onReturnManagement) {
+      onReturnManagement();
+      return;
+    }
+    setActiveModule(undefined);
+  };
 
   return (
     <div className="page-stack cashier-module-page module-hub">
@@ -3344,14 +3362,13 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
           { label: "会员卡可用", value: `${activeCards} 张`, hint: "支持卡扣支付", icon: <BadgeCent size={18} /> },
         ]}
       />
-      <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!fromManagement && <ModuleOverview modules={posModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "开单收银"}
         subtitle="开单收银、支付记录和到店转收银"
         size="large"
-        onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回收银页面</button>}
+        onClose={closeModule}
       >
       <div className="module-detail-stack cashier-modal-detail">
         {activeModule === "quick" && (
@@ -3497,7 +3514,19 @@ function Pos({ data, actions, runMutation }: { data: AppData; actions: ApiAction
   );
 }
 
-function Customers({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+function Customers({
+  data,
+  actions,
+  runMutation,
+  fromManagement = false,
+  onReturnManagement,
+}: {
+  data: AppData;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  fromManagement?: boolean;
+  onReturnManagement?: () => void;
+}) {
   const serviceStaff = businessStaffOf(data);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -3531,7 +3560,7 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   const [signatureTitle, setSignatureTitle] = useState("服务完成确认签名");
   const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务已完成，服务项目、项目卡核销和服务档案内容无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
-  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>();
+  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>(fromManagement ? "profile" : undefined);
 
   useEffect(() => {
     if (recordOrderId && !data.orders.some((order) => order.id === recordOrderId && order.customerId === recordCustomerId)) {
@@ -3714,6 +3743,13 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
     { key: "signature", title: "服务确认签名", desc: "客户到店后用平板现场签名", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const closeModule = () => {
+    if (fromManagement && onReturnManagement) {
+      onReturnManagement();
+      return;
+    }
+    setActiveModule(undefined);
+  };
 
   return (
     <div className="page-stack customer-module-page module-hub">
@@ -3728,14 +3764,13 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
           { label: "待签名", value: `${pendingSignatures} 份`, hint: "服务完成确认", icon: <LockKeyhole size={18} /> },
         ]}
       />
-      <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!fromManagement && <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "客户档案"}
         subtitle="客户资料、项目卡和服务确认记录"
         size="large"
-        onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回客户页面</button>}
+        onClose={closeModule}
       >
       <div className="module-detail-stack customer-modal-detail">
         {activeModule && (
@@ -3971,7 +4006,19 @@ function Customers({ data, actions, runMutation }: { data: AppData; actions: Api
   );
 }
 
-function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+function Catalog({
+  data,
+  actions,
+  runMutation,
+  fromManagement = false,
+  onReturnManagement,
+}: {
+  data: AppData;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  fromManagement?: boolean;
+  onReturnManagement?: () => void;
+}) {
   const [serviceName, setServiceName] = useState("");
   const [servicePrice, setServicePrice] = useState(398);
   const [serviceDuration, setServiceDuration] = useState(60);
@@ -3982,7 +4029,7 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
-  const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList" | undefined>();
+  const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList" | undefined>(fromManagement ? "serviceList" : undefined);
   const consumableOptions = data.products
     .filter((product) => product.type === "consumable")
     .map((product) => ({ value: product.id, label: `${product.name} · ${product.stock}${product.unit}` }));
@@ -4036,6 +4083,13 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
     { key: "formulaList", title: "配方总览", desc: "查看项目对应耗材消耗", icon: PackagePlus, tone: "plum", meta: "扣库存规则" },
   ];
   const activeModuleTitle = activeModule ? catalogModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const closeModule = () => {
+    if (fromManagement && onReturnManagement) {
+      onReturnManagement();
+      return;
+    }
+    setActiveModule(undefined);
+  };
 
   return (
     <div className="page-stack module-hub catalog-module-page">
@@ -4050,14 +4104,13 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           { label: "低库存", value: `${data.products.filter((item) => item.stock <= item.warningStock).length} 项`, hint: "需补货", icon: <PackagePlus size={18} /> },
         ]}
       />
-      <ModuleOverview modules={catalogModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!fromManagement && <ModuleOverview modules={catalogModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "项目商品"}
         subtitle="服务项目、商品耗材和库存关联资料"
         size="large"
-        onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回项目商品页面</button>}
+        onClose={closeModule}
       >
       <div className="module-detail-stack catalog-modal-detail">
         {activeModule === "service" && (
@@ -4146,7 +4199,21 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   );
 }
 
-function StaffCommissions({ data, session, actions, runMutation }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation }) {
+function StaffCommissions({
+  data,
+  session,
+  actions,
+  runMutation,
+  fromManagement = false,
+  onReturnManagement,
+}: {
+  data: AppData;
+  session: UserSession;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  fromManagement?: boolean;
+  onReturnManagement?: () => void;
+}) {
   const canManageStaff = hasPermission(session, "staff:manage");
   const staffRows = businessStaffOf(data);
   const staffIds = new Set(staffRows.map((staff) => staff.id));
@@ -4169,7 +4236,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const [inviteValidDays, setInviteValidDays] = useState(7);
   const [lastInviteCode, setLastInviteCode] = useState("");
   const [inviteCopied, setInviteCopied] = useState(false);
-  const [activeModule, setActiveModule] = useState<"profile" | "invite" | "salary" | "settlements" | "commissions" | undefined>();
+  const [activeModule, setActiveModule] = useState<"profile" | "invite" | "salary" | "settlements" | "commissions" | undefined>(fromManagement ? "profile" : undefined);
   const editingStaff = staffRows.find((staff) => staff.id === editingStaffId);
 
   const settleAll = () => {
@@ -4274,6 +4341,13 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
     { key: "commissions", title: "提成记录", desc: "订单提成、比例和状态", icon: BadgeCent, tone: "violet", meta: `${data.commissions.filter((item) => staffIds.has(item.staffId)).length} 条` },
   ];
   const activeModuleTitle = activeModule ? staffModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const closeModule = () => {
+    if (fromManagement && onReturnManagement) {
+      onReturnManagement();
+      return;
+    }
+    setActiveModule(undefined);
+  };
 
   return (
     <div className="page-stack module-hub staff-module-page">
@@ -4288,14 +4362,13 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
           { label: "待结提成", value: money(pendingCommission), hint: "财务待处理", icon: <BadgeCent size={18} /> },
         ]}
       />
-      <ModuleOverview modules={staffModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!fromManagement && <ModuleOverview modules={staffModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "人员账号"}
         subtitle="员工档案、提成结算和账号信息"
         size="large"
-        onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回人员账号页面</button>}
+        onClose={closeModule}
       >
       <div className="module-detail-stack staff-modal-detail">
         {(activeModule === "profile" || activeModule === "invite") && (
@@ -4492,7 +4565,19 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   );
 }
 
-function Inventory({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+function Inventory({
+  data,
+  actions,
+  runMutation,
+  fromManagement = false,
+  onReturnManagement,
+}: {
+  data: AppData;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  fromManagement?: boolean;
+  onReturnManagement?: () => void;
+}) {
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [quantity, setQuantity] = useState(1);
   const [type, setType] = useState<InventoryLog["type"]>("入库");
@@ -4504,7 +4589,7 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
   const [unitCost, setUnitCost] = useState(68);
   const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
   const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
-  const [activeModule, setActiveModule] = useState<"adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs" | undefined>();
+  const [activeModule, setActiveModule] = useState<"adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs" | undefined>(fromManagement ? "list" : undefined);
 
   const changeStock = (event: FormEvent) => {
     event.preventDefault();
@@ -4544,6 +4629,13 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
     { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
   ];
   const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const closeModule = () => {
+    if (fromManagement && onReturnManagement) {
+      onReturnManagement();
+      return;
+    }
+    setActiveModule(undefined);
+  };
 
   return (
     <div className="page-stack module-hub inventory-module-page">
@@ -4558,14 +4650,13 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
           { label: "供应商", value: `${data.suppliers.length} 家`, hint: "采购基础资料", icon: <Building2 size={18} /> },
         ]}
       />
-      <ModuleOverview modules={inventoryModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!fromManagement && <ModuleOverview modules={inventoryModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "库存管理"}
         subtitle="库存预警、出入库流水和采购记录"
         size="large"
-        onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回库存管理页面</button>}
+        onClose={closeModule}
       >
       <div className="module-detail-stack inventory-modal-detail">
         {activeModule === "adjust" && (
@@ -4669,9 +4760,21 @@ function Inventory({ data, actions, runMutation }: { data: AppData; actions: Api
   );
 }
 
-function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+function Reports({
+  data,
+  actions,
+  runMutation,
+  fromManagement = false,
+  onReturnManagement,
+}: {
+  data: AppData;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  fromManagement?: boolean;
+  onReturnManagement?: () => void;
+}) {
   const [businessDate, setBusinessDate] = useState(new Date().toISOString().slice(0, 10));
-  const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | undefined>();
+  const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | undefined>(fromManagement ? "summary" : undefined);
   const summary = reportSummary(data);
   const payMethods = ["微信", "支付宝", "现金", "银行卡", "会员卡"].map((method) => ({
     method,
@@ -4715,6 +4818,13 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
     { key: "services", title: "项目排行", desc: "热门项目和项目实收", icon: Sparkles, tone: "plum", meta: `${serviceRevenue.length} 项` },
   ];
   const activeModuleTitle = activeModule ? reportModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const closeModule = () => {
+    if (fromManagement && onReturnManagement) {
+      onReturnManagement();
+      return;
+    }
+    setActiveModule(undefined);
+  };
 
   return (
     <div className="page-stack module-hub reports-module-page">
@@ -4730,14 +4840,13 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
           { label: "会员资产", value: `${activeMembers} 张`, hint: `余额 ${money(summary.cardBalance)}`, icon: <UsersRound size={18} /> },
         ]}
       />
-      <ModuleOverview modules={reportModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!fromManagement && <ModuleOverview modules={reportModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "报表分析"}
         subtitle="经营指标、收银流水和财务日结数据"
         size="large"
-        onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回报表分析页面</button>}
+        onClose={closeModule}
       >
       <div className="module-detail-stack reports-modal-detail">
         {activeModule === "payments" && (
@@ -4843,12 +4952,24 @@ function Reports({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   );
 }
 
-function Approvals({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+function Approvals({
+  data,
+  actions,
+  runMutation,
+  fromManagement = false,
+  onReturnManagement,
+}: {
+  data: AppData;
+  actions: ApiActions;
+  runMutation: RunMutation;
+  fromManagement?: boolean;
+  onReturnManagement?: () => void;
+}) {
   const [type, setType] = useState<"改价折扣" | "订单退款">("改价折扣");
   const [targetId, setTargetId] = useState("manual");
   const [amount, setAmount] = useState(100);
   const [reason, setReason] = useState("门店例外处理");
-  const [activeModule, setActiveModule] = useState<"submit" | "pending" | "refund" | "passed" | "rejected" | "all" | undefined>();
+  const [activeModule, setActiveModule] = useState<"submit" | "pending" | "refund" | "passed" | "rejected" | "all" | undefined>(fromManagement ? "pending" : undefined);
 
   const createApproval = (event: FormEvent) => {
     event.preventDefault();
@@ -4876,6 +4997,13 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
     { key: "all", title: "全部记录", desc: "查看完整审批流水", icon: ClipboardList, tone: "plum", meta: `${data.approvalRequests.length} 条` },
   ];
   const activeModuleTitle = activeModule ? approvalModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const closeModule = () => {
+    if (fromManagement && onReturnManagement) {
+      onReturnManagement();
+      return;
+    }
+    setActiveModule(undefined);
+  };
 
   return (
     <div className="page-stack module-hub approvals-module-page">
@@ -4890,14 +5018,13 @@ function Approvals({ data, actions, runMutation }: { data: AppData; actions: Api
           { label: "已拒绝", value: `${rejectedApprovals} 单`, hint: "风险拦截", icon: <LockKeyhole size={18} /> },
         ]}
       />
-      <ModuleOverview modules={approvalModules} activeKey={activeModule} onSelect={setActiveModule} />
+      {!fromManagement && <ModuleOverview modules={approvalModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "审批中心"}
         subtitle="改价退款、待审事项和审批记录"
         size="large"
-        onClose={() => setActiveModule(undefined)}
-        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回审批中心页面</button>}
+        onClose={closeModule}
       >
       <div className="module-detail-stack approvals-modal-detail">
         {activeModule === "submit" && (

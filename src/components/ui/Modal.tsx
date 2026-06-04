@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { ReactNode, useEffect } from "react";
 
 type ModalSize = "medium" | "large";
@@ -42,7 +42,11 @@ export function Modal({ open, title, subtitle, children, footer, size = "medium"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="system-modal-header">
-          <div>
+          <button type="button" className="system-modal-back" aria-label="返回" onClick={onClose}>
+            <ArrowLeft size={18} />
+            <span>返回</span>
+          </button>
+          <div className="system-modal-title">
             <strong id="system-modal-title">{title}</strong>
             {subtitle && <span>{subtitle}</span>}
           </div>

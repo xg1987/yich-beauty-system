@@ -6360,17 +6360,19 @@ textarea,
 }
 
 .system-modal-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
   padding: 22px 24px 16px;
   border-bottom: 1px solid rgba(111, 66, 193, 0.14);
 }
 
-.system-modal-header div {
+.system-modal-title {
   display: grid;
   gap: 6px;
+  min-width: 0;
+  padding-top: 1px;
 }
 
 .system-modal-header strong {
@@ -6400,8 +6402,31 @@ textarea,
   cursor: pointer;
 }
 
+.system-modal-back {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #2f255f;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.system-modal-back span {
+  color: inherit;
+  font-size: 13px;
+}
+
 .system-modal-close:hover,
-.system-modal-close:focus-visible {
+.system-modal-close:focus-visible,
+.system-modal-back:hover,
+.system-modal-back:focus-visible {
   border-color: rgba(111, 66, 193, 0.42);
   background: #fff;
   outline: none;
