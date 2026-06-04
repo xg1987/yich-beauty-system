@@ -12854,3 +12854,618 @@ textarea,
     radial-gradient(circle at 92% 8%, rgba(111, 66, 193, 0.1), transparent 36%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(246, 240, 255, 0.88));
 }
+
+/* Responsive foundation pass: preserve the current visual system while making it stable on phones, tablets, and desktops. */
+:root {
+  --yich-safe-x: clamp(14px, 3vw, 44px);
+  --yich-topbar-h: 88px;
+  --yich-bottom-nav-h: 88px;
+}
+
+.app-shell {
+  overflow-x: clip;
+}
+
+.app-shell .main {
+  min-width: 0;
+  padding-right: var(--yich-safe-x);
+  padding-left: var(--yich-safe-x);
+}
+
+.app-shell .main > .topbar {
+  min-height: var(--yich-topbar-h);
+  align-items: center;
+}
+
+.app-shell .main > .topbar .topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.icon-button,
+.account-avatar-button,
+.system-modal-close {
+  touch-action: manipulation;
+}
+
+.page-hero,
+.beauty-hero,
+.workbench-hero,
+.platform-admin-page .page-hero {
+  width: 100%;
+  min-width: 0;
+}
+
+.workbench-metric-row,
+.module-metric-strip,
+.module-overview,
+.workbench-content-grid,
+.workbench-content-grid.lower,
+.content-grid,
+.page-grid,
+.appointment-page-grid,
+.cashier-page-grid,
+.cashier-page-grid.lower,
+.customer-page-grid,
+.customer-page-grid.lower {
+  min-width: 0;
+}
+
+.panel,
+.workbench-panel,
+.module-entry-card,
+.module-metric-card,
+.dashboard-metric,
+.appointment-room-state-card {
+  min-width: 0;
+}
+
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrap table {
+  min-width: max-content;
+}
+
+@media (min-width: 1181px) {
+  .workbench-hero,
+  .page-hero,
+  .platform-admin-page .page-hero,
+  .customer-module-page.module-hub .page-hero,
+  .cashier-module-page.module-hub .page-hero,
+  .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+    height: 178px;
+    min-height: 178px;
+  }
+}
+
+@media (max-width: 1180px) {
+  :root {
+    --yich-global-header-height: 82px;
+    --yich-workbench-width: 1040px;
+    --yich-safe-x: clamp(18px, 3vw, 32px);
+    --yich-topbar-h: 82px;
+    --yich-bottom-nav-h: 86px;
+  }
+
+  .app-shell {
+    display: block;
+    padding-bottom: calc(var(--yich-bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .topbar-brand {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+    color: #2f255f;
+  }
+
+  .topbar-brand .brand-mark {
+    width: 46px;
+    height: 46px;
+    border-radius: 16px;
+  }
+
+  .topbar-brand strong,
+  .topbar-brand span {
+    display: block;
+    line-height: 1.15;
+  }
+
+  .topbar-brand strong {
+    color: #261b40;
+    font-size: 14px;
+    font-weight: 920;
+  }
+
+  .topbar-brand span {
+    margin-top: 4px;
+    color: var(--yich-purple-deep);
+    font-size: 13px;
+    font-weight: 880;
+  }
+
+  .app-shell .main > .topbar {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 60;
+    grid-template-columns: minmax(170px, 1fr) minmax(0, auto) minmax(92px, 1fr);
+    gap: 12px;
+    width: 100%;
+    margin: 0;
+    padding: 12px var(--yich-safe-x);
+    background:
+      radial-gradient(circle at 100% 0%, rgba(185, 149, 85, 0.1), transparent 34%),
+      linear-gradient(180deg, rgba(255, 250, 247, 0.96), rgba(255, 250, 247, 0.9));
+    backdrop-filter: blur(18px);
+    box-shadow: 0 12px 34px rgba(69, 37, 127, 0.08);
+  }
+
+  .theme-night .app-shell .main > .topbar {
+    background:
+      radial-gradient(circle at 100% 0%, rgba(185, 149, 85, 0.09), transparent 34%),
+      linear-gradient(180deg, rgba(18, 15, 27, 0.96), rgba(18, 15, 27, 0.9));
+  }
+
+  .app-shell .main > .topbar .topbar-title {
+    grid-column: 2;
+    justify-self: center;
+    max-width: 42vw;
+  }
+
+  .app-shell .main > .topbar .topbar-title p {
+    overflow: hidden;
+    color: var(--yich-purple-deep);
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell .main > .topbar .topbar-actions,
+  .app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
+    position: static;
+    top: auto;
+    right: auto;
+    grid-column: 3;
+    justify-self: end;
+    width: auto;
+    flex-wrap: nowrap;
+    margin-right: 0;
+  }
+
+  .topbar-actions .icon-button,
+  .topbar-actions .account-avatar-button {
+    width: 42px;
+    height: 42px;
+    min-height: 42px;
+    border-radius: 14px;
+  }
+
+  .page-hero,
+  .platform-admin-page .page-hero {
+    min-height: 150px;
+    height: auto;
+    padding: 22px;
+    border-radius: 26px;
+  }
+
+  .workbench-hero {
+    min-height: 206px;
+    padding: 30px 24px;
+    border-radius: 30px;
+  }
+
+  .workbench-hero h2 {
+    font-size: clamp(38px, 6vw, 64px);
+  }
+
+  .module-overview,
+  .admin-module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .module-hub .module-overview,
+  .customer-module-page.module-hub .module-overview,
+  .cashier-module-page.module-hub .module-overview {
+    min-height: auto;
+    grid-auto-rows: minmax(190px, auto);
+  }
+
+  .module-entry-card,
+  .customer-module-page.module-hub .module-entry-card,
+  .cashier-module-page.module-hub .module-entry-card {
+    min-height: 190px;
+    padding: 24px;
+  }
+
+  .workbench-metric-row,
+  .module-metric-strip,
+  .appointment-room-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content-grid,
+  .page-grid,
+  .workbench-content-grid,
+  .workbench-content-grid.lower,
+  .appointment-page-grid,
+  .cashier-page-grid,
+  .cashier-page-grid.lower,
+  .customer-page-grid,
+  .customer-page-grid.lower,
+  .platform-admin-page .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .content-grid > .panel:first-child {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .appointment-room-page .appointment-room-state-grid,
+  .appointment-room-state-grid,
+  .room-settings-page .room-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .system-modal.large {
+    width: min(920px, 100%);
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --yich-global-header-height: 72px;
+    --yich-workbench-width: 100%;
+    --yich-safe-x: 14px;
+    --yich-topbar-h: 72px;
+    --yich-bottom-nav-h: 82px;
+  }
+
+  .app-shell .main {
+    padding-top: var(--yich-safe-x);
+    padding-bottom: 18px;
+  }
+
+  .app-shell .main > .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    min-height: var(--yich-topbar-h);
+    margin-bottom: 16px;
+  }
+
+  .topbar-brand {
+    gap: 9px;
+  }
+
+  .topbar-brand .brand-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    font-size: 18px;
+  }
+
+  .topbar-brand strong {
+    font-size: 13px;
+  }
+
+  .topbar-brand span {
+    font-size: 12px;
+  }
+
+  .app-shell .main > .topbar .topbar-title {
+    display: none;
+  }
+
+  .app-shell .main > .topbar .topbar-actions,
+  .app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
+    grid-column: 2;
+    gap: 6px;
+    width: auto;
+    flex-wrap: nowrap;
+  }
+
+  .topbar-actions .icon-button,
+  .topbar-actions .account-avatar-button {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    border-radius: 13px;
+  }
+
+  .notification-panel,
+  .account-menu {
+    position: fixed;
+    top: calc(var(--yich-topbar-h) + 10px);
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+  }
+
+  .page-stack,
+  .dashboard-page,
+  .admin-center-page,
+  .content-grid,
+  .page-grid {
+    gap: 14px;
+  }
+
+  .page-hero,
+  .platform-admin-page .page-hero {
+    min-height: 132px;
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .page-hero h1,
+  .page-hero h2,
+  .platform-admin-page .page-hero h1 {
+    font-size: clamp(26px, 8vw, 34px);
+    line-height: 1.14;
+  }
+
+  .page-hero p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .page-hero .eyebrow {
+    min-height: 28px;
+    padding: 0 11px;
+    font-size: 12px;
+  }
+
+  .workbench-hero {
+    min-height: 176px;
+    padding: 24px 18px;
+    border-radius: 28px;
+  }
+
+  .workbench-hero h2 {
+    font-size: clamp(34px, 11vw, 48px);
+  }
+
+  .workbench-hero p,
+  .workbench-hero small {
+    font-size: 13px;
+  }
+
+  .workbench-metric-row,
+  .module-metric-strip,
+  .module-overview,
+  .customer-module-page.module-hub .module-overview,
+  .cashier-module-page.module-hub .module-overview,
+  .admin-module-grid,
+  .appointment-room-summary,
+  .appointment-room-page .appointment-room-summary,
+  .appointment-room-page .appointment-room-state-grid,
+  .appointment-room-state-grid,
+  .room-settings-page .room-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .module-hub .module-overview,
+  .customer-module-page.module-hub .module-overview,
+  .cashier-module-page.module-hub .module-overview {
+    grid-auto-rows: minmax(138px, auto);
+  }
+
+  .module-entry-card,
+  .customer-module-page.module-hub .module-entry-card,
+  .cashier-module-page.module-hub .module-entry-card,
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card {
+    min-height: 138px;
+    gap: 8px;
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .module-entry-card .admin-module-icon,
+  .customer-module-page.module-hub .module-entry-card .admin-module-icon,
+  .cashier-module-page.module-hub .module-entry-card .admin-module-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .module-entry-card strong,
+  .customer-module-page.module-hub .module-entry-card strong,
+  .cashier-module-page.module-hub .module-entry-card strong {
+    font-size: 21px;
+  }
+
+  .module-entry-points {
+    display: none;
+  }
+
+  .panel,
+  .workbench-panel,
+  .settings-card,
+  .sub-panel,
+  .stat-card,
+  .module-metric-card {
+    border-radius: 16px;
+  }
+
+  .panel,
+  .workbench-panel {
+    padding: 16px;
+  }
+
+  .form {
+    grid-template-columns: 1fr;
+  }
+
+  input,
+  select,
+  textarea,
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .datetime-field-control {
+    min-height: 46px;
+  }
+
+  .row-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .row-actions button,
+  .row-actions .primary-button {
+    width: 100%;
+  }
+
+  .appointment-room-page .module-detail-stack {
+    min-height: 0;
+  }
+
+  .appointment-room-page .appointment-room-panel.panel {
+    padding: 14px;
+  }
+
+  .appointment-room-board-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .appointment-room-page .appointment-room-state-scroll,
+  .appointment-room-state-scroll {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .appointment-room-page .appointment-room-state-grid,
+  .appointment-room-state-grid {
+    grid-auto-rows: minmax(150px, auto);
+  }
+
+  .appointment-room-add-button {
+    width: 100%;
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .system-modal,
+  .system-modal.large {
+    width: 100%;
+    max-height: calc(100dvh - 12px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 24px 24px 0 0;
+  }
+
+  .system-modal-header {
+    padding: 18px 16px 14px;
+  }
+
+  .system-modal-body {
+    padding: 16px;
+  }
+
+  .system-modal-footer {
+    flex-direction: column-reverse;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .system-modal-footer button {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .workbar {
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    left: 8px;
+    min-height: 68px;
+    padding: 7px;
+    border-radius: 20px;
+  }
+
+  .workbar button {
+    min-height: 54px;
+    gap: 3px;
+    border-radius: 16px;
+    font-size: 10px;
+  }
+
+  .workbar button svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .workbar button.active,
+  .theme-day .workbar button.active,
+  .theme-night .workbar button.active {
+    height: 54px;
+    border-radius: 18px;
+  }
+
+  .public-store-page {
+    padding: 14px;
+  }
+
+  .public-store-hero {
+    min-height: 180px;
+    padding: 26px 18px;
+    border-radius: 24px;
+  }
+
+  .signature-grid,
+  .public-store-grid,
+  .public-service-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar-brand div {
+    max-width: 118px;
+  }
+
+  .topbar-brand strong,
+  .topbar-brand span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workbar {
+    right: 6px;
+    left: 6px;
+  }
+
+  .workbar button span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
