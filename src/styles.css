@@ -46,7 +46,7 @@ button {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.48;
+  opacity: 0.72;
 }
 
 .login-page {
@@ -6328,19 +6328,21 @@ textarea,
 }
 
 .modal-backdrop {
+  --modal-safe-y: clamp(18px, 4vw, 44px);
   position: fixed;
   inset: 0;
   z-index: 80;
   display: grid;
   place-items: center;
-  padding: clamp(18px, 4vw, 44px);
+  overflow: auto;
+  padding: var(--modal-safe-y);
   background: rgba(36, 24, 66, 0.22);
   backdrop-filter: blur(10px);
 }
 
 .system-modal {
   width: min(720px, 100%);
-  max-height: min(760px, calc(100dvh - 40px));
+  max-height: min(760px, calc(100dvh - (var(--modal-safe-y) * 2)));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
@@ -6362,7 +6364,7 @@ textarea,
 .system-modal-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
   padding: 22px 24px 16px;
   border-bottom: 1px solid rgba(111, 66, 193, 0.14);
@@ -6373,13 +6375,15 @@ textarea,
   gap: 6px;
   min-width: 0;
   padding-top: 1px;
+  overflow: visible;
 }
 
 .system-modal-header strong {
   color: #2f255f;
   font-size: clamp(20px, 2vw, 26px);
   font-weight: 950;
-  line-height: 1.16;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
 }
 
 .system-modal-header span {
@@ -6387,6 +6391,7 @@ textarea,
   font-size: 13px;
   font-weight: 760;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .system-modal-close {
@@ -8296,7 +8301,10 @@ textarea,
 .room-settings-toolbar button:disabled,
 .room-editor-remove:disabled {
   cursor: not-allowed;
-  opacity: 0.46;
+  opacity: 1;
+  border-color: rgba(111, 66, 193, 0.2);
+  background: rgba(245, 239, 255, 0.88);
+  color: rgba(47, 37, 95, 0.58);
 }
 
 .room-editor-grid {
@@ -11725,9 +11733,20 @@ textarea,
 .theme-night .room-settings-panel .room-settings-toolbar button,
 .theme-day .room-settings-panel .room-editor-remove,
 .theme-night .room-settings-panel .room-editor-remove {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  border-color: rgba(255, 255, 255, 0.54);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--yich-purple-deep);
+  box-shadow: 0 10px 24px rgba(47, 27, 99, 0.12);
+}
+
+.theme-day .room-settings-panel .room-settings-toolbar button:disabled,
+.theme-night .room-settings-panel .room-settings-toolbar button:disabled,
+.theme-day .room-settings-panel .room-editor-remove:disabled,
+.theme-night .room-settings-panel .room-editor-remove:disabled {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(47, 37, 95, 0.62);
+  box-shadow: none;
 }
 
 .theme-day .room-settings-panel .room-save-status,
@@ -13828,6 +13847,70 @@ textarea,
 .theme-day .system-modal .module-detail-stack .bar-row i,
 .theme-night .system-modal .module-detail-stack .bar-row i {
   background: linear-gradient(90deg, #6f42c1, #2a8f7d);
+}
+
+.catalog-inline-control {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 92% 6%, rgba(111, 66, 193, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.72);
+}
+
+.catalog-inline-control > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.catalog-inline-control > div strong {
+  color: #2f255f;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.35;
+}
+
+.catalog-inline-control > div span {
+  color: rgba(47, 37, 95, 0.64);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.catalog-inline-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+}
+
+.catalog-inline-form .primary-button {
+  min-height: 44px;
+}
+
+@media (max-width: 1023px) {
+  .catalog-inline-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .catalog-inline-control {
+    padding: 14px;
+  }
+
+  .catalog-inline-control > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .catalog-inline-form {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 680px) {

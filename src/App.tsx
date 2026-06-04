@@ -4166,6 +4166,27 @@ function Catalog({
         {activeModule === "serviceList" && (
         <section className="panel">
         <PanelTitle icon={<Sparkles size={18} />} title="项目目录" action={`${data.services.length} 个服务项目`} />
+          <div className="catalog-inline-control">
+            <div>
+              <strong>新增项目</strong>
+              <span>服务名称、价格、时长和默认耗材</span>
+            </div>
+            <form className="form catalog-inline-form" onSubmit={addService}>
+              <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
+              <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
+              <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
+              <Select
+                label="默认耗材"
+                value={serviceConsumableProductId}
+                onChange={setServiceConsumableProductId}
+                options={[{ value: "", label: "不绑定耗材" }, ...consumableOptions]}
+              />
+              {serviceConsumableProductId && (
+                <label>单次用量<input type="number" min={0} step={0.1} value={serviceConsumableQty} onChange={(event) => setServiceConsumableQty(Number(event.target.value))} /></label>
+              )}
+              <button className="primary-button">保存项目</button>
+            </form>
+          </div>
           <DataTable
             columns={["项目", "分类", "价格", "时长", "耗材配方"]}
             rows={data.services.map((item) => [
