@@ -4400,7 +4400,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
   const activeModuleTitle = activeModule ? staffModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack module-hub staff-module-page">
       <PageHero
         icon={<BadgeCent size={15} />}
         eyebrow="人员账号"
@@ -4414,8 +4414,15 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         ]}
       />
       <ModuleOverview modules={staffModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="人员账号" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "人员账号"}
+        subtitle="处理完成后可直接返回人员账号页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回人员账号页面</button>}
+      >
+      <div className="module-detail-stack staff-modal-detail">
         {(activeModule === "profile" || activeModule === "invite") && (
         <section className="panel">
         <PanelTitle
@@ -4627,6 +4634,7 @@ function StaffCommissions({ data, session, actions, runMutation }: { data: AppDa
         </section>
         )}
       </div>
+      </Modal>
     </div>
   );
 }
