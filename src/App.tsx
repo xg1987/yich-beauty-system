@@ -1393,10 +1393,6 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
   const totalRemainingTimes = data.memberCards.reduce((sum, card) => sum + card.remainingTimes, 0);
   const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
   const pendingSignatures = data.customerSignatures.filter((item) => item.status === "待签名").length;
-  const recentCustomers = data.customers
-    .slice()
-    .sort((a, b) => +new Date(b.lastVisit) - +new Date(a.lastVisit))
-    .slice(0, 5);
   const rows = data.customers.slice(0, 120).map((customer) => [
     customer.name,
     customer.phone,
@@ -1416,7 +1412,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
   ]);
   type PlatformCustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<PlatformCustomerModuleKey>> = [
-    { key: "profile", title: "客户档案", desc: "客户资料和最近到店记录", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
+    { key: "profile", title: "客户档案", desc: "客户资料和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
     { key: "cards", title: "项目次数卡", desc: "储值卡、次数卡和套餐卡", icon: CreditCard, tone: "rose", meta: `${activeCards} 张` },
     { key: "records", title: "服务记录", desc: "护理过程和回访计划", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
     { key: "signature", title: "服务确认签名", desc: "平板现场签名记录", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures.length} 份` },
@@ -1424,7 +1420,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack customer-module-page ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack customer-module-page module-hub">
       {showBack && <PlatformPageTitle title="客户档案" onBack={() => setView("settings")} />}
       <PageHero
         icon={<HeartHandshake size={15} />}
@@ -1438,37 +1434,24 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
         ]}
       />
       <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="客户档案" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "客户档案"}
+        subtitle="处理完成后可直接返回客户页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回客户页面</button>}
+      >
+      <div className="module-detail-stack customer-modal-detail">
         {activeModule === "profile" && (
-          <>
-            <section className="panel">
-              <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
-              {rows.length > 0 ? (
-                <DataTable columns={["客户", "手机", "最近到店", "项目卡", "服务记录", "签名"]} rows={rows} />
-              ) : (
-                <p className="customer-soft-empty">暂无客户列表</p>
-              )}
-            </section>
-            <section className="panel">
-              <PanelTitle icon={<UsersRound size={18} />} title="最近客户" action="最近到店" />
-              <div className="customer-card-list">
-                {recentCustomers.map((customer) => (
-                  <article className="customer-mini-card" key={customer.id}>
-                    <div className="customer-avatar">{customer.name.slice(0, 1)}</div>
-                    <div>
-                      <strong>{customer.name}</strong>
-                      <span>{customer.phone}</span>
-                      <small>{data.memberCards.filter((card) => card.customerId === customer.id).length} 张项目卡</small>
-                    </div>
-                    <em>{shortDate(customer.lastVisit)}</em>
-                  </article>
-                ))}
-                {recentCustomers.length === 0 && <p className="customer-soft-empty">暂无客户档案</p>}
-              </div>
-            </section>
-          </>
+          <section className="panel">
+            <PanelTitle icon={<UsersRound size={18} />} title="客户列表" action={`${data.customers.length} 位客户`} />
+            {rows.length > 0 ? (
+              <DataTable columns={["客户", "手机", "最近到店", "项目卡", "服务记录", "签名"]} rows={rows} />
+            ) : (
+              <p className="customer-soft-empty">暂无客户列表</p>
+            )}
+          </section>
         )}
         {activeModule === "cards" && (
           <section className="panel">
@@ -1531,6 +1514,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
           </section>
         )}
       </div>
+      </Modal>
     </div>
   );
 }
