@@ -4156,7 +4156,7 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
   const activeModuleTitle = activeModule ? catalogModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
 
   return (
-    <div className={`page-stack ${activeModule ? "module-subpage" : "module-hub"}`}>
+    <div className="page-stack module-hub catalog-module-page">
       <PageHero
         icon={<Sparkles size={15} />}
         eyebrow="项目商品"
@@ -4169,8 +4169,15 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         ]}
       />
       <ModuleOverview modules={catalogModules} activeKey={activeModule} onSelect={setActiveModule} />
-      {activeModule && <ModuleSubpageHeader parentTitle="项目商品" moduleTitle={activeModuleTitle} onBack={() => setActiveModule(undefined)} />}
-      <div className="module-detail-stack">
+      <Modal
+        open={Boolean(activeModule)}
+        title={activeModuleTitle || "项目商品"}
+        subtitle="处理完成后可直接返回项目商品页面"
+        size="large"
+        onClose={() => setActiveModule(undefined)}
+        footer={<button type="button" onClick={() => setActiveModule(undefined)}>返回项目商品页面</button>}
+      >
+      <div className="module-detail-stack catalog-modal-detail">
         {activeModule === "service" && (
         <section className="panel">
         <PanelTitle icon={<Sparkles size={18} />} title="新增项目" action="服务目录" />
@@ -4252,6 +4259,7 @@ function Catalog({ data, actions, runMutation }: { data: AppData; actions: ApiAc
         </section>
         )}
       </div>
+      </Modal>
     </div>
   );
 }
