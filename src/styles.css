@@ -14046,3 +14046,596 @@ textarea,
     border-radius: 14px;
   }
 }
+
+/* Night mode v2: dim lavender system, no green blocks, no black-heavy shell. */
+.theme-night {
+  color-scheme: dark;
+  --night-bg: #20182a;
+  --night-bg-soft: #2a2038;
+  --night-surface: rgba(48, 39, 67, 0.86);
+  --night-surface-soft: rgba(58, 47, 80, 0.78);
+  --night-surface-muted: rgba(70, 57, 94, 0.7);
+  --night-line: rgba(202, 184, 255, 0.18);
+  --night-line-strong: rgba(202, 184, 255, 0.3);
+  --night-text: #f7f0ff;
+  --night-text-soft: rgba(247, 240, 255, 0.84);
+  --night-muted: rgba(226, 214, 246, 0.68);
+  --night-muted-weak: rgba(226, 214, 246, 0.46);
+  --night-purple: #8b5cf6;
+  --night-purple-soft: rgba(139, 92, 246, 0.18);
+  --night-rose: #d04b6f;
+  --line: var(--night-line);
+  --surface: var(--night-surface);
+  --soft: var(--night-surface-soft);
+  --muted: var(--night-muted);
+  --shadow: 0 22px 52px rgba(15, 10, 24, 0.38);
+  color: var(--night-text);
+}
+
+.theme-night.app-shell {
+  background:
+    radial-gradient(circle at 20% -8%, rgba(139, 92, 246, 0.22), transparent 30%),
+    radial-gradient(circle at 84% 0%, rgba(208, 75, 111, 0.14), transparent 28%),
+    linear-gradient(180deg, #20182a 0%, #18131f 100%);
+}
+
+.theme-night .main {
+  background:
+    radial-gradient(circle at 18% -10%, rgba(139, 92, 246, 0.2), transparent 32%),
+    radial-gradient(circle at 92% 4%, rgba(184, 118, 33, 0.1), transparent 28%),
+    linear-gradient(180deg, #241b30 0%, #1c1624 58%, #211820 100%);
+  color: var(--night-text);
+}
+
+.theme-night.app-shell .main > .topbar,
+.theme-night .topbar {
+  border-bottom: 1px solid rgba(202, 184, 255, 0.12);
+  background: linear-gradient(180deg, rgba(32, 24, 42, 0.96) 0%, rgba(32, 24, 42, 0.86) 78%, rgba(32, 24, 42, 0) 100%);
+  color: var(--night-text);
+}
+
+.theme-night .topbar-brand .brand-mark,
+.theme-night .rail-admin {
+  background: rgba(139, 92, 246, 0.2);
+  color: #e4d8ff;
+}
+
+.theme-night .topbar-brand strong,
+.theme-night .topbar-brand span,
+.theme-night .topbar-title h1,
+.theme-night .topbar-title p {
+  color: var(--night-text);
+  text-shadow: none;
+}
+
+.theme-night .sidebar,
+.theme-night .workbar,
+.theme-night .bottom-nav {
+  border-color: rgba(202, 184, 255, 0.12);
+  background: rgba(31, 24, 41, 0.9);
+  box-shadow: 0 -12px 30px rgba(15, 10, 24, 0.32);
+}
+
+.theme-night .workbar button,
+.theme-night .bottom-nav button,
+.theme-night .icon-button,
+.theme-night .account-avatar-button,
+.theme-night .avatar-button,
+.theme-night .topbar-actions button,
+.theme-night .topbar-actions button:last-child,
+.theme-night .settings-wechat-line button,
+.theme-night .usage-refresh-button,
+.theme-night .platform-page-title button,
+.theme-night .settings-profile-title button {
+  border-color: rgba(202, 184, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--night-text-soft);
+  box-shadow: 0 10px 24px rgba(15, 10, 24, 0.24);
+}
+
+.theme-night .workbar button.active,
+.theme-night .bottom-nav button.active,
+.theme-night .settings-mode-toggle button.active,
+.theme-night .settings-tab-button.active,
+.theme-night .theme-toggle button.active,
+.theme-night .theme-option.active {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #7c3aed, #c74363);
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(124, 58, 237, 0.28);
+}
+
+.theme-night .page-hero,
+.theme-night .workbench-hero,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.14), transparent 30%),
+    linear-gradient(135deg, #3f2475 0%, #6336b4 54%, #7d6140 100%);
+  color: #fff;
+  box-shadow: 0 18px 44px rgba(15, 10, 24, 0.32);
+}
+
+.theme-night .panel,
+.theme-night .stat-card,
+.theme-night .quick-card,
+.theme-night .dashboard-metric,
+.theme-night .record-card,
+.theme-night .inventory-line,
+.theme-night .settings-card,
+.theme-night .settings-static-panel,
+.theme-night .sub-panel,
+.theme-night .theme-switch-panel,
+.theme-night .admin-code-panel,
+.theme-night .dashboard-panel,
+.theme-night .workbench-panel,
+.theme-night .appointment-panel,
+.theme-night .cashier-panel,
+.theme-night .customer-panel,
+.theme-night .usage-card,
+.theme-night .notification-panel,
+.theme-night .account-menu,
+.theme-night .account-bind-list > div,
+.theme-night .action-strip button,
+.theme-night .timeline-item,
+.theme-night .care-item,
+.theme-night .appointment-schedule-card,
+.theme-night .appointment-request-card,
+.theme-night .cashier-method-list article,
+.theme-night .cashier-order-card,
+.theme-night .customer-level-list article,
+.theme-night .customer-mini-card,
+.theme-night .settings-profile-card,
+.theme-night .settings-contact-card,
+.theme-night .workbench-content-grid > .workbench-panel:nth-child(2),
+.theme-night .workbench-content-grid.lower > .workbench-panel:nth-child(2),
+.theme-night .content-grid > .panel:nth-child(2),
+.theme-night .page-grid > .panel:nth-child(2),
+.theme-night .dashboard-columns > .dashboard-panel:nth-child(2),
+.theme-night .dashboard-columns.lower > .dashboard-panel:nth-child(2),
+.theme-night .appointment-page-grid > .appointment-panel:nth-child(2),
+.theme-night .cashier-page-grid > .cashier-panel:nth-child(2),
+.theme-night .cashier-page-grid.lower > .cashier-panel:nth-child(2),
+.theme-night .customer-page-grid > .customer-panel:nth-child(2),
+.theme-night .customer-page-grid.lower > .customer-panel:nth-child(2) {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(139, 92, 246, 0.14), transparent 34%),
+    linear-gradient(135deg, rgba(56, 45, 76, 0.88), rgba(40, 32, 56, 0.84));
+  color: var(--night-text);
+  box-shadow: 0 16px 36px rgba(15, 10, 24, 0.28);
+}
+
+.theme-night .workbench-metric-row .dashboard-metric,
+.theme-night .workbench-action-row button,
+.theme-night .workbench-quick-list button,
+.theme-night .workbench-insight-list button,
+.theme-night .cashier-module-page.module-hub .module-metric-card,
+.theme-night .customer-module-page.module-hub .module-metric-card,
+.theme-night .cashier-module-page.module-hub .module-entry-card,
+.theme-night .customer-module-page.module-hub .module-entry-card,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card,
+.theme-night .customer-home-brief article,
+.theme-night .cashier-home-brief article {
+  border: 1px solid rgba(202, 184, 255, 0.2);
+  border-left: 6px solid #8b5cf6;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.14), transparent 36%),
+    linear-gradient(135deg, rgba(58, 47, 80, 0.9), rgba(42, 34, 60, 0.86));
+  color: var(--night-text);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 16px 34px rgba(15, 10, 24, 0.26);
+}
+
+.theme-night .workbench-metric-row .dashboard-metric:nth-child(2),
+.theme-night .workbench-action-row button:nth-child(2),
+.theme-night .workbench-quick-list button:nth-child(2),
+.theme-night .workbench-insight-list button:nth-child(2),
+.theme-night .cashier-module-page.module-hub .module-metric-card:nth-child(2),
+.theme-night .customer-module-page.module-hub .module-metric-card:nth-child(2),
+.theme-night .cashier-module-page.module-hub .module-entry-card.teal,
+.theme-night .cashier-module-page.module-hub .module-entry-card.jade,
+.theme-night .customer-module-page.module-hub .module-entry-card.teal,
+.theme-night .customer-module-page.module-hub .module-entry-card.jade,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.teal,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.jade,
+.theme-night .customer-home-brief article:nth-child(2) {
+  border-color: rgba(159, 181, 255, 0.24);
+  border-left-color: #7c8df4;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(124, 141, 244, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(54, 49, 82, 0.9), rgba(39, 38, 66, 0.86));
+}
+
+.theme-night .workbench-metric-row .dashboard-metric:nth-child(3),
+.theme-night .workbench-action-row button:nth-child(3),
+.theme-night .workbench-quick-list button:nth-child(3),
+.theme-night .workbench-insight-list button:nth-child(3),
+.theme-night .cashier-module-page.module-hub .module-metric-card:nth-child(3),
+.theme-night .customer-module-page.module-hub .module-metric-card:nth-child(3),
+.theme-night .cashier-module-page.module-hub .module-entry-card.rose,
+.theme-night .customer-module-page.module-hub .module-entry-card.rose,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.rose,
+.theme-night .customer-home-brief article:nth-child(3) {
+  border-color: rgba(239, 116, 150, 0.28);
+  border-left-color: #d04b6f;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(208, 75, 111, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(66, 41, 62, 0.9), rgba(51, 34, 55, 0.86));
+}
+
+.theme-night .workbench-metric-row .dashboard-metric:nth-child(4),
+.theme-night .workbench-action-row button:nth-child(4),
+.theme-night .workbench-quick-list button:nth-child(4),
+.theme-night .workbench-insight-list button:nth-child(4),
+.theme-night .cashier-module-page.module-hub .module-metric-card:nth-child(4),
+.theme-night .customer-module-page.module-hub .module-metric-card:nth-child(4),
+.theme-night .cashier-module-page.module-hub .module-entry-card.amber,
+.theme-night .customer-module-page.module-hub .module-entry-card.amber,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.amber,
+.theme-night .customer-home-brief article:nth-child(4) {
+  border-color: rgba(219, 166, 84, 0.28);
+  border-left-color: #c28a3d;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(194, 138, 61, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(66, 51, 47, 0.9), rgba(50, 39, 45, 0.86));
+}
+
+.theme-night .workbench-metric-row .metric-icon,
+.theme-night .cashier-module-page.module-hub .module-metric-card .metric-icon,
+.theme-night .customer-module-page.module-hub .module-metric-card .metric-icon,
+.theme-night .cashier-module-page.module-hub .module-entry-card .admin-module-icon,
+.theme-night .customer-module-page.module-hub .module-entry-card .admin-module-icon,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card .admin-module-icon {
+  background: rgba(139, 92, 246, 0.9);
+  color: #fff;
+}
+
+.theme-night .workbench-metric-row .dashboard-metric:nth-child(2) .metric-icon,
+.theme-night .cashier-module-page.module-hub .module-metric-card:nth-child(2) .metric-icon,
+.theme-night .customer-module-page.module-hub .module-metric-card:nth-child(2) .metric-icon,
+.theme-night .cashier-module-page.module-hub .module-entry-card.teal .admin-module-icon,
+.theme-night .cashier-module-page.module-hub .module-entry-card.jade .admin-module-icon,
+.theme-night .customer-module-page.module-hub .module-entry-card.teal .admin-module-icon,
+.theme-night .customer-module-page.module-hub .module-entry-card.jade .admin-module-icon,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.teal .admin-module-icon,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.jade .admin-module-icon {
+  background: #6f7fe8;
+}
+
+.theme-night .panel-title h2,
+.theme-night .usage-card .panel-title h2,
+.theme-night .notification-head strong,
+.theme-night .account-menu-user strong,
+.theme-night .quick-card strong,
+.theme-night .record-card strong,
+.theme-night .settings-card strong,
+.theme-night .admin-module-card strong,
+.theme-night .appointment-empty-state strong,
+.theme-night .appointment-schedule-card strong,
+.theme-night .appointment-request-card strong,
+.theme-night .cashier-method-list strong,
+.theme-night .cashier-order-card strong,
+.theme-night .customer-level-list strong,
+.theme-night .customer-mini-card strong,
+.theme-night .workbench-panel .panel-title h2,
+.theme-night .workbench-panel .panel-title span,
+.theme-night .workbench-metric-row .dashboard-metric strong,
+.theme-night .workbench-action-row strong,
+.theme-night .workbench-quick-list strong,
+.theme-night .workbench-insight-list button strong,
+.theme-night .cashier-module-page.module-hub .module-metric-card strong,
+.theme-night .customer-module-page.module-hub .module-metric-card strong,
+.theme-night .cashier-module-page.module-hub .module-entry-card strong,
+.theme-night .customer-module-page.module-hub .module-entry-card strong,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card strong,
+.theme-night .customer-home-brief strong,
+.theme-night .settings-static-panel strong,
+.theme-night .settings-profile-card strong,
+.theme-night .settings-contact-card strong,
+.theme-night .stat-card strong,
+.theme-night .usage-metrics strong,
+.theme-night .appointment-status-grid strong,
+.theme-night .cashier-status-grid strong,
+.theme-night .cashier-tip-list strong,
+.theme-night .customer-status-grid strong,
+.theme-night .customer-tip-list strong,
+.theme-night .cashier-revenue-card strong,
+.theme-night .customer-focus-card strong,
+.theme-night .cashier-method-list em,
+.theme-night .cashier-order-card em,
+.theme-night .customer-level-list em,
+.theme-night .customer-mini-card em {
+  color: var(--night-text);
+}
+
+.theme-night .panel-title span,
+.theme-night .usage-card .panel-title span,
+.theme-night .quick-card p,
+.theme-night .record-card span,
+.theme-night .settings-card span,
+.theme-night .admin-module-card span,
+.theme-night .notification-list small,
+.theme-night .account-menu-user span,
+.theme-night .appointment-schedule-card span,
+.theme-night .appointment-schedule-card small,
+.theme-night .appointment-request-card span,
+.theme-night .appointment-empty-state span,
+.theme-night .appointment-soft-empty,
+.theme-night .cashier-revenue-card span,
+.theme-night .cashier-revenue-card small,
+.theme-night .cashier-status-grid span,
+.theme-night .cashier-status-grid small,
+.theme-night .cashier-method-list span,
+.theme-night .cashier-tip-list span,
+.theme-night .cashier-tip-list small,
+.theme-night .cashier-order-card span,
+.theme-night .cashier-order-card small,
+.theme-night .cashier-soft-empty,
+.theme-night .customer-focus-card span,
+.theme-night .customer-focus-card small,
+.theme-night .customer-status-grid span,
+.theme-night .customer-status-grid small,
+.theme-night .customer-level-list span,
+.theme-night .customer-tip-list span,
+.theme-night .customer-tip-list small,
+.theme-night .customer-mini-card span,
+.theme-night .customer-mini-card small,
+.theme-night .customer-soft-empty,
+.theme-night .workbench-metric-row .dashboard-metric span:not(.metric-icon),
+.theme-night .workbench-metric-row .dashboard-metric small,
+.theme-night .workbench-action-row span,
+.theme-night .workbench-quick-list small,
+.theme-night .workbench-insight-list small,
+.theme-night .cashier-module-page.module-hub .module-metric-card small,
+.theme-night .cashier-module-page.module-hub .module-metric-card em,
+.theme-night .customer-module-page.module-hub .module-metric-card small,
+.theme-night .customer-module-page.module-hub .module-metric-card em,
+.theme-night .cashier-module-page.module-hub .module-entry-card small,
+.theme-night .cashier-module-page.module-hub .module-entry-card em,
+.theme-night .cashier-module-page.module-hub .module-entry-points i,
+.theme-night .customer-module-page.module-hub .module-entry-card small,
+.theme-night .customer-module-page.module-hub .module-entry-card em,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card small,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card em,
+.theme-night .customer-home-brief span,
+.theme-night .customer-home-brief small,
+.theme-night .settings-static-panel span,
+.theme-night .settings-profile-card span,
+.theme-night .settings-contact-card span,
+.theme-night .stat-card span,
+.theme-night .usage-metrics span,
+.theme-night th,
+.theme-night label,
+.theme-night small {
+  color: var(--night-muted);
+}
+
+.theme-night .table-wrap,
+.theme-night .usage-card .table-wrap,
+.theme-night .empty,
+.theme-night .appointment-empty-state,
+.theme-night .appointment-soft-empty,
+.theme-night .cashier-soft-empty,
+.theme-night .customer-soft-empty,
+.theme-night .appointment-date-strip,
+.theme-night .appointment-status-grid > div,
+.theme-night .cashier-status-grid > div,
+.theme-night .cashier-tip-list > div,
+.theme-night .customer-status-grid > div,
+.theme-night .customer-tip-list > div,
+.theme-night .usage-metrics > div,
+.theme-night .cashier-revenue-card,
+.theme-night .customer-focus-card {
+  border-color: rgba(202, 184, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--night-text);
+}
+
+.theme-night input,
+.theme-night select,
+.theme-night textarea,
+.theme-night .datetime-field-control {
+  border-color: rgba(202, 184, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--night-text);
+}
+
+.theme-night .cashier-module-page.module-hub .module-entry-card.plum,
+.theme-night .customer-module-page.module-hub .module-entry-card.plum,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.plum {
+  border-color: rgba(187, 134, 252, 0.28);
+  border-left-color: #a855f7;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(168, 85, 247, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(62, 43, 78, 0.9), rgba(46, 34, 60, 0.86));
+  color: var(--night-text);
+}
+
+.theme-night .cashier-module-page.module-hub .module-entry-card.plum .admin-module-icon,
+.theme-night .customer-module-page.module-hub .module-entry-card.plum .admin-module-icon,
+.theme-night .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card.plum .admin-module-icon {
+  background: #9d4edd;
+  color: #fff;
+}
+
+.theme-night .admin-invite-section,
+.theme-night .admin-invite-card {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 90% 8%, rgba(139, 92, 246, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(54, 43, 73, 0.9), rgba(41, 33, 55, 0.86));
+  color: var(--night-text);
+  box-shadow: 0 16px 36px rgba(15, 10, 24, 0.24);
+}
+
+.theme-night .admin-invite-heading span,
+.theme-night .admin-invite-card > span,
+.theme-night .admin-invite-card > strong,
+.theme-night .admin-invite-code strong,
+.theme-night .admin-invite-value {
+  color: var(--night-text);
+}
+
+.theme-night .admin-invite-heading small,
+.theme-night .admin-invite-card small,
+.theme-night .admin-invite-copied {
+  color: var(--night-muted);
+}
+
+.theme-night .admin-invite-code {
+  border-color: rgba(202, 184, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.theme-night .admin-invite-code button {
+  border-color: rgba(202, 184, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--night-text);
+}
+
+.theme-night .appointment-room-page {
+  color: var(--night-text);
+}
+
+.theme-night .appointment-room-panel,
+.theme-night .appointment-room-state-scroll {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(139, 92, 246, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(48, 39, 67, 0.88), rgba(34, 27, 46, 0.86));
+  color: var(--night-text);
+  box-shadow: 0 18px 42px rgba(15, 10, 24, 0.28);
+}
+
+.theme-night .appointment-room-summary > div,
+.theme-night .appointment-room-state-card {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.14), transparent 36%),
+    linear-gradient(135deg, rgba(58, 47, 80, 0.9), rgba(42, 34, 60, 0.86));
+  color: var(--night-text);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 14px 28px rgba(15, 10, 24, 0.22);
+}
+
+.theme-night .appointment-room-summary > div:nth-child(2),
+.theme-night .appointment-room-state-card.available {
+  border-color: rgba(159, 181, 255, 0.24);
+  border-left-color: #7c8df4;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(124, 141, 244, 0.14), transparent 36%),
+    linear-gradient(135deg, rgba(54, 49, 82, 0.9), rgba(39, 38, 66, 0.86));
+}
+
+.theme-night .appointment-room-summary > div:nth-child(3),
+.theme-night .appointment-room-state-card.occupied {
+  border-color: rgba(239, 116, 150, 0.28);
+  border-left-color: #d04b6f;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(208, 75, 111, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(66, 41, 62, 0.9), rgba(51, 34, 55, 0.86));
+}
+
+.theme-night .appointment-room-summary > div:nth-child(4),
+.theme-night .appointment-room-state-card.maintenance {
+  border-color: rgba(219, 166, 84, 0.28);
+  border-left-color: #c28a3d;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(194, 138, 61, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(66, 51, 47, 0.9), rgba(50, 39, 45, 0.86));
+}
+
+.theme-night .appointment-room-panel h2,
+.theme-night .appointment-room-panel h3,
+.theme-night .appointment-room-panel strong,
+.theme-night .appointment-room-state-card strong {
+  color: var(--night-text);
+}
+
+.theme-night .appointment-room-panel span,
+.theme-night .appointment-room-panel small,
+.theme-night .appointment-room-state-card span,
+.theme-night .appointment-room-state-card small {
+  color: var(--night-muted);
+}
+
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-panel.panel,
+.theme-night .appointment-room-page .appointment-room-panel.panel {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(139, 92, 246, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(48, 39, 67, 0.88), rgba(34, 27, 46, 0.86));
+  color: var(--night-text);
+  box-shadow: 0 18px 42px rgba(15, 10, 24, 0.28);
+}
+
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-summary > div,
+.theme-night .appointment-room-page .appointment-room-summary > div,
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card,
+.theme-night .appointment-room-page .appointment-room-state-card {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.14), transparent 36%),
+    linear-gradient(135deg, rgba(58, 47, 80, 0.9), rgba(42, 34, 60, 0.86));
+  color: var(--night-text);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 14px 28px rgba(15, 10, 24, 0.22);
+}
+
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-summary > div:nth-child(2),
+.theme-night .appointment-room-page .appointment-room-summary > div:nth-child(2),
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.available,
+.theme-night .appointment-room-page .appointment-room-state-card.available {
+  border-color: rgba(159, 181, 255, 0.24);
+  border-left-color: #7c8df4;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(124, 141, 244, 0.14), transparent 36%),
+    linear-gradient(135deg, rgba(54, 49, 82, 0.9), rgba(39, 38, 66, 0.86));
+}
+
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-summary > div:nth-child(3),
+.theme-night .appointment-room-page .appointment-room-summary > div:nth-child(3),
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied,
+.theme-night .appointment-room-page .appointment-room-state-card.occupied {
+  border-color: rgba(239, 116, 150, 0.28);
+  border-left-color: #d04b6f;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(208, 75, 111, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(66, 41, 62, 0.9), rgba(51, 34, 55, 0.86));
+}
+
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-summary > div:nth-child(4),
+.theme-night .appointment-room-page .appointment-room-summary > div:nth-child(4),
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance,
+.theme-night .appointment-room-page .appointment-room-state-card.maintenance {
+  border-color: rgba(219, 166, 84, 0.28);
+  border-left-color: #c28a3d;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(194, 138, 61, 0.16), transparent 36%),
+    linear-gradient(135deg, rgba(66, 51, 47, 0.9), rgba(50, 39, 45, 0.86));
+}
+
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card strong,
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card b,
+.theme-night .appointment-room-page .appointment-room-state-card strong,
+.theme-night .appointment-room-page .appointment-room-state-card b,
+.theme-night .appointment-room-page .appointment-room-panel strong,
+.theme-night .appointment-room-page .appointment-room-panel h2,
+.theme-night .appointment-room-page .appointment-room-panel h3 {
+  color: var(--night-text);
+}
+
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card span,
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card small,
+.theme-night.app-shell .main > .page-stack.appointment-room-page .appointment-room-state-card em,
+.theme-night .appointment-room-page .appointment-room-state-card span,
+.theme-night .appointment-room-page .appointment-room-state-card small,
+.theme-night .appointment-room-page .appointment-room-state-card em,
+.theme-night .appointment-room-page .appointment-room-panel span,
+.theme-night .appointment-room-page .appointment-room-panel small {
+  color: var(--night-muted);
+}
