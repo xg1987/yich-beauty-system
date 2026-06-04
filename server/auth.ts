@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { effectiveRoleForUser, effectiveRoleNameForUser, normalizeUserSession, rolePermissions, type UserSession } from "../src/domain/auth";
-import type { AuthUser } from "../src/domain/types";
+import { effectiveRoleForUser, effectiveRoleNameForUser, normalizeUserSession, permissionsForRole, type UserSession } from "../src/domain/auth";
+import type { AuthUser, SystemConfig } from "../src/domain/types";
 import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../src/lib/password";
 
 const sessions = new Map<string, UserSession>();
@@ -13,7 +13,7 @@ export type LoginResult = {
   userIdNeedingMigration?: string;
 };
 
-export async function login(account: string, password: string, users: AuthUser[]): Promise<LoginResult> {
+export async function login(account: string, password: string, users: AuthUser[], systemConfigs?: SystemConfig[]): Promise<LoginResult> {
   const user = users.find((item) => item.account === account && item.status === "active");
   if (!user) {
     throw new Error("账号或密码不正确");
@@ -25,7 +25,7 @@ export async function login(account: string, password: string, users: AuthUser[]
     throw new Error("账号或密码不正确");
   }
 
-  const session = buildSession(randomUUID(), user);
+  const session = buildSession(randomUUID(), user, systemConfigs);
 
   sessions.set(session.token, session);
 
@@ -42,13 +42,13 @@ export function getSession(authorizationHeader: string | undefined): UserSession
   return session ? normalizeUserSession(session) : undefined;
 }
 
-export function refreshSessionUser(token: string, user: AuthUser): UserSession {
-  const session = buildSession(token, user);
+export function refreshSessionUser(token: string, user: AuthUser, systemConfigs?: SystemConfig[]): UserSession {
+  const session = buildSession(token, user, systemConfigs);
   sessions.set(token, session);
   return session;
 }
 
-export function buildSession(token: string, user: AuthUser): UserSession {
+export function buildSession(token: string, user: AuthUser, systemConfigs?: SystemConfig[]): UserSession {
   const role = effectiveRoleForUser(user);
   return {
     token,
@@ -60,7 +60,7 @@ export function buildSession(token: string, user: AuthUser): UserSession {
       role,
       roleName: effectiveRoleNameForUser(user),
       staffId: user.staffId,
-      permissions: rolePermissions[role],
+      permissions: permissionsForRole(role, systemConfigs),
     },
   };
 }

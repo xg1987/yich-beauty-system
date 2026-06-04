@@ -39,7 +39,7 @@ import type {
   UserRole,
   ViewKey,
 } from "./types";
-import { effectiveRoleForUser } from "./auth";
+import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { assignAppointmentRooms } from "./appointments";
 import { makeId, nowIso } from "./utils";
 
@@ -88,6 +88,13 @@ export function defaultSystemConfigs(options: { now?: () => string } = {}): Syst
       key: "system_announcement",
       value: "",
       description: "平台公告内容",
+      updatedAt,
+    },
+    {
+      id: "cfg_role_permissions",
+      key: "role_permissions",
+      value: serializeRolePermissionTemplates({}),
+      description: "角色权限模板",
       updatedAt,
     },
   ];
@@ -145,6 +152,13 @@ function validateSystemConfigValue(key: SystemConfigKey, value: string) {
       throw new Error("开关配置只能是 true 或 false");
     }
     return trimmedValue;
+  }
+  if (key === "role_permissions") {
+    try {
+      return serializeRolePermissionTemplates(JSON.parse(trimmedValue));
+    } catch {
+      throw new Error("角色权限模板格式不正确");
+    }
   }
   if (trimmedValue.length > 200) {
     throw new Error("系统公告不能超过 200 个字");

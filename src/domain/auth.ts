@@ -1,4 +1,4 @@
-import type { ViewKey } from "./types";
+import type { SystemConfig, ViewKey } from "./types";
 import type { UserRole } from "./types";
 
 export type RoleKey = UserRole;
@@ -32,6 +32,22 @@ export type UserSession = {
   };
 };
 
+const allPermissions: Permission[] = [
+  "dashboard:view",
+  "appointments:manage",
+  "pos:manage",
+  "customers:manage",
+  "catalog:manage",
+  "staff:view",
+  "staff:manage",
+  "commissions:settle",
+  "inventory:manage",
+  "reports:view",
+  "approvals:manage",
+  "logs:view",
+  "settings:view",
+];
+
 export const platformAdminAccounts = ["admin@yich.local", "13827445244"];
 
 export function isPlatformAdminAccount(account: string) {
@@ -46,7 +62,7 @@ export function effectiveRoleNameForUser(user: { account: string; role: UserRole
   return effectiveRoleForUser(user) === "superadmin" ? "系统管理员" : user.roleName;
 }
 
-export function normalizeUserSession(session: UserSession): UserSession {
+export function normalizeUserSession(session: UserSession, systemConfigs?: SystemConfig[]): UserSession {
   const role = effectiveRoleForUser(session.user);
   return {
     ...session,
@@ -54,7 +70,7 @@ export function normalizeUserSession(session: UserSession): UserSession {
       ...session.user,
       role,
       roleName: role === "superadmin" ? "系统管理员" : session.user.roleName,
-      permissions: rolePermissions[role],
+      permissions: permissionsForRole(role, systemConfigs),
     },
   };
 }
@@ -67,6 +83,8 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "customers:manage",
     "catalog:manage",
     "staff:view",
+    "staff:manage",
+    "commissions:settle",
     "inventory:manage",
     "reports:view",
     "approvals:manage",
@@ -107,6 +125,43 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
   therapist: ["dashboard:view", "appointments:manage", "customers:manage", "staff:view", "settings:view"],
   finance: ["dashboard:view", "pos:manage", "staff:view", "commissions:settle", "reports:view", "approvals:manage", "settings:view"],
 };
+
+export function defaultRolePermissionTemplates() {
+  return structuredClone(rolePermissions);
+}
+
+export function parseRolePermissionTemplates(systemConfigs?: SystemConfig[]) {
+  const configValue = systemConfigs?.find((item) => item.key === "role_permissions")?.value;
+  if (!configValue) return defaultRolePermissionTemplates();
+  try {
+    return normalizeRolePermissionTemplates(JSON.parse(configValue));
+  } catch {
+    return defaultRolePermissionTemplates();
+  }
+}
+
+export function serializeRolePermissionTemplates(templates: Partial<Record<RoleKey, Permission[]>>) {
+  return JSON.stringify(normalizeRolePermissionTemplates(templates));
+}
+
+export function normalizeRolePermissionTemplates(input: unknown): Record<RoleKey, Permission[]> {
+  const nextTemplates = defaultRolePermissionTemplates();
+  if (!input || typeof input !== "object") return nextTemplates;
+  const inputRecord = input as Partial<Record<RoleKey, unknown>>;
+  (Object.keys(nextTemplates) as RoleKey[]).forEach((role) => {
+    const values = Array.isArray(inputRecord[role]) ? inputRecord[role] : nextTemplates[role];
+    const permissions = values.filter((permission): permission is Permission =>
+      typeof permission === "string" && allPermissions.includes(permission as Permission),
+    );
+    nextTemplates[role] = Array.from(new Set(permissions));
+  });
+  nextTemplates.superadmin = Array.from(new Set([...nextTemplates.superadmin, "dashboard:view", "settings:view"]));
+  return nextTemplates;
+}
+
+export function permissionsForRole(role: RoleKey, systemConfigs?: SystemConfig[]) {
+  return parseRolePermissionTemplates(systemConfigs)[role] ?? rolePermissions[role];
+}
 
 export const viewPermissions: Record<ViewKey, Permission> = {
   dashboard: "dashboard:view",

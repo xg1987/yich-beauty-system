@@ -247,10 +247,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(401, { error: "请先登录" });
     }
 
-    if (session.user.role === "superadmin" && isSuperadminBusinessWrite(context.request.method, pathname)) {
-      return sendJson(403, { error: "当前账号无此操作权限" });
-    }
-
     if (context.request.method === "GET" && pathname === "/api/auth/me") {
       return sendJson(200, session);
     }
@@ -277,7 +273,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       await database.replaceData(nextData);
       const updatedUser = nextData.authUsers.find((user) => user.id === session.user.id);
       if (!updatedUser) throw new Error("账号不存在");
-      const nextSession = buildSession(session.token, updatedUser);
+      const nextSession = buildSession(session.token, updatedUser, nextData.systemConfigs);
       return sendJson(200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) });
     }
 
@@ -1276,21 +1272,6 @@ function requirePermission(session: UserSession, permission: Permission) {
   if (!session.user.permissions.includes(permission)) {
     throw new Error("当前角色无权执行此操作");
   }
-}
-
-function isSuperadminBusinessWrite(method: string, pathname: string) {
-  if (method === "GET" || method === "HEAD") return false;
-  if (method === "PATCH" && pathname === "/api/account-profile") return false;
-  if (method === "POST" && pathname === "/api/account-avatar") return false;
-  if (method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/system-configs/")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/stores/") && pathname.endsWith("/status")) return false;
-  if (method === "POST" && pathname === "/api/store-owner-invites") return false;
-  if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) return false;
-  if (method === "POST" && pathname === "/api/notifications/read-all") return false;
-  return true;
 }
 
 function publicStorePayload(data: AppData, shareCode: string) {

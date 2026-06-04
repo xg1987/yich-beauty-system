@@ -62,7 +62,7 @@ import { hashPassword } from "../src/lib/password";
 
 // Read version from package.json (Node.js ESM)
 import pkg from "../package.json" with { type: "json" };
-import type { Permission, UserSession } from "../src/domain/auth";
+import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
 import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
 import { getSession, login, refreshSessionUser } from "./auth";
@@ -111,7 +111,8 @@ export function createApiServer(database = new BeautyDatabase()) {
         const account = requiredString(body, "account");
         const plainPassword = requiredString(body, "password");
 
-        const loginResult = await login(account, plainPassword, database.readData().authUsers);
+        const currentData = database.readData();
+        const loginResult = await login(account, plainPassword, currentData.authUsers, currentData.systemConfigs);
 
         // Auto-migrate legacy plaintext password to bcrypt hash on successful login
         if (loginResult.needsPasswordMigration && loginResult.userIdNeedingMigration) {
@@ -240,16 +241,12 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
 
-      const session = getSession(request.headers.authorization);
+      let session = getSession(request.headers.authorization);
       if (!session) {
         sendJson(response, 401, { error: "请先登录" });
         return;
       }
-
-      if (session.user.role === "superadmin" && isSuperadminBusinessWrite(request.method ?? "GET", url.pathname)) {
-        sendJson(response, 403, { error: "当前账号无此操作权限" });
-        return;
-      }
+      session = normalizeUserSession(session, database.readData().systemConfigs);
 
       if (request.method === "GET" && url.pathname === "/api/auth/me") {
         sendJson(response, 200, session);
@@ -278,7 +275,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         database.replaceData(nextData);
         const updatedUser = nextData.authUsers.find((user) => user.id === session.user.id);
         if (!updatedUser) throw new Error("账号不存在");
-        const nextSession = refreshSessionUser(session.token, updatedUser);
+        const nextSession = refreshSessionUser(session.token, updatedUser, nextData.systemConfigs);
         sendJson(response, 200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) });
         return;
       }
@@ -1331,21 +1328,6 @@ function requirePermission(session: UserSession, permission: Permission) {
   if (!session.user.permissions.includes(permission)) {
     throw new Error("当前角色无权执行此操作");
   }
-}
-
-function isSuperadminBusinessWrite(method: string, pathname: string) {
-  if (method === "GET" || method === "HEAD") return false;
-  if (method === "PATCH" && pathname === "/api/account-profile") return false;
-  if (method === "POST" && pathname === "/api/account-avatar") return false;
-  if (method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/system-configs/")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/stores/") && pathname.endsWith("/status")) return false;
-  if (method === "POST" && pathname === "/api/store-owner-invites") return false;
-  if (method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) return false;
-  if (method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) return false;
-  if (method === "POST" && pathname === "/api/notifications/read-all") return false;
-  return true;
 }
 
 function publicStorePayload(data: AppData, shareCode: string) {

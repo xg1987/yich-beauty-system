@@ -6607,7 +6607,43 @@ textarea,
 }
 
 .appointment-create-form {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  grid-auto-rows: max-content;
+  gap: 14px 18px;
   padding: 2px;
+}
+
+.appointment-create-form label,
+.appointment-create-form .datetime-field {
+  gap: 7px;
+}
+
+.appointment-create-form select,
+.appointment-create-form input,
+.appointment-create-form .datetime-field-control {
+  min-height: 44px;
+}
+
+.appointment-create-form textarea {
+  min-height: 72px;
+}
+
+.appointment-create-form > label,
+.appointment-create-form > .datetime-field,
+.appointment-create-form > .appointment-room-choice-note,
+.appointment-create-form > .form-warning,
+.appointment-create-form > .row-actions {
+  min-width: 0;
+}
+
+.appointment-create-form > .appointment-room-choice-note,
+.appointment-create-form > label:has(textarea),
+.appointment-create-form > .form-warning,
+.appointment-create-form > .row-actions {
+  grid-column: 1 / -1;
 }
 
 .appointment-modal-detail .appointment-room-choice-note {

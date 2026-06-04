@@ -43,7 +43,7 @@ import { Modal } from "./components/ui/Modal";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
-import { canAccessView, hasPermission, type UserSession } from "./domain/auth";
+import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
@@ -68,6 +68,33 @@ const AUTO_THEME_NIGHT_START_HOUR = 19;
 const DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
 const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
+const permissionLabels: Record<Permission, string> = {
+  "dashboard:view": "工作台",
+  "appointments:manage": "预约管理",
+  "pos:manage": "开单收银",
+  "customers:manage": "客户档案",
+  "catalog:manage": "项目商品",
+  "staff:view": "查看员工",
+  "staff:manage": "员工管理",
+  "commissions:settle": "提成结算",
+  "inventory:manage": "库存管理",
+  "reports:view": "报表分析",
+  "approvals:manage": "审批中心",
+  "logs:view": "操作日志",
+  "settings:view": "系统设置",
+};
+const permissionOptions = (Object.keys(permissionLabels) as Permission[]).map((permission) => ({
+  value: permission,
+  label: permissionLabels[permission],
+}));
+const roleScopeLabels: Record<UserRole, string> = {
+  superadmin: "平台级",
+  owner: "门店全部",
+  manager: "门店管理",
+  frontdesk: "到店业务",
+  therapist: "本人服务",
+  finance: "财务处理",
+};
 const viewTitles: Record<ViewKey, string> = {
   dashboard: "工作台",
   appointments: "预约管理",
@@ -499,15 +526,15 @@ export default function App() {
               </div>
             )}
             {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
-            {activeView === "appointments" && (isPlatformAdmin ? <PlatformAppointmentsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Appointments data={data} actions={actions} runMutation={runMutation} />)}
-            {activeView === "pos" && (isPlatformAdmin ? <PlatformOrdersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
-            {activeView === "customers" && (isPlatformAdmin ? <PlatformCustomersReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
-            {activeView === "catalog" && (isPlatformAdmin ? <PlatformCatalogReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
-            {activeView === "staff" && (isPlatformAdmin ? <PlatformStaffReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
-            {activeView === "inventory" && (isPlatformAdmin ? <PlatformInventoryReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
-            {activeView === "reports" && (isPlatformAdmin ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Reports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
-            {activeView === "approvals" && (isPlatformAdmin ? <PlatformApprovalsReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <Approvals data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />)}
-            {activeView === "logs" && (isPlatformAdmin ? <PlatformAuditReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} /> : <OperationLogs data={data} session={session} />)}
+            {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "logs" && <OperationLogs data={data} session={session} />}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
@@ -1785,14 +1812,31 @@ function PlatformPermissionReadOnlyView({
   const pendingStaffInvites = data.staffInvites.filter((item) => item.status === "待加入").length;
   const storeOwnerApplications = data.storeOwnerApplications ?? [];
   const pendingOwnerApplications = storeOwnerApplications.filter((item) => item.status === "待审批").length;
-  const roleRows = [
-    ["系统管理员", "账号、权限、平台数据、日志、用量", "平台级"],
-    ["店长", "门店经营、员工、库存、报表、审批", "门店级"],
-    ["店长", "预约、收银、客户、库存、提成、报表", "执行级"],
-    ["前台", "预约、收银、客户登记", "到店业务"],
-    ["美容师", "预约、服务开单、客户记录、个人提成", "本人服务"],
-    ["财务", "报表、日结、提成结算、审批", "财务处理"],
-  ];
+  const currentTemplates = parseRolePermissionTemplates(data.systemConfigs);
+  const [draftTemplates, setDraftTemplates] = useState(currentTemplates);
+  const [savedPermissions, setSavedPermissions] = useState(false);
+
+  useEffect(() => {
+    setDraftTemplates(parseRolePermissionTemplates(data.systemConfigs));
+  }, [data.systemConfigs]);
+
+  const setRoleTemplate = (role: UserRole, permissions: string[]) => {
+    setDraftTemplates((current) => ({
+      ...current,
+      [role]: permissions as Permission[],
+    }));
+  };
+  const saveRoleTemplates = () => {
+    void runMutation(() => actions.updateSystemConfig("role_permissions", serializeRolePermissionTemplates(draftTemplates))).then(() => {
+      setSavedPermissions(true);
+      window.setTimeout(() => setSavedPermissions(false), 1400);
+    });
+  };
+  const roleRows = (Object.entries(draftTemplates) as Array<[UserRole, Permission[]]>).map(([role, permissions]) => [
+    displayUserRole(role),
+    permissions.map((permission) => permissionLabels[permission]).join("、"),
+    roleScopeLabels[role],
+  ]);
 
   return (
     <div className="admin-center-page platform-admin-page permission-admin-page">
@@ -1841,8 +1885,24 @@ function PlatformPermissionReadOnlyView({
         </div>
         <div className="permission-support-grid">
           <div className="panel dashboard-panel permission-role-card">
-            <PanelTitle icon={<ShieldCheck size={18} />} title="角色权限" action="权限边界" />
+            <PanelTitle icon={<ShieldCheck size={18} />} title="角色权限" action="可配置模板" />
             <DataTable columns={["角色", "可见模块", "范围"]} rows={roleRows} />
+            <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
+              {(Object.keys(draftTemplates) as UserRole[]).map((role) => (
+                <CheckboxGroup
+                  key={role}
+                  label={displayUserRole(role)}
+                  values={draftTemplates[role]}
+                  onChange={(values) => setRoleTemplate(role, values)}
+                  options={permissionOptions}
+                />
+              ))}
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button type="button" onClick={saveRoleTemplates}>
+                  {savedPermissions ? "已保存" : "保存权限模板"}
+                </button>
+              </div>
+            </div>
           </div>
           <div className="panel dashboard-panel permission-approval-card">
             <PanelTitle icon={<ClipboardList size={18} />} title="关键审批" action={`${data.approvalRequests.length} 条`} />
@@ -2081,6 +2141,30 @@ function PlatformUsageReadOnlyView({
     approvalRequests: "审批记录",
   };
   const updatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
+  const r2Status = r2Loading ? "检查中" : r2Usage?.available ? "正常" : "需配置";
+  const workerStatus = workerLoading ? "检查中" : workerUsage?.available ? (workerErrorRate >= 5 ? "需关注" : "正常") : "需配置";
+  const systemHealthRows = [
+    [
+      "API 服务",
+      <Badge key="api-status" text="正常" tone="ok" />,
+      "当前账号已通过 API 拉取到业务数据",
+    ],
+    [
+      "D1 数据库",
+      <Badge key="d1-status" text={d1Records >= 0 ? "正常" : "异常"} tone={d1Records >= 0 ? "ok" : "warn"} />,
+      `已纳入 ${d1Tables.length} 张业务表，当前 ${d1Records} 条记录`,
+    ],
+    [
+      "R2 图片存储",
+      <Badge key="r2-status" text={r2Status} tone={r2Usage?.available ? "ok" : r2Loading ? undefined : "warn"} />,
+      r2Loading ? "正在读取真实容量" : r2Usage?.available ? `已用 ${formatBytes(r2UsedBytes)}，对象 ${r2ObjectCount} 个` : r2Usage?.message ?? r2Error ?? "R2 Bucket 未绑定",
+    ],
+    [
+      "Worker 请求监控",
+      <Badge key="worker-status" text={workerStatus} tone={workerUsage?.available && workerErrorRate < 5 ? "ok" : workerLoading ? undefined : "warn"} />,
+      workerLoading ? "正在读取请求统计" : workerUsage?.available ? `最近 ${workerUsage.windowHours} 小时错误率 ${workerErrorRate.toFixed(2)}%` : workerUsage?.message ?? workerError ?? "Cloudflare Metrics 未配置",
+    ],
+  ];
 
   return (
     <div className="admin-center-page platform-admin-page usage-monitor-page">
@@ -2096,6 +2180,11 @@ function PlatformUsageReadOnlyView({
           <RefreshCw size={16} />
         </button>
       </header>
+
+      <section className="usage-card">
+        <PanelTitle icon={<ShieldCheck size={18} />} title="系统健康状态" action="实时检查" />
+        <DataTable columns={["项目", "状态", "说明"]} rows={systemHealthRows} />
+      </section>
 
       <section className="usage-card">
         <PanelTitle icon={<Database size={18} />} title="R2 图片存储" action="对象存储" />
@@ -4901,8 +4990,21 @@ function Reports({
   onReturnManagement?: () => void;
 }) {
   const [businessDate, setBusinessDate] = useState(new Date().toISOString().slice(0, 10));
-  const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | undefined>(fromManagement ? "summary" : undefined);
+  const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | "trend" | undefined>(fromManagement ? "summary" : undefined);
   const summary = reportSummary(data);
+  const exportCsv = (filename: string, columns: string[], rows: Array<Array<string | number>>) => {
+    const csv = [
+      columns.join(","),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const payMethods = ["微信", "支付宝", "现金", "银行卡", "会员卡"].map((method) => ({
     method,
     amount: data.orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + order.paidAmount, 0),
@@ -4935,9 +5037,39 @@ function Reports({
       .reduce((sum, o) => sum + o.paidAmount, 0);
     return { name: service.name, revenue };
   }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  const dailyTrend = Array.from({ length: 14 }).map((_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (13 - index));
+    const key = date.toISOString().slice(0, 10);
+    const dayOrders = data.orders.filter((order) => order.createdAt.slice(0, 10) === key && order.status !== "已退款");
+    const dayRefunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === key);
+    return {
+      date: key,
+      revenue: dayOrders.reduce((sum, order) => sum + order.paidAmount, 0),
+      orders: dayOrders.length,
+      refunds: dayRefunds.reduce((sum, refund) => sum + refund.amount, 0),
+      appointments: data.appointments.filter((appointment) => appointment.startAt.slice(0, 10) === key).length,
+    };
+  });
+  const exportReportSummary = () => exportCsv("yich-report-summary.csv", ["指标", "结果", "说明"], [
+    ["实收现金流", summary.revenue, "扣除退款前的实收订单合计"],
+    ["退款金额", summary.refundAmount, "退款记录合计"],
+    ["服务订单", summary.serviceCount, "已完成收银订单"],
+    ["员工提成", summary.commission, "服务提成合计"],
+    ["会员卡余额", summary.cardBalance, "客户未消耗储值"],
+    ["低库存项", summary.lowStockCount, "低于预警值"],
+  ]);
+  const exportTrend = () => exportCsv("yich-report-trend.csv", ["日期", "实收", "订单", "退款", "预约"], dailyTrend.map((item) => [
+    item.date,
+    item.revenue,
+    item.orders,
+    item.refunds,
+    item.appointments,
+  ]));
   type ReportsModuleKey = NonNullable<typeof activeModule>;
   const reportModules: Array<FeatureModule<ReportsModuleKey>> = [
     { key: "summary", title: "经营总览", desc: "客单价、预约转化和库存风险", icon: ChartNoAxesColumnIncreasing, tone: "violet", meta: money(summary.revenue) },
+    { key: "trend", title: "经营趋势", desc: "近 14 天实收、订单和预约", icon: ChartNoAxesColumnIncreasing, tone: "teal", meta: `${dailyTrend.length} 天` },
     { key: "payments", title: "收银流水", desc: "支付方式和实收结构", icon: CreditCard, tone: "rose", meta: `${data.orders.length} 单` },
     { key: "daily", title: "财务日结", desc: "营业日锁定和反结记录", icon: ClipboardList, tone: "amber", meta: `${data.dailyCloses.length} 天` },
     { key: "staff", title: "员工业绩", desc: "员工订单、实收和提成排行", icon: BadgeCent, tone: "jade", meta: `${staffPerformance.length} 人` },
@@ -4992,7 +5124,7 @@ function Reports({
         )}
         {activeModule === "summary" && (
         <section className="panel">
-        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action="核心指标" />
+        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action={<button type="button" onClick={exportReportSummary}>导出 CSV</button>} />
         <DataTable
           columns={["指标", "结果", "说明"]}
           rows={[
@@ -5002,6 +5134,33 @@ function Reports({
             ["低库存项", `${summary.lowStockCount} 项`, "低于预警值"],
           ]}
         />
+        <div className="divider" />
+        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营趋势" action={<button type="button" onClick={exportTrend}>导出趋势 CSV</button>} />
+        <DataTable
+          columns={["日期", "实收", "订单", "退款", "预约"]}
+          rows={dailyTrend.map((item) => [
+            item.date,
+            money(item.revenue),
+            `${item.orders} 单`,
+            money(item.refunds),
+            `${item.appointments} 单`,
+          ])}
+        />
+        </section>
+        )}
+        {activeModule === "trend" && (
+        <section className="panel">
+          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营趋势" action={<button type="button" onClick={exportTrend}>导出 CSV</button>} />
+          <DataTable
+            columns={["日期", "实收", "订单", "退款", "预约"]}
+            rows={dailyTrend.map((item) => [
+              item.date,
+              money(item.revenue),
+              `${item.orders} 单`,
+              money(item.refunds),
+              `${item.appointments} 单`,
+            ])}
+          />
         </section>
         )}
         {activeModule === "daily" && (

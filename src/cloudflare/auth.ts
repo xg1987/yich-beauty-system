@@ -1,5 +1,5 @@
-import { effectiveRoleForUser, effectiveRoleNameForUser, rolePermissions, type UserSession } from "../domain/auth";
-import type { AuthUser } from "../domain/types";
+import { effectiveRoleForUser, effectiveRoleNameForUser, permissionsForRole, type UserSession } from "../domain/auth";
+import type { AuthUser, SystemConfig } from "../domain/types";
 import type { D1DatabaseBinding } from "./d1Types";
 import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../lib/password";
 
@@ -13,6 +13,7 @@ export type LoginResult = {
 
 export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<LoginResult> {
   const users = await readAuthUsers(db);
+  const systemConfigs = await readSystemConfigs(db);
   const user = users.find((item) => item.account === account && item.status === "active");
   if (!user) {
     throw new Error("账号或密码不正确");
@@ -24,7 +25,7 @@ export async function loginWithD1(db: D1DatabaseBinding, account: string, passwo
   }
 
   const token = crypto.randomUUID();
-  const session = buildSession(token, user);
+  const session = buildSession(token, user, systemConfigs);
 
   await db
     .prepare("INSERT INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)")
@@ -46,7 +47,7 @@ export async function getSessionFromD1(db: D1DatabaseBinding, authorizationHeade
   if (!sessionRow) return undefined;
 
   const user = (await readAuthUsers(db)).find((item) => item.id === sessionRow.userId && item.status === "active");
-  return user ? buildSession(token, user) : undefined;
+  return user ? buildSession(token, user, await readSystemConfigs(db)) : undefined;
 }
 
 async function readAuthUsers(db: D1DatabaseBinding) {
@@ -54,7 +55,7 @@ async function readAuthUsers(db: D1DatabaseBinding) {
   return (result.results ?? []).map((row) => JSON.parse(row.payload_json) as AuthUser);
 }
 
-export function buildSession(token: string, user: AuthUser): UserSession {
+export function buildSession(token: string, user: AuthUser, systemConfigs?: SystemConfig[]): UserSession {
   const role = effectiveRoleForUser(user);
   return {
     token,
@@ -66,9 +67,14 @@ export function buildSession(token: string, user: AuthUser): UserSession {
       role,
       roleName: effectiveRoleNameForUser(user),
       staffId: user.staffId,
-      permissions: rolePermissions[role],
+      permissions: permissionsForRole(role, systemConfigs),
     },
   };
+}
+
+async function readSystemConfigs(db: D1DatabaseBinding) {
+  const result = await db.prepare("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC").all<{ payload_json: string }>();
+  return (result.results ?? []).map((row) => JSON.parse(row.payload_json) as SystemConfig);
 }
 
 /** Helper for callers that want to know if a stored password is still legacy plaintext */

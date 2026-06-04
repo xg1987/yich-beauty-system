@@ -399,7 +399,7 @@ export type OperationLog = {
   createdAt: string;
 };
 
-export type SystemConfigKey = "invite_default_days" | "allow_registration" | "maintenance_mode" | "system_announcement";
+export type SystemConfigKey = "invite_default_days" | "allow_registration" | "maintenance_mode" | "system_announcement" | "role_permissions";
 
 export type SystemConfig = {
   id: string;

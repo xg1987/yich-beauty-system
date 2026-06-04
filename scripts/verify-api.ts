@@ -48,7 +48,7 @@ try {
   const initialData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(initialData.customers.length, 3, "test fixture should seed customers");
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
-  assert.equal(initialData.systemConfigs.length, 4, "API data should include normalized system configs");
+  assert.equal(initialData.systemConfigs.length, 5, "API data should include normalized system configs");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
 
   const adminSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
@@ -159,80 +159,13 @@ try {
     10,
     "store owner invite API should use configured default days",
   );
-  const blockedAdminBusinessWrites: Array<{ label: string; path: string; method: string; body?: unknown }> = [
-    {
-      label: "admin should not create appointments",
-      path: "/api/appointments",
-      method: "POST",
-      body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), note: "" },
-    },
-    {
-      label: "admin should not checkout orders",
-      path: "/api/checkout",
-      method: "POST",
-      body: { customerId: "c1", staffId: "s1", serviceId: "v1", payMethod: "微信" },
-    },
-    {
-      label: "admin should not create customers",
-      path: "/api/customers",
-      method: "POST",
-      body: { name: "Admin 禁止客户", phone: "13600000000" },
-    },
-    {
-      label: "admin should not create services",
-      path: "/api/services",
-      method: "POST",
-      body: { name: "Admin 禁止项目", category: "皮肤管理", price: 100, duration: 30 },
-    },
-    {
-      label: "admin should not create products",
-      path: "/api/products",
-      method: "POST",
-      body: { name: "Admin 禁止商品", type: "sale", stock: 1, unit: "瓶", price: 10 },
-    },
-    {
-      label: "admin should not adjust inventory",
-      path: "/api/inventory/adjust",
-      method: "POST",
-      body: { productId: "p1", type: "入库", quantity: 1 },
-    },
-    {
-      label: "admin should not create approvals",
-      path: "/api/approvals",
-      method: "POST",
-      body: { type: "改价折扣", targetId: "order-admin-blocked", amount: 1, reason: "权限验证" },
-    },
-    {
-      label: "admin should not create staff",
-      path: "/api/staff",
-      method: "POST",
-      body: { name: "Admin 禁止员工", phone: "13600000001", role: "员工", baseSalary: 0, commissionRate: 0 },
-    },
-    {
-      label: "admin should not update storefront",
-      path: "/api/online-storefront",
-      method: "POST",
-      body: {
-        shareCode: "admin-blocked-storefront",
-        status: "启用",
-        headline: "Admin 禁止线上店铺",
-        description: "",
-        enabledServiceIds: [],
-      },
-    },
-  ];
-  for (const blockedWrite of blockedAdminBusinessWrites) {
-    await assert.rejects(
-      () =>
-        request<AppData>(baseUrl, blockedWrite.path, {
-          method: blockedWrite.method,
-          token: adminSession.token,
-          body: blockedWrite.body,
-        }),
-      /当前账号无此操作权限/,
-      blockedWrite.label,
-    );
-  }
+  const afterAdminCustomer = await request<AppData>(baseUrl, "/api/customers", {
+    method: "POST",
+    token: adminSession.token,
+    body: { name: "Admin 代建客户", phone: "13600000000" },
+  });
+  assert.ok(afterAdminCustomer.customers.some((customer) => customer.name === "Admin 代建客户"), "admin should operate customer business with permission template");
+  assert.equal(afterAdminCustomer.operationLogs[0].action, "新增客户", "admin business writes should be audited");
 
   database.replaceData({
     ...database.readData(),
@@ -256,15 +189,14 @@ try {
   });
   assert.equal(phoneAdminSession.user.role, "superadmin", "legacy phone admin account should enter platform admin shell");
   assert.equal(phoneAdminSession.user.roleName, "系统管理员", "legacy phone admin account should show platform admin role name");
-  await assert.rejects(
-    () =>
-      request<AppData>(baseUrl, "/api/appointments", {
-        method: "POST",
-        token: phoneAdminSession.token,
-        body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), roomName: "护理房 1", note: "" },
-      }),
-    /当前账号无此操作权限/,
-    "legacy phone admin account should be readonly for business writes",
+  const afterPhoneAdminAppointment = await request<AppData>(baseUrl, "/api/appointments", {
+    method: "POST",
+    token: phoneAdminSession.token,
+    body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), roomName: "护理房 1", note: "手机号 Admin 代预约" },
+  });
+  assert.ok(
+    afterPhoneAdminAppointment.appointments.some((appointment) => appointment.note === "手机号 Admin 代预约"),
+    "legacy phone admin account should operate business with platform permissions",
   );
 
   await assert.rejects(
@@ -401,8 +333,9 @@ try {
   });
   const afterPublicRequest = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(afterPublicRequest.onlineBookingRequests[0].status, "待处理", "public booking request should be visible to manager");
-  assert.equal(afterPublicRequest.notifications[0].targetType, "onlineBookingRequest", "public booking should create a notification");
-  assert.equal(afterPublicRequest.notifications[0].view, "appointments", "public booking notification should route to appointments");
+  const onlineBookingNotification = afterPublicRequest.notifications.find((notification) => notification.targetType === "onlineBookingRequest");
+  assert.ok(onlineBookingNotification, "public booking should create a notification");
+  assert.equal(onlineBookingNotification.view, "appointments", "public booking notification should route to appointments");
   const afterPublicConvert = await request<AppData>(baseUrl, `/api/online-booking-requests/${afterPublicRequest.onlineBookingRequests[0].id}/convert`, {
     method: "POST",
     token: session.token,
