@@ -102,6 +102,9 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
 
   const signature = payload?.signature;
   const isSigned = signature?.status === "已签名";
+  const returnToSystem = () => {
+    window.location.assign("/");
+  };
 
   return (
     <div className="public-store-page signature-page">
@@ -141,14 +144,21 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
               <form className="public-booking-form signature-form" onSubmit={submit}>
                 <PanelTitle icon={<LockKeyhole size={18} />} title={isSigned ? "已完成签名" : "签名确认"} action={signature.signedAt ? shortDate(signature.signedAt) : undefined} />
                 {isSigned ? (
-                  <div className="signed-box">
-                    {signature.signatureText?.startsWith("data:image/") ? (
-                      <img src={signature.signatureText} alt="客户签名" style={{ width: "100%", maxWidth: 360, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, background: "#fff" }} />
-                    ) : (
-                      <strong>{signature.signatureText}</strong>
-                    )}
-                    <span>{signature.signerName} · {signature.signedAt ? shortDate(signature.signedAt) : ""}</span>
-                  </div>
+                  <>
+                    <div className="signed-box">
+                      {signature.signatureText?.startsWith("data:image/") ? (
+                        <img src={signature.signatureText} alt="客户签名" style={{ width: "100%", maxWidth: 360, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, background: "#fff" }} />
+                      ) : (
+                        <strong>{signature.signatureText}</strong>
+                      )}
+                      <span>{signature.signerName} · {signature.signedAt ? shortDate(signature.signedAt) : ""}</span>
+                    </div>
+                    <div className="signature-complete-actions">
+                      <button type="button" className="primary-button" onClick={returnToSystem}>
+                        返回系统
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <>
                     <label>签名人姓名<input value={signerName} onChange={(event) => setSignerName(event.target.value)} /></label>

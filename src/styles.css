@@ -4746,6 +4746,18 @@ html[data-theme="day"],
   font-size: 24px;
 }
 
+.signature-complete-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.signature-complete-actions .primary-button {
+  flex: 1;
+  min-width: 140px;
+  justify-content: center;
+}
+
 .admin-online-panel {
   display: grid;
   gap: 14px;
