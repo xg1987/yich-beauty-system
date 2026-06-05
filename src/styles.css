@@ -14366,14 +14366,16 @@ textarea,
 
 .inventory-product-card-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
 .inventory-product-card {
   width: 100%;
   display: grid;
+  grid-template-columns: minmax(170px, 1.1fr) minmax(360px, 2.4fr) minmax(210px, 1.2fr);
   gap: 14px;
+  align-items: center;
   min-width: 0;
   padding: 16px;
   border: 1px solid rgba(111, 66, 193, 0.14);
@@ -14408,6 +14410,8 @@ textarea,
 
 .inventory-product-card-head {
   align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .inventory-product-card-head strong {
@@ -14428,7 +14432,7 @@ textarea,
 
 .inventory-product-card-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -14447,6 +14451,36 @@ textarea,
   font-size: 15px;
   font-weight: 950;
   line-height: 1.2;
+}
+
+.inventory-product-progress {
+  grid-column: 2;
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.12);
+}
+
+.inventory-product-progress i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2a8f7d, #b99555);
+}
+
+.inventory-product-card-foot {
+  align-items: flex-end;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.inventory-product-card-foot small {
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .inventory-product-card-foot > span:last-child {
@@ -14520,6 +14554,22 @@ textarea,
 
   .inventory-product-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inventory-product-card {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-product-progress {
+    grid-column: auto;
+  }
+
+  .inventory-product-card-foot {
+    align-items: flex-start;
+  }
+
+  .inventory-product-card-foot small {
+    text-align: left;
   }
 }
 
