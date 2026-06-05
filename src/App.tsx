@@ -18,6 +18,7 @@ import {
   LockKeyhole,
   Megaphone,
   MessageCircle,
+  PackageMinus,
   PackagePlus,
   RefreshCw,
   Save,
@@ -56,7 +57,7 @@ type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admi
 type ThemeMode = "auto" | "day" | "night";
 type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
 type CardType = "储值卡" | "次数卡" | "套餐卡";
-type InventoryModuleKey = "stockIn" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs";
+type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs";
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
@@ -73,6 +74,7 @@ const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
   养生类: ["泥灸", "私密", "套盒", "膏霜", "身体油", "泡脚汤", "艾灸"],
 };
 const inventoryCategoryOptions = Object.keys(INVENTORY_CATEGORY_PRESETS).map((category) => ({ value: category, label: category }));
+const inventoryLossReasonOptions = ["破损", "过期", "试用", "盘点差异", "其他损耗"];
 const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
 const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
 const permissionLabels: Record<Permission, string> = {
@@ -696,6 +698,7 @@ function ManagementCenter({
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
@@ -708,6 +711,7 @@ function ManagementCenter({
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
@@ -5145,6 +5149,11 @@ function Inventory({
   onReturnManagement?: () => void;
 }) {
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
+  const [lossProductId, setLossProductId] = useState(data.products[0]?.id ?? "");
+  const [lossQuantity, setLossQuantity] = useState(1);
+  const [lossReason, setLossReason] = useState(inventoryLossReasonOptions[0]);
+  const [lossNote, setLossNote] = useState("");
+  const [lossSaveMessage, setLossSaveMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [quantity, setQuantity] = useState(1);
   const [type, setType] = useState<InventoryLog["type"]>("入库");
   const [supplierName, setSupplierName] = useState("");
@@ -5179,6 +5188,36 @@ function Inventory({
   const changeStock = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() => actions.adjustInventory({ productId, type, quantity, expiryAt: type === "入库" ? stockExpiryAt : undefined }));
+  };
+
+  const recordProductLoss = (event: FormEvent) => {
+    event.preventDefault();
+    const product = data.products.find((item) => item.id === lossProductId);
+    setLossSaveMessage(undefined);
+    if (!product) {
+      setLossSaveMessage({ type: "error", text: "请选择商品" });
+      return;
+    }
+    if (lossQuantity <= 0) {
+      setLossSaveMessage({ type: "error", text: "请输入损耗数量" });
+      return;
+    }
+    if (lossQuantity > product.stock) {
+      setLossSaveMessage({ type: "error", text: "损耗数量不能超过当前库存" });
+      return;
+    }
+    const note = [lossReason, lossNote.trim()].filter(Boolean).join(" - ");
+    void runMutation(() => actions.adjustInventory({ productId: lossProductId, type: "报损", quantity: lossQuantity, note }))
+      .then(() => {
+        setLossQuantity(1);
+        setLossReason(inventoryLossReasonOptions[0]);
+        setLossNote("");
+        setLossSaveMessage({ type: "success", text: "商品损耗已记录" });
+      })
+      .catch((caught) => {
+        const message = caught instanceof Error ? caught.message : "商品损耗保存失败";
+        setLossSaveMessage({ type: "error", text: message });
+      });
   };
 
   const addInventoryProduct = (event: FormEvent) => {
@@ -5235,6 +5274,8 @@ function Inventory({
   const lowStockItems = data.products.filter((item) => item.stock <= item.warningStock);
   const lowStock = lowStockItems.length;
   const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
+  const selectedLossProduct = data.products.find((item) => item.id === lossProductId);
+  const recentLossLogs = data.inventoryLogs.filter((log) => log.type === "报损").slice(0, 8);
 
   useEffect(() => {
     const options = INVENTORY_CATEGORY_PRESETS[newInventoryProductCategory];
@@ -5246,6 +5287,10 @@ function Inventory({
   useEffect(() => {
     if (type === "入库") setStockExpiryAt(defaultExpiryForProduct(productId));
   }, [productId, type]);
+
+  useEffect(() => {
+    if (!lossProductId && data.products[0]) setLossProductId(data.products[0].id);
+  }, [data.products, lossProductId]);
 
   useEffect(() => {
     setPurchaseExpiryAt(defaultExpiryForProduct(purchaseProductId));
@@ -5336,8 +5381,8 @@ function Inventory({
   };
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
     { key: "stockIn", title: "商品入库", desc: "新增商品和首批库存", icon: PackagePlus, tone: "teal", meta: "新增商品" },
+    { key: "loss", title: "商品损耗", desc: "损耗登记和库存扣减", icon: PackageMinus, tone: "rose", meta: "报损" },
     { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
-    { key: "adjust", title: "库存操作", desc: "入库、报损和盘点调整", icon: Boxes, tone: "teal", meta: "流水入口" },
     { key: "supplier", title: "供应商", desc: "维护采购基础资料", icon: Building2, tone: "amber", meta: `${data.suppliers.length} 家` },
     { key: "purchase", title: "采购入库", desc: "供应商采购和入库记录", icon: PackagePlus, tone: "jade", meta: "补货" },
     { key: "stocktake", title: "库存盘点", desc: "账实差异和盘点记录", icon: ClipboardList, tone: "violet", meta: `${data.stocktakes.length} 条` },
@@ -5374,6 +5419,39 @@ function Inventory({
         onClose={closeModule}
       >
       <div className="module-detail-stack inventory-modal-detail">
+        {activeModule === "loss" && (
+        <section className="panel">
+        <PanelTitle icon={<PackageMinus size={18} />} title="商品损耗" action="损耗登记" />
+        <form className="form inventory-loss-form" onSubmit={recordProductLoss}>
+          <Select label="商品" value={lossProductId} onChange={setLossProductId} options={data.products.map(optionOf)} />
+          <Select label="损耗原因" value={lossReason} onChange={setLossReason} options={inventoryLossReasonOptions.map((item) => ({ value: item, label: item }))} />
+          <label>损耗数量<input type="number" min={1} max={selectedLossProduct?.stock ?? undefined} value={lossQuantity} onChange={(event) => setLossQuantity(Number(event.target.value))} /></label>
+          <label>备注<input value={lossNote} onChange={(event) => setLossNote(event.target.value)} /></label>
+          <div className="inventory-loss-current">
+            <span>当前库存</span>
+            <strong>{selectedLossProduct ? `${selectedLossProduct.stock}${selectedLossProduct.unit}` : "-"}</strong>
+          </div>
+          <button className="primary-button">保存损耗</button>
+        </form>
+        {lossSaveMessage && (
+          <p className={lossSaveMessage.type === "success" ? "form-success" : "form-error"}>
+            {lossSaveMessage.text}
+          </p>
+        )}
+        <div className="divider" />
+        <PanelTitle icon={<ClipboardList size={18} />} title="损耗记录" action={`${recentLossLogs.length} 条`} />
+        <DataTable
+          columns={["商品", "损耗", "结余", "原因", "时间"]}
+          rows={recentLossLogs.map((log) => [
+            nameOf(data.products, log.productId),
+            Math.abs(log.delta),
+            log.stockAfter,
+            log.note,
+            shortDate(log.createdAt),
+          ])}
+        />
+        </section>
+        )}
         {activeModule === "adjust" && (
         <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="库存操作" action="入库/报损/盘点" />

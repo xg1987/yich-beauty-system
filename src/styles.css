@@ -14461,6 +14461,34 @@ textarea,
   width: 100%;
 }
 
+.inventory-loss-form {
+  grid-template-columns: minmax(180px, 1.3fr) minmax(140px, 1fr) minmax(120px, 0.8fr) minmax(180px, 1.3fr) minmax(120px, 0.72fr) minmax(150px, 0.8fr);
+  align-items: end;
+}
+
+.inventory-loss-current {
+  min-height: 44px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.13);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.inventory-loss-current span {
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.inventory-loss-current strong {
+  color: #2f255f;
+  font-size: 16px;
+  font-weight: 950;
+}
+
 .inventory-intake-history {
   display: grid;
   gap: 10px;
@@ -14810,6 +14838,10 @@ textarea,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .inventory-loss-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .inventory-product-form-main,
   .inventory-product-form-stock {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -14852,6 +14884,10 @@ textarea,
   }
 
   .catalog-inline-form {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-loss-form {
     grid-template-columns: 1fr;
   }
 
