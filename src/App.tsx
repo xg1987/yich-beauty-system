@@ -5299,11 +5299,6 @@ function Inventory({
                     </p>
                   )}
                   <div className="inventory-intake-history">
-                    <div className="inventory-intake-summary">
-                      <strong>最近新增商品</strong>
-                      <span>{`共 ${data.products.length} 个商品`}</span>
-                      <button type="button" onClick={() => setActiveModule("list")}>查看全部库存</button>
-                    </div>
                     {intakeHistoryProducts.length > 0 ? (
                       <div className="inventory-intake-records">
                         {intakeHistoryProducts.map(({ product, log }) => (
@@ -5321,6 +5316,9 @@ function Inventory({
                     ) : (
                       <p className="empty">暂无新增商品</p>
                     )}
+                    <div className="inventory-intake-actions">
+                      <button type="button" onClick={() => setActiveModule("list")}>查看全部库存</button>
+                    </div>
                   </div>
                 </div>
                 {lowStock > 0 && (

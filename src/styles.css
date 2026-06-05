@@ -14256,29 +14256,12 @@ textarea,
   background: rgba(255, 255, 255, 0.58);
 }
 
-.inventory-intake-summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: 0 2px 2px;
+.inventory-intake-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
-.inventory-intake-summary strong {
-  color: #2f255f;
-  font-size: 15px;
-  font-weight: 950;
-  line-height: 1.2;
-}
-
-.inventory-intake-summary span {
-  color: rgba(47, 37, 95, 0.6);
-  font-size: 13px;
-  font-weight: 820;
-  white-space: nowrap;
-}
-
-.inventory-intake-summary button {
+.inventory-intake-actions button {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid rgba(111, 66, 193, 0.2);
@@ -14619,15 +14602,6 @@ textarea,
 
   .inventory-product-form-stock .form-submit-row {
     grid-column: 1 / -1;
-  }
-
-  .inventory-intake-summary {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
-  .inventory-intake-summary button {
-    justify-self: start;
   }
 
   .inventory-intake-record {
