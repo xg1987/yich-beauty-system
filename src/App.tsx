@@ -4444,6 +4444,7 @@ function Catalog({
 
   const addService = (event: FormEvent) => {
     event.preventDefault();
+    const consumables = mergeUsedProducts(serviceConsumables);
     void runMutation(() =>
       actions.addService({
         name: serviceName,
@@ -4451,10 +4452,9 @@ function Catalog({
         category: "自定义项目",
         duration: serviceDuration,
         defaultTimes: serviceDefaultTimes,
-        consumables: serviceConsumables,
+        consumables,
       }),
-    );
-    resetServiceForm();
+    ).then(resetServiceForm);
   };
 
   const selectedRecipeService = data.services.find((service) => service.id === recipeServiceId);
