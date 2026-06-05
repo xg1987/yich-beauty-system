@@ -14205,6 +14205,11 @@ textarea,
   min-width: 0;
 }
 
+.inventory-product-form .form-success,
+.inventory-product-form .form-error {
+  grid-column: 1 / -1;
+}
+
 .form-submit-row {
   grid-column: 1 / -1;
   display: flex;

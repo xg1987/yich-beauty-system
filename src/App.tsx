@@ -692,7 +692,7 @@ function ManagementCenter({
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "商品入库", desc: "新增商品 / 入库补货", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
@@ -704,7 +704,7 @@ function ManagementCenter({
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "商品入库", desc: "新增商品 / 入库补货", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
@@ -4994,6 +4994,7 @@ function Inventory({
   const [newInventoryWarningStock, setNewInventoryWarningStock] = useState("5");
   const [newInventoryShelfLifeMonths, setNewInventoryShelfLifeMonths] = useState("3");
   const [newInventoryExpiryAt, setNewInventoryExpiryAt] = useState(addMonthsInputValue(3));
+  const [inventoryProductSaveMessage, setInventoryProductSaveMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [purchaseExpiryAt, setPurchaseExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [activeModule, setActiveModule] = useState<InventoryModuleKey | undefined>(fromManagement ? initialModule ?? "stockIn" : undefined);
@@ -5011,16 +5012,12 @@ function Inventory({
     void runMutation(() => actions.adjustInventory({ productId, type, quantity, expiryAt: type === "入库" ? stockExpiryAt : undefined }));
   };
 
-  const stockInExistingProduct = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() => actions.adjustInventory({ productId, type: "入库", quantity, expiryAt: stockExpiryAt || undefined }));
-  };
-
   const addInventoryProduct = (event: FormEvent) => {
     event.preventDefault();
     const stock = numberFromInput(newInventoryProductStock, 0);
     const warningStock = numberFromInput(newInventoryWarningStock, 0);
     const shelfLifeMonths = optionalNumberFromInput(newInventoryShelfLifeMonths);
+    setInventoryProductSaveMessage(undefined);
     void runMutation(() =>
       actions.addProduct({
         name: newInventoryProductName,
@@ -5033,15 +5030,22 @@ function Inventory({
         shelfLifeMonths,
         expiryAt: newInventoryExpiryAt || undefined,
       }),
-    );
-    setNewInventoryProductName("");
-    setNewInventoryProductCategory("面护类");
-    setNewInventoryProductSubcategory("膏霜");
-    setNewInventoryProductUnit("件");
-    setNewInventoryProductStock("");
-    setNewInventoryWarningStock("5");
-    setNewInventoryShelfLifeMonths("3");
-    setNewInventoryExpiryAt(addMonthsInputValue(3));
+    )
+      .then(() => {
+        setNewInventoryProductName("");
+        setNewInventoryProductCategory("面护类");
+        setNewInventoryProductSubcategory("膏霜");
+        setNewInventoryProductUnit("件");
+        setNewInventoryProductStock("");
+        setNewInventoryWarningStock("5");
+        setNewInventoryShelfLifeMonths("3");
+        setNewInventoryExpiryAt(addMonthsInputValue(3));
+        setInventoryProductSaveMessage({ type: "success", text: "商品已保存，首批库存已同步入库。" });
+      })
+      .catch((caught) => {
+        const message = caught instanceof Error ? caught.message : "商品保存失败，请检查后再试。";
+        setInventoryProductSaveMessage({ type: "error", text: message });
+      });
   };
 
   const addSupplier = (event: FormEvent) => {
@@ -5153,7 +5157,7 @@ function Inventory({
     URL.revokeObjectURL(url);
   };
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
-    { key: "stockIn", title: "商品入库", desc: "新增商品和已有商品补货", icon: PackagePlus, tone: "teal", meta: "入库操作" },
+    { key: "stockIn", title: "商品入库", desc: "新增商品和首批库存", icon: PackagePlus, tone: "teal", meta: "新增商品" },
     { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
     { key: "adjust", title: "库存操作", desc: "入库、报损和盘点调整", icon: Boxes, tone: "teal", meta: "流水入口" },
     { key: "supplier", title: "供应商", desc: "维护采购基础资料", icon: Building2, tone: "amber", meta: `${data.suppliers.length} 家` },
@@ -5239,7 +5243,7 @@ function Inventory({
                 )}
                 {activeModule === "stockIn" && (
                 <section className="panel">
-                <PanelTitle icon={<PackagePlus size={18} />} title="商品入库" action="新增商品 / 入库补货" />
+                <PanelTitle icon={<PackagePlus size={18} />} title="商品入库" action="新增商品" />
                 <div className="catalog-inline-control inventory-inline-control">
                   <div>
                     <strong>新增商品</strong>
@@ -5272,27 +5276,16 @@ function Inventory({
                       setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
                     }} /></label>
                     <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
+                    {inventoryProductSaveMessage && (
+                      <p className={inventoryProductSaveMessage.type === "success" ? "form-success" : "form-error"}>
+                        {inventoryProductSaveMessage.text}
+                      </p>
+                    )}
                     <div className="form-submit-row">
                       <button className="primary-button">保存商品</button>
                     </div>
                   </form>
                 </div>
-                {data.products.length > 0 && (
-                  <div className="catalog-inline-control inventory-inline-control">
-                    <div>
-                      <strong>已有商品入库</strong>
-                      <span>选择库存中的商品，记录补货数量和本批到期日期</span>
-                    </div>
-                    <form className="form catalog-inline-form" onSubmit={stockInExistingProduct}>
-                      <Select label="已有商品" value={productId} onChange={(value) => { setProductId(value); setStockExpiryAt(defaultExpiryForProduct(value)); }} options={data.products.map(optionOf)} />
-                      <label>入库数量<input type="number" min={0.01} step={0.01} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
-                      <label>到期日期<input type="date" value={stockExpiryAt} onChange={(event) => setStockExpiryAt(event.target.value)} /></label>
-                      <div className="form-submit-row">
-                        <button className="primary-button">确认入库</button>
-                      </div>
-                    </form>
-                  </div>
-                )}
                 {lowStock > 0 && (
                   <div className="inventory-warning-row">
                     <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
