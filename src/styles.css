@@ -14195,7 +14195,11 @@ textarea,
 }
 
 .inventory-product-form {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: minmax(130px, 1.2fr) 105px 105px 62px 78px 78px 82px 122px 112px;
+  align-items: end;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .inventory-product-form label,
@@ -14216,12 +14220,90 @@ textarea,
   justify-content: flex-end;
 }
 
+.inventory-product-form .form-submit-row {
+  grid-column: auto;
+}
+
 .catalog-inline-form .primary-button {
   min-height: 44px;
 }
 
 .form-submit-row .primary-button {
   min-width: min(260px, 100%);
+}
+
+.inventory-product-form .form-submit-row .primary-button {
+  min-width: 112px;
+  width: 112px;
+}
+
+.inventory-intake-history {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(42, 143, 125, 0.16);
+}
+
+.inventory-intake-history-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inventory-intake-history-title strong {
+  color: #2f255f;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.inventory-intake-history-title span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.inventory-intake-records {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.inventory-intake-record {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) 96px 96px 92px 92px 82px 92px 104px 82px;
+  align-items: center;
+  gap: 10px;
+  min-width: 900px;
+  padding: 10px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #31265f;
+  font-size: 13px;
+}
+
+.inventory-intake-record strong {
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.inventory-intake-record span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-intake-record-head {
+  padding-top: 0;
+  padding-bottom: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .inventory-inline-control {

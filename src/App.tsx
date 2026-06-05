@@ -5113,6 +5113,15 @@ function Inventory({
     : categoryFilteredProducts.filter((item) => item.subcategory === inventorySubcategoryFilter);
   const filteredLowStock = filteredInventoryProducts.filter((item) => item.stock <= item.warningStock).length;
   const filteredExpiryRisk = filteredInventoryProducts.filter((item) => Boolean(productExpiryStatus(item))).length;
+  const productInitialStockLogs = new Map(
+    data.inventoryLogs
+      .filter((log) => log.note === "新增物品首批入库")
+      .map((log) => [log.productId, log]),
+  );
+  const intakeHistoryProducts = data.products
+    .map((product) => ({ product, log: productInitialStockLogs.get(product.id) }))
+    .sort((current, next) => (next.log?.createdAt ?? "").localeCompare(current.log?.createdAt ?? ""))
+    .slice(0, 12);
   const inventoryProductUsage = (item: Product) => {
     const logs = data.inventoryLogs.filter((log) => log.productId === item.id);
     const inbound = logs.filter((log) => log.delta > 0).reduce((sum, log) => sum + log.delta, 0);
@@ -5276,15 +5285,51 @@ function Inventory({
                       setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
                     }} /></label>
                     <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
-                    {inventoryProductSaveMessage && (
-                      <p className={inventoryProductSaveMessage.type === "success" ? "form-success" : "form-error"}>
-                        {inventoryProductSaveMessage.text}
-                      </p>
-                    )}
                     <div className="form-submit-row">
                       <button className="primary-button">保存商品</button>
                     </div>
                   </form>
+                  {inventoryProductSaveMessage && (
+                    <p className={inventoryProductSaveMessage.type === "success" ? "form-success" : "form-error"}>
+                      {inventoryProductSaveMessage.text}
+                    </p>
+                  )}
+                  <div className="inventory-intake-history">
+                    <div className="inventory-intake-history-title">
+                      <strong>已新增商品记录</strong>
+                      <span>保存后会留在这里，首批库存同步入库</span>
+                    </div>
+                    {intakeHistoryProducts.length > 0 ? (
+                      <div className="inventory-intake-records">
+                        <div className="inventory-intake-record inventory-intake-record-head" aria-hidden="true">
+                          <span>商品名称</span>
+                          <span>大类</span>
+                          <span>小类</span>
+                          <span>首批库存</span>
+                          <span>当前库存</span>
+                          <span>预警</span>
+                          <span>保质期</span>
+                          <span>首批到期</span>
+                          <span>状态</span>
+                        </div>
+                        {intakeHistoryProducts.map(({ product, log }) => (
+                          <div className="inventory-intake-record" key={product.id}>
+                            <strong>{product.name}</strong>
+                            <span>{product.category ?? "面护类"}</span>
+                            <span>{product.subcategory || "-"}</span>
+                            <span>{`${log ? log.delta : product.stock}${product.unit}`}</span>
+                            <span>{`${product.stock}${product.unit}`}</span>
+                            <span>{`${product.warningStock}${product.unit}`}</span>
+                            <span>{productShelfLifeText(product)}</span>
+                            <span>{log?.expiryAt ? shortDate(log.expiryAt) : productExpiryText(product)}</span>
+                            <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="empty">暂无新增商品，保存后会在这里留痕。</p>
+                    )}
+                  </div>
                 </div>
                 {lowStock > 0 && (
                   <div className="inventory-warning-row">
