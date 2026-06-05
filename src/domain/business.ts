@@ -425,6 +425,8 @@ export type AuthUserStatusInput = {
 
 export type CheckoutInput = {
   customerId?: string;
+  guestName?: string;
+  guestPhone?: string;
   staffId: string;
   collaboratorStaffIds?: string[];
   serviceId?: string;
@@ -1923,6 +1925,8 @@ export function checkoutOrder(
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
   const customerId = input.customerId ?? "";
+  const guestName = (input.guestName ?? "").trim();
+  const guestPhone = (input.guestPhone ?? "").trim();
   const serviceId = input.serviceId ?? "";
   const selectedCustomer = customerId ? data.customers.find((item) => item.id === customerId) : undefined;
   const selectedService = serviceId ? data.services.find((item) => item.id === serviceId) : undefined;
@@ -1936,6 +1940,9 @@ export function checkoutOrder(
 
   if (customerId && !selectedCustomer) {
     throw new Error("客户不存在");
+  }
+  if (!customerId && (!guestName || !guestPhone)) {
+    throw new Error("请填写散客姓名和电话");
   }
   if (serviceId && !selectedService) {
     throw new Error("服务项目不存在");
@@ -2013,6 +2020,8 @@ export function checkoutOrder(
     id: orderId,
     orderNo: `SO${Date.now().toString().slice(-8)}`,
     customerId,
+    guestName: customerId ? undefined : guestName,
+    guestPhone: customerId ? undefined : guestPhone,
     staffId: input.staffId,
     serviceId,
     productId: input.productId,

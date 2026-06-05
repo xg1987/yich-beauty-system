@@ -1,0 +1,2 @@
+ALTER TABLE orders ADD COLUMN guestName TEXT;
+ALTER TABLE orders ADD COLUMN guestPhone TEXT;

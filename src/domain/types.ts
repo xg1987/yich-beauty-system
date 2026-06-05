@@ -303,6 +303,8 @@ export type Order = {
   id: string;
   orderNo: string;
   customerId: string;
+  guestName?: string;
+  guestPhone?: string;
   staffId: string;
   serviceId: string;
   productId?: string;

@@ -96,6 +96,8 @@ export function createApiClient(getToken: () => string | undefined) {
       }),
     checkout: (body: {
       customerId?: string;
+      guestName?: string;
+      guestPhone?: string;
       staffId: string;
       collaboratorStaffIds?: string[];
       serviceId?: string;

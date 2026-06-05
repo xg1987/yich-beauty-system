@@ -575,6 +575,8 @@ export function createApiServer(database = new BeautyDatabase()) {
         const nextData = addOperationLog(
           checkoutOrder(database.readData(), {
             customerId: optionalString(body, "customerId"),
+            guestName: optionalString(body, "guestName"),
+            guestPhone: optionalString(body, "guestPhone"),
             staffId: requiredString(body, "staffId"),
             collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
             serviceId: optionalString(body, "serviceId"),

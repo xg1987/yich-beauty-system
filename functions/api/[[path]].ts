@@ -553,6 +553,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const nextData = addOperationLog(
         checkoutOrder(await database.readData(), {
           customerId: optionalString(body, "customerId"),
+          guestName: optionalString(body, "guestName"),
+          guestPhone: optionalString(body, "guestPhone"),
           staffId: requiredString(body, "staffId"),
           collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
           serviceId: optionalString(body, "serviceId"),

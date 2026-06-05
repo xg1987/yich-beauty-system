@@ -305,12 +305,14 @@ export class BeautyDatabase {
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
           order.orderNo,
           order.customerId,
+          order.guestName ?? null,
+          order.guestPhone ?? null,
           order.staffId,
           order.serviceId,
           order.productId ?? null,
@@ -584,6 +586,8 @@ export class BeautyDatabase {
         id TEXT PRIMARY KEY,
         orderNo TEXT NOT NULL,
         customerId TEXT NOT NULL,
+        guestName TEXT,
+        guestPhone TEXT,
         staffId TEXT NOT NULL,
         serviceId TEXT NOT NULL,
         productId TEXT,
@@ -737,6 +741,8 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "approvalId", "TEXT");
     this.addColumnIfMissing("orders", "distributorId", "TEXT");
     this.addColumnIfMissing("orders", "appointmentId", "TEXT");
+    this.addColumnIfMissing("orders", "guestName", "TEXT");
+    this.addColumnIfMissing("orders", "guestPhone", "TEXT");
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("commissions", "settledAt", "TEXT");
     this.addColumnIfMissing("commissions", "settlementId", "TEXT");
@@ -833,6 +839,8 @@ function mapOrder(row: unknown): Order {
   const value = row as Order;
   return {
     ...value,
+    guestName: value.guestName ?? undefined,
+    guestPhone: value.guestPhone ?? undefined,
     productId: value.productId ?? undefined,
     cardId: value.cardId ?? undefined,
     discountAmount: value.discountAmount ?? 0,

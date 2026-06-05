@@ -297,11 +297,13 @@ export class D1BeautyDatabase {
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, orderNo, customerId, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.orderNo,
             order.customerId,
+            order.guestName ?? null,
+            order.guestPhone ?? null,
             order.staffId,
             order.serviceId,
             order.productId ?? null,
@@ -523,6 +525,8 @@ function mapOrder(row: unknown): Order {
   const value = row as Order;
   return {
     ...value,
+    guestName: value.guestName ?? undefined,
+    guestPhone: value.guestPhone ?? undefined,
     productId: value.productId ?? undefined,
     cardId: value.cardId ?? undefined,
     discountAmount: value.discountAmount ?? 0,

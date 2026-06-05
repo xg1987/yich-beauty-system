@@ -12909,6 +12909,17 @@ textarea,
   line-height: 1.6;
 }
 
+.checkout-guest-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.checkout-guest-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .checkout-customer-search {
   display: grid;
   gap: 10px;
@@ -12996,6 +13007,10 @@ textarea,
   }
 
   .checkout-customer-result-list {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-guest-grid {
     grid-template-columns: 1fr;
   }
 }

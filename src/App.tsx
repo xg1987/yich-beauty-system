@@ -3280,6 +3280,8 @@ function Pos({
   const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("customer");
   const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product" | "mixed">("service");
   const [customerSearch, setCustomerSearch] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
@@ -3352,7 +3354,13 @@ function Pos({
     setAppointmentId("");
   };
 
-  const orderCustomerName = (order: Order) => order.customerId ? nameOf(data.customers, order.customerId) : "散客";
+  const orderCustomerName = (order: Order) => {
+    if (order.customerId) return nameOf(data.customers, order.customerId);
+    const name = order.guestName?.trim();
+    const phone = order.guestPhone?.trim();
+    if (!name && !phone) return "散客";
+    return [name || "散客", phone].filter(Boolean).join(" · ");
+  };
   const orderItemName = (order: Order) => {
     const serviceName = order.serviceId ? nameOf(data.services, order.serviceId) : "";
     const productName = order.productId ? nameOf(data.products, order.productId) : "";
@@ -3365,6 +3373,9 @@ function Pos({
     const service = data.services.find((s) => s.id === order.serviceId);
     const staff = data.staff.find((s) => s.id === order.staffId);
     const product = order.productId ? data.products.find((p) => p.id === order.productId) : null;
+    const receiptCustomer = customer
+      ? `${customer.name}${customer.phone ? ` (${customer.phone})` : ""}`
+      : `${order.guestName || "散客"}${order.guestPhone ? ` (${order.guestPhone})` : ""}`;
 
     const printContent = `
       <div style="font-family: monospace; padding: 20px; max-width: 300px; margin: 0 auto;">
@@ -3373,7 +3384,7 @@ function Pos({
         <hr />
         <p>订单号: ${order.orderNo}</p>
         <p>时间: ${new Date(order.createdAt).toLocaleString('zh-CN')}</p>
-        <p>客户: ${customer?.name || '散客'}${customer?.phone ? ` (${customer.phone})` : ''}</p>
+        <p>客户: ${receiptCustomer}</p>
         <p>服务: ${service?.name || '无服务项目'}</p>
         ${product ? `<p>商品: ${product.name} ×1</p>` : ''}
         <p>服务人员: ${staff?.name || ''}</p>
@@ -3423,6 +3434,8 @@ function Pos({
     setCheckoutContentMode("service");
     setCustomerId(appointment.customerId);
     setCustomerSearch("");
+    setGuestName("");
+    setGuestPhone("");
     setStaffId(appointment.staffId);
     setServiceId(appointment.serviceId);
     setCollaboratorStaffIds([]);
@@ -3434,6 +3447,8 @@ function Pos({
     void runMutation(() =>
       actions.checkout({
         customerId: usesCustomer ? customerId : undefined,
+        guestName: usesCustomer ? undefined : guestName.trim(),
+        guestPhone: usesCustomer ? undefined : guestPhone.trim(),
         staffId,
         collaboratorStaffIds: usesService ? collaboratorStaffIds : [],
         serviceId: usesService ? serviceId : undefined,
@@ -3447,6 +3462,8 @@ function Pos({
       }),
     );
     setAppointmentId("");
+    setGuestName("");
+    setGuestPhone("");
     if (!usesProduct) setProductId("");
     setCollaboratorStaffIds([]);
     setDiscountAmount(0);
@@ -3565,6 +3582,8 @@ function Pos({
                 onClick={() => {
                   setCheckoutCustomerMode("customer");
                   setCheckoutContentMode("service");
+                  setGuestName("");
+                  setGuestPhone("");
                 }}
               >
                 老客户
@@ -3612,9 +3631,21 @@ function Pos({
               </div>
             </div>
           ) : (
-            <div className="checkout-context-note">
-              <strong>散客开单</strong>
-              <span>不绑定客户档案，适合临时到店、单次服务或只购买产品的顾客。</span>
+            <div className="checkout-guest-fields">
+              <div className="checkout-context-note">
+                <strong>散客开单</strong>
+                <span>记录姓名和电话，方便后续回访和二次开发。</span>
+              </div>
+              <div className="checkout-guest-grid">
+                <label>
+                  散客姓名
+                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="如 张女士" />
+                </label>
+                <label>
+                  联系电话
+                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="用于回访和客户开发" />
+                </label>
+              </div>
             </div>
           )}
           {usesCustomer && usesService && (
@@ -3712,6 +3743,7 @@ function Pos({
             disabled={
               !staffId
               || (usesCustomer && !customerId)
+              || (!usesCustomer && (!guestName.trim() || !guestPhone.trim()))
               || (usesService && !serviceId)
               || (usesProduct && !productId)
               || (payMethod === "会员卡" && (!usesCustomer || !cardId))
