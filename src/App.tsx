@@ -5118,10 +5118,10 @@ function Inventory({
       .filter((log) => log.note === "新增物品首批入库")
       .map((log) => [log.productId, log]),
   );
-  const intakeHistoryProducts = data.products
+  const allIntakeHistoryProducts = data.products
     .map((product) => ({ product, log: productInitialStockLogs.get(product.id) }))
-    .sort((current, next) => (next.log?.createdAt ?? "").localeCompare(current.log?.createdAt ?? ""))
-    .slice(0, 12);
+    .sort((current, next) => (next.log?.createdAt ?? "").localeCompare(current.log?.createdAt ?? ""));
+  const intakeHistoryProducts = allIntakeHistoryProducts.slice(0, 3);
   const inventoryProductUsage = (item: Product) => {
     const logs = data.inventoryLogs.filter((log) => log.productId === item.id);
     const inbound = logs.filter((log) => log.delta > 0).reduce((sum, log) => sum + log.delta, 0);
@@ -5299,6 +5299,11 @@ function Inventory({
                     </p>
                   )}
                   <div className="inventory-intake-history">
+                    <div className="inventory-intake-summary">
+                      <strong>最近新增商品</strong>
+                      <span>{`共 ${data.products.length} 个商品`}</span>
+                      <button type="button" onClick={() => setActiveModule("list")}>查看全部库存</button>
+                    </div>
                     {intakeHistoryProducts.length > 0 ? (
                       <div className="inventory-intake-records">
                         {intakeHistoryProducts.map(({ product, log }) => (
@@ -5309,15 +5314,12 @@ function Inventory({
                             </div>
                             <span><small>首批</small>{`${log ? log.delta : product.stock}${product.unit}`}</span>
                             <span><small>当前</small>{`${product.stock}${product.unit}`}</span>
-                            <span><small>预警</small>{`${product.warningStock}${product.unit}`}</span>
-                            <span><small>保质期</small>{productShelfLifeText(product)}</span>
-                            <span><small>到期</small>{log?.expiryAt ? shortDate(log.expiryAt) : productExpiryText(product)}</span>
                             <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="empty">暂无新增商品，保存后会在这里留痕。</p>
+                      <p className="empty">暂无新增商品</p>
                     )}
                   </div>
                 </div>
