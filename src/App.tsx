@@ -120,6 +120,20 @@ function productExpiryText(product: Product) {
   return product.expiryAt ? shortDate(product.expiryAt) : "未设置";
 }
 
+function productShelfLifeText(product: Product) {
+  return product.shelfLifeMonths ? `${product.shelfLifeMonths}个月` : "未设置";
+}
+
+function productExpiryDaysText(product: Product) {
+  if (!product.expiryAt) return "-";
+  const today = new Date(`${dateInputValue()}T00:00:00`).getTime();
+  const expiry = new Date(`${product.expiryAt}T00:00:00`).getTime();
+  if (Number.isNaN(expiry)) return "-";
+  const daysLeft = Math.ceil((expiry - today) / 86400000);
+  if (daysLeft < 0) return `已过期${Math.abs(daysLeft)}天`;
+  return `${daysLeft}天`;
+}
+
 function productExpiryStatus(product: Product) {
   if (!product.expiryAt) return undefined;
   const today = new Date(`${dateInputValue()}T00:00:00`).getTime();
@@ -4985,7 +4999,6 @@ function Inventory({
   const [activeModule, setActiveModule] = useState<InventoryModuleKey | undefined>(fromManagement ? initialModule ?? "stockIn" : undefined);
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("全部");
   const [inventorySubcategoryFilter, setInventorySubcategoryFilter] = useState("全部");
-  const [selectedInventoryProductId, setSelectedInventoryProductId] = useState<string | undefined>();
   const newInventorySubcategoryOptions = INVENTORY_CATEGORY_PRESETS[newInventoryProductCategory] ?? [];
 
   const defaultExpiryForProduct = (nextProductId: string) => {
@@ -5071,12 +5084,7 @@ function Inventory({
 
   useEffect(() => {
     setInventorySubcategoryFilter("全部");
-    setSelectedInventoryProductId(undefined);
   }, [inventoryCategoryFilter]);
-
-  useEffect(() => {
-    setSelectedInventoryProductId(undefined);
-  }, [inventorySubcategoryFilter]);
 
   const restockLowInventory = () => {
     if (lowStockItems.length === 0) return;
@@ -5089,24 +5097,18 @@ function Inventory({
   const inventoryPresetSubcategoryTabs = inventoryCategoryFilter === "全部"
     ? []
     : INVENTORY_CATEGORY_PRESETS[inventoryCategoryFilter] ?? [];
-  const hasUncategorizedInventoryProducts = inventoryCategoryFilter !== "全部" && categoryFilteredProducts.some((item) => !item.subcategory);
   const inventorySubcategoryTabs = [
     "全部",
     ...Array.from(new Set([
       ...inventoryPresetSubcategoryTabs,
       ...categoryFilteredProducts.map((item) => item.subcategory).filter((subcategory): subcategory is string => Boolean(subcategory)),
-      ...(hasUncategorizedInventoryProducts ? ["未分小类"] : []),
     ])),
   ];
   const filteredInventoryProducts = inventorySubcategoryFilter === "全部"
     ? categoryFilteredProducts
-    : categoryFilteredProducts.filter((item) => (item.subcategory ?? "未分小类") === inventorySubcategoryFilter);
+    : categoryFilteredProducts.filter((item) => item.subcategory === inventorySubcategoryFilter);
   const filteredLowStock = filteredInventoryProducts.filter((item) => item.stock <= item.warningStock).length;
   const filteredExpiryRisk = filteredInventoryProducts.filter((item) => Boolean(productExpiryStatus(item))).length;
-  const selectedInventoryProduct = selectedInventoryProductId ? data.products.find((item) => item.id === selectedInventoryProductId) : undefined;
-  const selectedInventoryLogs = selectedInventoryProduct
-    ? data.inventoryLogs.filter((log) => log.productId === selectedInventoryProduct.id)
-    : [];
   const inventoryProductUsage = (item: Product) => {
     const logs = data.inventoryLogs.filter((log) => log.productId === item.id);
     const inbound = logs.filter((log) => log.delta > 0).reduce((sum, log) => sum + log.delta, 0);
@@ -5115,7 +5117,41 @@ function Inventory({
     const usagePercent = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
     return { inbound, used, total, usagePercent };
   };
-  const selectedInventoryUsage = selectedInventoryProduct ? inventoryProductUsage(selectedInventoryProduct) : undefined;
+  const exportInventoryCsv = () => {
+    const columns = ["商品名称", "大类", "小类", "总数", "已使用", "剩余", "使用占比", "预警库存", "保质期", "到期日期", "剩余天数", "状态"];
+    const rows = data.products.map((item) => {
+      const usage = inventoryProductUsage(item);
+      const status = [
+        productExpiryStatus(item)?.text,
+        item.stock <= item.warningStock ? "需补货" : undefined,
+      ].filter(Boolean).join(" / ") || "正常";
+      return [
+        item.name,
+        item.category ?? "面护类",
+        item.subcategory ?? "",
+        `${usage.total}${item.unit}`,
+        `${usage.used}${item.unit}`,
+        `${item.stock}${item.unit}`,
+        `${usage.usagePercent}%`,
+        `${item.warningStock}${item.unit}`,
+        productShelfLifeText(item),
+        productExpiryText(item),
+        productExpiryDaysText(item),
+        status,
+      ];
+    });
+    const csv = [
+      columns.join(","),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "yich-inventory.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
     { key: "stockIn", title: "商品入库", desc: "新增商品和已有商品补货", icon: PackagePlus, tone: "teal", meta: "入库操作" },
     { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
@@ -5270,7 +5306,7 @@ function Inventory({
                 <PanelTitle
                   icon={<Boxes size={18} />}
                   title="库存列表"
-                  action="分类库存总览"
+                  action={<button type="button" onClick={exportInventoryCsv}>导出所有库存</button>}
                 />
                 {lowStock > 0 && (
                   <div className="inventory-warning-row">
@@ -5325,22 +5361,19 @@ function Inventory({
                 </div>
                 {filteredInventoryProducts.length > 0 ? (
                   <div className="inventory-product-card-grid">
-                            {filteredInventoryProducts.map((item) => {
-                              const expiryStatus = productExpiryStatus(item);
-                              const stockStatus = item.stock <= item.warningStock ? { text: "需补货", tone: "warn" as const } : undefined;
-                              const isSelected = selectedInventoryProductId === item.id;
-                              const usage = inventoryProductUsage(item);
-                              return (
-                                <button
-                                  type="button"
-                                  key={item.id}
-                                  className={`inventory-product-card${isSelected ? " active" : ""}`}
-                                  onClick={() => setSelectedInventoryProductId(item.id)}
-                                >
-                                  <span className="inventory-product-card-head">
-                                    <strong>{item.name}</strong>
-                                    <small>{item.category ?? "面护类"} / {item.subcategory ?? "未分小类"}</small>
-                                  </span>
+                    {filteredInventoryProducts.map((item) => {
+                      const expiryStatus = productExpiryStatus(item);
+                      const stockStatus = item.stock <= item.warningStock ? { text: "需补货", tone: "warn" as const } : undefined;
+                      const usage = inventoryProductUsage(item);
+                      return (
+                        <article
+                          key={item.id}
+                          className="inventory-product-card"
+                        >
+                          <span className="inventory-product-card-head">
+                            <strong>{item.name}</strong>
+                            <small>{[item.category ?? "面护类", item.subcategory].filter(Boolean).join(" / ")}</small>
+                          </span>
                                   <span className="inventory-product-card-metrics">
                                     <span>
                                       <small>总数</small>
@@ -5354,74 +5387,42 @@ function Inventory({
                                       <small>剩余</small>
                                       <strong>{item.stock}{item.unit}</strong>
                                     </span>
-                                    <span>
-                                      <small>使用占比</small>
-                                      <strong>{usage.usagePercent}%</strong>
-                                    </span>
-                                  </span>
-                                  <span className="inventory-product-progress" aria-label={`已使用 ${usage.usagePercent}%`}>
-                                    <i style={{ width: `${usage.usagePercent}%` }} />
-                                  </span>
-                                  <span className="inventory-product-card-foot">
-                                    <span className="inventory-status-stack">
-                                      {expiryStatus && <Badge text={expiryStatus.text} tone={expiryStatus.tone} />}
-                                      {stockStatus && <Badge text={stockStatus.text} tone={stockStatus.tone} />}
-                                      {!expiryStatus && !stockStatus && <Badge text="正常" tone="ok" />}
-                                    </span>
-                                    <small>预警 {item.warningStock}{item.unit} · 到期 {productExpiryText(item)}</small>
-                                    <span>查看流水</span>
-                                  </span>
-                                </button>
-                              );
-                            })}
+                            <span>
+                              <small>使用占比</small>
+                              <strong>{usage.usagePercent}%</strong>
+                            </span>
+                            <span>
+                              <small>预警</small>
+                              <strong>{item.warningStock}{item.unit}</strong>
+                            </span>
+                            <span>
+                              <small>保质期</small>
+                              <strong>{productShelfLifeText(item)}</strong>
+                            </span>
+                            <span>
+                              <small>到期</small>
+                              <strong>{productExpiryText(item)}</strong>
+                            </span>
+                            <span>
+                              <small>剩余天数</small>
+                              <strong>{productExpiryDaysText(item)}</strong>
+                            </span>
+                          </span>
+                          <span className="inventory-product-card-foot">
+                            <span className="inventory-status-stack">
+                              {expiryStatus && <Badge text={expiryStatus.text} tone={expiryStatus.tone} />}
+                              {stockStatus && <Badge text={stockStatus.text} tone={stockStatus.tone} />}
+                              {!expiryStatus && !stockStatus && <Badge text="正常" tone="ok" />}
+                            </span>
+                          </span>
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="inventory-empty-state">
                     <strong>当前分类暂无商品</strong>
                     <span>可以回到商品入库新增商品，或切换其他分类查看。</span>
-                  </div>
-                )}
-                {selectedInventoryProduct && (
-                  <div className="inventory-product-detail">
-                    <div className="inventory-product-detail-head">
-                      <div>
-                        <strong>{selectedInventoryProduct.name}</strong>
-                        <span>{selectedInventoryProduct.category ?? "面护类"} / {selectedInventoryProduct.subcategory ?? "未分小类"}</span>
-                      </div>
-                      <button type="button" onClick={() => setSelectedInventoryProductId(undefined)}>收起详情</button>
-                    </div>
-                            <div className="inventory-summary-strip compact" aria-label="商品库存详情">
-                              <div>
-                                <span>总数</span>
-                                <strong>{selectedInventoryUsage?.total ?? selectedInventoryProduct.stock}{selectedInventoryProduct.unit}</strong>
-                              </div>
-                              <div>
-                                <span>已使用</span>
-                                <strong>{selectedInventoryUsage?.used ?? 0}{selectedInventoryProduct.unit}</strong>
-                              </div>
-                              <div>
-                                <span>使用占比</span>
-                                <strong>{selectedInventoryUsage?.usagePercent ?? 0}%</strong>
-                              </div>
-                            </div>
-                    {selectedInventoryLogs.length > 0 ? (
-                      <DataTable
-                        columns={["类型", "变动", "结余", "备注", "到期", "时间"]}
-                        rows={selectedInventoryLogs.map((log) => [
-                          log.type,
-                          log.delta > 0 ? `+${log.delta}${selectedInventoryProduct.unit}` : `${log.delta}${selectedInventoryProduct.unit}`,
-                          `${log.stockAfter}${selectedInventoryProduct.unit}`,
-                          log.note,
-                          log.expiryAt ? shortDate(log.expiryAt) : "-",
-                          shortDate(log.createdAt),
-                        ])}
-                      />
-                    ) : (
-                      <div className="inventory-empty-state compact">
-                        <strong>暂无库存流水</strong>
-                        <span>入库、快速开单消耗、报损和盘点调整后会自动记录在这里。</span>
-                      </div>
-                    )}
                   </div>
                 )}
         </section>
