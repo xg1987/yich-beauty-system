@@ -5259,34 +5259,38 @@ function Inventory({
                     <span>录入大类、小类、单位、初始库存、预警和保质期</span>
                   </div>
                   <form className="form catalog-inline-form inventory-product-form" onSubmit={addInventoryProduct}>
-                    <label>物品名称<input value={newInventoryProductName} onChange={(event) => setNewInventoryProductName(event.target.value)} required /></label>
-                    <Select
-                      label="大类"
-                      value={newInventoryProductCategory}
-                      onChange={(value) => {
-                        setNewInventoryProductCategory(value);
-                        setNewInventoryProductSubcategory(INVENTORY_CATEGORY_PRESETS[value]?.[0] ?? "");
-                      }}
-                      options={inventoryCategoryOptions}
-                    />
-                    <Select
-                      label="小类"
-                      value={newInventoryProductSubcategory}
-                      onChange={setNewInventoryProductSubcategory}
-                      options={newInventorySubcategoryOptions.map((subcategory) => ({ value: subcategory, label: subcategory }))}
-                    />
-                    <label>单位<input value={newInventoryProductUnit} onChange={(event) => setNewInventoryProductUnit(event.target.value)} required /></label>
-                    <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
-                    <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
-                    <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setNewInventoryShelfLifeMonths(nextValue);
-                      const months = optionalNumberFromInput(nextValue);
-                      setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
-                    }} /></label>
-                    <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
-                    <div className="form-submit-row">
-                      <button className="primary-button">保存商品</button>
+                    <div className="inventory-product-form-row inventory-product-form-main">
+                      <label>物品名称<input value={newInventoryProductName} onChange={(event) => setNewInventoryProductName(event.target.value)} required /></label>
+                      <Select
+                        label="大类"
+                        value={newInventoryProductCategory}
+                        onChange={(value) => {
+                          setNewInventoryProductCategory(value);
+                          setNewInventoryProductSubcategory(INVENTORY_CATEGORY_PRESETS[value]?.[0] ?? "");
+                        }}
+                        options={inventoryCategoryOptions}
+                      />
+                      <Select
+                        label="小类"
+                        value={newInventoryProductSubcategory}
+                        onChange={setNewInventoryProductSubcategory}
+                        options={newInventorySubcategoryOptions.map((subcategory) => ({ value: subcategory, label: subcategory }))}
+                      />
+                      <label>单位<input value={newInventoryProductUnit} onChange={(event) => setNewInventoryProductUnit(event.target.value)} required /></label>
+                    </div>
+                    <div className="inventory-product-form-row inventory-product-form-stock">
+                      <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
+                      <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
+                      <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setNewInventoryShelfLifeMonths(nextValue);
+                        const months = optionalNumberFromInput(nextValue);
+                        setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
+                      }} /></label>
+                      <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
+                      <div className="form-submit-row">
+                        <button className="primary-button">保存商品</button>
+                      </div>
                     </div>
                   </form>
                   {inventoryProductSaveMessage && (
@@ -5295,33 +5299,19 @@ function Inventory({
                     </p>
                   )}
                   <div className="inventory-intake-history">
-                    <div className="inventory-intake-history-title">
-                      <strong>已新增商品记录</strong>
-                      <span>保存后会留在这里，首批库存同步入库</span>
-                    </div>
                     {intakeHistoryProducts.length > 0 ? (
                       <div className="inventory-intake-records">
-                        <div className="inventory-intake-record inventory-intake-record-head" aria-hidden="true">
-                          <span>商品名称</span>
-                          <span>大类</span>
-                          <span>小类</span>
-                          <span>首批库存</span>
-                          <span>当前库存</span>
-                          <span>预警</span>
-                          <span>保质期</span>
-                          <span>首批到期</span>
-                          <span>状态</span>
-                        </div>
                         {intakeHistoryProducts.map(({ product, log }) => (
                           <div className="inventory-intake-record" key={product.id}>
-                            <strong>{product.name}</strong>
-                            <span>{product.category ?? "面护类"}</span>
-                            <span>{product.subcategory || "-"}</span>
-                            <span>{`${log ? log.delta : product.stock}${product.unit}`}</span>
-                            <span>{`${product.stock}${product.unit}`}</span>
-                            <span>{`${product.warningStock}${product.unit}`}</span>
-                            <span>{productShelfLifeText(product)}</span>
-                            <span>{log?.expiryAt ? shortDate(log.expiryAt) : productExpiryText(product)}</span>
+                            <div className="inventory-intake-record-main">
+                              <strong>{product.name}</strong>
+                              <span>{`${product.category ?? "面护类"}${product.subcategory ? ` / ${product.subcategory}` : ""}`}</span>
+                            </div>
+                            <span><small>首批</small>{`${log ? log.delta : product.stock}${product.unit}`}</span>
+                            <span><small>当前</small>{`${product.stock}${product.unit}`}</span>
+                            <span><small>预警</small>{`${product.warningStock}${product.unit}`}</span>
+                            <span><small>保质期</small>{productShelfLifeText(product)}</span>
+                            <span><small>到期</small>{log?.expiryAt ? shortDate(log.expiryAt) : productExpiryText(product)}</span>
                             <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
                           </div>
                         ))}

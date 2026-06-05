@@ -14195,11 +14195,24 @@ textarea,
 }
 
 .inventory-product-form {
-  grid-template-columns: minmax(130px, 1.2fr) 105px 105px 62px 78px 78px 82px 122px 112px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.inventory-product-form-row {
+  display: grid;
   align-items: end;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
+  gap: 12px;
+  min-width: 0;
+}
+
+.inventory-product-form-main {
+  grid-template-columns: minmax(220px, 1.8fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(90px, 0.72fr);
+}
+
+.inventory-product-form-stock {
+  grid-template-columns: minmax(116px, 1fr) minmax(116px, 1fr) minmax(124px, 1fr) minmax(160px, 1.25fr) minmax(150px, 0.9fr);
 }
 
 .inventory-product-form label,
@@ -14207,11 +14220,6 @@ textarea,
 .inventory-product-form input,
 .inventory-product-form select {
   min-width: 0;
-}
-
-.inventory-product-form .form-success,
-.inventory-product-form .form-error {
-  grid-column: 1 / -1;
 }
 
 .form-submit-row {
@@ -14222,6 +14230,7 @@ textarea,
 
 .inventory-product-form .form-submit-row {
   grid-column: auto;
+  align-self: end;
 }
 
 .catalog-inline-form .primary-button {
@@ -14233,8 +14242,8 @@ textarea,
 }
 
 .inventory-product-form .form-submit-row .primary-button {
-  min-width: 112px;
-  width: 112px;
+  min-width: 150px;
+  width: 100%;
 }
 
 .inventory-intake-history {
@@ -14245,38 +14254,18 @@ textarea,
   border-top: 1px solid rgba(42, 143, 125, 0.16);
 }
 
-.inventory-intake-history-title {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.inventory-intake-history-title strong {
-  color: #2f255f;
-  font-size: 16px;
-  font-weight: 950;
-}
-
-.inventory-intake-history-title span {
-  color: rgba(47, 37, 95, 0.62);
-  font-size: 13px;
-  font-weight: 760;
-}
-
 .inventory-intake-records {
   display: grid;
-  gap: 8px;
-  overflow-x: auto;
+  gap: 10px;
 }
 
 .inventory-intake-record {
   display: grid;
-  grid-template-columns: minmax(150px, 1.4fr) 96px 96px 92px 92px 82px 92px 104px 82px;
+  grid-template-columns: minmax(190px, 1.5fr) repeat(5, minmax(78px, 0.72fr)) auto;
   align-items: center;
-  gap: 10px;
-  min-width: 900px;
-  padding: 10px 12px;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
   border: 1px solid rgba(111, 66, 193, 0.1);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
@@ -14284,26 +14273,40 @@ textarea,
   font-size: 13px;
 }
 
-.inventory-intake-record strong {
-  font-size: 14px;
-  font-weight: 950;
+.inventory-intake-record-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
-.inventory-intake-record span {
-  min-width: 0;
+.inventory-intake-record-main strong {
+  font-size: 14px;
+  font-weight: 950;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.inventory-intake-record-head {
-  padding-top: 0;
-  padding-bottom: 0;
-  border: 0;
-  background: transparent;
-  color: rgba(47, 37, 95, 0.58);
-  font-size: 12px;
-  font-weight: 850;
+.inventory-intake-record span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 820;
+}
+
+.inventory-intake-record small {
+  color: rgba(47, 37, 95, 0.56);
+  font-size: 11px;
+  font-weight: 820;
+  line-height: 1.1;
+}
+
+.inventory-intake-record .badge {
+  justify-self: end;
+  white-space: nowrap;
 }
 
 .inventory-inline-control {
@@ -14573,8 +14576,21 @@ textarea,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .inventory-product-form {
+  .inventory-product-form-main,
+  .inventory-product-form-stock {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-product-form-stock .form-submit-row {
+    grid-column: 1 / -1;
+  }
+
+  .inventory-intake-record {
+    grid-template-columns: minmax(160px, 1fr) repeat(2, minmax(86px, 0.7fr)) auto;
+  }
+
+  .inventory-intake-record span:nth-of-type(n + 4) {
+    display: none;
   }
 
   .inventory-product-card-grid {
