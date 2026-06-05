@@ -30,6 +30,11 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow-x: clip;
+}
+
+#root {
+  overflow-x: clip;
 }
 
 button,
@@ -14952,4 +14957,82 @@ textarea,
 .theme-night .appointment-room-page .appointment-room-panel span,
 .theme-night .appointment-room-page .appointment-room-panel small {
   color: var(--night-muted);
+}
+
+/* Fixed-header modal guard: detail dialogs must open below the global topbar, not underneath it. */
+.modal-backdrop {
+  --modal-header-safe: var(--yich-global-header-height, var(--yich-topbar-h, 86px));
+  --modal-edge-gap: clamp(14px, 2.4vw, 28px);
+  top: var(--modal-header-safe);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  inset: var(--modal-header-safe) 0 0;
+  z-index: 180;
+  place-items: start center;
+  align-items: start;
+  justify-items: center;
+  width: 100%;
+  max-width: 100vw;
+  min-height: 0;
+  padding: var(--modal-edge-gap);
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.system-modal,
+.system-modal.large {
+  max-width: calc(100vw - (var(--modal-edge-gap) * 2));
+  max-height: calc(100dvh - var(--modal-header-safe) - (var(--modal-edge-gap) * 2));
+  margin: 0 auto;
+}
+
+.system-modal-header {
+  min-height: 0;
+}
+
+.system-modal-title {
+  min-width: 0;
+}
+
+.system-modal-header strong,
+.system-modal-header span {
+  display: block;
+  max-width: 100%;
+}
+
+.topbar-brand > div {
+  min-width: 0;
+}
+
+.topbar-brand strong,
+.topbar-brand span {
+  max-width: min(180px, 30vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .modal-backdrop {
+    --modal-header-safe: var(--yich-topbar-h, 72px);
+    --modal-edge-gap: 0px;
+    place-items: end center;
+    align-items: end;
+    padding: 0;
+  }
+
+  .system-modal,
+  .system-modal.large {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - var(--modal-header-safe));
+    border-radius: 24px 24px 0 0;
+  }
+
+  .topbar-brand strong,
+  .topbar-brand span {
+    max-width: min(150px, 46vw);
+  }
 }
