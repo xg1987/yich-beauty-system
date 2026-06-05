@@ -69,9 +69,18 @@ assert.equal(afterTag.tagDefinitions[0].name, `验证标签 ${runId}`, "D1 shoul
 const afterProduct = await request<AppData>(baseUrl, "/api/products", {
   method: "POST",
   token: ownerSession.token,
-  body: { name: `验证零售商品 ${runId}`, type: "sale", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8 },
+  body: { name: `验证零售商品 ${runId}`, type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8, shelfLifeMonths: 18, expiryAt: futureDay(180) },
 });
 const productId = afterProduct.products[0].id;
+assert.equal(afterProduct.products[0].category, "面护类", "D1 should persist product category");
+assert.equal(afterProduct.inventoryLogs[0].expiryAt, futureDay(180), "D1 should persist initial stock expiry log");
+
+const afterConsumableProduct = await request<AppData>(baseUrl, "/api/products", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证服务耗材 ${runId}`, type: "consumable", category: "养生类", subcategory: "身体油", unit: "瓶", price: 88, cost: 36, stock: 12, warningStock: 4, shelfLifeMonths: 12, expiryAt: futureDay(120) },
+});
+const consumableProductId = afterConsumableProduct.products[0].id;
 
 const afterService = await request<AppData>(baseUrl, "/api/services", {
   method: "POST",
@@ -83,9 +92,9 @@ const serviceId = afterService.services[0].id;
 const afterServiceRecipe = await request<AppData>(baseUrl, `/api/services/${serviceId}/consumables`, {
   method: "PATCH",
   token: ownerSession.token,
-  body: { consumables: [{ productId: "p1", quantity: 1 }] },
+  body: { consumables: [{ productId: consumableProductId, quantity: 1 }] },
 });
-assert.deepEqual(afterServiceRecipe.services[0].consumables, [{ productId: "p1", quantity: 1 }], "D1 should persist service consumable recipe");
+assert.deepEqual(afterServiceRecipe.services[0].consumables, [{ productId: consumableProductId, quantity: 1 }], "D1 should persist service consumable recipe");
 
 const afterTherapistStaff = await request<AppData>(baseUrl, "/api/staff", {
   method: "POST",
@@ -181,7 +190,7 @@ await assert.rejects(
     request<AppData>(baseUrl, "/api/inventory/adjust", {
       method: "POST",
       token: frontdeskSession.token,
-      body: { productId, type: "入库", quantity: 1 },
+      body: { productId, type: "入库", quantity: 1, expiryAt: futureDay(220) },
     }),
   /无权/,
   "frontdesk should not adjust inventory",
@@ -209,6 +218,7 @@ await assert.rejects(
         staffId: therapistStaffId,
         serviceId,
         startAt: `${unavailableDay}T02:15:00.000Z`,
+        roomName: "护理房 1",
         note: "不可预约冲突",
       },
     }),
@@ -233,7 +243,7 @@ await assert.rejects(
     request<AppData>(baseUrl, "/api/appointments", {
       method: "POST",
       token: ownerSession.token,
-      body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T05:00:00.000Z`, note: "班次外预约" },
+      body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T05:00:00.000Z`, roomName: "护理房 1", note: "班次外预约" },
     }),
   /不在员工班次内/,
   "Cloudflare appointment API should reject time outside shift",
@@ -242,7 +252,7 @@ await assert.rejects(
 const afterAppointment = await request<AppData>(baseUrl, "/api/appointments", {
   method: "POST",
   token: ownerSession.token,
-  body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T02:00:00.000Z`, note: "Cloudflare 正常预约" },
+  body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T02:00:00.000Z`, roomName: "护理房 1", note: "Cloudflare 正常预约" },
 });
 assert.equal(afterAppointment.appointments[0].staffId, therapistStaffId, "D1 should create appointment inside shift");
 
@@ -417,9 +427,10 @@ const supplierId = afterSupplier.suppliers[0].id;
 const afterPurchase = await request<AppData>(baseUrl, "/api/purchase-orders", {
   method: "POST",
   token: ownerSession.token,
-  body: { supplierId, productId, quantity: 3, unitCost: 60 },
+  body: { supplierId, productId, quantity: 3, unitCost: 60, expiryAt: futureDay(240) },
 });
 assert.equal(afterPurchase.inventoryLogs[0].type, "采购入库", "D1 should persist purchase inbound log");
+assert.equal(afterPurchase.inventoryLogs[0].expiryAt, futureDay(240), "D1 should persist purchase inbound expiry");
 const afterStocktake = await request<AppData>(baseUrl, "/api/stocktakes", {
   method: "POST",
   token: ownerSession.token,
