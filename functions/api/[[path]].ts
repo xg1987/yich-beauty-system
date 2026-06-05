@@ -1115,7 +1115,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const body = await readJson(context.request);
       const consumables = optionalConsumables(body);
       const nextData = updateData(await database.readData(), session, {
-        action: "更新项目耗材",
+        action: "更新商品耗材",
         targetType: "service",
         targetId: serviceId,
         summary: `${session.user.name} 更新项目使用产品`,

@@ -4916,6 +4916,10 @@ html[data-theme="day"],
   margin-top: 10px;
 }
 
+.recipe-list.compact {
+  margin-top: 0;
+}
+
 .recipe-list > div {
   min-height: 40px;
   display: flex;
@@ -4943,6 +4947,32 @@ html[data-theme="day"],
   color: var(--yich-purple-deep);
   font-size: 12px;
   font-weight: 700;
+}
+
+.catalog-product-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.catalog-product-picker-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(110px, auto);
+  align-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.catalog-product-picker-row button {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(111, 66, 193, 0.22);
+  border-radius: 8px;
+  background: rgba(111, 66, 193, 0.12);
+  color: var(--yich-purple-deep);
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .color-group {
@@ -14732,6 +14762,10 @@ textarea,
   }
 
   .catalog-inline-form {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-product-picker-row {
     grid-template-columns: 1fr;
   }
 
