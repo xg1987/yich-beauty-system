@@ -4684,7 +4684,7 @@ function ProductUsagePicker({
     .filter((product) => subcategory === "全部" || (product.subcategory ?? "") === subcategory);
   const matchingProducts = scopedProducts
     .filter((product) => !normalizedQuery || normalizeProductName(product.name).includes(normalizedQuery))
-    .slice(0, 12);
+    .slice(0, 8);
   const exactProduct = scopedProducts.find((product) => normalizeProductName(product.name) === normalizedQuery);
   const canCreate = query.trim().length > 0 && !exactProduct;
   const createCategory = category === "全部" ? "面护类" : category;
@@ -4737,13 +4737,15 @@ function ProductUsagePicker({
       </div>
       <div className="catalog-product-results">
         {matchingProducts.map((product) => (
-          <button key={product.id} type="button" onClick={() => addProduct(product.id)}>
-            {product.name}
+          <button className="catalog-product-result" key={product.id} type="button" onClick={() => addProduct(product.id)}>
+            <strong>{product.name}</strong>
+            <span>{product.subcategory ? `${product.category ?? "面护类"} / ${product.subcategory}` : product.category ?? "面护类"}</span>
           </button>
         ))}
         {canCreate && (
-          <button type="button" onClick={createProduct}>
-            新增“{query.trim()}”并加入
+          <button className="catalog-product-result create" type="button" onClick={createProduct}>
+            <strong>新增“{query.trim()}”</strong>
+            <span>{createSubcategory ? `${createCategory} / ${createSubcategory}` : createCategory}</span>
           </button>
         )}
       </div>

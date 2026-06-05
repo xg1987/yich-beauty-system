@@ -4968,34 +4968,87 @@ html[data-theme="day"],
   min-width: 0;
 }
 
-.catalog-product-results,
+.catalog-product-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 142px;
+  min-width: 0;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 253, 250, 0.78);
+}
+
+.catalog-product-result {
+  min-width: 0;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--yich-purple-deep);
+  text-align: left;
+}
+
+.catalog-product-result:hover,
+.catalog-product-result:focus-visible {
+  border-color: rgba(111, 66, 193, 0.28);
+  background: rgba(111, 66, 193, 0.08);
+  outline: none;
+}
+
+.catalog-product-result strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-product-result span {
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.catalog-product-result.create {
+  border-style: dashed;
+  background: rgba(224, 247, 239, 0.52);
+  color: #11614f;
+}
+
 .catalog-product-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
-.catalog-product-results button,
 .catalog-product-tags span {
-  min-height: 32px;
+  min-height: 28px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   max-width: 100%;
-  padding: 0 10px;
-  border: 1px solid rgba(111, 66, 193, 0.22);
+  padding: 0 8px 0 10px;
+  border: 1px solid rgba(20, 132, 104, 0.22);
   border-radius: 999px;
-  background: rgba(111, 66, 193, 0.12);
-  color: var(--yich-purple-deep);
+  background: rgba(224, 247, 239, 0.74);
+  color: #11614f;
   font-size: 13px;
   font-weight: 820;
 }
 
-.catalog-product-tags span {
-  border-color: rgba(20, 132, 104, 0.22);
-  background: rgba(224, 247, 239, 0.74);
-  color: #11614f;
+.catalog-product-tags span > button {
+  flex: 0 0 auto;
 }
 
 .catalog-product-tags button {

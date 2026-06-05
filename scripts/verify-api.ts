@@ -373,6 +373,15 @@ try {
     { productId: "p1", quantity: 2 },
     { productId: "p2", quantity: 0.5 },
   ], "service recipe API should persist multiple consumables");
+  const afterServiceWithProductsOnly = await request<AppData>(baseUrl, "/api/services", {
+    method: "POST",
+    token: session.token,
+    body: { name: "API 使用商品护理", category: "皮肤管理", price: 298, duration: 45, defaultTimes: 10, consumables: [{ productId: "p1", quantity: 0 }, { productId: "p2", quantity: 0 }] },
+  });
+  assert.deepEqual(afterServiceWithProductsOnly.services[0].consumables, [
+    { productId: "p1", quantity: 0 },
+    { productId: "p2", quantity: 0 },
+  ], "service API should persist product-only usage configuration");
 
   const registeredSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
     method: "POST",
