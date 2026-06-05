@@ -4983,6 +4983,9 @@ function Inventory({
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [purchaseExpiryAt, setPurchaseExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [activeModule, setActiveModule] = useState<InventoryModuleKey | undefined>(fromManagement ? initialModule ?? "stockIn" : undefined);
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("全部");
+  const [inventorySubcategoryFilter, setInventorySubcategoryFilter] = useState("全部");
+  const [selectedInventoryProductId, setSelectedInventoryProductId] = useState<string | undefined>();
   const newInventorySubcategoryOptions = INVENTORY_CATEGORY_PRESETS[newInventoryProductCategory] ?? [];
 
   const defaultExpiryForProduct = (nextProductId: string) => {
@@ -5066,10 +5069,38 @@ function Inventory({
     if (fromManagement) setActiveModule(initialModule ?? "stockIn");
   }, [fromManagement, initialModule]);
 
+  useEffect(() => {
+    setInventorySubcategoryFilter("全部");
+    setSelectedInventoryProductId(undefined);
+  }, [inventoryCategoryFilter]);
+
+  useEffect(() => {
+    setSelectedInventoryProductId(undefined);
+  }, [inventorySubcategoryFilter]);
+
   const restockLowInventory = () => {
     if (lowStockItems.length === 0) return;
     void runMutation(() => actions.restockLowInventory(supplierId || undefined));
   };
+  const inventoryCategoryTabs = ["全部", ...Object.keys(INVENTORY_CATEGORY_PRESETS)];
+  const categoryFilteredProducts = inventoryCategoryFilter === "全部"
+    ? data.products
+    : data.products.filter((item) => (item.category ?? "面护类") === inventoryCategoryFilter);
+  const inventorySubcategoryTabs = [
+    "全部",
+    ...Array.from(new Set(categoryFilteredProducts.map((item) => item.subcategory).filter((subcategory): subcategory is string => Boolean(subcategory)))),
+  ];
+  const filteredInventoryProducts = inventorySubcategoryFilter === "全部"
+    ? categoryFilteredProducts
+    : categoryFilteredProducts.filter((item) => item.subcategory === inventorySubcategoryFilter);
+  const filteredLowStock = filteredInventoryProducts.filter((item) => item.stock <= item.warningStock).length;
+  const filteredExpiryRisk = filteredInventoryProducts.filter((item) => Boolean(productExpiryStatus(item))).length;
+  const selectedInventoryProduct = selectedInventoryProductId ? data.products.find((item) => item.id === selectedInventoryProductId) : undefined;
+  const selectedInventoryLogs = selectedInventoryProduct
+    ? data.inventoryLogs.filter((log) => log.productId === selectedInventoryProduct.id)
+    : [];
+  const selectedInventoryInbound = selectedInventoryLogs.filter((log) => log.delta > 0).reduce((sum, log) => sum + log.delta, 0);
+  const selectedInventoryConsumed = selectedInventoryLogs.filter((log) => log.delta < 0).reduce((sum, log) => sum + Math.abs(log.delta), 0);
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
     { key: "stockIn", title: "商品入库", desc: "新增商品和已有商品补货", icon: PackagePlus, tone: "teal", meta: "入库操作" },
     { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
@@ -5224,33 +5255,151 @@ function Inventory({
                 <PanelTitle
                   icon={<Boxes size={18} />}
                   title="库存列表"
-                  action="库存状态总览"
+                  action="分类库存总览"
                 />
                 {lowStock > 0 && (
                   <div className="inventory-warning-row">
                     <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
                   </div>
                 )}
-                <DataTable
-                  columns={["名称", "大类", "小类", "库存", "预警", "到期", "状态"]}
-                  rows={data.products.map((item) => {
-                    const expiryStatus = productExpiryStatus(item);
-                    const stockStatus = item.stock <= item.warningStock ? { text: "需补货", tone: "warn" as const } : undefined;
-                    return [
-              item.name,
-              item.category ?? "面护类",
-              item.subcategory ?? "-",
-              `${item.stock}${item.unit}`,
-              `${item.warningStock}${item.unit}`,
-              productExpiryText(item),
-                      <div key={`${item.id}-status`} className="inventory-status-stack">
-                        {expiryStatus && <Badge text={expiryStatus.text} tone={expiryStatus.tone} />}
-                        {stockStatus && <Badge text={stockStatus.text} tone={stockStatus.tone} />}
-                        {!expiryStatus && !stockStatus && <Badge text="正常" tone="ok" />}
-                      </div>,
-                    ];
-                  })}
-                />
+                <div className="inventory-filter-stack">
+                  <div className="inventory-filter-row">
+                    <span>大类</span>
+                    <div>
+                      {inventoryCategoryTabs.map((category) => (
+                        <button
+                          type="button"
+                          key={category}
+                          className={inventoryCategoryFilter === category ? "active" : ""}
+                          onClick={() => setInventoryCategoryFilter(category)}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="inventory-filter-row">
+                    <span>小类</span>
+                    <div>
+                      {inventorySubcategoryTabs.map((subcategory) => (
+                        <button
+                          type="button"
+                          key={subcategory}
+                          className={inventorySubcategoryFilter === subcategory ? "active" : ""}
+                          onClick={() => setInventorySubcategoryFilter(subcategory)}
+                        >
+                          {subcategory}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="inventory-summary-strip" aria-label="库存概览">
+                  <div>
+                    <span>当前品项</span>
+                    <strong>{filteredInventoryProducts.length} 个</strong>
+                  </div>
+                  <div>
+                    <span>低库存</span>
+                    <strong>{filteredLowStock} 项</strong>
+                  </div>
+                  <div>
+                    <span>临期/过期</span>
+                    <strong>{filteredExpiryRisk} 项</strong>
+                  </div>
+                </div>
+                {filteredInventoryProducts.length > 0 ? (
+                  <div className="inventory-product-card-grid">
+                    {filteredInventoryProducts.map((item) => {
+                      const expiryStatus = productExpiryStatus(item);
+                      const stockStatus = item.stock <= item.warningStock ? { text: "需补货", tone: "warn" as const } : undefined;
+                      const isSelected = selectedInventoryProductId === item.id;
+                      return (
+                        <button
+                          type="button"
+                          key={item.id}
+                          className={`inventory-product-card${isSelected ? " active" : ""}`}
+                          onClick={() => setSelectedInventoryProductId(item.id)}
+                        >
+                          <span className="inventory-product-card-head">
+                            <strong>{item.name}</strong>
+                            <small>{item.category ?? "面护类"} / {item.subcategory ?? "未分小类"}</small>
+                          </span>
+                          <span className="inventory-product-card-metrics">
+                            <span>
+                              <small>当前库存</small>
+                              <strong>{item.stock}{item.unit}</strong>
+                            </span>
+                            <span>
+                              <small>预警</small>
+                              <strong>{item.warningStock}{item.unit}</strong>
+                            </span>
+                            <span>
+                              <small>到期</small>
+                              <strong>{productExpiryText(item)}</strong>
+                            </span>
+                          </span>
+                          <span className="inventory-product-card-foot">
+                            <span className="inventory-status-stack">
+                              {expiryStatus && <Badge text={expiryStatus.text} tone={expiryStatus.tone} />}
+                              {stockStatus && <Badge text={stockStatus.text} tone={stockStatus.tone} />}
+                              {!expiryStatus && !stockStatus && <Badge text="正常" tone="ok" />}
+                            </span>
+                            <span>查看流水</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="inventory-empty-state">
+                    <strong>当前分类暂无商品</strong>
+                    <span>可以回到商品入库新增商品，或切换其他分类查看。</span>
+                  </div>
+                )}
+                {selectedInventoryProduct && (
+                  <div className="inventory-product-detail">
+                    <div className="inventory-product-detail-head">
+                      <div>
+                        <strong>{selectedInventoryProduct.name}</strong>
+                        <span>{selectedInventoryProduct.category ?? "面护类"} / {selectedInventoryProduct.subcategory ?? "未分小类"}</span>
+                      </div>
+                      <button type="button" onClick={() => setSelectedInventoryProductId(undefined)}>收起详情</button>
+                    </div>
+                    <div className="inventory-summary-strip compact" aria-label="商品库存详情">
+                      <div>
+                        <span>当前库存</span>
+                        <strong>{selectedInventoryProduct.stock}{selectedInventoryProduct.unit}</strong>
+                      </div>
+                      <div>
+                        <span>累计入库</span>
+                        <strong>{selectedInventoryInbound}{selectedInventoryProduct.unit}</strong>
+                      </div>
+                      <div>
+                        <span>累计消耗</span>
+                        <strong>{selectedInventoryConsumed}{selectedInventoryProduct.unit}</strong>
+                      </div>
+                    </div>
+                    {selectedInventoryLogs.length > 0 ? (
+                      <DataTable
+                        columns={["类型", "变动", "结余", "备注", "到期", "时间"]}
+                        rows={selectedInventoryLogs.map((log) => [
+                          log.type,
+                          log.delta > 0 ? `+${log.delta}${selectedInventoryProduct.unit}` : `${log.delta}${selectedInventoryProduct.unit}`,
+                          `${log.stockAfter}${selectedInventoryProduct.unit}`,
+                          log.note,
+                          log.expiryAt ? shortDate(log.expiryAt) : "-",
+                          shortDate(log.createdAt),
+                        ])}
+                      />
+                    ) : (
+                      <div className="inventory-empty-state compact">
+                        <strong>暂无库存流水</strong>
+                        <span>入库、快速开单消耗、报损和盘点调整后会自动记录在这里。</span>
+                      </div>
+                    )}
+                  </div>
+                )}
         </section>
         )}
         {activeModule === "logs" && (
