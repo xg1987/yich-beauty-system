@@ -196,7 +196,6 @@ function ModuleOverview<Key extends string>({
           >
             <span className={`admin-module-icon ${item.tone}`}><Icon size={20} /></span>
             <strong>{item.title}</strong>
-            <small>{item.desc}</small>
             {item.points && (
               <span className="module-entry-points">
                 {item.points.map((point) => <i key={point}>{point}</i>)}
@@ -1454,7 +1453,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
     { key: "profile", title: "客户档案", desc: "客户资料和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
     { key: "cards", title: "项目次数卡", desc: "储值卡、次数卡和套餐卡", icon: CreditCard, tone: "rose", meta: `${activeCards} 张` },
     { key: "records", title: "服务记录", desc: "护理过程和回访计划", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
-    { key: "signature", title: "服务确认签名", desc: "平板现场签名记录", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures.length} 份` },
+    { key: "signature", title: "服务确认签名", desc: "", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures.length} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
@@ -2513,7 +2512,6 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
             <button key={item.title} onClick={() => setView(item.view)}>
               <strong>{item.value}</strong>
               <span>{item.title}</span>
-              <small>{item.hint}</small>
             </button>
           ))}
         </div>
@@ -4111,7 +4109,7 @@ function Customers({
     { key: "profile", title: "客户档案", desc: "新增客户和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
     { key: "cards", title: "项目次数卡", desc: "开项目卡、充值次数和核销记录", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
     { key: "records", title: "服务记录", desc: "护理过程、项目卡消耗和回访", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
-    { key: "signature", title: "服务确认签名", desc: "客户到店后用平板现场签名", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
+    { key: "signature", title: "服务确认签名", desc: "", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const closeModule = () => {
@@ -4229,7 +4227,7 @@ function Customers({
         )}
         {activeModule === "signature" && (
         <>
-        <PanelTitle icon={<LockKeyhole size={18} />} title="服务确认签名" action="平板现场签名" />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="服务确认签名" action={`${data.customerSignatures?.length ?? 0} 份`} />
         <form className="form" onSubmit={createSignature}>
           <Select label="客户" value={signatureCustomerId} onChange={(value) => { setSignatureCustomerId(value); setSignatureRecordId(""); setSignatureOrderId(""); }} options={data.customers.map(optionOf)} />
           <Select label="关联档案" value={signatureRecordId} onChange={setSignatureRecordId} options={signatureRecordOptions} />
@@ -6320,7 +6318,6 @@ function AdminCenterCard({
     <button type="button" className={`admin-module-card module-entry-card ${item.tone}`} onClick={onClick}>
       <span className={`admin-module-icon ${item.tone}`}><Icon size={22} /></span>
       <strong>{item.title}</strong>
-      <small>{item.desc}</small>
       {item.metric && <em>{item.metric}</em>}
     </button>
   );
