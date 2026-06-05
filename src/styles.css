@@ -14194,8 +14194,29 @@ textarea,
   align-items: end;
 }
 
+.inventory-product-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.inventory-product-form label,
+.inventory-product-form .field,
+.inventory-product-form input,
+.inventory-product-form select {
+  min-width: 0;
+}
+
+.form-submit-row {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .catalog-inline-form .primary-button {
   min-height: 44px;
+}
+
+.form-submit-row .primary-button {
+  min-width: min(260px, 100%);
 }
 
 .inventory-inline-control {
@@ -14203,6 +14224,16 @@ textarea,
   background:
     radial-gradient(circle at 92% 6%, rgba(42, 143, 125, 0.08), transparent 34%),
     rgba(255, 255, 255, 0.72);
+}
+
+.inventory-modal-detail {
+  min-width: 0;
+}
+
+.inventory-modal-detail > .panel,
+.inventory-inline-control,
+.inventory-modal-detail .table-wrap {
+  min-width: 0;
 }
 
 .inventory-warning-row {
@@ -14237,8 +14268,19 @@ textarea,
   flex-wrap: wrap;
 }
 
+.inventory-status-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 1023px) {
   .catalog-inline-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-product-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -14957,6 +14999,105 @@ textarea,
 .theme-night .appointment-room-page .appointment-room-panel span,
 .theme-night .appointment-room-page .appointment-room-panel small {
   color: var(--night-muted);
+}
+
+/* Notification readability lock: keep the popover readable instead of inheriting dashboard-card gradients. */
+.theme-day .notification-panel,
+.theme-night .notification-panel {
+  width: min(380px, calc(100vw - 24px));
+  max-height: calc(100dvh - var(--yich-global-header-height, 86px) - 28px);
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.theme-day .notification-panel {
+  border-color: rgba(111, 66, 193, 0.18);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(111, 66, 193, 0.1), transparent 34%),
+    rgba(255, 253, 250, 0.98);
+  color: #2f255f;
+  box-shadow: 0 24px 64px rgba(47, 27, 99, 0.22);
+}
+
+.theme-night .notification-panel {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(32, 26, 44, 0.98), rgba(24, 20, 34, 0.98));
+  color: #f7f0ff;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+}
+
+.notification-panel .notification-list {
+  max-height: min(640px, calc(100dvh - var(--yich-global-header-height, 86px) - 138px));
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.theme-day .notification-head strong,
+.theme-day .notification-list strong {
+  color: #2f255f;
+}
+
+.theme-day .notification-list small,
+.theme-day .notification-archive {
+  color: rgba(47, 37, 95, 0.68);
+}
+
+.theme-day .notification-list .notification-open,
+.theme-day .notification-archive {
+  border-color: rgba(111, 66, 193, 0.14);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.theme-day .notification-list .notification-open.has-count {
+  background:
+    radial-gradient(circle at 92% 12%, rgba(111, 66, 193, 0.12), transparent 36%),
+    rgba(250, 246, 255, 0.92);
+}
+
+.theme-night .notification-head strong,
+.theme-night .notification-list strong {
+  color: #fffaf5;
+}
+
+.theme-night .notification-list small,
+.theme-night .notification-archive {
+  color: rgba(247, 240, 255, 0.72);
+}
+
+.theme-night .notification-list .notification-open,
+.theme-night .notification-archive {
+  border-color: rgba(202, 184, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fffaf5;
+}
+
+.theme-night .notification-list .notification-open.has-count {
+  background:
+    radial-gradient(circle at 92% 12%, rgba(139, 92, 246, 0.18), transparent 36%),
+    rgba(255, 255, 255, 0.1);
+}
+
+.theme-night .notification-list em {
+  background: rgba(255, 255, 255, 0.9);
+  color: #4e2691;
+}
+
+@media (max-width: 520px) {
+  .notification-panel {
+    right: 12px;
+  }
+
+  .notification-item {
+    grid-template-columns: minmax(0, 1fr) 52px;
+  }
+
+  .notification-list .notification-open {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 10px;
+  }
 }
 
 /* Fixed-header modal guard: detail dialogs must open below the global topbar, not underneath it. */

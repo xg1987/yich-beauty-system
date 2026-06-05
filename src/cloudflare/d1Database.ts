@@ -223,15 +223,19 @@ export class D1BeautyDatabase {
 
     for (const product of data.products) {
       statements.push(
-        this.statement("INSERT INTO products (id, name, type, unit, price, cost, stock, warningStock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO products (id, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           product.id,
           product.name,
           product.type,
+          product.category ?? null,
+          product.subcategory ?? null,
           product.unit,
           product.price,
           product.cost,
           product.stock,
           product.warningStock,
+          product.shelfLifeMonths ?? null,
+          product.expiryAt ?? null,
         ]),
       );
     }
@@ -362,13 +366,14 @@ export class D1BeautyDatabase {
 
     for (const log of data.inventoryLogs) {
       statements.push(
-        this.statement("INSERT INTO inventoryLogs (id, productId, type, delta, stockAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO inventoryLogs (id, productId, type, delta, stockAfter, note, expiryAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
           log.id,
           log.productId,
           log.type,
           log.delta,
           log.stockAfter,
           log.note,
+          log.expiryAt ?? null,
           log.createdAt,
         ]),
       );
@@ -490,7 +495,14 @@ function mapService(row: unknown): Service {
 }
 
 function mapProduct(row: unknown): Product {
-  return row as Product;
+  const value = row as Product;
+  return {
+    ...value,
+    category: value.category ?? undefined,
+    subcategory: value.subcategory ?? undefined,
+    shelfLifeMonths: value.shelfLifeMonths ?? undefined,
+    expiryAt: value.expiryAt ?? undefined,
+  };
 }
 
 function mapAppointment(row: unknown): Appointment {
@@ -547,7 +559,8 @@ function mapCommission(row: unknown): Commission {
 }
 
 function mapInventoryLog(row: unknown): InventoryLog {
-  return row as InventoryLog;
+  const value = row as InventoryLog;
+  return { ...value, expiryAt: value.expiryAt ?? undefined };
 }
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {

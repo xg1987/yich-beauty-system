@@ -626,6 +626,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             type: requiredString(body, "type") as InventoryLog["type"],
             quantity: requiredNumber(body, "quantity"),
             note: optionalString(body, "note"),
+            expiryAt: optionalString(body, "expiryAt"),
           }),
           {
             userId: session.user.id,
@@ -1185,26 +1186,49 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/products") {
         requirePermission(session, "catalog:manage");
         const body = await readJson(request);
+        const productId = makeId("p");
+        const createdAt = nowIso();
+        const stock = requiredNumber(body, "stock");
+        const expiryAt = optionalString(body, "expiryAt");
         const nextData = updateData(database, session, {
           action: "新增商品耗材",
           targetType: "product",
-          targetId: "latest",
+          targetId: productId,
           summary: `${session.user.name} 新增商品/耗材 ${requiredString(body, "name")}`,
         }, (data) => ({
           ...data,
           products: [
             {
-              id: makeId("p"),
+              id: productId,
               name: requiredString(body, "name"),
               type: optionalString(body, "type") === "sale" ? "sale" : "consumable",
+              category: optionalString(body, "category") ?? "面护类",
+              subcategory: optionalString(body, "subcategory") ?? "",
               unit: optionalString(body, "unit") ?? "件",
               price: optionalNumber(body, "price") ?? 0,
               cost: optionalNumber(body, "cost") ?? 0,
-              stock: requiredNumber(body, "stock"),
+              stock,
               warningStock: optionalNumber(body, "warningStock") ?? 5,
+              shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
+              expiryAt,
             },
             ...data.products,
           ],
+          inventoryLogs: stock > 0
+            ? [
+                {
+                  id: makeId("il"),
+                  productId,
+                  type: "入库",
+                  delta: stock,
+                  stockAfter: stock,
+                  note: "新增物品首批入库",
+                  expiryAt,
+                  createdAt,
+                },
+                ...data.inventoryLogs,
+              ]
+            : data.inventoryLogs,
         }));
         sendJson(response, 201, scopeDataForSession(nextData, session));
         return;
@@ -1231,6 +1255,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           productId: requiredString(body, "productId"),
           quantity: requiredNumber(body, "quantity"),
           unitCost: requiredNumber(body, "unitCost"),
+          expiryAt: optionalString(body, "expiryAt"),
           userId: session.user.id,
         });
         database.replaceData(nextData);

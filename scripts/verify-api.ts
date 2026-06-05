@@ -859,10 +859,11 @@ try {
   const afterInventory = await request<AppData>(baseUrl, "/api/inventory/adjust", {
     method: "POST",
     token: session.token,
-    body: { productId: "p1", type: "入库", quantity: 2, note: "API 入库" },
+    body: { productId: "p1", type: "入库", quantity: 2, note: "API 入库", expiryAt: "2027-08-01" },
   });
   assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 16, "inventory API should increase stock");
   assert.equal(afterInventory.inventoryLogs[0].note, "API 入库", "inventory API should persist note");
+  assert.equal(afterInventory.inventoryLogs[0].expiryAt, "2027-08-01", "inventory API should persist expiry date");
 
   const afterRecordCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     method: "POST",
@@ -978,15 +979,20 @@ try {
   const afterPurchase = await request<AppData>(baseUrl, "/api/purchase-orders", {
     method: "POST",
     token: session.token,
-    body: { supplierId, productId: "p1", quantity: 3, unitCost: 60 },
+    body: { supplierId, productId: "p1", quantity: 3, unitCost: 60, expiryAt: "2028-01-31" },
   });
   assert.equal(afterPurchase.inventoryLogs[0].type, "采购入库", "purchase API should create inbound inventory log");
+  assert.equal(afterPurchase.inventoryLogs[0].expiryAt, "2028-01-31", "purchase API should persist expiry date");
   const afterLowStockProduct = await request<AppData>(baseUrl, "/api/products", {
     method: "POST",
     token: session.token,
-    body: { name: "API 低库存耗材", type: "consumable", stock: 1, warningStock: 5, unit: "瓶", price: 30, cost: 12 },
+    body: { name: "API 低库存耗材", type: "consumable", category: "养生类", subcategory: "泥灸", stock: 1, warningStock: 5, unit: "瓶", price: 30, cost: 12, shelfLifeMonths: 18, expiryAt: "2027-11-30" },
   });
   const lowStockProductId = afterLowStockProduct.products[0].id;
+  assert.equal(afterLowStockProduct.products[0].category, "养生类", "product API should persist category");
+  assert.equal(afterLowStockProduct.products[0].subcategory, "泥灸", "product API should persist subcategory");
+  assert.equal(afterLowStockProduct.products[0].expiryAt, "2027-11-30", "product API should persist first-batch expiry");
+  assert.equal(afterLowStockProduct.inventoryLogs[0].expiryAt, "2027-11-30", "product API should create first-batch inventory log with expiry");
   const afterRestock = await request<AppData>(baseUrl, "/api/inventory/restock-low", {
     method: "POST",
     token: session.token,

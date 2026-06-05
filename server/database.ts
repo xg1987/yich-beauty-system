@@ -240,8 +240,21 @@ export class BeautyDatabase {
 
     for (const product of data.products) {
       this.db
-        .prepare("INSERT INTO products (id, name, type, unit, price, cost, stock, warningStock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(product.id, product.name, product.type, product.unit, product.price, product.cost, product.stock, product.warningStock);
+        .prepare("INSERT INTO products (id, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(
+          product.id,
+          product.name,
+          product.type,
+          product.category ?? null,
+          product.subcategory ?? null,
+          product.unit,
+          product.price,
+          product.cost,
+          product.stock,
+          product.warningStock,
+          product.shelfLifeMonths ?? null,
+          product.expiryAt ?? null,
+        );
     }
 
     for (const appointment of data.appointments) {
@@ -362,9 +375,9 @@ export class BeautyDatabase {
     for (const log of data.inventoryLogs) {
       this.db
         .prepare(
-          "INSERT INTO inventoryLogs (id, productId, type, delta, stockAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO inventoryLogs (id, productId, type, delta, stockAfter, note, expiryAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(log.id, log.productId, log.type, log.delta, log.stockAfter, log.note, log.createdAt);
+        .run(log.id, log.productId, log.type, log.delta, log.stockAfter, log.note, log.expiryAt ?? null, log.createdAt);
     }
 
     for (const transaction of data.memberCardTransactions) {
@@ -514,11 +527,15 @@ export class BeautyDatabase {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         type TEXT NOT NULL,
+        category TEXT,
+        subcategory TEXT,
         unit TEXT NOT NULL,
         price REAL NOT NULL,
         cost REAL NOT NULL,
         stock REAL NOT NULL,
-        warningStock REAL NOT NULL
+        warningStock REAL NOT NULL,
+        shelfLifeMonths REAL,
+        expiryAt TEXT
       );
 
       CREATE TABLE IF NOT EXISTS appointments (
@@ -644,6 +661,7 @@ export class BeautyDatabase {
         delta REAL NOT NULL,
         stockAfter REAL NOT NULL,
         note TEXT NOT NULL,
+        expiryAt TEXT,
         createdAt TEXT NOT NULL
       );
 
@@ -743,6 +761,11 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "appointmentId", "TEXT");
     this.addColumnIfMissing("orders", "guestName", "TEXT");
     this.addColumnIfMissing("orders", "guestPhone", "TEXT");
+    this.addColumnIfMissing("products", "category", "TEXT");
+    this.addColumnIfMissing("products", "subcategory", "TEXT");
+    this.addColumnIfMissing("products", "shelfLifeMonths", "REAL");
+    this.addColumnIfMissing("products", "expiryAt", "TEXT");
+    this.addColumnIfMissing("inventoryLogs", "expiryAt", "TEXT");
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("commissions", "settledAt", "TEXT");
     this.addColumnIfMissing("commissions", "settlementId", "TEXT");
@@ -804,7 +827,14 @@ function mapService(row: unknown): Service {
 }
 
 function mapProduct(row: unknown): Product {
-  return row as Product;
+  const value = row as Product;
+  return {
+    ...value,
+    category: value.category ?? undefined,
+    subcategory: value.subcategory ?? undefined,
+    shelfLifeMonths: value.shelfLifeMonths ?? undefined,
+    expiryAt: value.expiryAt ?? undefined,
+  };
 }
 
 function mapAppointment(row: unknown): Appointment {
@@ -861,7 +891,8 @@ function mapCommission(row: unknown): Commission {
 }
 
 function mapInventoryLog(row: unknown): InventoryLog {
-  return row as InventoryLog;
+  const value = row as InventoryLog;
+  return { ...value, expiryAt: value.expiryAt ?? undefined };
 }
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {

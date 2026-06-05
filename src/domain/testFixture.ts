@@ -114,10 +114,10 @@ export const testFixtureData: AppData = {
     },
   ],
   products: [
-    { id: "p1", name: "清洁精华液", type: "consumable", unit: "瓶", price: 128, cost: 65, stock: 18, warningStock: 5 },
-    { id: "p2", name: "草本按摩油", type: "consumable", unit: "瓶", price: 168, cost: 80, stock: 12, warningStock: 4 },
-    { id: "p3", name: "修复护理包", type: "consumable", unit: "套", price: 298, cost: 150, stock: 9, warningStock: 3 },
-    { id: "p4", name: "家用补水面膜", type: "sale", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8 },
+    { id: "p1", name: "清洁精华液", type: "consumable", category: "面护类", subcategory: "精华", unit: "瓶", price: 128, cost: 65, stock: 18, warningStock: 5, shelfLifeMonths: 24 },
+    { id: "p2", name: "草本按摩油", type: "consumable", category: "养生类", subcategory: "身体油", unit: "瓶", price: 168, cost: 80, stock: 12, warningStock: 4, shelfLifeMonths: 24 },
+    { id: "p3", name: "修复护理包", type: "consumable", category: "养生类", subcategory: "套盒", unit: "套", price: 298, cost: 150, stock: 9, warningStock: 3, shelfLifeMonths: 24 },
+    { id: "p4", name: "家用补水面膜", type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8, shelfLifeMonths: 24 },
   ],
   appointments: [
     { id: "a1", customerId: "c1", staffId: "s2", serviceId: "v1", startAt: tomorrowAt(10), roomName: "护理房 1", status: "已确认", note: "做完需回访" },

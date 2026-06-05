@@ -18,6 +18,7 @@ import type {
   OnlineStorefront,
   OperationLog,
   Order,
+  Product,
   PurchaseOrder,
   Refund,
   Service,
@@ -444,6 +445,7 @@ export type InventoryAdjustmentInput = {
   type: InventoryLog["type"];
   quantity: number;
   note?: string;
+  expiryAt?: string;
 };
 
 export type ApprovalRequestInput = {
@@ -642,6 +644,7 @@ export type PurchaseOrderInput = {
   productId: string;
   quantity: number;
   unitCost: number;
+  expiryAt?: string;
   userId: string;
 };
 
@@ -3113,6 +3116,31 @@ function splitAmount(amount: number, parts: number) {
   return Array.from({ length: parts }, (_, index) => base + (index < remainder ? 1 : 0));
 }
 
+function addMonthsToIsoDate(dateIso: string, months: number) {
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime()) || !Number.isFinite(months) || months <= 0) return undefined;
+  date.setMonth(date.getMonth() + Math.round(months));
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeExpiryDate(value?: string) {
+  const date = value?.trim();
+  if (!date) return undefined;
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) throw new Error("到期日期无效");
+  return parsed.toISOString().slice(0, 10);
+}
+
+function stockInExpiryAt(product: Product, createdAt: string, explicitExpiryAt?: string) {
+  return normalizeExpiryDate(explicitExpiryAt) ?? addMonthsToIsoDate(createdAt, product.shelfLifeMonths ?? 0);
+}
+
+function earlierExpiryAt(current?: string, next?: string) {
+  if (!next) return current;
+  if (!current) return next;
+  return next < current ? next : current;
+}
+
 export function adjustInventory(
   data: AppData,
   input: InventoryAdjustmentInput,
@@ -3120,18 +3148,20 @@ export function adjustInventory(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
-  assertBusinessDateOpen(data, currentTime().slice(0, 10));
+  const createdAt = currentTime();
+  assertBusinessDateOpen(data, createdAt.slice(0, 10));
   const direction = input.type === "入库" ? 1 : -1;
+  const targetProduct = data.products.find((product) => product.id === input.productId);
+  if (!targetProduct) {
+    throw new Error("商品或耗材不存在");
+  }
+  const expiryAt = input.type === "入库" ? stockInExpiryAt(targetProduct, createdAt, input.expiryAt) : undefined;
   let stockAfter = 0;
   const products = data.products.map((product) => {
     if (product.id !== input.productId) return product;
     stockAfter = Math.max(0, product.stock + input.quantity * direction);
-    return { ...product, stock: stockAfter };
+    return { ...product, stock: stockAfter, expiryAt: earlierExpiryAt(product.expiryAt, expiryAt) };
   });
-
-  if (!data.products.some((product) => product.id === input.productId)) {
-    throw new Error("商品或耗材不存在");
-  }
 
   return {
     ...data,
@@ -3144,7 +3174,8 @@ export function adjustInventory(
         delta: input.quantity * direction,
         stockAfter,
         note: input.note ?? "手动调整",
-        createdAt: currentTime(),
+        expiryAt,
+        createdAt,
       },
       ...data.inventoryLogs,
     ],
@@ -3173,19 +3204,21 @@ export function receivePurchaseOrder(
   const product = data.products.find((item) => item.id === input.productId);
   if (!product) throw new Error("商品或耗材不存在");
   const stockAfter = product.stock + input.quantity;
+  const expiryAt = stockInExpiryAt(product, createdAt, input.expiryAt);
   const purchaseOrder: PurchaseOrder = {
     id: idFactory("po"),
     supplierId: input.supplierId,
     productId: input.productId,
     quantity: input.quantity,
     unitCost: input.unitCost,
+    expiryAt,
     status: "已入库",
     createdBy: input.userId,
     createdAt,
   };
   return {
     ...data,
-    products: data.products.map((item) => (item.id === product.id ? { ...item, stock: stockAfter, cost: input.unitCost } : item)),
+    products: data.products.map((item) => (item.id === product.id ? { ...item, stock: stockAfter, cost: input.unitCost, expiryAt: earlierExpiryAt(item.expiryAt, expiryAt) } : item)),
     purchaseOrders: [purchaseOrder, ...data.purchaseOrders],
     inventoryLogs: [
       {
@@ -3195,6 +3228,7 @@ export function receivePurchaseOrder(
         delta: input.quantity,
         stockAfter,
         note: purchaseOrder.id,
+        expiryAt,
         createdAt,
       },
       ...data.inventoryLogs,
@@ -3233,12 +3267,14 @@ export function restockLowInventory(
   for (const product of lowStockProducts) {
     const quantity = Math.max(10, product.warningStock * 2 - product.stock);
     const stockAfter = product.stock + quantity;
+    const expiryAt = stockInExpiryAt(product, createdAt);
     const purchaseOrder: PurchaseOrder = {
       id: idFactory("po"),
       supplierId: supplier.id,
       productId: product.id,
       quantity,
       unitCost: product.cost,
+      expiryAt,
       status: "已入库",
       createdBy: input.userId,
       createdAt,
@@ -3251,6 +3287,7 @@ export function restockLowInventory(
       delta: quantity,
       stockAfter,
       note: purchaseOrder.id,
+      expiryAt,
       createdAt,
     });
     stockByProduct.set(product.id, stockAfter);
@@ -3259,7 +3296,11 @@ export function restockLowInventory(
   return {
     ...data,
     suppliers: existingSupplier ? data.suppliers : [supplier, ...data.suppliers],
-    products: data.products.map((product) => stockByProduct.has(product.id) ? { ...product, stock: stockByProduct.get(product.id) ?? product.stock } : product),
+    products: data.products.map((product) => {
+      if (!stockByProduct.has(product.id)) return product;
+      const expiryAt = purchaseOrders.find((order) => order.productId === product.id)?.expiryAt;
+      return { ...product, stock: stockByProduct.get(product.id) ?? product.stock, expiryAt: earlierExpiryAt(product.expiryAt, expiryAt) };
+    }),
     purchaseOrders: [...purchaseOrders, ...data.purchaseOrders],
     inventoryLogs: [...inventoryLogs, ...data.inventoryLogs],
     operationLogs: [

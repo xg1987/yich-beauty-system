@@ -205,11 +205,15 @@ export type Product = {
   id: string;
   name: string;
   type: "sale" | "consumable";
+  category?: string;
+  subcategory?: string;
   unit: string;
   price: number;
   cost: number;
   stock: number;
   warningStock: number;
+  shelfLifeMonths?: number;
+  expiryAt?: string;
 };
 
 export type Appointment = {
@@ -366,6 +370,7 @@ export type InventoryLog = {
   delta: number;
   stockAfter: number;
   note: string;
+  expiryAt?: string;
   createdAt: string;
 };
 
@@ -519,6 +524,7 @@ export type PurchaseOrder = {
   productId: string;
   quantity: number;
   unitCost: number;
+  expiryAt?: string;
   status: "已入库";
   createdBy: string;
   createdAt: string;

@@ -1149,6 +1149,8 @@ function card(data: AppData, cardId: string) {
   assert.equal(productStock(data, "p1"), 22, "inbound stock should increase inventory");
   assert.equal(data.inventoryLogs[0].delta, 4, "inbound adjustment should log positive delta");
   assert.equal(data.inventoryLogs[0].note, "采购入库", "inventory note should be preserved");
+  assert.equal(data.inventoryLogs[0].expiryAt, "2028-05-24", "inbound adjustment should derive expiry from product shelf life");
+  assert.equal(data.products.find((product) => product.id === "p1")?.expiryAt, "2028-05-24", "product should keep nearest expiry date");
 }
 
 {
@@ -1398,11 +1400,13 @@ function card(data: AppData, cardId: string) {
   const withSupplier = addSupplier(cloneSeed(), { name: "测试供应商", phone: "13800000000", contact: "王经理" }, { idFactory: testId });
   const purchased = receivePurchaseOrder(
     withSupplier,
-    { supplierId: withSupplier.suppliers[0].id, productId: "p1", quantity: 3, unitCost: 60, userId: "u_manager" },
+    { supplierId: withSupplier.suppliers[0].id, productId: "p1", quantity: 3, unitCost: 60, expiryAt: "2027-12-31", userId: "u_manager" },
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(productStock(purchased, "p1"), 21, "purchase order should increase stock");
   assert.equal(purchased.inventoryLogs[0].type, "采购入库", "purchase order should log inbound stock");
+  assert.equal(purchased.inventoryLogs[0].expiryAt, "2027-12-31", "purchase inventory log should persist expiry date");
+  assert.equal(purchased.purchaseOrders[0].expiryAt, "2027-12-31", "purchase order should persist expiry date");
 
   const lowStockData = {
     ...cloneSeed(),

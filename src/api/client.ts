@@ -115,7 +115,7 @@ export function createApiClient(getToken: () => string | undefined) {
         body: { reason, amount, approvalId },
         token: getToken(),
       }),
-    adjustInventory: (body: { productId: string; type: InventoryLog["type"]; quantity: number; note?: string }) =>
+    adjustInventory: (body: { productId: string; type: InventoryLog["type"]; quantity: number; note?: string; expiryAt?: string }) =>
       request<AppData>("/api/inventory/adjust", { method: "POST", body, token: getToken() }),
     addAppointment: (body: { customerId: string; staffId: string; serviceId: string; startAt: string; roomName: string; note: string }) =>
       request<AppData>("/api/appointments", { method: "POST", body, token: getToken() }),
@@ -219,11 +219,11 @@ export function createApiClient(getToken: () => string | undefined) {
         body: { consumables },
         token: getToken(),
       }),
-    addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; unit?: string; warningStock?: number; price?: number; cost?: number }) =>
+    addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; category?: string; subcategory?: string; unit?: string; warningStock?: number; price?: number; cost?: number; shelfLifeMonths?: number; expiryAt?: string }) =>
       request<AppData>("/api/products", { method: "POST", body, token: getToken() }),
     addSupplier: (body: { name: string; phone?: string; contact?: string }) =>
       request<AppData>("/api/suppliers", { method: "POST", body, token: getToken() }),
-    receivePurchaseOrder: (body: { supplierId: string; productId: string; quantity: number; unitCost: number }) =>
+    receivePurchaseOrder: (body: { supplierId: string; productId: string; quantity: number; unitCost: number; expiryAt?: string }) =>
       request<AppData>("/api/purchase-orders", { method: "POST", body, token: getToken() }),
     restockLowInventory: (supplierId?: string) =>
       request<AppData>("/api/inventory/restock-low", { method: "POST", body: { supplierId }, token: getToken() }),
