@@ -119,7 +119,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
           {loading && <p className="empty">正在加载签名内容</p>}
           {error && <p className="public-status error">{error}</p>}
           {!loading && payload && signature && (
-            <div className="signature-grid">
+            <div className={isSigned ? "signature-grid signature-grid-complete" : "signature-grid"}>
               <section className="signature-detail">
                 <PanelTitle icon={<ClipboardList size={18} />} title="确认内容" action={signature.status} />
                 <p>{signature.content}</p>
@@ -147,7 +147,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                   <>
                     <div className="signed-box">
                       {signature.signatureText?.startsWith("data:image/") ? (
-                        <img src={signature.signatureText} alt="客户签名" style={{ width: "100%", maxWidth: 360, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, background: "#fff" }} />
+                        <img className="signature-image-large" src={signature.signatureText} alt="客户签名" />
                       ) : (
                         <strong>{signature.signatureText}</strong>
                       )}

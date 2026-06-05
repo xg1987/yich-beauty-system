@@ -44,7 +44,7 @@ import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "./domain/auth";
-import type { AppData, Appointment, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
+import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
@@ -1427,6 +1427,7 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
 
 function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
   const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>();
+  const [selectedSignatureId, setSelectedSignatureId] = useState("");
   const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
   const totalRemainingTimes = data.memberCards.reduce((sum, card) => sum + card.remainingTimes, 0);
   const pendingFollowUps = data.customerFollowUps.filter((item) => item.status === "待跟进").length;
@@ -1456,6 +1457,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
     { key: "signature", title: "服务确认签名", desc: "平板现场签名记录", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures.length} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
 
   return (
     <div className="page-stack customer-module-page module-hub">
@@ -1539,15 +1541,23 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
           <section className="panel">
             <PanelTitle icon={<LockKeyhole size={18} />} title="服务签名记录" action={`${data.customerSignatures.length} 份`} />
             <DataTable
-              columns={["客户", "标题", "状态", "签名人", "创建/签名时间"]}
-              rows={data.customerSignatures.map((signature) => [
-                nameOf(data.customers, signature.customerId),
-                signature.title,
-                <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
-                signature.signerName ?? "-",
-                `${shortDate(signature.createdAt)}${signature.signedAt ? ` / ${shortDate(signature.signedAt)}` : ""}`,
-              ])}
+              columns={["客户", "服务项目", "状态", "签名人", "签名时间", "关联记录", "操作"]}
+              rows={data.customerSignatures.map((signature) => {
+                const context = signatureRecordContext(data, signature);
+                return [
+                  context.customerName,
+                  context.serviceName,
+                  <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+                  signature.signerName ?? "-",
+                  signature.signedAt ? shortDate(signature.signedAt) : "-",
+                  context.orderNo !== "-" ? context.orderNo : signature.serviceRecordId ? "服务档案" : "未关联",
+                  <button key={`${signature.id}-detail`} type="button" onClick={() => setSelectedSignatureId(signature.id)}>
+                    查看详情
+                  </button>,
+                ];
+              })}
             />
+            {selectedSignature && <SignatureRecordDetail data={data} signature={selectedSignature} />}
           </section>
         )}
       </div>
@@ -3920,6 +3930,7 @@ function Customers({
   const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务已完成，服务项目、项目卡核销和服务档案内容无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
   const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>(fromManagement ? "profile" : undefined);
+  const [selectedSignatureId, setSelectedSignatureId] = useState("");
 
   useEffect(() => {
     if (recordOrderId && !data.orders.some((order) => order.id === recordOrderId && order.customerId === recordCustomerId)) {
@@ -4086,6 +4097,7 @@ function Customers({
       })),
   ];
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
+  const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
   const projectScope = (serviceId?: string, serviceIds?: string[]) => {
     if (serviceIds?.length) return serviceIds.map((id) => nameOf(data.services, id)).join(" / ");
     return serviceId ? nameOf(data.services, serviceId) : "通用";
@@ -4225,7 +4237,7 @@ function Customers({
           <label>签名标题<input value={signatureTitle} onChange={(event) => setSignatureTitle(event.target.value)} /></label>
           <label>确认内容<textarea value={signatureContent} onChange={(event) => setSignatureContent(event.target.value)} /></label>
           <label>有效期（天）<input type="number" min={1} value={signatureValidDays} onChange={(event) => setSignatureValidDays(Number(event.target.value))} /></label>
-          <button className="primary-button" disabled={!signatureCustomerId}>生成现场签名页</button>
+          <button className="primary-button" disabled={!signatureCustomerId || (!signatureRecordId && !signatureOrderId)}>生成现场签名页</button>
         </form>
         </>
         )}
@@ -4340,22 +4352,30 @@ function Customers({
         <section className="panel">
         <PanelTitle icon={<LockKeyhole size={18} />} title="服务签名记录" action={`${data.customerSignatures?.length ?? 0} 份`} />
         <DataTable
-          columns={["客户", "标题", "状态", "现场签名页", "签名人", "创建/签名时间"]}
-          rows={(data.customerSignatures ?? []).map((signature) => [
-            nameOf(data.customers, signature.customerId),
-            signature.title,
-            <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
-            signature.status === "待签名" ? (
-              <a key={`${signature.id}-link`} href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
-                打开现场签名页
-              </a>
-            ) : (
-              "已完成"
-            ),
-            signature.signerName ?? "-",
-            `${shortDate(signature.createdAt)}${signature.signedAt ? ` / ${shortDate(signature.signedAt)}` : ""}`,
-          ])}
+          columns={["客户", "服务项目", "状态", "签名人", "签名时间", "关联记录", "操作"]}
+          rows={(data.customerSignatures ?? []).map((signature) => {
+            const context = signatureRecordContext(data, signature);
+            return [
+              context.customerName,
+              context.serviceName,
+              <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+              signature.signerName ?? "-",
+              signature.signedAt ? shortDate(signature.signedAt) : "-",
+              context.orderNo !== "-" ? context.orderNo : signature.serviceRecordId ? "服务档案" : "未关联",
+              <span className="signature-record-actions" key={`${signature.id}-actions`}>
+                {signature.status === "待签名" && (
+                  <a href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
+                    打开签名页
+                  </a>
+                )}
+                <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
+                  查看详情
+                </button>
+              </span>,
+            ];
+          })}
         />
+        {selectedSignature && <SignatureRecordDetail data={data} signature={selectedSignature} />}
         </section>
         )}
 
@@ -6335,6 +6355,60 @@ function serviceFormulaSummary(service: Service, products: Product[]) {
   const consumables = serviceConsumablesOf(service);
   if (consumables.length === 0) return "未配置";
   return consumables.map((item) => `${nameOf(products, item.productId)} × ${item.quantity}`).join(" / ");
+}
+
+function signatureRecordContext(data: AppData, signature: CustomerSignature) {
+  const serviceRecord = signature.serviceRecordId
+    ? data.customerServiceRecords.find((record) => record.id === signature.serviceRecordId)
+    : undefined;
+  const orderId = signature.orderId ?? serviceRecord?.orderId;
+  const order = orderId ? data.orders.find((item) => item.id === orderId) : undefined;
+  const serviceId = serviceRecord?.serviceId ?? order?.serviceId;
+  const staffId = serviceRecord?.staffId ?? order?.staffId;
+  return {
+    customerName: nameOf(data.customers, signature.customerId),
+    order,
+    orderNo: order?.orderNo ?? "-",
+    serviceName: serviceId ? nameOf(data.services, serviceId) : "未关联服务",
+    serviceRecord,
+    staffName: staffId ? nameOf(data.staff, staffId) : "-",
+  };
+}
+
+function SignatureRecordDetail({ data, signature }: { data: AppData; signature: CustomerSignature }) {
+  const context = signatureRecordContext(data, signature);
+  const signedAt = signature.signedAt ? shortDate(signature.signedAt) : "-";
+  return (
+    <section className="signature-record-detail">
+      <div className="signature-record-meta">
+        <span><small>客户</small>{context.customerName}</span>
+        <span><small>服务项目</small>{context.serviceName}</span>
+        <span><small>服务员工</small>{context.staffName}</span>
+        <span><small>订单编号</small>{context.orderNo}</span>
+        <span><small>签名状态</small>{signature.status}</span>
+        <span><small>签名时间</small>{signedAt}</span>
+      </div>
+      <div className="signature-record-content">
+        <div>
+          <strong>确认内容</strong>
+          <p>{signature.content}</p>
+          {context.serviceRecord && (
+            <p>
+              护理步骤：{context.serviceRecord.careSteps || "未记录"}；使用产品：{context.serviceRecord.productsUsed || "未记录"}
+            </p>
+          )}
+        </div>
+        <div className="signature-record-image-panel">
+          <strong>客户签名</strong>
+          {signature.signatureText?.startsWith("data:image/") ? (
+            <img className="signature-record-image" src={signature.signatureText} alt="客户签名" />
+          ) : (
+            <span>{signature.signatureText || "未签名"}</span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function optionOf(item: { id: string; name: string }) {

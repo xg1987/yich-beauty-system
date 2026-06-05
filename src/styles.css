@@ -4707,6 +4707,10 @@ html[data-theme="day"],
   align-items: start;
 }
 
+.signature-grid-complete {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .signature-detail {
   display: grid;
   gap: 14px;
@@ -4735,8 +4739,8 @@ html[data-theme="day"],
 
 .signed-box {
   display: grid;
-  gap: 8px;
-  padding: 16px;
+  gap: 14px;
+  padding: 18px;
   border-radius: 18px;
   background: #edf9f3;
   color: #166534;
@@ -4744,6 +4748,15 @@ html[data-theme="day"],
 
 .signed-box strong {
   font-size: 24px;
+}
+
+.signature-image-large {
+  width: 100%;
+  min-height: 260px;
+  object-fit: contain;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #fff;
 }
 
 .signature-complete-actions {
@@ -4756,6 +4769,71 @@ html[data-theme="day"],
   flex: 1;
   min-width: 140px;
   justify-content: center;
+}
+
+.signature-record-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.signature-record-detail {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(13, 148, 136, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.signature-record-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.signature-record-meta span {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.08);
+  color: var(--yich-ink);
+  font-weight: 800;
+}
+
+.signature-record-meta small {
+  color: var(--yich-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.signature-record-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+  gap: 16px;
+  align-items: start;
+}
+
+.signature-record-content p {
+  margin: 8px 0 0;
+  color: var(--yich-muted);
+  line-height: 1.65;
+}
+
+.signature-record-image-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.signature-record-image {
+  width: 100%;
+  min-height: 220px;
+  object-fit: contain;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #fff;
 }
 
 .admin-online-panel {
@@ -13763,6 +13841,11 @@ textarea,
   .signature-grid,
   .public-store-grid,
   .public-service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .signature-record-meta,
+  .signature-record-content {
     grid-template-columns: 1fr;
   }
 }
