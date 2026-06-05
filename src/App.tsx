@@ -28,7 +28,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "./components/business/AccountMenu";
 import { NotificationPanel, visibleNotifications } from "./components/business/NotificationPanel";
 import { UserAvatar } from "./components/business/UserAvatar";
@@ -4409,16 +4409,12 @@ function Catalog({
   const [servicePrice, setServicePrice] = useState(398);
   const [serviceDuration, setServiceDuration] = useState(60);
   const [serviceDefaultTimes, setServiceDefaultTimes] = useState(10);
-  const [serviceProductId, setServiceProductId] = useState(data.products[0]?.id ?? "");
   const [serviceConsumables, setServiceConsumables] = useState<ServiceConsumable[]>([]);
   const [recipeServiceId, setRecipeServiceId] = useState(data.services[0]?.id ?? "");
-  const [recipeProductId, setRecipeProductId] = useState(data.products[0]?.id ?? "");
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
   const [showServiceCreate, setShowServiceCreate] = useState(false);
   const [activeModule, setActiveModule] = useState<CatalogModuleKey | undefined>(fromManagement ? initialModule ?? "serviceList" : undefined);
-  const productOptions = data.products
-    .map((product) => ({ value: product.id, label: product.name }));
 
   const resetServiceForm = () => {
     setServiceName("");
@@ -4427,13 +4423,23 @@ function Catalog({
     setShowServiceCreate(false);
   };
 
-  const addServiceConsumable = () => {
-    if (!serviceProductId) return;
-    setServiceConsumables((items) => mergeUsedProducts([...items, { productId: serviceProductId, quantity: 0 }]));
+  const addServiceConsumable = (productId: string) => {
+    setServiceConsumables((items) => mergeUsedProducts([...items, { productId, quantity: 0 }]));
   };
 
   const removeServiceConsumable = (productId: string) => {
     setServiceConsumables((items) => items.filter((item) => item.productId !== productId));
+  };
+
+  const createServiceConsumable = ({ name, category, subcategory }: { name: string; category: string; subcategory: string }) => {
+    void runMutation(async () => {
+      const nextData = await actions.addProduct({ name, stock: 0, type: "sale", category, subcategory, unit: "件" });
+      const product = findCreatedProduct(nextData.products, name, category, subcategory);
+      if (product) {
+        setServiceConsumables((items) => mergeUsedProducts([...items, { productId: product.id, quantity: 0 }]));
+      }
+      return nextData;
+    });
   };
 
   const addService = (event: FormEvent) => {
@@ -4455,9 +4461,24 @@ function Catalog({
   const recipeConsumables = serviceConsumablesOf(selectedRecipeService);
   const addRecipeConsumable = (event: FormEvent) => {
     event.preventDefault();
-    if (!recipeServiceId || !recipeProductId) return;
-    const nextConsumables = mergeUsedProducts([...recipeConsumables, { productId: recipeProductId, quantity: 0 }]);
+  };
+
+  const addRecipeProduct = (productId: string) => {
+    if (!recipeServiceId) return;
+    const nextConsumables = mergeUsedProducts([...recipeConsumables, { productId, quantity: 0 }]);
     void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
+  };
+
+  const createRecipeProduct = ({ name, category, subcategory }: { name: string; category: string; subcategory: string }) => {
+    if (!recipeServiceId) return;
+    void runMutation(async () => {
+      const nextData = await actions.addProduct({ name, stock: 0, type: "sale", category, subcategory, unit: "件" });
+      const product = findCreatedProduct(nextData.products, name, category, subcategory);
+      if (!product) return nextData;
+      const nextService = nextData.services.find((service) => service.id === recipeServiceId);
+      const nextConsumables = mergeUsedProducts([...serviceConsumablesOf(nextService), { productId: product.id, quantity: 0 }]);
+      return actions.updateServiceConsumables(recipeServiceId, nextConsumables);
+    });
   };
 
   const removeRecipeConsumable = (productId: string) => {
@@ -4493,22 +4514,13 @@ function Catalog({
   };
 
   const serviceProductPicker = (
-    <div className="catalog-product-picker">
-      <div className="catalog-product-picker-row">
-        <Select label="使用商品" value={serviceProductId} onChange={setServiceProductId} options={productOptions.length ? productOptions : [{ value: "", label: "暂无商品" }]} />
-        <button type="button" onClick={addServiceConsumable} disabled={!serviceProductId}>添加商品</button>
-      </div>
-      {serviceConsumables.length > 0 && (
-        <div className="recipe-list compact">
-          {serviceConsumables.map((item) => (
-            <div key={item.productId}>
-              <span>{serviceConsumableDisplay(item, data.products)}</span>
-              <button type="button" onClick={() => removeServiceConsumable(item.productId)}>移除</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <ProductUsagePicker
+      products={data.products}
+      selected={serviceConsumables}
+      onAdd={addServiceConsumable}
+      onCreate={createServiceConsumable}
+      onRemove={removeServiceConsumable}
+    />
   );
 
   return (
@@ -4551,18 +4563,14 @@ function Catalog({
         <PanelTitle icon={<PackagePlus size={18} />} title="商品耗材" action="使用商品" />
         <form className="form" onSubmit={addRecipeConsumable}>
           <Select label="服务项目" value={recipeServiceId} onChange={setRecipeServiceId} options={data.services.map(optionOf)} />
-          <Select label="使用商品" value={recipeProductId} onChange={setRecipeProductId} options={productOptions.length ? productOptions : [{ value: "", label: "暂无商品" }]} />
-          <button className="primary-button" disabled={!recipeServiceId || !recipeProductId}>添加商品</button>
+          <ProductUsagePicker
+            products={data.products}
+            selected={recipeConsumables}
+            onAdd={addRecipeProduct}
+            onCreate={createRecipeProduct}
+            onRemove={removeRecipeConsumable}
+          />
         </form>
-        <div className="recipe-list">
-          {recipeConsumables.map((item) => (
-            <div key={item.productId}>
-              <span>{serviceConsumableDisplay(item, data.products)}</span>
-              <button type="button" onClick={() => removeRecipeConsumable(item.productId)}>移除</button>
-            </div>
-          ))}
-          {recipeConsumables.length === 0 && <p className="empty">当前项目未配置使用商品</p>}
-        </div>
         </section>
         )}
         {activeModule === "product" && (
@@ -4637,6 +4645,118 @@ function Catalog({
         )}
       </div>
       </Modal>
+    </div>
+  );
+}
+
+function ProductUsagePicker({
+  products,
+  selected,
+  onAdd,
+  onCreate,
+  onRemove,
+}: {
+  products: Product[];
+  selected: ServiceConsumable[];
+  onAdd: (productId: string) => void;
+  onCreate: (input: { name: string; category: string; subcategory: string }) => void;
+  onRemove: (productId: string) => void;
+}) {
+  const [category, setCategory] = useState("全部");
+  const [subcategory, setSubcategory] = useState("全部");
+  const [query, setQuery] = useState("");
+  const selectedIds = new Set(selected.map((item) => item.productId));
+  const categories = Array.from(new Set([
+    ...Object.keys(INVENTORY_CATEGORY_PRESETS),
+    ...products.map((product) => product.category).filter((item): item is string => Boolean(item)),
+  ]));
+  const subcategories = Array.from(new Set([
+    ...(category !== "全部" ? INVENTORY_CATEGORY_PRESETS[category] ?? [] : Object.values(INVENTORY_CATEGORY_PRESETS).flat()),
+    ...products
+      .filter((product) => category === "全部" || (product.category ?? "面护类") === category)
+      .map((product) => product.subcategory)
+      .filter((item): item is string => Boolean(item)),
+  ]));
+  const normalizedQuery = normalizeProductName(query);
+  const scopedProducts = products
+    .filter((product) => !selectedIds.has(product.id))
+    .filter((product) => category === "全部" || (product.category ?? "面护类") === category)
+    .filter((product) => subcategory === "全部" || (product.subcategory ?? "") === subcategory);
+  const matchingProducts = scopedProducts
+    .filter((product) => !normalizedQuery || normalizeProductName(product.name).includes(normalizedQuery))
+    .slice(0, 12);
+  const exactProduct = scopedProducts.find((product) => normalizeProductName(product.name) === normalizedQuery);
+  const canCreate = query.trim().length > 0 && !exactProduct;
+  const createCategory = category === "全部" ? "面护类" : category;
+  const createSubcategory = subcategory === "全部" ? "" : subcategory;
+
+  const addProduct = (productId: string) => {
+    onAdd(productId);
+    setQuery("");
+  };
+
+  const createProduct = () => {
+    const name = query.trim();
+    if (!name) return;
+    onCreate({ name, category: createCategory, subcategory: createSubcategory });
+    setQuery("");
+  };
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (exactProduct && !selectedIds.has(exactProduct.id)) {
+      addProduct(exactProduct.id);
+      return;
+    }
+    if (canCreate) createProduct();
+  };
+
+  return (
+    <div className="catalog-product-picker">
+      <div className="catalog-product-filter-row">
+        <Select
+          label="大类"
+          value={category}
+          onChange={(value) => {
+            setCategory(value);
+            setSubcategory("全部");
+          }}
+          options={["全部", ...categories].map((item) => ({ value: item, label: item }))}
+        />
+        <Select
+          label="小类"
+          value={subcategory}
+          onChange={setSubcategory}
+          options={["全部", ...subcategories].map((item) => ({ value: item, label: item }))}
+        />
+        <label className="catalog-product-search">
+          使用商品
+          <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleSearchKeyDown} />
+        </label>
+      </div>
+      <div className="catalog-product-results">
+        {matchingProducts.map((product) => (
+          <button key={product.id} type="button" onClick={() => addProduct(product.id)}>
+            {product.name}
+          </button>
+        ))}
+        {canCreate && (
+          <button type="button" onClick={createProduct}>
+            新增“{query.trim()}”并加入
+          </button>
+        )}
+      </div>
+      {selected.length > 0 && (
+        <div className="catalog-product-tags">
+          {selected.map((item) => (
+            <span key={item.productId}>
+              {serviceConsumableDisplay(item, products)}
+              <button type="button" onClick={() => onRemove(item.productId)}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -6355,6 +6475,19 @@ function appointmentTone(appointment: Appointment): "ok" | "warn" | undefined {
   if (appointment.status === "已到店" || appointment.status === "已完成") return "ok";
   if (appointment.status === "已取消" || appointment.status === "爽约") return "warn";
   return undefined;
+}
+
+function normalizeProductName(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function findCreatedProduct(products: Product[], name: string, category: string, subcategory: string) {
+  const normalizedName = normalizeProductName(name);
+  return products.find((product) =>
+    normalizeProductName(product.name) === normalizedName &&
+    (product.category ?? "面护类") === category &&
+    (product.subcategory ?? "") === subcategory,
+  ) ?? products.find((product) => normalizeProductName(product.name) === normalizedName);
 }
 
 function serviceConsumablesOf(service?: Service): ServiceConsumable[] {
