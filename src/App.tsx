@@ -3359,12 +3359,11 @@ function Pos({
   const usesProduct = checkoutContentMode !== "service";
   const selectedCustomer = data.customers.find((item) => item.id === customerId);
   const normalizedCustomerSearch = customerSearch.trim().toLowerCase();
-  const customerSearchResults = data.customers
-    .filter((customer) => {
-      if (!normalizedCustomerSearch) return true;
-      return `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedCustomerSearch);
-    })
-    .slice(0, 8);
+  const customerSearchResults = normalizedCustomerSearch
+    ? data.customers
+        .filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedCustomerSearch))
+        .slice(0, 8)
+    : [];
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -3665,26 +3664,28 @@ function Pos({
                   placeholder={selectedCustomer ? `${selectedCustomer.name} · ${selectedCustomer.phone}` : "输入客户姓名或手机号搜索"}
                 />
               </label>
-              <div className="checkout-customer-result-list">
-                {customerSearchResults.length ? customerSearchResults.map((customer) => (
-                  <button
-                    type="button"
-                    key={customer.id}
-                    className={customer.id === customerId ? "active" : ""}
-                    onClick={() => {
-                      clearAppointment();
-                      setCustomerId(customer.id);
-                      setCustomerSearch("");
-                      setCardId("");
-                    }}
-                  >
-                    <strong>{customer.name}</strong>
-                    <span>{customer.phone}</span>
-                  </button>
-                )) : (
-                  <div className="checkout-customer-empty">没有找到客户，可切换为散客开单。</div>
-                )}
-              </div>
+              {normalizedCustomerSearch && (
+                <div className="checkout-customer-result-list">
+                  {customerSearchResults.length ? customerSearchResults.map((customer) => (
+                    <button
+                      type="button"
+                      key={customer.id}
+                      className={customer.id === customerId ? "active" : ""}
+                      onClick={() => {
+                        clearAppointment();
+                        setCustomerId(customer.id);
+                        setCustomerSearch("");
+                        setCardId("");
+                      }}
+                    >
+                      <strong>{customer.name}</strong>
+                      <span>{customer.phone}</span>
+                    </button>
+                  )) : (
+                    <div className="checkout-customer-empty">没有找到客户，可切换为散客开单。</div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="checkout-guest-fields">
