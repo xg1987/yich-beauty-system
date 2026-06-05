@@ -75,6 +75,29 @@ const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
 };
 const inventoryCategoryOptions = Object.keys(INVENTORY_CATEGORY_PRESETS).map((category) => ({ value: category, label: category }));
 const inventoryLossReasonOptions = ["破损", "过期", "试用", "盘点差异", "其他损耗"];
+
+function csvCell(value: string | number) {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function downloadCsvFile(filename: string, columns: Array<string | number>, rows: Array<Array<string | number>>) {
+  const csv = [
+    columns.map(csvCell).join(","),
+    ...rows.map((row) => row.map(csvCell).join(",")),
+  ].join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    link.remove();
+  }, 0);
+}
 const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
 const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
 const permissionLabels: Record<Permission, string> = {
@@ -2025,26 +2048,17 @@ function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData;
   });
 
   const exportLogs = () => {
-    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
-    const csv = [
-      ["时间", "操作人", "动作", "对象类型", "摘要"].map(escapeCsv).join(","),
-      ...logs.map((log) =>
-        [
-          log.createdAt,
-          data.authUsers.find((user) => user.id === log.userId)?.name ?? "系统",
-          log.action,
-          log.targetType,
-          log.summary,
-        ].map(escapeCsv).join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `平台操作日志_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadCsvFile(
+      `平台操作日志_${new Date().toISOString().slice(0, 10)}.csv`,
+      ["时间", "操作人", "动作", "对象类型", "摘要"],
+      logs.map((log) => [
+        log.createdAt,
+        data.authUsers.find((user) => user.id === log.userId)?.name ?? "系统",
+        log.action,
+        log.targetType,
+        log.summary,
+      ]),
+    );
   };
 
   return (
@@ -5173,6 +5187,7 @@ function Inventory({
   const [newInventoryShelfLifeMonths, setNewInventoryShelfLifeMonths] = useState("3");
   const [newInventoryExpiryAt, setNewInventoryExpiryAt] = useState(addMonthsInputValue(3));
   const [inventoryProductSaveMessage, setInventoryProductSaveMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
+  const [inventoryExportMessage, setInventoryExportMessage] = useState("");
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [purchaseExpiryAt, setPurchaseExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [activeModule, setActiveModule] = useState<InventoryModuleKey | undefined>(fromManagement ? initialModule ?? "stockIn" : undefined);
@@ -5367,17 +5382,8 @@ function Inventory({
         status,
       ];
     });
-    const csv = [
-      columns.join(","),
-      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
-    ].join("\n");
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "yich-inventory.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsvFile("yich-inventory.csv", columns, rows);
+    setInventoryExportMessage("库存已导出");
   };
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
     { key: "stockIn", title: "商品入库", desc: "新增商品和首批库存", icon: PackagePlus, tone: "teal", meta: "新增商品" },
@@ -5583,6 +5589,7 @@ function Inventory({
                   title="库存列表"
                   action={<button type="button" onClick={exportInventoryCsv}>导出所有库存</button>}
                 />
+                {inventoryExportMessage && <p className="form-success">{inventoryExportMessage}</p>}
                 {lowStock > 0 && (
                   <div className="inventory-warning-row">
                     <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
@@ -5757,17 +5764,7 @@ function Reports({
   const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | "trend" | undefined>(fromManagement ? "summary" : undefined);
   const summary = reportSummary(data);
   const exportCsv = (filename: string, columns: string[], rows: Array<Array<string | number>>) => {
-    const csv = [
-      columns.join(","),
-      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
-    ].join("\n");
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsvFile(filename, columns, rows);
   };
   const payMethods = ["微信", "支付宝", "现金", "银行卡", "会员卡"].map((method) => ({
     method,
@@ -6161,28 +6158,21 @@ function OperationLogs({ data, session }: { data: AppData; session: UserSession 
   const uniqueActions = Array.from(new Set((data.operationLogs ?? []).map((l) => l.action)));
 
   const exportLogs = () => {
-    const csv = [
-      ["时间", "操作人", "动作", "对象类型", "摘要"].join(","),
-      ...logs.map((log) =>
-        [
-          log.createdAt,
-          nameOf(data.staff, data.authUsers.find((u) => u.id === log.userId)?.staffId ?? "") || "系统",
-          log.action,
-          log.targetType,
-          `"${log.summary.replace(/"/g, '""')}"`,
-        ].join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `操作日志_${new Date().toISOString().slice(0,10)}.csv`;
-    link.click();
+    downloadCsvFile(
+      `操作日志_${new Date().toISOString().slice(0,10)}.csv`,
+      ["时间", "操作人", "动作", "对象类型", "摘要"],
+      logs.map((log) => [
+        log.createdAt,
+        nameOf(data.staff, data.authUsers.find((u) => u.id === log.userId)?.staffId ?? "") || "系统",
+        log.action,
+        log.targetType,
+        log.summary,
+      ]),
+    );
   };
 
   return (
-    <div className="page-stack">
+    <div className="page-stack operation-logs-page">
       <PageHero
         icon={<ClipboardList size={15} />}
         eyebrow="系统记录"

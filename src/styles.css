@@ -15789,3 +15789,145 @@ textarea,
     max-width: min(150px, 46vw);
   }
 }
+
+/* Platform admin visual lock: keep admin read-only pages quiet and readable in every theme. */
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero,
+.app-shell .main > .admin-center-page.platform-admin-page .platform-admin-readonly-hero {
+  border-color: rgba(111, 66, 193, 0.14);
+  background:
+    radial-gradient(circle at 90% 8%, rgba(42, 143, 125, 0.08), transparent 34%),
+    rgba(255, 253, 250, 0.92) !important;
+  color: #2f255f;
+  box-shadow: 0 18px 46px rgba(48, 30, 96, 0.08);
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero h1,
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero h2,
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero strong,
+.app-shell .main > .admin-center-page.platform-admin-page .platform-page-title h1,
+.app-shell .main > .admin-center-page.platform-admin-page .panel-title h2,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-card .panel-title h2,
+.app-shell .main > .admin-center-page.platform-admin-page .dashboard-panel strong,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-card strong,
+.app-shell .main > .admin-center-page.platform-admin-page .stat-card strong,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-metrics strong,
+.app-shell .main > .admin-center-page.platform-admin-page td {
+  color: #2f255f;
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero p,
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero span,
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero small,
+.app-shell .main > .admin-center-page.platform-admin-page .panel-title span,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-card .panel-title span,
+.app-shell .main > .admin-center-page.platform-admin-page .dashboard-panel span,
+.app-shell .main > .admin-center-page.platform-admin-page .dashboard-panel small,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-card span,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-metrics span,
+.app-shell .main > .admin-center-page.platform-admin-page th {
+  color: rgba(47, 37, 95, 0.62);
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .dashboard-panel,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-card {
+  border-color: rgba(111, 66, 193, 0.12);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(42, 143, 125, 0.07), transparent 34%),
+    rgba(255, 253, 250, 0.88) !important;
+  color: #2f255f;
+  box-shadow: 0 18px 42px rgba(48, 30, 96, 0.08);
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .table-wrap,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-card .table-wrap,
+.app-shell .main > .admin-center-page.platform-admin-page .dashboard-panel .table-wrap {
+  border-color: rgba(111, 66, 193, 0.1);
+  background: rgba(255, 255, 255, 0.62) !important;
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page table,
+.app-shell .main > .admin-center-page.platform-admin-page .table-wrap table {
+  color: #2f255f;
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page th,
+.app-shell .main > .admin-center-page.platform-admin-page td {
+  border-color: rgba(111, 66, 193, 0.08);
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page th {
+  background: rgba(111, 66, 193, 0.035) !important;
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .stat-card,
+.app-shell .main > .admin-center-page.platform-admin-page .page-hero-stat,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-metrics > div {
+  border-color: rgba(111, 66, 193, 0.1);
+  background: rgba(255, 255, 255, 0.62) !important;
+  color: #2f255f;
+  box-shadow: none;
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .usage-soft-meter {
+  border-color: rgba(42, 143, 125, 0.14);
+  background: rgba(235, 249, 244, 0.78) !important;
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .usage-soft-meter > div,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-soft-meter strong {
+  color: #11614f;
+}
+
+.app-shell .main > .admin-center-page.platform-admin-page .usage-inline-note,
+.app-shell .main > .admin-center-page.platform-admin-page .usage-refresh-button,
+.app-shell .main > .admin-center-page.platform-admin-page .platform-page-title button {
+  border-color: rgba(111, 66, 193, 0.12);
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: #2f255f;
+}
+
+.app-shell .main > .operation-logs-page .page-hero {
+  border-color: rgba(111, 66, 193, 0.14);
+  background:
+    radial-gradient(circle at 90% 8%, rgba(42, 143, 125, 0.08), transparent 34%),
+    rgba(255, 253, 250, 0.92) !important;
+  color: #2f255f;
+  box-shadow: 0 18px 46px rgba(48, 30, 96, 0.08);
+}
+
+.app-shell .main > .operation-logs-page .panel {
+  border-color: rgba(111, 66, 193, 0.12);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(42, 143, 125, 0.07), transparent 34%),
+    rgba(255, 253, 250, 0.88) !important;
+  color: #2f255f;
+  box-shadow: 0 18px 42px rgba(48, 30, 96, 0.08);
+}
+
+.app-shell .main > .operation-logs-page .table-wrap {
+  border-color: rgba(111, 66, 193, 0.1);
+  background: rgba(255, 255, 255, 0.62) !important;
+}
+
+.app-shell .main > .operation-logs-page .page-hero h1,
+.app-shell .main > .operation-logs-page .page-hero h2,
+.app-shell .main > .operation-logs-page .page-hero strong,
+.app-shell .main > .operation-logs-page td {
+  color: #2f255f;
+}
+
+.app-shell .main > .operation-logs-page .page-hero p,
+.app-shell .main > .operation-logs-page .page-hero span,
+.app-shell .main > .operation-logs-page .page-hero small,
+.app-shell .main > .operation-logs-page th {
+  color: rgba(47, 37, 95, 0.62);
+}
+
+.app-shell .main > .operation-logs-page th,
+.app-shell .main > .operation-logs-page td {
+  border-color: rgba(111, 66, 193, 0.08);
+}
+
+.app-shell .main > .operation-logs-page th {
+  background: rgba(111, 66, 193, 0.035) !important;
+}
