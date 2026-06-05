@@ -196,6 +196,7 @@ export type Service = {
   category: string;
   price: number;
   duration: number;
+  defaultTimes?: number;
   consumables?: ServiceConsumable[];
   consumableProductId?: string;
   consumableQty?: number;

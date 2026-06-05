@@ -1096,6 +1096,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               category: optionalString(body, "category") ?? "自定义项目",
               price: requiredNumber(body, "price"),
               duration: optionalNumber(body, "duration") ?? 60,
+              defaultTimes: optionalNumber(body, "defaultTimes") ?? 1,
               consumables,
               consumableProductId: consumables[0]?.productId ?? optionalString(body, "consumableProductId"),
               consumableQty: consumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
@@ -1113,12 +1114,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const serviceId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
       const consumables = optionalConsumables(body);
-      if (consumables.length === 0) throw new Error("至少配置一个商品");
       const nextData = updateData(await database.readData(), session, {
-        action: "更新项目配方",
+        action: "更新项目耗材",
         targetType: "service",
         targetId: serviceId,
-        summary: `${session.user.name} 更新项目商品配方`,
+        summary: `${session.user.name} 更新项目使用产品`,
       }, (data) => {
         if (!data.services.some((service) => service.id === serviceId)) throw new Error("服务项目不存在");
         consumables.forEach((item) => {
@@ -1743,8 +1743,9 @@ function optionalConsumables(body: JsonBody): ServiceConsumable[] {
     if (!item || typeof item !== "object") continue;
     const productId = (item as { productId?: unknown }).productId;
     const quantity = (item as { quantity?: unknown }).quantity;
-    if (typeof productId !== "string" || productId.length === 0 || typeof quantity !== "number" || quantity <= 0) continue;
-    merged.set(productId, (merged.get(productId) ?? 0) + quantity);
+    if (typeof productId !== "string" || productId.length === 0) continue;
+    const safeQuantity = typeof quantity === "number" && quantity > 0 ? quantity : 0;
+    merged.set(productId, Math.max(merged.get(productId) ?? 0, safeQuantity));
   }
   return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
 }

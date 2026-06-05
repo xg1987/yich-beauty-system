@@ -26,6 +26,7 @@ import type {
   ReferralRelation,
   Refund,
   Service,
+  ServiceConsumable,
   Staff,
   StaffInvite,
   StaffShift,
@@ -207,13 +208,15 @@ export class D1BeautyDatabase {
     for (const service of data.services) {
       statements.push(
         this.statement(
-          "INSERT INTO services (id, name, category, price, duration, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO services (id, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             service.id,
             service.name,
             service.category,
             service.price,
             service.duration,
+            service.defaultTimes ?? 1,
+            JSON.stringify(service.consumables ?? []),
             service.consumableProductId ?? null,
             service.consumableQty ?? null,
           ],
@@ -485,10 +488,22 @@ function mapCustomer(row: unknown): Customer {
   return { ...value, tags: JSON.parse(value.tags_json) as string[] };
 }
 
+function parseJsonArray<T>(value?: string | null): T[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as T[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function mapService(row: unknown): Service {
-  const value = row as Service;
+  const value = row as Service & { consumables_json?: string | null };
   return {
     ...value,
+    defaultTimes: value.defaultTimes ?? 1,
+    consumables: parseJsonArray<ServiceConsumable>(value.consumables_json) ?? value.consumables,
     consumableProductId: value.consumableProductId ?? undefined,
     consumableQty: value.consumableQty ?? undefined,
   };

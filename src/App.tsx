@@ -694,7 +694,7 @@ function ManagementCenter({
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
-    { title: "项目耗材", desc: "项目耗材 / 自动扣库存", icon: PackagePlus, tone: "jade", view: "catalog", catalogModule: "recipe" },
+    { title: "项目耗材", desc: "项目使用产品", icon: PackagePlus, tone: "jade", view: "catalog", catalogModule: "recipe" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
@@ -707,7 +707,7 @@ function ManagementCenter({
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
-    { title: "项目耗材", desc: "项目耗材 / 自动扣库存", icon: PackagePlus, tone: "jade", view: "catalog", catalogModule: "recipe" },
+    { title: "项目耗材", desc: "项目使用产品", icon: PackagePlus, tone: "jade", view: "catalog", catalogModule: "recipe" },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
@@ -1584,19 +1584,20 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
         <div className="page-hero-stats">
           <StatCard title="服务项目" value={`${data.services.length} 项`} hint="门店服务" />
           <StatCard title="商品资料" value={`${data.products.length} 项`} hint="库存商品" />
-          <StatCard title="项目耗材" value={`${data.services.filter((item) => serviceConsumablesOf(item).length > 0).length} 项`} hint="服务扣库存" />
+          <StatCard title="项目耗材" value={`${data.services.filter((item) => serviceConsumablesOf(item).length > 0).length} 项`} hint="使用产品" />
         </div>
       </section>
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
           <PanelTitle icon={<Sparkles size={18} />} title="服务项目" action={`${data.services.length} 项`} />
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "耗材配置"]}
+            columns={["项目", "分类", "价格", "时长", "可用次数", "耗材配置"]}
             rows={data.services.map((service) => [
               service.name,
               service.category,
               money(service.price),
               `${service.duration} 分钟`,
+              `${service.defaultTimes ?? 1} 次`,
               serviceFormulaSummary(service, data.products),
             ])}
           />
@@ -3945,6 +3946,12 @@ function Customers({
     setPhone("");
   };
 
+  const selectCardService = (serviceId: string) => {
+    setCardServiceId(serviceId);
+    const service = data.services.find((item) => item.id === serviceId);
+    if (service?.defaultTimes) setCardTimes(service.defaultTimes);
+  };
+
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(async () => {
@@ -4169,7 +4176,7 @@ function Customers({
           {cardType !== "储值卡" && (
             <label>可用次数<input type="number" value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
           )}
-          {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={setCardServiceId} options={data.services.map(optionOf)} />}
+          {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
           {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
           <button className="primary-button">保存项目卡</button>
         </form>
@@ -4403,9 +4410,9 @@ function Catalog({
   const [serviceName, setServiceName] = useState("");
   const [servicePrice, setServicePrice] = useState(398);
   const [serviceDuration, setServiceDuration] = useState(60);
+  const [serviceDefaultTimes, setServiceDefaultTimes] = useState(10);
   const [recipeServiceId, setRecipeServiceId] = useState(data.services[0]?.id ?? "");
   const [recipeProductId, setRecipeProductId] = useState(data.products[0]?.id ?? "");
-  const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
   const [showServiceCreate, setShowServiceCreate] = useState(false);
@@ -4415,6 +4422,7 @@ function Catalog({
 
   const resetServiceForm = () => {
     setServiceName("");
+    setServiceDefaultTimes(10);
     setShowServiceCreate(false);
   };
 
@@ -4426,6 +4434,7 @@ function Catalog({
         price: servicePrice,
         category: "自定义项目",
         duration: serviceDuration,
+        defaultTimes: serviceDefaultTimes,
       }),
     );
     resetServiceForm();
@@ -4436,13 +4445,12 @@ function Catalog({
   const addRecipeConsumable = (event: FormEvent) => {
     event.preventDefault();
     if (!recipeServiceId || !recipeProductId) return;
-    const nextConsumables = mergeConsumables([...recipeConsumables, { productId: recipeProductId, quantity: recipeQty }]);
+    const nextConsumables = mergeUsedProducts([...recipeConsumables, { productId: recipeProductId, quantity: 0 }]);
     void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
   };
 
   const removeRecipeConsumable = (productId: string) => {
     const nextConsumables = recipeConsumables.filter((item) => item.productId !== productId);
-    if (nextConsumables.length === 0) return;
     void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
   };
 
@@ -4452,12 +4460,12 @@ function Catalog({
     setProductName("");
   };
   const catalogModules: Array<FeatureModule<CatalogModuleKey>> = [
-    { key: "service", title: "新增项目", desc: "服务名称、价格和时长", icon: Sparkles, tone: "violet", meta: "服务目录" },
-    { key: "recipe", title: "项目耗材", desc: "配置项目消耗的商品", icon: PackagePlus, tone: "jade", meta: "自动扣库存" },
+    { key: "service", title: "新增项目", desc: "服务名称、价格、时长和次数", icon: Sparkles, tone: "violet", meta: "服务目录" },
+    { key: "recipe", title: "项目耗材", desc: "配置项目使用的商品", icon: PackagePlus, tone: "jade", meta: "使用产品" },
     { key: "product", title: "新增商品", desc: "新增商品和初始库存", icon: Boxes, tone: "teal", meta: "库存资料" },
     { key: "serviceList", title: "项目目录", desc: "查看服务项目、价格和时长", icon: ClipboardList, tone: "rose", meta: `${data.services.length} 个` },
     { key: "productList", title: "商品列表", desc: "查看商品库存和库存预警", icon: Boxes, tone: "amber", meta: `${data.products.length} 个` },
-    { key: "formulaList", title: "耗材总览", desc: "查看项目对应商品消耗", icon: PackagePlus, tone: "plum", meta: "扣库存规则" },
+    { key: "formulaList", title: "耗材总览", desc: "查看项目对应使用商品", icon: PackagePlus, tone: "plum", meta: "使用产品" },
   ];
   const activeModuleTitle = activeModule ? catalogModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   useEffect(() => {
@@ -4489,7 +4497,7 @@ function Catalog({
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "项目商品"}
-        subtitle="服务项目、商品和库存关联资料"
+        subtitle="项目商品"
         size="large"
         onClose={closeModule}
       >
@@ -4501,24 +4509,24 @@ function Catalog({
           <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
           <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
           <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
+          <label>可用次数<input type="number" min={1} value={serviceDefaultTimes} onChange={(event) => setServiceDefaultTimes(Number(event.target.value))} /></label>
           <button className="primary-button">保存项目</button>
         </form>
         </section>
         )}
         {activeModule === "recipe" && (
         <section className="panel">
-        <PanelTitle icon={<PackagePlus size={18} />} title="项目耗材" action="自动扣库存" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="项目耗材" action="使用产品" />
         <form className="form" onSubmit={addRecipeConsumable}>
           <Select label="服务项目" value={recipeServiceId} onChange={setRecipeServiceId} options={data.services.map(optionOf)} />
           <Select label="使用商品" value={recipeProductId} onChange={setRecipeProductId} options={productOptions.length ? productOptions : [{ value: "", label: "暂无商品" }]} />
-          <label>每次消耗数量<input type="number" min={0.01} step={0.01} value={recipeQty} onChange={(event) => setRecipeQty(Number(event.target.value))} /></label>
           <button className="primary-button" disabled={!recipeServiceId || !recipeProductId}>加入耗材</button>
         </form>
         <div className="recipe-list">
           {recipeConsumables.map((item) => (
             <div key={item.productId}>
               <span>{serviceConsumableDisplay(item, data.products)}</span>
-              <button type="button" onClick={() => removeRecipeConsumable(item.productId)} disabled={recipeConsumables.length <= 1}>移除</button>
+              <button type="button" onClick={() => removeRecipeConsumable(item.productId)}>移除</button>
             </div>
           ))}
           {recipeConsumables.length === 0 && <p className="empty">当前项目未配置耗材</p>}
@@ -4558,17 +4566,19 @@ function Catalog({
               <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
               <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
               <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
+              <label>可用次数<input type="number" min={1} value={serviceDefaultTimes} onChange={(event) => setServiceDefaultTimes(Number(event.target.value))} /></label>
               <button className="primary-button">保存项目</button>
             </form>
           </div>
           )}
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "耗材配置", "操作"]}
+            columns={["项目", "分类", "价格", "时长", "可用次数", "耗材配置", "操作"]}
             rows={data.services.map((item) => [
               item.name,
               item.category,
               money(item.price),
               `${item.duration} 分钟`,
+              `${item.defaultTimes ?? 1} 次`,
               serviceFormulaSummary(item, data.products),
               <button key={`${item.id}-recipe`} type="button" onClick={() => { setRecipeServiceId(item.id); setActiveModule("recipe"); }}>
                 耗材
@@ -4585,7 +4595,7 @@ function Catalog({
         )}
         {activeModule === "formulaList" && (
         <section className="panel">
-        <PanelTitle icon={<PackagePlus size={18} />} title="耗材总览" action="项目扣库存规则" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="耗材总览" action="使用产品" />
         <DataTable
           columns={["项目", "分类", "耗材配置"]}
           rows={data.services.map((item) => [item.name, item.category, serviceFormulaSummary(item, data.products)])}
@@ -6315,25 +6325,27 @@ function appointmentTone(appointment: Appointment): "ok" | "warn" | undefined {
 }
 
 function serviceConsumablesOf(service?: Service): ServiceConsumable[] {
-  const consumables = service?.consumables?.filter((item) => item.productId && item.quantity > 0) ?? [];
+  const consumables = service?.consumables?.filter((item) => item.productId) ?? [];
   if (consumables.length > 0) return consumables;
-  if (service?.consumableProductId && (service.consumableQty ?? 0) > 0) {
+  if (service?.consumableProductId) {
     return [{ productId: service.consumableProductId, quantity: service.consumableQty ?? 0 }];
   }
   return [];
 }
 
-function mergeConsumables(consumables: ServiceConsumable[]) {
-  const merged = new Map<string, number>();
+function mergeUsedProducts(consumables: ServiceConsumable[]) {
+  const merged: ServiceConsumable[] = [];
+  const seen = new Set<string>();
   consumables.forEach((item) => {
-    if (!item.productId || item.quantity <= 0) return;
-    merged.set(item.productId, (merged.get(item.productId) ?? 0) + item.quantity);
+    if (!item.productId || seen.has(item.productId)) return;
+    seen.add(item.productId);
+    merged.push({ productId: item.productId, quantity: 0 });
   });
-  return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
+  return merged;
 }
 
 function serviceConsumableDisplay(item: ServiceConsumable, products: Product[]) {
-  return `${nameOf(products, item.productId)} × ${item.quantity}`;
+  return nameOf(products, item.productId);
 }
 
 function serviceFormulaSummary(service: Service, products: Product[]) {

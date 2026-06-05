@@ -29,6 +29,7 @@ import type {
   ReferralRelation,
   Refund,
   Service,
+  ServiceConsumable,
   Staff,
   StaffInvite,
   StaffShift,
@@ -225,7 +226,7 @@ export class BeautyDatabase {
     for (const service of data.services) {
       this.db
         .prepare(
-          "INSERT INTO services (id, name, category, price, duration, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO services (id, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           service.id,
@@ -233,6 +234,8 @@ export class BeautyDatabase {
           service.category,
           service.price,
           service.duration,
+          service.defaultTimes ?? 1,
+          JSON.stringify(service.consumables ?? []),
           service.consumableProductId ?? null,
           service.consumableQty ?? null,
         );
@@ -519,6 +522,8 @@ export class BeautyDatabase {
         category TEXT NOT NULL,
         price REAL NOT NULL,
         duration INTEGER NOT NULL,
+        defaultTimes INTEGER NOT NULL DEFAULT 1,
+        consumables_json TEXT,
         consumableProductId TEXT,
         consumableQty REAL
       );
@@ -780,6 +785,8 @@ export class BeautyDatabase {
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
+    this.addColumnIfMissing("services", "defaultTimes", "INTEGER NOT NULL DEFAULT 1");
+    this.addColumnIfMissing("services", "consumables_json", "TEXT");
   }
 
   private addColumnIfMissing(tableName: string, columnName: string, definition: string) {
@@ -817,10 +824,22 @@ function mapCustomer(row: unknown): Customer {
   return { ...value, tags: JSON.parse(value.tags_json) as string[] };
 }
 
+function parseJsonArray<T>(value?: string | null): T[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as T[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function mapService(row: unknown): Service {
-  const value = row as Service;
+  const value = row as Service & { consumables_json?: string | null };
   return {
     ...value,
+    defaultTimes: value.defaultTimes ?? 1,
+    consumables: parseJsonArray<ServiceConsumable>(value.consumables_json) ?? value.consumables,
     consumableProductId: value.consumableProductId ?? undefined,
     consumableQty: value.consumableQty ?? undefined,
   };

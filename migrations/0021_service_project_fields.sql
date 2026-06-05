@@ -1,0 +1,2 @@
+ALTER TABLE services ADD COLUMN defaultTimes INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE services ADD COLUMN consumables_json TEXT;

@@ -745,6 +745,12 @@ function serviceConsumables(service: Service): ServiceConsumable[] {
   return [];
 }
 
+function serviceUsedProductIds(service: Service): string[] {
+  const productIds = service.consumables?.map((item) => item.productId).filter(Boolean) ?? [];
+  if (productIds.length > 0) return Array.from(new Set(productIds));
+  return service.consumableProductId ? [service.consumableProductId] : [];
+}
+
 function normalizeTagName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -3388,11 +3394,8 @@ export function addCustomerServiceRecord(
     skinCondition: input.skinCondition,
     beforeNote: input.beforeNote,
     careSteps: input.careSteps ?? `完成${service.name}服务`,
-    productsUsed: input.productsUsed ?? serviceConsumables(service)
-      .map((item) => {
-        const product = data.products.find((productItem) => productItem.id === item.productId);
-        return product ? `${product.name} x${item.quantity}${product.unit}` : "";
-      })
+    productsUsed: input.productsUsed ?? serviceUsedProductIds(service)
+      .map((productId) => data.products.find((productItem) => productItem.id === productId)?.name ?? "")
       .filter(Boolean)
       .join("、"),
     afterNote: input.afterNote,

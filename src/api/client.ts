@@ -211,7 +211,7 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/follow-ups", { method: "POST", body, token: getToken() }),
     completeFollowUp: (followUpId: string) =>
       request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", token: getToken() }),
-    addService: (body: { name: string; price: number; category?: string; duration?: number; consumables?: ServiceConsumable[]; consumableProductId?: string; consumableQty?: number }) =>
+    addService: (body: { name: string; price: number; category?: string; duration?: number; defaultTimes?: number; consumables?: ServiceConsumable[]; consumableProductId?: string; consumableQty?: number }) =>
       request<AppData>("/api/services", { method: "POST", body, token: getToken() }),
     updateServiceConsumables: (serviceId: string, consumables: ServiceConsumable[]) =>
       request<AppData>(`/api/services/${encodeURIComponent(serviceId)}/consumables`, {
