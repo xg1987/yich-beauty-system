@@ -5086,13 +5086,21 @@ function Inventory({
   const categoryFilteredProducts = inventoryCategoryFilter === "全部"
     ? data.products
     : data.products.filter((item) => (item.category ?? "面护类") === inventoryCategoryFilter);
+  const inventoryPresetSubcategoryTabs = inventoryCategoryFilter === "全部"
+    ? []
+    : INVENTORY_CATEGORY_PRESETS[inventoryCategoryFilter] ?? [];
+  const hasUncategorizedInventoryProducts = inventoryCategoryFilter !== "全部" && categoryFilteredProducts.some((item) => !item.subcategory);
   const inventorySubcategoryTabs = [
     "全部",
-    ...Array.from(new Set(categoryFilteredProducts.map((item) => item.subcategory).filter((subcategory): subcategory is string => Boolean(subcategory)))),
+    ...Array.from(new Set([
+      ...inventoryPresetSubcategoryTabs,
+      ...categoryFilteredProducts.map((item) => item.subcategory).filter((subcategory): subcategory is string => Boolean(subcategory)),
+      ...(hasUncategorizedInventoryProducts ? ["未分小类"] : []),
+    ])),
   ];
   const filteredInventoryProducts = inventorySubcategoryFilter === "全部"
     ? categoryFilteredProducts
-    : categoryFilteredProducts.filter((item) => item.subcategory === inventorySubcategoryFilter);
+    : categoryFilteredProducts.filter((item) => (item.subcategory ?? "未分小类") === inventorySubcategoryFilter);
   const filteredLowStock = filteredInventoryProducts.filter((item) => item.stock <= item.warningStock).length;
   const filteredExpiryRisk = filteredInventoryProducts.filter((item) => Boolean(productExpiryStatus(item))).length;
   const selectedInventoryProduct = selectedInventoryProductId ? data.products.find((item) => item.id === selectedInventoryProductId) : undefined;
