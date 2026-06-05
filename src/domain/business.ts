@@ -1951,13 +1951,10 @@ export function checkoutOrder(
     throw new Error("服务项目不存在");
   }
   if (input.productId && !selectedProduct) {
-    throw new Error("销售商品不存在");
-  }
-  if (selectedProduct && selectedProduct.type !== "sale") {
-    throw new Error("只能销售商品，耗材不可直接开单");
+    throw new Error("商品不存在");
   }
   if (!selectedService && !selectedProduct) {
-    throw new Error("请选择服务项目或销售商品");
+    throw new Error("请选择服务项目或商品");
   }
 
   assertBusinessDateOpen(data, currentTime().slice(0, 10));
@@ -2048,7 +2045,7 @@ export function checkoutOrder(
   if (input.productId) consumptionByProduct.set(input.productId, (consumptionByProduct.get(input.productId) ?? 0) + 1);
   for (const [productId, quantity] of consumptionByProduct) {
     const product = data.products.find((item) => item.id === productId);
-    if (!product) throw new Error("耗材或商品不存在");
+    if (!product) throw new Error("商品不存在");
     if (product.stock < quantity) throw new Error(`${product.name} 库存不足`);
   }
 
@@ -3153,7 +3150,7 @@ export function adjustInventory(
   const direction = input.type === "入库" ? 1 : -1;
   const targetProduct = data.products.find((product) => product.id === input.productId);
   if (!targetProduct) {
-    throw new Error("商品或耗材不存在");
+    throw new Error("商品不存在");
   }
   const expiryAt = input.type === "入库" ? stockInExpiryAt(targetProduct, createdAt, input.expiryAt) : undefined;
   let stockAfter = 0;
@@ -3202,7 +3199,7 @@ export function receivePurchaseOrder(
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
   if (!data.suppliers.some((supplier) => supplier.id === input.supplierId)) throw new Error("供应商不存在");
   const product = data.products.find((item) => item.id === input.productId);
-  if (!product) throw new Error("商品或耗材不存在");
+  if (!product) throw new Error("商品不存在");
   const stockAfter = product.stock + input.quantity;
   const expiryAt = stockInExpiryAt(product, createdAt, input.expiryAt);
   const purchaseOrder: PurchaseOrder = {
@@ -3327,7 +3324,7 @@ export function createStocktake(
   const createdAt = (options.now ?? nowIso)();
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
   const product = data.products.find((item) => item.id === input.productId);
-  if (!product) throw new Error("商品或耗材不存在");
+  if (!product) throw new Error("商品不存在");
   const delta = input.actualStock - product.stock;
   const stocktake: Stocktake = {
     id: idFactory("st"),

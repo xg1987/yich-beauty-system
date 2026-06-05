@@ -114,9 +114,9 @@ export const testFixtureData: AppData = {
     },
   ],
   products: [
-    { id: "p1", name: "清洁精华液", type: "consumable", category: "面护类", subcategory: "精华", unit: "瓶", price: 128, cost: 65, stock: 18, warningStock: 5, shelfLifeMonths: 24 },
-    { id: "p2", name: "草本按摩油", type: "consumable", category: "养生类", subcategory: "身体油", unit: "瓶", price: 168, cost: 80, stock: 12, warningStock: 4, shelfLifeMonths: 24 },
-    { id: "p3", name: "修复护理包", type: "consumable", category: "养生类", subcategory: "套盒", unit: "套", price: 298, cost: 150, stock: 9, warningStock: 3, shelfLifeMonths: 24 },
+    { id: "p1", name: "清洁精华液", type: "sale", category: "面护类", subcategory: "精华", unit: "瓶", price: 128, cost: 65, stock: 18, warningStock: 5, shelfLifeMonths: 24 },
+    { id: "p2", name: "草本按摩油", type: "sale", category: "养生类", subcategory: "身体油", unit: "瓶", price: 168, cost: 80, stock: 12, warningStock: 4, shelfLifeMonths: 24 },
+    { id: "p3", name: "修复护理包", type: "sale", category: "养生类", subcategory: "套盒", unit: "套", price: 298, cost: 150, stock: 9, warningStock: 3, shelfLifeMonths: 24 },
     { id: "p4", name: "家用补水面膜", type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8, shelfLifeMonths: 24 },
   ],
   appointments: [
@@ -184,7 +184,7 @@ export const testFixtureData: AppData = {
   customerSignatures: [],
   customerFollowUps: [],
   suppliers: [
-    { id: "sp1", name: "祝融｜坤锋耗材供应商", phone: "021-6666-0000", contact: "张经理", status: "active" },
+    { id: "sp1", name: "祝融｜坤锋商品供应商", phone: "021-6666-0000", contact: "张经理", status: "active" },
   ],
   purchaseOrders: [],
   stocktakes: [],

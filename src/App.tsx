@@ -880,7 +880,7 @@ function managementEntryDetails(
       value: `${data.services.length + data.products.length} 项`,
       items: [
         { label: "服务项目", value: `${data.services.length} 项`, hint: "预约和开单可选" },
-        { label: "商品耗材", value: `${data.products.length} 项`, hint: "销售品和服务耗材" },
+        { label: "商品资料", value: `${data.products.length} 项`, hint: "库存商品" },
         { label: "低库存", value: `${lowStock} 项`, hint: "需要补货或盘点" },
       ],
     };
@@ -905,7 +905,7 @@ function managementEntryDetails(
       value: `${lowStock} 项`,
       items: [
         { label: "低库存", value: `${lowStock} 项`, hint: "低于安全库存" },
-        { label: "商品耗材", value: `${data.products.length} 项`, hint: "库存基础资料" },
+        { label: "商品资料", value: `${data.products.length} 项`, hint: "库存基础资料" },
         { label: "库存流水", value: `${data.inventoryLogs.length} 条`, hint: "出入库和盘点" },
       ],
     };
@@ -1564,19 +1564,19 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
         <div>
           <span className="eyebrow"><PackagePlus size={15} /> 项目商品</span>
           <h1>项目商品资料</h1>
-          <p>服务项目、商品资料、耗材配置和库存数量。</p>
+          <p>服务项目、商品资料、项目配方和库存数量。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="服务项目" value={`${data.services.length} 项`} hint="门店服务" />
-          <StatCard title="商品资料" value={`${data.products.length} 项`} hint="销售品和耗材" />
-          <StatCard title="耗材品" value={`${data.products.filter((item) => item.type === "consumable").length} 项`} hint="服务扣库存" />
+          <StatCard title="商品资料" value={`${data.products.length} 项`} hint="库存商品" />
+          <StatCard title="项目配方" value={`${data.services.filter((item) => serviceConsumablesOf(item).length > 0).length} 项`} hint="服务扣库存" />
         </div>
       </section>
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
           <PanelTitle icon={<Sparkles size={18} />} title="服务项目" action={`${data.services.length} 项`} />
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "耗材配置"]}
+            columns={["项目", "分类", "价格", "时长", "商品配方"]}
             rows={data.services.map((service) => [
               service.name,
               service.category,
@@ -1589,10 +1589,11 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
         <div className="panel dashboard-panel">
           <PanelTitle icon={<Boxes size={18} />} title="商品资料" action={`${data.products.length} 项`} />
           <DataTable
-            columns={["商品", "类型", "单位", "售价", "成本", "库存"]}
+            columns={["商品", "大类", "小类", "单位", "售价", "成本", "库存"]}
             rows={data.products.map((product) => [
               product.name,
-              product.type === "sale" ? "销售商品" : "耗材",
+              product.category ?? "面护类",
+              product.subcategory ?? "-",
               product.unit,
               money(product.price),
               money(product.cost),
@@ -1675,7 +1676,7 @@ function PlatformInventoryReadOnlyView({ data, setView, showBack }: { data: AppD
           <p>库存状态、预警项目、出入库流水和盘点记录。</p>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="商品数" value={`${data.products.length} 项`} hint="商品与耗材" />
+          <StatCard title="商品数" value={`${data.products.length} 项`} hint="库存商品" />
           <StatCard title="低库存" value={`${lowStock.length} 项`} hint="低于预警线" />
           <StatCard title="库存合计" value={`${stockTotal}`} hint="所有库存数量" />
         </div>
@@ -1684,10 +1685,11 @@ function PlatformInventoryReadOnlyView({ data, setView, showBack }: { data: AppD
         <div className="panel dashboard-panel">
           <PanelTitle icon={<Boxes size={18} />} title="库存状态" action={`${data.products.length} 项`} />
           <DataTable
-            columns={["商品", "类型", "库存", "预警线", "单位", "状态"]}
+            columns={["商品", "大类", "小类", "库存", "预警线", "单位", "状态"]}
             rows={data.products.map((product) => [
               product.name,
-              product.type === "sale" ? "销售商品" : "耗材",
+              product.category ?? "面护类",
+              product.subcategory ?? "-",
               product.stock,
               product.warningStock,
               product.unit,
@@ -2623,7 +2625,7 @@ function workbenchQuickTaskDetails(view: ViewKey, input: WorkbenchQuickDetailInp
       items: [
         { label: "低库存", value: `${input.lowStockCount} 项`, hint: "低于安全库存" },
         { label: "今日实收", value: money(input.todayRevenue), hint: "经营参考" },
-        { label: "客户项目卡", value: `${input.activeCards} 张`, hint: "可能影响耗材" },
+        { label: "客户项目卡", value: `${input.activeCards} 张`, hint: "项目消耗参考" },
       ],
     };
   }
@@ -3350,8 +3352,8 @@ function Pos({
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
   const [activeModule, setActiveModule] = useState<"quick" | "orders" | undefined>(fromManagement ? "quick" : undefined);
   const staffOptions = serviceStaff.map(optionOf);
-  const saleProducts = data.products.filter((item) => item.type === "sale");
-  const firstSaleProductId = saleProducts[0]?.id ?? "";
+  const sellableProducts = data.products;
+  const firstSellableProductId = sellableProducts[0]?.id ?? "";
   const usesCustomer = checkoutCustomerMode === "customer";
   const usesService = checkoutContentMode !== "product";
   const usesProduct = checkoutContentMode !== "service";
@@ -3384,9 +3386,9 @@ function Pos({
       setCollaboratorStaffIds([]);
       setCardId("");
     }
-    if (usesProduct && !productId && firstSaleProductId) setProductId(firstSaleProductId);
+    if (usesProduct && !productId && firstSellableProductId) setProductId(firstSellableProductId);
     if (!usesProduct && productId) setProductId("");
-  }, [firstSaleProductId, payMethod, productId, usesCustomer, usesProduct, usesService]);
+  }, [firstSellableProductId, payMethod, productId, usesCustomer, usesProduct, usesService]);
 
   const availableCards = usesCustomer
     ? data.memberCards.filter((item) => {
@@ -3649,7 +3651,7 @@ function Pos({
             <label>消费类型</label>
             <div className="segmented checkout-segmented">
               <button type="button" className={checkoutContentMode === "service" ? "active" : ""} onClick={() => setCheckoutContentMode("service")}>{usesCustomer ? "VIP会员" : "单次服务"}</button>
-              <button type="button" className={checkoutContentMode === "product" ? "active" : ""} onClick={() => setCheckoutContentMode("product")}>产品购买</button>
+              <button type="button" className={checkoutContentMode === "product" ? "active" : ""} onClick={() => setCheckoutContentMode("product")}>购买商品</button>
               <button type="button" className={checkoutContentMode === "mixed" ? "active" : ""} onClick={() => setCheckoutContentMode("mixed")}>服务+产品</button>
             </div>
           </div>
@@ -3724,10 +3726,10 @@ function Pos({
           )}
           {usesProduct && (
             <Select
-              label={usesService ? "销售商品" : "购买产品"}
+              label={usesService ? "加购商品" : "购买商品"}
               value={productId}
               onChange={setProductId}
-              options={saleProducts.length ? saleProducts.map(optionOf) : [{ value: "", label: "请先到项目商品新增产品" }]}
+              options={sellableProducts.length ? sellableProducts.map(optionOf) : [{ value: "", label: "请先到商品入库新增商品" }]}
             />
           )}
           <Select
@@ -3761,7 +3763,7 @@ function Pos({
               onChange={setCardId}
               options={availableCards.length
                 ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${item.balance ? money(item.balance) : `${item.remainingTimes} 次`}` }))
-                : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "产品购买仅支持储值卡" }]}
+                : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "商品购买仅支持储值卡" }]}
             />
           )}
           <label>
@@ -4203,7 +4205,7 @@ function Customers({
           <label>皮肤情况<input value={skinCondition} onChange={(event) => setSkinCondition(event.target.value)} /></label>
           <label>服务前记录<textarea value={beforeNote} onChange={(event) => setBeforeNote(event.target.value)} /></label>
           <label>护理步骤<textarea value={careSteps} onChange={(event) => setCareSteps(event.target.value)} /></label>
-          <label>使用产品/耗材<textarea value={productsUsed} onChange={(event) => setProductsUsed(event.target.value)} /></label>
+          <label>使用产品<textarea value={productsUsed} onChange={(event) => setProductsUsed(event.target.value)} /></label>
           <label>服务后记录<textarea value={afterNote} onChange={(event) => setAfterNote(event.target.value)} /></label>
           <label>客户反馈<textarea value={customerFeedback} onChange={(event) => setCustomerFeedback(event.target.value)} /></label>
           <label>下次护理建议<textarea value={nextCareAdvice} onChange={(event) => setNextCareAdvice(event.target.value)} /></label>
@@ -4381,14 +4383,13 @@ function Catalog({
   const [serviceConsumableProductId, setServiceConsumableProductId] = useState("");
   const [serviceConsumableQty, setServiceConsumableQty] = useState(1);
   const [recipeServiceId, setRecipeServiceId] = useState(data.services[0]?.id ?? "");
-  const [recipeProductId, setRecipeProductId] = useState(data.products.find((product) => product.type === "consumable")?.id ?? "");
+  const [recipeProductId, setRecipeProductId] = useState(data.products[0]?.id ?? "");
   const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
   const [showServiceCreate, setShowServiceCreate] = useState(false);
   const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList" | undefined>(fromManagement ? "serviceList" : undefined);
-  const consumableOptions = data.products
-    .filter((product) => product.type === "consumable")
+  const productOptions = data.products
     .map((product) => ({ value: product.id, label: `${product.name} · ${product.stock}${product.unit}` }));
 
   const addService = (event: FormEvent) => {
@@ -4428,17 +4429,17 @@ function Catalog({
 
   const addProduct = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.addProduct({ name: productName, stock: productStock, type: "consumable", unit: "件" }));
+    void runMutation(() => actions.addProduct({ name: productName, stock: productStock, type: "sale", unit: "件" }));
     setProductName("");
   };
   type CatalogModuleKey = NonNullable<typeof activeModule>;
   const catalogModules: Array<FeatureModule<CatalogModuleKey>> = [
-    { key: "service", title: "新增项目", desc: "服务名称、价格、时长和默认耗材", icon: Sparkles, tone: "violet", meta: "服务目录" },
-    { key: "recipe", title: "项目配方", desc: "配置项目消耗的耗材", icon: PackagePlus, tone: "jade", meta: "自动扣库存" },
-    { key: "product", title: "新增商品", desc: "新增商品、耗材和初始库存", icon: Boxes, tone: "teal", meta: "库存资料" },
+    { key: "service", title: "新增项目", desc: "服务名称、价格、时长和默认使用商品", icon: Sparkles, tone: "violet", meta: "服务目录" },
+    { key: "recipe", title: "项目配方", desc: "配置项目消耗的商品", icon: PackagePlus, tone: "jade", meta: "自动扣库存" },
+    { key: "product", title: "新增商品", desc: "新增商品和初始库存", icon: Boxes, tone: "teal", meta: "库存资料" },
     { key: "serviceList", title: "项目目录", desc: "查看服务项目、价格和时长", icon: ClipboardList, tone: "rose", meta: `${data.services.length} 个` },
-    { key: "productList", title: "商品耗材", desc: "查看商品、耗材和库存预警", icon: Boxes, tone: "amber", meta: `${data.products.length} 个` },
-    { key: "formulaList", title: "配方总览", desc: "查看项目对应耗材消耗", icon: PackagePlus, tone: "plum", meta: "扣库存规则" },
+    { key: "productList", title: "商品列表", desc: "查看商品库存和库存预警", icon: Boxes, tone: "amber", meta: `${data.products.length} 个` },
+    { key: "formulaList", title: "配方总览", desc: "查看项目对应商品消耗", icon: PackagePlus, tone: "plum", meta: "扣库存规则" },
   ];
   const activeModuleTitle = activeModule ? catalogModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const closeModule = () => {
@@ -4455,10 +4456,10 @@ function Catalog({
         icon={<Sparkles size={15} />}
         eyebrow="项目商品"
         title="项目商品"
-        desc="维护服务项目、商品资料、耗材库存和标准价格。"
+        desc="维护服务项目、商品资料、库存和标准价格。"
         stats={[
           { label: "服务项目", value: `${data.services.length} 个`, hint: "可用于预约/开单", icon: <Sparkles size={18} /> },
-          { label: "商品耗材", value: `${data.products.length} 个`, hint: "库存资料", icon: <Boxes size={18} /> },
+          { label: "商品资料", value: `${data.products.length} 个`, hint: "库存资料", icon: <Boxes size={18} /> },
           { label: "低库存", value: `${data.products.filter((item) => item.stock <= item.warningStock).length} 项`, hint: "需补货", icon: <PackagePlus size={18} /> },
         ]}
       />
@@ -4466,7 +4467,7 @@ function Catalog({
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "项目商品"}
-        subtitle="服务项目、商品耗材和库存关联资料"
+        subtitle="服务项目、商品和库存关联资料"
         size="large"
         onClose={closeModule}
       >
@@ -4479,10 +4480,10 @@ function Catalog({
           <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
           <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
           <Select
-            label="默认耗材"
+            label="默认使用商品"
             value={serviceConsumableProductId}
             onChange={setServiceConsumableProductId}
-            options={[{ value: "", label: "不绑定耗材" }, ...consumableOptions]}
+            options={[{ value: "", label: "不绑定商品" }, ...productOptions]}
           />
           {serviceConsumableProductId && (
             <label>单次用量<input type="number" min={0} step={0.1} value={serviceConsumableQty} onChange={(event) => setServiceConsumableQty(Number(event.target.value))} /></label>
@@ -4493,10 +4494,10 @@ function Catalog({
         )}
         {activeModule === "recipe" && (
         <section className="panel">
-        <PanelTitle icon={<PackagePlus size={18} />} title="项目配方" action="多耗材自动扣库存" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="项目配方" action="商品自动扣库存" />
         <form className="form" onSubmit={addRecipeConsumable}>
           <Select label="服务项目" value={recipeServiceId} onChange={setRecipeServiceId} options={data.services.map(optionOf)} />
-          <Select label="耗材" value={recipeProductId} onChange={setRecipeProductId} options={consumableOptions.length ? consumableOptions : [{ value: "", label: "暂无耗材" }]} />
+          <Select label="使用商品" value={recipeProductId} onChange={setRecipeProductId} options={productOptions.length ? productOptions : [{ value: "", label: "暂无商品" }]} />
           <label>单次用量<input type="number" min={0.01} step={0.01} value={recipeQty} onChange={(event) => setRecipeQty(Number(event.target.value))} /></label>
           <button className="primary-button" disabled={!recipeServiceId || !recipeProductId}>加入配方</button>
         </form>
@@ -4507,13 +4508,13 @@ function Catalog({
               <button type="button" onClick={() => removeRecipeConsumable(item.productId)} disabled={recipeConsumables.length <= 1}>移除</button>
             </div>
           ))}
-          {recipeConsumables.length === 0 && <p className="empty">当前项目未配置耗材配方</p>}
+          {recipeConsumables.length === 0 && <p className="empty">当前项目未配置商品配方</p>}
         </div>
         </section>
         )}
         {activeModule === "product" && (
         <section className="panel">
-        <PanelTitle icon={<Boxes size={18} />} title="新增商品/耗材" action="库存资料" />
+        <PanelTitle icon={<Boxes size={18} />} title="新增商品" action="库存资料" />
         <form className="form" onSubmit={addProduct}>
           <label>名称<input value={productName} onChange={(event) => setProductName(event.target.value)} required /></label>
           <label>初始库存<input type="number" value={productStock} onChange={(event) => setProductStock(Number(event.target.value))} /></label>
@@ -4539,17 +4540,17 @@ function Catalog({
           <div className="catalog-inline-control">
             <div>
               <strong>新增项目</strong>
-              <span>服务名称、价格、时长和默认耗材</span>
+              <span>服务名称、价格、时长和默认使用商品</span>
             </div>
             <form className="form catalog-inline-form" onSubmit={addService}>
               <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
               <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
               <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
               <Select
-                label="默认耗材"
+                label="默认使用商品"
                 value={serviceConsumableProductId}
                 onChange={setServiceConsumableProductId}
-                options={[{ value: "", label: "不绑定耗材" }, ...consumableOptions]}
+                options={[{ value: "", label: "不绑定商品" }, ...productOptions]}
               />
               {serviceConsumableProductId && (
                 <label>单次用量<input type="number" min={0} step={0.1} value={serviceConsumableQty} onChange={(event) => setServiceConsumableQty(Number(event.target.value))} /></label>
@@ -4559,7 +4560,7 @@ function Catalog({
           </div>
           )}
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "耗材配方", "操作"]}
+            columns={["项目", "分类", "价格", "时长", "商品配方", "操作"]}
             rows={data.services.map((item) => [
               item.name,
               item.category,
@@ -4575,15 +4576,15 @@ function Catalog({
         )}
         {activeModule === "productList" && (
         <section className="panel">
-        <PanelTitle icon={<Boxes size={18} />} title="商品耗材" action="库存资料" />
-        <DataTable columns={["商品", "类型", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.type === "sale" ? "销售商品" : "服务耗材", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
+        <PanelTitle icon={<Boxes size={18} />} title="商品列表" action="库存资料" />
+        <DataTable columns={["商品", "大类", "小类", "库存", "预警"]} rows={data.products.map((item) => [item.name, item.category ?? "面护类", item.subcategory ?? "-", `${item.stock}${item.unit}`, `${item.warningStock}${item.unit}`])} />
         </section>
         )}
         {activeModule === "formulaList" && (
         <section className="panel">
         <PanelTitle icon={<PackagePlus size={18} />} title="配方总览" action="项目扣库存规则" />
         <DataTable
-          columns={["项目", "分类", "耗材配方"]}
+          columns={["项目", "分类", "商品配方"]}
           rows={data.services.map((item) => [item.name, item.category, serviceFormulaSummary(item, data.products)])}
         />
         </section>
@@ -5022,7 +5023,7 @@ function Inventory({
       actions.addProduct({
         name: newInventoryProductName,
         stock,
-        type: "consumable",
+        type: "sale",
         category: newInventoryProductCategory.trim() || "面护类",
         subcategory: newInventoryProductSubcategory.trim(),
         unit: newInventoryProductUnit,

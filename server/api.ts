@@ -1124,8 +1124,8 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 新增服务项目 ${requiredString(body, "name")}`,
         }, (data) => {
           consumables.forEach((item) => {
-            const product = data.products.find((candidate) => candidate.id === item.productId && candidate.type === "consumable");
-            if (!product) throw new Error("耗材不存在");
+            const product = data.products.find((candidate) => candidate.id === item.productId);
+            if (!product) throw new Error("商品不存在");
           });
           return {
             ...data,
@@ -1153,17 +1153,17 @@ export function createApiServer(database = new BeautyDatabase()) {
         const serviceId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
         const consumables = optionalConsumables(body);
-        if (consumables.length === 0) throw new Error("至少配置一个耗材");
+        if (consumables.length === 0) throw new Error("至少配置一个商品");
         const nextData = updateData(database, session, {
           action: "更新项目配方",
           targetType: "service",
           targetId: serviceId,
-          summary: `${session.user.name} 更新项目耗材配方`,
+          summary: `${session.user.name} 更新项目商品配方`,
         }, (data) => {
           if (!data.services.some((service) => service.id === serviceId)) throw new Error("服务项目不存在");
           consumables.forEach((item) => {
-            const product = data.products.find((candidate) => candidate.id === item.productId && candidate.type === "consumable");
-            if (!product) throw new Error("耗材不存在");
+            const product = data.products.find((candidate) => candidate.id === item.productId);
+            if (!product) throw new Error("商品不存在");
           });
           return {
             ...data,
@@ -1191,17 +1191,17 @@ export function createApiServer(database = new BeautyDatabase()) {
         const stock = requiredNumber(body, "stock");
         const expiryAt = optionalString(body, "expiryAt");
         const nextData = updateData(database, session, {
-          action: "新增商品耗材",
+          action: "新增商品",
           targetType: "product",
           targetId: productId,
-          summary: `${session.user.name} 新增商品/耗材 ${requiredString(body, "name")}`,
+          summary: `${session.user.name} 新增商品 ${requiredString(body, "name")}`,
         }, (data) => ({
           ...data,
           products: [
             {
               id: productId,
               name: requiredString(body, "name"),
-              type: optionalString(body, "type") === "sale" ? "sale" : "consumable",
+              type: optionalString(body, "type") === "consumable" ? "consumable" : "sale",
               category: optionalString(body, "category") ?? "面护类",
               subcategory: optionalString(body, "subcategory") ?? "",
               unit: optionalString(body, "unit") ?? "件",
