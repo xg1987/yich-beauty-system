@@ -1945,7 +1945,7 @@ export function checkoutOrder(
     throw new Error("客户不存在");
   }
   if (!customerId && (!guestName || !guestPhone)) {
-    throw new Error("请填写散客姓名和电话");
+    throw new Error("请填写新客姓名和电话");
   }
   if (serviceId && !selectedService) {
     throw new Error("服务项目不存在");
@@ -1979,7 +1979,7 @@ export function checkoutOrder(
     : undefined;
   if (input.payMethod === "会员卡") {
     if (!customerId) {
-      throw new Error("散客不能使用会员卡支付");
+      throw new Error("新客不能使用会员卡支付");
     }
     if (!selectedCard || selectedCard.status !== "正常") {
       throw new Error("请选择有效会员卡");

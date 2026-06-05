@@ -3342,7 +3342,7 @@ function Pos({
   const serviceStaff = businessStaffOf(data);
   const [appointmentId, setAppointmentId] = useState("");
   const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("customer");
-  const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product" | "mixed">("service");
+  const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product">("service");
   const [customerSearch, setCustomerSearch] = useState("");
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
@@ -3363,8 +3363,8 @@ function Pos({
   const sellableProducts = data.products;
   const firstSellableProductId = sellableProducts[0]?.id ?? "";
   const usesCustomer = checkoutCustomerMode === "customer";
-  const usesService = checkoutContentMode !== "product";
-  const usesProduct = checkoutContentMode !== "service";
+  const usesService = checkoutContentMode === "service";
+  const usesProduct = checkoutContentMode === "product";
   const selectedCustomer = data.customers.find((item) => item.id === customerId);
   const normalizedCustomerSearch = customerSearch.trim().toLowerCase();
   const customerSearchResults = normalizedCustomerSearch
@@ -3421,13 +3421,13 @@ function Pos({
     if (order.customerId) return nameOf(data.customers, order.customerId);
     const name = order.guestName?.trim();
     const phone = order.guestPhone?.trim();
-    if (!name && !phone) return "散客";
-    return [name || "散客", phone].filter(Boolean).join(" · ");
+    if (!name && !phone) return "新客";
+    return [name || "新客", phone].filter(Boolean).join(" · ");
   };
   const orderItemName = (order: Order) => {
     const serviceName = order.serviceId ? nameOf(data.services, order.serviceId) : "";
     const productName = order.productId ? nameOf(data.products, order.productId) : "";
-    return [serviceName !== "-" ? serviceName : "", productName !== "-" ? productName : ""].filter(Boolean).join(" + ") || "产品销售";
+    return [serviceName !== "-" ? serviceName : "", productName !== "-" ? productName : ""].filter(Boolean).join(" + ") || "商品";
   };
 
   // 打印小票功能
@@ -3438,7 +3438,7 @@ function Pos({
     const product = order.productId ? data.products.find((p) => p.id === order.productId) : null;
     const receiptCustomer = customer
       ? `${customer.name}${customer.phone ? ` (${customer.phone})` : ""}`
-      : `${order.guestName || "散客"}${order.guestPhone ? ` (${order.guestPhone})` : ""}`;
+      : `${order.guestName || "新客"}${order.guestPhone ? ` (${order.guestPhone})` : ""}`;
 
     const printContent = `
       <div style="font-family: monospace; padding: 20px; max-width: 300px; margin: 0 auto;">
@@ -3539,11 +3539,11 @@ function Pos({
     {
       key: "quick",
       title: "快速开单",
-      desc: "散客、客户、项目、产品和支付",
+      desc: "客户、项目、商品和支付",
       icon: CreditCard,
       tone: "rose",
       meta: "开始收银",
-      points: ["散客服务", "客户服务", "产品销售", "项目+产品"],
+      points: ["老客户", "新客", "购买项目", "购买商品"],
     },
     {
       key: "orders",
@@ -3589,12 +3589,11 @@ function Pos({
             </span>
             <span className="cashier-workflow-copy">
               <strong>快速开单</strong>
-              <small>VIP会员、散客服务、产品销售都从这里完成收款。</small>
               <span className="module-entry-points">
-                <i>VIP会员</i>
-                <i>散客服务</i>
-                <i>产品销售</i>
-                <i>项目+产品</i>
+                <i>老客户</i>
+                <i>新客</i>
+                <i>购买项目</i>
+                <i>购买商品</i>
               </span>
             </span>
             <em>开始收银</em>
@@ -3609,7 +3608,6 @@ function Pos({
             </span>
             <span className="cashier-workflow-copy">
               <strong>订单流水</strong>
-              <small>查看最近订单、支付记录、小票和退款入口。</small>
               <span className="module-entry-points">
                 <i>最近订单</i>
                 <i>支付记录</i>
@@ -3623,7 +3621,7 @@ function Pos({
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "开单收银"}
-        subtitle="VIP会员、散客服务、产品销售和订单记录"
+        subtitle="项目 / 商品 / 订单"
         size="large"
         onClose={closeModule}
       >
@@ -3633,7 +3631,7 @@ function Pos({
         <PanelTitle
           icon={<CreditCard size={18} />}
           title="快速开单"
-          action="散客 / 客户 / 产品"
+          action="项目 / 商品"
         />
         <form className="form" onSubmit={checkout}>
           <div className="checkout-mode-panel">
@@ -3651,15 +3649,14 @@ function Pos({
               >
                 老客户
               </button>
-              <button type="button" className={checkoutCustomerMode === "walkin" ? "active" : ""} onClick={() => setCheckoutCustomerMode("walkin")}>散客</button>
+              <button type="button" className={checkoutCustomerMode === "walkin" ? "active" : ""} onClick={() => setCheckoutCustomerMode("walkin")}>新客</button>
             </div>
           </div>
           <div className="checkout-mode-panel">
-            <label>消费类型</label>
+            <label>购买类型</label>
             <div className="segmented checkout-segmented">
-              <button type="button" className={checkoutContentMode === "service" ? "active" : ""} onClick={() => setCheckoutContentMode("service")}>{usesCustomer ? "VIP会员" : "单次服务"}</button>
+              <button type="button" className={checkoutContentMode === "service" ? "active" : ""} onClick={() => setCheckoutContentMode("service")}>购买项目</button>
               <button type="button" className={checkoutContentMode === "product" ? "active" : ""} onClick={() => setCheckoutContentMode("product")}>购买商品</button>
-              <button type="button" className={checkoutContentMode === "mixed" ? "active" : ""} onClick={() => setCheckoutContentMode("mixed")}>服务+产品</button>
             </div>
           </div>
           {usesCustomer ? (
@@ -3690,7 +3687,7 @@ function Pos({
                       <span>{customer.phone}</span>
                     </button>
                   )) : (
-                    <div className="checkout-customer-empty">没有找到客户，可切换为散客开单。</div>
+                    <div className="checkout-customer-empty">没有找到客户，可切换为新客开单。</div>
                   )}
                 </div>
               )}
@@ -3698,12 +3695,11 @@ function Pos({
           ) : (
             <div className="checkout-guest-fields">
               <div className="checkout-context-note">
-                <strong>散客开单</strong>
-                <span>记录姓名和电话，方便后续回访和二次开发。</span>
+                <strong>新客开单</strong>
               </div>
               <div className="checkout-guest-grid">
                 <label>
-                  散客姓名
+                  新客姓名
                   <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="如 张女士" />
                 </label>
                 <label>
@@ -3731,11 +3727,11 @@ function Pos({
             </>
           )}
           {usesService && (
-            <Select label="服务项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); }} options={data.services.map(optionOf)} />
+            <Select label="项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); }} options={data.services.map(optionOf)} />
           )}
           {usesProduct && (
             <Select
-              label={usesService ? "加购商品" : "购买商品"}
+              label="商品"
               value={productId}
               onChange={setProductId}
               options={sellableProducts.length ? sellableProducts.map(optionOf) : [{ value: "", label: "请先到商品入库新增商品" }]}
