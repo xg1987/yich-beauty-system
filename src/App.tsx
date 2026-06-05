@@ -4395,43 +4395,46 @@ function Catalog({
   const [serviceName, setServiceName] = useState("");
   const [servicePrice, setServicePrice] = useState(398);
   const [serviceDuration, setServiceDuration] = useState(60);
-  const [serviceConsumables, setServiceConsumables] = useState<ServiceConsumable[]>([{ productId: "", quantity: 1 }]);
+  const [serviceConsumables, setServiceConsumables] = useState<Array<{ productId: string; serviceTimes: number }>>([{ productId: "", serviceTimes: 1 }]);
   const [recipeServiceId, setRecipeServiceId] = useState(data.services[0]?.id ?? "");
   const [recipeProductId, setRecipeProductId] = useState(data.products[0]?.id ?? "");
-  const [recipeQty, setRecipeQty] = useState(1);
+  const [recipeServiceTimes, setRecipeServiceTimes] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
   const [showServiceCreate, setShowServiceCreate] = useState(false);
   const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList" | undefined>(fromManagement ? "serviceList" : undefined);
   const productOptions = data.products
-    .map((product) => ({ value: product.id, label: `${product.name} · ${product.stock}${product.unit}` }));
+    .map((product) => ({ value: product.id, label: product.name }));
 
   const resetServiceForm = () => {
     setServiceName("");
-    setServiceConsumables([{ productId: "", quantity: 1 }]);
+    setServiceConsumables([{ productId: "", serviceTimes: 1 }]);
     setShowServiceCreate(false);
   };
 
-  const updateServiceConsumableDraft = (index: number, nextItem: Partial<ServiceConsumable>) => {
+  const updateServiceConsumableDraft = (index: number, nextItem: Partial<{ productId: string; serviceTimes: number }>) => {
     setServiceConsumables((previous) =>
       previous.map((item, itemIndex) => (itemIndex === index ? { ...item, ...nextItem } : item)),
     );
   };
 
   const addServiceConsumableDraft = () => {
-    setServiceConsumables((previous) => [...previous, { productId: "", quantity: 1 }]);
+    setServiceConsumables((previous) => [...previous, { productId: "", serviceTimes: 1 }]);
   };
 
   const removeServiceConsumableDraft = (index: number) => {
     setServiceConsumables((previous) => {
       const next = previous.filter((_, itemIndex) => itemIndex !== index);
-      return next.length ? next : [{ productId: "", quantity: 1 }];
+      return next.length ? next : [{ productId: "", serviceTimes: 1 }];
     });
   };
 
   const addService = (event: FormEvent) => {
     event.preventDefault();
-    const consumables = mergeConsumables(serviceConsumables);
+    const consumables = mergeConsumables(serviceConsumables.map((item) => ({
+      productId: item.productId,
+      quantity: quantityFromServiceTimes(item.serviceTimes),
+    })));
     const firstConsumable = consumables[0];
     void runMutation(() =>
       actions.addService({
@@ -4452,7 +4455,7 @@ function Catalog({
   const addRecipeConsumable = (event: FormEvent) => {
     event.preventDefault();
     if (!recipeServiceId || !recipeProductId) return;
-    const nextConsumables = mergeConsumables([...recipeConsumables, { productId: recipeProductId, quantity: recipeQty }]);
+    const nextConsumables = mergeConsumables([...recipeConsumables, { productId: recipeProductId, quantity: quantityFromServiceTimes(recipeServiceTimes) }]);
     void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
   };
 
@@ -4497,13 +4500,13 @@ function Catalog({
               options={[{ value: "", label: productOptions.length ? "选择商品" : "暂无商品" }, ...productOptions]}
             />
             <label>
-              单次用量
+              可服务次数
               <input
                 type="number"
-                min={0.01}
-                step={0.01}
-                value={item.quantity}
-                onChange={(event) => updateServiceConsumableDraft(index, { quantity: Number(event.target.value) })}
+                min={1}
+                step={1}
+                value={item.serviceTimes}
+                onChange={(event) => updateServiceConsumableDraft(index, { serviceTimes: Number(event.target.value) })}
               />
             </label>
             <button type="button" onClick={() => removeServiceConsumableDraft(index)}>
@@ -4558,13 +4561,13 @@ function Catalog({
         <form className="form" onSubmit={addRecipeConsumable}>
           <Select label="服务项目" value={recipeServiceId} onChange={setRecipeServiceId} options={data.services.map(optionOf)} />
           <Select label="使用商品" value={recipeProductId} onChange={setRecipeProductId} options={productOptions.length ? productOptions : [{ value: "", label: "暂无商品" }]} />
-          <label>单次用量<input type="number" min={0.01} step={0.01} value={recipeQty} onChange={(event) => setRecipeQty(Number(event.target.value))} /></label>
+          <label>可服务次数<input type="number" min={1} step={1} value={recipeServiceTimes} onChange={(event) => setRecipeServiceTimes(Number(event.target.value))} /></label>
           <button className="primary-button" disabled={!recipeServiceId || !recipeProductId}>加入配方</button>
         </form>
         <div className="recipe-list">
           {recipeConsumables.map((item) => (
             <div key={item.productId}>
-              <span>{nameOf(data.products, item.productId)} × {item.quantity}</span>
+              <span>{serviceConsumableDisplay(item, data.products)}</span>
               <button type="button" onClick={() => removeRecipeConsumable(item.productId)} disabled={recipeConsumables.length <= 1}>移除</button>
             </div>
           ))}
@@ -6381,10 +6384,25 @@ function mergeConsumables(consumables: ServiceConsumable[]) {
   return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
 }
 
+function quantityFromServiceTimes(serviceTimes: number) {
+  if (!Number.isFinite(serviceTimes) || serviceTimes <= 0) return 0;
+  return Number((1 / serviceTimes).toFixed(4));
+}
+
+function serviceTimesFromQuantity(quantity: number) {
+  if (!Number.isFinite(quantity) || quantity <= 0) return "-";
+  const times = 1 / quantity;
+  return Number.isInteger(times) ? `${times}` : times.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function serviceConsumableDisplay(item: ServiceConsumable, products: Product[]) {
+  return `${nameOf(products, item.productId)} · 可服务 ${serviceTimesFromQuantity(item.quantity)} 次`;
+}
+
 function serviceFormulaSummary(service: Service, products: Product[]) {
   const consumables = serviceConsumablesOf(service);
   if (consumables.length === 0) return "未配置";
-  return consumables.map((item) => `${nameOf(products, item.productId)} × ${item.quantity}`).join(" / ");
+  return consumables.map((item) => serviceConsumableDisplay(item, products)).join(" / ");
 }
 
 function signatureRecordContext(data: AppData, signature: CustomerSignature) {
