@@ -14248,23 +14248,27 @@ textarea,
 
 .inventory-intake-history {
   display: grid;
-  gap: 12px;
-  margin-top: 4px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(42, 143, 125, 0.16);
+  gap: 10px;
+  margin-top: 2px;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .inventory-intake-summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  padding: 0 2px 2px;
 }
 
 .inventory-intake-summary strong {
   color: #2f255f;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 950;
+  line-height: 1.2;
 }
 
 .inventory-intake-summary span {
@@ -14275,10 +14279,10 @@ textarea,
 }
 
 .inventory-intake-summary button {
-  min-height: 36px;
-  padding: 0 13px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid rgba(111, 66, 193, 0.2);
-  border-radius: 9px;
+  border-radius: 8px;
   background: rgba(111, 66, 193, 0.1);
   color: #45257f;
   font-size: 13px;
@@ -14288,7 +14292,7 @@ textarea,
 
 .inventory-intake-records {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .inventory-intake-record {
@@ -14297,10 +14301,10 @@ textarea,
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 11px 14px;
-  border: 1px solid rgba(111, 66, 193, 0.1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.68);
+  padding: 10px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
   color: #31265f;
   font-size: 13px;
 }
