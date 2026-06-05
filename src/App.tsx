@@ -57,7 +57,8 @@ type ThemeMode = "auto" | "day" | "night";
 type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
 type CardType = "储值卡" | "次数卡" | "套餐卡";
 type InventoryModuleKey = "stockIn" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs";
-type NavigateOptions = { fromAdmin?: boolean; inventoryModule?: InventoryModuleKey };
+type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
+type NavigateOptions = { fromAdmin?: boolean; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 const THEME_KEY = "yich-system-theme";
@@ -400,6 +401,7 @@ export default function App() {
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>();
+  const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     const savedThemeMode = localStorage.getItem(THEME_KEY);
     return isThemeMode(savedThemeMode) ? savedThemeMode : "auto";
@@ -477,6 +479,7 @@ export default function App() {
     setAccountMenuOpen(false);
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
+    setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
   };
   const returnFromAccountSettings = (nextView: ViewKey) => {
     setView(nextView);
@@ -579,7 +582,7 @@ export default function App() {
             {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
             {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
-            {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={inventoryEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
@@ -677,6 +680,7 @@ function ManagementCenter({
     tone: ModuleTone;
     view?: ViewKey;
     inventoryModule?: InventoryModuleKey;
+    catalogModule?: CatalogModuleKey;
     onClick?: () => void;
   };
 
@@ -690,6 +694,7 @@ function ManagementCenter({
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
+    { title: "项目耗材", desc: "项目耗材 / 自动扣库存", icon: PackagePlus, tone: "jade", view: "catalog", catalogModule: "recipe" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
@@ -702,6 +707,7 @@ function ManagementCenter({
     { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
+    { title: "项目耗材", desc: "项目耗材 / 自动扣库存", icon: PackagePlus, tone: "jade", view: "catalog", catalogModule: "recipe" },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
@@ -796,7 +802,7 @@ function ManagementCenter({
             <AdminCenterCard
               key={item.title}
               item={item}
-              onClick={() => item.onClick ? item.onClick() : item.view && setView(item.view, { fromAdmin: true, inventoryModule: item.inventoryModule })}
+              onClick={() => item.onClick ? item.onClick() : item.view && setView(item.view, { fromAdmin: true, inventoryModule: item.inventoryModule, catalogModule: item.catalogModule })}
             />
           ))}
         </div>
@@ -1573,19 +1579,19 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
         <div>
           <span className="eyebrow"><PackagePlus size={15} /> 项目商品</span>
           <h1>项目商品资料</h1>
-          <p>服务项目、商品资料、项目配方和库存数量。</p>
+          <p>服务项目、商品资料、项目耗材和库存数量。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="服务项目" value={`${data.services.length} 项`} hint="门店服务" />
           <StatCard title="商品资料" value={`${data.products.length} 项`} hint="库存商品" />
-          <StatCard title="项目配方" value={`${data.services.filter((item) => serviceConsumablesOf(item).length > 0).length} 项`} hint="服务扣库存" />
+          <StatCard title="项目耗材" value={`${data.services.filter((item) => serviceConsumablesOf(item).length > 0).length} 项`} hint="服务扣库存" />
         </div>
       </section>
       <section className="dashboard-columns">
         <div className="panel dashboard-panel">
           <PanelTitle icon={<Sparkles size={18} />} title="服务项目" action={`${data.services.length} 项`} />
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "商品配方"]}
+            columns={["项目", "分类", "价格", "时长", "耗材配置"]}
             rows={data.services.map((service) => [
               service.name,
               service.category,
@@ -4384,67 +4390,42 @@ function Catalog({
   actions,
   runMutation,
   fromManagement = false,
+  initialModule,
   onReturnManagement,
 }: {
   data: AppData;
   actions: ApiActions;
   runMutation: RunMutation;
   fromManagement?: boolean;
+  initialModule?: CatalogModuleKey;
   onReturnManagement?: () => void;
 }) {
   const [serviceName, setServiceName] = useState("");
   const [servicePrice, setServicePrice] = useState(398);
   const [serviceDuration, setServiceDuration] = useState(60);
-  const [serviceConsumables, setServiceConsumables] = useState<Array<{ productId: string; serviceTimes: number }>>([{ productId: "", serviceTimes: 1 }]);
   const [recipeServiceId, setRecipeServiceId] = useState(data.services[0]?.id ?? "");
   const [recipeProductId, setRecipeProductId] = useState(data.products[0]?.id ?? "");
-  const [recipeServiceTimes, setRecipeServiceTimes] = useState(1);
+  const [recipeQty, setRecipeQty] = useState(1);
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
   const [showServiceCreate, setShowServiceCreate] = useState(false);
-  const [activeModule, setActiveModule] = useState<"service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList" | undefined>(fromManagement ? "serviceList" : undefined);
+  const [activeModule, setActiveModule] = useState<CatalogModuleKey | undefined>(fromManagement ? initialModule ?? "serviceList" : undefined);
   const productOptions = data.products
     .map((product) => ({ value: product.id, label: product.name }));
 
   const resetServiceForm = () => {
     setServiceName("");
-    setServiceConsumables([{ productId: "", serviceTimes: 1 }]);
     setShowServiceCreate(false);
-  };
-
-  const updateServiceConsumableDraft = (index: number, nextItem: Partial<{ productId: string; serviceTimes: number }>) => {
-    setServiceConsumables((previous) =>
-      previous.map((item, itemIndex) => (itemIndex === index ? { ...item, ...nextItem } : item)),
-    );
-  };
-
-  const addServiceConsumableDraft = () => {
-    setServiceConsumables((previous) => [...previous, { productId: "", serviceTimes: 1 }]);
-  };
-
-  const removeServiceConsumableDraft = (index: number) => {
-    setServiceConsumables((previous) => {
-      const next = previous.filter((_, itemIndex) => itemIndex !== index);
-      return next.length ? next : [{ productId: "", serviceTimes: 1 }];
-    });
   };
 
   const addService = (event: FormEvent) => {
     event.preventDefault();
-    const consumables = mergeConsumables(serviceConsumables.map((item) => ({
-      productId: item.productId,
-      quantity: quantityFromServiceTimes(item.serviceTimes),
-    })));
-    const firstConsumable = consumables[0];
     void runMutation(() =>
       actions.addService({
         name: serviceName,
         price: servicePrice,
         category: "自定义项目",
         duration: serviceDuration,
-        consumables,
-        consumableProductId: firstConsumable?.productId,
-        consumableQty: firstConsumable?.quantity,
       }),
     );
     resetServiceForm();
@@ -4455,7 +4436,7 @@ function Catalog({
   const addRecipeConsumable = (event: FormEvent) => {
     event.preventDefault();
     if (!recipeServiceId || !recipeProductId) return;
-    const nextConsumables = mergeConsumables([...recipeConsumables, { productId: recipeProductId, quantity: quantityFromServiceTimes(recipeServiceTimes) }]);
+    const nextConsumables = mergeConsumables([...recipeConsumables, { productId: recipeProductId, quantity: recipeQty }]);
     void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
   };
 
@@ -4470,16 +4451,19 @@ function Catalog({
     void runMutation(() => actions.addProduct({ name: productName, stock: productStock, type: "sale", unit: "件" }));
     setProductName("");
   };
-  type CatalogModuleKey = NonNullable<typeof activeModule>;
   const catalogModules: Array<FeatureModule<CatalogModuleKey>> = [
-    { key: "service", title: "新增项目", desc: "服务名称、价格、时长和默认使用商品", icon: Sparkles, tone: "violet", meta: "服务目录" },
-    { key: "recipe", title: "项目配方", desc: "配置项目消耗的商品", icon: PackagePlus, tone: "jade", meta: "自动扣库存" },
+    { key: "service", title: "新增项目", desc: "服务名称、价格和时长", icon: Sparkles, tone: "violet", meta: "服务目录" },
+    { key: "recipe", title: "项目耗材", desc: "配置项目消耗的商品", icon: PackagePlus, tone: "jade", meta: "自动扣库存" },
     { key: "product", title: "新增商品", desc: "新增商品和初始库存", icon: Boxes, tone: "teal", meta: "库存资料" },
     { key: "serviceList", title: "项目目录", desc: "查看服务项目、价格和时长", icon: ClipboardList, tone: "rose", meta: `${data.services.length} 个` },
     { key: "productList", title: "商品列表", desc: "查看商品库存和库存预警", icon: Boxes, tone: "amber", meta: `${data.products.length} 个` },
-    { key: "formulaList", title: "配方总览", desc: "查看项目对应商品消耗", icon: PackagePlus, tone: "plum", meta: "扣库存规则" },
+    { key: "formulaList", title: "耗材总览", desc: "查看项目对应商品消耗", icon: PackagePlus, tone: "plum", meta: "扣库存规则" },
   ];
   const activeModuleTitle = activeModule ? catalogModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  useEffect(() => {
+    if (fromManagement) setActiveModule(initialModule ?? "serviceList");
+  }, [fromManagement, initialModule]);
+
   const closeModule = () => {
     if (fromManagement && onReturnManagement) {
       onReturnManagement();
@@ -4487,39 +4471,6 @@ function Catalog({
     }
     setActiveModule(undefined);
   };
-  const serviceConsumableEditor = (
-    <div className="service-consumable-editor">
-      <label>默认使用商品</label>
-      <div className="service-consumable-list">
-        {serviceConsumables.map((item, index) => (
-          <div className="service-consumable-row" key={`${index}-${item.productId || "new"}`}>
-            <Select
-              label="商品"
-              value={item.productId}
-              onChange={(value) => updateServiceConsumableDraft(index, { productId: value })}
-              options={[{ value: "", label: productOptions.length ? "选择商品" : "暂无商品" }, ...productOptions]}
-            />
-            <label>
-              可服务次数
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={item.serviceTimes}
-                onChange={(event) => updateServiceConsumableDraft(index, { serviceTimes: Number(event.target.value) })}
-              />
-            </label>
-            <button type="button" onClick={() => removeServiceConsumableDraft(index)}>
-              移除
-            </button>
-          </div>
-        ))}
-      </div>
-      <button type="button" onClick={addServiceConsumableDraft} disabled={productOptions.length === 0}>
-        添加商品
-      </button>
-    </div>
-  );
 
   return (
     <div className="page-stack module-hub catalog-module-page">
@@ -4550,19 +4501,18 @@ function Catalog({
           <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
           <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
           <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
-          {serviceConsumableEditor}
           <button className="primary-button">保存项目</button>
         </form>
         </section>
         )}
         {activeModule === "recipe" && (
         <section className="panel">
-        <PanelTitle icon={<PackagePlus size={18} />} title="项目配方" action="商品自动扣库存" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="项目耗材" action="自动扣库存" />
         <form className="form" onSubmit={addRecipeConsumable}>
           <Select label="服务项目" value={recipeServiceId} onChange={setRecipeServiceId} options={data.services.map(optionOf)} />
           <Select label="使用商品" value={recipeProductId} onChange={setRecipeProductId} options={productOptions.length ? productOptions : [{ value: "", label: "暂无商品" }]} />
-          <label>可服务次数<input type="number" min={1} step={1} value={recipeServiceTimes} onChange={(event) => setRecipeServiceTimes(Number(event.target.value))} /></label>
-          <button className="primary-button" disabled={!recipeServiceId || !recipeProductId}>加入配方</button>
+          <label>每次消耗数量<input type="number" min={0.01} step={0.01} value={recipeQty} onChange={(event) => setRecipeQty(Number(event.target.value))} /></label>
+          <button className="primary-button" disabled={!recipeServiceId || !recipeProductId}>加入耗材</button>
         </form>
         <div className="recipe-list">
           {recipeConsumables.map((item) => (
@@ -4571,7 +4521,7 @@ function Catalog({
               <button type="button" onClick={() => removeRecipeConsumable(item.productId)} disabled={recipeConsumables.length <= 1}>移除</button>
             </div>
           ))}
-          {recipeConsumables.length === 0 && <p className="empty">当前项目未配置商品配方</p>}
+          {recipeConsumables.length === 0 && <p className="empty">当前项目未配置耗材</p>}
         </div>
         </section>
         )}
@@ -4603,19 +4553,17 @@ function Catalog({
           <div className="catalog-inline-control">
             <div>
               <strong>新增项目</strong>
-              <span>服务名称、价格、时长和默认使用商品</span>
             </div>
             <form className="form catalog-inline-form" onSubmit={addService}>
               <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
               <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
               <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
-              {serviceConsumableEditor}
               <button className="primary-button">保存项目</button>
             </form>
           </div>
           )}
           <DataTable
-            columns={["项目", "分类", "价格", "时长", "商品配方", "操作"]}
+            columns={["项目", "分类", "价格", "时长", "耗材配置", "操作"]}
             rows={data.services.map((item) => [
               item.name,
               item.category,
@@ -4623,7 +4571,7 @@ function Catalog({
               `${item.duration} 分钟`,
               serviceFormulaSummary(item, data.products),
               <button key={`${item.id}-recipe`} type="button" onClick={() => { setRecipeServiceId(item.id); setActiveModule("recipe"); }}>
-                配方
+                耗材
               </button>,
             ])}
           />
@@ -4637,9 +4585,9 @@ function Catalog({
         )}
         {activeModule === "formulaList" && (
         <section className="panel">
-        <PanelTitle icon={<PackagePlus size={18} />} title="配方总览" action="项目扣库存规则" />
+        <PanelTitle icon={<PackagePlus size={18} />} title="耗材总览" action="项目扣库存规则" />
         <DataTable
-          columns={["项目", "分类", "商品配方"]}
+          columns={["项目", "分类", "耗材配置"]}
           rows={data.services.map((item) => [item.name, item.category, serviceFormulaSummary(item, data.products)])}
         />
         </section>
@@ -6384,19 +6332,8 @@ function mergeConsumables(consumables: ServiceConsumable[]) {
   return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
 }
 
-function quantityFromServiceTimes(serviceTimes: number) {
-  if (!Number.isFinite(serviceTimes) || serviceTimes <= 0) return 0;
-  return Number((1 / serviceTimes).toFixed(4));
-}
-
-function serviceTimesFromQuantity(quantity: number) {
-  if (!Number.isFinite(quantity) || quantity <= 0) return "-";
-  const times = 1 / quantity;
-  return Number.isInteger(times) ? `${times}` : times.toFixed(2).replace(/\.?0+$/, "");
-}
-
 function serviceConsumableDisplay(item: ServiceConsumable, products: Product[]) {
-  return `${nameOf(products, item.productId)} · 可服务 ${serviceTimesFromQuantity(item.quantity)} 次`;
+  return `${nameOf(products, item.productId)} × ${item.quantity}`;
 }
 
 function serviceFormulaSummary(service: Service, products: Product[]) {
