@@ -56,7 +56,8 @@ type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admi
 type ThemeMode = "auto" | "day" | "night";
 type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
 type CardType = "储值卡" | "次数卡" | "套餐卡";
-type NavigateOptions = { fromAdmin?: boolean };
+type InventoryModuleKey = "stockIn" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs";
+type NavigateOptions = { fromAdmin?: boolean; inventoryModule?: InventoryModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 const THEME_KEY = "yich-system-theme";
@@ -385,6 +386,7 @@ export default function App() {
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
+  const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     const savedThemeMode = localStorage.getItem(THEME_KEY);
     return isThemeMode(savedThemeMode) ? savedThemeMode : "auto";
@@ -461,6 +463,7 @@ export default function App() {
     setNotificationPanelOpen(false);
     setAccountMenuOpen(false);
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
+    setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
   };
   const returnFromAccountSettings = (nextView: ViewKey) => {
     setView(nextView);
@@ -565,7 +568,7 @@ export default function App() {
             {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
-            {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={inventoryEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "logs" && <OperationLogs data={data} session={session} />}
@@ -660,6 +663,7 @@ function ManagementCenter({
     icon: typeof LayoutDashboard;
     tone: ModuleTone;
     view?: ViewKey;
+    inventoryModule?: InventoryModuleKey;
     onClick?: () => void;
   };
 
@@ -674,7 +678,8 @@ function ManagementCenter({
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "库存管理", desc: "库存预警 / 出入库记录", icon: Boxes, tone: "teal", view: "inventory" },
+    { title: "商品入库", desc: "新增商品 / 入库补货", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
   ];
@@ -685,7 +690,8 @@ function ManagementCenter({
     { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "库存管理", desc: "库存预警 / 出入库记录", icon: Boxes, tone: "teal", view: "inventory" },
+    { title: "商品入库", desc: "新增商品 / 入库补货", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
@@ -777,7 +783,7 @@ function ManagementCenter({
             <AdminCenterCard
               key={item.title}
               item={item}
-              onClick={() => item.onClick ? item.onClick() : item.view && setView(item.view, { fromAdmin: true })}
+              onClick={() => item.onClick ? item.onClick() : item.view && setView(item.view, { fromAdmin: true, inventoryModule: item.inventoryModule })}
             />
           ))}
         </div>
@@ -4945,12 +4951,14 @@ function Inventory({
   actions,
   runMutation,
   fromManagement = false,
+  initialModule,
   onReturnManagement,
 }: {
   data: AppData;
   actions: ApiActions;
   runMutation: RunMutation;
   fromManagement?: boolean;
+  initialModule?: InventoryModuleKey;
   onReturnManagement?: () => void;
 }) {
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
@@ -4974,9 +4982,7 @@ function Inventory({
   const [newInventoryExpiryAt, setNewInventoryExpiryAt] = useState(addMonthsInputValue(3));
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [purchaseExpiryAt, setPurchaseExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
-  const [showInventoryCreate, setShowInventoryCreate] = useState(false);
-  const [showInventoryStockIn, setShowInventoryStockIn] = useState(false);
-  const [activeModule, setActiveModule] = useState<"adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs" | undefined>(fromManagement ? "list" : undefined);
+  const [activeModule, setActiveModule] = useState<InventoryModuleKey | undefined>(fromManagement ? initialModule ?? "stockIn" : undefined);
   const newInventorySubcategoryOptions = INVENTORY_CATEGORY_PRESETS[newInventoryProductCategory] ?? [];
 
   const defaultExpiryForProduct = (nextProductId: string) => {
@@ -4987,6 +4993,11 @@ function Inventory({
   const changeStock = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() => actions.adjustInventory({ productId, type, quantity, expiryAt: type === "入库" ? stockExpiryAt : undefined }));
+  };
+
+  const stockInExistingProduct = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() => actions.adjustInventory({ productId, type: "入库", quantity, expiryAt: stockExpiryAt || undefined }));
   };
 
   const addInventoryProduct = (event: FormEvent) => {
@@ -5015,16 +5026,6 @@ function Inventory({
     setNewInventoryWarningStock("5");
     setNewInventoryShelfLifeMonths("3");
     setNewInventoryExpiryAt(addMonthsInputValue(3));
-    setShowInventoryCreate(false);
-  };
-
-  const openInventoryStockChange = (nextProductId: string, nextType: InventoryLog["type"] = "入库") => {
-    setProductId(nextProductId);
-    setType(nextType);
-    setQuantity(1);
-    setStockExpiryAt(defaultExpiryForProduct(nextProductId));
-    setShowInventoryStockIn(true);
-    setShowInventoryCreate(false);
   };
 
   const addSupplier = (event: FormEvent) => {
@@ -5061,17 +5062,21 @@ function Inventory({
     setPurchaseExpiryAt(defaultExpiryForProduct(purchaseProductId));
   }, [purchaseProductId]);
 
+  useEffect(() => {
+    if (fromManagement) setActiveModule(initialModule ?? "stockIn");
+  }, [fromManagement, initialModule]);
+
   const restockLowInventory = () => {
     if (lowStockItems.length === 0) return;
     void runMutation(() => actions.restockLowInventory(supplierId || undefined));
   };
-  type InventoryModuleKey = NonNullable<typeof activeModule>;
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
+    { key: "stockIn", title: "商品入库", desc: "新增商品和已有商品补货", icon: PackagePlus, tone: "teal", meta: "入库操作" },
+    { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
     { key: "adjust", title: "库存操作", desc: "入库、报损和盘点调整", icon: Boxes, tone: "teal", meta: "流水入口" },
     { key: "supplier", title: "供应商", desc: "维护采购基础资料", icon: Building2, tone: "amber", meta: `${data.suppliers.length} 家` },
     { key: "purchase", title: "采购入库", desc: "供应商采购和入库记录", icon: PackagePlus, tone: "jade", meta: "补货" },
     { key: "stocktake", title: "库存盘点", desc: "账实差异和盘点记录", icon: ClipboardList, tone: "violet", meta: `${data.stocktakes.length} 条` },
-    { key: "list", title: "库存列表", desc: "库存状态和低库存提醒", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
     { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
   ];
   const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
@@ -5140,116 +5145,112 @@ function Inventory({
         </form>
         </section>
         )}
-        {activeModule === "stocktake" && (
-        <section className="panel">
-        <PanelTitle icon={<ClipboardList size={18} />} title="库存盘点" action="调整账实差异" />
-        <form className="form" onSubmit={createStocktake}>
-          <Select label="物品" value={stocktakeProductId} onChange={setStocktakeProductId} options={data.products.map(optionOf)} />
+                {activeModule === "stocktake" && (
+                <section className="panel">
+                <PanelTitle icon={<ClipboardList size={18} />} title="库存盘点" action="调整账实差异" />
+                <form className="form" onSubmit={createStocktake}>
+                  <Select label="物品" value={stocktakeProductId} onChange={setStocktakeProductId} options={data.products.map(optionOf)} />
           <label>实盘库存<input type="number" value={actualStock} onChange={(event) => setActualStock(Number(event.target.value))} /></label>
           <button className="primary-button">提交盘点</button>
-        </form>
-        </section>
-        )}
-        {activeModule === "list" && (
-        <section className="panel">
-        <PanelTitle
-          icon={<Boxes size={18} />}
-          title="库存列表"
-          action={
-            <div className="module-panel-actions">
-              <span>低库存自动标记</span>
-              <button type="button" onClick={() => { setShowInventoryCreate((visible) => !visible); setShowInventoryStockIn(false); }}>
-                {showInventoryCreate ? "收起新增" : "新增物品"}
-              </button>
-            </div>
-          }
-        />
-        {(showInventoryCreate || data.products.length === 0) && (
-          <div className="catalog-inline-control inventory-inline-control">
-            <div>
-              <strong>新增物品</strong>
-              <span>录入大类、小类、单位、库存、预警和保质期</span>
-            </div>
-            <form className="form catalog-inline-form inventory-product-form" onSubmit={addInventoryProduct}>
-              <label>物品名称<input value={newInventoryProductName} onChange={(event) => setNewInventoryProductName(event.target.value)} required /></label>
-              <Select
-                label="大类"
-                value={newInventoryProductCategory}
-                onChange={(value) => {
-                  setNewInventoryProductCategory(value);
-                  setNewInventoryProductSubcategory(INVENTORY_CATEGORY_PRESETS[value]?.[0] ?? "");
-                }}
-                options={inventoryCategoryOptions}
-              />
-              <Select
-                label="小类"
-                value={newInventoryProductSubcategory}
-                onChange={setNewInventoryProductSubcategory}
-                options={newInventorySubcategoryOptions.map((subcategory) => ({ value: subcategory, label: subcategory }))}
-              />
-              <label>单位<input value={newInventoryProductUnit} onChange={(event) => setNewInventoryProductUnit(event.target.value)} required /></label>
-              <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
-              <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
-              <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
-                const nextValue = event.target.value;
-                setNewInventoryShelfLifeMonths(nextValue);
-                const months = optionalNumberFromInput(nextValue);
-                setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
-              }} /></label>
-              <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
-              <div className="form-submit-row">
-                <button className="primary-button">保存物品</button>
-              </div>
-            </form>
-          </div>
-        )}
-        {showInventoryStockIn && data.products.length > 0 && (
-          <div className="catalog-inline-control inventory-inline-control">
-            <div>
-              <strong>{type === "入库" ? "物品入库" : "库存调整"}</strong>
-              <span>选择已有物品后记录入库、报损或盘点调整流水</span>
-            </div>
-            <form className="form catalog-inline-form" onSubmit={changeStock}>
-              <Select label="物品" value={productId} onChange={setProductId} options={data.products.map(optionOf)} />
-              <Select label="操作类型" value={type} onChange={(value) => setType(value as InventoryLog["type"])} options={["入库", "报损", "盘点调整"].map((item) => ({ value: item, label: item }))} />
-              <label>数量<input type="number" min={0.01} step={0.01} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
-              {type === "入库" && <label>到期日期<input type="date" value={stockExpiryAt} onChange={(event) => setStockExpiryAt(event.target.value)} /></label>}
-              <div className="form-submit-row">
-                <button className="primary-button">保存库存流水</button>
-              </div>
-            </form>
-          </div>
-        )}
-        {lowStock > 0 && (
-          <div className="inventory-warning-row">
-            <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
-            <button type="button" onClick={restockLowInventory}>一键补货入库</button>
-          </div>
-        )}
-        <DataTable
-          columns={["名称", "大类", "小类", "库存", "预警", "到期", "状态", "操作"]}
-          rows={data.products.map((item) => {
-            const expiryStatus = productExpiryStatus(item);
-            const stockStatus = item.stock <= item.warningStock ? { text: "需补货", tone: "warn" as const } : undefined;
-            return [
+                </form>
+                </section>
+                )}
+                {activeModule === "stockIn" && (
+                <section className="panel">
+                <PanelTitle icon={<PackagePlus size={18} />} title="商品入库" action="新增商品 / 入库补货" />
+                <div className="catalog-inline-control inventory-inline-control">
+                  <div>
+                    <strong>新增商品</strong>
+                    <span>录入大类、小类、单位、初始库存、预警和保质期</span>
+                  </div>
+                  <form className="form catalog-inline-form inventory-product-form" onSubmit={addInventoryProduct}>
+                    <label>物品名称<input value={newInventoryProductName} onChange={(event) => setNewInventoryProductName(event.target.value)} required /></label>
+                    <Select
+                      label="大类"
+                      value={newInventoryProductCategory}
+                      onChange={(value) => {
+                        setNewInventoryProductCategory(value);
+                        setNewInventoryProductSubcategory(INVENTORY_CATEGORY_PRESETS[value]?.[0] ?? "");
+                      }}
+                      options={inventoryCategoryOptions}
+                    />
+                    <Select
+                      label="小类"
+                      value={newInventoryProductSubcategory}
+                      onChange={setNewInventoryProductSubcategory}
+                      options={newInventorySubcategoryOptions.map((subcategory) => ({ value: subcategory, label: subcategory }))}
+                    />
+                    <label>单位<input value={newInventoryProductUnit} onChange={(event) => setNewInventoryProductUnit(event.target.value)} required /></label>
+                    <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
+                    <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
+                    <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setNewInventoryShelfLifeMonths(nextValue);
+                      const months = optionalNumberFromInput(nextValue);
+                      setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
+                    }} /></label>
+                    <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
+                    <div className="form-submit-row">
+                      <button className="primary-button">保存商品</button>
+                    </div>
+                  </form>
+                </div>
+                {data.products.length > 0 && (
+                  <div className="catalog-inline-control inventory-inline-control">
+                    <div>
+                      <strong>已有商品入库</strong>
+                      <span>选择库存中的商品，记录补货数量和本批到期日期</span>
+                    </div>
+                    <form className="form catalog-inline-form" onSubmit={stockInExistingProduct}>
+                      <Select label="已有商品" value={productId} onChange={(value) => { setProductId(value); setStockExpiryAt(defaultExpiryForProduct(value)); }} options={data.products.map(optionOf)} />
+                      <label>入库数量<input type="number" min={0.01} step={0.01} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
+                      <label>到期日期<input type="date" value={stockExpiryAt} onChange={(event) => setStockExpiryAt(event.target.value)} /></label>
+                      <div className="form-submit-row">
+                        <button className="primary-button">确认入库</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+                {lowStock > 0 && (
+                  <div className="inventory-warning-row">
+                    <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
+                    <button type="button" onClick={restockLowInventory}>一键补货入库</button>
+                  </div>
+                )}
+                </section>
+                )}
+                {activeModule === "list" && (
+                <section className="panel">
+                <PanelTitle
+                  icon={<Boxes size={18} />}
+                  title="库存列表"
+                  action="库存状态总览"
+                />
+                {lowStock > 0 && (
+                  <div className="inventory-warning-row">
+                    <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
+                  </div>
+                )}
+                <DataTable
+                  columns={["名称", "大类", "小类", "库存", "预警", "到期", "状态"]}
+                  rows={data.products.map((item) => {
+                    const expiryStatus = productExpiryStatus(item);
+                    const stockStatus = item.stock <= item.warningStock ? { text: "需补货", tone: "warn" as const } : undefined;
+                    return [
               item.name,
               item.category ?? "面护类",
               item.subcategory ?? "-",
               `${item.stock}${item.unit}`,
               `${item.warningStock}${item.unit}`,
               productExpiryText(item),
-              <div key={`${item.id}-status`} className="inventory-status-stack">
-                {expiryStatus && <Badge text={expiryStatus.text} tone={expiryStatus.tone} />}
-                {stockStatus && <Badge text={stockStatus.text} tone={stockStatus.tone} />}
-                {!expiryStatus && !stockStatus && <Badge text="正常" tone="ok" />}
-              </div>,
-              <div key={`${item.id}-actions`} className="inventory-row-actions">
-                <button type="button" onClick={() => openInventoryStockChange(item.id, "入库")}>入库</button>
-                <button type="button" onClick={() => openInventoryStockChange(item.id, "报损")}>报损</button>
-              </div>,
-            ];
-          })}
-        />
+                      <div key={`${item.id}-status`} className="inventory-status-stack">
+                        {expiryStatus && <Badge text={expiryStatus.text} tone={expiryStatus.tone} />}
+                        {stockStatus && <Badge text={stockStatus.text} tone={stockStatus.tone} />}
+                        {!expiryStatus && !stockStatus && <Badge text="正常" tone="ok" />}
+                      </div>,
+                    ];
+                  })}
+                />
         </section>
         )}
         {activeModule === "logs" && (
