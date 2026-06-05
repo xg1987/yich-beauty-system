@@ -4945,6 +4945,56 @@ html[data-theme="day"],
   font-weight: 700;
 }
 
+.service-consumable-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+}
+
+.service-consumable-editor > label {
+  color: var(--yich-muted);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.service-consumable-list {
+  display: grid;
+  gap: 10px;
+}
+
+.service-consumable-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(120px, 0.35fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.service-consumable-row label,
+.service-consumable-row .field,
+.service-consumable-row input,
+.service-consumable-row select {
+  min-width: 0;
+}
+
+.service-consumable-row > button,
+.service-consumable-editor > button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 12px;
+  background: #fffdfa;
+  color: var(--yich-purple-deep);
+  font-weight: 850;
+}
+
+.service-consumable-editor > button {
+  justify-self: start;
+}
+
 .color-group {
   display: flex;
   flex-wrap: wrap;
@@ -14690,6 +14740,10 @@ textarea,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .service-consumable-row {
+    grid-template-columns: minmax(0, 1fr) minmax(110px, 0.4fr) auto;
+  }
+
   .inventory-product-form-main,
   .inventory-product-form-stock {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -14732,6 +14786,10 @@ textarea,
   }
 
   .catalog-inline-form {
+    grid-template-columns: 1fr;
+  }
+
+  .service-consumable-row {
     grid-template-columns: 1fr;
   }
 

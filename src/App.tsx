@@ -4395,8 +4395,7 @@ function Catalog({
   const [serviceName, setServiceName] = useState("");
   const [servicePrice, setServicePrice] = useState(398);
   const [serviceDuration, setServiceDuration] = useState(60);
-  const [serviceConsumableProductId, setServiceConsumableProductId] = useState("");
-  const [serviceConsumableQty, setServiceConsumableQty] = useState(1);
+  const [serviceConsumables, setServiceConsumables] = useState<ServiceConsumable[]>([{ productId: "", quantity: 1 }]);
   const [recipeServiceId, setRecipeServiceId] = useState(data.services[0]?.id ?? "");
   const [recipeProductId, setRecipeProductId] = useState(data.products[0]?.id ?? "");
   const [recipeQty, setRecipeQty] = useState(1);
@@ -4407,9 +4406,33 @@ function Catalog({
   const productOptions = data.products
     .map((product) => ({ value: product.id, label: `${product.name} · ${product.stock}${product.unit}` }));
 
+  const resetServiceForm = () => {
+    setServiceName("");
+    setServiceConsumables([{ productId: "", quantity: 1 }]);
+    setShowServiceCreate(false);
+  };
+
+  const updateServiceConsumableDraft = (index: number, nextItem: Partial<ServiceConsumable>) => {
+    setServiceConsumables((previous) =>
+      previous.map((item, itemIndex) => (itemIndex === index ? { ...item, ...nextItem } : item)),
+    );
+  };
+
+  const addServiceConsumableDraft = () => {
+    setServiceConsumables((previous) => [...previous, { productId: "", quantity: 1 }]);
+  };
+
+  const removeServiceConsumableDraft = (index: number) => {
+    setServiceConsumables((previous) => {
+      const next = previous.filter((_, itemIndex) => itemIndex !== index);
+      return next.length ? next : [{ productId: "", quantity: 1 }];
+    });
+  };
+
   const addService = (event: FormEvent) => {
     event.preventDefault();
-    const consumables = serviceConsumableProductId ? [{ productId: serviceConsumableProductId, quantity: serviceConsumableQty }] : [];
+    const consumables = mergeConsumables(serviceConsumables);
+    const firstConsumable = consumables[0];
     void runMutation(() =>
       actions.addService({
         name: serviceName,
@@ -4417,14 +4440,11 @@ function Catalog({
         category: "自定义项目",
         duration: serviceDuration,
         consumables,
-        consumableProductId: serviceConsumableProductId || undefined,
-        consumableQty: serviceConsumableProductId ? serviceConsumableQty : undefined,
+        consumableProductId: firstConsumable?.productId,
+        consumableQty: firstConsumable?.quantity,
       }),
     );
-    setServiceName("");
-    setServiceConsumableProductId("");
-    setServiceConsumableQty(1);
-    setShowServiceCreate(false);
+    resetServiceForm();
   };
 
   const selectedRecipeService = data.services.find((service) => service.id === recipeServiceId);
@@ -4464,6 +4484,39 @@ function Catalog({
     }
     setActiveModule(undefined);
   };
+  const serviceConsumableEditor = (
+    <div className="service-consumable-editor">
+      <label>默认使用商品</label>
+      <div className="service-consumable-list">
+        {serviceConsumables.map((item, index) => (
+          <div className="service-consumable-row" key={`${index}-${item.productId || "new"}`}>
+            <Select
+              label="商品"
+              value={item.productId}
+              onChange={(value) => updateServiceConsumableDraft(index, { productId: value })}
+              options={[{ value: "", label: productOptions.length ? "选择商品" : "暂无商品" }, ...productOptions]}
+            />
+            <label>
+              单次用量
+              <input
+                type="number"
+                min={0.01}
+                step={0.01}
+                value={item.quantity}
+                onChange={(event) => updateServiceConsumableDraft(index, { quantity: Number(event.target.value) })}
+              />
+            </label>
+            <button type="button" onClick={() => removeServiceConsumableDraft(index)}>
+              移除
+            </button>
+          </div>
+        ))}
+      </div>
+      <button type="button" onClick={addServiceConsumableDraft} disabled={productOptions.length === 0}>
+        添加商品
+      </button>
+    </div>
+  );
 
   return (
     <div className="page-stack module-hub catalog-module-page">
@@ -4494,15 +4547,7 @@ function Catalog({
           <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
           <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
           <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
-          <Select
-            label="默认使用商品"
-            value={serviceConsumableProductId}
-            onChange={setServiceConsumableProductId}
-            options={[{ value: "", label: "不绑定商品" }, ...productOptions]}
-          />
-          {serviceConsumableProductId && (
-            <label>单次用量<input type="number" min={0} step={0.1} value={serviceConsumableQty} onChange={(event) => setServiceConsumableQty(Number(event.target.value))} /></label>
-          )}
+          {serviceConsumableEditor}
           <button className="primary-button">保存项目</button>
         </form>
         </section>
@@ -4561,15 +4606,7 @@ function Catalog({
               <label>项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} required /></label>
               <label>标准价格<input type="number" value={servicePrice} onChange={(event) => setServicePrice(Number(event.target.value))} /></label>
               <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
-              <Select
-                label="默认使用商品"
-                value={serviceConsumableProductId}
-                onChange={setServiceConsumableProductId}
-                options={[{ value: "", label: "不绑定商品" }, ...productOptions]}
-              />
-              {serviceConsumableProductId && (
-                <label>单次用量<input type="number" min={0} step={0.1} value={serviceConsumableQty} onChange={(event) => setServiceConsumableQty(Number(event.target.value))} /></label>
-              )}
+              {serviceConsumableEditor}
               <button className="primary-button">保存项目</button>
             </form>
           </div>
