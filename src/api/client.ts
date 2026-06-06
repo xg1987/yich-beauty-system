@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, WorkerUsageSnapshot } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -144,13 +144,19 @@ export function createApiClient(getToken: () => string | undefined) {
     updateTag: (tagId: string, body: { name?: string; color?: string; status?: TagDefinition["status"] }) =>
       request<AppData>(`/api/tags/${encodeURIComponent(tagId)}`, { method: "PATCH", body, token: getToken() }),
     openMemberCard: (body: {
-      customerId: string;
+      customerId?: string;
+      customerName?: string;
+      customerPhone?: string;
       name: string;
       type?: "储值卡" | "次数卡" | "套餐卡";
       balance: number;
       remainingTimes: number;
       serviceId?: string;
       serviceIds?: string[];
+      paidAmount?: number;
+      payMethod?: CashPayMethod;
+      expiresAt?: string;
+      note?: string;
     }) =>
       request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
     refundMemberCard: (memberCardId: string, reason: string) =>
@@ -159,7 +165,7 @@ export function createApiClient(getToken: () => string | undefined) {
         body: { reason },
         token: getToken(),
       }),
-    rechargeMemberCard: (memberCardId: string, body: { amount?: number; giftAmount?: number; times?: number; giftTimes?: number; note?: string }) =>
+    rechargeMemberCard: (memberCardId: string, body: { amount?: number; giftAmount?: number; times?: number; giftTimes?: number; paidAmount?: number; payMethod?: CashPayMethod; note?: string }) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/recharge`, {
         method: "POST",
         body,

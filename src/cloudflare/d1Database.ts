@@ -385,12 +385,14 @@ export class D1BeautyDatabase {
     for (const transaction of data.memberCardTransactions) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCardTransactions (id, memberCardId, orderId, type, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCardTransactions (id, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             transaction.id,
             transaction.memberCardId,
             transaction.orderId ?? null,
             transaction.type,
+            transaction.paidAmount ?? null,
+            transaction.payMethod ?? null,
             transaction.amountDelta,
             transaction.timesDelta,
             transaction.balanceAfter,
@@ -580,7 +582,7 @@ function mapInventoryLog(row: unknown): InventoryLog {
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {
   const value = row as MemberCardTransaction;
-  return { ...value, orderId: value.orderId ?? undefined };
+  return { ...value, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
 }
 
 function mapOperationLog(row: unknown): OperationLog {

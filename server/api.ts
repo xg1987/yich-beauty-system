@@ -46,6 +46,7 @@ import {
   joinInviteByCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  openMemberCard,
   previewFormalDataCleanup,
   updateTagDefinition,
   updateStaffMember,
@@ -63,7 +64,7 @@ import { hashPassword } from "../src/lib/password";
 // Read version from package.json (Node.js ESM)
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
-import type { AppData, Appointment, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
+import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import { makeId, nowIso } from "../src/domain/utils";
 import { getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase } from "./database";
@@ -870,56 +871,23 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/member-cards") {
         requirePermission(session, "customers:manage");
         const body = await readJson(request);
-        const remainingTimes = optionalNumber(body, "remainingTimes") ?? 0;
-        const serviceIds = optionalStringArray(body, "serviceIds") ?? [];
-        const requestedType = optionalString(body, "type");
-        const cardType = requestedType === "套餐卡" || requestedType === "次数卡" || requestedType === "储值卡"
-          ? requestedType
-          : remainingTimes > 0 && serviceIds.length > 1
-            ? "套餐卡"
-            : remainingTimes > 0
-              ? "次数卡"
-              : "储值卡";
-        const balance = cardType === "储值卡" ? requiredNumber(body, "balance") : 0;
-        const cardId = makeId("m");
-        const createdAt = nowIso();
-        const nextData = updateData(database, session, {
-          action: "开卡",
-          targetType: "memberCard",
-          targetId: cardId,
-          summary: `${session.user.name} 为客户开卡 ${requiredString(body, "name")}`,
-        }, (data) => ({
-          ...data,
-          memberCards: [
-            {
-              id: cardId,
-              customerId: requiredString(body, "customerId"),
-              name: requiredString(body, "name"),
-              type: cardType,
-              balance,
-              remainingTimes,
-              expiresAt: optionalString(body, "expiresAt") ?? "2027-12-31",
-              status: "正常",
-              serviceId: cardType === "次数卡" ? optionalString(body, "serviceId") : undefined,
-              serviceIds: cardType === "套餐卡" ? serviceIds : undefined,
-            },
-            ...data.memberCards,
-          ],
-          memberCardTransactions: [
-            {
-              id: makeId("mt"),
-              memberCardId: cardId,
-              type: "开卡",
-              amountDelta: balance,
-              timesDelta: remainingTimes,
-              balanceAfter: balance,
-              remainingTimesAfter: remainingTimes,
-              note: requiredString(body, "name"),
-              createdAt,
-            },
-            ...data.memberCardTransactions,
-          ],
-        }));
+        const nextData = openMemberCard(database.readData(), {
+          customerId: optionalString(body, "customerId"),
+          customerName: optionalString(body, "customerName"),
+          customerPhone: optionalString(body, "customerPhone"),
+          name: requiredString(body, "name"),
+          type: optionalString(body, "type") as "储值卡" | "次数卡" | "套餐卡" | undefined,
+          balance: optionalNumber(body, "balance"),
+          remainingTimes: optionalNumber(body, "remainingTimes"),
+          serviceId: optionalString(body, "serviceId"),
+          serviceIds: optionalStringArray(body, "serviceIds"),
+          paidAmount: optionalNumber(body, "paidAmount"),
+          payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
+          expiresAt: optionalString(body, "expiresAt"),
+          note: optionalString(body, "note"),
+          userId: session.user.id,
+        });
+        database.replaceData(nextData);
         sendJson(response, 201, scopeDataForSession(nextData, session));
         return;
       }
@@ -948,6 +916,8 @@ export function createApiServer(database = new BeautyDatabase()) {
           giftAmount: optionalNumber(body, "giftAmount"),
           times: optionalNumber(body, "times"),
           giftTimes: optionalNumber(body, "giftTimes"),
+          paidAmount: optionalNumber(body, "paidAmount"),
+          payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
           note: optionalString(body, "note"),
           userId: session.user.id,
         });

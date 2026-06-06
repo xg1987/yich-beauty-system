@@ -386,13 +386,15 @@ export class BeautyDatabase {
     for (const transaction of data.memberCardTransactions) {
       this.db
         .prepare(
-          "INSERT INTO memberCardTransactions (id, memberCardId, orderId, type, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCardTransactions (id, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           transaction.id,
           transaction.memberCardId,
           transaction.orderId ?? null,
           transaction.type,
+          transaction.paidAmount ?? null,
+          transaction.payMethod ?? null,
           transaction.amountDelta,
           transaction.timesDelta,
           transaction.balanceAfter,
@@ -675,6 +677,8 @@ export class BeautyDatabase {
         memberCardId TEXT NOT NULL,
         orderId TEXT,
         type TEXT NOT NULL,
+        paidAmount REAL,
+        payMethod TEXT,
         amountDelta REAL NOT NULL,
         timesDelta INTEGER NOT NULL,
         balanceAfter REAL NOT NULL,
@@ -754,6 +758,8 @@ export class BeautyDatabase {
     `);
 
     this.addColumnIfMissing("memberCards", "serviceId", "TEXT");
+    this.addColumnIfMissing("memberCardTransactions", "paidAmount", "REAL");
+    this.addColumnIfMissing("memberCardTransactions", "payMethod", "TEXT");
     this.addColumnIfMissing("staff", "accountId", "TEXT");
     this.addColumnIfMissing("staff", "hiredAt", "TEXT");
     this.addColumnIfMissing("staff", "baseSalary", "REAL");
@@ -916,7 +922,7 @@ function mapInventoryLog(row: unknown): InventoryLog {
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {
   const value = row as MemberCardTransaction;
-  return { ...value, orderId: value.orderId ?? undefined };
+  return { ...value, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
 }
 
 function mapOperationLog(row: unknown): OperationLog {

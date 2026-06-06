@@ -29,6 +29,7 @@ import {
   formalDataAudit,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  openMemberCard,
   platformInviteCodeForPlatformAdmin,
   platformInviteCodeForUser,
   previewFormalDataCleanup,
@@ -1113,6 +1114,36 @@ function card(data: AppData, cardId: string) {
   assert.equal(closed.dailyCloses[0].revenue, 398, "daily close should summarize revenue");
   assert.equal(closed.dailyCloses[0].orderCount, 1, "daily close should count paid orders");
   assert.equal(closed.operationLogs[0].action, "财务日结", "daily close should write operation log");
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "开卡新客",
+      customerPhone: "13800008888",
+      name: "测试十次卡",
+      type: "次数卡",
+      remainingTimes: 10,
+      serviceId: "v1",
+      paidAmount: 2980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(opened.customers[0].phone, "13800008888", "open card should create registered customer");
+  assert.equal(opened.memberCards[0].remainingTimes, 10, "open card should create member asset");
+  assert.equal(opened.memberCardTransactions[0].paidAmount, 2980, "open card should record paid amount");
+  assert.equal(opened.memberCardTransactions[0].payMethod, "微信", "open card should record payment method");
+  const closed = createDailyClose(
+    opened,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(closed.dailyCloses[0].revenue, 2980, "daily close should include member card cash-in");
+  assert.equal(closed.dailyCloses[0].wechatAmount, 2980, "daily close should assign member card cash-in to payment method");
 }
 
 {

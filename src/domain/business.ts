@@ -11,6 +11,8 @@ import type {
   DataCleanupReport,
   Commission,
   CommissionSettlement,
+  CashPayMethod,
+  Customer,
   DailyClose,
   InventoryLog,
   MemberCardTransaction,
@@ -51,6 +53,19 @@ const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DEFAULT_INVITE_VALID_DAYS = 7;
 const STAFF_BUSINESS_ROLES = new Set(["店长", "主管", "员工", "前台"]);
 const DEFAULT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const CASH_PAY_METHODS = new Set<CashPayMethod>(["现金", "微信", "支付宝", "银行卡"]);
+
+function normalizeCashPayMethod(payMethod: CashPayMethod | undefined): CashPayMethod {
+  return payMethod && CASH_PAY_METHODS.has(payMethod) ? payMethod : "微信";
+}
+
+function trimText(value: string | undefined) {
+  return value?.trim() ?? "";
+}
+
+function positiveNumber(value: number | undefined, fallback = 0) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
 
 function isBusinessStaff(staff: Staff) {
   return staff.role !== "老板";
@@ -476,6 +491,23 @@ export type RefundMemberCardInput = {
   userId: string;
 };
 
+export type OpenMemberCardInput = {
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  name: string;
+  type?: "储值卡" | "次数卡" | "套餐卡";
+  balance?: number;
+  remainingTimes?: number;
+  serviceId?: string;
+  serviceIds?: string[];
+  paidAmount?: number;
+  payMethod?: CashPayMethod;
+  expiresAt?: string;
+  note?: string;
+  userId: string;
+};
+
 export type OperationLogInput = {
   userId: string;
   action: string;
@@ -561,6 +593,8 @@ export type MemberCardRechargeInput = {
   giftAmount?: number;
   times?: number;
   giftTimes?: number;
+  paidAmount?: number;
+  payMethod?: CashPayMethod;
   note?: string;
   userId: string;
 };
@@ -2286,6 +2320,130 @@ export function refundOrder(
   };
 }
 
+export function openMemberCard(
+  data: AppData,
+  input: OpenMemberCardInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+
+  const cardName = trimText(input.name);
+  if (!cardName) throw new Error("请填写会员卡名称");
+
+  const serviceIds = input.serviceIds?.filter(Boolean) ?? [];
+  const remainingTimes = positiveNumber(input.remainingTimes);
+  const requestedType = input.type;
+  const cardType = requestedType === "套餐卡" || requestedType === "次数卡" || requestedType === "储值卡"
+    ? requestedType
+    : remainingTimes > 0 && serviceIds.length > 1
+      ? "套餐卡"
+      : remainingTimes > 0
+        ? "次数卡"
+        : "储值卡";
+  const balance = cardType === "储值卡" ? positiveNumber(input.balance) : 0;
+  const paidAmount = positiveNumber(input.paidAmount, cardType === "储值卡" ? balance : 0);
+  const payMethod = normalizeCashPayMethod(input.payMethod);
+  const expiresAt = trimText(input.expiresAt) || "2027-12-31";
+
+  if (paidAmount <= 0) throw new Error("开卡需要填写实收金额");
+  if (cardType === "储值卡" && balance <= 0) throw new Error("储值卡需要填写到账余额");
+  if (cardType !== "储值卡" && remainingTimes <= 0) throw new Error("次数卡和套餐卡需要填写可用次数");
+  if (cardType === "次数卡" && !input.serviceId) throw new Error("次数卡需要绑定一个服务项目");
+  if (cardType === "套餐卡" && serviceIds.length === 0) throw new Error("套餐卡至少选择一个可用项目");
+
+  let customerId = input.customerId;
+  let customers = data.customers;
+  const existingCustomer = customerId ? data.customers.find((customer) => customer.id === customerId) : undefined;
+  if (!existingCustomer) {
+    const customerName = trimText(input.customerName);
+    const customerPhone = trimText(input.customerPhone);
+    if (!customerName || !customerPhone) throw new Error("开卡需要登记客户姓名和手机号");
+    const matchedCustomer = data.customers.find((customer) => customer.phone === customerPhone);
+    if (matchedCustomer) {
+      customerId = matchedCustomer.id;
+    } else {
+      customerId = idFactory("c");
+      const customer: Customer = {
+        id: customerId,
+        name: customerName,
+        phone: customerPhone,
+        level: "普通会员",
+        source: "开卡登记",
+        tags: ["新客", "会员"],
+        lastVisit: createdAt,
+      };
+      customers = [customer, ...customers];
+    }
+  }
+
+  if (!customerId) throw new Error("开卡客户不存在");
+  const taggedCustomers = customers.map((customer) =>
+    customer.id === customerId
+      ? { ...customer, tags: Array.from(new Set([...(customer.tags ?? []), "会员"])), lastVisit: createdAt }
+      : customer,
+  );
+  const cardId = idFactory("m");
+  const noteText = [cardName, trimText(input.note)].filter(Boolean).join("：");
+
+  return {
+    ...data,
+    customers: taggedCustomers,
+    memberCards: [
+      {
+        id: cardId,
+        customerId,
+        name: cardName,
+        type: cardType,
+        balance,
+        remainingTimes,
+        expiresAt,
+        status: "正常",
+        serviceId: cardType === "次数卡" ? input.serviceId : undefined,
+        serviceIds: cardType === "套餐卡" ? serviceIds : undefined,
+      },
+      ...data.memberCards,
+    ],
+    memberCardTransactions: [
+      {
+        id: idFactory("mt"),
+        memberCardId: cardId,
+        type: "开卡",
+        paidAmount,
+        payMethod,
+        amountDelta: balance,
+        timesDelta: remainingTimes,
+        balanceAfter: balance,
+        remainingTimesAfter: remainingTimes,
+        note: noteText,
+        createdAt,
+      },
+      ...data.memberCardTransactions,
+    ],
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        userId: input.userId,
+        action: "开卡",
+        targetType: "memberCard",
+        targetId: cardId,
+        summary: `${cardName} 实收 ${paidAmount} 元`,
+        createdAt,
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function memberCardCashIn(transaction: MemberCardTransaction) {
+  if (transaction.type !== "开卡" && transaction.type !== "充值") return 0;
+  if (typeof transaction.paidAmount === "number" && Number.isFinite(transaction.paidAmount)) {
+    return Math.max(0, transaction.paidAmount);
+  }
+  return Math.max(0, transaction.amountDelta);
+}
+
 export function refundMemberCard(
   data: AppData,
   input: RefundMemberCardInput,
@@ -2416,12 +2574,15 @@ export function rechargeMemberCard(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
+  assertBusinessDateOpen(data, createdAt.slice(0, 10));
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
   if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可充值");
 
   const amountDelta = (input.amount ?? 0) + (input.giftAmount ?? 0);
   const timesDelta = (input.times ?? 0) + (input.giftTimes ?? 0);
   if (amountDelta <= 0 && timesDelta <= 0) throw new Error("充值金额或次数无效");
+  const paidAmount = positiveNumber(input.paidAmount, amountDelta);
+  const payMethod = paidAmount > 0 ? normalizeCashPayMethod(input.payMethod) : undefined;
 
   const nextCard = {
     ...card,
@@ -2437,6 +2598,8 @@ export function rechargeMemberCard(
         id: idFactory("mt"),
         memberCardId: card.id,
         type: "充值",
+        paidAmount: paidAmount > 0 ? paidAmount : undefined,
+        payMethod,
         amountDelta,
         timesDelta,
         balanceAfter: nextCard.balance,
@@ -2453,7 +2616,7 @@ export function rechargeMemberCard(
         action: "会员卡充值",
         targetType: "memberCard",
         targetId: card.id,
-        summary: `${card.name} 充值 ${amountDelta} 元 / ${timesDelta} 次`,
+        summary: `${card.name} 充值 ${amountDelta} 元 / ${timesDelta} 次，实收 ${paidAmount} 元`,
         createdAt,
       },
       ...data.operationLogs,
@@ -3032,21 +3195,32 @@ export function createDailyClose(
   const orders = data.orders.filter((order) => order.createdAt.slice(0, 10) === input.businessDate);
   const refunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === input.businessDate);
   const commissions = data.commissions.filter((commission) => commission.createdAt.slice(0, 10) === input.businessDate);
+  const memberCardIncomeTransactions = data.memberCardTransactions.filter(
+    (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && memberCardCashIn(transaction) > 0,
+  );
 
-  const amountByMethod = (method: Order["payMethod"]) =>
+  const orderAmountByMethod = (method: Order["payMethod"]) =>
     orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + order.paidAmount, 0);
+  const memberCardIncomeByMethod = (method: CashPayMethod) =>
+    memberCardIncomeTransactions
+      .filter((transaction) => transaction.payMethod === method)
+      .reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
+  const cashRevenue = orders
+    .filter((order) => order.payMethod !== "会员卡")
+    .reduce((sum, order) => sum + order.paidAmount, 0)
+    + memberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
 
   const dailyClose: DailyClose = {
     id: idFactory("dc"),
     businessDate: input.businessDate,
-    revenue: orders.reduce((sum, order) => sum + order.paidAmount, 0),
+    revenue: cashRevenue,
     refundAmount: refunds.reduce((sum, refund) => sum + refund.amount, 0),
     orderCount: orders.filter((order) => order.status !== "已退款").length,
-    cashAmount: amountByMethod("现金"),
-    wechatAmount: amountByMethod("微信"),
-    alipayAmount: amountByMethod("支付宝"),
-    cardAmount: amountByMethod("银行卡"),
-    memberCardAmount: amountByMethod("会员卡"),
+    cashAmount: orderAmountByMethod("现金") + memberCardIncomeByMethod("现金"),
+    wechatAmount: orderAmountByMethod("微信") + memberCardIncomeByMethod("微信"),
+    alipayAmount: orderAmountByMethod("支付宝") + memberCardIncomeByMethod("支付宝"),
+    cardAmount: orderAmountByMethod("银行卡") + memberCardIncomeByMethod("银行卡"),
+    memberCardAmount: orderAmountByMethod("会员卡"),
     commissionAmount: commissions.filter((commission) => commission.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0),
     createdBy: input.userId,
     createdAt,
@@ -3561,7 +3735,10 @@ export function settleCommissions(
 }
 
 export function reportSummary(data: AppData) {
-  const revenue = data.orders.reduce((sum, item) => sum + item.paidAmount, 0);
+  const orderCashRevenue = data.orders
+    .filter((item) => item.payMethod !== "会员卡")
+    .reduce((sum, item) => sum + item.paidAmount, 0);
+  const revenue = orderCashRevenue + data.memberCardTransactions.reduce((sum, item) => sum + memberCardCashIn(item), 0);
   const refundAmount = data.refunds.reduce((sum, item) => sum + item.amount, 0);
   const cardBalance = data.memberCards.reduce((sum, item) => sum + item.balance, 0);
   const commission = data.commissions.filter((item) => item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0);

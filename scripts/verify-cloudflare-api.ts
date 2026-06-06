@@ -330,20 +330,20 @@ assert.equal(afterPartialRefund.orders.find((item) => item.id === orderId)?.stat
 const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
   method: "POST",
   token: ownerSession.token,
-  body: { customerId, name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0 },
+  body: { customerId, name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
 });
 const cardId = afterOpenCard.memberCards[0].id;
 const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
   method: "POST",
   token: ownerSession.token,
-  body: { customerId, name: "Cloudflare 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: [serviceId] },
+  body: { customerId, name: "Cloudflare 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: [serviceId], paidAmount: 1200, payMethod: "支付宝", expiresAt: "2027-12-31" },
 });
 assert.equal(afterOpenPackageCard.memberCards[0].type, "套餐卡", "D1 should persist package card type");
 assert.deepEqual(afterOpenPackageCard.memberCards[0].serviceIds, [serviceId], "D1 should persist package card services");
 const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/recharge`, {
   method: "POST",
   token: ownerSession.token,
-  body: { amount: 100, note: "Cloudflare 充值" },
+  body: { amount: 100, paidAmount: 100, payMethod: "微信", note: "Cloudflare 充值" },
 });
 assert.equal(afterRecharge.memberCards.find((item) => item.id === cardId)?.balance, 600, "D1 should persist recharge");
 const afterFreeze = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/status`, {

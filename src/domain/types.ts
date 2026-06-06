@@ -327,6 +327,8 @@ export type Order = {
   createdAt: string;
 };
 
+export type CashPayMethod = Exclude<Order["payMethod"], "会员卡">;
+
 export type Commission = {
   id: string;
   staffId: string;
@@ -390,6 +392,8 @@ export type MemberCardTransaction = {
   memberCardId: string;
   orderId?: string;
   type: "开卡" | "充值" | "消费" | "退款" | "退卡" | "冻结" | "解冻" | "延期" | "转卡" | "调整";
+  paidAmount?: number;
+  payMethod?: CashPayMethod;
   amountDelta: number;
   timesDelta: number;
   balanceAfter: number;

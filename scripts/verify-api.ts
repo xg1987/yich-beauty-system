@@ -803,13 +803,15 @@ try {
   const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
-    body: { customerId: "c2", name: "API 储值卡", balance: 500, remainingTimes: 0 },
+    body: { customerId: "c2", name: "API 储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
   });
   const apiCardId = afterOpenCard.memberCards[0].id;
+  assert.equal(afterOpenCard.memberCardTransactions[0].paidAmount, 500, "open card API should persist paid amount");
+  assert.equal(afterOpenCard.memberCardTransactions[0].payMethod, "微信", "open card API should persist payment method");
   const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
-    body: { customerId: "c2", name: "API 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: ["v1", "v2"] },
+    body: { customerId: "c2", name: "API 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: ["v1", "v2"], paidAmount: 1200, payMethod: "支付宝", expiresAt: "2027-12-31" },
   });
   const packageCard = afterOpenPackageCard.memberCards[0];
   assert.equal(packageCard.type, "套餐卡", "package card API should persist package type");
@@ -829,7 +831,7 @@ try {
   const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${apiCardId}/recharge`, {
     method: "POST",
     token: session.token,
-    body: { amount: 100, note: "API 充值" },
+    body: { amount: 100, paidAmount: 100, payMethod: "微信", note: "API 充值" },
   });
   assert.equal(afterRecharge.memberCards.find((item) => item.id === apiCardId)?.balance, 600, "recharge API should increase balance");
   const afterFreeze = await request<AppData>(baseUrl, `/api/member-cards/${apiCardId}/status`, {
