@@ -3490,25 +3490,33 @@ function Pos({
   const total = calculateOrderTotal(data, usesService ? serviceId : undefined, undefined, usesProduct ? checkoutProductItems : undefined);
   const productDiscountedPrice = usesProduct && !usesService ? Math.max(0, productSubtotal - discountAmount) : productSubtotal;
   const productSavedAmount = usesProduct && !usesService ? Math.max(0, discountAmount) : 0;
+  const productCategoryName = (product: Product) => product.category?.trim() || "未分类";
+  const productSubcategoryName = (product: Product) => product.subcategory?.trim() || "未分小类";
   const productPickerCategories = [
     "全部",
     ...Object.keys(INVENTORY_CATEGORY_PRESETS),
   ];
+  const productsInPickerCategory = (category: string) =>
+    category === "全部" ? sellableProducts : sellableProducts.filter((product) => productCategoryName(product) === category);
+  const productPickerCategoryCount = (category: string) => productsInPickerCategory(category).length;
+  const productsInCurrentPickerCategory = productsInPickerCategory(productPickerCategory);
   const productPickerSubcategories = [
     "全部小类",
     ...Array.from(new Set([
       ...(productPickerCategory === "全部"
         ? Object.values(INVENTORY_CATEGORY_PRESETS).flat()
         : INVENTORY_CATEGORY_PRESETS[productPickerCategory] ?? []),
-      ...sellableProducts
-        .filter((product) => productPickerCategory === "全部" || (product.category?.trim() || "未分类") === productPickerCategory)
-        .map((product) => product.subcategory?.trim() || "未分小类"),
+      ...productsInCurrentPickerCategory.map(productSubcategoryName),
     ])),
   ];
+  const productPickerSubcategoryCount = (subcategory: string) =>
+    subcategory === "全部小类"
+      ? productsInCurrentPickerCategory.length
+      : productsInCurrentPickerCategory.filter((product) => productSubcategoryName(product) === subcategory).length;
   const normalizedProductPickerSearch = productPickerSearch.trim().toLowerCase();
   const productPickerProducts = sellableProducts.filter((product) => {
-    const categoryName = product.category?.trim() || "未分类";
-    const subcategoryName = product.subcategory?.trim() || "未分小类";
+    const categoryName = productCategoryName(product);
+    const subcategoryName = productSubcategoryName(product);
     const matchesCategory = productPickerCategory === "全部" || categoryName === productPickerCategory;
     const matchesSubcategory = productPickerSubcategory === "全部小类" || subcategoryName === productPickerSubcategory;
     const searchTarget = `${product.name} ${product.category ?? ""} ${product.subcategory ?? ""}`.toLowerCase();
@@ -4280,7 +4288,8 @@ function Pos({
                     setProductPickerSubcategory("全部小类");
                   }}
                 >
-                  {category}
+                  <span>{category}</span>
+                  <em>{productPickerCategoryCount(category)}</em>
                 </button>
               ))}
             </div>
@@ -4292,7 +4301,8 @@ function Pos({
                   className={subcategory === productPickerSubcategory ? "active" : ""}
                   onClick={() => setProductPickerSubcategory(subcategory)}
                 >
-                  {subcategory}
+                  <span>{subcategory}</span>
+                  <em>{productPickerSubcategoryCount(subcategory)}</em>
                 </button>
               ))}
             </div>

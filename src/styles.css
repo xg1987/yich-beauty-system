@@ -13515,6 +13515,9 @@ textarea,
 .product-picker-category-list button {
   flex: 0 0 auto;
   min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   border: 1px solid rgba(111, 66, 193, 0.14);
   border-radius: 8px;
   padding: 0 14px;
@@ -13524,12 +13527,30 @@ textarea,
 
 .product-picker-subcategory-list button {
   min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid rgba(111, 66, 193, 0.12);
   border-radius: 8px;
   padding: 0 12px;
   background: rgba(255, 255, 255, 0.52);
   color: rgba(47, 37, 95, 0.64);
   font-size: 13px;
+}
+
+.product-picker-category-list button em,
+.product-picker-subcategory-list button em {
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 5px;
+  background: rgba(111, 66, 193, 0.1);
+  color: rgba(47, 37, 95, 0.7);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1;
 }
 
 .product-picker-category-list button.active {
@@ -13545,6 +13566,16 @@ textarea,
   background: rgba(237, 249, 243, 0.82);
   color: #236b55;
   font-weight: 700;
+}
+
+.product-picker-category-list button.active em {
+  background: rgba(111, 66, 193, 0.16);
+  color: #3d2279;
+}
+
+.product-picker-subcategory-list button.active em {
+  background: rgba(47, 191, 143, 0.18);
+  color: #236b55;
 }
 
 .product-picker-grid {
@@ -16100,6 +16131,18 @@ textarea,
 .theme-night .product-picker-subcategory-list button.active {
   border-color: rgba(47, 191, 143, 0.34);
   background: rgba(47, 191, 143, 0.14);
+  color: var(--night-text);
+}
+
+.theme-night .product-picker-category-list button em,
+.theme-night .product-picker-subcategory-list button em {
+  background: rgba(202, 184, 255, 0.14);
+  color: var(--night-muted);
+}
+
+.theme-night .product-picker-category-list button.active em,
+.theme-night .product-picker-subcategory-list button.active em {
+  background: rgba(202, 184, 255, 0.2);
   color: var(--night-text);
 }
 
