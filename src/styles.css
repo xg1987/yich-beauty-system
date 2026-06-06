@@ -15619,7 +15619,7 @@ textarea,
 
 .catalog-inline-control > div.inventory-category-editor {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(104px, 0.48fr) minmax(160px, 1fr) minmax(104px, 0.48fr);
+  grid-template-columns: minmax(150px, 1fr) minmax(104px, 0.44fr) minmax(136px, 0.86fr) minmax(150px, 1fr) minmax(104px, 0.44fr);
   align-items: end;
   gap: 12px;
   padding: 12px;
