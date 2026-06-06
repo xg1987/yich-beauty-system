@@ -94,8 +94,43 @@ const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
   面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
   养生类: ["泥灸", "私密", "套盒", "膏霜", "身体油", "泡脚汤", "艾灸"],
 };
-const inventoryCategoryOptions = Object.keys(INVENTORY_CATEGORY_PRESETS).map((category) => ({ value: category, label: category }));
 const inventoryLossReasonOptions = ["破损", "过期", "试用", "盘点差异", "其他损耗"];
+
+function inventoryCategoryMap(products: Product[], presets: Record<string, string[]> = INVENTORY_CATEGORY_PRESETS) {
+  const map = new Map<string, Set<string>>();
+  const addCategory = (category: string) => {
+    const name = category.trim();
+    if (!name) return undefined;
+    if (!map.has(name)) map.set(name, new Set());
+    return map.get(name);
+  };
+
+  Object.entries(presets).forEach(([category, subcategories]) => {
+    const bucket = addCategory(category);
+    subcategories.forEach((subcategory) => {
+      const name = subcategory.trim();
+      if (name) bucket?.add(name);
+    });
+  });
+  products.forEach((product) => {
+    const bucket = addCategory(product.category ?? "面护类");
+    const subcategory = product.subcategory?.trim();
+    if (subcategory) bucket?.add(subcategory);
+  });
+  return map;
+}
+
+function inventoryCategoryNames(products: Product[], presets?: Record<string, string[]>) {
+  return Array.from(inventoryCategoryMap(products, presets).keys());
+}
+
+function inventorySubcategoryNames(products: Product[], category: string, presets?: Record<string, string[]>) {
+  const map = inventoryCategoryMap(products, presets);
+  if (category === "全部") {
+    return Array.from(new Set(Array.from(map.values()).flatMap((items) => Array.from(items))));
+  }
+  return Array.from(map.get(category) ?? []);
+}
 
 function useMutationPending() {
   return useContext(MutationPendingContext);
@@ -4048,7 +4083,7 @@ function Pos({
   const productSubcategoryName = (product: Product) => product.subcategory?.trim() || "未分小类";
   const productPickerCategories = [
     "全部",
-    ...Object.keys(INVENTORY_CATEGORY_PRESETS),
+    ...inventoryCategoryNames(sellableProducts),
   ];
   const productsInPickerCategory = (category: string) =>
     category === "全部" ? sellableProducts : sellableProducts.filter((product) => productCategoryName(product) === category);
@@ -4057,9 +4092,7 @@ function Pos({
   const productPickerSubcategories = [
     "全部小类",
     ...Array.from(new Set([
-      ...(productPickerCategory === "全部"
-        ? Object.values(INVENTORY_CATEGORY_PRESETS).flat()
-        : INVENTORY_CATEGORY_PRESETS[productPickerCategory] ?? []),
+      ...inventorySubcategoryNames(sellableProducts, productPickerCategory),
       ...productsInCurrentPickerCategory.map(productSubcategoryName),
     ])),
   ];
@@ -5927,11 +5960,11 @@ function ProductUsagePicker({
   const [query, setQuery] = useState("");
   const selectedIds = new Set(selected.map((item) => item.productId));
   const categories = Array.from(new Set([
-    ...Object.keys(INVENTORY_CATEGORY_PRESETS),
+    ...inventoryCategoryNames(products),
     ...products.map((product) => product.category).filter((item): item is string => Boolean(item)),
   ]));
   const subcategories = Array.from(new Set([
-    ...(category !== "全部" ? INVENTORY_CATEGORY_PRESETS[category] ?? [] : Object.values(INVENTORY_CATEGORY_PRESETS).flat()),
+    ...inventorySubcategoryNames(products, category),
     ...products
       .filter((product) => category === "全部" || (product.category ?? "面护类") === category)
       .map((product) => product.subcategory)
@@ -6423,9 +6456,12 @@ function Inventory({
   const [unitCost, setUnitCost] = useState(68);
   const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
   const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
+  const [inventoryCategoryPresets, setInventoryCategoryPresets] = useState<Record<string, string[]>>(INVENTORY_CATEGORY_PRESETS);
   const [newInventoryProductName, setNewInventoryProductName] = useState("");
   const [newInventoryProductCategory, setNewInventoryProductCategory] = useState("面护类");
   const [newInventoryProductSubcategory, setNewInventoryProductSubcategory] = useState("膏霜");
+  const [newInventoryCategoryName, setNewInventoryCategoryName] = useState("");
+  const [newInventorySubcategoryName, setNewInventorySubcategoryName] = useState("");
   const [newInventoryProductUnit, setNewInventoryProductUnit] = useState("件");
   const [newInventoryProductStock, setNewInventoryProductStock] = useState("");
   const [newInventoryWarningStock, setNewInventoryWarningStock] = useState("5");
@@ -6438,7 +6474,9 @@ function Inventory({
   const [activeModule, setActiveModule] = useState<InventoryModuleKey | undefined>(fromManagement ? initialModule ?? "stockIn" : undefined);
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("全部");
   const [inventorySubcategoryFilter, setInventorySubcategoryFilter] = useState("全部");
-  const newInventorySubcategoryOptions = INVENTORY_CATEGORY_PRESETS[newInventoryProductCategory] ?? [];
+  const inventoryCategoryNamesForForm = inventoryCategoryNames(data.products, inventoryCategoryPresets);
+  const inventoryCategoryOptions = inventoryCategoryNamesForForm.map((category) => ({ value: category, label: category }));
+  const newInventorySubcategoryOptions = inventorySubcategoryNames(data.products, newInventoryProductCategory, inventoryCategoryPresets);
 
   const defaultExpiryForProduct = (nextProductId: string) => {
     const product = data.products.find((item) => item.id === nextProductId);
@@ -6516,6 +6554,44 @@ function Inventory({
       });
   };
 
+  const addInventoryCategory = () => {
+    const category = newInventoryCategoryName.trim();
+    setInventoryProductSaveMessage(undefined);
+    if (!category) {
+      setInventoryProductSaveMessage({ type: "error", text: "请输入大类名称" });
+      return;
+    }
+    setInventoryCategoryPresets((current) => (
+      current[category] ? current : { ...current, [category]: [] }
+    ));
+    setNewInventoryProductCategory(category);
+    setNewInventoryProductSubcategory("");
+    setNewInventoryCategoryName("");
+    setInventoryProductSaveMessage({ type: "success", text: "大类已加入，可继续添加小类或保存商品。" });
+  };
+
+  const addInventorySubcategory = () => {
+    const category = newInventoryProductCategory.trim();
+    const subcategory = newInventorySubcategoryName.trim();
+    setInventoryProductSaveMessage(undefined);
+    if (!category) {
+      setInventoryProductSaveMessage({ type: "error", text: "请先选择或新增大类" });
+      return;
+    }
+    if (!subcategory) {
+      setInventoryProductSaveMessage({ type: "error", text: "请输入小类名称" });
+      return;
+    }
+    setInventoryCategoryPresets((current) => {
+      const currentSubcategories = current[category] ?? [];
+      if (currentSubcategories.includes(subcategory)) return current;
+      return { ...current, [category]: [...currentSubcategories, subcategory] };
+    });
+    setNewInventoryProductSubcategory(subcategory);
+    setNewInventorySubcategoryName("");
+    setInventoryProductSaveMessage({ type: "success", text: "小类已加入当前大类，可直接保存商品。" });
+  };
+
   const addSupplier = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() => actions.addSupplier({ name: supplierName, phone: supplierPhone, contact: "采购联系人" }));
@@ -6538,11 +6614,11 @@ function Inventory({
   const recentLossLogs = data.inventoryLogs.filter((log) => log.type === "报损").slice(0, 8);
 
   useEffect(() => {
-    const options = INVENTORY_CATEGORY_PRESETS[newInventoryProductCategory];
+    const options = inventorySubcategoryNames(data.products, newInventoryProductCategory, inventoryCategoryPresets);
     if (options?.length && !options.includes(newInventoryProductSubcategory)) {
       setNewInventoryProductSubcategory(options[0]);
     }
-  }, [newInventoryProductCategory, newInventoryProductSubcategory]);
+  }, [data.products, inventoryCategoryPresets, newInventoryProductCategory, newInventoryProductSubcategory]);
 
   useEffect(() => {
     if (type === "入库") setStockExpiryAt(defaultExpiryForProduct(productId));
@@ -6568,13 +6644,13 @@ function Inventory({
     if (lowStockItems.length === 0) return;
     void runMutation(() => actions.restockLowInventory(supplierId || undefined));
   };
-  const inventoryCategoryTabs = ["全部", ...Object.keys(INVENTORY_CATEGORY_PRESETS)];
+  const inventoryCategoryTabs = ["全部", ...inventoryCategoryNamesForForm];
   const categoryFilteredProducts = inventoryCategoryFilter === "全部"
     ? data.products
     : data.products.filter((item) => (item.category ?? "面护类") === inventoryCategoryFilter);
   const inventoryPresetSubcategoryTabs = inventoryCategoryFilter === "全部"
     ? []
-    : INVENTORY_CATEGORY_PRESETS[inventoryCategoryFilter] ?? [];
+    : inventorySubcategoryNames(data.products, inventoryCategoryFilter, inventoryCategoryPresets);
   const inventorySubcategoryTabs = [
     "全部",
     ...Array.from(new Set([
@@ -6756,6 +6832,12 @@ function Inventory({
                     <strong>新增商品</strong>
                     <span>录入大类、小类、单位、初始库存、预警和保质期</span>
                   </div>
+                  <div className="inventory-category-editor" aria-label="商品分类维护">
+                    <label>新增大类<input value={newInventoryCategoryName} onChange={(event) => setNewInventoryCategoryName(event.target.value)} placeholder="例如 身体类" /></label>
+                    <button type="button" onClick={addInventoryCategory}>添加大类</button>
+                    <label>新增小类<input value={newInventorySubcategoryName} onChange={(event) => setNewInventorySubcategoryName(event.target.value)} placeholder="归入当前大类" /></label>
+                    <button type="button" onClick={addInventorySubcategory}>添加小类</button>
+                  </div>
                   <form className="form catalog-inline-form inventory-product-form" onSubmit={addInventoryProduct}>
                     <div className="inventory-product-form-row inventory-product-form-main">
                       <label>物品名称<input value={newInventoryProductName} onChange={(event) => setNewInventoryProductName(event.target.value)} required /></label>
@@ -6764,7 +6846,7 @@ function Inventory({
                         value={newInventoryProductCategory}
                         onChange={(value) => {
                           setNewInventoryProductCategory(value);
-                          setNewInventoryProductSubcategory(INVENTORY_CATEGORY_PRESETS[value]?.[0] ?? "");
+                          setNewInventoryProductSubcategory(inventorySubcategoryNames(data.products, value, inventoryCategoryPresets)[0] ?? "");
                         }}
                         options={inventoryCategoryOptions}
                       />

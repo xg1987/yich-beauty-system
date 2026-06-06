@@ -15617,6 +15617,40 @@ textarea,
   gap: 14px;
 }
 
+.catalog-inline-control > div.inventory-category-editor {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(104px, 0.48fr) minmax(160px, 1fr) minmax(104px, 0.48fr);
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.inventory-category-editor label,
+.inventory-category-editor input,
+.inventory-category-editor button {
+  min-width: 0;
+}
+
+.inventory-category-editor button {
+  min-height: 44px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.1);
+  color: #5b2ca8;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inventory-category-editor button:hover,
+.inventory-category-editor button:focus-visible {
+  border-color: rgba(111, 66, 193, 0.34);
+  background: rgba(111, 66, 193, 0.16);
+  outline: none;
+}
+
 .inventory-product-form-row {
   display: grid;
   align-items: end;
@@ -16045,7 +16079,8 @@ textarea,
   }
 
   .inventory-product-form-main,
-  .inventory-product-form-stock {
+  .inventory-product-form-stock,
+  .catalog-inline-control > div.inventory-category-editor {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
