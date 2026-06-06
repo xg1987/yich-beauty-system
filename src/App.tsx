@@ -3404,6 +3404,8 @@ function Pos({
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
   const [checkoutValidationMessages, setCheckoutValidationMessages] = useState<string[]>([]);
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+  const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState("");
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("existing");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
@@ -3442,6 +3444,12 @@ function Pos({
       return next.length === previous.length && next.every((id, index) => id === previous[index]) ? previous : next;
     });
   }, [checkoutStaff, serviceStaff, staffId]);
+
+  useEffect(() => {
+    if (!checkoutSuccessMessage) return;
+    const timer = window.setTimeout(() => setCheckoutSuccessMessage(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [checkoutSuccessMessage]);
 
   useEffect(() => {
     const validProductIds = new Set(sellableProducts.map((product) => product.id));
@@ -3662,6 +3670,7 @@ function Pos({
     setAdjustmentReason("");
     setApprovalId("");
     setCheckoutValidationMessages([]);
+    setCheckoutSuccessMessage("");
     if (!isProductModule) {
       setCheckoutProductItems([]);
       setCheckoutGiftItems([]);
@@ -3762,6 +3771,7 @@ function Pos({
 
   const checkout = (event: FormEvent) => {
     event.preventDefault();
+    if (checkoutSubmitting) return;
     const messages: string[] = [];
     if (!staffId) {
       messages.push(usesProduct && !usesService ? "请选择收银员工。商品开单可以选择店长/老板或员工。" : "请选择服务员工。");
@@ -3785,6 +3795,7 @@ function Pos({
     }
 
     setCheckoutValidationMessages([]);
+    setCheckoutSubmitting(true);
     void runMutation(() =>
       actions.checkout({
         customerId: usesCustomer ? customerId : undefined,
@@ -3802,7 +3813,8 @@ function Pos({
         payMethod,
         cardId: usesCustomer && payMethod === "会员卡" ? cardId : undefined,
       }),
-    ).then(() => {
+    ).then((nextData) => {
+      const latestOrderNo = nextData.orders[0]?.orderNo;
       setAppointmentId("");
       setGuestName("");
       setGuestPhone("");
@@ -3815,7 +3827,15 @@ function Pos({
       setProductDiscountRateInput("");
       setAdjustmentReason("");
       setApprovalId("");
-    });
+      setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。` : "下单成功，订单已生成。");
+      if (fromManagement && onReturnManagement) {
+        onReturnManagement();
+      } else {
+        setActiveModule(undefined);
+      }
+    })
+      .catch(() => undefined)
+      .finally(() => setCheckoutSubmitting(false));
   };
 
   const posModuleTitles: Record<NonNullable<typeof activeModule>, string> = {
@@ -4188,8 +4208,8 @@ function Pos({
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
           </div>
-          <button className="primary-button">
-            完成收银
+          <button className="primary-button" disabled={checkoutSubmitting}>
+            {checkoutSubmitting ? "正在收银..." : "完成收银"}
           </button>
         </form>
         </section>
@@ -4372,6 +4392,11 @@ function Pos({
           ))}
         </div>
       </Modal>
+      {checkoutSuccessMessage && (
+        <div className="checkout-success-toast" role="status" aria-live="polite">
+          {checkoutSuccessMessage}
+        </div>
+      )}
     </div>
   );
 }

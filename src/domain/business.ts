@@ -52,6 +52,7 @@ type IdFactory = (prefix: string) => string;
 const PLATFORM_INVITE_PREFIX = "YC";
 const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DEFAULT_INVITE_VALID_DAYS = 7;
+const DUPLICATE_CHECKOUT_WINDOW_MS = 30_000;
 const STAFF_BUSINESS_ROLES = new Set(["店长", "主管", "员工", "前台"]);
 const DEFAULT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const CASH_PAY_METHODS = new Set<CashPayMethod>(["现金", "微信", "支付宝", "银行卡"]);
@@ -872,6 +873,62 @@ function commissionRecord(
     status: "待结算",
     createdAt,
   };
+}
+
+function productItemsSignature(items: OrderProductItem[]) {
+  return items
+    .map((item) => `${item.productId}:${item.quantity}:${item.unitPrice}:${item.amount}`)
+    .sort()
+    .join("|");
+}
+
+function existingOrderItemsSignature(order: Order, gift = false) {
+  const items = gift ? order.giftProductItems : order.productItems;
+  if (items?.length) return productItemsSignature(items);
+  const productId = gift ? order.giftProductId : order.productId;
+  return productId ? `${productId}:1` : "";
+}
+
+function isRecentDuplicateOrder(
+  order: Order,
+  draft: {
+    appointmentId?: string;
+    cardId?: string;
+    customerId: string;
+    createdAt: string;
+    discountAmount: number;
+    giftProductItems: OrderProductItem[];
+    guestName: string;
+    guestPhone: string;
+    paidAmount: number;
+    payMethod: Order["payMethod"];
+    productItems: OrderProductItem[];
+    serviceId: string;
+    staffId: string;
+    totalAmount: number;
+  },
+) {
+  if (order.status === "已退款") return false;
+  const currentTime = Date.parse(draft.createdAt);
+  const orderTime = Date.parse(order.createdAt);
+  if (!Number.isFinite(currentTime) || !Number.isFinite(orderTime)) return false;
+  const ageMs = currentTime - orderTime;
+  if (ageMs < 0 || ageMs > DUPLICATE_CHECKOUT_WINDOW_MS) return false;
+  return (
+    (order.customerId ?? "") === draft.customerId
+    && (order.guestName ?? "").trim() === draft.guestName
+    && (order.guestPhone ?? "").trim() === draft.guestPhone
+    && order.staffId === draft.staffId
+    && (order.serviceId ?? "") === draft.serviceId
+    && (order.appointmentId ?? "") === (draft.appointmentId ?? "")
+    && (order.cardId ?? "") === (draft.cardId ?? "")
+    && order.payMethod === draft.payMethod
+    && order.totalAmount === draft.totalAmount
+    && order.paidAmount === draft.paidAmount
+    && order.discountAmount === draft.discountAmount
+    && productItemsSignature(draft.productItems) === existingOrderItemsSignature(order)
+    && productItemsSignature(draft.giftProductItems) === existingOrderItemsSignature(order, true)
+  );
 }
 
 export function registerStore(
@@ -2064,7 +2121,8 @@ export function checkoutOrder(
     throw new Error(`商品 ${zeroPriceProductNames.join("、")} 的售价为 0，请先到商品资料填写售价`);
   }
 
-  assertBusinessDateOpen(data, currentTime().slice(0, 10));
+  const createdAt = currentTime();
+  assertBusinessDateOpen(data, createdAt.slice(0, 10));
   const appointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
   if (input.appointmentId && !appointment) {
     throw new Error("预约不存在");
@@ -2120,9 +2178,30 @@ export function checkoutOrder(
     throw new Error("优惠金额无效");
   }
   const paidAmount = total - totalDiscount;
-  const createdAt = currentTime();
   if (selectedCard?.type === "储值卡" && selectedCard.balance < paidAmount) {
     throw new Error("会员卡余额不足");
+  }
+  if (
+    data.orders.some((order) =>
+      isRecentDuplicateOrder(order, {
+        appointmentId: appointment?.id,
+        cardId: input.payMethod === "会员卡" ? input.cardId : undefined,
+        customerId,
+        createdAt,
+        discountAmount: totalDiscount,
+        giftProductItems,
+        guestName,
+        guestPhone,
+        paidAmount,
+        payMethod: input.payMethod,
+        productItems,
+        serviceId,
+        staffId: input.staffId,
+        totalAmount: total,
+      }),
+    )
+  ) {
+    throw new Error("检测到刚刚已生成相同订单，请勿重复提交");
   }
   const order: Order = {
     id: orderId,

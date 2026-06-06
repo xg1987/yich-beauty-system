@@ -246,6 +246,30 @@ function card(data: AppData, cardId: string) {
   assert.throws(
     () =>
       checkoutOrder(
+        ownerProductCheckout,
+        {
+          staffId: registered.staff[0].id,
+          productItems: [{ productId: "p4", quantity: 1 }],
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /重复提交/,
+    "checkout should reject immediate duplicate product submissions",
+  );
+  const ownerProductCheckoutLater = checkoutOrder(
+    ownerProductCheckout,
+    {
+      staffId: registered.staff[0].id,
+      productItems: [{ productId: "p4", quantity: 1 }],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: () => "2026-05-24T01:00:31.000Z" },
+  );
+  assert.equal(ownerProductCheckoutLater.orders.length, ownerProductCheckout.orders.length + 1, "same product order should be allowed after duplicate window");
+  assert.throws(
+    () =>
+      checkoutOrder(
         {
           ...registered,
           products: registered.products.map((product) => (product.id === "p4" ? { ...product, price: 0 } : product)),
