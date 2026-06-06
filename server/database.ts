@@ -271,7 +271,7 @@ export class BeautyDatabase {
     for (const appointment of data.appointments) {
       this.db
         .prepare(
-          "INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           appointment.id,
@@ -279,6 +279,7 @@ export class BeautyDatabase {
           appointment.staffId,
           appointment.serviceId,
           appointment.startAt,
+          appointment.endAt ?? null,
           appointment.roomName ?? null,
           appointment.status,
           appointment.note,
@@ -562,6 +563,7 @@ export class BeautyDatabase {
         staffId TEXT NOT NULL,
         serviceId TEXT NOT NULL,
         startAt TEXT NOT NULL,
+        endAt TEXT,
         roomName TEXT,
         status TEXT NOT NULL,
         note TEXT NOT NULL,
@@ -810,6 +812,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("appointments", "rescheduledAt", "TEXT");
     this.addColumnIfMissing("appointments", "updatedAt", "TEXT");
     this.addColumnIfMissing("appointments", "roomName", "TEXT");
+    this.addColumnIfMissing("appointments", "endAt", "TEXT");
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
@@ -888,6 +891,7 @@ function mapAppointment(row: unknown): Appointment {
   const value = row as Appointment;
   return {
     ...value,
+    endAt: value.endAt ?? undefined,
     roomName: value.roomName ?? undefined,
     arrivedAt: value.arrivedAt ?? undefined,
     completedAt: value.completedAt ?? undefined,

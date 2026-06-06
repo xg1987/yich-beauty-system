@@ -1,4 +1,4 @@
-import type { Appointment } from "./types";
+import type { Appointment, Service } from "./types";
 
 export type AppointmentRange = "today" | "tomorrow" | "week";
 
@@ -23,6 +23,17 @@ export type AppointmentRoomUsage = {
   roomAssignments: AppointmentRoomAssignment[];
   roomCapacity: number;
 };
+
+export function appointmentEndAt(appointment: Pick<Appointment, "serviceId" | "startAt" | "endAt">, services: Service[] = []) {
+  const startAt = new Date(appointment.startAt);
+  const savedEndAt = appointment.endAt ? new Date(appointment.endAt) : undefined;
+  if (!Number.isNaN(startAt.getTime()) && savedEndAt && !Number.isNaN(savedEndAt.getTime()) && savedEndAt > startAt) {
+    return savedEndAt;
+  }
+  const service = services.find((item) => item.id === appointment.serviceId);
+  const minutes = service?.duration && service.duration > 0 ? service.duration : 60;
+  return new Date(startAt.getTime() + minutes * 60 * 1000);
+}
 
 const startOfDay = (date: Date) => {
   const value = new Date(date);

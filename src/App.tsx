@@ -48,7 +48,7 @@ import { DateTimeInput } from "./components/ui/DateTimeInput";
 import { Modal } from "./components/ui/Modal";
 import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
-import { appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
+import { appointmentEndAt, appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
@@ -352,6 +352,14 @@ function hasTimeOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
   return startA < endB && startB < endA;
 }
 
+function shortTime(iso: string) {
+  return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+}
+
+function appointmentTimeRange(data: AppData, appointment: Appointment) {
+  return `${shortDate(appointment.startAt)}-${shortTime(appointmentEndAt(appointment, data.services).toISOString())}`;
+}
+
 function isActiveRoomAppointment(appointment: Appointment) {
   return !["已完成", "已取消", "爽约"].includes(appointment.status);
 }
@@ -621,7 +629,7 @@ export default function App() {
               </div>
             )}
             {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
-            {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={() => navigate("settings")} />}
@@ -3094,13 +3102,17 @@ function RoomSettingsContent({
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
-function Appointments({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+function Appointments({ data, actions, runMutation, setView }: { data: AppData; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
   const serviceStaff = businessStaffOf(data);
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [startAt, setStartAt] = useState(toLocalInputValue(tomorrowAt(11)));
+  const [endAt, setEndAt] = useState(toLocalInputValue(tomorrowAt(12)));
   const [note, setNote] = useState("");
+  const [appointmentServicePickerOpen, setAppointmentServicePickerOpen] = useState(false);
+  const [appointmentServicePickerCategory, setAppointmentServicePickerCategory] = useState("全部");
+  const [appointmentServicePickerSearch, setAppointmentServicePickerSearch] = useState("");
   const [blockedStaffId, setBlockedStaffId] = useState(serviceStaff[1]?.id ?? serviceStaff[0]?.id ?? "");
   const [blockedStartAt, setBlockedStartAt] = useState(toLocalInputValue(tomorrowAt(16)));
   const [blockedEndAt, setBlockedEndAt] = useState(toLocalInputValue(tomorrowAt(17)));
@@ -3115,6 +3127,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const [rescheduleStaffId, setRescheduleStaffId] = useState(firstBusinessStaffId(data));
   const [rescheduleServiceId, setRescheduleServiceId] = useState(data.services[0]?.id ?? "");
   const [rescheduleStartAt, setRescheduleStartAt] = useState(toLocalInputValue(tomorrowAt(12)));
+  const [rescheduleEndAt, setRescheduleEndAt] = useState(toLocalInputValue(tomorrowAt(13)));
   const [rescheduleNote, setRescheduleNote] = useState("");
   const [cancelReason, setCancelReason] = useState("客户临时取消");
   const staffOptions = serviceStaff.map(optionOf);
@@ -3132,9 +3145,28 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     if (!serviceStaff.some((staff) => staff.id === rescheduleStaffId)) setRescheduleStaffId(firstStaffId);
   }, [blockedStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
 
+  useEffect(() => {
+    const currentStartAt = new Date(startAt);
+    const currentEndAt = new Date(endAt);
+    if (Number.isNaN(currentStartAt.getTime())) return;
+    if (Number.isNaN(currentEndAt.getTime()) || !(currentStartAt < currentEndAt)) {
+      setEndAt(toLocalInputValue(new Date(currentStartAt.getTime() + 60 * 60 * 1000).toISOString()));
+    }
+  }, [endAt, startAt]);
+
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.addAppointment({ customerId, staffId, serviceId, startAt: new Date(startAt).toISOString(), roomName, note })).then(() => {
+    void runMutation(() =>
+      actions.addAppointment({
+        customerId,
+        staffId,
+        serviceId,
+        startAt: new Date(startAt).toISOString(),
+        endAt: new Date(endAt).toISOString(),
+        roomName,
+        note,
+      }),
+    ).then(() => {
       setNote("");
       setShowAppointmentForm(false);
     });
@@ -3150,6 +3182,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     setRescheduleStaffId(appointment.staffId);
     setRescheduleServiceId(appointment.serviceId);
     setRescheduleStartAt(toLocalInputValue(appointment.startAt));
+    setRescheduleEndAt(toLocalInputValue(appointmentEndAt(appointment, data.services).toISOString()));
     setRescheduleNote(appointment.note);
   };
 
@@ -3167,6 +3200,7 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
         staffId: rescheduleStaffId,
         serviceId: rescheduleServiceId,
         startAt: new Date(rescheduleStartAt).toISOString(),
+        endAt: new Date(rescheduleEndAt).toISOString(),
         note: rescheduleNote,
       }),
     ).then(() => {
@@ -3182,6 +3216,36 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
       setActiveAppointmentAction(undefined);
       setActiveAppointmentId("");
     });
+  };
+
+  const appointmentServiceCategoryName = (service: Service) => service.category?.trim() || "未分类";
+  const appointmentServicePickerCategories = [
+    "全部",
+    ...Array.from(new Set(data.services.map(appointmentServiceCategoryName))),
+  ];
+  const appointmentServicesInCategory = (category: string) =>
+    category === "全部" ? data.services : data.services.filter((service) => appointmentServiceCategoryName(service) === category);
+  const appointmentServicePickerCategoryCount = (category: string) => appointmentServicesInCategory(category).length;
+  const normalizedAppointmentServiceSearch = appointmentServicePickerSearch.trim().toLowerCase();
+  const appointmentServicePickerServices = appointmentServicesInCategory(appointmentServicePickerCategory).filter((service) => {
+    const searchTarget = `${service.name} ${service.category}`.toLowerCase();
+    return !normalizedAppointmentServiceSearch || searchTarget.includes(normalizedAppointmentServiceSearch);
+  });
+
+  const openAppointmentServicePicker = () => {
+    setAppointmentServicePickerCategory("全部");
+    setAppointmentServicePickerSearch("");
+    setAppointmentServicePickerOpen(true);
+  };
+
+  const selectAppointmentService = (nextServiceId: string) => {
+    setServiceId(nextServiceId);
+    const currentStartAt = new Date(startAt);
+    const currentEndAt = new Date(endAt);
+    if (!Number.isNaN(currentStartAt.getTime()) && (!Number.isFinite(currentEndAt.getTime()) || !(currentStartAt < currentEndAt))) {
+      setEndAt(toLocalInputValue(new Date(currentStartAt.getTime() + 60 * 60 * 1000).toISOString()));
+    }
+    setAppointmentServicePickerOpen(false);
   };
 
   const addBlockedSlot = (event: FormEvent) => {
@@ -3227,31 +3291,43 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
   const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, Array.from(maintenanceRoomNames));
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
-  const selectedEndAt = new Date(selectedStartAt.getTime() + (selectedService?.duration ?? 60) * 60 * 1000);
-  const selectedTimeConflict = checkAvailability(staffId, startAt, selectedEndAt.toISOString());
-  const overlappingRoomAssignments = assignAppointmentRooms(
-    data.appointments
-      .filter(isActiveRoomAppointment)
-      .filter((appointment) => {
-        const appointmentService = data.services.find((item) => item.id === appointment.serviceId);
-        const appointmentStart = new Date(appointment.startAt);
-        const appointmentEnd = new Date(appointmentStart.getTime() + (appointmentService?.duration ?? 60) * 60 * 1000);
-        return hasTimeOverlap(selectedStartAt, selectedEndAt, appointmentStart, appointmentEnd);
-      }),
-    roomNames,
-    Array.from(maintenanceRoomNames),
-  );
+  const selectedEndAt = new Date(endAt);
+  const selectedTimeRangeInvalid = Number.isNaN(selectedStartAt.getTime()) || Number.isNaN(selectedEndAt.getTime()) || !(selectedStartAt < selectedEndAt);
+  const selectedTimeLabel = selectedTimeRangeInvalid
+    ? "时间段无效"
+    : `${shortTime(selectedStartAt.toISOString())}-${shortTime(selectedEndAt.toISOString())}`;
+  const selectedTimeConflict = !selectedTimeRangeInvalid && checkAvailability(staffId, startAt, selectedEndAt.toISOString());
+  const overlappingRoomAssignments = selectedTimeRangeInvalid
+    ? []
+    : assignAppointmentRooms(
+        data.appointments
+          .filter(isActiveRoomAppointment)
+          .filter((appointment) => {
+            const appointmentStart = new Date(appointment.startAt);
+            const appointmentEnd = appointmentEndAt(appointment, data.services);
+            return hasTimeOverlap(selectedStartAt, selectedEndAt, appointmentStart, appointmentEnd);
+          }),
+        roomNames,
+        Array.from(maintenanceRoomNames),
+      );
   const roomAvailabilityOptions = roomNames.map((name) => {
     const isMaintenance = maintenanceRoomNames.has(name);
     const conflictAppointment = overlappingRoomAssignments.find((assignment) => assignment.roomName === name)?.appointment;
-    const disabled = isMaintenance || Boolean(conflictAppointment);
-    const reason = isMaintenance ? "维护中" : conflictAppointment ? "该时间已预约" : "可预约";
+    const disabled = selectedTimeRangeInvalid || isMaintenance || Boolean(conflictAppointment);
+    const reason = selectedTimeRangeInvalid
+      ? "请先填写正确时间段"
+      : isMaintenance
+        ? "维护中"
+        : conflictAppointment
+          ? `${appointmentTimeRange(data, conflictAppointment)} 已占用`
+          : `可预约 ${selectedTimeLabel}`;
     return {
       value: name,
       label: `${name} · ${reason}`,
       disabled,
       conflictAppointment,
       isMaintenance,
+      reason,
     };
   });
   const firstAvailableRoom = roomAvailabilityOptions.find((option) => !option.disabled)?.value ?? "";
@@ -3259,6 +3335,34 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
     const selectedRoom = roomAvailabilityOptions.find((option) => option.value === roomName);
     if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
   }, [firstAvailableRoom, roomAvailabilityOptions, roomName]);
+  const todayAppointmentRows = filterAppointmentsByRange(data.appointments, "today")
+    .filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约")
+    .slice(0, 12);
+
+  const appointmentAction = (appointment: Appointment) => {
+    if (appointment.status === "待确认") {
+      return (
+        <button type="button" onClick={() => setStatus(appointment.id, "已确认")}>
+          确认
+        </button>
+      );
+    }
+    if (appointment.status === "已确认") {
+      return (
+        <button type="button" onClick={() => setStatus(appointment.id, "已到店")}>
+          确认到店
+        </button>
+      );
+    }
+    if (appointment.status === "已到店") {
+      return (
+        <button type="button" onClick={() => setView("pos")}>
+          去收银
+        </button>
+      );
+    }
+    return <span>-</span>;
+  };
 
   return (
     <div className="page-stack appointment-room-page">
@@ -3331,6 +3435,26 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
               })}
             </div>
           </div>
+          <div className="appointment-today-panel">
+            <div className="appointment-room-list-head">
+              <strong>今日预约</strong>
+              <small>到店后会出现在开单收银的项目服务里</small>
+            </div>
+            <DataTable
+              columns={["时间", "客户", "项目", "员工", "房间", "状态", "操作"]}
+              rows={todayAppointmentRows.map((appointment) => [
+                appointmentTimeRange(data, appointment),
+                nameOf(data.customers, appointment.customerId),
+                nameOf(data.services, appointment.serviceId),
+                nameOf(data.staff, appointment.staffId),
+                appointment.roomName ?? "-",
+                <Badge key={`${appointment.id}-status`} text={appointment.status} tone={appointment.status === "已到店" ? "ok" : "warn"} />,
+                <div key={`${appointment.id}-action`} className="table-action">
+                  {appointmentAction(appointment)}
+                </div>,
+              ])}
+            />
+          </div>
         </section>
       </div>
       <Modal
@@ -3344,14 +3468,52 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
           <form className="form appointment-create-form" onSubmit={addAppointment}>
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
             <Select label="服务员工" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-            <Select label="服务项目" value={serviceId} onChange={setServiceId} options={data.services.map(optionOf)} />
-            <DateTimeInput label="预约时间" value={startAt} onChange={setStartAt} />
-            <Select
-              label="房间"
-              value={roomName}
-              onChange={setRoomName}
-              options={roomAvailabilityOptions.length ? roomAvailabilityOptions : [{ value: "", label: "请先到管理中心设置房间", disabled: true }]}
-            />
+            <div className="appointment-service-picker">
+              <div className="checkout-product-section-head">
+                <span>服务项目</span>
+                <button type="button" onClick={openAppointmentServicePicker}>
+                  <Sparkles size={15} />
+                  选择项目
+                </button>
+              </div>
+              {selectedService ? (
+                <div className="checkout-service-line">
+                  <div>
+                    <strong>{selectedService.name}</strong>
+                    <span>{selectedService.category || "未分类"} · {selectedService.duration} 分钟</span>
+                  </div>
+                  <span>{money(selectedService.price)}</span>
+                </div>
+              ) : (
+                <div className="checkout-product-empty">还没有选择项目</div>
+              )}
+            </div>
+            <div className="appointment-time-grid">
+              <DateTimeInput label="开始时间" value={startAt} onChange={setStartAt} />
+              <DateTimeInput label="结束时间" value={endAt} onChange={setEndAt} />
+            </div>
+            <div className="appointment-room-slot-section">
+              <div className="appointment-room-list-head">
+                <strong>房间</strong>
+                <small>{selectedTimeLabel}</small>
+              </div>
+              <div className="appointment-room-slot-grid">
+                {roomAvailabilityOptions.length ? roomAvailabilityOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    className={`appointment-room-slot-button ${roomName === option.value ? "selected" : ""} ${option.disabled ? "disabled" : ""}`}
+                    disabled={option.disabled}
+                    onClick={() => setRoomName(option.value)}
+                  >
+                    <strong>{option.value}</strong>
+                    <span>{option.reason}</span>
+                  </button>
+                )) : (
+                  <div className="checkout-product-empty">请先到管理中心设置房间</div>
+                )}
+              </div>
+            </div>
             <div className="appointment-room-choice-note">
               <strong>可预约</strong>
               <span>{roomAvailabilityOptions.filter((option) => !option.disabled).map((option) => option.value).join("、") || "暂无可用房间"}</span>
@@ -3360,12 +3522,63 @@ function Appointments({ data, actions, runMutation }: { data: AppData; actions: 
               备注
               <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
             </label>
+            {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
             {selectedTimeConflict && <p className="form-warning">该员工在此时间段有不可预约安排，建议调整时间</p>}
             <div className="row-actions">
-              <button className="primary-button" disabled={!staffId || !roomName}>保存预约</button>
+              <button className="primary-button" disabled={!staffId || !serviceId || !roomName || selectedTimeRangeInvalid}>保存预约</button>
               <button type="button" onClick={() => setShowAppointmentForm(false)}>取消</button>
             </div>
           </form>
+        </div>
+      </Modal>
+      <Modal
+        open={appointmentServicePickerOpen}
+        title="选择项目"
+        subtitle="按项目分类选择服务"
+        size="large"
+        onClose={() => setAppointmentServicePickerOpen(false)}
+      >
+        <div className="product-picker-modal">
+          <div className="product-picker-filters">
+            <label>
+              <Search size={15} />
+              <input value={appointmentServicePickerSearch} onChange={(event) => setAppointmentServicePickerSearch(event.target.value)} placeholder="搜索项目名称或分类" />
+            </label>
+            <div className="product-picker-category-list">
+              {appointmentServicePickerCategories.map((category) => (
+                <button
+                  type="button"
+                  key={category}
+                  className={category === appointmentServicePickerCategory ? "active" : ""}
+                  onClick={() => setAppointmentServicePickerCategory(category)}
+                >
+                  <span>{category}</span>
+                  <em>{appointmentServicePickerCategoryCount(category)}</em>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="product-picker-grid">
+            {appointmentServicePickerServices.length ? appointmentServicePickerServices.map((service) => (
+              <button
+                type="button"
+                className={`product-picker-card service-picker-card ${service.id === serviceId ? "selected" : ""}`}
+                key={service.id}
+                onClick={() => selectAppointmentService(service.id)}
+              >
+                <div>
+                  <strong>{service.name}</strong>
+                  <span>{service.category || "未分类"} · {service.duration} 分钟</span>
+                </div>
+                <div className="product-picker-card-meta">
+                  <span>{money(service.price)}</span>
+                  <small>{service.defaultTimes ?? 1} 次默认</small>
+                </div>
+              </button>
+            )) : (
+              <div className="product-picker-empty">没有匹配的项目</div>
+            )}
+          </div>
         </div>
       </Modal>
     </div>
@@ -3681,6 +3894,7 @@ function Pos({
     setServiceId(appointment.serviceId);
     setCollaboratorStaffIds([]);
     setCardId("");
+    setServicePickerOpen(false);
   };
 
   const openCheckoutModule = (module: "product" | "single") => {
@@ -3867,7 +4081,8 @@ function Pos({
       setDiscountAmount(0);
       setCheckoutDiscountRateInput("");
       setAdjustmentReason("");
-      setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。` : "下单成功，订单已生成。");
+      const signatureHint = usesService && usesCustomer ? "待签名记录已生成。" : "";
+      setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。${signatureHint}` : `下单成功，订单已生成。${signatureHint}`);
       checkoutRequestIdRef.current = `checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       if (fromManagement && onReturnManagement) {
         onReturnManagement();
@@ -4078,6 +4293,27 @@ function Pos({
                 ) : (
                   <div className="checkout-product-empty">还没有选择项目</div>
                 )}
+              </div>
+            </div>
+          )}
+          {usesService && arrivedAppointments.length > 0 && (
+            <div className="checkout-arrived-appointments">
+              <div className="checkout-product-section-head">
+                <span>待收银预约</span>
+                <strong>{arrivedAppointments.length} 单</strong>
+              </div>
+              <div className="checkout-arrived-list">
+                {arrivedAppointments.map((appointment) => (
+                  <button
+                    type="button"
+                    key={appointment.id}
+                    className={appointment.id === appointmentId ? "active" : ""}
+                    onClick={() => useAppointmentForCheckout(appointment.id)}
+                  >
+                    <strong>{nameOf(data.customers, appointment.customerId)} · {nameOf(data.services, appointment.serviceId)}</strong>
+                    <span>{appointmentTimeRange(data, appointment)} · {appointment.roomName ?? "未分配房间"}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}

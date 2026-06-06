@@ -13435,6 +13435,108 @@ textarea,
   color: #2f255f;
 }
 
+.checkout-product-section-head button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #3d2279;
+  font-weight: 700;
+}
+
+.checkout-arrived-appointments,
+.appointment-service-picker,
+.appointment-room-slot-section,
+.appointment-today-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.checkout-arrived-list {
+  display: grid;
+  gap: 8px;
+}
+
+.checkout-arrived-list button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid rgba(111, 66, 193, 0.13);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #2f255f;
+  text-align: left;
+}
+
+.checkout-arrived-list button.active {
+  border-color: rgba(47, 191, 143, 0.36);
+  background: rgba(237, 249, 243, 0.78);
+}
+
+.checkout-arrived-list span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+}
+
+.appointment-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.appointment-room-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.appointment-room-slot-button {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  border: 1px solid rgba(47, 191, 143, 0.22);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(47, 191, 143, 0.12), transparent 36%),
+    rgba(255, 255, 255, 0.78);
+  color: #236b55;
+  text-align: left;
+}
+
+.appointment-room-slot-button.selected {
+  border-color: rgba(47, 191, 143, 0.5);
+  background: rgba(237, 249, 243, 0.9);
+  box-shadow: 0 10px 24px rgba(47, 191, 143, 0.12);
+}
+
+.appointment-room-slot-button.disabled {
+  border-color: rgba(207, 65, 104, 0.18);
+  background:
+    radial-gradient(circle at 92% 12%, rgba(207, 65, 104, 0.1), transparent 36%),
+    rgba(255, 244, 248, 0.72);
+  color: #7a2d49;
+}
+
+.appointment-room-slot-button strong {
+  color: inherit;
+}
+
+.appointment-room-slot-button span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .checkout-product-list {
   display: grid;
   gap: 8px;
@@ -16158,6 +16260,48 @@ textarea,
   color: var(--night-text);
 }
 
+.theme-night .checkout-arrived-appointments,
+.theme-night .appointment-service-picker,
+.theme-night .appointment-room-slot-section,
+.theme-night .appointment-today-panel {
+  border-color: rgba(202, 184, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.theme-night .checkout-product-section-head button,
+.theme-night .checkout-arrived-list button {
+  border-color: rgba(202, 184, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--night-text);
+}
+
+.theme-night .checkout-arrived-list button.active {
+  border-color: rgba(47, 191, 143, 0.34);
+  background: rgba(47, 191, 143, 0.12);
+}
+
+.theme-night .checkout-arrived-list span,
+.theme-night .appointment-room-slot-button span {
+  color: var(--night-muted);
+}
+
+.theme-night .appointment-room-slot-button {
+  border-color: rgba(47, 191, 143, 0.24);
+  background: rgba(47, 191, 143, 0.1);
+  color: #bdf5df;
+}
+
+.theme-night .appointment-room-slot-button.selected {
+  border-color: rgba(47, 191, 143, 0.46);
+  background: rgba(47, 191, 143, 0.16);
+}
+
+.theme-night .appointment-room-slot-button.disabled {
+  border-color: rgba(255, 137, 171, 0.24);
+  background: rgba(207, 65, 104, 0.12);
+  color: #ffc4d4;
+}
+
 .theme-night .checkout-validation-item {
   border-color: rgba(255, 137, 171, 0.24);
   border-left-color: #ff89ab;
@@ -16776,4 +16920,22 @@ textarea,
 
 .app-shell .main > .operation-logs-page th {
   background: rgba(111, 66, 193, 0.035) !important;
+}
+
+@media (max-width: 720px) {
+  .appointment-time-grid,
+  .checkout-guest-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-room-slot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-arrived-appointments,
+  .appointment-service-picker,
+  .appointment-room-slot-section,
+  .appointment-today-panel {
+    padding: 10px;
+  }
 }

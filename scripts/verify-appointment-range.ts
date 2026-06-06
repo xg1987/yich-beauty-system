@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange } from "../src/domain/appointments";
+import { appointmentEndAt, appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange } from "../src/domain/appointments";
 import type { Appointment } from "../src/domain/types";
 
 const baseDate = new Date("2026-06-03T10:30:00+08:00");
@@ -22,6 +22,17 @@ const appointments: Appointment[] = [
   appointment("weekend", "2026-06-07T15:00:00+08:00"),
   appointment("next-week", "2026-06-08T10:00:00+08:00"),
 ];
+
+assert.equal(
+  appointmentEndAt({ ...appointment("explicit-end", "2026-06-03T09:00:00+08:00"), endAt: "2026-06-03T11:00:00+08:00" }).toISOString(),
+  new Date("2026-06-03T11:00:00+08:00").toISOString(),
+  "appointment end helper should keep explicit end time",
+);
+assert.equal(
+  appointmentEndAt(appointment("legacy-end", "2026-06-03T09:00:00+08:00"), [{ id: "v1", name: "测试项目", category: "测试", price: 100, duration: 75 }]).toISOString(),
+  new Date("2026-06-03T10:15:00+08:00").toISOString(),
+  "appointment end helper should derive legacy end time from service duration",
+);
 
 const ranges = appointmentRangeMap(baseDate);
 assert.equal(ranges.today.label, "今日", "today range label should be stable");

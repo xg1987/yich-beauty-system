@@ -44,7 +44,7 @@ import type {
   ViewKey,
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
-import { assignAppointmentRooms } from "./appointments";
+import { appointmentEndAt, assignAppointmentRooms } from "./appointments";
 import { makeId, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
@@ -462,6 +462,7 @@ export type CheckoutInput = {
   appointmentId?: string;
   payMethod: Order["payMethod"];
   cardId?: string;
+  requestedBy?: string;
 };
 
 export type CheckoutProductItemInput = {
@@ -561,6 +562,7 @@ export type AppointmentInput = {
   staffId: string;
   serviceId: string;
   startAt: string;
+  endAt?: string;
   roomName?: string;
   note?: string;
 };
@@ -576,6 +578,7 @@ export type AppointmentRescheduleInput = {
   staffId?: string;
   serviceId?: string;
   startAt: string;
+  endAt?: string;
   roomName?: string;
   note?: string;
 };
@@ -1457,9 +1460,8 @@ export function availableStaffForOnlineBooking(data: AppData, serviceId: string,
     const hasAppointmentConflict = data.appointments.some((appointment) => {
       if (appointment.staffId !== staff.id) return false;
       if (["已完成", "已取消", "爽约"].includes(appointment.status)) return false;
-      const service = data.services.find((item) => item.id === appointment.serviceId);
       const appointmentStart = new Date(appointment.startAt);
-      const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+      const appointmentEnd = appointmentEndAt(appointment, data.services);
       return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
     });
     if (hasAppointmentConflict) return false;
@@ -2323,6 +2325,23 @@ export function checkoutOrder(
     staffCommissionRate(data, input.staffId),
   );
   const commissions: Commission[] = salesCommission ? [salesCommission, ...serviceCommissions] : serviceCommissions;
+  const customerSignatures: CustomerSignature[] = selectedService && customerId
+    ? [
+        {
+          id: idFactory("sig"),
+          token: idFactory("sign"),
+          customerId,
+          orderId,
+          title: "服务完成确认签名",
+          content: `${selectedCustomer?.name ?? "客户"} 确认本次到店服务、消费项目、支付金额和服务结果无误。`,
+          status: "待签名",
+          requestedBy: input.requestedBy ?? input.staffId,
+          createdAt,
+          expiresAt: new Date(+new Date(createdAt) + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        ...(data.customerSignatures ?? []),
+      ]
+    : data.customerSignatures;
   return {
     ...data,
     products,
@@ -2336,6 +2355,7 @@ export function checkoutOrder(
           item.id === appointment.id ? { ...item, status: "已完成", completedAt: createdAt, updatedAt: createdAt } : item,
         )
       : data.appointments,
+    customerSignatures,
     commissions: [...commissions, ...data.commissions],
   };
 }
@@ -2991,12 +3011,14 @@ export function createAppointment(
   options: { idFactory?: IdFactory; now?: () => string } = {},
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
-  const roomName = resolveAppointmentRoomName(data, input);
+  const endAt = resolveAppointmentEndAt(data, input.serviceId, input.startAt, input.endAt).toISOString();
+  const roomName = resolveAppointmentRoomName(data, { ...input, endAt });
   validateAppointmentSchedule(data, {
     customerId: input.customerId,
     staffId: input.staffId,
     serviceId: input.serviceId,
     startAt: input.startAt,
+    endAt,
     roomName,
   });
 
@@ -3009,6 +3031,7 @@ export function createAppointment(
         staffId: input.staffId,
         serviceId: input.serviceId,
         startAt: input.startAt,
+        endAt,
         roomName,
         status: "待确认",
         note: input.note ?? "",
@@ -3081,17 +3104,20 @@ export function rescheduleAppointment(
 
   const nextStaffId = input.staffId ?? appointment.staffId;
   const nextServiceId = input.serviceId ?? appointment.serviceId;
+  const nextEndAt = resolveAppointmentEndAt(data, nextServiceId, input.startAt, input.endAt).toISOString();
   const nextRoomName = input.roomName?.trim() || appointment.roomName || resolveAppointmentRoomName(data, {
     customerId: appointment.customerId,
     staffId: nextStaffId,
     serviceId: nextServiceId,
     startAt: input.startAt,
+    endAt: nextEndAt,
   });
   validateAppointmentSchedule(data, {
     customerId: appointment.customerId,
     staffId: nextStaffId,
     serviceId: nextServiceId,
     startAt: input.startAt,
+    endAt: nextEndAt,
     roomName: nextRoomName,
     excludeAppointmentId: appointment.id,
   });
@@ -3106,6 +3132,7 @@ export function rescheduleAppointment(
         staffId: nextStaffId,
         serviceId: nextServiceId,
         startAt: input.startAt,
+        endAt: nextEndAt,
         roomName: nextRoomName,
         note: input.note ?? item.note,
         status: item.status === "待确认" ? "待确认" : "已确认",
@@ -3142,6 +3169,20 @@ function isActiveAppointmentForRoom(appointment: Appointment) {
   return !["已完成", "已取消", "爽约"].includes(appointment.status);
 }
 
+function resolveAppointmentEndAt(data: AppData, serviceId: string, startAtInput: string, endAtInput?: string) {
+  const selectedService = data.services.find((item) => item.id === serviceId);
+  if (!selectedService) {
+    throw new Error("服务项目不存在");
+  }
+  const startAt = new Date(startAtInput);
+  if (Number.isNaN(startAt.getTime())) throw new Error("预约开始时间不正确");
+  const explicitEndAt = endAtInput ? new Date(endAtInput) : undefined;
+  if (endAtInput && (!explicitEndAt || Number.isNaN(explicitEndAt.getTime()))) throw new Error("预约结束时间不正确");
+  const endAt = explicitEndAt ?? new Date(startAt.getTime() + selectedService.duration * 60 * 1000);
+  if (!(startAt < endAt)) throw new Error("预约结束时间必须晚于开始时间");
+  return endAt;
+}
+
 function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
   const roomNames = roomNamesOf(data);
   const maintenanceRoomNames = maintenanceRoomNamesOf(data, roomNames);
@@ -3149,16 +3190,14 @@ function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
   const requestedRoomName = input.roomName?.trim();
   if (requestedRoomName) return requestedRoomName;
 
-  const selectedService = data.services.find((item) => item.id === input.serviceId);
   const startAt = new Date(input.startAt);
-  const endAt = new Date(startAt.getTime() + (selectedService?.duration ?? 60) * 60 * 1000);
+  const endAt = resolveAppointmentEndAt(data, input.serviceId, input.startAt, input.endAt);
   const overlappingRoomNames = new Set(assignAppointmentRooms(
     data.appointments
       .filter(isActiveAppointmentForRoom)
       .filter((appointment) => {
-        const service = data.services.find((item) => item.id === appointment.serviceId);
         const appointmentStart = new Date(appointment.startAt);
-        const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+        const appointmentEnd = appointmentEndAt(appointment, data.services);
         return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
       }),
     roomNames,
@@ -3176,6 +3215,7 @@ function validateAppointmentSchedule(
     staffId: string;
     serviceId: string;
     startAt: string;
+    endAt?: string;
     roomName?: string;
     excludeAppointmentId?: string;
   },
@@ -3191,7 +3231,7 @@ function validateAppointmentSchedule(
 
   const startAt = new Date(input.startAt);
   if (Number.isNaN(startAt.getTime())) throw new Error("预约时间不正确");
-  const endAt = new Date(startAt.getTime() + selectedService.duration * 60 * 1000);
+  const endAt = resolveAppointmentEndAt(data, input.serviceId, input.startAt, input.endAt);
   const selectedRoomName = input.roomName?.trim();
   if (!selectedRoomName) throw new Error("请选择预约房间");
   const roomNames = roomNamesOf(data);
@@ -3203,9 +3243,8 @@ function validateAppointmentSchedule(
     if (appointment.id === input.excludeAppointmentId) return false;
     if (appointment.staffId !== input.staffId) return false;
     if (["已完成", "已取消", "爽约"].includes(appointment.status)) return false;
-    const service = data.services.find((item) => item.id === appointment.serviceId);
     const appointmentStart = new Date(appointment.startAt);
-    const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+    const appointmentEnd = appointmentEndAt(appointment, data.services);
     return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
   });
 
@@ -3227,9 +3266,8 @@ function validateAppointmentSchedule(
       .filter((appointment) => appointment.id !== input.excludeAppointmentId)
       .filter(isActiveAppointmentForRoom)
       .filter((appointment) => {
-        const service = data.services.find((item) => item.id === appointment.serviceId);
         const appointmentStart = new Date(appointment.startAt);
-        const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+        const appointmentEnd = appointmentEndAt(appointment, data.services);
         return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
       }),
     roomNames,
@@ -3300,9 +3338,8 @@ export function createStaffUnavailableSlot(
   const hasAppointmentConflict = data.appointments.some((appointment) => {
     if (appointment.staffId !== input.staffId) return false;
     if (["已取消", "爽约"].includes(appointment.status)) return false;
-    const service = data.services.find((item) => item.id === appointment.serviceId);
     const appointmentStart = new Date(appointment.startAt);
-    const appointmentEnd = new Date(appointmentStart.getTime() + (service?.duration ?? 60) * 60 * 1000);
+    const appointmentEnd = appointmentEndAt(appointment, data.services);
     return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
   });
 

@@ -496,11 +496,13 @@ try {
       staffId: "s3",
       serviceId: "v1",
       startAt: futureIso(31, "02:00"),
+      endAt: futureIso(31, "03:30"),
       roomName: "护理房 1",
       note: "API 预约",
     },
   });
   assert.equal(afterAppointment.appointments[0].status, "待确认", "appointment API should create pending appointment");
+  assert.equal(afterAppointment.appointments[0].endAt, futureIso(31, "03:30"), "appointment API should persist explicit end time");
   const appointmentId = afterAppointment.appointments[0].id;
   assert.equal(afterAppointment.notifications[0].targetId, appointmentId, "appointment API should create a target notification");
   const afterNotificationRead = await request<AppData>(baseUrl, `/api/notifications/${afterAppointment.notifications[0].id}/read`, {
@@ -553,6 +555,7 @@ try {
       staffId: "s3",
       serviceId: "v1",
       startAt: futureIso(32, "05:00"),
+      endAt: futureIso(32, "06:00"),
       roomName: "护理房 1",
       note: "API 改约测试",
     },
@@ -565,11 +568,13 @@ try {
       staffId: "s3",
       serviceId: "v2",
       startAt: futureIso(32, "06:00"),
+      endAt: futureIso(32, "07:00"),
       roomName: "护理房 2",
       note: "API 已改约",
     },
   });
   assert.equal(afterReschedule.appointments[0].serviceId, "v2", "appointment API should reschedule service");
+  assert.equal(afterReschedule.appointments[0].endAt, futureIso(32, "07:00"), "appointment API should reschedule end time");
   assert.ok(afterReschedule.appointments[0].rescheduledAt, "appointment API should stamp reschedule time");
   await assert.rejects(
     () =>
@@ -1098,6 +1103,7 @@ try {
       staffId: "s3",
       serviceId: "v1",
       startAt: futureIso(36, "08:00"),
+      endAt: futureIso(36, "09:00"),
       roomName: "护理房 1",
       note: "API 预约收银",
     },
@@ -1121,6 +1127,7 @@ try {
   });
   assert.equal(afterAppointmentCheckout.orders[0].appointmentId, checkoutAppointmentId, "checkout API should link arrived appointment");
   assert.equal(afterAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已完成", "checkout API should complete appointment");
+  assert.equal(afterAppointmentCheckout.customerSignatures[0].orderId, afterAppointmentCheckout.orders[0].id, "checkout API should create pending signature after service checkout");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, "/api/checkout", {

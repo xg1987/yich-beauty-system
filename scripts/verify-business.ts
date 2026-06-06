@@ -409,6 +409,37 @@ function card(data: AppData, cardId: string) {
     { idFactory: testId, now: fixedNow },
   );
   const firstRoomAppointmentId = roomBookedStore.appointments[0].id;
+  assert.equal(roomBookedStore.appointments[0].endAt, "2026-06-10T03:00:00.000Z", "appointment should derive an end time from service duration when missing");
+  const longRoomBookedStore = createAppointment(
+    updatedStore,
+    {
+      customerId: "c1",
+      staffId: "s3",
+      serviceId: "v1",
+      startAt: "2026-06-10T07:00:00.000Z",
+      endAt: "2026-06-10T09:00:00.000Z",
+      roomName: "护理房 A",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(longRoomBookedStore.appointments[0].endAt, "2026-06-10T09:00:00.000Z", "appointment should persist explicit end time");
+  assert.throws(
+    () =>
+      createAppointment(
+        longRoomBookedStore,
+        {
+          customerId: "c2",
+          staffId: "s1",
+          serviceId: "v1",
+          startAt: "2026-06-10T08:30:00.000Z",
+          endAt: "2026-06-10T09:30:00.000Z",
+          roomName: "护理房 A",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /该房间在此时间段已有预约/,
+    "appointment should reject conflicts across an explicit time range",
+  );
   assert.throws(
     () =>
       createAppointment(
@@ -1090,6 +1121,7 @@ function card(data: AppData, cardId: string) {
     { now: fixedNow },
   );
   assert.equal(rescheduled.appointments[0].serviceId, "v2", "reschedule should update service");
+  assert.equal(rescheduled.appointments[0].endAt, "2026-05-25T05:45:00.000Z", "reschedule should derive end time from the updated service duration");
   assert.equal(rescheduled.appointments[0].rescheduledAt, fixedNow(), "reschedule should keep audit time");
   assert.throws(
     () => rescheduleAppointment(data, { appointmentId: data.appointments[0].id, staffId: "s2", startAt: conflictStartAt }, { now: fixedNow }),
@@ -1136,6 +1168,8 @@ function card(data: AppData, cardId: string) {
   assert.equal(appointmentCheckout.orders[0].appointmentId, data.appointments[0].id, "checkout should link source appointment");
   assert.equal(appointmentCheckout.appointments[0].status, "已完成", "checkout should complete source appointment");
   assert.equal(appointmentCheckout.appointments[0].completedAt, fixedNow(), "checkout should stamp appointment completion");
+  assert.equal(appointmentCheckout.customerSignatures[0].orderId, appointmentCheckout.orders[0].id, "appointment checkout should create a pending customer signature");
+  assert.equal(appointmentCheckout.customerSignatures[0].status, "待签名", "appointment checkout signature should start pending");
   assert.throws(
     () =>
       checkoutOrder(

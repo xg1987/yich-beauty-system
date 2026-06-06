@@ -592,6 +592,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           appointmentId: optionalString(body, "appointmentId"),
           payMethod: requiredString(body, "payMethod") as Order["payMethod"],
           cardId: optionalString(body, "cardId"),
+          requestedBy: session.user.id,
         });
         if (checkoutRequestId && !database.reserveCheckoutSubmission(checkoutRequestId, nowIso())) {
           throw new Error("检测到刚刚已提交相同收银请求，请勿重复提交");
@@ -676,6 +677,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             staffId: requiredString(body, "staffId"),
             serviceId: requiredString(body, "serviceId"),
             startAt: requiredString(body, "startAt"),
+            endAt: optionalString(body, "endAt"),
             roomName: requiredString(body, "roomName"),
             note: optionalString(body, "note") ?? "",
           }),
@@ -742,6 +744,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             staffId: optionalString(body, "staffId"),
             serviceId: optionalString(body, "serviceId"),
             startAt: requiredString(body, "startAt"),
+            endAt: optionalString(body, "endAt"),
             roomName: optionalString(body, "roomName"),
             note: optionalString(body, "note"),
           }),

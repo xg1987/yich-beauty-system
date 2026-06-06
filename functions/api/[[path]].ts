@@ -570,6 +570,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         appointmentId: optionalString(body, "appointmentId"),
         payMethod: requiredString(body, "payMethod") as Order["payMethod"],
         cardId: optionalString(body, "cardId"),
+        requestedBy: session.user.id,
       });
       const checkoutReserved = checkoutRequestId ? await database.reserveCheckoutSubmission(checkoutRequestId, nowIso()) : true;
       if (!checkoutReserved) {
@@ -652,6 +653,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           staffId: requiredString(body, "staffId"),
           serviceId: requiredString(body, "serviceId"),
           startAt: requiredString(body, "startAt"),
+          endAt: optionalString(body, "endAt"),
           roomName: requiredString(body, "roomName"),
           note: optionalString(body, "note") ?? "",
         }),
@@ -715,6 +717,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           staffId: optionalString(body, "staffId"),
           serviceId: optionalString(body, "serviceId"),
           startAt: requiredString(body, "startAt"),
+          endAt: optionalString(body, "endAt"),
           roomName: optionalString(body, "roomName"),
           note: optionalString(body, "note"),
         }),
