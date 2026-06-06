@@ -61,6 +61,7 @@ import { hashPassword } from "../../src/lib/password";
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
+import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
@@ -560,6 +561,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
           serviceId: optionalString(body, "serviceId"),
           productId: optionalString(body, "productId"),
+          giftProductId: optionalString(body, "giftProductId"),
+          productItems: optionalProductItems(body, "productItems"),
+          giftProductItems: optionalProductItems(body, "giftProductItems"),
           discountAmount: optionalNumber(body, "discountAmount"),
           adjustmentReason: optionalString(body, "adjustmentReason"),
           approvalId: optionalString(body, "approvalId"),
@@ -1723,4 +1727,21 @@ function optionalConsumables(body: JsonBody): ServiceConsumable[] {
     merged.set(productId, Math.max(merged.get(productId) ?? 0, safeQuantity));
   }
   return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
+}
+
+function optionalProductItems(body: JsonBody, key: string): CheckoutProductItemInput[] | undefined {
+  const value = body[key];
+  if (!Array.isArray(value)) return undefined;
+  const merged = new Map<string, number>();
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const productId = (item as { productId?: unknown }).productId;
+    const quantity = (item as { quantity?: unknown }).quantity;
+    if (typeof productId !== "string" || productId.length === 0) continue;
+    const safeQuantity = typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : 0;
+    if (safeQuantity <= 0) continue;
+    merged.set(productId, (merged.get(productId) ?? 0) + safeQuantity);
+  }
+  const items = Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
+  return items.length ? items : undefined;
 }

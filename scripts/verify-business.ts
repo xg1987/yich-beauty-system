@@ -1231,6 +1231,83 @@ function card(data: AppData, cardId: string) {
 }
 
 {
+  const seed = cloneSeed();
+  const productStockBefore = productStock(seed, "p4");
+  const giftStockBefore = productStock(seed, "p2");
+  const checkedOut = checkoutOrder(
+    seed,
+    {
+      guestName: "陈女士",
+      guestPhone: "13800001111",
+      staffId: "s2",
+      productId: "p4",
+      giftProductId: "p2",
+      payMethod: "微信",
+      discountAmount: 20,
+      adjustmentReason: "新客商品优惠",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+
+  assert.equal(checkedOut.orders[0].totalAmount, 199, "product-only checkout should charge selected product only");
+  assert.equal(checkedOut.orders[0].paidAmount, 179, "product-only discount should not require approval");
+  assert.equal(checkedOut.orders[0].guestName, "陈女士", "product-only checkout should support walk-in customer");
+  assert.equal(checkedOut.orders[0].giftProductId, "p2", "product-only checkout should persist gift product");
+  assert.equal(productStock(checkedOut, "p4"), productStockBefore - 1, "product checkout should reduce sold product stock");
+  assert.equal(productStock(checkedOut, "p2"), giftStockBefore - 1, "product checkout should reduce gift product stock");
+  assert.ok(checkedOut.inventoryLogs.some((item) => item.type === "赠品出库" && item.productId === "p2"), "gift product should create gift inventory log");
+
+  const refunded = refundOrder(
+    checkedOut,
+    { orderId: checkedOut.orders[0].id, reason: "商品赠品退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(refunded, "p4"), productStockBefore, "product refund should restore sold product stock");
+  assert.equal(productStock(refunded, "p2"), giftStockBefore, "product refund should restore gift product stock");
+}
+
+{
+  const seed = cloneSeed();
+  const p4StockBefore = productStock(seed, "p4");
+  const p1StockBefore = productStock(seed, "p1");
+  const giftStockBefore = productStock(seed, "p2");
+  const checkedOut = checkoutOrder(
+    seed,
+    {
+      guestName: "周女士",
+      guestPhone: "13800002222",
+      staffId: "s2",
+      productItems: [
+        { productId: "p4", quantity: 2 },
+        { productId: "p1", quantity: 1 },
+      ],
+      giftProductItems: [{ productId: "p2", quantity: 2 }],
+      payMethod: "微信",
+      discountAmount: 52,
+      adjustmentReason: "多商品 9 折",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+
+  assert.equal(checkedOut.orders[0].totalAmount, 526, "multi-product checkout should sum product quantities");
+  assert.equal(checkedOut.orders[0].paidAmount, 474, "multi-product checkout should apply order discount");
+  assert.deepEqual(checkedOut.orders[0].productItems?.map((item) => [item.productId, item.quantity, item.amount]), [["p4", 2, 398], ["p1", 1, 128]], "multi-product checkout should persist sale lines");
+  assert.deepEqual(checkedOut.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity, item.amount]), [["p2", 2, 0]], "multi-product checkout should persist gift lines");
+  assert.equal(productStock(checkedOut, "p4"), p4StockBefore - 2, "multi-product checkout should reduce first product quantity");
+  assert.equal(productStock(checkedOut, "p1"), p1StockBefore - 1, "multi-product checkout should reduce second product quantity");
+  assert.equal(productStock(checkedOut, "p2"), giftStockBefore - 2, "multi-product checkout should reduce gift quantity");
+
+  const refunded = refundOrder(
+    checkedOut,
+    { orderId: checkedOut.orders[0].id, reason: "多商品退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(refunded, "p4"), p4StockBefore, "multi-product refund should restore first product");
+  assert.equal(productStock(refunded, "p1"), p1StockBefore, "multi-product refund should restore second product");
+  assert.equal(productStock(refunded, "p2"), giftStockBefore, "multi-product refund should restore gifts");
+}
+
+{
   const recharged = rechargeMemberCard(
     cloneSeed(),
     { memberCardId: "m1", amount: 100, times: 0, note: "测试充值", userId: "u_manager" },

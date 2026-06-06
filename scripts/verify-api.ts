@@ -705,18 +705,23 @@ try {
       customerId: "c1",
       staffId: "s2",
       serviceId: "v1",
-      productId: "p4",
+      productItems: [{ productId: "p4", quantity: 2 }],
+      giftProductItems: [{ productId: "p2", quantity: 2 }],
       payMethod: "微信",
     },
   });
   assert.equal(afterCheckout.orders.length, 2, "checkout API should create another order");
-  assert.equal(afterCheckout.orders[0].totalAmount, 597, "checkout API should calculate total");
+  assert.equal(afterCheckout.orders[0].totalAmount, 796, "checkout API should calculate multi-product total");
+  assert.deepEqual(afterCheckout.orders[0].productItems?.map((item) => [item.productId, item.quantity]), [["p4", 2]], "checkout API should persist sale item lines");
+  assert.equal(afterCheckout.orders[0].giftProductId, "p2", "checkout API should persist gift product");
+  assert.deepEqual(afterCheckout.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity]), [["p2", 2]], "checkout API should persist gift item lines");
   assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 16, "checkout API should consume service stock");
-  assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 23, "checkout API should consume retail stock");
+  assert.equal(afterCheckout.products.find((item) => item.id === "p2")?.stock, 10, "checkout API should consume gift stock");
+  assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 22, "checkout API should consume retail stock");
   const checkoutCommissions = afterCheckout.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id);
   assert.equal(checkoutCommissions.length, 2, "checkout API should create service and sales commissions");
   assert.equal(checkoutCommissions.find((item) => item.type === "服务提成")?.amount, 48, "checkout API should create service commission");
-  assert.equal(checkoutCommissions.find((item) => item.type === "销售提成")?.amount, 24, "checkout API should create sales commission");
+  assert.equal(checkoutCommissions.find((item) => item.type === "销售提成")?.amount, 48, "checkout API should create sales commission");
   assert.equal(checkoutCommissions[0].rate, 0.12, "checkout API should persist staff commission rate");
   assert.equal(afterCheckout.operationLogs[0].action, "开单收银", "checkout API should write operation log");
 
@@ -728,8 +733,9 @@ try {
   const refundedOrder = afterRefund.orders.find((item) => item.id === afterCheckout.orders[0].id);
   assert.ok(refundedOrder, "refunded order should still exist");
   assert.equal(refundedOrder.status, "已退款", "refund API should update order status");
-  assert.equal(afterRefund.refunds[0].amount, 597, "refund API should write refund record");
+  assert.equal(afterRefund.refunds[0].amount, 796, "refund API should write refund record");
   assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 17, "refund API should restore service stock");
+  assert.equal(afterRefund.products.find((item) => item.id === "p2")?.stock, 12, "refund API should restore gift stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p4")?.stock, 24, "refund API should restore retail stock");
   assert.ok(afterRefund.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id).every((item) => item.status === "已冲销"), "refund API should reverse commission");
   assert.equal(afterRefund.distributionCommissions.length, 0, "base API should not expose distribution commissions");

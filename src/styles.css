@@ -13322,6 +13322,287 @@ textarea,
   line-height: 1.6;
 }
 
+.checkout-discount-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f255f;
+}
+
+.checkout-discount-summary span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+}
+
+.checkout-discount-summary strong {
+  color: #2f255f;
+  font-size: 15px;
+}
+
+.checkout-product-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.checkout-product-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.checkout-product-toolbar button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #3d2279;
+  font-weight: 700;
+}
+
+.checkout-product-section {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.checkout-product-section.gift {
+  border-color: rgba(47, 191, 143, 0.22);
+  background: rgba(237, 249, 243, 0.48);
+}
+
+.checkout-product-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 13px;
+}
+
+.checkout-product-section-head strong {
+  color: #2f255f;
+}
+
+.checkout-product-list {
+  display: grid;
+  gap: 8px;
+}
+
+.checkout-product-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px 92px 34px;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.checkout-product-line > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.checkout-product-line strong {
+  overflow: hidden;
+  color: #2f255f;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkout-product-line span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+}
+
+.checkout-product-qty {
+  display: grid;
+  grid-template-columns: 30px 1fr 30px;
+  align-items: center;
+  gap: 4px;
+}
+
+.checkout-product-qty button,
+.checkout-product-remove,
+.product-picker-card-actions button {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  color: #3d2279;
+}
+
+.checkout-product-qty input {
+  width: 100%;
+  height: 30px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.checkout-product-price {
+  justify-self: end;
+  font-weight: 700;
+}
+
+.checkout-product-empty,
+.product-picker-empty {
+  border: 1px dashed rgba(111, 66, 193, 0.18);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 13px;
+}
+
+.product-picker-modal {
+  display: grid;
+  gap: 16px;
+}
+
+.product-picker-filters {
+  display: grid;
+  gap: 10px;
+}
+
+.product-picker-filters label {
+  position: relative;
+}
+
+.product-picker-filters label svg {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  color: rgba(61, 34, 121, 0.62);
+}
+
+.product-picker-filters input {
+  padding-left: 40px;
+}
+
+.product-picker-category-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.product-picker-subcategory-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.product-picker-category-list button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.68);
+  color: rgba(47, 37, 95, 0.72);
+}
+
+.product-picker-subcategory-list button {
+  min-height: 30px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.52);
+  color: rgba(47, 37, 95, 0.64);
+  font-size: 13px;
+}
+
+.product-picker-category-list button.active {
+  border-color: rgba(111, 66, 193, 0.38);
+  background: #fff;
+  color: #3d2279;
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(58, 41, 91, 0.08);
+}
+
+.product-picker-subcategory-list button.active {
+  border-color: rgba(47, 191, 143, 0.32);
+  background: rgba(237, 249, 243, 0.82);
+  color: #236b55;
+  font-weight: 700;
+}
+
+.product-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.product-picker-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.product-picker-card.selected {
+  border-color: rgba(47, 191, 143, 0.36);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(237, 249, 243, 0.78));
+}
+
+.product-picker-card > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.product-picker-card strong {
+  color: #2f255f;
+}
+
+.product-picker-card span,
+.product-picker-card small {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+}
+
+.product-picker-card-meta,
+.product-picker-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.product-picker-card-meta span {
+  color: #3d2279;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.product-picker-card-actions strong {
+  min-width: 46px;
+  text-align: center;
+  font-size: 13px;
+}
+
 .checkout-guest-fields {
   display: grid;
   gap: 12px;
@@ -13502,6 +13783,23 @@ textarea,
   }
 
   .checkout-guest-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-product-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-product-line {
+    grid-template-columns: minmax(0, 1fr) 112px 34px;
+  }
+
+  .checkout-product-price {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .product-picker-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -15725,6 +16023,84 @@ textarea,
 
 .theme-night .checkout-context-note span {
   color: var(--night-muted);
+}
+
+.theme-night .checkout-discount-summary {
+  border-color: rgba(202, 184, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--night-text);
+}
+
+.theme-night .checkout-discount-summary span {
+  color: var(--night-muted);
+}
+
+.theme-night .checkout-discount-summary strong {
+  color: var(--night-text);
+}
+
+.theme-night .checkout-product-toolbar button,
+.theme-night .checkout-product-section,
+.theme-night .checkout-product-line,
+.theme-night .product-picker-category-list button,
+.theme-night .product-picker-subcategory-list button,
+.theme-night .product-picker-card {
+  border-color: rgba(202, 184, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--night-text);
+}
+
+.theme-night .checkout-product-section.gift,
+.theme-night .product-picker-card.selected {
+  border-color: rgba(47, 191, 143, 0.3);
+  background: rgba(47, 191, 143, 0.1);
+}
+
+.theme-night .checkout-product-section-head,
+.theme-night .checkout-product-line span,
+.theme-night .checkout-product-empty,
+.theme-night .product-picker-empty,
+.theme-night .product-picker-card span,
+.theme-night .product-picker-card small {
+  color: var(--night-muted);
+}
+
+.theme-night .checkout-product-section-head strong,
+.theme-night .checkout-product-line strong,
+.theme-night .checkout-product-price,
+.theme-night .product-picker-card strong,
+.theme-night .product-picker-card-meta span {
+  color: var(--night-text);
+}
+
+.theme-night .checkout-product-qty button,
+.theme-night .checkout-product-remove,
+.theme-night .product-picker-card-actions button {
+  border-color: rgba(202, 184, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #cab8ff;
+}
+
+.theme-night .checkout-product-empty,
+.theme-night .product-picker-empty {
+  border-color: rgba(202, 184, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.theme-night .product-picker-filters label svg {
+  color: var(--night-muted);
+}
+
+.theme-night .product-picker-category-list button.active {
+  border-color: rgba(202, 184, 255, 0.34);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--night-text);
+}
+
+.theme-night .product-picker-subcategory-list button.active {
+  border-color: rgba(47, 191, 143, 0.34);
+  background: rgba(47, 191, 143, 0.14);
+  color: var(--night-text);
 }
 
 .theme-night .checkout-customer-result-list button {

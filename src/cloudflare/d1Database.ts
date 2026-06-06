@@ -21,6 +21,7 @@ import type {
   OnlineStorefront,
   OperationLog,
   Order,
+  OrderProductItem,
   Product,
   PurchaseOrder,
   ReferralRelation,
@@ -304,7 +305,7 @@ export class D1BeautyDatabase {
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.orderNo,
@@ -314,6 +315,9 @@ export class D1BeautyDatabase {
             order.staffId,
             order.serviceId,
             order.productId ?? null,
+            order.giftProductId ?? null,
+            order.productItems?.length ? JSON.stringify(order.productItems) : null,
+            order.giftProductItems?.length ? JSON.stringify(order.giftProductItems) : null,
             order.cardId ?? null,
             order.totalAmount,
             order.paidAmount,
@@ -551,12 +555,15 @@ function mapMemberCard(row: unknown): MemberCard {
 }
 
 function mapOrder(row: unknown): Order {
-  const value = row as Order;
+  const value = row as Order & { productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
     guestName: value.guestName ?? undefined,
     guestPhone: value.guestPhone ?? undefined,
     productId: value.productId ?? undefined,
+    giftProductId: value.giftProductId ?? undefined,
+    productItems: parseJsonArray<OrderProductItem>(value.productItems_json) ?? value.productItems,
+    giftProductItems: parseJsonArray<OrderProductItem>(value.giftProductItems_json) ?? value.giftProductItems,
     cardId: value.cardId ?? undefined,
     discountAmount: value.discountAmount ?? 0,
     adjustmentReason: value.adjustmentReason ?? undefined,

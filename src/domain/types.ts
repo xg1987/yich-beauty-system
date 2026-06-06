@@ -314,6 +314,9 @@ export type Order = {
   staffId: string;
   serviceId: string;
   productId?: string;
+  giftProductId?: string;
+  productItems?: OrderProductItem[];
+  giftProductItems?: OrderProductItem[];
   cardId?: string;
   totalAmount: number;
   paidAmount: number;
@@ -325,6 +328,13 @@ export type Order = {
   payMethod: "现金" | "微信" | "支付宝" | "银行卡" | "会员卡";
   status: "已支付" | "部分退款" | "已退款";
   createdAt: string;
+};
+
+export type OrderProductItem = {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
 };
 
 export type CashPayMethod = Exclude<Order["payMethod"], "会员卡">;
@@ -370,7 +380,7 @@ export type CommissionSettlement = {
 export type InventoryLog = {
   id: string;
   productId: string;
-  type: "入库" | "采购入库" | "服务消耗" | "销售出库" | "报损" | "盘点调整" | "退款回滚";
+  type: "入库" | "采购入库" | "服务消耗" | "销售出库" | "赠品出库" | "报损" | "盘点调整" | "退款回滚";
   delta: number;
   stockAfter: number;
   note: string;

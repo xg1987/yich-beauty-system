@@ -24,6 +24,7 @@ import type {
   OnlineStorefront,
   OperationLog,
   Order,
+  OrderProductItem,
   Product,
   PurchaseOrder,
   ReferralRelation,
@@ -321,7 +322,7 @@ export class BeautyDatabase {
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -332,6 +333,9 @@ export class BeautyDatabase {
           order.staffId,
           order.serviceId,
           order.productId ?? null,
+          order.giftProductId ?? null,
+          order.productItems?.length ? JSON.stringify(order.productItems) : null,
+          order.giftProductItems?.length ? JSON.stringify(order.giftProductItems) : null,
           order.cardId ?? null,
           order.totalAmount,
           order.paidAmount,
@@ -615,6 +619,9 @@ export class BeautyDatabase {
         staffId TEXT NOT NULL,
         serviceId TEXT NOT NULL,
         productId TEXT,
+        giftProductId TEXT,
+        productItems_json TEXT,
+        giftProductItems_json TEXT,
         cardId TEXT,
         totalAmount REAL NOT NULL,
         paidAmount REAL NOT NULL,
@@ -772,6 +779,9 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "appointmentId", "TEXT");
     this.addColumnIfMissing("orders", "guestName", "TEXT");
     this.addColumnIfMissing("orders", "guestPhone", "TEXT");
+    this.addColumnIfMissing("orders", "giftProductId", "TEXT");
+    this.addColumnIfMissing("orders", "productItems_json", "TEXT");
+    this.addColumnIfMissing("orders", "giftProductItems_json", "TEXT");
     this.addColumnIfMissing("products", "category", "TEXT");
     this.addColumnIfMissing("products", "subcategory", "TEXT");
     this.addColumnIfMissing("products", "shelfLifeMonths", "REAL");
@@ -891,12 +901,15 @@ function mapMemberCard(row: unknown): MemberCard {
 }
 
 function mapOrder(row: unknown): Order {
-  const value = row as Order;
+  const value = row as Order & { productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
     guestName: value.guestName ?? undefined,
     guestPhone: value.guestPhone ?? undefined,
     productId: value.productId ?? undefined,
+    giftProductId: value.giftProductId ?? undefined,
+    productItems: parseJsonArray<OrderProductItem>(value.productItems_json) ?? value.productItems,
+    giftProductItems: parseJsonArray<OrderProductItem>(value.giftProductItems_json) ?? value.giftProductItems,
     cardId: value.cardId ?? undefined,
     discountAmount: value.discountAmount ?? 0,
     adjustmentReason: value.adjustmentReason ?? undefined,

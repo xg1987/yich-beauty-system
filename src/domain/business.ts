@@ -20,6 +20,7 @@ import type {
   OnlineStorefront,
   OperationLog,
   Order,
+  OrderProductItem,
   Product,
   PurchaseOrder,
   Refund,
@@ -447,12 +448,20 @@ export type CheckoutInput = {
   collaboratorStaffIds?: string[];
   serviceId?: string;
   productId?: string;
+  giftProductId?: string;
+  productItems?: CheckoutProductItemInput[];
+  giftProductItems?: CheckoutProductItemInput[];
   discountAmount?: number;
   adjustmentReason?: string;
   approvalId?: string;
   appointmentId?: string;
   payMethod: Order["payMethod"];
   cardId?: string;
+};
+
+export type CheckoutProductItemInput = {
+  productId: string;
+  quantity: number;
 };
 
 export type InventoryAdjustmentInput = {
@@ -707,10 +716,42 @@ export type TagDefinitionUpdateInput = {
   status?: TagDefinition["status"];
 };
 
-export function calculateOrderTotal(data: AppData, serviceId?: string, productId?: string) {
+export function calculateOrderTotal(data: AppData, serviceId?: string, productId?: string, productItems?: CheckoutProductItemInput[]) {
   const selectedService = data.services.find((item) => item.id === serviceId);
-  const selectedProduct = data.products.find((item) => item.id === productId);
-  return (selectedService?.price ?? 0) + (selectedProduct?.price ?? 0);
+  const productTotal = productItems?.length
+    ? productItems.reduce((sum, item) => {
+        const product = data.products.find((candidate) => candidate.id === item.productId);
+        const quantity = Number.isFinite(item.quantity) && item.quantity > 0 ? Math.floor(item.quantity) : 0;
+        return sum + (product?.price ?? 0) * quantity;
+      }, 0)
+    : (data.products.find((item) => item.id === productId)?.price ?? 0);
+  return (selectedService?.price ?? 0) + productTotal;
+}
+
+function normalizeCheckoutProductItems(
+  data: AppData,
+  items: CheckoutProductItemInput[] | undefined,
+  options: { gift?: boolean } = {},
+): OrderProductItem[] {
+  const merged = new Map<string, number>();
+  for (const item of items ?? []) {
+    if (!item.productId) continue;
+    const quantity = Number.isFinite(item.quantity) && item.quantity > 0 ? Math.floor(item.quantity) : 0;
+    if (quantity <= 0) continue;
+    merged.set(item.productId, (merged.get(item.productId) ?? 0) + quantity);
+  }
+
+  return Array.from(merged, ([productId, quantity]) => {
+    const product = data.products.find((item) => item.id === productId);
+    if (!product) throw new Error(options.gift ? "赠品不存在" : "商品不存在");
+    const unitPrice = options.gift ? 0 : product.price;
+    return {
+      productId,
+      quantity,
+      unitPrice,
+      amount: unitPrice * quantity,
+    };
+  });
 }
 
 export function createTagDefinition(
@@ -1973,7 +2014,18 @@ export function checkoutOrder(
   const serviceId = input.serviceId ?? "";
   const selectedCustomer = customerId ? data.customers.find((item) => item.id === customerId) : undefined;
   const selectedService = serviceId ? data.services.find((item) => item.id === serviceId) : undefined;
-  const selectedProduct = input.productId ? data.products.find((item) => item.id === input.productId) : undefined;
+  const rawProductItems = input.productItems?.length
+    ? input.productItems
+    : input.productId
+      ? [{ productId: input.productId, quantity: 1 }]
+      : [];
+  const rawGiftProductItems = input.giftProductItems?.length
+    ? input.giftProductItems
+    : input.giftProductId
+      ? [{ productId: input.giftProductId, quantity: 1 }]
+      : [];
+  const productItems = normalizeCheckoutProductItems(data, rawProductItems);
+  const giftProductItems = normalizeCheckoutProductItems(data, rawGiftProductItems, { gift: true });
   const selectedStaff = data.staff.find((item) => item.id === input.staffId);
   assertBusinessStaff(selectedStaff);
   (input.collaboratorStaffIds ?? []).forEach((staffId) => {
@@ -1990,10 +2042,10 @@ export function checkoutOrder(
   if (serviceId && !selectedService) {
     throw new Error("服务项目不存在");
   }
-  if (input.productId && !selectedProduct) {
-    throw new Error("商品不存在");
+  if (giftProductItems.length > 0 && productItems.length === 0) {
+    throw new Error("赠品只能随商品开单");
   }
-  if (!selectedService && !selectedProduct) {
+  if (!selectedService && productItems.length === 0) {
     throw new Error("请选择服务项目或商品");
   }
 
@@ -2038,12 +2090,14 @@ export function checkoutOrder(
     }
   }
 
-  const total = calculateOrderTotal(data, serviceId, input.productId);
+  const productSubtotal = productItems.reduce((sum, item) => sum + item.amount, 0);
+  const total = (selectedService?.price ?? 0) + productSubtotal;
   const discountAmount = input.discountAmount ?? 0;
+  const productOnlyCheckout = Boolean(productItems.length > 0 && !selectedService);
   if (discountAmount < 0) {
     throw new Error("折扣金额无效");
   }
-  if (discountAmount > 0 && !hasApprovedRequest(data, input.approvalId, "改价折扣", discountAmount)) {
+  if (discountAmount > 0 && !productOnlyCheckout && !hasApprovedRequest(data, input.approvalId, "改价折扣", discountAmount)) {
     throw new Error("改价折扣需要审批通过");
   }
   const orderId = idFactory("o");
@@ -2064,7 +2118,10 @@ export function checkoutOrder(
     guestPhone: customerId ? undefined : guestPhone,
     staffId: input.staffId,
     serviceId,
-    productId: input.productId,
+    productId: productItems[0]?.productId,
+    giftProductId: giftProductItems[0]?.productId,
+    productItems: productItems.length ? productItems : undefined,
+    giftProductItems: giftProductItems.length ? giftProductItems : undefined,
     cardId: input.payMethod === "会员卡" ? input.cardId : undefined,
     totalAmount: total,
     paidAmount,
@@ -2078,11 +2135,22 @@ export function checkoutOrder(
   };
 
   const serviceConsumption = selectedService ? serviceConsumables(selectedService) : [];
+  const serviceConsumptionByProduct = new Map<string, number>();
+  const soldProductByProduct = new Map<string, number>();
+  const giftProductByProduct = new Map<string, number>();
   const consumptionByProduct = new Map<string, number>();
   for (const item of serviceConsumption) {
+    serviceConsumptionByProduct.set(item.productId, (serviceConsumptionByProduct.get(item.productId) ?? 0) + item.quantity);
     consumptionByProduct.set(item.productId, (consumptionByProduct.get(item.productId) ?? 0) + item.quantity);
   }
-  if (input.productId) consumptionByProduct.set(input.productId, (consumptionByProduct.get(input.productId) ?? 0) + 1);
+  for (const item of productItems) {
+    soldProductByProduct.set(item.productId, (soldProductByProduct.get(item.productId) ?? 0) + item.quantity);
+    consumptionByProduct.set(item.productId, (consumptionByProduct.get(item.productId) ?? 0) + item.quantity);
+  }
+  for (const item of giftProductItems) {
+    giftProductByProduct.set(item.productId, (giftProductByProduct.get(item.productId) ?? 0) + item.quantity);
+    consumptionByProduct.set(item.productId, (consumptionByProduct.get(item.productId) ?? 0) + item.quantity);
+  }
   for (const [productId, quantity] of consumptionByProduct) {
     const product = data.products.find((item) => item.id === productId);
     if (!product) throw new Error("商品不存在");
@@ -2103,10 +2171,19 @@ export function checkoutOrder(
     inventoryLogs.unshift({
       id: idFactory("il"),
       productId: product.id,
-      type: product.id === input.productId ? "销售出库" : "服务消耗",
+      type: soldProductByProduct.has(product.id)
+        ? "销售出库"
+        : giftProductByProduct.has(product.id)
+          ? "赠品出库"
+          : "服务消耗",
       delta: product.stock - previousProduct.stock,
       stockAfter: product.stock,
-      note: order.orderNo,
+      note: [
+        order.orderNo,
+        serviceConsumptionByProduct.has(product.id) ? `服务消耗 ${serviceConsumptionByProduct.get(product.id)}` : "",
+        soldProductByProduct.has(product.id) ? `销售 ${soldProductByProduct.get(product.id)}` : "",
+        giftProductByProduct.has(product.id) ? `赠品 ${giftProductByProduct.get(product.id)}` : "",
+      ].filter(Boolean).join(" · "),
       createdAt,
     });
   });
@@ -2136,7 +2213,7 @@ export function checkoutOrder(
           ...data.memberCardTransactions,
         ]
       : data.memberCardTransactions;
-  const productCommissionBase = selectedProduct ? Math.round(paidAmount * (selectedProduct.price / total)) : 0;
+  const productCommissionBase = productSubtotal > 0 ? Math.round(paidAmount * (productSubtotal / total)) : 0;
   const serviceCommissionBase = Math.round(paidAmount) - productCommissionBase;
   const commissionStaffIds = uniqueIds([input.staffId, ...(input.collaboratorStaffIds ?? [])]);
   const serviceCommissionBaseAmounts = splitAmount(serviceCommissionBase, commissionStaffIds.length);
@@ -2245,7 +2322,16 @@ export function refundOrder(
     if (service) {
       serviceConsumables(service).forEach((item) => restoreProduct(item.productId, item.quantity));
     }
-    restoreProduct(order.productId, order.productId ? 1 : 0);
+    if (order.productItems?.length) {
+      order.productItems.forEach((item) => restoreProduct(item.productId, item.quantity));
+    } else {
+      restoreProduct(order.productId, order.productId ? 1 : 0);
+    }
+    if (order.giftProductItems?.length) {
+      order.giftProductItems.forEach((item) => restoreProduct(item.productId, item.quantity));
+    } else {
+      restoreProduct(order.giftProductId, order.giftProductId ? 1 : 0);
+    }
   }
 
   let memberCards = data.memberCards;
