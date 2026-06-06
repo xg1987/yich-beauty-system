@@ -11,6 +11,7 @@ export type ViewKey =
   | "logs"
   | "accounts"
   | "permissions"
+  | "platformConfig"
   | "usage"
   | "roomSettings"
   | "settings";

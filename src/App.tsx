@@ -183,6 +183,7 @@ const viewTitles: Record<ViewKey, string> = {
   logs: "操作日志",
   accounts: "账号管理",
   permissions: "权限审批",
+  platformConfig: "平台配置",
   usage: "服务器用量监控",
   roomSettings: "房间设置",
   settings: "管理中心",
@@ -615,6 +616,7 @@ export default function App() {
             {activeView === "logs" && <OperationLogs data={data} session={session} />}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "permissions" && <PlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
+            {activeView === "platformConfig" && <PlatformSystemConfigView data={data} actions={actions} runMutation={runMutation} />}
             {activeView === "usage" && <PlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
             {activeView === "roomSettings" && <RoomSettings data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "settings" && (
@@ -712,6 +714,7 @@ function ManagementCenter({
   const platformManagementCards: ManagementCard[] = [
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
     { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "violet", view: "permissions" },
+    { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
@@ -812,10 +815,6 @@ function ManagementCenter({
             )}
           </div>
         </section>
-      )}
-
-      {session.user.role === "superadmin" && (
-        <PlatformSystemConfigPanel data={data} actions={actions} runMutation={runMutation} />
       )}
 
       <section className="admin-module-section">
@@ -1076,6 +1075,14 @@ function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppDa
         </button>
       </div>
     </section>
+  );
+}
+
+function PlatformSystemConfigView({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  return (
+    <div className="admin-center-page platform-admin-page">
+      <PlatformSystemConfigPanel data={data} actions={actions} runMutation={runMutation} />
+    </div>
   );
 }
 
