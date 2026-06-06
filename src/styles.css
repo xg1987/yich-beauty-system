@@ -13093,13 +13093,14 @@ textarea,
 }
 
 .cashier-orbit {
+  --cashier-orbit-bg: #f6eff9;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 220px minmax(220px, 1fr);
+  grid-template-columns: minmax(220px, 1fr) 230px minmax(220px, 1fr);
   align-items: center;
-  gap: 0;
+  gap: 8px;
   min-height: 390px;
-  padding: 34px 18px;
+  padding: 34px 10px;
 }
 
 .cashier-orbit::before {
@@ -13127,11 +13128,13 @@ textarea,
 }
 
 .cashier-orbit-side.left {
-  padding-right: 8px;
+  margin-right: -14px;
+  padding-right: 0;
 }
 
 .cashier-orbit-side.right {
-  padding-left: 8px;
+  margin-left: -14px;
+  padding-left: 0;
 }
 
 .cashier-orbit-card,
@@ -13147,6 +13150,7 @@ textarea,
 
 .cashier-orbit-card {
   position: relative;
+  overflow: hidden;
   min-height: 104px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -13162,15 +13166,49 @@ textarea,
 .cashier-orbit-card.left {
   justify-items: end;
   border-right-color: rgba(111, 66, 193, 0.3);
-  border-radius: 18px 92px 92px 18px;
-  padding-right: 54px;
+  border-radius: 18px 120px 120px 18px;
+  padding-right: 74px;
   text-align: right;
 }
 
 .cashier-orbit-card.right {
   border-left-color: rgba(111, 66, 193, 0.3);
-  border-radius: 92px 18px 18px 92px;
-  padding-left: 54px;
+  border-radius: 120px 18px 18px 120px;
+  padding-left: 74px;
+}
+
+.cashier-orbit-card::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 122px;
+  height: 148px;
+  border: 1px solid rgba(111, 66, 193, 0.08);
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+    var(--cashier-orbit-bg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cashier-orbit-card.left::after {
+  right: -82px;
+  transform: translateY(-50%);
+  box-shadow: -16px 0 30px rgba(58, 41, 91, 0.08);
+}
+
+.cashier-orbit-card.right::after {
+  left: -82px;
+  transform: translateY(-50%);
+  box-shadow: 16px 0 30px rgba(58, 41, 91, 0.08);
+}
+
+.cashier-orbit-card > svg,
+.cashier-orbit-card > strong,
+.cashier-orbit-card > em {
+  position: relative;
+  z-index: 1;
 }
 
 .cashier-orbit-card.left svg {
