@@ -3652,7 +3652,8 @@ function Pos({
               onClick={() => openCheckoutModule("product")}
             >
               <PackagePlus size={22} />
-              <strong>商品</strong>
+              <strong>商品开单</strong>
+              <em>库存扣减</em>
             </button>
             <button
               type="button"
@@ -3671,6 +3672,7 @@ function Pos({
           >
             <CreditCard size={34} />
             <strong>开卡</strong>
+            <em>会员卡 / 套餐</em>
           </button>
           <div className="cashier-orbit-side right">
             <button
@@ -3689,6 +3691,7 @@ function Pos({
             >
               <BadgeCent size={22} />
               <strong>单次服务</strong>
+              <em>即时收款</em>
             </button>
           </div>
         </section>

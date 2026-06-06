@@ -1144,7 +1144,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (context.request.method === "POST" && pathname === "/api/products") {
-      requirePermission(session, "catalog:manage");
+      requireAnyPermission(session, ["catalog:manage", "inventory:manage"]);
       const body = await readJson(context.request);
       const productId = makeId("p");
       const createdAt = nowIso();
@@ -1297,6 +1297,12 @@ function updateData(
 
 function requirePermission(session: UserSession, permission: Permission) {
   if (!session.user.permissions.includes(permission)) {
+    throw new Error("当前角色无权执行此操作");
+  }
+}
+
+function requireAnyPermission(session: UserSession, permissions: Permission[]) {
+  if (!permissions.some((permission) => session.user.permissions.includes(permission))) {
     throw new Error("当前角色无权执行此操作");
   }
 }

@@ -13093,48 +13093,40 @@ textarea,
 }
 
 .cashier-orbit {
-  --cashier-orbit-bg: #f6eff9;
   position: relative;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 230px minmax(220px, 1fr);
-  align-items: center;
-  gap: 8px;
-  min-height: 390px;
-  padding: 34px 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.82fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(111, 66, 193, 0.12), transparent 34%),
+    radial-gradient(circle at 90% 18%, rgba(42, 143, 125, 0.1), transparent 30%),
+    linear-gradient(135deg, rgba(250, 247, 255, 0.92), rgba(244, 238, 250, 0.82));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 18px 44px rgba(58, 41, 91, 0.08);
 }
 
 .cashier-orbit::before {
-  content: "";
-  position: absolute;
-  inset: 34px 50%;
-  width: 308px;
-  height: 308px;
-  border: 1px solid rgba(111, 66, 193, 0.16);
-  border-radius: 50%;
-  transform: translateX(-50%);
-  background:
-    radial-gradient(circle at 42% 34%, rgba(255, 255, 255, 0.95), rgba(246, 239, 255, 0.72) 62%, rgba(229, 244, 239, 0.55));
-  box-shadow:
-    inset 0 0 0 16px rgba(255, 255, 255, 0.38),
-    0 28px 64px rgba(58, 41, 91, 0.1);
-  pointer-events: none;
+  display: none;
 }
 
 .cashier-orbit-side {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 28px;
+  gap: 16px;
 }
 
 .cashier-orbit-side.left {
-  margin-right: -18px;
-  padding-right: 0;
+  margin-right: 0;
 }
 
 .cashier-orbit-side.right {
-  margin-left: -18px;
-  padding-left: 0;
+  margin-left: 0;
 }
 
 .cashier-orbit-card,
@@ -13151,34 +13143,28 @@ textarea,
 .cashier-orbit-card {
   position: relative;
   overflow: hidden;
-  min-height: 104px;
+  min-height: 120px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 13px;
-  padding: 20px 28px;
+  gap: 16px;
+  border-radius: 18px;
+  padding: 22px;
   background:
-    radial-gradient(circle at 80% 18%, rgba(42, 143, 125, 0.08), transparent 34%),
-    rgba(255, 253, 250, 0.9);
-  box-shadow: 0 18px 44px rgba(58, 41, 91, 0.08);
+    radial-gradient(circle at 92% 10%, rgba(111, 66, 193, 0.14), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(245, 239, 255, 0.76));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.64),
+    0 14px 30px rgba(58, 41, 91, 0.07);
 }
 
 .cashier-orbit-card.left {
-  justify-items: end;
-  border-right-color: transparent;
-  border-radius: 14px 0 0 14px;
-  padding-right: 86px;
-  text-align: right;
-  -webkit-mask-image: radial-gradient(circle 148px at calc(100% + 100px) 50%, transparent 0 148px, #000 149px);
-  mask-image: radial-gradient(circle 148px at calc(100% + 100px) 50%, transparent 0 148px, #000 149px);
+  justify-items: start;
+  text-align: left;
 }
 
 .cashier-orbit-card.right {
-  border-left-color: transparent;
-  border-radius: 0 14px 14px 0;
-  padding-left: 86px;
-  -webkit-mask-image: radial-gradient(circle 148px at -100px 50%, transparent 0 148px, #000 149px);
-  mask-image: radial-gradient(circle 148px at -100px 50%, transparent 0 148px, #000 149px);
+  text-align: left;
 }
 
 .cashier-orbit-card::after {
@@ -13193,39 +13179,41 @@ textarea,
 }
 
 .cashier-orbit-card.left svg {
-  order: 2;
+  order: initial;
 }
 
 .cashier-orbit-card.left strong {
-  order: 1;
+  order: initial;
 }
 
 .cashier-orbit-card.left em {
-  order: 0;
+  order: initial;
   justify-self: start;
 }
 
 .cashier-orbit-card svg {
-  width: 46px;
-  height: 46px;
-  border-radius: 15px;
+  grid-row: 1 / span 2;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #6f42c1;
-  box-shadow: inset 0 0 0 1px rgba(111, 66, 193, 0.1);
+  background: #6f42c1;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(111, 66, 193, 0.18);
 }
 
 .cashier-orbit-card strong {
   min-width: 0;
   color: #2f255f;
-  font-size: 24px;
+  font-size: 21px;
   line-height: 1.15;
 }
 
 .cashier-orbit-card em {
+  justify-self: start;
   border-radius: 999px;
-  padding: 7px 11px;
-  background: rgba(255, 255, 255, 0.68);
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.72);
   color: rgba(47, 37, 95, 0.66);
   font-size: 12px;
   font-style: normal;
@@ -13234,80 +13222,72 @@ textarea,
 }
 
 .cashier-orbit-card.top {
-  transform: translateY(-12px);
+  transform: none;
 }
 
 .cashier-orbit-card.bottom {
-  transform: translateY(12px);
+  transform: none;
 }
 
 .cashier-orbit-center {
   position: relative;
   z-index: 2;
-  justify-self: center;
-  width: 210px;
-  aspect-ratio: 1;
+  width: 100%;
+  min-height: 256px;
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 14px;
-  border-radius: 50%;
-  border-color: rgba(111, 66, 193, 0.24);
+  gap: 12px;
+  border-radius: 22px;
+  border-color: rgba(111, 66, 193, 0.28);
   background:
-    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.44), transparent 24%),
-    linear-gradient(135deg, #5c2ca2, #7c47cf 58%, #9b7044);
+    radial-gradient(circle at 30% 12%, rgba(255, 255, 255, 0.34), transparent 30%),
+    linear-gradient(135deg, #5c2ca2, #7c47cf 64%, #b9587d);
   color: #fff;
   box-shadow:
-    0 30px 68px rgba(58, 41, 91, 0.2),
-    inset 0 0 0 12px rgba(255, 255, 255, 0.12);
+    0 22px 44px rgba(58, 41, 91, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .cashier-orbit-center svg {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
-  padding: 13px;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  padding: 14px;
   background: rgba(255, 255, 255, 0.16);
 }
 
 .cashier-orbit-center strong {
-  font-size: 34px;
+  font-size: 32px;
   line-height: 1;
   letter-spacing: 0;
+}
+
+.cashier-orbit-center em {
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .cashier-orbit-card:hover,
 .cashier-orbit-card.active {
   border-color: rgba(111, 66, 193, 0.32);
-  box-shadow: 0 24px 56px rgba(58, 41, 91, 0.14);
-}
-
-.cashier-orbit-card.left:hover,
-.cashier-orbit-card.left.active {
-  transform: translate(-3px, -12px);
-}
-
-.cashier-orbit-card.left.bottom:hover,
-.cashier-orbit-card.left.bottom.active {
-  transform: translate(-3px, 12px);
-}
-
-.cashier-orbit-card.right:hover,
-.cashier-orbit-card.right.active {
-  transform: translate(3px, -12px);
-}
-
-.cashier-orbit-card.right.bottom:hover,
-.cashier-orbit-card.right.bottom.active {
-  transform: translate(3px, 12px);
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 20px 42px rgba(58, 41, 91, 0.12);
 }
 
 .cashier-orbit-center:hover,
 .cashier-orbit-center.active {
   transform: translateY(-2px);
   box-shadow:
-    0 34px 78px rgba(58, 41, 91, 0.26),
-    inset 0 0 0 12px rgba(255, 255, 255, 0.14);
+    0 28px 58px rgba(58, 41, 91, 0.26),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24);
 }
 
 .checkout-mode-panel {
@@ -13446,11 +13426,29 @@ textarea,
 
   .cashier-orbit-center {
     order: -1;
-    width: min(168px, 58vw);
+    width: 100%;
+    min-height: 108px;
+    grid-template-columns: auto minmax(0, 1fr);
+    place-items: center start;
+    align-content: center;
+    justify-content: start;
+    padding: 18px 20px;
+    text-align: left;
+  }
+
+  .cashier-orbit-center svg {
+    grid-row: 1 / span 2;
+    width: 48px;
+    height: 48px;
+    padding: 12px;
   }
 
   .cashier-orbit-center strong {
-    font-size: 28px;
+    font-size: 26px;
+  }
+
+  .cashier-orbit-center em {
+    justify-self: start;
   }
 
   .cashier-orbit-card,
@@ -15666,6 +15664,50 @@ textarea,
 
 .theme-night .cashier-workflow-card em {
   color: var(--night-text);
+}
+
+.theme-night .cashier-orbit {
+  border-color: rgba(202, 184, 255, 0.16);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(139, 92, 246, 0.16), transparent 34%),
+    radial-gradient(circle at 90% 18%, rgba(124, 141, 244, 0.12), transparent 30%),
+    linear-gradient(135deg, rgba(48, 39, 68, 0.92), rgba(36, 30, 52, 0.86));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 18px 44px rgba(15, 10, 24, 0.26);
+}
+
+.theme-night .cashier-orbit-card {
+  border-color: rgba(202, 184, 255, 0.18);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(139, 92, 246, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(58, 47, 80, 0.92), rgba(42, 34, 60, 0.86));
+  color: var(--night-text);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 14px 30px rgba(15, 10, 24, 0.24);
+}
+
+.theme-night .cashier-orbit-card svg {
+  background: rgba(139, 92, 246, 0.9);
+  color: #fff;
+}
+
+.theme-night .cashier-orbit-card strong {
+  color: var(--night-text);
+}
+
+.theme-night .cashier-orbit-card em,
+.theme-night .cashier-orbit-center em {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--night-muted);
+}
+
+.theme-night .cashier-orbit-center {
+  border-color: rgba(202, 184, 255, 0.22);
+  background:
+    radial-gradient(circle at 30% 12%, rgba(255, 255, 255, 0.2), transparent 30%),
+    linear-gradient(135deg, #4c288f, #6d43c8 64%, #93446b);
 }
 
 .theme-night .checkout-context-note {
