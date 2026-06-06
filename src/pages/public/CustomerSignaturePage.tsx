@@ -16,8 +16,10 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   const [error, setError] = useState<string>();
   const [signerName, setSignerName] = useState("");
   const [hasSignature, setHasSignature] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -43,15 +45,22 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
     setError(undefined);
     const canvas = canvasRef.current;
     if (!canvas || !hasSignature) {
       setError("请完成手写签名");
       return;
     }
+    submittingRef.current = true;
+    setSubmitting(true);
     void signSignature(token, { signerName, signatureText: canvas.toDataURL("image/png") })
       .then(setPayload)
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "签名提交失败"));
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "签名提交失败"))
+      .finally(() => {
+        submittingRef.current = false;
+        setSubmitting(false);
+      });
   };
 
   const signaturePoint = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -64,6 +73,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   };
 
   const startSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (submitting) return;
     const canvas = event.currentTarget;
     const context = canvas.getContext("2d");
     if (!context) return;
@@ -75,7 +85,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   };
 
   const drawSignature = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingRef.current) return;
+    if (submitting || !drawingRef.current) return;
     const context = event.currentTarget.getContext("2d");
     if (!context) return;
     const point = signaturePoint(event);
@@ -93,6 +103,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   };
 
   const clearSignature = () => {
+    if (submitting) return;
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
@@ -103,7 +114,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   const signature = payload?.signature;
   const isSigned = signature?.status === "已签名";
   const returnToSystem = () => {
-    window.location.assign("/");
+    window.location.assign("/?view=pos");
   };
 
   return (
@@ -141,7 +152,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                 )}
                 {signature.expiresAt && <small>有效期至：{shortDate(signature.expiresAt)}</small>}
               </section>
-              <form className="public-booking-form signature-form" onSubmit={submit}>
+              <form className="public-booking-form signature-form" onSubmit={submit} aria-busy={submitting}>
                 <PanelTitle icon={<LockKeyhole size={18} />} title={isSigned ? "已完成签名" : "签名确认"} action={signature.signedAt ? shortDate(signature.signedAt) : undefined} />
                 {isSigned ? (
                   <>
@@ -161,7 +172,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                   </>
                 ) : (
                   <>
-                    <label>签名人姓名<input value={signerName} onChange={(event) => setSignerName(event.target.value)} /></label>
+                    <label>签名人姓名<input value={signerName} disabled={submitting} onChange={(event) => setSignerName(event.target.value)} /></label>
                     <label>
                       手写签名
                       <canvas
@@ -172,13 +183,14 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                         onPointerMove={drawSignature}
                         onPointerUp={stopSignature}
                         onPointerCancel={stopSignature}
+                        aria-disabled={submitting}
                         style={{ display: "block", width: "100%", height: 180, marginTop: 8, border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, background: "#fff", touchAction: "none" }}
                       />
                     </label>
-                    <button type="button" className="secondary-button" onClick={clearSignature}>清除签名</button>
-                    <button className="primary-button">
+                    <button type="button" className="secondary-button" disabled={submitting} onClick={clearSignature}>清除签名</button>
+                    <button className="primary-button" disabled={submitting} aria-busy={submitting}>
                       <LockKeyhole size={17} />
-                      确认签名
+                      {submitting ? "签名提交中..." : "确认签名"}
                     </button>
                   </>
                 )}

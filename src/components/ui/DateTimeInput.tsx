@@ -5,9 +5,10 @@ type DateTimeInputProps = {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 };
 
-export function DateTimeInput({ label, value, onChange }: DateTimeInputProps) {
+export function DateTimeInput({ label, value, onChange, disabled = false }: DateTimeInputProps) {
   const [isOpen, setIsOpen] = useState(false);
   const selectedDate = useMemo(() => parseLocalDateTime(value), [value]);
   const [viewDate, setViewDate] = useState(() => selectedDate);
@@ -16,11 +17,13 @@ export function DateTimeInput({ label, value, onChange }: DateTimeInputProps) {
   const minutes = useMemo(() => Array.from({ length: 60 }, (_, index) => index), []);
 
   const openPicker = () => {
+    if (disabled) return;
     setViewDate(selectedDate);
     setIsOpen(true);
   };
 
   const updateDateTime = (nextDate: Date) => {
+    if (disabled) return;
     onChange(toLocalDateTimeValue(nextDate));
   };
 
@@ -50,13 +53,13 @@ export function DateTimeInput({ label, value, onChange }: DateTimeInputProps) {
   return (
     <div className="datetime-field">
       <span>{label}</span>
-      <div className="datetime-field-control" onClick={openPicker} role="button" tabIndex={0} onKeyDown={(event) => {
+      <div className="datetime-field-control" onClick={openPicker} role="button" tabIndex={disabled ? -1 : 0} aria-disabled={disabled} onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           openPicker();
         }
       }}>
-        <input type="text" value={formatDisplayValue(value)} readOnly />
+        <input type="text" value={formatDisplayValue(value)} readOnly disabled={disabled} />
         <CalendarDays size={17} />
       </div>
       {isOpen && (

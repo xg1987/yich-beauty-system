@@ -1,5 +1,5 @@
 import { CalendarDays, LockKeyhole, Sparkles } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { PanelTitle } from "../../components/layout/PanelTitle";
 import { DateTimeInput } from "../../components/ui/DateTimeInput";
 import { Select } from "../../components/ui/Select";
@@ -32,6 +32,8 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
   const [preferredAt, setPreferredAt] = useState(toLocalInputValue(tomorrowAt(14)));
   const [note, setNote] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -57,8 +59,11 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
     setError(undefined);
     setSubmitted(false);
+    setSubmitting(true);
+    submittingRef.current = true;
     void createPublicBookingRequest({
       shareCode,
       customerName,
@@ -66,14 +71,18 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
       serviceId,
       preferredAt: new Date(preferredAt).toISOString(),
       note,
-    })
+      })
       .then(() => {
         setSubmitted(true);
         setCustomerName("");
         setPhone("");
         setNote("");
       })
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "提交预约意向失败"));
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "提交预约意向失败"))
+      .finally(() => {
+        submittingRef.current = false;
+        setSubmitting(false);
+      });
   };
 
   const services = payload?.services ?? [];
@@ -101,6 +110,7 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
                       type="button"
                       key={service.id}
                       className={`public-service-card ${service.id === serviceId ? "active" : ""}`}
+                      disabled={submitting}
                       onClick={() => setServiceId(service.id)}
                     >
                       <strong>{service.name}</strong>
@@ -110,17 +120,17 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
                   ))}
                 </div>
               </div>
-              <form className="public-booking-form" onSubmit={submit}>
+              <form className="public-booking-form" onSubmit={submit} aria-busy={submitting}>
                 <PanelTitle icon={<CalendarDays size={18} />} title="到店预约意向" action={selectedService ? money(selectedService.price) : undefined} />
                 {submitted && <p className="public-status ok">预约意向已提交，门店会尽快联系确认到店时间。</p>}
-                <label>姓名<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="请输入到店人姓名" /></label>
-                <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="用于门店联系确认" /></label>
-                <Select label="预约项目" value={serviceId} onChange={setServiceId} options={services.map(optionOf)} />
-                <DateTimeInput label="期望到店时间" value={preferredAt} onChange={setPreferredAt} />
-                <label>备注<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="例如皮肤状态、想咨询的问题" /></label>
-                <button className="primary-button" disabled={!serviceId}>
+                <label>姓名<input value={customerName} disabled={submitting} onChange={(event) => setCustomerName(event.target.value)} placeholder="请输入到店人姓名" /></label>
+                <label>手机号<input value={phone} disabled={submitting} onChange={(event) => setPhone(event.target.value)} placeholder="用于门店联系确认" /></label>
+                <Select label="预约项目" value={serviceId} onChange={setServiceId} options={services.map(optionOf)} disabled={submitting} />
+                <DateTimeInput label="期望到店时间" value={preferredAt} onChange={setPreferredAt} disabled={submitting} />
+                <label>备注<textarea value={note} disabled={submitting} onChange={(event) => setNote(event.target.value)} placeholder="例如皮肤状态、想咨询的问题" /></label>
+                <button className="primary-button" disabled={!serviceId || submitting} aria-busy={submitting}>
                   <LockKeyhole size={17} />
-                  提交预约意向
+                  {submitting ? "预约提交中..." : "提交预约意向"}
                 </button>
               </form>
             </div>

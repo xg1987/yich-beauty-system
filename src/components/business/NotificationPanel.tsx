@@ -22,6 +22,7 @@ type NotificationPanelProps = {
   session: UserSession;
   actions: ApiActions;
   runMutation: RunMutation;
+  mutationPending: boolean;
   setView: (view: ViewKey) => void;
   onClose: () => void;
 };
@@ -46,7 +47,7 @@ function notificationIcon(view: ViewKey) {
   return Bell;
 }
 
-export function NotificationPanel({ data, session, actions, runMutation, setView, onClose }: NotificationPanelProps) {
+export function NotificationPanel({ data, session, actions, runMutation, mutationPending, setView, onClose }: NotificationPanelProps) {
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
   const items = visibleNotifications(data, session);
   const filteredItems = items.filter((item) => {
@@ -65,10 +66,11 @@ export function NotificationPanel({ data, session, actions, runMutation, setView
     onClose();
   };
   const markAllRead = () => {
-    if (unreadCount === 0) return;
+    if (unreadCount === 0 || mutationPending) return;
     void runMutation(() => actions.markAllNotificationsRead());
   };
   const archiveItem = (item: SystemNotification) => {
+    if (mutationPending) return;
     void runMutation(() => actions.archiveNotification(item.id));
   };
 
@@ -76,7 +78,7 @@ export function NotificationPanel({ data, session, actions, runMutation, setView
     <aside className="notification-panel">
       <div className="notification-head">
         <strong>通知中心</strong>
-        {unreadCount > 0 && <button type="button" onClick={markAllRead}>全部已读</button>}
+        {unreadCount > 0 && <button type="button" disabled={mutationPending} aria-busy={mutationPending} onClick={markAllRead}>{mutationPending ? "处理中..." : "全部已读"}</button>}
         <button className="icon-button" aria-label="关闭通知" onClick={onClose}><X size={16} /></button>
       </div>
       <div className="notification-filters" aria-label="通知筛选">
@@ -105,7 +107,9 @@ export function NotificationPanel({ data, session, actions, runMutation, setView
                 </span>
                 <em>{unread ? "新" : "已读"}</em>
               </button>
-              <button type="button" className="notification-archive" onClick={() => archiveItem(item)}>归档</button>
+              <button type="button" className="notification-archive" disabled={mutationPending} aria-busy={mutationPending} onClick={() => archiveItem(item)}>
+                {mutationPending ? "处理中..." : "归档"}
+              </button>
             </div>
           );
         })}

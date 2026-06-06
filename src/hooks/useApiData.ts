@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createApiClient, type JoinInviteResult } from "../api/client";
 import { normalizeUserSession, type UserSession } from "../domain/auth";
 import type { AppData } from "../domain/types";
@@ -8,7 +8,12 @@ const SESSION_KEY = "yich-system-session";
 function readSavedSession() {
   const savedSession = localStorage.getItem(SESSION_KEY);
   if (!savedSession) return undefined;
-  return normalizeUserSession(JSON.parse(savedSession) as UserSession);
+  try {
+    return normalizeUserSession(JSON.parse(savedSession) as UserSession);
+  } catch {
+    localStorage.removeItem(SESSION_KEY);
+    return undefined;
+  }
 }
 
 function saveSession(session: UserSession) {
@@ -21,7 +26,9 @@ export function useApiData() {
   const [session, setSession] = useState<UserSession | undefined>(readSavedSession);
   const [data, setData] = useState<AppData | undefined>();
   const [loading, setLoading] = useState(false);
+  const [mutationPending, setMutationPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const mutationPendingRef = useRef(false);
 
   const client = useMemo(() => createApiClient(() => session?.token), [session?.token]);
 
@@ -77,6 +84,10 @@ export function useApiData() {
     localStorage.removeItem(SESSION_KEY);
     setSession(undefined);
     setData(undefined);
+    setError(undefined);
+    setLoading(false);
+    mutationPendingRef.current = false;
+    setMutationPending(false);
   };
 
   const refreshData = async () => {
@@ -99,7 +110,14 @@ export function useApiData() {
   };
 
   const runMutation = async (mutation: () => Promise<AppData>) => {
+    if (mutationPendingRef.current) {
+      const duplicateError = new Error("操作正在处理中，请勿重复点击");
+      setError(duplicateError.message);
+      throw duplicateError;
+    }
+    mutationPendingRef.current = true;
     setLoading(true);
+    setMutationPending(true);
     setError(undefined);
     try {
       const nextData = await mutation();
@@ -109,6 +127,8 @@ export function useApiData() {
       setError(caught instanceof Error ? caught.message : "操作失败");
       throw caught;
     } finally {
+      mutationPendingRef.current = false;
+      setMutationPending(false);
       setLoading(false);
     }
   };
@@ -191,6 +211,7 @@ export function useApiData() {
     session,
     data,
     loading,
+    mutationPending,
     error,
     login,
     registerStore: client.registerStore,

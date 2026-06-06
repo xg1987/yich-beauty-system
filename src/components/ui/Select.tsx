@@ -9,13 +9,14 @@ type SelectProps = {
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
+  disabled?: boolean;
 };
 
-export function Select({ label, value, onChange, options }: SelectProps) {
+export function Select({ label, value, onChange, options, disabled = false }: SelectProps) {
   return (
     <label>
       {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select>
     </label>

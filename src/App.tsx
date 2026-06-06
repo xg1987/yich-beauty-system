@@ -34,7 +34,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { FormEvent, KeyboardEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { createContext, FormEvent, KeyboardEvent, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "./components/business/AccountMenu";
 import { NotificationPanel, visibleNotifications } from "./components/business/NotificationPanel";
 import { UserAvatar } from "./components/business/UserAvatar";
@@ -68,6 +68,15 @@ type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
+type SubmitStatusButtonProps = {
+  idleText: string;
+  busyText?: string;
+  disabled?: boolean;
+  icon?: ReactNode;
+  className?: string;
+};
+
+const MutationPendingContext = createContext(false);
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
@@ -85,6 +94,30 @@ const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
 };
 const inventoryCategoryOptions = Object.keys(INVENTORY_CATEGORY_PRESETS).map((category) => ({ value: category, label: category }));
 const inventoryLossReasonOptions = ["破损", "过期", "试用", "盘点差异", "其他损耗"];
+
+function useMutationPending() {
+  return useContext(MutationPendingContext);
+}
+
+function SubmitStatusButton({ idleText, busyText = "处理中...", disabled = false, icon, className = "primary-button" }: SubmitStatusButtonProps) {
+  const mutationPending = useMutationPending();
+  return (
+    <button className={className} type="submit" disabled={disabled || mutationPending} aria-busy={mutationPending}>
+      {icon}
+      {mutationPending ? busyText : idleText}
+    </button>
+  );
+}
+
+function GlobalMutationStatus() {
+  const mutationPending = useMutationPending();
+  if (!mutationPending) return null;
+  return (
+    <div className="global-mutation-status" role="status" aria-live="assertive">
+      正在处理，请勿重复点击
+    </div>
+  );
+}
 
 function csvCell(value: string | number) {
   return `"${String(value).replace(/"/g, '""')}"`;
@@ -445,9 +478,14 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
+function initialViewFromUrl(): ViewKey {
+  const requestedView = new URLSearchParams(window.location.search).get("view");
+  return navItems.some((item) => item.key === requestedView) ? (requestedView as ViewKey) : "dashboard";
+}
+
 export default function App() {
-  const { data, session, loading, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, updateAccountProfile, logout, runMutation, actions } = useApiData();
-  const [view, setView] = useState<ViewKey>("dashboard");
+  const { data, session, loading, mutationPending, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, updateAccountProfile, logout, refreshData, runMutation, actions } = useApiData();
+  const [view, setView] = useState<ViewKey>(initialViewFromUrl);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
@@ -515,6 +553,16 @@ export default function App() {
         <div className="loading-card">
           <strong>正在连接门店数据</strong>
           <span>{error ?? "正在连接服务，请稍后重试或联系管理员"}</span>
+          {error && (
+            <div className="loading-actions">
+              <button type="button" className="primary-button" disabled={loading} onClick={() => void refreshData()}>
+                {loading ? "连接中..." : "重新连接"}
+              </button>
+              <button type="button" className="secondary-button" onClick={logout}>
+                退出登录
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -555,7 +603,8 @@ export default function App() {
   const shellDisplayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
 
   return (
-    <div className={`app-shell theme-${effectiveThemeMode}`}>
+    <MutationPendingContext.Provider value={mutationPending}>
+    <div className={`app-shell theme-${effectiveThemeMode}`} data-mutating={mutationPending ? "true" : undefined}>
       <aside className="sidebar">
         <div className="rail-admin">
           <div className="brand-mark">祝</div>
@@ -566,6 +615,7 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
+        <GlobalMutationStatus />
         <header className="topbar">
           <div className="topbar-brand">
             <div className="brand-mark">祝</div>
@@ -592,6 +642,7 @@ export default function App() {
                 session={session}
                 actions={actions}
                 runMutation={runMutation}
+                mutationPending={mutationPending}
                 setView={navigate}
                 onClose={() => setNotificationPanelOpen(false)}
               />
@@ -670,6 +721,7 @@ export default function App() {
         })}
       </nav>
     </div>
+    </MutationPendingContext.Provider>
   );
 }
 
@@ -1031,6 +1083,7 @@ function managementEntryDetails(
 }
 
 function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
+  const mutationPending = useMutationPending();
   const configValue = (key: SystemConfigKey, fallback: string) =>
     (data.systemConfigs ?? []).find((item) => item.key === key)?.value ?? fallback;
   const [inviteDays, setInviteDays] = useState(configValue("invite_default_days", "7"));
@@ -1061,8 +1114,8 @@ function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppDa
           <span className="field-label">邀请码有效期</span>
           <div style={{ display: "flex", gap: "8px" }}>
             <input type="number" min={1} max={90} value={inviteDays} onChange={(event) => setInviteDays(event.target.value)} />
-            <button type="button" onClick={() => saveConfig("invite_default_days", inviteDays)}>
-              {savedKey === "invite_default_days" ? "已保存" : "保存"}
+            <button type="button" disabled={mutationPending} onClick={() => saveConfig("invite_default_days", inviteDays)}>
+              {mutationPending ? "保存中..." : savedKey === "invite_default_days" ? "已保存" : "保存"}
             </button>
           </div>
         </label>
@@ -1073,8 +1126,8 @@ function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppDa
               <option value="true">开启</option>
               <option value="false">关闭</option>
             </select>
-            <button type="button" onClick={() => saveConfig("allow_registration", allowRegistration)}>
-              {savedKey === "allow_registration" ? "已保存" : "保存"}
+            <button type="button" disabled={mutationPending} onClick={() => saveConfig("allow_registration", allowRegistration)}>
+              {mutationPending ? "保存中..." : savedKey === "allow_registration" ? "已保存" : "保存"}
             </button>
           </div>
         </label>
@@ -1085,8 +1138,8 @@ function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppDa
               <option value="false">关闭</option>
               <option value="true">开启</option>
             </select>
-            <button type="button" onClick={() => saveConfig("maintenance_mode", maintenanceMode)}>
-              {savedKey === "maintenance_mode" ? "已保存" : "保存"}
+            <button type="button" disabled={mutationPending} onClick={() => saveConfig("maintenance_mode", maintenanceMode)}>
+              {mutationPending ? "保存中..." : savedKey === "maintenance_mode" ? "已保存" : "保存"}
             </button>
           </div>
         </label>
@@ -1096,8 +1149,8 @@ function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppDa
         <textarea value={announcement} maxLength={200} rows={3} onChange={(event) => setAnnouncement(event.target.value)} />
       </label>
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
-        <button type="button" onClick={() => saveConfig("system_announcement", announcement)}>
-          {savedKey === "system_announcement" ? "已保存" : "保存公告"}
+        <button type="button" disabled={mutationPending} onClick={() => saveConfig("system_announcement", announcement)}>
+          {mutationPending ? "保存中..." : savedKey === "system_announcement" ? "已保存" : "保存公告"}
         </button>
       </div>
     </section>
@@ -1845,6 +1898,7 @@ function PlatformAccountAdminView({
   actions: ApiActions;
   runMutation: RunMutation;
 }) {
+  const mutationPending = useMutationPending();
   const visibleAuthUsers = data.authUsers.filter(isVisibleAccount);
   const adminAccounts = visibleAuthUsers.filter(isVisiblePlatformAdmin);
   const ownerAccounts = visibleAuthUsers.filter((user) => user.role === "owner" && !isVisiblePlatformAdmin(user));
@@ -1865,9 +1919,10 @@ function PlatformAccountAdminView({
       <button
         key={`${store.id}-toggle`}
         type="button"
+        disabled={mutationPending}
         onClick={() => void runMutation(() => actions.updateStoreStatus(store.id, (store.status ?? "active") === "active" ? "disabled" : "active"))}
       >
-        {(store.status ?? "active") === "active" ? "停用" : "启用"}
+        {mutationPending ? "处理中..." : (store.status ?? "active") === "active" ? "停用" : "启用"}
       </button>,
     ];
   });
@@ -1905,9 +1960,10 @@ function PlatformAccountAdminView({
                 <button
                   key={`${user.id}-toggle`}
                   type="button"
+                  disabled={mutationPending}
                   onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, user.status === "active" ? "disabled" : "active"))}
                 >
-                  {user.status === "active" ? "停用" : "启用"}
+                  {mutationPending ? "处理中..." : user.status === "active" ? "停用" : "启用"}
                 </button>
               ),
             ])}
@@ -1938,6 +1994,7 @@ function PlatformPermissionReadOnlyView({
   actions: ApiActions;
   runMutation: (mutation: () => Promise<AppData>) => Promise<AppData>;
 }) {
+  const mutationPending = useMutationPending();
   const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
   const pendingStaffInvites = data.staffInvites.filter((item) => item.status === "待加入").length;
   const storeOwnerApplications = data.storeOwnerApplications ?? [];
@@ -2002,11 +2059,11 @@ function PlatformPermissionReadOnlyView({
               shortDate(application.createdAt),
               application.status === "待审批" ? (
                 <div className="admin-approval-actions" key={`${application.id}-store-application-actions`}>
-                  <button type="button" onClick={() => void runMutation(() => actions.decideStoreOwnerApplication(application.id, true))}>
-                    通过
+                  <button type="button" disabled={mutationPending} onClick={() => void runMutation(() => actions.decideStoreOwnerApplication(application.id, true))}>
+                    {mutationPending ? "处理中..." : "通过"}
                   </button>
-                  <button type="button" onClick={() => void runMutation(() => actions.decideStoreOwnerApplication(application.id, false))}>
-                    拒绝
+                  <button type="button" disabled={mutationPending} onClick={() => void runMutation(() => actions.decideStoreOwnerApplication(application.id, false))}>
+                    {mutationPending ? "处理中..." : "拒绝"}
                   </button>
                 </div>
               ) : application.decidedAt ? shortDate(application.decidedAt) : "-",
@@ -2028,8 +2085,8 @@ function PlatformPermissionReadOnlyView({
                 />
               ))}
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button type="button" onClick={saveRoleTemplates}>
-                  {savedPermissions ? "已保存" : "保存权限模板"}
+                <button type="button" disabled={mutationPending} onClick={saveRoleTemplates}>
+                  {mutationPending ? "保存中..." : savedPermissions ? "已保存" : "保存权限模板"}
                 </button>
               </div>
             </div>
@@ -3105,6 +3162,7 @@ function RoomSettingsContent({
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
 function Appointments({ data, actions, runMutation, setView }: { data: AppData; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
+  const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
@@ -3344,15 +3402,15 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const appointmentAction = (appointment: Appointment) => {
     if (appointment.status === "待确认") {
       return (
-        <button type="button" onClick={() => setStatus(appointment.id, "已确认")}>
-          确认
+        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已确认")}>
+          {mutationPending ? "处理中..." : "确认"}
         </button>
       );
     }
     if (appointment.status === "已确认") {
       return (
-        <button type="button" onClick={() => setStatus(appointment.id, "已到店")}>
-          确认到店
+        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
+          {mutationPending ? "处理中..." : "确认到店"}
         </button>
       );
     }
@@ -3527,7 +3585,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
             {selectedTimeConflict && <p className="form-warning">该员工在此时间段有不可预约安排，建议调整时间</p>}
             <div className="row-actions">
-              <button className="primary-button" disabled={!staffId || !serviceId || !roomName || selectedTimeRangeInvalid}>保存预约</button>
+              <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={!staffId || !serviceId || !roomName || selectedTimeRangeInvalid} />
               <button type="button" onClick={() => setShowAppointmentForm(false)}>取消</button>
             </div>
           </form>
@@ -3600,6 +3658,7 @@ function Pos({
   fromManagement?: boolean;
   onReturnManagement?: () => void;
 }) {
+  const mutationPending = useMutationPending();
   const serviceStaff = activeStaffOf(data);
   const [appointmentId, setAppointmentId] = useState("");
   const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("walkin");
@@ -4263,7 +4322,7 @@ function Pos({
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
           <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
-          <button className="primary-button">保存开卡</button>
+          <SubmitStatusButton idleText="保存开卡" busyText="保存中..." />
         </form>
         </section>
         )}
@@ -4567,6 +4626,8 @@ function Pos({
                   onChange={(event) => setRefundApprovalIds((previous) => ({ ...previous, [order.id]: event.target.value }))}
                 />
                 <button
+                  type="button"
+                  disabled={mutationPending}
                   onClick={() =>
                     void runMutation(() =>
                       actions.refundOrder(
@@ -4578,7 +4639,7 @@ function Pos({
                     )
                   }
                 >
-                  退款
+                  {mutationPending ? "处理中..." : "退款"}
                 </button>
               </div>
             ) : (
@@ -4752,6 +4813,7 @@ function Customers({
   fromManagement?: boolean;
   onReturnManagement?: () => void;
 }) {
+  const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -5057,7 +5119,7 @@ function Customers({
         <form className="form" onSubmit={addCustomer}>
           <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
           <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
-          <button className="primary-button">保存客户</button>
+          <SubmitStatusButton idleText="保存客户" busyText="保存中..." />
         </form>
         </>
         )}
@@ -5090,7 +5152,7 @@ function Customers({
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
           <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
-          <button className="primary-button">保存开卡</button>
+          <SubmitStatusButton idleText="保存开卡" busyText="保存中..." />
         </form>
         <div className="divider" />
         <PanelTitle icon={<CreditCard size={18} />} title="项目卡操作" action="充值/加次/冻结/延期" />
@@ -5100,19 +5162,19 @@ function Customers({
           <label>增加次数<input type="number" value={rechargeTimes} onChange={(event) => setRechargeTimes(Number(event.target.value))} /></label>
           <label>实收金额<input type="number" value={rechargePaidAmount} onChange={(event) => setRechargePaidAmount(Number(event.target.value))} /></label>
           <Select label="支付方式" value={rechargePayMethod} onChange={(value) => setRechargePayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
-          <button className="primary-button">保存调整</button>
+          <SubmitStatusButton idleText="保存调整" busyText="保存中..." />
         </form>
         <div className="inline-actions">
-          <button onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "冻结", "门店冻结"))}>冻结</button>
-          <button onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "正常", "门店解冻"))}>解冻</button>
+          <button disabled={mutationPending} onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "冻结", "门店冻结"))}>{mutationPending ? "处理中..." : "冻结"}</button>
+          <button disabled={mutationPending} onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "正常", "门店解冻"))}>{mutationPending ? "处理中..." : "解冻"}</button>
         </div>
         <div className="inline-form compact">
           <label>延期至<input type="date" value={extendTo} onChange={(event) => setExtendTo(event.target.value)} /></label>
-          <button onClick={() => void runMutation(() => actions.extendMemberCard(operationCardId, extendTo, "客户延期"))}>延期</button>
+          <button disabled={mutationPending} onClick={() => void runMutation(() => actions.extendMemberCard(operationCardId, extendTo, "客户延期"))}>{mutationPending ? "处理中..." : "延期"}</button>
         </div>
         <div className="inline-form compact">
           <Select label="转给客户" value={transferToCustomerId} onChange={setTransferToCustomerId} options={data.customers.map(optionOf)} />
-          <button onClick={() => void runMutation(() => actions.transferMemberCard(operationCardId, transferToCustomerId, "客户转卡"))}>转卡</button>
+          <button disabled={mutationPending} onClick={() => void runMutation(() => actions.transferMemberCard(operationCardId, transferToCustomerId, "客户转卡"))}>{mutationPending ? "处理中..." : "转卡"}</button>
         </div>
         </>
         )}
@@ -5144,7 +5206,7 @@ function Customers({
           <label>客户反馈<textarea value={customerFeedback} onChange={(event) => setCustomerFeedback(event.target.value)} /></label>
           <label>下次护理建议<textarea value={nextCareAdvice} onChange={(event) => setNextCareAdvice(event.target.value)} /></label>
           <DateTimeInput label="下次回访" value={followUpAt} onChange={setFollowUpAt} />
-          <button className="primary-button" disabled={!recordStaffId}>保存档案</button>
+          <SubmitStatusButton idleText="保存档案" busyText="保存中..." disabled={!recordStaffId} />
         </form>
         </>
         )}
@@ -5158,7 +5220,7 @@ function Customers({
           <label>签名标题<input value={signatureTitle} onChange={(event) => setSignatureTitle(event.target.value)} /></label>
           <label>确认内容<textarea value={signatureContent} onChange={(event) => setSignatureContent(event.target.value)} /></label>
           <label>有效期（天）<input type="number" min={1} value={signatureValidDays} onChange={(event) => setSignatureValidDays(Number(event.target.value))} /></label>
-          <button className="primary-button" disabled={!signatureCustomerId || (!signatureRecordId && !signatureOrderId)}>生成现场签名页</button>
+          <SubmitStatusButton idleText="生成现场签名页" busyText="生成中..." disabled={!signatureCustomerId || (!signatureRecordId && !signatureOrderId)} />
         </form>
         </>
         )}
@@ -5198,8 +5260,8 @@ function Customers({
             shortDate(card.expiresAt),
             <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "已退卡" ? "warn" : "ok"} />,
             card.status === "正常" ? (
-              <button key={`${card.id}-refund`} onClick={() => void runMutation(() => actions.refundMemberCard(card.id, "客户退卡"))}>
-                退卡
+              <button key={`${card.id}-refund`} disabled={mutationPending} onClick={() => void runMutation(() => actions.refundMemberCard(card.id, "客户退卡"))}>
+                {mutationPending ? "处理中..." : "退卡"}
               </button>
             ) : (
               "已处理"
@@ -5264,7 +5326,7 @@ function Customers({
             <Badge key={`${followUp.id}-status`} text={followUp.status} />,
             followUp.note,
             followUp.status === "待跟进" ? (
-              <button key={`${followUp.id}-done`} onClick={() => void runMutation(() => actions.completeFollowUp(followUp.id))}>完成</button>
+              <button key={`${followUp.id}-done`} disabled={mutationPending} onClick={() => void runMutation(() => actions.completeFollowUp(followUp.id))}>{mutationPending ? "处理中..." : "完成"}</button>
             ) : (
               "已完成"
             ),
@@ -5473,7 +5535,7 @@ function Catalog({
           <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
           <label>可用次数<input type="number" min={1} value={serviceDefaultTimes} onChange={(event) => setServiceDefaultTimes(Number(event.target.value))} /></label>
           {serviceProductPicker}
-          <button className="primary-button">保存项目</button>
+          <SubmitStatusButton idleText="保存项目" busyText="保存中..." />
         </form>
         </section>
         )}
@@ -5498,7 +5560,7 @@ function Catalog({
         <form className="form" onSubmit={addProduct}>
           <label>名称<input value={productName} onChange={(event) => setProductName(event.target.value)} required /></label>
           <label>初始库存<input type="number" value={productStock} onChange={(event) => setProductStock(Number(event.target.value))} /></label>
-          <button className="primary-button">保存商品</button>
+          <SubmitStatusButton idleText="保存商品" busyText="保存中..." />
         </form>
         </section>
         )}
@@ -5527,7 +5589,7 @@ function Catalog({
               <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
               <label>可用次数<input type="number" min={1} value={serviceDefaultTimes} onChange={(event) => setServiceDefaultTimes(Number(event.target.value))} /></label>
               {serviceProductPicker}
-              <button className="primary-button">保存项目</button>
+              <SubmitStatusButton idleText="保存项目" busyText="保存中..." />
             </form>
           </div>
           )}
@@ -5697,6 +5759,7 @@ function StaffCommissions({
   fromManagement?: boolean;
   onReturnManagement?: () => void;
 }) {
+  const mutationPending = useMutationPending();
   const canManageStaff = hasPermission(session, "staff:manage");
   const staffRows = businessStaffOf(data);
   const staffIds = new Set(staffRows.map((staff) => staff.id));
@@ -5869,7 +5932,7 @@ function StaffCommissions({
               <Select label="岗位" value={role} onChange={setRole} options={staffRoleOptions} />
               <label>底薪<input type="number" value={baseSalary} onChange={(event) => setBaseSalary(Number(event.target.value))} /></label>
               <label>提成比例<input type="number" step="0.01" value={commissionRate} onChange={(event) => setCommissionRate(Number(event.target.value))} /></label>
-              <button className="primary-button">保存员工档案</button>
+              <SubmitStatusButton idleText="保存员工档案" busyText="保存中..." />
             </form>
           </>
         ) : canManageStaff && activeModule === "invite" ? (
@@ -5888,7 +5951,7 @@ function StaffCommissions({
                 ]}
               />
               <label>有效期（天）<input type="number" min={1} value={inviteValidDays} onChange={(event) => setInviteValidDays(Number(event.target.value))} /></label>
-              <button className="primary-button" disabled={!inviteStaffId}>创建一次性邀请</button>
+              <SubmitStatusButton idleText="创建一次性邀请" busyText="创建中..." disabled={!inviteStaffId} />
             </form>
             {lastInviteCode && (
               <div className="invite-result-card">
@@ -5932,7 +5995,7 @@ function StaffCommissions({
               ]}
             />
             <div className="staff-edit-actions">
-              <button className="primary-button" type="submit">保存修改</button>
+              <SubmitStatusButton idleText="保存修改" busyText="保存中..." />
               <button type="button" onClick={cancelEditStaff}>取消</button>
             </div>
           </form>
@@ -5952,9 +6015,10 @@ function StaffCommissions({
                 <button type="button" onClick={() => startEditStaff(staff)}>编辑</button>
                 <button
                   type="button"
+                  disabled={mutationPending}
                   onClick={() => void runMutation(() => actions.updateStaff(staff.id, { status: staff.status === "active" ? "inactive" : "active" }))}
                 >
-                  {staff.status === "active" ? "停用" : "启用"}
+                  {mutationPending ? "处理中..." : staff.status === "active" ? "停用" : "启用"}
                 </button>
               </div>
             ) : (
@@ -5996,7 +6060,7 @@ function StaffCommissions({
             invite.expiresAt ? shortDate(invite.expiresAt) : "未设置",
             invite.joinedAt ? shortDate(invite.joinedAt) : "-",
             canManageStaff && invite.status === "待加入" ? (
-              <button key={`${invite.id}-revoke`} onClick={() => void runMutation(() => actions.revokeStaffInvite(invite.id))}>作废</button>
+              <button key={`${invite.id}-revoke`} disabled={mutationPending} onClick={() => void runMutation(() => actions.revokeStaffInvite(invite.id))}>{mutationPending ? "处理中..." : "作废"}</button>
             ) : (
               invite.revokedAt ? shortDate(invite.revokedAt) : "-"
             ),
@@ -6063,6 +6127,7 @@ function Inventory({
   initialModule?: InventoryModuleKey;
   onReturnManagement?: () => void;
 }) {
+  const mutationPending = useMutationPending();
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [lossProductId, setLossProductId] = useState(data.products[0]?.id ?? "");
   const [lossQuantity, setLossQuantity] = useState(1);
@@ -6338,7 +6403,7 @@ function Inventory({
             <span>当前库存</span>
             <strong>{selectedLossProduct ? `${selectedLossProduct.stock}${selectedLossProduct.unit}` : "-"}</strong>
           </div>
-          <button className="primary-button">保存损耗</button>
+          <SubmitStatusButton idleText="保存损耗" busyText="保存中..." />
         </form>
         {lossSaveMessage && (
           <p className={lossSaveMessage.type === "success" ? "form-success" : "form-error"}>
@@ -6367,7 +6432,7 @@ function Inventory({
           <Select label="操作类型" value={type} onChange={(value) => setType(value as InventoryLog["type"])} options={["入库", "报损", "盘点调整"].map((item) => ({ value: item, label: item }))} />
           <label>数量<input type="number" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
           {type === "入库" && <label>到期日期<input type="date" value={stockExpiryAt} onChange={(event) => setStockExpiryAt(event.target.value)} /></label>}
-          <button className="primary-button">保存库存流水</button>
+          <SubmitStatusButton idleText="保存库存流水" busyText="保存中..." />
         </form>
         </section>
         )}
@@ -6377,7 +6442,7 @@ function Inventory({
         <form className="form" onSubmit={addSupplier}>
           <label>供应商名称<input value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label>
           <label>联系电话<input value={supplierPhone} onChange={(event) => setSupplierPhone(event.target.value)} /></label>
-          <button className="primary-button">新增供应商</button>
+          <SubmitStatusButton idleText="新增供应商" busyText="保存中..." />
         </form>
         </section>
         )}
@@ -6390,7 +6455,7 @@ function Inventory({
           <label>入库数量<input type="number" value={purchaseQuantity} onChange={(event) => setPurchaseQuantity(Number(event.target.value))} /></label>
           <label>采购单价<input type="number" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label>
           <label>到期日期<input type="date" value={purchaseExpiryAt} onChange={(event) => setPurchaseExpiryAt(event.target.value)} /></label>
-          <button className="primary-button">确认入库</button>
+          <SubmitStatusButton idleText="确认入库" busyText="入库中..." />
         </form>
         </section>
         )}
@@ -6400,7 +6465,7 @@ function Inventory({
                 <form className="form" onSubmit={createStocktake}>
                   <Select label="物品" value={stocktakeProductId} onChange={setStocktakeProductId} options={data.products.map(optionOf)} />
           <label>实盘库存<input type="number" value={actualStock} onChange={(event) => setActualStock(Number(event.target.value))} /></label>
-          <button className="primary-button">提交盘点</button>
+          <SubmitStatusButton idleText="提交盘点" busyText="提交中..." />
                 </form>
                 </section>
                 )}
@@ -6443,7 +6508,7 @@ function Inventory({
                       }} /></label>
                       <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
                       <div className="form-submit-row">
-                        <button className="primary-button">保存商品</button>
+                        <SubmitStatusButton idleText="保存商品" busyText="保存中..." />
                       </div>
                     </div>
                   </form>
@@ -6478,7 +6543,7 @@ function Inventory({
                 {lowStock > 0 && (
                   <div className="inventory-warning-row">
                     <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
-                    <button type="button" onClick={restockLowInventory}>一键补货入库</button>
+                    <button type="button" disabled={mutationPending} onClick={restockLowInventory}>{mutationPending ? "入库中..." : "一键补货入库"}</button>
                   </div>
                 )}
                 </section>
@@ -6922,6 +6987,7 @@ function Approvals({
   fromManagement?: boolean;
   onReturnManagement?: () => void;
 }) {
+  const mutationPending = useMutationPending();
   const [type, setType] = useState<"改价折扣" | "订单退款">("改价折扣");
   const [targetId, setTargetId] = useState("manual");
   const [amount, setAmount] = useState(100);
@@ -6992,7 +7058,7 @@ function Approvals({
           <label>关联对象<input value={targetId} onChange={(event) => setTargetId(event.target.value)} /></label>
           <label>金额<input type="number" value={amount} onChange={(event) => setAmount(Number(event.target.value))} /></label>
           <label>原因<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-          <button className="primary-button">提交审批</button>
+          <SubmitStatusButton idleText="提交审批" busyText="提交中..." />
         </form>
         </section>
         )}
@@ -7011,8 +7077,8 @@ function Approvals({
             shortDate(approval.createdAt),
             approval.status === "待审批" ? (
               <div key={`${approval.id}-actions`} className="row-actions">
-                <button onClick={() => void runMutation(() => actions.decideApproval(approval.id, true))}>通过</button>
-                <button onClick={() => void runMutation(() => actions.decideApproval(approval.id, false))}>拒绝</button>
+                <button disabled={mutationPending} onClick={() => void runMutation(() => actions.decideApproval(approval.id, true))}>{mutationPending ? "处理中..." : "通过"}</button>
+                <button disabled={mutationPending} onClick={() => void runMutation(() => actions.decideApproval(approval.id, false))}>{mutationPending ? "处理中..." : "拒绝"}</button>
               </div>
             ) : (
               approval.approvedAt ? shortDate(approval.approvedAt) : "已处理"
@@ -7038,14 +7104,15 @@ function DailyCloseControl({
   onClose: () => void;
   onReverse: () => void;
 }) {
+  const mutationPending = useMutationPending();
   return (
     <div className="inline-form">
       <label>
         营业日
         <input type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} />
       </label>
-      <button onClick={onClose}>生成日结</button>
-      <button className="secondary-button" onClick={onReverse}>反结解锁</button>
+      <button disabled={mutationPending} onClick={onClose}>{mutationPending ? "处理中..." : "生成日结"}</button>
+      <button className="secondary-button" disabled={mutationPending} onClick={onReverse}>{mutationPending ? "处理中..." : "反结解锁"}</button>
     </div>
   );
 }
