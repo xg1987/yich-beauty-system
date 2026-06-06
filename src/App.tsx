@@ -3388,7 +3388,18 @@ function Pos({
   const [approvalId, setApprovalId] = useState("");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
-  const [activeModule, setActiveModule] = useState<"quick" | "orders" | undefined>(fromManagement ? "quick" : undefined);
+  const [cardName, setCardName] = useState("面部护理十次卡");
+  const [cardType, setCardType] = useState<CardType>("次数卡");
+  const [cardAmount, setCardAmount] = useState(2980);
+  const [cardTimes, setCardTimes] = useState(10);
+  const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
+  const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
+  const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
+  const [rechargeAmount, setRechargeAmount] = useState(0);
+  const [rechargeTimes, setRechargeTimes] = useState(0);
+  const [extendTo, setExtendTo] = useState(dateInputValue());
+  const [selectedSignatureId, setSelectedSignatureId] = useState("");
+  const [activeModule, setActiveModule] = useState<"card" | "product" | "signature" | "single" | "orders" | undefined>(fromManagement ? "single" : undefined);
   const staffOptions = serviceStaff.map(optionOf);
   const sellableProducts = data.products;
   const firstSellableProductId = sellableProducts[0]?.id ?? "";
@@ -3439,6 +3450,8 @@ function Pos({
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayPaid = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
   const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
+  const pendingSignatures = data.customerSignatures.filter((signature) => signature.status === "待签名").length;
+  const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
   );
@@ -3535,6 +3548,42 @@ function Pos({
     setCardId("");
   };
 
+  const openCheckoutModule = (module: "product" | "single") => {
+    setCheckoutContentMode(module === "product" ? "product" : "service");
+    setActiveModule(module);
+  };
+
+  const selectCardService = (service: string) => {
+    setCardServiceId(service);
+    if (service && !cardServiceIds.includes(service)) setCardServiceIds((previous) => [...previous, service]);
+  };
+
+  const openCard = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.openMemberCard({
+        customerId,
+        name: cardName,
+        type: cardType,
+        balance: cardType === "储值卡" ? cardAmount : 0,
+        remainingTimes: cardType === "储值卡" ? 0 : cardTimes,
+        serviceId: cardType === "次数卡" ? cardServiceId : undefined,
+        serviceIds: cardType === "套餐卡" ? cardServiceIds : undefined,
+      }),
+    );
+  };
+
+  const rechargeCard = (event: FormEvent) => {
+    event.preventDefault();
+    void runMutation(() =>
+      actions.rechargeMemberCard(operationCardId, {
+        amount: rechargeAmount,
+        times: rechargeTimes,
+        note: "门店充值",
+      }),
+    );
+  };
+
   const checkout = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() =>
@@ -3564,28 +3613,15 @@ function Pos({
     setApprovalId("");
   };
 
-  type PosModuleKey = NonNullable<typeof activeModule>;
-  const posModules: Array<FeatureModule<PosModuleKey>> = [
-    {
-      key: "quick",
-      title: "快速开单",
-      desc: "客户、项目、商品和支付",
-      icon: CreditCard,
-      tone: "rose",
-      meta: "开始收银",
-      points: ["老客户", "新客", "购买项目", "购买商品"],
-    },
-    {
-      key: "orders",
-      title: "订单流水",
-      desc: "查看收款记录、小票和退款入口",
-      icon: ClipboardList,
-      tone: "amber",
-      meta: `${data.orders.length} 单`,
-      points: ["最近订单", "支付记录", "退款从订单进入"],
-    },
-  ];
-  const activeModuleTitle = activeModule ? posModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const posModuleTitles: Record<NonNullable<typeof activeModule>, string> = {
+    card: "开卡",
+    product: "商品",
+    signature: "服务确认签名",
+    single: "单次服务",
+    orders: "订单流水",
+  };
+  const activeModuleTitle = activeModule ? posModuleTitles[activeModule] : "";
+  const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
   const closeModule = () => {
     if (fromManagement && onReturnManagement) {
       onReturnManagement();
@@ -3608,60 +3644,103 @@ function Pos({
         ]}
       />
       {!fromManagement && (
-        <section className="cashier-workflow" aria-label="收银工作区">
-          <button
-            type="button"
-            className={`cashier-workflow-card cashier-workflow-primary ${activeModule === "quick" ? "active" : ""}`}
-            onClick={() => setActiveModule("quick")}
-          >
-            <span className="admin-module-icon rose">
-              <CreditCard size={22} />
-            </span>
-            <span className="cashier-workflow-copy">
-              <strong>快速开单</strong>
-              <span className="module-entry-points">
-                <i>老客户</i>
-                <i>新客</i>
-                <i>购买项目</i>
-                <i>购买商品</i>
-              </span>
-            </span>
-            <em>开始收银</em>
-          </button>
-          <button
-            type="button"
-            className={`cashier-workflow-card cashier-workflow-secondary ${activeModule === "orders" ? "active" : ""}`}
-            onClick={() => setActiveModule("orders")}
-          >
-            <span className="admin-module-icon amber">
+        <section className="cashier-orbit" aria-label="收银工作区">
+          <div className="cashier-orbit-side left">
+            <button
+              type="button"
+              className={`cashier-orbit-card left top ${activeModule === "product" ? "active" : ""}`}
+              onClick={() => openCheckoutModule("product")}
+            >
+              <PackagePlus size={22} />
+              <strong>商品</strong>
+            </button>
+            <button
+              type="button"
+              className={`cashier-orbit-card left bottom ${activeModule === "orders" ? "active" : ""}`}
+              onClick={() => setActiveModule("orders")}
+            >
               <ClipboardList size={22} />
-            </span>
-            <span className="cashier-workflow-copy">
               <strong>订单流水</strong>
-              <span className="module-entry-points">
-                <i>最近订单</i>
-                <i>支付记录</i>
-                <i>退款从订单进入</i>
-              </span>
-            </span>
-            <em>{data.orders.length} 单</em>
+              <em>{data.orders.length} 单</em>
+            </button>
+          </div>
+          <button
+            type="button"
+            className={`cashier-orbit-center ${activeModule === "card" ? "active" : ""}`}
+            onClick={() => setActiveModule("card")}
+          >
+            <CreditCard size={34} />
+            <strong>开卡</strong>
           </button>
+          <div className="cashier-orbit-side right">
+            <button
+              type="button"
+              className={`cashier-orbit-card right top ${activeModule === "signature" ? "active" : ""}`}
+              onClick={() => setActiveModule("signature")}
+            >
+              <LockKeyhole size={22} />
+              <strong>服务确认签名</strong>
+              <em>{pendingSignatures} 待签</em>
+            </button>
+            <button
+              type="button"
+              className={`cashier-orbit-card right bottom ${activeModule === "single" ? "active" : ""}`}
+              onClick={() => openCheckoutModule("single")}
+            >
+              <BadgeCent size={22} />
+              <strong>单次服务</strong>
+            </button>
+          </div>
         </section>
       )}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "开单收银"}
-        subtitle="项目 / 商品 / 订单"
         size="large"
         onClose={closeModule}
       >
       <div className="module-detail-stack cashier-modal-detail">
-        {activeModule === "quick" && (
+        {activeModule === "card" && (
+        <section className="panel">
+        <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐" />
+        <form className="form" onSubmit={openCard}>
+          <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
+          <label>项目卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} /></label>
+          <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡"].map((item) => ({ value: item, label: item }))} />
+          {cardType === "储值卡" && (
+            <label>储值金额<input type="number" value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
+          )}
+          {cardType !== "储值卡" && (
+            <label>可用次数<input type="number" value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
+          )}
+          {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
+          {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
+          <button className="primary-button">保存项目卡</button>
+        </form>
+        <div className="divider" />
+        <PanelTitle icon={<CreditCard size={18} />} title="项目卡操作" action="充值 / 加次 / 冻结 / 延期" />
+        <form className="form" onSubmit={rechargeCard}>
+          <Select label="项目卡" value={operationCardId} onChange={setOperationCardId} options={data.memberCards.map((card) => ({ value: card.id, label: `${nameOf(data.customers, card.customerId)} · ${card.name}` }))} />
+          <label>充值金额<input type="number" value={rechargeAmount} onChange={(event) => setRechargeAmount(Number(event.target.value))} /></label>
+          <label>增加次数<input type="number" value={rechargeTimes} onChange={(event) => setRechargeTimes(Number(event.target.value))} /></label>
+          <button className="primary-button">保存调整</button>
+        </form>
+        <div className="inline-actions">
+          <button onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "冻结", "门店冻结"))}>冻结</button>
+          <button onClick={() => void runMutation(() => actions.updateMemberCardStatus(operationCardId, "正常", "门店解冻"))}>解冻</button>
+        </div>
+        <div className="inline-form compact">
+          <label>延期至<input type="date" value={extendTo} onChange={(event) => setExtendTo(event.target.value)} /></label>
+          <button onClick={() => void runMutation(() => actions.extendMemberCard(operationCardId, extendTo, "客户延期"))}>延期</button>
+        </div>
+        </section>
+        )}
+        {(activeModule === "product" || activeModule === "single") && (
         <section className="panel">
         <PanelTitle
           icon={<CreditCard size={18} />}
-          title="快速开单"
-          action="项目 / 商品"
+          title={activeModule === "product" ? "商品" : "单次服务"}
+          action={activeModule === "product" ? "购买商品" : "项目收银"}
         />
         <form className="form" onSubmit={checkout}>
           <div className="checkout-mode-panel">
@@ -3843,6 +3922,36 @@ function Pos({
             完成收银
           </button>
         </form>
+        </section>
+        )}
+        {activeModule === "signature" && (
+        <section className="panel">
+        <PanelTitle icon={<LockKeyhole size={18} />} title="服务确认签名" action={`${data.customerSignatures?.length ?? 0} 份`} />
+        <DataTable
+          columns={["客户", "服务项目", "状态", "签名人", "签名时间", "关联记录", "操作"]}
+          rows={(data.customerSignatures ?? []).map((signature) => {
+            const context = signatureRecordContext(data, signature);
+            return [
+              context.customerName,
+              context.serviceName,
+              <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+              signature.signerName ?? "-",
+              signature.signedAt ? shortDate(signature.signedAt) : "-",
+              context.orderNo !== "-" ? context.orderNo : signature.serviceRecordId ? "服务档案" : "未关联",
+              <span className="signature-record-actions" key={`${signature.id}-actions`}>
+                {signature.status === "待签名" && (
+                  <a href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
+                    打开签名页
+                  </a>
+                )}
+                <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
+                  查看详情
+                </button>
+              </span>,
+            ];
+          })}
+        />
+        {selectedSignature && <SignatureRecordDetail data={data} signature={selectedSignature} />}
         </section>
         )}
         {activeModule === "orders" && (
