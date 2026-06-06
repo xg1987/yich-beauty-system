@@ -8467,13 +8467,281 @@ textarea,
 }
 
 .appointment-room-page .module-detail-stack {
-  min-height: clamp(620px, calc(100dvh - 270px), 820px);
-  display: flex;
+  min-height: auto;
+  display: grid;
+  gap: 16px;
 }
 
 .appointment-room-page .appointment-room-panel.panel {
-  min-height: inherit;
+  min-height: clamp(520px, calc(100dvh - 330px), 760px);
   grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.appointment-workbench-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.appointment-workbench-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.appointment-workbench-head > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.appointment-workbench-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6d45c4;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.appointment-workbench-head strong {
+  color: #261f38;
+  font-size: clamp(20px, 2.1vw, 28px);
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.appointment-workbench-head small {
+  color: rgba(44, 35, 61, 0.62);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.appointment-range-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(109, 69, 196, 0.16);
+  border-radius: 999px;
+  background: rgba(247, 241, 255, 0.88);
+}
+
+.appointment-range-tabs button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(49, 40, 78, 0.68);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.appointment-range-tabs button.active {
+  background: #fff;
+  color: #4f2f93;
+  box-shadow: 0 8px 18px rgba(64, 39, 116, 0.14);
+}
+
+.appointment-workbench-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appointment-workbench-metrics > div {
+  min-height: 82px;
+  display: grid;
+  gap: 5px;
+  align-content: center;
+  padding: 14px;
+  border: 1px solid rgba(109, 69, 196, 0.12);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 85% 12%, rgba(255, 255, 255, 0.85), transparent 42%),
+    linear-gradient(135deg, rgba(249, 246, 255, 0.98), rgba(255, 250, 252, 0.96));
+}
+
+.appointment-workbench-metrics span,
+.appointment-workbench-metrics small {
+  color: rgba(44, 35, 61, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.appointment-workbench-metrics strong {
+  color: #35235a;
+  font-size: 24px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.appointment-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.appointment-workflow-column {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 13px;
+  border: 1px solid rgba(109, 69, 196, 0.13);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.appointment-workflow-column.confirm {
+  box-shadow: inset 4px 0 0 rgba(201, 74, 109, 0.64);
+}
+
+.appointment-workflow-column.arrival {
+  box-shadow: inset 4px 0 0 rgba(124, 83, 213, 0.66);
+}
+
+.appointment-workflow-column.checkout {
+  box-shadow: inset 4px 0 0 rgba(42, 143, 125, 0.72);
+}
+
+.appointment-workflow-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.appointment-workflow-title div {
+  display: grid;
+  gap: 4px;
+}
+
+.appointment-workflow-title strong {
+  color: #261f38;
+  font-size: 16px;
+  font-weight: 930;
+}
+
+.appointment-workflow-title span {
+  color: rgba(44, 35, 61, 0.58);
+  font-size: 12px;
+  font-weight: 740;
+  line-height: 1.4;
+}
+
+.appointment-workflow-title em {
+  min-width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #f4eefb;
+  color: #4f2f93;
+  font-style: normal;
+  font-weight: 930;
+}
+
+.appointment-workflow-list {
+  display: grid;
+  gap: 9px;
+}
+
+.appointment-work-card {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(109, 69, 196, 0.12);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(63, 43, 105, 0.08);
+}
+
+.appointment-work-card-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+}
+
+.appointment-work-card-main time {
+  color: #6d45c4;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.appointment-work-card-main strong {
+  grid-column: 1 / -1;
+  color: #251f32;
+  font-size: 15px;
+  font-weight: 920;
+  line-height: 1.3;
+}
+
+.appointment-work-card-main span,
+.appointment-work-card-main small {
+  grid-column: 1 / -1;
+  color: rgba(44, 35, 61, 0.64);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.appointment-work-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appointment-work-card-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(109, 69, 196, 0.16);
+  border-radius: 9px;
+  background: #fff;
+  color: #4d318c;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.appointment-work-card-actions button:first-child {
+  border-color: transparent;
+  background: #5f37aa;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(95, 55, 170, 0.18);
+}
+
+.appointment-work-empty {
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border: 1px dashed rgba(109, 69, 196, 0.18);
+  border-radius: 14px;
+  background: rgba(249, 246, 255, 0.72);
+  color: rgba(44, 35, 61, 0.52);
+  font-size: 13px;
+  font-weight: 760;
+  text-align: center;
+}
+
+.appointment-range-list {
+  display: grid;
+  gap: 10px;
+}
+
+.appointment-workbench-panel .appointment-room-list-head strong {
+  color: #261f38;
+}
+
+.appointment-workbench-panel .appointment-room-list-head small {
+  color: rgba(44, 35, 61, 0.58);
+}
+
+.appointment-action-form {
+  padding: 2px;
 }
 
 .appointment-room-action-row {
@@ -17059,6 +17327,296 @@ textarea,
 
 .app-shell .main > .operation-logs-page th {
   background: rgba(111, 66, 193, 0.035) !important;
+}
+
+/* Appointment workbench readability lock: keep the processing board aligned with the light business surface. */
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-panel.panel,
+.theme-day .appointment-room-page .appointment-workbench-panel.panel,
+.theme-night .appointment-room-page .appointment-workbench-panel.panel {
+  padding: clamp(18px, 1.9vw, 28px);
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(42, 143, 125, 0.08), transparent 32%),
+    radial-gradient(circle at 0% 8%, rgba(199, 67, 99, 0.06), transparent 30%),
+    linear-gradient(135deg, rgba(255, 253, 250, 0.98), rgba(246, 240, 255, 0.92)) !important;
+  color: #2f255f !important;
+  box-shadow: 0 22px 54px rgba(47, 27, 99, 0.1);
+}
+
+.appointment-room-page .appointment-workbench-head {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: clamp(10px, 1.4vw, 18px);
+}
+
+.appointment-room-page .appointment-workbench-head > div:first-child {
+  gap: 7px;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-head span,
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-head span svg,
+.theme-day .appointment-room-page .appointment-workbench-head span,
+.theme-night .appointment-room-page .appointment-workbench-head span {
+  color: #6f42c1 !important;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-head strong,
+.theme-day .appointment-room-page .appointment-workbench-head strong,
+.theme-night .appointment-room-page .appointment-workbench-head strong {
+  max-width: 720px;
+  color: #2f255f !important;
+  font-size: clamp(28px, 2.1vw, 40px);
+  font-weight: 950;
+  line-height: 1.12;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-head small,
+.theme-day .appointment-room-page .appointment-workbench-head small,
+.theme-night .appointment-room-page .appointment-workbench-head small {
+  color: rgba(47, 37, 95, 0.64) !important;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.appointment-room-page .appointment-range-tabs {
+  border-color: rgba(111, 66, 193, 0.14);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.appointment-room-page .appointment-range-tabs button {
+  color: rgba(47, 37, 95, 0.64);
+}
+
+.appointment-room-page .appointment-range-tabs button.active {
+  background: #fff;
+  color: #4f2f93;
+  box-shadow: 0 8px 18px rgba(47, 27, 99, 0.13);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div,
+.theme-day .appointment-room-page .appointment-workbench-metrics > div,
+.theme-night .appointment-room-page .appointment-workbench-metrics > div {
+  min-height: 94px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-left: 5px solid #6f42c1;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(111, 66, 193, 0.1), transparent 34%),
+    rgba(255, 255, 255, 0.82) !important;
+  box-shadow: 0 14px 30px rgba(47, 27, 99, 0.07);
+}
+
+.appointment-room-page .appointment-workbench-metrics > div:nth-child(2) {
+  border-left-color: #c74363;
+}
+
+.appointment-room-page .appointment-workbench-metrics > div:nth-child(3) {
+  border-left-color: #6f42c1;
+}
+
+.appointment-room-page .appointment-workbench-metrics > div:nth-child(4) {
+  border-left-color: #2a8f7d;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics span,
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics small,
+.theme-day .appointment-room-page .appointment-workbench-metrics span,
+.theme-day .appointment-room-page .appointment-workbench-metrics small,
+.theme-night .appointment-room-page .appointment-workbench-metrics span,
+.theme-night .appointment-room-page .appointment-workbench-metrics small {
+  color: rgba(47, 37, 95, 0.66) !important;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics strong,
+.theme-day .appointment-room-page .appointment-workbench-metrics strong,
+.theme-night .appointment-room-page .appointment-workbench-metrics strong {
+  color: #2f255f !important;
+  font-size: clamp(28px, 2vw, 36px);
+  font-weight: 950;
+  line-height: 1;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workflow-column,
+.theme-day .appointment-room-page .appointment-workflow-column,
+.theme-night .appointment-room-page .appointment-workflow-column {
+  min-height: 250px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.64);
+}
+
+.appointment-room-page .appointment-workflow-column.confirm {
+  border-left: 5px solid #c74363;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.64);
+}
+
+.appointment-room-page .appointment-workflow-column.arrival {
+  border-left: 5px solid #6f42c1;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.64);
+}
+
+.appointment-room-page .appointment-workflow-column.checkout {
+  border-left: 5px solid #2a8f7d;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.64);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workflow-title strong,
+.theme-day .appointment-room-page .appointment-workflow-title strong,
+.theme-night .appointment-room-page .appointment-workflow-title strong {
+  color: #2f255f !important;
+  font-size: 18px;
+  font-weight: 930;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-workflow-title span,
+.theme-day .appointment-room-page .appointment-workflow-title span,
+.theme-night .appointment-room-page .appointment-workflow-title span {
+  color: rgba(47, 37, 95, 0.62) !important;
+  font-size: 13px;
+  font-weight: 740;
+}
+
+.appointment-room-page .appointment-workflow-title em {
+  background: #f3ecff;
+  color: #4f2f93;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-work-card,
+.theme-day .appointment-room-page .appointment-work-card,
+.theme-night .appointment-room-page .appointment-work-card {
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #2f255f !important;
+  box-shadow: 0 12px 28px rgba(47, 27, 99, 0.08);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-work-card time,
+.theme-day .appointment-room-page .appointment-work-card time,
+.theme-night .appointment-room-page .appointment-work-card time {
+  color: #6f42c1 !important;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-work-card strong,
+.theme-day .appointment-room-page .appointment-work-card strong,
+.theme-night .appointment-room-page .appointment-work-card strong {
+  color: #2f255f !important;
+  font-size: 15px;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-work-card span,
+.app-shell .main > .page-stack.appointment-room-page .appointment-work-card small,
+.theme-day .appointment-room-page .appointment-work-card span,
+.theme-day .appointment-room-page .appointment-work-card small,
+.theme-night .appointment-room-page .appointment-work-card span,
+.theme-night .appointment-room-page .appointment-work-card small {
+  color: rgba(47, 37, 95, 0.66) !important;
+}
+
+.appointment-room-page .appointment-work-card-actions button:first-child,
+.appointment-room-page .table-action button:first-child {
+  border-color: transparent;
+  background: #5f37aa;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(95, 55, 170, 0.16);
+}
+
+.appointment-room-page .appointment-work-card-actions button:not(:first-child),
+.appointment-room-page .table-action button:not(:first-child) {
+  border-color: rgba(111, 66, 193, 0.16);
+  background: rgba(255, 255, 255, 0.88);
+  color: #4f2f93;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-work-empty,
+.theme-day .appointment-room-page .appointment-work-empty,
+.theme-night .appointment-room-page .appointment-work-empty {
+  min-height: 74px;
+  border-color: rgba(111, 66, 193, 0.16);
+  background: rgba(255, 255, 255, 0.58) !important;
+  color: rgba(47, 37, 95, 0.58) !important;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-range-list,
+.theme-day .appointment-room-page .appointment-range-list,
+.theme-night .appointment-room-page .appointment-range-list {
+  padding: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-range-list .appointment-room-list-head strong,
+.theme-day .appointment-room-page .appointment-range-list .appointment-room-list-head strong,
+.theme-night .appointment-room-page .appointment-range-list .appointment-room-list-head strong {
+  color: #2f255f !important;
+  font-size: 18px;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-range-list .appointment-room-list-head small,
+.theme-day .appointment-room-page .appointment-range-list .appointment-room-list-head small,
+.theme-night .appointment-room-page .appointment-range-list .appointment-room-list-head small {
+  color: rgba(47, 37, 95, 0.58) !important;
+}
+
+.appointment-room-page .appointment-range-list .table-wrap {
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.74) !important;
+}
+
+.appointment-room-page .appointment-range-list th {
+  color: rgba(47, 37, 95, 0.56) !important;
+  background: rgba(111, 66, 193, 0.04);
+}
+
+.appointment-room-page .appointment-range-list td {
+  color: #2f255f !important;
+}
+
+@media (max-width: 1180px) {
+  .appointment-room-page .appointment-workbench-head {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-room-page .appointment-range-tabs,
+  .appointment-room-page .appointment-room-add-button {
+    justify-self: start;
+  }
+
+  .appointment-room-page .appointment-workbench-metrics,
+  .appointment-room-page .appointment-workflow-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell .main > .page-stack.appointment-room-page .appointment-workbench-panel.panel,
+  .theme-day .appointment-room-page .appointment-workbench-panel.panel,
+  .theme-night .appointment-room-page .appointment-workbench-panel.panel {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .appointment-room-page .appointment-workbench-head strong {
+    font-size: 26px;
+  }
+
+  .appointment-room-page .appointment-workbench-metrics,
+  .appointment-room-page .appointment-workflow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-room-page .appointment-range-list {
+    padding: 12px;
+  }
 }
 
 @media (max-width: 720px) {

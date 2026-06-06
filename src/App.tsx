@@ -63,10 +63,11 @@ type ThemeMode = "auto" | "day" | "night";
 type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
 type CardType = "储值卡" | "次数卡" | "套餐卡";
 type CardCustomerMode = "existing" | "new";
+type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs";
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
-type NavigateOptions = { fromAdmin?: boolean; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
+type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 type SubmitStatusButtonProps = {
   idleText: string;
@@ -537,6 +538,7 @@ export default function App() {
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
+  const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>();
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -632,6 +634,7 @@ export default function App() {
     setNotificationPanelOpen(false);
     setAccountMenuOpen(false);
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
+    setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
     setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
   };
@@ -737,7 +740,7 @@ export default function App() {
             )}
             {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
-            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
@@ -3248,7 +3251,9 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const serviceStaffIds = new Set(serviceStaff.map((staff) => staff.id));
   const roomNames = roomNamesOf(data);
   const [roomName, setRoomName] = useState(roomNames[0] ?? "");
+  const [rescheduleRoomName, setRescheduleRoomName] = useState(roomNames[0] ?? "");
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
+  const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -3297,6 +3302,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     setRescheduleServiceId(appointment.serviceId);
     setRescheduleStartAt(toLocalInputValue(appointment.startAt));
     setRescheduleEndAt(toLocalInputValue(appointmentEndAt(appointment, data.services).toISOString()));
+    setRescheduleRoomName(appointment.roomName ?? roomNames[0] ?? "");
     setRescheduleNote(appointment.note);
   };
 
@@ -3315,6 +3321,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         serviceId: rescheduleServiceId,
         startAt: new Date(rescheduleStartAt).toISOString(),
         endAt: new Date(rescheduleEndAt).toISOString(),
+        roomName: rescheduleRoomName,
         note: rescheduleNote,
       }),
     ).then(() => {
@@ -3397,12 +3404,21 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
 
   const today = new Date();
   const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
-  const pendingArrival = todayAppointments.filter((item) => item.status === "已确认" || item.status === "待确认").length;
   const lockedServiceStaff = new Set(data.staffUnavailableSlots.filter((slot) => serviceStaffIds.has(slot.staffId)).map((slot) => slot.staffId));
   const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const maintenanceRoomNames = new Set(maintenanceRoomNamesOf(data, roomNames));
   const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, Array.from(maintenanceRoomNames));
+  const appointmentRanges = appointmentRangeMap();
+  const selectedAppointmentRange = appointmentRanges[appointmentRange];
+  const rangeAppointments = filterAppointmentsByRange(data.appointments, appointmentRange)
+    .slice()
+    .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
+  const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
+  const pendingConfirmAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "待确认");
+  const pendingArrivalAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认");
+  const arrivedCheckoutAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
+  const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
@@ -3449,15 +3465,11 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     const selectedRoom = roomAvailabilityOptions.find((option) => option.value === roomName);
     if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
   }, [firstAvailableRoom, roomAvailabilityOptions, roomName]);
-  const todayAppointmentRows = filterAppointmentsByRange(data.appointments, "today")
-    .filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约")
-    .slice(0, 12);
-
   const appointmentAction = (appointment: Appointment) => {
     if (appointment.status === "待确认") {
       return (
         <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已确认")}>
-          {mutationPending ? "处理中..." : "确认"}
+          {mutationPending ? "处理中..." : "确认预约"}
         </button>
       );
     }
@@ -3470,13 +3482,62 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     }
     if (appointment.status === "已到店") {
       return (
-        <button type="button" onClick={() => setView("pos")}>
+        <button type="button" onClick={() => setView("pos", { posModule: "single" })}>
           去收银
         </button>
       );
     }
     return <span>-</span>;
   };
+  const appointmentBadgeTone = (status: Appointment["status"]) =>
+    status === "已完成" || status === "已到店" ? "ok" : status === "已取消" || status === "爽约" ? "warn" : undefined;
+  const renderAppointmentCard = (appointment: Appointment) => (
+    <article className={`appointment-work-card status-${appointment.status}`} key={appointment.id}>
+      <div className="appointment-work-card-main">
+        <time>{appointmentTimeRange(data, appointment)}</time>
+        <Badge text={appointment.status} tone={appointmentBadgeTone(appointment.status)} />
+        <strong>{nameOf(data.customers, appointment.customerId)}</strong>
+        <span>{nameOf(data.services, appointment.serviceId)} · {nameOf(data.staff, appointment.staffId)}</span>
+        <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
+      </div>
+      <div className="appointment-work-card-actions">
+        {appointmentAction(appointment)}
+        {(appointment.status === "待确认" || appointment.status === "已确认") && (
+          <>
+            <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>
+            <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
+          </>
+        )}
+      </div>
+    </article>
+  );
+  const appointmentWorkflowGroups = [
+    {
+      key: "confirm",
+      title: "待确认",
+      desc: "先和客户确认是否到店",
+      value: pendingConfirmAppointments.length,
+      appointments: pendingConfirmAppointments,
+      empty: "暂无待确认预约",
+    },
+    {
+      key: "arrival",
+      title: "待到店",
+      desc: "客户到店后点确认到店",
+      value: pendingArrivalAppointments.length,
+      appointments: pendingArrivalAppointments,
+      empty: "暂无待到店预约",
+    },
+    {
+      key: "checkout",
+      title: "已到店待收银",
+      desc: "进入收银后会带入项目服务",
+      value: arrivedCheckoutAppointments.length,
+      appointments: arrivedCheckoutAppointments,
+      empty: "暂无到店待收银",
+    },
+  ];
+  const activeAppointment = data.appointments.find((appointment) => appointment.id === activeAppointmentId);
 
   return (
     <div className="page-stack appointment-room-page">
@@ -3484,19 +3545,107 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         icon={<CalendarDays size={15} />}
         eyebrow="预约管理"
         title="预约管理"
-        desc="选择预约时间并分配可用房间，已占用或维护中的房间不能重复预约。"
+        desc="处理确认、到店、收银和房间安排。"
       />
       <div className="module-detail-stack">
-        <section className="panel appointment-room-panel">
-          <div className="appointment-room-board-head">
+        <section className="panel appointment-workbench-panel">
+          <div className="appointment-workbench-head">
             <div>
-              <span><Building2 size={18} /> 当前房间使用情况</span>
-              <strong>{roomUsage.remainingRoomSlots} 间可预约</strong>
+              <span><ClipboardList size={18} /> 预约处理台</span>
+              <strong>{selectedAppointmentRange.label}需要处理的预约</strong>
+              <small>确认、到店、收银都在这里完成。</small>
+            </div>
+            <div className="appointment-range-tabs" aria-label="预约日期筛选">
+              {(["today", "tomorrow", "week"] as AppointmentRange[]).map((range) => (
+                <button
+                  type="button"
+                  key={range}
+                  className={appointmentRange === range ? "active" : undefined}
+                  aria-pressed={appointmentRange === range}
+                  onClick={() => setAppointmentRange(range)}
+                >
+                  {appointmentRanges[range].label}
+                </button>
+              ))}
             </div>
             <button type="button" className="appointment-room-add-button" onClick={() => setShowAppointmentForm(true)}>
               <CalendarDays size={18} />
               新增预约
             </button>
+          </div>
+          <div className="appointment-workbench-metrics">
+            <div>
+              <span>预约总数</span>
+              <strong>{visibleRangeAppointments.length}</strong>
+              <small>{selectedAppointmentRange.label}范围</small>
+            </div>
+            <div>
+              <span>待确认</span>
+              <strong>{pendingConfirmAppointments.length}</strong>
+              <small>需要先确认</small>
+            </div>
+            <div>
+              <span>待到店</span>
+              <strong>{pendingArrivalAppointments.length}</strong>
+              <small>等待客户到店</small>
+            </div>
+            <div>
+              <span>待收银</span>
+              <strong>{arrivedCheckoutAppointments.length}</strong>
+              <small>已到店服务</small>
+            </div>
+          </div>
+          <div className="appointment-workflow-grid">
+            {appointmentWorkflowGroups.map((group) => (
+              <section className={`appointment-workflow-column ${group.key}`} key={group.key}>
+                <div className="appointment-workflow-title">
+                  <div>
+                    <strong>{group.title}</strong>
+                    <span>{group.desc}</span>
+                  </div>
+                  <em>{group.value}</em>
+                </div>
+                <div className="appointment-workflow-list">
+                  {group.appointments.slice(0, 6).map(renderAppointmentCard)}
+                  {group.appointments.length === 0 && (
+                    <div className="appointment-work-empty">{group.empty}</div>
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+          <div className="appointment-range-list">
+            <div className="appointment-room-list-head">
+              <strong>{selectedAppointmentRange.label}预约明细</strong>
+              <small>已完成 {completedRangeAppointments.length} 单 · 已取消/爽约不进入处理台</small>
+            </div>
+            {visibleRangeAppointments.length > 0 ? (
+              <DataTable
+                columns={["时间", "客户", "项目", "员工", "房间", "状态", "操作"]}
+                rows={visibleRangeAppointments.slice(0, 20).map((appointment) => [
+                  appointmentTimeRange(data, appointment),
+                  nameOf(data.customers, appointment.customerId),
+                  nameOf(data.services, appointment.serviceId),
+                  nameOf(data.staff, appointment.staffId),
+                  appointment.roomName ?? "-",
+                  <Badge key={`${appointment.id}-status`} text={appointment.status} tone={appointmentBadgeTone(appointment.status)} />,
+                  <div key={`${appointment.id}-action`} className="table-action">
+                    {appointmentAction(appointment)}
+                  </div>,
+                ])}
+              />
+            ) : (
+              <div className="appointment-work-empty">当前范围暂无预约</div>
+            )}
+          </div>
+        </section>
+        <section className="panel appointment-room-panel">
+          <div className="appointment-room-board-head">
+            <div>
+              <span><Building2 size={18} /> 房间资源看板</span>
+              <strong>{roomUsage.remainingRoomSlots} 间可预约</strong>
+              <small>辅助查看今日房间占用，预约处理请看上方处理台。</small>
+            </div>
           </div>
           <div className="appointment-room-summary">
             <div>
@@ -3548,26 +3697,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 );
               })}
             </div>
-          </div>
-          <div className="appointment-today-panel">
-            <div className="appointment-room-list-head">
-              <strong>今日预约</strong>
-              <small>到店后会出现在开单收银的项目服务里</small>
-            </div>
-            <DataTable
-              columns={["时间", "客户", "项目", "员工", "房间", "状态", "操作"]}
-              rows={todayAppointmentRows.map((appointment) => [
-                appointmentTimeRange(data, appointment),
-                nameOf(data.customers, appointment.customerId),
-                nameOf(data.services, appointment.serviceId),
-                nameOf(data.staff, appointment.staffId),
-                appointment.roomName ?? "-",
-                <Badge key={`${appointment.id}-status`} text={appointment.status} tone={appointment.status === "已到店" ? "ok" : "warn"} />,
-                <div key={`${appointment.id}-action`} className="table-action">
-                  {appointmentAction(appointment)}
-                </div>,
-              ])}
-            />
           </div>
         </section>
       </div>
@@ -3695,6 +3824,54 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
           </div>
         </div>
       </Modal>
+      <Modal
+        open={activeAppointmentAction === "reschedule"}
+        title="改约"
+        subtitle={activeAppointment ? `${nameOf(data.customers, activeAppointment.customerId)} · ${appointmentTimeRange(data, activeAppointment)}` : "调整预约时间和房间"}
+        size="large"
+        onClose={() => setActiveAppointmentAction(undefined)}
+      >
+        <form className="form appointment-action-form" onSubmit={submitReschedule}>
+          <Select label="服务员工" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先新增员工" }]} />
+          <div className="appointment-service-picker">
+            <div className="checkout-product-section-head">
+              <span>服务项目</span>
+              <strong>{nameOf(data.services, rescheduleServiceId)}</strong>
+            </div>
+            <Select label="选择项目" value={rescheduleServiceId} onChange={setRescheduleServiceId} options={data.services.map(optionOf)} />
+          </div>
+          <div className="appointment-time-grid">
+            <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={setRescheduleStartAt} />
+            <DateTimeInput label="结束时间" value={rescheduleEndAt} onChange={setRescheduleEndAt} />
+          </div>
+          <Select label="房间" value={rescheduleRoomName} onChange={setRescheduleRoomName} options={roomNames.map((name) => ({ value: name, label: name }))} />
+          <label>
+            备注
+            <textarea value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="改约原因或客户偏好" />
+          </label>
+          <div className="row-actions">
+            <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={!rescheduleStaffId || !rescheduleServiceId || !rescheduleRoomName} />
+            <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>取消</button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={activeAppointmentAction === "cancel"}
+        title="取消预约"
+        subtitle={activeAppointment ? `${nameOf(data.customers, activeAppointment.customerId)} · ${appointmentTimeRange(data, activeAppointment)}` : "取消预约必须填写原因"}
+        onClose={() => setActiveAppointmentAction(undefined)}
+      >
+        <form className="form appointment-action-form" onSubmit={submitCancel}>
+          <label>
+            取消原因
+            <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="如客户临时取消、改期未定等" />
+          </label>
+          <div className="row-actions">
+            <SubmitStatusButton idleText="确认取消" busyText="处理中..." disabled={!cancelReason.trim()} />
+            <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>返回</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -3704,12 +3881,14 @@ function Pos({
   actions,
   runMutation,
   fromManagement = false,
+  initialModule,
   onReturnManagement,
 }: {
   data: AppData;
   actions: ApiActions;
   runMutation: RunMutation;
   fromManagement?: boolean;
+  initialModule?: PosModuleKey;
   onReturnManagement?: () => void;
 }) {
   const mutationPending = useMutationPending();
@@ -3760,7 +3939,7 @@ function Pos({
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
   const [cardNote, setCardNote] = useState("");
   const [selectedSignatureId, setSelectedSignatureId] = useState("");
-  const [activeModule, setActiveModule] = useState<"card" | "product" | "signature" | "single" | "orders" | undefined>(fromManagement ? "single" : undefined);
+  const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(fromManagement ? initialModule ?? "single" : initialModule);
   const sellableProducts = data.products;
   const usesCustomer = checkoutCustomerMode === "customer";
   const usesService = checkoutContentMode === "service";
@@ -4107,6 +4286,14 @@ function Pos({
     setCardServiceId(service);
     if (service && !cardServiceIds.includes(service)) setCardServiceIds((previous) => [...previous, service]);
   };
+
+  useEffect(() => {
+    if (initialModule) {
+      setActiveModule(initialModule);
+      return;
+    }
+    if (fromManagement) setActiveModule("single");
+  }, [fromManagement, initialModule]);
 
   const openCard = (event: FormEvent) => {
     event.preventDefault();
