@@ -4,6 +4,7 @@ import { UserAvatar } from "./UserAvatar";
 
 type AccountMenuProps = {
   session: UserSession;
+  avatarUrl?: string;
   logout: () => void;
   openSettings: () => void;
 };
@@ -18,11 +19,11 @@ function menuRoleName(session: UserSession) {
   return session.user.roleName === "老板" || session.user.roleName === "主管" ? "店长" : session.user.roleName;
 }
 
-export function AccountMenu({ session, logout, openSettings }: AccountMenuProps) {
+export function AccountMenu({ session, avatarUrl, logout, openSettings }: AccountMenuProps) {
   return (
     <aside className="account-menu" aria-label="账号菜单">
       <div className="account-menu-user">
-        <div className="account-menu-avatar"><UserAvatar size={34} /></div>
+        <div className="account-menu-avatar"><UserAvatar avatarUrl={avatarUrl} size={34} showImage /></div>
         <div>
           <strong>{menuDisplayName(session)}</strong>
           <span>{menuRoleName(session)}</span>

@@ -660,6 +660,8 @@ export default function App() {
     finance: "财务后台",
   };
   const shellDisplayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
+  const currentAuthUser = data.authUsers.find((user) => user.id === session.user.id);
+  const currentAvatarUrl = currentAuthUser?.avatarUrl ?? session.user.avatarUrl;
 
   return (
     <MutationPendingContext.Provider value={mutationPending}>
@@ -693,7 +695,7 @@ export default function App() {
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
             <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserAvatar size={22} />
+              <UserAvatar avatarUrl={currentAvatarUrl} size={22} showImage />
             </button>
             {notificationPanelOpen && (
               <NotificationPanel
@@ -709,6 +711,7 @@ export default function App() {
             {accountMenuOpen && (
               <AccountMenu
                 session={session}
+                avatarUrl={currentAvatarUrl}
                 logout={logout}
                 openSettings={() => {
                   setAccountSettingsOpen(true);
@@ -815,6 +818,8 @@ function ManagementCenter({
   const inviteSectionHint = systemInviteCode ? "店长/门店加入或开通" : "员工加入门店";
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
+  const currentAuthUser = data.authUsers.find((user) => user.id === session.user.id);
+  const currentAvatarUrl = currentAuthUser?.avatarUrl ?? session.user.avatarUrl;
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopyStatus, setInviteCopyStatus] = useState<"idle" | "copied" | "selected">("idle");
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
@@ -911,7 +916,7 @@ function ManagementCenter({
       <section className="admin-profile-hero">
         <div className="admin-hero-pattern" aria-hidden="true" />
         <div className="admin-avatar">
-          <UserAvatar size={78} />
+          <UserAvatar avatarUrl={currentAvatarUrl} size={78} showImage />
         </div>
         <div className="admin-profile-copy">
           <span className="admin-role-pill"><ShieldCheck size={14} /> {displayRole}</span>

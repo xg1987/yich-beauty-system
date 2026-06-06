@@ -39,20 +39,24 @@ if (!userAvatarSource.includes("if (showImage && avatarUrl)")) {
   violations.push("UserAvatar must render uploaded images only when showImage is explicitly enabled.");
 }
 
-if (!appSource.includes("<UserAvatar size={22} />")) {
-  violations.push("Topbar account button must use the generic avatar icon.");
+if (!appSource.includes("const currentAvatarUrl = currentAuthUser?.avatarUrl ?? session.user.avatarUrl;")) {
+  violations.push("Shell must resolve the current account avatar from fresh auth user data.");
 }
 
-if (!appSource.includes("<UserAvatar size={78} />")) {
-  violations.push("Admin hero avatar must use the generic avatar icon.");
+if (!appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} size={22} showImage />")) {
+  violations.push("Topbar account button must render uploaded account avatars when available.");
+}
+
+if (!appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} size={78} showImage />")) {
+  violations.push("Admin hero avatar must render uploaded account avatars when available.");
 }
 
 if (!appSource.includes("<UserAvatar avatarUrl={avatarUrl} size={52} showImage />")) {
   violations.push("Settings avatar editor must keep uploaded-image preview enabled.");
 }
 
-if (accountMenuSource.includes("avatarUrl={session.user.avatarUrl}")) {
-  violations.push("Account menu must not render the uploaded real avatar image.");
+if (!accountMenuSource.includes("<UserAvatar avatarUrl={avatarUrl} size={34} showImage />")) {
+  violations.push("Account menu must render the uploaded account avatar when available.");
 }
 
 if (violations.length > 0) {
