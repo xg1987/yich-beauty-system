@@ -1210,6 +1210,38 @@ function card(data: AppData, cardId: string) {
 }
 
 {
+  const openedStoredValue = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "储值卡新客",
+      customerPhone: "13800008889",
+      type: "储值卡",
+      balance: 5200,
+      paidAmount: 5200,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(openedStoredValue.memberCards[0].name, "储值卡", "stored-value card should default to generic card name");
+  assert.equal(openedStoredValue.memberCards[0].balance, 5200, "stored-value card should store recharge balance");
+  const storedValueServicePrice = openedStoredValue.services.find((item) => item.id === "v2")?.price ?? 0;
+  const storedValueCheckout = checkoutOrder(
+    openedStoredValue,
+    {
+      customerId: openedStoredValue.customers[0].id,
+      staffId: "s2",
+      serviceId: "v2",
+      payMethod: "会员卡",
+      cardId: openedStoredValue.memberCards[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(storedValueCheckout.memberCards[0].balance, 5200 - storedValueServicePrice, "stored-value card should pay for any store service when balance is enough");
+}
+
+{
   const opened = openMemberCard(
     cloneSeed(),
     {

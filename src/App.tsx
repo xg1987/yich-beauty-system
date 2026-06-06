@@ -76,6 +76,8 @@ const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
 const AUTO_THEME_DAY_START_HOUR = 8;
 const AUTO_THEME_NIGHT_START_HOUR = 19;
 const DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
+const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
 const cashPayMethodOptions = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((item) => ({ value: item, label: item }));
 const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
   面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
@@ -3631,13 +3633,13 @@ function Pos({
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState("");
   const checkoutSubmittingRef = useRef(false);
   const checkoutRequestIdRef = useRef(`checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`);
-  const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("existing");
+  const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
-  const [cardName, setCardName] = useState("面部护理十次卡");
-  const [cardType, setCardType] = useState<CardType>("次数卡");
-  const [cardAmount, setCardAmount] = useState(2980);
-  const [cardPaidAmount, setCardPaidAmount] = useState(2980);
+  const [cardName, setCardName] = useState(DEFAULT_PROJECT_CARD_NAME);
+  const [cardType, setCardType] = useState<CardType>("储值卡");
+  const [cardAmount, setCardAmount] = useState(5000);
+  const [cardPaidAmount, setCardPaidAmount] = useState(5000);
   const [cardPayMethod, setCardPayMethod] = useState<CashPayMethod>("微信");
   const [cardTimes, setCardTimes] = useState(10);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
@@ -3996,8 +3998,10 @@ function Pos({
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(async () => {
+      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardName.trim();
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!cardCustomerName.trim() || !cardCustomerPhone.trim())) throw new Error("请登记客户姓名和手机号");
+      if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (cardPaidAmount <= 0) throw new Error("请填写开卡实收金额");
       if (cardType === "储值卡" && cardAmount <= 0) throw new Error("请填写储值到账金额");
       if (cardType !== "储值卡" && cardTimes <= 0) throw new Error("请填写可用次数");
@@ -4007,7 +4011,7 @@ function Pos({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? cardCustomerName.trim() : undefined,
         customerPhone: cardCustomerMode === "new" ? cardCustomerPhone.trim() : undefined,
-        name: cardName,
+        name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmount : 0,
         remainingTimes: cardType === "储值卡" ? 0 : cardTimes,
@@ -4234,7 +4238,7 @@ function Pos({
         <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐" />
         <form className="form" onSubmit={openCard}>
-          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "existing", label: "已有客户" }, { value: "new", label: "新客户登记" }]} />
+          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           ) : (
@@ -4243,20 +4247,22 @@ function Pos({
               <label>客户手机号<input value={cardCustomerPhone} onChange={(event) => setCardCustomerPhone(event.target.value)} /></label>
             </>
           )}
-          <label>项目卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} /></label>
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡"].map((item) => ({ value: item, label: item }))} />
-          <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(Number(event.target.value))} /></label>
-          <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
+          {cardType !== "储值卡" && (
+            <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="如面部护理十次卡" /></label>
+          )}
           {cardType === "储值卡" && (
-            <label>到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
+            <label>充值到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
           )}
           {cardType !== "储值卡" && (
             <label>可用次数<input type="number" min={1} value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
           )}
           {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
           {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
+          <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(Number(event.target.value))} /></label>
+          <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
-          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder="如活动价、赠送说明" /></label>
+          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
           <button className="primary-button">保存开卡</button>
         </form>
         </section>
@@ -4750,13 +4756,13 @@ function Customers({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("existing");
+  const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
-  const [cardName, setCardName] = useState("面部护理十次卡");
-  const [cardType, setCardType] = useState<CardType>("次数卡");
-  const [cardAmount, setCardAmount] = useState(2980);
-  const [cardPaidAmount, setCardPaidAmount] = useState(2980);
+  const [cardName, setCardName] = useState(DEFAULT_PROJECT_CARD_NAME);
+  const [cardType, setCardType] = useState<CardType>("储值卡");
+  const [cardAmount, setCardAmount] = useState(5000);
+  const [cardPaidAmount, setCardPaidAmount] = useState(5000);
   const [cardPayMethod, setCardPayMethod] = useState<CashPayMethod>("微信");
   const [cardTimes, setCardTimes] = useState(10);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
@@ -4813,8 +4819,10 @@ function Customers({
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(async () => {
+      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardName.trim();
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!cardCustomerName.trim() || !cardCustomerPhone.trim())) throw new Error("请登记客户姓名和手机号");
+      if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (cardPaidAmount <= 0) {
         throw new Error("请填写开卡实收金额");
       }
@@ -4834,7 +4842,7 @@ function Customers({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? cardCustomerName.trim() : undefined,
         customerPhone: cardCustomerMode === "new" ? cardCustomerPhone.trim() : undefined,
-        name: cardName,
+        name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmount : 0,
         remainingTimes: cardType === "储值卡" ? 0 : cardTimes,
@@ -5055,9 +5063,9 @@ function Customers({
         )}
         {activeModule === "cards" && (
         <>
-        <PanelTitle icon={<CreditCard size={18} />} title="开项目卡" action="储值/次数/套餐" />
+        <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐" />
         <form className="form" onSubmit={openCard}>
-          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "existing", label: "已有客户" }, { value: "new", label: "新客户登记" }]} />
+          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           ) : (
@@ -5066,20 +5074,22 @@ function Customers({
               <label>客户手机号<input value={cardCustomerPhone} onChange={(event) => setCardCustomerPhone(event.target.value)} /></label>
             </>
           )}
-          <label>项目卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} /></label>
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡"].map((item) => ({ value: item, label: item }))} />
-          <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(Number(event.target.value))} /></label>
-          <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
+          {cardType !== "储值卡" && (
+            <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="如面部护理十次卡" /></label>
+          )}
           {cardType === "储值卡" && (
-            <label>到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
+            <label>充值到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
           )}
           {cardType !== "储值卡" && (
             <label>可用次数<input type="number" min={1} value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
           )}
           {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
           {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
+          <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(Number(event.target.value))} /></label>
+          <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
-          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder="如活动价、赠送说明" /></label>
+          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
           <button className="primary-button">保存开卡</button>
         </form>
         <div className="divider" />

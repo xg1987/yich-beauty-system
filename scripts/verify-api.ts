@@ -832,9 +832,10 @@ try {
   const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
-    body: { customerId: "c2", name: "API 储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
+    body: { customerId: "c2", type: "储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
   });
   const apiCardId = afterOpenCard.memberCards[0].id;
+  assert.equal(afterOpenCard.memberCards[0].name, "储值卡", "open stored-value card API should default card name");
   assert.equal(afterOpenCard.memberCardTransactions[0].paidAmount, 500, "open card API should persist paid amount");
   assert.equal(afterOpenCard.memberCardTransactions[0].payMethod, "微信", "open card API should persist payment method");
   const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {

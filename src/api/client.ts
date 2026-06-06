@@ -151,7 +151,7 @@ export function createApiClient(getToken: () => string | undefined) {
       customerId?: string;
       customerName?: string;
       customerPhone?: string;
-      name: string;
+      name?: string;
       type?: "储值卡" | "次数卡" | "套餐卡";
       balance: number;
       remainingTimes: number;

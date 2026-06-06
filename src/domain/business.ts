@@ -510,7 +510,7 @@ export type OpenMemberCardInput = {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
-  name: string;
+  name?: string;
   type?: "储值卡" | "次数卡" | "套餐卡";
   balance?: number;
   remainingTimes?: number;
@@ -2518,9 +2518,6 @@ export function openMemberCard(
   const createdAt = (options.now ?? nowIso)();
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
 
-  const cardName = trimText(input.name);
-  if (!cardName) throw new Error("请填写会员卡名称");
-
   const serviceIds = input.serviceIds?.filter(Boolean) ?? [];
   const remainingTimes = positiveNumber(input.remainingTimes);
   const requestedType = input.type;
@@ -2531,6 +2528,8 @@ export function openMemberCard(
       : remainingTimes > 0
         ? "次数卡"
         : "储值卡";
+  const cardName = trimText(input.name) || (cardType === "储值卡" ? "储值卡" : "");
+  if (!cardName) throw new Error("请填写卡名称");
   const balance = cardType === "储值卡" ? positiveNumber(input.balance) : 0;
   const paidAmount = positiveNumber(input.paidAmount, cardType === "储值卡" ? balance : 0);
   const payMethod = normalizeCashPayMethod(input.payMethod);
