@@ -75,6 +75,7 @@ type SubmitStatusButtonProps = {
   icon?: ReactNode;
   className?: string;
 };
+type LoadingGateStage = "connecting" | "slow" | "stalled";
 
 const MutationPendingContext = createContext(false);
 
@@ -483,6 +484,52 @@ function initialViewFromUrl(): ViewKey {
   return navItems.some((item) => item.key === requestedView) ? (requestedView as ViewKey) : "dashboard";
 }
 
+function loadingTargetLabel(view: ViewKey) {
+  if (view === "pos") return "收银台";
+  return navItems.find((item) => item.key === view)?.label ?? "门店系统";
+}
+
+function LoadingGate({
+  targetView,
+  stage,
+  loading,
+  error,
+  refreshData,
+  logout,
+}: {
+  targetView: ViewKey;
+  stage: LoadingGateStage;
+  loading: boolean;
+  error?: string;
+  refreshData: () => Promise<void>;
+  logout: () => void;
+}) {
+  const targetLabel = loadingTargetLabel(targetView);
+  const isError = Boolean(error);
+  const headline = isError ? "连接失败" : targetView === "pos" ? "进入收银台" : `进入${targetLabel}`;
+  const statusText = isError ? "请重试" : stage === "connecting" ? "" : "连接较慢";
+  const showActions = isError || stage === "stalled";
+
+  return (
+    <div className={`loading-page ${isError ? "is-error" : ""}`} aria-live="polite">
+      <section className="loading-minimal">
+        <h1>{headline}</h1>
+        {statusText && <p>{statusText}</p>}
+        {showActions && (
+          <div className="loading-actions">
+            <button type="button" className="loading-action-primary" disabled={loading && !isError && stage !== "stalled"} onClick={() => void refreshData()}>
+              {loading && !isError && stage !== "stalled" ? "连接中" : "重试"}
+            </button>
+            <button type="button" className="loading-action-secondary" onClick={logout}>
+              退出
+            </button>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const { data, session, loading, mutationPending, error, login, joinInvite, fetchPublicStore, createPublicBookingRequest, fetchPublicCustomerSignature, signPublicCustomerSignature, authenticate, updateAccountProfile, logout, refreshData, runMutation, actions } = useApiData();
   const [view, setView] = useState<ViewKey>(initialViewFromUrl);
@@ -497,6 +544,7 @@ export default function App() {
     return isThemeMode(savedThemeMode) ? savedThemeMode : "auto";
   });
   const [systemThemeMode, setSystemThemeMode] = useState<EffectiveThemeMode>(() => getSystemThemeMode());
+  const [loadingGateStage, setLoadingGateStage] = useState<LoadingGateStage>("connecting");
   const effectiveThemeMode: EffectiveThemeMode = themeMode === "auto" ? systemThemeMode : themeMode;
   const topbarActionsRef = useRef<HTMLDivElement | null>(null);
 
@@ -527,6 +575,20 @@ export default function App() {
     return () => document.removeEventListener("pointerdown", closeFloatingPanels);
   }, [accountMenuOpen, notificationPanelOpen]);
 
+  useEffect(() => {
+    if (!session || data || error) {
+      setLoadingGateStage("connecting");
+      return;
+    }
+
+    const slowTimer = window.setTimeout(() => setLoadingGateStage("slow"), 5_000);
+    const stalledTimer = window.setTimeout(() => setLoadingGateStage("stalled"), 12_000);
+    return () => {
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(stalledTimer);
+    };
+  }, [session, data, error]);
+
   const publicStoreMatch = window.location.pathname.match(/^\/store\/([^/]+)/);
   if (publicStoreMatch) {
     return <StorefrontPage shareCode={decodeURIComponent(publicStoreMatch[1])} fetchPublicStore={fetchPublicStore} createPublicBookingRequest={createPublicBookingRequest} />;
@@ -549,22 +611,14 @@ export default function App() {
 
   if (!data) {
     return (
-      <div className="loading-page">
-        <div className="loading-card">
-          <strong>正在连接门店数据</strong>
-          <span>{error ?? "正在连接服务，请稍后重试或联系管理员"}</span>
-          {error && (
-            <div className="loading-actions">
-              <button type="button" className="primary-button" disabled={loading} onClick={() => void refreshData()}>
-                {loading ? "连接中..." : "重新连接"}
-              </button>
-              <button type="button" className="secondary-button" onClick={logout}>
-                退出登录
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      <LoadingGate
+        targetView={view}
+        stage={loadingGateStage}
+        loading={loading}
+        error={error}
+        refreshData={refreshData}
+        logout={logout}
+      />
     );
   }
 

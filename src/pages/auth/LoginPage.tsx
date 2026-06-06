@@ -63,11 +63,6 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
 
   return (
     <div className="login-page">
-      {error && (
-        <div className="login-error-toast" role="alert" aria-live="assertive">
-          {error}
-        </div>
-      )}
       {joinNotice && (
         <div className="login-notice-toast" role="status" aria-live="polite">
           {joinNotice}
@@ -88,6 +83,11 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
             <div className="login-card-head">
               <strong>{mode === "login" ? "登录系统" : "邀请码加入"}</strong>
             </div>
+            {error && (
+              <div className="login-error-toast" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
             {mode === "join" ? (
               <>
                 <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" /></label>
@@ -111,7 +111,6 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
               密码
               <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
             </label>
-            {error && <p className="form-error">{error}</p>}
             <button className="primary-button" disabled={loading}>
               <LockKeyhole size={17} />
               {loading ? "处理中" : mode === "login" ? "进入系统" : "加入门店"}

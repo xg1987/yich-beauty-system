@@ -91,21 +91,74 @@ button[aria-busy="true"] {
 
 .loading-page {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: #f6f3ef;
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 248, 245, 0.36)),
+    url("/assets/loading-beauty-bg.png") center / cover no-repeat,
+    #f8f1ef;
 }
 
-.loading-card {
-  width: min(420px, 100%);
+.loading-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(92, 44, 76, 0.06));
+  pointer-events: none;
+}
+
+.loading-minimal {
+  position: absolute;
+  z-index: 1;
+  top: 58%;
+  left: 57%;
+  width: min(360px, 80vw);
   display: grid;
-  gap: 8px;
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  justify-items: center;
+  gap: 12px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.loading-minimal h1 {
+  margin: 0;
+  color: #3c233d;
+  font-size: 34px;
+  font-weight: 760;
+  line-height: 1.2;
+  text-shadow: 0 2px 18px rgba(255, 255, 255, 0.78);
+}
+
+.loading-minimal p {
+  margin: 0;
+  color: rgba(62, 39, 64, 0.7);
+  font-size: 14px;
+  text-shadow: 0 2px 12px rgba(255, 255, 255, 0.68);
+}
+
+.loading-page:not(.is-error) .loading-minimal::after {
+  content: "";
+  width: 170px;
+  height: 2px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(113, 53, 89, 0.72), transparent);
+  animation: loading-line-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loading-line-pulse {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: scaleX(0.56);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
 }
 
 .loading-card span,
@@ -117,11 +170,43 @@ button[aria-busy="true"] {
 .loading-actions {
   display: flex;
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 2px;
 }
 
 .loading-actions button {
-  flex: 1;
+  min-width: 84px;
+  min-height: 36px;
+  border-radius: 8px;
+  font-weight: 750;
+}
+
+.loading-action-primary {
+  border: 1px solid #35235a;
+  background: #35235a;
+  color: #fff;
+}
+
+.loading-action-secondary {
+  border: 1px solid rgba(55, 42, 82, 0.18);
+  background: rgba(255, 255, 255, 0.58);
+  color: #2d243d;
+}
+
+@media (max-width: 620px) {
+  .loading-page {
+    background-position: 14% center;
+  }
+
+  .loading-minimal {
+    top: 62%;
+    left: 70%;
+    width: 160px;
+    gap: 10px;
+  }
+
+  .loading-minimal h1 {
+    font-size: 26px;
+  }
 }
 
 .login-panel {
@@ -1711,7 +1796,7 @@ td {
 }
 
 .admin-module-card strong {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .admin-module-card small {
@@ -4306,22 +4391,25 @@ html[data-theme="day"],
 }
 
 .login-error-toast {
-  position: fixed;
-  z-index: 20;
+  position: absolute;
+  z-index: 40;
   top: 24px;
-  left: 50%;
-  width: min(420px, calc(100vw - 32px));
-  transform: translateX(-50%);
-  padding: 14px 18px;
-  border: 1px solid rgba(225, 29, 72, 0.28);
-  border-radius: 16px;
-  background: #fff5f6;
-  color: #9f1239;
-  box-shadow: 0 18px 50px rgba(74, 14, 39, 0.26);
+  right: 32px;
+  width: min(230px, calc(100% - 176px));
+  min-width: 160px;
+  padding: 10px 14px;
+  border: 1px solid rgba(226, 183, 211, 0.86);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(255, 250, 252, 0.98), rgba(249, 238, 247, 0.97));
+  color: #432148;
+  box-shadow: 0 12px 34px rgba(46, 19, 77, 0.2);
   font-size: 15px;
-  font-weight: 750;
+  font-weight: 800;
   line-height: 1.45;
   text-align: center;
+  pointer-events: none;
+  animation: login-toast-pop 160ms ease-out;
 }
 
 .login-notice-toast {
@@ -4341,6 +4429,18 @@ html[data-theme="day"],
   font-weight: 750;
   line-height: 1.45;
   text-align: center;
+}
+
+@keyframes login-toast-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .login-brand {
@@ -4448,6 +4548,7 @@ html[data-theme="day"],
 }
 
 .login-card {
+  position: relative;
   width: 100%;
   justify-items: center;
   gap: 16px;
@@ -4462,6 +4563,10 @@ html[data-theme="day"],
 
 .login-card > * {
   width: min(430px, 100%);
+}
+
+.login-card > .login-error-toast {
+  width: min(230px, calc(100% - 176px));
 }
 
 .login-card-head {
