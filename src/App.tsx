@@ -3403,6 +3403,7 @@ function Pos({
   const [approvalId, setApprovalId] = useState("");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
+  const [checkoutValidationMessages, setCheckoutValidationMessages] = useState<string[]>([]);
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("existing");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
@@ -3418,11 +3419,13 @@ function Pos({
   const [cardNote, setCardNote] = useState("");
   const [selectedSignatureId, setSelectedSignatureId] = useState("");
   const [activeModule, setActiveModule] = useState<"card" | "product" | "signature" | "single" | "orders" | undefined>(fromManagement ? "single" : undefined);
-  const staffOptions = serviceStaff.map(optionOf);
   const sellableProducts = data.products;
   const usesCustomer = checkoutCustomerMode === "customer";
   const usesService = checkoutContentMode === "service";
   const usesProduct = checkoutContentMode === "product";
+  const activeStaff = data.staff.filter((staff) => staff.status === "active");
+  const checkoutStaff = usesProduct && !usesService ? activeStaff : serviceStaff;
+  const staffOptions = checkoutStaff.map(optionOf);
   const selectedCustomer = data.customers.find((item) => item.id === customerId);
   const normalizedCustomerSearch = customerSearch.trim().toLowerCase();
   const customerSearchResults = normalizedCustomerSearch
@@ -3432,13 +3435,13 @@ function Pos({
     : [];
 
   useEffect(() => {
-    const firstStaffId = serviceStaff[0]?.id ?? "";
-    if (!serviceStaff.some((staff) => staff.id === staffId)) setStaffId(firstStaffId);
+    const firstStaffId = checkoutStaff[0]?.id ?? "";
+    if (!checkoutStaff.some((staff) => staff.id === staffId)) setStaffId(firstStaffId);
     setCollaboratorStaffIds((previous) => {
       const next = previous.filter((id) => serviceStaff.some((staff) => staff.id === id) && id !== staffId);
       return next.length === previous.length && next.every((id, index) => id === previous[index]) ? previous : next;
     });
-  }, [serviceStaff, staffId]);
+  }, [checkoutStaff, serviceStaff, staffId]);
 
   useEffect(() => {
     const validProductIds = new Set(sellableProducts.map((product) => product.id));
@@ -3658,6 +3661,7 @@ function Pos({
     setProductDiscountRateInput("");
     setAdjustmentReason("");
     setApprovalId("");
+    setCheckoutValidationMessages([]);
     if (!isProductModule) {
       setCheckoutProductItems([]);
       setCheckoutGiftItems([]);
@@ -3758,6 +3762,29 @@ function Pos({
 
   const checkout = (event: FormEvent) => {
     event.preventDefault();
+    const messages: string[] = [];
+    if (!staffId) {
+      messages.push(usesProduct && !usesService ? "请选择收银员工。商品开单可以选择店长/老板或员工。" : "请选择服务员工。");
+    }
+    if (usesService && !serviceId) messages.push("请选择服务项目。");
+    if (usesProduct && checkoutProductItems.length === 0) messages.push("请选择销售商品。");
+    if (usesProduct && checkoutProductRows.some((item) => item.product.price <= 0)) {
+      const zeroPriceNames = checkoutProductRows.filter((item) => item.product.price <= 0).map((item) => item.product.name).join("、");
+      messages.push(`商品 ${zeroPriceNames} 的售价为 0，请先到商品资料填写售价。`);
+    }
+    if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
+    if (!usesCustomer && !guestName.trim()) messages.push("请填写新客姓名。");
+    if (!usesCustomer && !guestPhone.trim()) messages.push("请填写联系电话。");
+    if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
+    if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
+    if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
+
+    if (messages.length > 0) {
+      setCheckoutValidationMessages(messages);
+      return;
+    }
+
+    setCheckoutValidationMessages([]);
     void runMutation(() =>
       actions.checkout({
         customerId: usesCustomer ? customerId : undefined,
@@ -3775,19 +3802,20 @@ function Pos({
         payMethod,
         cardId: usesCustomer && payMethod === "会员卡" ? cardId : undefined,
       }),
-    );
-    setAppointmentId("");
-    setGuestName("");
-    setGuestPhone("");
-    if (usesProduct) {
-      setCheckoutProductItems([]);
-      setCheckoutGiftItems([]);
-    }
-    setCollaboratorStaffIds([]);
-    setDiscountAmount(0);
-    setProductDiscountRateInput("");
-    setAdjustmentReason("");
-    setApprovalId("");
+    ).then(() => {
+      setAppointmentId("");
+      setGuestName("");
+      setGuestPhone("");
+      if (usesProduct) {
+        setCheckoutProductItems([]);
+        setCheckoutGiftItems([]);
+      }
+      setCollaboratorStaffIds([]);
+      setDiscountAmount(0);
+      setProductDiscountRateInput("");
+      setAdjustmentReason("");
+      setApprovalId("");
+    });
   };
 
   const posModuleTitles: Record<NonNullable<typeof activeModule>, string> = {
@@ -4160,17 +4188,7 @@ function Pos({
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
           </div>
-          <button
-            className="primary-button"
-            disabled={
-              !staffId
-              || (usesCustomer && !customerId)
-              || (!usesCustomer && (!guestName.trim() || !guestPhone.trim()))
-              || (usesService && !serviceId)
-              || (usesProduct && checkoutProductItems.length === 0)
-              || (payMethod === "会员卡" && (!usesCustomer || !cardId))
-            }
-          >
+          <button className="primary-button">
             完成收银
           </button>
         </form>
@@ -4338,6 +4356,20 @@ function Pos({
               <div className="product-picker-empty">没有匹配的商品</div>
             )}
           </div>
+        </div>
+      </Modal>
+      <Modal
+        open={checkoutValidationMessages.length > 0}
+        title="请补全开单信息"
+        subtitle="确认收银前需要先处理下面的问题"
+        onClose={() => setCheckoutValidationMessages([])}
+      >
+        <div className="checkout-validation-modal" role="alert" aria-live="assertive">
+          {checkoutValidationMessages.map((message) => (
+            <div key={message} className="checkout-validation-item">
+              {message}
+            </div>
+          ))}
         </div>
       </Modal>
     </div>

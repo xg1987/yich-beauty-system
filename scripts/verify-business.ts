@@ -231,6 +231,38 @@ function card(data: AppData, cardId: string) {
     /服务员工不存在或已停用/,
     "owner should not be selected as service staff for checkout",
   );
+  const ownerProductCheckout = checkoutOrder(
+    registered,
+    {
+      guestName: "商品新客",
+      guestPhone: "13900001234",
+      staffId: registered.staff[0].id,
+      productItems: [{ productId: "p4", quantity: 1 }],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(ownerProductCheckout.orders[0].staffId, registered.staff[0].id, "owner should be allowed as cashier for product-only checkout");
+  assert.equal(ownerProductCheckout.orders[0].paidAmount, 199, "product-only checkout should keep product amount");
+  assert.throws(
+    () =>
+      checkoutOrder(
+        {
+          ...registered,
+          products: registered.products.map((product) => (product.id === "p4" ? { ...product, price: 0 } : product)),
+        },
+        {
+          guestName: "零价商品新客",
+          guestPhone: "13900005678",
+          staffId: registered.staff[0].id,
+          productItems: [{ productId: "p4", quantity: 1 }],
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /售价为 0/,
+    "product checkout should reject sale products without a price",
+  );
   assert.throws(
     () =>
       createAppointment(

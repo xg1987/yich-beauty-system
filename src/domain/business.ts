@@ -72,6 +72,10 @@ function isBusinessStaff(staff: Staff) {
   return staff.role !== "老板";
 }
 
+function assertActiveStaff(staff: Staff | undefined, message = "员工不存在或已停用") {
+  if (!staff || staff.status !== "active") throw new Error(message);
+}
+
 function assertBusinessStaff(staff: Staff | undefined, message = "服务员工不存在或已停用") {
   if (!staff || staff.status !== "active" || !isBusinessStaff(staff)) throw new Error(message);
 }
@@ -2027,7 +2031,12 @@ export function checkoutOrder(
   const productItems = normalizeCheckoutProductItems(data, rawProductItems);
   const giftProductItems = normalizeCheckoutProductItems(data, rawGiftProductItems, { gift: true });
   const selectedStaff = data.staff.find((item) => item.id === input.staffId);
-  assertBusinessStaff(selectedStaff);
+  const productOnlyCheckout = Boolean(productItems.length > 0 && !selectedService);
+  if (productOnlyCheckout) {
+    assertActiveStaff(selectedStaff, "收银员工不存在或已停用");
+  } else {
+    assertBusinessStaff(selectedStaff);
+  }
   (input.collaboratorStaffIds ?? []).forEach((staffId) => {
     const collaborator = data.staff.find((item) => item.id === staffId);
     assertBusinessStaff(collaborator, "协作员工不存在或已停用");
@@ -2047,6 +2056,12 @@ export function checkoutOrder(
   }
   if (!selectedService && productItems.length === 0) {
     throw new Error("请选择服务项目或商品");
+  }
+  const zeroPriceProductNames = productItems
+    .filter((item) => item.unitPrice <= 0)
+    .map((item) => data.products.find((product) => product.id === item.productId)?.name ?? "未命名商品");
+  if (zeroPriceProductNames.length > 0) {
+    throw new Error(`商品 ${zeroPriceProductNames.join("、")} 的售价为 0，请先到商品资料填写售价`);
   }
 
   assertBusinessDateOpen(data, currentTime().slice(0, 10));
@@ -2093,7 +2108,6 @@ export function checkoutOrder(
   const productSubtotal = productItems.reduce((sum, item) => sum + item.amount, 0);
   const total = (selectedService?.price ?? 0) + productSubtotal;
   const discountAmount = input.discountAmount ?? 0;
-  const productOnlyCheckout = Boolean(productItems.length > 0 && !selectedService);
   if (discountAmount < 0) {
     throw new Error("折扣金额无效");
   }
