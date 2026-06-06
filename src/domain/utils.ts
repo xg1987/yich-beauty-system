@@ -1,6 +1,12 @@
 export const nowIso = () => new Date().toISOString();
 
-export const makeId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+const secureRandomHex = (byteLength = 16) => {
+  const bytes = new Uint8Array(byteLength);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
+export const makeId = (prefix: string) => `${prefix}_${secureRandomHex()}`;
 
 export const money = (value: number) =>
   new Intl.NumberFormat("zh-CN", { style: "currency", currency: "CNY", maximumFractionDigits: 0 }).format(value);
@@ -25,4 +31,3 @@ export function toLocalInputValue(iso: string) {
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 16);
 }
-

@@ -5,6 +5,8 @@ const baseUrl = process.env.API_BASE_URL ?? "http://localhost:8788";
 const allowPersistentWrite = process.env.ALLOW_PERSISTENT_CLOUDFLARE_VERIFY === "1";
 const isRemotePagesTarget = /^https:\/\/.+\.pages\.dev\/?$/.test(baseUrl);
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const scheduleDayOffset = 30 + (Date.now() % 300);
+const roomName = "护理房 1";
 const today = new Date().toISOString().slice(0, 10);
 
 if (isRemotePagesTarget && !allowPersistentWrite) {
@@ -196,7 +198,7 @@ await assert.rejects(
   "frontdesk should not adjust inventory",
 );
 
-const unavailableDay = futureDay(20);
+const unavailableDay = futureDay(scheduleDayOffset);
 const afterUnavailableSlot = await request<AppData>(baseUrl, "/api/staff-unavailable-slots", {
   method: "POST",
   token: ownerSession.token,
@@ -218,7 +220,7 @@ await assert.rejects(
         staffId: therapistStaffId,
         serviceId,
         startAt: `${unavailableDay}T02:15:00.000Z`,
-        roomName: "护理房 1",
+        roomName,
         note: "不可预约冲突",
       },
     }),
@@ -226,7 +228,7 @@ await assert.rejects(
   "Cloudflare appointment API should reject unavailable staff slots",
 );
 
-const shiftDay = futureDay(21);
+const shiftDay = futureDay(scheduleDayOffset + 1);
 const afterShift = await request<AppData>(baseUrl, "/api/staff-shifts", {
   method: "POST",
   token: ownerSession.token,
@@ -243,7 +245,7 @@ await assert.rejects(
     request<AppData>(baseUrl, "/api/appointments", {
       method: "POST",
       token: ownerSession.token,
-      body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T05:00:00.000Z`, roomName: "护理房 1", note: "班次外预约" },
+      body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T05:00:00.000Z`, roomName, note: "班次外预约" },
     }),
   /不在员工班次内/,
   "Cloudflare appointment API should reject time outside shift",
@@ -252,9 +254,21 @@ await assert.rejects(
 const afterAppointment = await request<AppData>(baseUrl, "/api/appointments", {
   method: "POST",
   token: ownerSession.token,
-  body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T02:00:00.000Z`, roomName: "护理房 1", note: "Cloudflare 正常预约" },
+  body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T02:00:00.000Z`, roomName, note: "Cloudflare 正常预约" },
 });
 assert.equal(afterAppointment.appointments[0].staffId, therapistStaffId, "D1 should create appointment inside shift");
+const appointmentId = afterAppointment.appointments[0].id;
+await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
+  method: "PATCH",
+  token: ownerSession.token,
+  body: { status: "已确认" },
+});
+const afterAppointmentArrive = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
+  method: "PATCH",
+  token: ownerSession.token,
+  body: { status: "已到店" },
+});
+assert.equal(afterAppointmentArrive.appointments.find((item) => item.id === appointmentId)?.status, "已到店", "D1 should mark appointment arrived before checkout");
 
 const afterApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
   method: "POST",
@@ -303,10 +317,13 @@ const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",
   token: ownerSession.token,
   body: {
+    checkoutRequestId: `cf-checkout-${runId}`,
     customerId,
     staffId: therapistStaffId,
     serviceId,
-    productId,
+    appointmentId,
+    productItems: [{ productId, quantity: 2 }],
+    giftProductItems: [{ productId: consumableProductId, quantity: 1 }],
     payMethod: "微信",
     discountAmount: 50,
     adjustmentReason: "Cloudflare 会员维护价",
@@ -314,11 +331,32 @@ const afterCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   },
 });
 const orderId = afterCheckout.orders[0].id;
-assert.equal(afterCheckout.orders[0].paidAmount, 547, "approved checkout should persist in D1");
+assert.equal(afterCheckout.orders[0].paidAmount, 746, "approved checkout should persist multi-product total in D1");
+assert.deepEqual(afterCheckout.orders[0].productItems?.map((item) => [item.productId, item.quantity]), [[productId, 2]], "D1 checkout should persist sale item lines");
+assert.deepEqual(afterCheckout.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity]), [[consumableProductId, 1]], "D1 checkout should persist gift item lines");
+assert.equal(afterCheckout.appointments.find((item) => item.id === appointmentId)?.status, "已完成", "D1 appointment checkout should complete appointment");
+assert.equal(afterCheckout.products.find((item) => item.id === productId)?.stock, 22, "D1 checkout should consume retail stock");
+assert.equal(afterCheckout.products.find((item) => item.id === consumableProductId)?.stock, 10, "D1 checkout should consume service and gift stock");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "checkout should create commission in D1");
 assert.equal(afterCheckout.commissions.find((item) => item.orderId === orderId)?.rate, 0.1, "D1 should persist staff commission rate");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "服务提成"), "D1 should create service commission");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "销售提成"), "D1 should create sales commission");
+await assert.rejects(
+  () =>
+    request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: ownerSession.token,
+      body: {
+        checkoutRequestId: `cf-checkout-${runId}`,
+        customerId: secondCustomerId,
+        staffId: therapistStaffId,
+        productItems: [{ productId, quantity: 1 }],
+        payMethod: "微信",
+      },
+    }),
+  /重复提交/,
+  "D1 checkout should reject duplicate request ids even when order details differ",
+);
 
 const afterPartialRefund = await request<AppData>(baseUrl, `/api/orders/${orderId}/refund`, {
   method: "POST",

@@ -51,7 +51,7 @@ import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdm
 import { appointmentEndAt, appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
-import { money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
+import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
 import CustomerSignaturePage from "./pages/public/CustomerSignaturePage";
@@ -67,7 +67,7 @@ type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs";
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
-type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
+type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 type SubmitStatusButtonProps = {
   idleText: string;
@@ -539,6 +539,7 @@ export default function App() {
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
   const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
+  const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>();
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -635,6 +636,7 @@ export default function App() {
     setAccountMenuOpen(false);
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
     setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
+    setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
     setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
   };
@@ -740,7 +742,7 @@ export default function App() {
             )}
             {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
-            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} onReturnManagement={() => navigate("settings")} />}
             {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
@@ -3482,7 +3484,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     }
     if (appointment.status === "已到店") {
       return (
-        <button type="button" onClick={() => setView("pos", { posModule: "single" })}>
+        <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
           去收银
         </button>
       );
@@ -3882,6 +3884,7 @@ function Pos({
   runMutation,
   fromManagement = false,
   initialModule,
+  initialAppointmentId,
   onReturnManagement,
 }: {
   data: AppData;
@@ -3889,6 +3892,7 @@ function Pos({
   runMutation: RunMutation;
   fromManagement?: boolean;
   initialModule?: PosModuleKey;
+  initialAppointmentId?: string;
   onReturnManagement?: () => void;
 }) {
   const mutationPending = useMutationPending();
@@ -3924,7 +3928,8 @@ function Pos({
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState("");
   const checkoutSubmittingRef = useRef(false);
-  const checkoutRequestIdRef = useRef(`checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  const checkoutRequestIdRef = useRef(makeId("checkout"));
+  const appliedInitialAppointmentRef = useRef<string | undefined>(undefined);
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
@@ -4124,38 +4129,55 @@ function Pos({
       ? `${customer.name}${customer.phone ? ` (${customer.phone})` : ""}`
       : `${order.guestName || "新客"}${order.guestPhone ? ` (${order.guestPhone})` : ""}`;
 
-    const printContent = `
-      <div style="font-family: monospace; padding: 20px; max-width: 300px; margin: 0 auto;">
-        <h2 style="text-align: center; margin: 0;">${data.storeProfiles[0]?.name || '祝融｜坤锋美业'}</h2>
-        <p style="text-align: center; margin: 4px 0; font-size: 12px;">${data.storeProfiles[0]?.phone || ''}</p>
-        <hr />
-        <p>订单号: ${order.orderNo}</p>
-        <p>时间: ${new Date(order.createdAt).toLocaleString('zh-CN')}</p>
-        <p>客户: ${receiptCustomer}</p>
-        <p>服务: ${service?.name || '无服务项目'}</p>
-        ${productLines.map((line) => `<p>商品: ${line}</p>`).join('')}
-        ${giftProductLines.map((line) => `<p>${line}</p>`).join('')}
-        <p>服务人员: ${staff?.name || ''}</p>
-        <hr />
-        <p>原价: ¥${order.totalAmount}</p>
-        ${order.discountAmount ? `<p>折扣: -¥${order.discountAmount}</p>` : ''}
-        <p><strong>实付: ¥${order.paidAmount}</strong></p>
-        <p>支付方式: ${order.payMethod}</p>
-        <hr />
-        <p style="text-align: center; font-size: 12px;">感谢您的光临！</p>
-        <p style="text-align: center; font-size: 11px;">${new Date().toLocaleDateString()}</p>
-      </div>
-    `;
+    const buildReceiptElement = () => {
+      const container = document.createElement("div");
+      Object.assign(container.style, {
+        fontFamily: "monospace",
+        margin: "0 auto",
+        maxWidth: "300px",
+        padding: "20px",
+      });
+      const appendText = (tagName: "h2" | "p", text: string, styles?: Partial<CSSStyleDeclaration>) => {
+        const element = document.createElement(tagName);
+        element.textContent = text;
+        if (styles) Object.assign(element.style, styles);
+        container.appendChild(element);
+        return element;
+      };
+      const appendRule = () => container.appendChild(document.createElement("hr"));
+
+      appendText("h2", data.storeProfiles[0]?.name || "祝融｜坤锋美业", { margin: "0", textAlign: "center" });
+      appendText("p", data.storeProfiles[0]?.phone || "", { fontSize: "12px", margin: "4px 0", textAlign: "center" });
+      appendRule();
+      appendText("p", `订单号: ${order.orderNo}`);
+      appendText("p", `时间: ${new Date(order.createdAt).toLocaleString("zh-CN")}`);
+      appendText("p", `客户: ${receiptCustomer}`);
+      appendText("p", `服务: ${service?.name || "无服务项目"}`);
+      productLines.forEach((line) => appendText("p", `商品: ${line}`));
+      giftProductLines.forEach((line) => appendText("p", line));
+      appendText("p", `服务人员: ${staff?.name || ""}`);
+      appendRule();
+      appendText("p", `原价: ¥${order.totalAmount}`);
+      if (order.discountAmount) appendText("p", `折扣: -¥${order.discountAmount}`);
+      appendText("p", `实付: ¥${order.paidAmount}`).style.fontWeight = "700";
+      appendText("p", `支付方式: ${order.payMethod}`);
+      appendRule();
+      appendText("p", "感谢您的光临！", { fontSize: "12px", textAlign: "center" });
+      appendText("p", new Date().toLocaleDateString(), { fontSize: "11px", textAlign: "center" });
+      return container;
+    };
 
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (printWindow) {
+      printWindow.opener = null;
       printWindow.document.write(`
         <html>
           <head><title>收银小票</title></head>
-          <body>${printContent}</body>
+          <body></body>
         </html>
       `);
       printWindow.document.close();
+      printWindow.document.body.appendChild(buildReceiptElement());
       printWindow.focus();
       setTimeout(() => {
         printWindow.print();
@@ -4164,7 +4186,7 @@ function Pos({
     } else {
       // Fallback: use a hidden div
       const printDiv = document.createElement('div');
-      printDiv.innerHTML = printContent;
+      printDiv.appendChild(buildReceiptElement());
       printDiv.style.position = 'absolute';
       printDiv.style.left = '-9999px';
       document.body.appendChild(printDiv);
@@ -4191,9 +4213,20 @@ function Pos({
     setServicePickerOpen(false);
   };
 
+  useEffect(() => {
+    if (!initialAppointmentId) {
+      appliedInitialAppointmentRef.current = undefined;
+      return;
+    }
+    if (appliedInitialAppointmentRef.current === initialAppointmentId) return;
+    appliedInitialAppointmentRef.current = initialAppointmentId;
+    setActiveModule("single");
+    useAppointmentForCheckout(initialAppointmentId);
+  }, [initialAppointmentId, data.appointments]);
+
   const openCheckoutModule = (module: "product" | "single") => {
     const isProductModule = module === "product";
-    checkoutRequestIdRef.current = `checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    checkoutRequestIdRef.current = makeId("checkout");
     setCheckoutContentMode(isProductModule ? "product" : "service");
     setCheckoutCustomerMode("walkin");
     setServiceId("");
@@ -4387,7 +4420,7 @@ function Pos({
       setAdjustmentReason("");
       const signatureHint = usesService && usesCustomer ? "待签名记录已生成。" : "";
       setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。${signatureHint}` : `下单成功，订单已生成。${signatureHint}`);
-      checkoutRequestIdRef.current = `checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      checkoutRequestIdRef.current = makeId("checkout");
       if (fromManagement && onReturnManagement) {
         onReturnManagement();
       } else {
