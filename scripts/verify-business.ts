@@ -9,7 +9,6 @@ import {
   checkoutOrder,
   convertOnlineBookingRequest,
   createAppointment,
-  createApprovalRequest,
   createDailyClose,
   createOnlineBookingRequest,
   createStaffShift,
@@ -19,7 +18,6 @@ import {
   createStocktake,
   completeCustomerFollowUp,
   createTagDefinition,
-  decideApprovalRequest,
   extendMemberCard,
   joinStaffInvite,
   joinInviteByCode,
@@ -1246,36 +1244,8 @@ function card(data: AppData, cardId: string) {
 }
 
 {
-  assert.throws(
-    () =>
-      checkoutOrder(
-        cloneSeed(),
-        {
-          customerId: "c1",
-          staffId: "s2",
-          serviceId: "v1",
-          payMethod: "微信",
-          discountAmount: 50,
-          adjustmentReason: "会员维护价",
-        },
-        { idFactory: testId, now: fixedNow },
-      ),
-    /需要审批/,
-    "discount checkout should require approved request",
-  );
-
-  const requested = createApprovalRequest(
-    cloneSeed(),
-    { type: "改价折扣", targetId: "manual", requestedBy: "u_frontdesk", amount: 50, reason: "会员维护价" },
-    { idFactory: testId, now: fixedNow },
-  );
-  const approved = decideApprovalRequest(
-    requested,
-    { approvalId: requested.approvalRequests[0].id, userId: "u_manager", approved: true },
-    { idFactory: testId, now: fixedNow },
-  );
   const checkedOut = checkoutOrder(
-    approved,
+    cloneSeed(),
     {
       customerId: "c1",
       staffId: "s2",
@@ -1283,11 +1253,10 @@ function card(data: AppData, cardId: string) {
       payMethod: "微信",
       discountAmount: 50,
       adjustmentReason: "会员维护价",
-      approvalId: approved.approvalRequests[0].id,
     },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(checkedOut.orders[0].paidAmount, 348, "approved discount should reduce paid amount");
+  assert.equal(checkedOut.orders[0].paidAmount, 348, "service discount should reduce paid amount without approval selection");
   assert.equal(checkedOut.orders[0].discountAmount, 50, "order should persist discount amount");
 }
 

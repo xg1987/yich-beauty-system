@@ -2162,9 +2162,6 @@ export function checkoutOrder(
   if (discountAmount < 0) {
     throw new Error("折扣金额无效");
   }
-  if (discountAmount > 0 && !productOnlyCheckout && !hasApprovedRequest(data, input.approvalId, "改价折扣", discountAmount)) {
-    throw new Error("改价折扣需要审批通过");
-  }
   const orderId = idFactory("o");
   const totalDiscount = discountAmount;
   if (totalDiscount >= total) {

@@ -3411,7 +3411,6 @@ function Pos({
   const [discountAmount, setDiscountAmount] = useState(0);
   const [checkoutDiscountRateInput, setCheckoutDiscountRateInput] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
-  const [approvalId, setApprovalId] = useState("");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
   const [checkoutValidationMessages, setCheckoutValidationMessages] = useState<string[]>([]);
@@ -3697,7 +3696,6 @@ function Pos({
     setDiscountAmount(0);
     setCheckoutDiscountRateInput("");
     setAdjustmentReason("");
-    setApprovalId("");
     setCheckoutValidationMessages([]);
     setCheckoutSuccessMessage("");
     if (!isProductModule) {
@@ -3852,7 +3850,6 @@ function Pos({
         giftProductItems: usesProduct ? checkoutGiftItems : undefined,
         discountAmount: discountAmount || undefined,
         adjustmentReason: adjustmentReason || undefined,
-        approvalId: approvalId || undefined,
         appointmentId: usesCustomer && usesService ? appointmentId || undefined : undefined,
         payMethod,
         cardId: usesCustomer && payMethod === "会员卡" ? cardId : undefined,
@@ -3870,7 +3867,6 @@ function Pos({
       setDiscountAmount(0);
       setCheckoutDiscountRateInput("");
       setAdjustmentReason("");
-      setApprovalId("");
       setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。` : "下单成功，订单已生成。");
       checkoutRequestIdRef.current = `checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       if (fromManagement && onReturnManagement) {
@@ -4254,22 +4250,6 @@ function Pos({
             {usesProduct && !usesService ? "折扣说明" : "改价原因"}
             <input value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder={usesProduct && !usesService ? "如新客折扣、活动价" : "如老客维护、会员权益"} />
           </label>
-          {discountAmount > 0 && usesService && (
-            <div className="sub-panel">
-              <Select
-                label="已通过改价审批"
-                value={approvalId}
-                onChange={setApprovalId}
-                options={[
-                  { value: "", label: "选择审批单" },
-                  ...data.approvalRequests
-                    .filter((item) => item.type === "改价折扣" && item.status === "已通过" && item.amount >= discountAmount)
-                    .map((item) => ({ value: item.id, label: `${item.reason} · ${money(item.amount)}` })),
-                ]}
-              />
-              <p className="form-note">改价审批请到管理中心的审批中心提交并通过后再选择。</p>
-            </div>
-          )}
           <div className="checkout-total">
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
