@@ -160,6 +160,14 @@ export class D1BeautyDatabase {
     await this.db.batch(statements);
   }
 
+  async reserveCheckoutSubmission(id: string, createdAt: string) {
+    await this.db.prepare("CREATE TABLE IF NOT EXISTS checkoutSubmissionLocks (id TEXT PRIMARY KEY, createdAt TEXT NOT NULL)").run();
+    const cutoff = new Date(Date.parse(createdAt) - 10 * 60 * 1000).toISOString();
+    await this.db.prepare("DELETE FROM checkoutSubmissionLocks WHERE createdAt < ?").bind(cutoff).run();
+    const result = await this.db.prepare("INSERT OR IGNORE INTO checkoutSubmissionLocks (id, createdAt) VALUES (?, ?)").bind(id, createdAt).run();
+    return (result.meta?.changes ?? 0) > 0;
+  }
+
   private async all<T>(query: string, mapper: (row: unknown) => T) {
     const result = await this.db.prepare(query).all();
     return (result.results ?? []).map(mapper);

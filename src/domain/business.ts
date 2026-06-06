@@ -2098,9 +2098,6 @@ export function checkoutOrder(
   if (customerId && !selectedCustomer) {
     throw new Error("客户不存在");
   }
-  if (!customerId && !productOnlyCheckout && (!guestName || !guestPhone)) {
-    throw new Error("请填写新客姓名和电话");
-  }
   if (serviceId && !selectedService) {
     throw new Error("服务项目不存在");
   }

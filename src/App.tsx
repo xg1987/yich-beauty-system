@@ -3393,11 +3393,14 @@ function Pos({
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState("");
   const [staffId, setStaffId] = useState(firstActiveStaffId(data));
   const [collaboratorStaffIds, setCollaboratorStaffIds] = useState<string[]>([]);
   const [checkoutProductItems, setCheckoutProductItems] = useState<CheckoutCartItem[]>([]);
   const [checkoutGiftItems, setCheckoutGiftItems] = useState<CheckoutCartItem[]>([]);
+  const [servicePickerOpen, setServicePickerOpen] = useState(false);
+  const [servicePickerCategory, setServicePickerCategory] = useState("全部");
+  const [servicePickerSearch, setServicePickerSearch] = useState("");
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [productPickerMode, setProductPickerMode] = useState<"sale" | "gift">("sale");
   const [productPickerCategory, setProductPickerCategory] = useState("全部");
@@ -3406,7 +3409,7 @@ function Pos({
   const [payMethod, setPayMethod] = useState<Order["payMethod"]>("微信");
   const [cardId, setCardId] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
-  const [productDiscountRateInput, setProductDiscountRateInput] = useState("");
+  const [checkoutDiscountRateInput, setCheckoutDiscountRateInput] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [approvalId, setApprovalId] = useState("");
   const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
@@ -3414,6 +3417,8 @@ function Pos({
   const [checkoutValidationMessages, setCheckoutValidationMessages] = useState<string[]>([]);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState("");
+  const checkoutSubmittingRef = useRef(false);
+  const checkoutRequestIdRef = useRef(`checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`);
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("existing");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
@@ -3473,12 +3478,13 @@ function Pos({
       setAppointmentId("");
       setCollaboratorStaffIds([]);
       setCardId("");
+      setServicePickerOpen(false);
     }
     if (!usesProduct) {
       setCheckoutProductItems((items) => (items.length ? [] : items));
       setCheckoutGiftItems((items) => (items.length ? [] : items));
       setProductPickerOpen(false);
-      setProductDiscountRateInput("");
+      setCheckoutDiscountRateInput("");
       setDiscountAmount(0);
       return;
     }
@@ -3506,8 +3512,22 @@ function Pos({
     .filter((item): item is CheckoutCartItem & { product: Product } => Boolean(item));
   const productSubtotal = checkoutProductRows.reduce((sum, item) => sum + item.amount, 0);
   const total = calculateOrderTotal(data, usesService ? serviceId : undefined, undefined, usesProduct ? checkoutProductItems : undefined);
-  const productDiscountedPrice = usesProduct && !usesService ? Math.max(0, productSubtotal - discountAmount) : productSubtotal;
-  const productSavedAmount = usesProduct && !usesService ? Math.max(0, discountAmount) : 0;
+  const selectedService = data.services.find((service) => service.id === serviceId);
+  const checkoutDiscountedPrice = Math.max(0, total - discountAmount);
+  const checkoutSavedAmount = Math.max(0, discountAmount);
+  const serviceCategoryName = (service: Service) => service.category?.trim() || "未分类";
+  const servicePickerCategories = [
+    "全部",
+    ...Array.from(new Set(data.services.map(serviceCategoryName))),
+  ];
+  const servicesInPickerCategory = (category: string) =>
+    category === "全部" ? data.services : data.services.filter((service) => serviceCategoryName(service) === category);
+  const servicePickerCategoryCount = (category: string) => servicesInPickerCategory(category).length;
+  const normalizedServicePickerSearch = servicePickerSearch.trim().toLowerCase();
+  const servicePickerServices = servicesInPickerCategory(servicePickerCategory).filter((service) => {
+    const searchTarget = `${service.name} ${service.category}`.toLowerCase();
+    return !normalizedServicePickerSearch || searchTarget.includes(normalizedServicePickerSearch);
+  });
   const productCategoryName = (product: Product) => product.category?.trim() || "未分类";
   const productSubcategoryName = (product: Product) => product.subcategory?.trim() || "未分小类";
   const productPickerCategories = [
@@ -3666,14 +3686,16 @@ function Pos({
 
   const openCheckoutModule = (module: "product" | "single") => {
     const isProductModule = module === "product";
+    checkoutRequestIdRef.current = `checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     setCheckoutContentMode(isProductModule ? "product" : "service");
     setCheckoutCustomerMode("walkin");
+    setServiceId("");
     setAppointmentId("");
     setCustomerSearch("");
     setCardId("");
     setCollaboratorStaffIds([]);
     setDiscountAmount(0);
-    setProductDiscountRateInput("");
+    setCheckoutDiscountRateInput("");
     setAdjustmentReason("");
     setApprovalId("");
     setCheckoutValidationMessages([]);
@@ -3682,14 +3704,16 @@ function Pos({
       setCheckoutProductItems([]);
       setCheckoutGiftItems([]);
       setProductPickerOpen(false);
+    } else {
+      setServicePickerOpen(false);
     }
     if (payMethod === "会员卡" || isProductModule) setPayMethod("微信");
     setActiveModule(module);
   };
 
-  const resetProductDiscount = () => {
+  const resetCheckoutDiscount = () => {
     setDiscountAmount(0);
-    setProductDiscountRateInput("");
+    setCheckoutDiscountRateInput("");
   };
 
   const setCheckoutItemQuantity = (mode: "sale" | "gift", productId: string, quantity: number) => {
@@ -3704,7 +3728,7 @@ function Pos({
       }
       return [...items, { productId, quantity: nextQuantity }];
     });
-    if (mode === "sale") resetProductDiscount();
+    if (mode === "sale") resetCheckoutDiscount();
   };
 
   const addCheckoutItem = (mode: "sale" | "gift", productId: string) => {
@@ -3721,8 +3745,21 @@ function Pos({
     setProductPickerOpen(true);
   };
 
-  const applyProductDiscountRate = (value: string) => {
-    setProductDiscountRateInput(value);
+  const openServicePicker = () => {
+    setServicePickerCategory("全部");
+    setServicePickerSearch("");
+    setServicePickerOpen(true);
+  };
+
+  const selectCheckoutService = (nextServiceId: string) => {
+    clearAppointment();
+    if (nextServiceId !== serviceId) resetCheckoutDiscount();
+    setServiceId(nextServiceId);
+    setServicePickerOpen(false);
+  };
+
+  const applyCheckoutDiscountRate = (value: string) => {
+    setCheckoutDiscountRateInput(value);
     const trimmed = value.trim();
     if (!trimmed) {
       setDiscountAmount(0);
@@ -3735,8 +3772,8 @@ function Pos({
     }
     const percentRate = rawRate <= 10 ? rawRate * 10 : rawRate;
     const boundedRate = Math.min(100, Math.max(0, percentRate));
-    const nextPaidAmount = Math.round(productSubtotal * boundedRate / 100);
-    setDiscountAmount(Math.max(0, productSubtotal - nextPaidAmount));
+    const nextPaidAmount = Math.round(total * boundedRate / 100);
+    setDiscountAmount(Math.max(0, total - nextPaidAmount));
   };
 
   const selectCardService = (service: string) => {
@@ -3778,7 +3815,7 @@ function Pos({
 
   const checkout = (event: FormEvent) => {
     event.preventDefault();
-    if (checkoutSubmitting) return;
+    if (checkoutSubmittingRef.current || checkoutSubmitting) return;
     const messages: string[] = [];
     if (!staffId) {
       messages.push(usesProduct && !usesService ? "请选择收银员工。商品开单可以选择店长/老板或员工。" : "请选择服务人员。");
@@ -3790,8 +3827,6 @@ function Pos({
       messages.push(`商品 ${zeroPriceNames} 的售价为 0，请先到商品资料填写售价。`);
     }
     if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
-    if (!usesCustomer && usesService && !guestName.trim()) messages.push("请填写客户姓名。");
-    if (!usesCustomer && usesService && !guestPhone.trim()) messages.push("请填写客户电话。");
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
@@ -3802,9 +3837,11 @@ function Pos({
     }
 
     setCheckoutValidationMessages([]);
+    checkoutSubmittingRef.current = true;
     setCheckoutSubmitting(true);
     void runMutation(() =>
       actions.checkout({
+        checkoutRequestId: checkoutRequestIdRef.current,
         customerId: usesCustomer ? customerId : undefined,
         guestName: usesCustomer ? undefined : guestName.trim(),
         guestPhone: usesCustomer ? undefined : guestPhone.trim(),
@@ -3831,10 +3868,11 @@ function Pos({
       }
       setCollaboratorStaffIds([]);
       setDiscountAmount(0);
-      setProductDiscountRateInput("");
+      setCheckoutDiscountRateInput("");
       setAdjustmentReason("");
       setApprovalId("");
       setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。` : "下单成功，订单已生成。");
+      checkoutRequestIdRef.current = `checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       if (fromManagement && onReturnManagement) {
         onReturnManagement();
       } else {
@@ -3842,7 +3880,10 @@ function Pos({
       }
     })
       .catch(() => undefined)
-      .finally(() => setCheckoutSubmitting(false));
+      .finally(() => {
+        checkoutSubmittingRef.current = false;
+        setCheckoutSubmitting(false);
+      });
   };
 
   const posModuleTitles: Record<NonNullable<typeof activeModule>, string> = {
@@ -4018,7 +4059,31 @@ function Pos({
         />
         <form className="form" onSubmit={checkout}>
           {usesService && (
-            <Select label="项目" value={serviceId} onChange={(value) => { clearAppointment(); setServiceId(value); }} options={data.services.map(optionOf)} />
+            <div className="checkout-product-picker">
+              <div className="checkout-product-toolbar single">
+                <button type="button" onClick={openServicePicker}>
+                  <Sparkles size={16} />
+                  选择项目
+                </button>
+              </div>
+              <div className="checkout-product-section">
+                <div className="checkout-product-section-head">
+                  <span>服务项目</span>
+                  <strong>{selectedService ? money(selectedService.price) : "未选择"}</strong>
+                </div>
+                {selectedService ? (
+                  <div className="checkout-service-line">
+                    <div>
+                      <strong>{selectedService.name}</strong>
+                      <span>{selectedService.category || "未分类"} · {selectedService.duration} 分钟</span>
+                    </div>
+                    <span>{money(selectedService.price)}</span>
+                  </div>
+                ) : (
+                  <div className="checkout-product-empty">还没有选择项目</div>
+                )}
+              </div>
+            </div>
           )}
           {usesProduct && (
             <div className="checkout-product-picker">
@@ -4131,12 +4196,12 @@ function Pos({
             <div className="checkout-guest-fields">
               <div className="checkout-guest-grid">
                 <label>
-                  {usesProduct && !usesService ? "新客姓名（可选）" : "客户姓名"}
-                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "请输入客户姓名"} />
+                  {usesProduct && !usesService ? "新客姓名（可选）" : "客户姓名（可选）"}
+                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="不留可空" />
                 </label>
                 <label>
-                  {usesProduct && !usesService ? "联系电话（可选）" : "客户电话"}
-                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "请输入客户电话"} />
+                  {usesProduct && !usesService ? "联系电话（可选）" : "客户电话（可选）"}
+                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="不留可空" />
                 </label>
               </div>
             </div>
@@ -4168,29 +4233,23 @@ function Pos({
                 : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "商品购买仅支持储值卡" }]}
             />
           )}
-          {usesProduct && !usesService ? (
-            <>
-              <label>
-                商品折扣
-                <input
-                  inputMode="decimal"
-                  value={productDiscountRateInput}
-                  onChange={(event) => applyProductDiscountRate(event.target.value)}
-                  placeholder="如 95"
-                />
-              </label>
-              <div className="checkout-discount-summary">
-                <span>原价 <strong>{money(productSubtotal)}</strong></span>
-                <span>折后 <strong>{money(productDiscountedPrice)}</strong></span>
-                <span>节省 <strong>{money(productSavedAmount)}</strong></span>
-              </div>
-            </>
-          ) : (
+          <>
             <label>
-              优惠/改价金额
-              <input type="number" value={discountAmount} onChange={(event) => setDiscountAmount(Number(event.target.value))} min={0} />
+              折扣
+              <input
+                inputMode="decimal"
+                value={checkoutDiscountRateInput}
+                onChange={(event) => applyCheckoutDiscountRate(event.target.value)}
+                placeholder="如 95 表示 95 折"
+              />
             </label>
-          )}
+            <div className="checkout-discount-summary">
+              <span>原价 <strong>{money(total)}</strong></span>
+              <span>折扣金额 <strong>{money(discountAmount)}</strong></span>
+              <span>折后 <strong>{money(checkoutDiscountedPrice)}</strong></span>
+              <span>节省 <strong>{money(checkoutSavedAmount)}</strong></span>
+            </div>
+          </>
           <label>
             {usesProduct && !usesService ? "折扣说明" : "改价原因"}
             <input value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder={usesProduct && !usesService ? "如新客折扣、活动价" : "如老客维护、会员权益"} />
@@ -4308,6 +4367,56 @@ function Pos({
         </section>
         )}
       </div>
+      </Modal>
+      <Modal
+        open={servicePickerOpen}
+        title="选择项目"
+        subtitle="按项目分类选择服务，选择后回到收银确认"
+        size="large"
+        onClose={() => setServicePickerOpen(false)}
+      >
+        <div className="product-picker-modal">
+          <div className="product-picker-filters">
+            <label>
+              <Search size={15} />
+              <input value={servicePickerSearch} onChange={(event) => setServicePickerSearch(event.target.value)} placeholder="搜索项目名称或分类" />
+            </label>
+            <div className="product-picker-category-list">
+              {servicePickerCategories.map((category) => (
+                <button
+                  type="button"
+                  key={category}
+                  className={category === servicePickerCategory ? "active" : ""}
+                  onClick={() => setServicePickerCategory(category)}
+                >
+                  <span>{category}</span>
+                  <em>{servicePickerCategoryCount(category)}</em>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="product-picker-grid">
+            {servicePickerServices.length ? servicePickerServices.map((service) => (
+              <button
+                type="button"
+                className={`product-picker-card service-picker-card ${service.id === serviceId ? "selected" : ""}`}
+                key={service.id}
+                onClick={() => selectCheckoutService(service.id)}
+              >
+                <div>
+                  <strong>{service.name}</strong>
+                  <span>{service.category || "未分类"} · {service.duration} 分钟</span>
+                </div>
+                <div className="product-picker-card-meta">
+                  <span>{money(service.price)}</span>
+                  <small>{service.defaultTimes ?? 1} 次默认</small>
+                </div>
+              </button>
+            )) : (
+              <div className="product-picker-empty">没有匹配的项目</div>
+            )}
+          </div>
+        </div>
       </Modal>
       <Modal
         open={productPickerOpen}

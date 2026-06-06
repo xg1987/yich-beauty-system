@@ -191,6 +191,13 @@ export class BeautyDatabase {
     }
   }
 
+  reserveCheckoutSubmission(id: string, createdAt: string) {
+    const cutoff = new Date(Date.parse(createdAt) - 10 * 60 * 1000).toISOString();
+    this.db.prepare("DELETE FROM checkoutSubmissionLocks WHERE createdAt < ?").run(cutoff);
+    const result = this.db.prepare("INSERT OR IGNORE INTO checkoutSubmissionLocks (id, createdAt) VALUES (?, ?)").run(id, createdAt) as { changes?: number };
+    return (result.changes ?? 0) > 0;
+  }
+
   private writeData(data: AppData) {
     this.writeJsonTable("storeProfiles", data.storeProfiles);
     this.writeJsonTable("onlineStorefronts", data.onlineStorefronts);
@@ -761,6 +768,11 @@ export class BeautyDatabase {
       CREATE TABLE IF NOT EXISTS stocktakes (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS checkoutSubmissionLocks (
+        id TEXT PRIMARY KEY,
+        createdAt TEXT NOT NULL
       );
     `);
 

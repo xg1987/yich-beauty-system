@@ -228,6 +228,17 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(ownerProjectServiceCheckout.orders[0].staffId, registered.staff[0].id, "owner should be allowed as project service staff for checkout");
   assert.equal(ownerProjectServiceCheckout.orders[0].serviceId, "v1", "owner project service checkout should keep selected service");
+  const anonymousProjectServiceCheckout = checkoutOrder(
+    registered,
+    {
+      staffId: registered.staff[0].id,
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(anonymousProjectServiceCheckout.orders[0].guestName, "", "project service checkout should allow optional walk-in name");
+  assert.equal(anonymousProjectServiceCheckout.orders[0].guestPhone, "", "project service checkout should allow optional walk-in phone");
   const ownerProductCheckout = checkoutOrder(
     registered,
     {

@@ -574,25 +574,30 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/checkout") {
         requirePermission(session, "pos:manage");
         const body = await readJson(request);
+        const checkoutRequestId = optionalString(body, "checkoutRequestId");
+        const checkedOutData = checkoutOrder(database.readData(), {
+          customerId: optionalString(body, "customerId"),
+          guestName: optionalString(body, "guestName"),
+          guestPhone: optionalString(body, "guestPhone"),
+          staffId: requiredString(body, "staffId"),
+          collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
+          serviceId: optionalString(body, "serviceId"),
+          productId: optionalString(body, "productId"),
+          giftProductId: optionalString(body, "giftProductId"),
+          productItems: optionalProductItems(body, "productItems"),
+          giftProductItems: optionalProductItems(body, "giftProductItems"),
+          discountAmount: optionalNumber(body, "discountAmount"),
+          adjustmentReason: optionalString(body, "adjustmentReason"),
+          approvalId: optionalString(body, "approvalId"),
+          appointmentId: optionalString(body, "appointmentId"),
+          payMethod: requiredString(body, "payMethod") as Order["payMethod"],
+          cardId: optionalString(body, "cardId"),
+        });
+        if (checkoutRequestId && !database.reserveCheckoutSubmission(checkoutRequestId, nowIso())) {
+          throw new Error("检测到刚刚已提交相同收银请求，请勿重复提交");
+        }
         const nextData = addOperationLog(
-          checkoutOrder(database.readData(), {
-            customerId: optionalString(body, "customerId"),
-            guestName: optionalString(body, "guestName"),
-            guestPhone: optionalString(body, "guestPhone"),
-            staffId: requiredString(body, "staffId"),
-            collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
-            serviceId: optionalString(body, "serviceId"),
-            productId: optionalString(body, "productId"),
-            giftProductId: optionalString(body, "giftProductId"),
-            productItems: optionalProductItems(body, "productItems"),
-            giftProductItems: optionalProductItems(body, "giftProductItems"),
-            discountAmount: optionalNumber(body, "discountAmount"),
-            adjustmentReason: optionalString(body, "adjustmentReason"),
-            approvalId: optionalString(body, "approvalId"),
-            appointmentId: optionalString(body, "appointmentId"),
-            payMethod: requiredString(body, "payMethod") as Order["payMethod"],
-            cardId: optionalString(body, "cardId"),
-          }),
+          checkedOutData,
           {
             userId: session.user.id,
             action: "开单收银",

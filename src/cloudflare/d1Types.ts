@@ -1,6 +1,9 @@
 export type D1Value = string | number | null;
 
 export type D1Result<T = Record<string, unknown>> = {
+  meta?: {
+    changes?: number;
+  };
   results?: T[];
   success: boolean;
 };

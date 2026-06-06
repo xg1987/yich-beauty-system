@@ -702,6 +702,7 @@ try {
     method: "POST",
     token: session.token,
     body: {
+      checkoutRequestId: "api-checkout-multi-1",
       customerId: "c1",
       staffId: "s2",
       serviceId: "v1",
@@ -724,6 +725,23 @@ try {
   assert.equal(checkoutCommissions.find((item) => item.type === "销售提成")?.amount, 48, "checkout API should create sales commission");
   assert.equal(checkoutCommissions[0].rate, 0.12, "checkout API should persist staff commission rate");
   assert.equal(afterCheckout.operationLogs[0].action, "开单收银", "checkout API should write operation log");
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/checkout", {
+        method: "POST",
+        token: session.token,
+        body: {
+          checkoutRequestId: "api-checkout-multi-1",
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          productItems: [{ productId: "p4", quantity: 1 }],
+          payMethod: "微信",
+        },
+      }),
+    /重复提交/,
+    "checkout API should reject duplicate request ids even when order details differ",
+  );
 
   const afterRefund = await request<AppData>(baseUrl, `/api/orders/${afterCheckout.orders[0].id}/refund`, {
     method: "POST",

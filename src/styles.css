@@ -13324,7 +13324,7 @@ textarea,
 
 .checkout-discount-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   border: 1px solid rgba(111, 66, 193, 0.14);
   border-radius: 12px;
@@ -13391,6 +13391,10 @@ textarea,
   gap: 10px;
 }
 
+.checkout-product-toolbar.single {
+  grid-template-columns: 1fr;
+}
+
 .checkout-product-toolbar button {
   min-height: 42px;
   display: inline-flex;
@@ -13446,6 +13450,42 @@ textarea,
   border-radius: 8px;
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.78);
+}
+
+.checkout-service-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.checkout-service-line > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.checkout-service-line strong {
+  overflow: hidden;
+  color: #2f255f;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkout-service-line span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+}
+
+.checkout-service-line > span:last-child {
+  color: #3d2279;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .checkout-product-line > div:first-child {
@@ -13625,6 +13665,16 @@ textarea,
   border-radius: 8px;
   padding: 14px;
   background: rgba(255, 255, 255, 0.78);
+}
+
+.service-picker-card {
+  cursor: pointer;
+  text-align: left;
+}
+
+.service-picker-card:hover {
+  border-color: rgba(111, 66, 193, 0.28);
+  box-shadow: 0 12px 26px rgba(58, 41, 91, 0.08);
 }
 
 .product-picker-card.selected {
@@ -13853,6 +13903,10 @@ textarea,
 
   .checkout-product-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .checkout-discount-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .checkout-product-line {
@@ -16122,6 +16176,7 @@ textarea,
 .theme-night .checkout-product-toolbar button,
 .theme-night .checkout-product-section,
 .theme-night .checkout-product-line,
+.theme-night .checkout-service-line,
 .theme-night .product-picker-category-list button,
 .theme-night .product-picker-subcategory-list button,
 .theme-night .product-picker-card {
@@ -16138,6 +16193,7 @@ textarea,
 
 .theme-night .checkout-product-section-head,
 .theme-night .checkout-product-line span,
+.theme-night .checkout-service-line span,
 .theme-night .checkout-product-empty,
 .theme-night .product-picker-empty,
 .theme-night .product-picker-card span,
@@ -16147,6 +16203,8 @@ textarea,
 
 .theme-night .checkout-product-section-head strong,
 .theme-night .checkout-product-line strong,
+.theme-night .checkout-service-line strong,
+.theme-night .checkout-service-line > span:last-child,
 .theme-night .checkout-product-price,
 .theme-night .product-picker-card strong,
 .theme-night .product-picker-card-meta span {
