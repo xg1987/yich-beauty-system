@@ -78,6 +78,8 @@ type SubmitStatusButtonProps = {
 };
 type LoadingGateStage = "connecting" | "slow" | "stalled";
 
+const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", "supplier", "purchase", "stocktake", "list", "logs"];
+
 const MutationPendingContext = createContext(false);
 
 const THEME_KEY = "yich-system-theme";
@@ -520,6 +522,11 @@ function initialViewFromUrl(): ViewKey {
   return navItems.some((item) => item.key === requestedView) ? (requestedView as ViewKey) : "dashboard";
 }
 
+function initialInventoryModuleFromUrl(): InventoryModuleKey {
+  const requestedModule = new URLSearchParams(window.location.search).get("module");
+  return inventoryModuleKeys.some((key) => key === requestedModule) ? (requestedModule as InventoryModuleKey) : "stockIn";
+}
+
 function loadingTargetLabel(view: ViewKey) {
   if (view === "pos") return "收银台";
   return navItems.find((item) => item.key === view)?.label ?? "门店系统";
@@ -575,7 +582,7 @@ export default function App() {
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
   const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
-  const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>();
+  const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>(() => initialViewFromUrl() === "inventory" ? initialInventoryModuleFromUrl() : undefined);
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     const savedThemeMode = localStorage.getItem(THEME_KEY);
@@ -6472,7 +6479,7 @@ function Inventory({
   const [inventoryExportMessage, setInventoryExportMessage] = useState("");
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [purchaseExpiryAt, setPurchaseExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
-  const [activeModule, setActiveModule] = useState<InventoryModuleKey | undefined>(fromManagement ? initialModule ?? "stockIn" : undefined);
+  const [activeModule, setActiveModule] = useState<InventoryModuleKey>(initialModule ?? "stockIn");
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("全部");
   const [inventorySubcategoryFilter, setInventorySubcategoryFilter] = useState("全部");
   const inventoryCategoryNamesForForm = inventoryCategoryNames(data.products, inventoryCategoryPresets);
@@ -6636,8 +6643,8 @@ function Inventory({
   }, [purchaseProductId]);
 
   useEffect(() => {
-    if (fromManagement) setActiveModule(initialModule ?? "stockIn");
-  }, [fromManagement, initialModule]);
+    setActiveModule(initialModule ?? "stockIn");
+  }, [initialModule]);
 
   useEffect(() => {
     setInventorySubcategoryFilter("全部");
@@ -6720,11 +6727,11 @@ function Inventory({
   ];
   const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const closeModule = () => {
-    if (fromManagement && onReturnManagement) {
+    if (onReturnManagement) {
       onReturnManagement();
       return;
     }
-    setActiveModule(undefined);
+    setActiveModule(initialModule ?? "stockIn");
   };
 
   return (
@@ -6740,7 +6747,6 @@ function Inventory({
           { label: "供应商", value: `${data.suppliers.length} 家`, hint: "采购基础资料", icon: <Building2 size={18} /> },
         ]}
       />
-      {!fromManagement && <ModuleOverview modules={inventoryModules} activeKey={activeModule} onSelect={setActiveModule} />}
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "库存管理"}
