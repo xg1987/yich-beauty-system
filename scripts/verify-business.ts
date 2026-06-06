@@ -234,8 +234,6 @@ function card(data: AppData, cardId: string) {
   const ownerProductCheckout = checkoutOrder(
     registered,
     {
-      guestName: "商品新客",
-      guestPhone: "13900001234",
       staffId: registered.staff[0].id,
       productItems: [{ productId: "p4", quantity: 1 }],
       payMethod: "微信",
@@ -244,6 +242,7 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(ownerProductCheckout.orders[0].staffId, registered.staff[0].id, "owner should be allowed as cashier for product-only checkout");
   assert.equal(ownerProductCheckout.orders[0].paidAmount, 199, "product-only checkout should keep product amount");
+  assert.equal(ownerProductCheckout.orders[0].guestName, "", "product-only checkout should allow anonymous walk-in orders");
   assert.throws(
     () =>
       checkoutOrder(
@@ -252,8 +251,6 @@ function card(data: AppData, cardId: string) {
           products: registered.products.map((product) => (product.id === "p4" ? { ...product, price: 0 } : product)),
         },
         {
-          guestName: "零价商品新客",
-          guestPhone: "13900005678",
           staffId: registered.staff[0].id,
           productItems: [{ productId: "p4", quantity: 1 }],
           payMethod: "微信",

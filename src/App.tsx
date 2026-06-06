@@ -3773,8 +3773,8 @@ function Pos({
       messages.push(`商品 ${zeroPriceNames} 的售价为 0，请先到商品资料填写售价。`);
     }
     if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
-    if (!usesCustomer && !guestName.trim()) messages.push("请填写新客姓名。");
-    if (!usesCustomer && !guestPhone.trim()) messages.push("请填写联系电话。");
+    if (!usesCustomer && usesService && !guestName.trim()) messages.push("请填写新客姓名。");
+    if (!usesCustomer && usesService && !guestPhone.trim()) messages.push("请填写联系电话。");
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
@@ -4104,12 +4104,12 @@ function Pos({
             <div className="checkout-guest-fields">
               <div className="checkout-guest-grid">
                 <label>
-                  新客姓名
-                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="如 张女士" />
+                  {usesProduct && !usesService ? "新客姓名（可选）" : "新客姓名"}
+                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "如 张女士"} />
                 </label>
                 <label>
-                  联系电话
-                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="用于回访和客户开发" />
+                  {usesProduct && !usesService ? "联系电话（可选）" : "联系电话"}
+                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "用于回访和客户开发"} />
                 </label>
               </div>
             </div>
