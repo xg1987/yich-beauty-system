@@ -2089,14 +2089,10 @@ export function checkoutOrder(
   const giftProductItems = normalizeCheckoutProductItems(data, rawGiftProductItems, { gift: true });
   const selectedStaff = data.staff.find((item) => item.id === input.staffId);
   const productOnlyCheckout = Boolean(productItems.length > 0 && !selectedService);
-  if (productOnlyCheckout) {
-    assertActiveStaff(selectedStaff, "收银员工不存在或已停用");
-  } else {
-    assertBusinessStaff(selectedStaff);
-  }
+  assertActiveStaff(selectedStaff, productOnlyCheckout ? "收银员工不存在或已停用" : "服务人员不存在或已停用");
   (input.collaboratorStaffIds ?? []).forEach((staffId) => {
     const collaborator = data.staff.find((item) => item.id === staffId);
-    assertBusinessStaff(collaborator, "协作员工不存在或已停用");
+    assertActiveStaff(collaborator, "协作人员不存在或已停用");
   });
 
   if (customerId && !selectedCustomer) {

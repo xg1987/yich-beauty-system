@@ -276,6 +276,14 @@ function firstBusinessStaffId(data: AppData) {
   return businessStaffOf(data)[0]?.id ?? "";
 }
 
+function activeStaffOf(data: AppData) {
+  return data.staff.filter((staff) => staff.status === "active");
+}
+
+function firstActiveStaffId(data: AppData) {
+  return activeStaffOf(data)[0]?.id ?? "";
+}
+
 function normalizedAccount(account: string) {
   return account.trim().toLowerCase();
 }
@@ -3377,7 +3385,7 @@ function Pos({
   fromManagement?: boolean;
   onReturnManagement?: () => void;
 }) {
-  const serviceStaff = businessStaffOf(data);
+  const serviceStaff = activeStaffOf(data);
   const [appointmentId, setAppointmentId] = useState("");
   const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("customer");
   const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product">("service");
@@ -3386,7 +3394,7 @@ function Pos({
   const [guestPhone, setGuestPhone] = useState("");
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
-  const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
+  const [staffId, setStaffId] = useState(firstActiveStaffId(data));
   const [collaboratorStaffIds, setCollaboratorStaffIds] = useState<string[]>([]);
   const [checkoutProductItems, setCheckoutProductItems] = useState<CheckoutCartItem[]>([]);
   const [checkoutGiftItems, setCheckoutGiftItems] = useState<CheckoutCartItem[]>([]);
@@ -3425,8 +3433,7 @@ function Pos({
   const usesCustomer = checkoutCustomerMode === "customer";
   const usesService = checkoutContentMode === "service";
   const usesProduct = checkoutContentMode === "product";
-  const activeStaff = data.staff.filter((staff) => staff.status === "active");
-  const checkoutStaff = usesProduct && !usesService ? activeStaff : serviceStaff;
+  const checkoutStaff = serviceStaff;
   const staffOptions = checkoutStaff.map(optionOf);
   const selectedCustomer = data.customers.find((item) => item.id === customerId);
   const normalizedCustomerSearch = customerSearch.trim().toLowerCase();
@@ -3774,7 +3781,7 @@ function Pos({
     if (checkoutSubmitting) return;
     const messages: string[] = [];
     if (!staffId) {
-      messages.push(usesProduct && !usesService ? "请选择收银员工。商品开单可以选择店长/老板或员工。" : "请选择服务员工。");
+      messages.push(usesProduct && !usesService ? "请选择收银员工。商品开单可以选择店长/老板或员工。" : "请选择服务人员。");
     }
     if (usesService && !serviceId) messages.push("请选择服务项目。");
     if (usesProduct && checkoutProductItems.length === 0) messages.push("请选择销售商品。");
@@ -3842,7 +3849,7 @@ function Pos({
     card: "开卡",
     product: "商品",
     signature: "服务确认签名",
-    single: "单次服务",
+    single: "项目服务",
     orders: "订单流水",
   };
   const activeModuleTitle = activeModule ? posModuleTitles[activeModule] : "";
@@ -3925,12 +3932,12 @@ function Pos({
             </button>
             <button
               type="button"
-              className={`cashier-orbit-card left bottom ${activeModule === "orders" ? "active" : ""}`}
-              onClick={() => setActiveModule("orders")}
+              className={`cashier-orbit-card left bottom ${activeModule === "single" ? "active" : ""}`}
+              onClick={() => openCheckoutModule("single")}
             >
-              <ClipboardList size={22} />
-              <strong>订单流水</strong>
-              <em>{data.orders.length} 单</em>
+              <BadgeCent size={22} />
+              <strong>项目服务</strong>
+              <em>项目收款</em>
             </button>
           </div>
           <button
@@ -3954,12 +3961,12 @@ function Pos({
             </button>
             <button
               type="button"
-              className={`cashier-orbit-card right bottom ${activeModule === "single" ? "active" : ""}`}
-              onClick={() => openCheckoutModule("single")}
+              className={`cashier-orbit-card right bottom ${activeModule === "orders" ? "active" : ""}`}
+              onClick={() => setActiveModule("orders")}
             >
-              <BadgeCent size={22} />
-              <strong>单次服务</strong>
-              <em>即时收款</em>
+              <ClipboardList size={22} />
+              <strong>订单流水</strong>
+              <em>{data.orders.length} 单</em>
             </button>
           </div>
         </section>
@@ -4006,7 +4013,7 @@ function Pos({
         <section className="panel">
         <PanelTitle
           icon={<CreditCard size={18} />}
-          title={activeModule === "product" ? "商品" : "单次服务"}
+          title={activeModule === "product" ? "商品" : "项目服务"}
           action={activeModule === "product" ? "商品收银" : "项目收银"}
         />
         <form className="form" onSubmit={checkout}>
@@ -4044,7 +4051,7 @@ function Pos({
             </div>
           )}
           <Select
-            label={usesService ? "服务员工" : "收银员工"}
+            label={usesService ? "服务人员" : "收银员工"}
             value={staffId}
             onChange={(value) => {
               clearAppointment();
@@ -4055,7 +4062,7 @@ function Pos({
           />
           {usesService && (
             <CheckboxGroup
-              label="协作员工"
+              label="协作人员"
               values={collaboratorStaffIds}
               onChange={setCollaboratorStaffIds}
               options={serviceStaff.filter((item) => item.id !== staffId).map(optionOf)}

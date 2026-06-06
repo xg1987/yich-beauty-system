@@ -216,21 +216,18 @@ function card(data: AppData, cardId: string) {
     /老板账号不走员工邀请码/,
     "owner should not use staff invite flow",
   );
-  assert.throws(
-    () =>
-      checkoutOrder(
-        registered,
-        {
-          customerId: "c1",
-          staffId: registered.staff[0].id,
-          serviceId: "v1",
-          payMethod: "微信",
-        },
-        { idFactory: testId, now: fixedNow },
-      ),
-    /服务员工不存在或已停用/,
-    "owner should not be selected as service staff for checkout",
+  const ownerProjectServiceCheckout = checkoutOrder(
+    registered,
+    {
+      customerId: "c1",
+      staffId: registered.staff[0].id,
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
   );
+  assert.equal(ownerProjectServiceCheckout.orders[0].staffId, registered.staff[0].id, "owner should be allowed as project service staff for checkout");
+  assert.equal(ownerProjectServiceCheckout.orders[0].serviceId, "v1", "owner project service checkout should keep selected service");
   const ownerProductCheckout = checkoutOrder(
     registered,
     {
