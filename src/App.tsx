@@ -737,7 +737,7 @@ export default function App() {
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
             <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserAvatar avatarUrl={currentAvatarUrl} size={22} showImage />
+              <UserAvatar size={22} />
             </button>
             {notificationPanelOpen && (
               <NotificationPanel
