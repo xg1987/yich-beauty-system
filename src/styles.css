@@ -15698,11 +15698,20 @@ textarea,
 }
 
 .inventory-loss-form {
-  grid-template-columns: minmax(180px, 1.3fr) minmax(140px, 1fr) minmax(120px, 0.8fr) minmax(180px, 1.3fr) minmax(120px, 0.72fr) minmax(150px, 0.8fr);
+  grid-template-columns: minmax(180px, 1.35fr) minmax(140px, 1fr) minmax(110px, 0.72fr) minmax(180px, 1.35fr);
   align-items: end;
 }
 
+.inventory-loss-form label,
+.inventory-loss-form .field,
+.inventory-loss-form input,
+.inventory-loss-form select,
+.inventory-loss-form button {
+  min-width: 0;
+}
+
 .inventory-loss-current {
+  grid-column: 3 / 4;
   min-height: 44px;
   display: grid;
   align-content: center;
@@ -15711,6 +15720,12 @@ textarea,
   border: 1px solid rgba(111, 66, 193, 0.13);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.72);
+}
+
+.inventory-loss-form > .primary-button {
+  grid-column: 4 / 5;
+  width: 100%;
+  min-height: 44px;
 }
 
 .inventory-loss-current span {
