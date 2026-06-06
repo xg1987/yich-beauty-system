@@ -3387,7 +3387,7 @@ function Pos({
 }) {
   const serviceStaff = activeStaffOf(data);
   const [appointmentId, setAppointmentId] = useState("");
-  const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("customer");
+  const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("walkin");
   const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product">("service");
   const [customerSearch, setCustomerSearch] = useState("");
   const [guestName, setGuestName] = useState("");
@@ -3667,7 +3667,7 @@ function Pos({
   const openCheckoutModule = (module: "product" | "single") => {
     const isProductModule = module === "product";
     setCheckoutContentMode(isProductModule ? "product" : "service");
-    setCheckoutCustomerMode(isProductModule ? "walkin" : "customer");
+    setCheckoutCustomerMode("walkin");
     setAppointmentId("");
     setCustomerSearch("");
     setCardId("");
@@ -3790,8 +3790,8 @@ function Pos({
       messages.push(`商品 ${zeroPriceNames} 的售价为 0，请先到商品资料填写售价。`);
     }
     if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
-    if (!usesCustomer && usesService && !guestName.trim()) messages.push("请填写新客姓名。");
-    if (!usesCustomer && usesService && !guestPhone.trim()) messages.push("请填写联系电话。");
+    if (!usesCustomer && usesService && !guestName.trim()) messages.push("请填写客户姓名。");
+    if (!usesCustomer && usesService && !guestPhone.trim()) messages.push("请填写客户电话。");
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
@@ -4131,12 +4131,12 @@ function Pos({
             <div className="checkout-guest-fields">
               <div className="checkout-guest-grid">
                 <label>
-                  {usesProduct && !usesService ? "新客姓名（可选）" : "新客姓名"}
-                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "如 张女士"} />
+                  {usesProduct && !usesService ? "新客姓名（可选）" : "客户姓名"}
+                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "请输入客户姓名"} />
                 </label>
                 <label>
-                  {usesProduct && !usesService ? "联系电话（可选）" : "联系电话"}
-                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "用于回访和客户开发"} />
+                  {usesProduct && !usesService ? "联系电话（可选）" : "客户电话"}
+                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder={usesProduct && !usesService ? "不留可空" : "请输入客户电话"} />
                 </label>
               </div>
             </div>
