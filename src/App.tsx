@@ -66,6 +66,7 @@ type ThemeMode = "auto" | "day" | "night";
 type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
 type CardType = "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
 type CardCustomerMode = "existing" | "new";
+type CustomerFollowUpType = "服务后回访" | "下次护理提醒" | "卡项会员提醒" | "客户关系维护" | "异常处理";
 type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "batches" | "logs";
@@ -96,6 +97,7 @@ const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
 const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
 const DEFAULT_DISCOUNT_CARD_NAME = "会员折扣卡";
 const cashPayMethodOptions = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((item) => ({ value: item, label: item }));
+const customerFollowUpTypeOptions = (["服务后回访", "下次护理提醒", "卡项会员提醒", "客户关系维护", "异常处理"] as CustomerFollowUpType[]).map((item) => ({ value: item, label: item }));
 const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
   面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
   养生类: ["泥灸", "私密", "套盒", "膏霜", "身体油", "泡脚汤", "艾灸"],
@@ -5339,9 +5341,10 @@ function Customers({
   const [signatureValidDays, setSignatureValidDays] = useState(7);
   const [followUpCustomerId, setFollowUpCustomerId] = useState(data.customers[0]?.id ?? "");
   const [followUpStaffId, setFollowUpStaffId] = useState(serviceStaff[0]?.id ?? "");
+  const [followUpType, setFollowUpType] = useState<CustomerFollowUpType>("服务后回访");
   const [followUpMethod, setFollowUpMethod] = useState<"电话" | "微信" | "到店">("微信");
   const [followUpDueAt, setFollowUpDueAt] = useState(toLocalInputValue(tomorrowAt(24)));
-  const [followUpNote, setFollowUpNote] = useState("客户跟进备注");
+  const [followUpNote, setFollowUpNote] = useState("");
   const [activeModule, setActiveModule] = useState<"profile" | "cards" | "followup" | "signature" | undefined>();
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerFilter, setCustomerFilter] = useState<"all" | "follow" | "card" | "recent">("all");
@@ -5453,14 +5456,14 @@ function Customers({
   const addCustomerFollowUp = (event: FormEvent) => {
     event.preventDefault();
     const note = followUpNote.trim();
-    if (!note) return;
+    if (!note || !followUpDueAt) return;
     void runMutation(() =>
       actions.addFollowUp({
         customerId: followUpCustomerId,
         staffId: followUpStaffId,
         dueAt: new Date(followUpDueAt).toISOString(),
         method: followUpMethod,
-        note,
+        note: `【${followUpType}】${note}`,
       }),
     ).then(() => {
       setFollowUpNote("");
@@ -5662,17 +5665,18 @@ function Customers({
     { key: "cards", label: "项目卡", count: selectedCustomerCards.length },
     { key: "records", label: "服务记录", count: selectedCustomerRecords.length },
     { key: "signatures", label: "签名记录", count: selectedCustomerSignatures.length },
-    { key: "followups", label: "跟进备注", count: selectedCustomerFollowUps.length },
+    { key: "followups", label: "跟进计划", count: selectedCustomerFollowUps.length },
   ] as const;
   const showEmptyCustomerDetail = !selectedCustomer;
   type CustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
     { key: "profile", title: "客户档案", desc: "客户资料和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
     { key: "cards", title: "项目次数卡", desc: "开项目卡、充值次数和核销记录", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
-    { key: "followup", title: "新增跟进", desc: "客户关怀备注和回访计划", icon: MessageCircle, tone: "jade", meta: `${pendingFollowUps} 位` },
+    { key: "followup", title: "新增跟进计划", desc: "回访、护理提醒、会员关怀", icon: MessageCircle, tone: "jade", meta: `${pendingFollowUps} 位` },
     { key: "signature", title: "服务确认签名", desc: "", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const activeModuleSubtitle = activeModule === "followup" ? "为当前客户设置回访、护理提醒或会员关怀任务" : "客户资料、项目卡和服务确认记录";
   const closeModule = () => {
     if (fromManagement && onReturnManagement) {
       onReturnManagement();
@@ -5880,9 +5884,8 @@ function Customers({
                   <section className="customer-info-card customer-advice-card">
                     <div className="customer-section-title">
                       <strong>下次建议</strong>
-                      <button type="button" onClick={() => openCustomerModule("followup")}>新增跟进</button>
                     </div>
-                    <p>{lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在跟进备注中补充客户状态和下次建议。"}</p>
+                    <p>{lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在跟进计划中补充客户状态和下次建议。"}</p>
                   </section>
                 </div>
               )}
@@ -5949,7 +5952,7 @@ function Customers({
               {customerDetailTab === "followups" && (
                 <div className="customer-table-panel">
                   <DataTable
-                    columns={["计划时间", "员工", "方式", "状态", "备注", "操作"]}
+                    columns={["计划时间", "负责人", "方式", "状态", "跟进内容", "操作"]}
                     rows={selectedCustomerFollowUps.map((followUp) => [
                       shortDate(followUp.dueAt),
                       nameOf(data.staff, followUp.staffId),
@@ -5963,7 +5966,7 @@ function Customers({
                       ) : "已完成",
                     ])}
                   />
-                  {selectedCustomerFollowUps.length === 0 && <p className="customer-soft-empty">当前客户暂无跟进记录</p>}
+                  {selectedCustomerFollowUps.length === 0 && <p className="customer-soft-empty">当前客户暂无跟进计划</p>}
                 </div>
               )}
             </>
@@ -5973,7 +5976,7 @@ function Customers({
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "客户档案"}
-        subtitle="客户资料、项目卡和服务确认记录"
+        subtitle={activeModuleSubtitle}
         size="large"
         onClose={closeModule}
       >
@@ -6050,14 +6053,15 @@ function Customers({
         )}
         {activeModule === "followup" && (
         <>
-        <PanelTitle icon={<MessageCircle size={18} />} title="新增跟进" action="客户关怀备注" />
+        <PanelTitle icon={<MessageCircle size={18} />} title="新增跟进计划" action="客户关怀任务" />
         <form className="form" onSubmit={addCustomerFollowUp}>
-          <Select label="客户" value={followUpCustomerId} onChange={setFollowUpCustomerId} options={data.customers.map(optionOf)} />
+          <label>客户<input value={nameOf(data.customers, followUpCustomerId)} readOnly /></label>
           <Select label="员工" value={followUpStaffId} onChange={setFollowUpStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
+          <Select label="跟进类型" value={followUpType} onChange={(value) => setFollowUpType(value as CustomerFollowUpType)} options={customerFollowUpTypeOptions} />
           <Select label="跟进方式" value={followUpMethod} onChange={(value) => setFollowUpMethod(value as "电话" | "微信" | "到店")} options={["微信", "电话", "到店"].map((item) => ({ value: item, label: item }))} />
           <DateTimeInput label="计划跟进时间" value={followUpDueAt} onChange={setFollowUpDueAt} />
-          <label>跟进备注<textarea value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} placeholder="例如：提醒客户 7 天后复查皮肤状态，确认下次护理时间。" /></label>
-          <SubmitStatusButton idleText="保存跟进" busyText="保存中..." disabled={!followUpCustomerId || !followUpStaffId || !followUpNote.trim()} />
+          <label>跟进内容<textarea value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} placeholder="例如：提醒客户 7 天后复查皮肤状态，确认下次护理时间。" /></label>
+          <SubmitStatusButton idleText="保存跟进" busyText="保存中..." disabled={!followUpCustomerId || !followUpStaffId || !followUpDueAt || !followUpNote.trim()} />
         </form>
         </>
         )}
