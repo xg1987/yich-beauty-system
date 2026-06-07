@@ -7443,14 +7443,17 @@ textarea,
 
 .customer-profile-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 9px;
-  max-width: 320px;
+  max-width: none;
+  flex: 0 0 auto;
 }
 
 .customer-profile-actions button {
+  min-width: 108px;
   padding: 0 13px;
+  white-space: nowrap;
 }
 
 .customer-asset-grid {
@@ -7512,6 +7515,7 @@ textarea,
 .customer-overview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(148px, auto);
   gap: 14px;
   margin-top: 16px;
 }
@@ -7527,13 +7531,16 @@ textarea,
 
 .customer-info-card {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 13px;
   min-width: 0;
+  min-height: 148px;
   padding: 16px;
 }
 
 .customer-advice-card {
   grid-column: 1 / -1;
+  min-height: 126px;
 }
 
 .customer-section-title button {
@@ -7749,6 +7756,7 @@ textarea,
   }
 
   .customer-profile-actions {
+    flex-wrap: wrap;
     grid-column: 1 / -1;
     justify-content: flex-start;
     max-width: none;
