@@ -3679,12 +3679,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         eyebrow="预约管理"
         title="预约管理"
         desc="处理确认、到店、收银和房间安排。"
-        stats={[
-          { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "今日服务安排", icon: <CalendarDays size={18} /> },
-          { label: "待确认", value: `${pendingConfirmAppointments.length} 单`, hint: "需要先确认", icon: <ClipboardList size={18} /> },
-          { label: "待到店", value: `${pendingArrivalAppointments.length} 单`, hint: "等待客户到店", icon: <UserRound size={18} /> },
-          { label: "线上申请", value: `${pendingOnlineRequests.length} 单`, hint: "待转门店预约", icon: <Share2 size={18} /> },
-        ]}
       />
       <div className="module-detail-stack">
         <section className="panel appointment-workbench-panel">
