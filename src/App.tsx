@@ -12,8 +12,6 @@ import {
   DoorOpen,
   ArrowLeft,
   BedDouble,
-  Eye,
-  EyeOff,
   Gift,
   HeartHandshake,
   HeartPulse,
@@ -50,7 +48,7 @@ import { DataTable } from "./components/ui/DataTable";
 import { DateTimeInput } from "./components/ui/DateTimeInput";
 import { Modal } from "./components/ui/Modal";
 import { Select } from "./components/ui/Select";
-import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
+import { calculateOrderTotal, memberCardCashIn, reportSummary } from "./domain/business";
 import { appointmentEndAt, appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
@@ -852,20 +850,6 @@ function ManagementCenter({
   actions: ApiActions;
   runMutation: RunMutation;
 }) {
-  const systemInviteCode = platformInviteCodeForPlatformAdmin({
-    id: session.user.id,
-    account: session.user.account,
-    role: session.user.role,
-  }, data.authUsers);
-  const storeStaffInviteCode = storeStaffInviteCodeForStoreUser({
-    id: session.user.id,
-    account: session.user.account,
-    role: session.user.role,
-  }, data.authUsers);
-  const managementInviteCode = systemInviteCode ?? storeStaffInviteCode ?? "";
-  const showInviteSection = Boolean(managementInviteCode);
-  const inviteSectionTitle = systemInviteCode ? "系统邀请码" : "员工邀请码";
-  const inviteSectionHint = systemInviteCode ? "店长/门店加入或开通" : "员工加入门店";
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
   const currentAuthUser = data.authUsers.find((user) => user.id === session.user.id);
@@ -873,27 +857,7 @@ function ManagementCenter({
   const linkedStaff = currentAuthUser?.staffId ? data.staff.find((staff) => staff.id === currentAuthUser.staffId) : undefined;
   const accountContact = session.user.account.includes("@") ? session.user.account.split("@")[0] : session.user.account;
   const displayContact = linkedStaff?.phone ?? accountContact;
-  const [inviteVisible, setInviteVisible] = useState(false);
-  const [inviteCopyStatus, setInviteCopyStatus] = useState<"idle" | "copied" | "selected">("idle");
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
-  const inviteInputRef = useRef<HTMLInputElement>(null);
-
-  const copyInviteCode = () => {
-    if (!managementInviteCode) return;
-    void copyTextToClipboard(managementInviteCode).then((copied) => {
-      if (copied) {
-        setInviteCopyStatus("copied");
-      } else {
-        setInviteVisible(true);
-        window.requestAnimationFrame(() => {
-          inviteInputRef.current?.focus();
-          inviteInputRef.current?.select();
-        });
-        setInviteCopyStatus("selected");
-      }
-      window.setTimeout(() => setInviteCopyStatus("idle"), 1800);
-    });
-  };
 
   type ManagementCard = {
     title: string;
@@ -913,45 +877,43 @@ function ManagementCenter({
     { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
-    { title: "预约管理", desc: "预约记录 / 到店状态", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
-    { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
-    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
-    { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
-    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
+    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
+    { title: "商品档案", desc: "商品资料 / 编码规格", icon: Boxes, tone: "teal", view: "catalog", catalogModule: "productList" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
-    { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "销售业绩", desc: "经营数据 / 员工业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
+    { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
+    { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
+    { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
+    { title: "供应商采购", desc: "供应商 / 采购入库", icon: Building2, tone: "amber", view: "inventory", inventoryModule: "purchase" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
   ];
   const storeManagementCards: ManagementCard[] = [
-    { title: "预约管理", desc: "预约记录 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
-    { title: "开单收银", desc: "订单流水 / 收款记录", icon: CreditCard, tone: "rose", view: "pos" },
-    { title: "客户档案", desc: "客户资料 / 项目卡", icon: HeartHandshake, tone: "violet", view: "customers" },
-    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
-    { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
-    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
+    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
+    { title: "商品档案", desc: "商品资料 / 编码规格", icon: Boxes, tone: "teal", view: "catalog", catalogModule: "productList" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
-    { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "销售业绩", desc: "经营数据 / 员工业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
+    { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
+    { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
+    { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
+    { title: "供应商采购", desc: "供应商 / 采购入库", icon: Building2, tone: "amber", view: "inventory", inventoryModule: "purchase" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
-    { title: "系统设置", desc: "个人资料 / 通知外观", icon: Settings, tone: "violet", onClick: openAccountSettings },
   ];
   const staffManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "今日总览", desc: "今日任务 / 服务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
-    { title: "预约管理", desc: "我的预约 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
-    { title: "客户档案", desc: "客户资料 / 护理记录", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "我的提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "外观通知", desc: "自动模式 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
   const financeManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "今日总览", desc: "今日任务 / 财务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "销售业绩", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "外观通知", desc: "自动模式 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
@@ -977,40 +939,6 @@ function ManagementCenter({
           <p>{displayRole} · {displayContact}</p>
         </div>
       </section>
-
-      {showInviteSection && (
-        <section className="admin-invite-section" aria-label={inviteSectionTitle}>
-          <div className="admin-invite-heading">
-            <span>{inviteSectionTitle}</span>
-            <small>{inviteSectionHint}</small>
-          </div>
-          <div className="admin-invite-card">
-            <span>{inviteSectionTitle}</span>
-            <div className="admin-invite-code">
-              <input
-                ref={inviteInputRef}
-                className="admin-invite-value"
-                type={inviteVisible ? "text" : "password"}
-                value={managementInviteCode}
-                readOnly
-                aria-label={`${inviteSectionTitle}内容`}
-                tabIndex={-1}
-              />
-              <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)} disabled={!managementInviteCode}>
-                {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
-              </button>
-              <button type="button" aria-label="复制邀请码" onClick={copyInviteCode} disabled={!managementInviteCode}>
-                <Copy size={17} />
-              </button>
-            </div>
-            {inviteCopyStatus !== "idle" && (
-              <small className="admin-invite-copied">
-                {inviteCopyStatus === "copied" ? "已复制" : "已选中，请按 Command+C"}
-              </small>
-            )}
-          </div>
-        </section>
-      )}
 
       <section className="admin-module-section">
         <div className="admin-section-title">
