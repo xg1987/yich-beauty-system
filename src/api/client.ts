@@ -152,9 +152,11 @@ export function createApiClient(getToken: () => string | undefined) {
       customerName?: string;
       customerPhone?: string;
       name?: string;
-      type?: "储值卡" | "次数卡" | "套餐卡";
+      type?: "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
       balance: number;
       remainingTimes: number;
+      discountRate?: number;
+      benefitText?: string;
       serviceId?: string;
       serviceIds?: string[];
       paidAmount?: number;

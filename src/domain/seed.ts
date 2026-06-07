@@ -24,6 +24,7 @@ export const seedData: AppData = {
   tagDefinitions: [],
   services: [],
   products: [],
+  inventoryBatches: [],
   appointments: [],
   onlineBookingRequests: [],
   staffUnavailableSlots: [],

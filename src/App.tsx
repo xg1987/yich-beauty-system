@@ -61,11 +61,11 @@ import packageJson from "../package.json";
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admin";
 type ThemeMode = "auto" | "day" | "night";
 type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
-type CardType = "储值卡" | "次数卡" | "套餐卡";
+type CardType = "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
 type CardCustomerMode = "existing" | "new";
 type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
-type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "logs";
+type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "batches" | "logs";
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
@@ -78,19 +78,20 @@ type SubmitStatusButtonProps = {
 };
 type LoadingGateStage = "connecting" | "slow" | "stalled";
 
-const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", "supplier", "purchase", "stocktake", "list", "logs"];
+const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", "supplier", "purchase", "stocktake", "list", "batches", "logs"];
 
 const MutationPendingContext = createContext(false);
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-06";
+const APP_BUILD_DATE = "2026-06-07";
 const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
 const AUTO_THEME_DAY_START_HOUR = 8;
 const AUTO_THEME_NIGHT_START_HOUR = 19;
 const DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
 const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
+const DEFAULT_DISCOUNT_CARD_NAME = "会员折扣卡";
 const cashPayMethodOptions = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((item) => ({ value: item, label: item }));
 const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
   面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
@@ -2388,6 +2389,7 @@ function PlatformUsageReadOnlyView({
     ["appointments", data.appointments.length],
     ["orders", data.orders.length],
     ["memberCards", data.memberCards.length],
+    ["inventoryBatches", data.inventoryBatches.length],
     ["inventoryLogs", data.inventoryLogs.length],
     ["operationLogs", data.operationLogs.length],
     ["approvalRequests", data.approvalRequests.length],
@@ -2423,6 +2425,7 @@ function PlatformUsageReadOnlyView({
     appointments: "预约记录",
     orders: "收银订单",
     memberCards: "项目卡",
+    inventoryBatches: "库存批次",
     inventoryLogs: "库存流水",
     operationLogs: "操作日志",
     approvalRequests: "审批记录",
@@ -2430,6 +2433,17 @@ function PlatformUsageReadOnlyView({
   const updatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const r2Status = r2Loading ? "检查中" : r2Usage?.available ? "正常" : "需配置";
   const workerStatus = workerLoading ? "检查中" : workerUsage?.available ? (workerErrorRate >= 5 ? "需关注" : "正常") : "需配置";
+  const storeScopedRecords = [
+    ...data.staff,
+    ...data.customers,
+    ...data.services,
+    ...data.products,
+    ...data.appointments,
+    ...data.orders,
+    ...data.memberCards,
+  ];
+  const missingStoreIdCount = storeScopedRecords.filter((item) => !item.storeId).length;
+  const recentWarningLogs = data.operationLogs.filter((log) => /失败|异常|错误|拒绝/.test(log.summary)).slice(0, 5);
   const systemHealthRows = [
     [
       "API 服务",
@@ -2440,6 +2454,16 @@ function PlatformUsageReadOnlyView({
       "D1 数据库",
       <Badge key="d1-status" text={d1Records >= 0 ? "正常" : "异常"} tone={d1Records >= 0 ? "ok" : "warn"} />,
       `已纳入 ${d1Tables.length} 张业务表，当前 ${d1Records} 条记录`,
+    ],
+    [
+      "门店数据隔离",
+      <Badge key="store-scope-status" text={missingStoreIdCount === 0 ? "正常" : "需补齐"} tone={missingStoreIdCount === 0 ? "ok" : "warn"} />,
+      missingStoreIdCount === 0 ? `当前 ${data.storeProfiles.length} 家门店数据已带门店归属` : `${missingStoreIdCount} 条历史数据缺少门店归属，接口会按默认门店兼容`,
+    ],
+    [
+      "最近异常",
+      <Badge key="recent-warning-status" text={recentWarningLogs.length ? "需关注" : "正常"} tone={recentWarningLogs.length ? "warn" : "ok"} />,
+      recentWarningLogs.length ? recentWarningLogs.map((log) => log.summary).join("；") : "未发现最近异常操作日志",
     ],
     [
       "R2 图片存储",
@@ -3989,6 +4013,7 @@ function Pos({
   const [cardPaidAmount, setCardPaidAmount] = useState(5000);
   const [cardPayMethod, setCardPayMethod] = useState<CashPayMethod>("微信");
   const [cardTimes, setCardTimes] = useState(10);
+  const [cardDiscountRate, setCardDiscountRate] = useState(9);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
   const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
@@ -4056,6 +4081,7 @@ function Pos({
   const availableCards = usesCustomer
     ? data.memberCards.filter((item) => {
         if (item.customerId !== customerId || item.status !== "正常") return false;
+        if (item.type === "折扣卡") return false;
         return usesService || item.type === "储值卡";
       })
     : [];
@@ -4379,15 +4405,16 @@ function Pos({
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(async () => {
-      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardName.trim();
+      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!cardCustomerName.trim() || !cardCustomerPhone.trim())) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (cardPaidAmount <= 0) throw new Error("请填写开卡实收金额");
       if (cardType === "储值卡" && cardAmount <= 0) throw new Error("请填写储值到账金额");
-      if (cardType !== "储值卡" && cardTimes <= 0) throw new Error("请填写可用次数");
+      if ((cardType === "次数卡" || cardType === "套餐卡") && cardTimes <= 0) throw new Error("请填写可用次数");
       if (cardType === "次数卡" && !cardServiceId) throw new Error("请选择绑定项目");
       if (cardType === "套餐卡" && cardServiceIds.length === 0) throw new Error("请选择套餐可用项目");
+      if (cardType === "折扣卡" && (cardDiscountRate < 1 || cardDiscountRate >= 10)) throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
       return actions.openMemberCard({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? cardCustomerName.trim() : undefined,
@@ -4395,7 +4422,9 @@ function Pos({
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmount : 0,
-        remainingTimes: cardType === "储值卡" ? 0 : cardTimes,
+        remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? cardTimes : 0,
+        discountRate: cardType === "折扣卡" ? cardDiscountRate / 10 : undefined,
+        benefitText: cardType === "折扣卡" ? `${cardDiscountRate} 折权益` : undefined,
         serviceId: cardType === "次数卡" ? cardServiceId : undefined,
         serviceIds: cardType === "套餐卡" ? cardServiceIds : undefined,
         paidAmount: cardPaidAmount,
@@ -4617,7 +4646,7 @@ function Pos({
       <div className="module-detail-stack cashier-modal-detail">
         {activeModule === "card" && (
         <section className="panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐" />
+        <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
         <form className="form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
@@ -4628,22 +4657,25 @@ function Pos({
               <label>客户手机号<input value={cardCustomerPhone} onChange={(event) => setCardCustomerPhone(event.target.value)} /></label>
             </>
           )}
-          <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡"].map((item) => ({ value: item, label: item }))} />
+          <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
           {cardType !== "储值卡" && (
             <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="如面部护理十次卡" /></label>
           )}
           {cardType === "储值卡" && (
             <label>充值到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
           )}
-          {cardType !== "储值卡" && (
+          {(cardType === "次数卡" || cardType === "套餐卡") && (
             <label>可用次数<input type="number" min={1} value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
+          )}
+          {cardType === "折扣卡" && (
+            <label>会员折扣<input type="number" min={1} max={9.9} step={0.1} value={cardDiscountRate} onChange={(event) => setCardDiscountRate(Number(event.target.value))} /></label>
           )}
           {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
           {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
           <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(Number(event.target.value))} /></label>
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
-          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
+          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "折扣卡" ? "如生日月权益、全店项目折扣" : cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
           <SubmitStatusButton idleText="保存开卡" busyText="保存中..." />
         </form>
         </section>
@@ -5149,6 +5181,7 @@ function Customers({
   const [cardPaidAmount, setCardPaidAmount] = useState(5000);
   const [cardPayMethod, setCardPayMethod] = useState<CashPayMethod>("微信");
   const [cardTimes, setCardTimes] = useState(10);
+  const [cardDiscountRate, setCardDiscountRate] = useState(9);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
   const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
@@ -5203,7 +5236,7 @@ function Customers({
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(async () => {
-      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardName.trim();
+      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!cardCustomerName.trim() || !cardCustomerPhone.trim())) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
@@ -5213,7 +5246,7 @@ function Customers({
       if (cardType === "储值卡" && cardAmount <= 0) {
         throw new Error("储值卡需要填写到账余额");
       }
-      if (cardType !== "储值卡" && cardTimes <= 0) {
+      if ((cardType === "次数卡" || cardType === "套餐卡") && cardTimes <= 0) {
         throw new Error("次数卡和套餐卡需要填写可用次数");
       }
       if (cardType === "次数卡" && !cardServiceId) {
@@ -5222,6 +5255,9 @@ function Customers({
       if (cardType === "套餐卡" && cardServiceIds.length === 0) {
         throw new Error("套餐卡至少选择一个可用项目");
       }
+      if (cardType === "折扣卡" && (cardDiscountRate < 1 || cardDiscountRate >= 10)) {
+        throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
+      }
       return actions.openMemberCard({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? cardCustomerName.trim() : undefined,
@@ -5229,7 +5265,9 @@ function Customers({
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmount : 0,
-        remainingTimes: cardType === "储值卡" ? 0 : cardTimes,
+        remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? cardTimes : 0,
+        discountRate: cardType === "折扣卡" ? cardDiscountRate / 10 : undefined,
+        benefitText: cardType === "折扣卡" ? `${cardDiscountRate} 折权益` : undefined,
         serviceId: cardType === "次数卡" ? cardServiceId : undefined,
         serviceIds: cardType === "套餐卡" ? cardServiceIds : undefined,
         paidAmount: cardPaidAmount,
@@ -5447,7 +5485,7 @@ function Customers({
         )}
         {activeModule === "cards" && (
         <>
-        <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐" />
+        <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
         <form className="form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
@@ -5458,22 +5496,25 @@ function Customers({
               <label>客户手机号<input value={cardCustomerPhone} onChange={(event) => setCardCustomerPhone(event.target.value)} /></label>
             </>
           )}
-          <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡"].map((item) => ({ value: item, label: item }))} />
+          <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
           {cardType !== "储值卡" && (
             <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="如面部护理十次卡" /></label>
           )}
           {cardType === "储值卡" && (
             <label>充值到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(Number(event.target.value))} /></label>
           )}
-          {cardType !== "储值卡" && (
+          {(cardType === "次数卡" || cardType === "套餐卡") && (
             <label>可用次数<input type="number" min={1} value={cardTimes} onChange={(event) => setCardTimes(Number(event.target.value))} /></label>
+          )}
+          {cardType === "折扣卡" && (
+            <label>会员折扣<input type="number" min={1} max={9.9} step={0.1} value={cardDiscountRate} onChange={(event) => setCardDiscountRate(Number(event.target.value))} /></label>
           )}
           {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
           {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
           <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(Number(event.target.value))} /></label>
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
-          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
+          <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "折扣卡" ? "如生日月权益、全店项目折扣" : cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
           <SubmitStatusButton idleText="保存开卡" busyText="保存中..." />
         </form>
         <div className="divider" />
@@ -5569,15 +5610,16 @@ function Customers({
         )}
         {activeModule === "cards" && (
         <section className="panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="项目卡列表" action="余额/次数/退卡" />
+        <PanelTitle icon={<CreditCard size={18} />} title="会员卡列表" action="余额/次数/权益/退卡" />
         <DataTable
-          columns={["客户", "项目卡", "类型", "余额", "剩余次数", "适用项目", "到期", "状态", "操作"]}
+          columns={["客户", "会员卡", "类型", "余额", "剩余次数", "权益", "适用项目", "到期", "状态", "操作"]}
           rows={data.memberCards.map((card) => [
             nameOf(data.customers, card.customerId),
             card.name,
             card.type,
             money(card.balance),
             card.remainingTimes,
+            card.benefitText ?? (card.discountRate ? `${Number((card.discountRate * 10).toFixed(1))} 折` : "-"),
             projectScope(card.serviceId, card.serviceIds),
             shortDate(card.expiresAt),
             <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "已退卡" ? "warn" : "ok"} />,
@@ -6726,6 +6768,7 @@ function Inventory({
     { key: "supplier", title: "供应商", desc: "维护采购基础资料", icon: Building2, tone: "amber", meta: `${data.suppliers.length} 家` },
     { key: "purchase", title: "采购入库", desc: "供应商采购和入库记录", icon: PackagePlus, tone: "jade", meta: "补货" },
     { key: "stocktake", title: "库存盘点", desc: "账实差异和盘点记录", icon: ClipboardList, tone: "violet", meta: `${data.stocktakes.length} 条` },
+    { key: "batches", title: "库存批次", desc: "入库批次、成本和效期", icon: Boxes, tone: "teal", meta: `${data.inventoryBatches.length} 批` },
     { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
   ];
   const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
@@ -7087,6 +7130,27 @@ function Inventory({
         </div>
         </section>
         )}
+        {activeModule === "batches" && (
+        <section className="panel">
+        <PanelTitle icon={<Boxes size={18} />} title="库存批次" action="先进先出" />
+        <DataTable
+          columns={["商品", "来源", "入库数", "剩余数", "单位成本", "到期", "供应商", "时间"]}
+          rows={data.inventoryBatches
+            .slice()
+            .sort((current, next) => next.createdAt.localeCompare(current.createdAt))
+            .map((batch) => [
+              nameOf(data.products, batch.productId),
+              batch.source,
+              batch.quantityIn,
+              batch.remainingQuantity,
+              money(batch.unitCost),
+              batch.expiryAt ? shortDate(batch.expiryAt) : "-",
+              batch.supplierId ? nameOf(data.suppliers, batch.supplierId) : "-",
+              shortDate(batch.createdAt),
+            ])}
+        />
+        </section>
+        )}
       </div>
       </Modal>
     </div>
@@ -7109,6 +7173,7 @@ function Reports({
   const [businessDate, setBusinessDate] = useState(new Date().toISOString().slice(0, 10));
   const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | "trend" | undefined>(fromManagement ? "summary" : undefined);
   const summary = reportSummary(data);
+  const percentText = (value: number) => `${(value * 100).toFixed(1)}%`;
   const exportCsv = (filename: string, columns: string[], rows: Array<Array<string | number>>) => {
     downloadCsvFile(filename, columns, rows);
   };
@@ -7169,10 +7234,17 @@ function Reports({
   });
   const exportReportSummary = () => exportCsv("yich-report-summary.csv", ["指标", "结果", "说明"], [
     ["实收现金流", summary.revenue, "扣除退款前的实收订单合计"],
+    ["净收入", summary.netRevenue, "实收现金流 - 退款"],
+    ["毛利", summary.grossProfit, "净收入 - 商品/库存成本"],
+    ["毛利率", percentText(summary.grossMargin), "毛利 / 净收入"],
     ["退款金额", summary.refundAmount, "退款记录合计"],
     ["服务订单", summary.serviceCount, "已完成收银订单"],
     ["员工提成", summary.commission, "服务提成合计"],
     ["会员卡余额", summary.cardBalance, "客户未消耗储值"],
+    ["会员积分", summary.totalMemberPoints, "客户积分合计"],
+    ["复购率", percentText(summary.repeatRate), "复购客户 / 活跃客户"],
+    ["库存估值", summary.inventoryCost, "剩余批次成本"],
+    ["临期库存", summary.expiringInventoryCount, "30 天内到期批次"],
     ["低库存项", summary.lowStockCount, "低于预警值"],
   ]);
   const exportTrend = () => exportCsv("yich-report-trend.csv", ["日期", "实收", "订单", "退款", "预约"], dailyTrend.map((item) => [
@@ -7209,9 +7281,9 @@ function Reports({
         title="报表分析"
         desc="查看实收、退款、会员储值、员工提成与营业日结。"
         stats={[
-          { label: "实收现金流", value: money(summary.revenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
+          { label: "净收入", value: money(summary.netRevenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
           { label: "项目服务数", value: `${summary.serviceCount} 单`, hint: "已完成收银", icon: <Sparkles size={18} /> },
-          { label: "员工提成", value: money(summary.commission), hint: "服务提成合计", icon: <BadgeCent size={18} /> },
+          { label: "毛利率", value: percentText(summary.grossMargin), hint: `毛利 ${money(summary.grossProfit)}`, icon: <BadgeCent size={18} /> },
           { label: "会员资产", value: `${activeMembers} 张`, hint: `余额 ${money(summary.cardBalance)}`, icon: <UsersRound size={18} /> },
         ]}
       />
@@ -7245,8 +7317,16 @@ function Reports({
           columns={["指标", "结果", "说明"]}
           rows={[
             ["客单价", money(summary.averageOrderValue), "实收 / 订单数"],
+            ["净收入", money(summary.netRevenue), "实收现金流 - 退款"],
+            ["毛利", money(summary.grossProfit), "扣除商品/库存成本"],
+            ["毛利率", percentText(summary.grossMargin), "毛利 / 净收入"],
             ["客户数", `${data.customers.length} 人`, "客户资产规模"],
+            ["活跃客户", `${summary.activeCustomerCount} 人`, "有订单客户"],
+            ["复购率", percentText(summary.repeatRate), `${summary.repeatCustomerCount} 位复购客户`],
+            ["会员积分", `${summary.totalMemberPoints} 分`, "客户积分合计"],
             ["预约转化", `${data.orders.length}/${data.appointments.length}`, "已收银订单 / 预约"],
+            ["库存估值", money(summary.inventoryCost), "剩余批次成本"],
+            ["临期库存", `${summary.expiringInventoryCount} 批`, "30 天内到期批次"],
             ["低库存项", `${summary.lowStockCount} 项`, "低于预警值"],
           ]}
         />
@@ -7331,6 +7411,8 @@ function Reports({
             rows={[
               ["有效会员卡", `${activeMembers} 张`, "当前正常状态"],
               ["会员卡总余额", money(totalCardBalance), "客户未消耗储值"],
+              ["客户积分", `${summary.totalMemberPoints} 分`, "开卡、充值和消费累计"],
+              ["复购率", percentText(summary.repeatRate), `${summary.repeatCustomerCount} 位复购客户`],
               ["本月新增客户", `${newCustomersThisMonth} 人`, "按最近到店时间"],
               ["客户总数", `${data.customers.length} 人`, "累计建档"],
             ]}

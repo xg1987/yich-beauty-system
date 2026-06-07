@@ -45,6 +45,7 @@ export type OnlineStorefront = {
 
 export type Staff = {
   id: string;
+  storeId?: string;
   name: string;
   phone: string;
   role: string;
@@ -57,6 +58,7 @@ export type Staff = {
 
 export type AuthUser = {
   id: string;
+  storeId?: string;
   name: string;
   account: string;
   password: string;
@@ -114,6 +116,7 @@ export type WorkerUsageSnapshot = {
 
 export type StaffInvite = {
   id: string;
+  storeId?: string;
   staffId: string;
   account: string;
   role: UserRole;
@@ -167,9 +170,13 @@ export type StoreOwnerApplication = {
 
 export type Customer = {
   id: string;
+  storeId?: string;
   name: string;
   phone: string;
   level: string;
+  points?: number;
+  birthday?: string;
+  nextFollowUpAt?: string;
   source: string;
   tags: string[];
   lastVisit: string;
@@ -179,6 +186,7 @@ export type TagScope = "客户" | "项目" | "员工";
 
 export type TagDefinition = {
   id: string;
+  storeId?: string;
   name: string;
   scope: TagScope;
   color: string;
@@ -193,6 +201,7 @@ export type ServiceConsumable = {
 
 export type Service = {
   id: string;
+  storeId?: string;
   name: string;
   category: string;
   price: number;
@@ -205,6 +214,7 @@ export type Service = {
 
 export type Product = {
   id: string;
+  storeId?: string;
   name: string;
   type: "sale" | "consumable";
   category?: string;
@@ -218,8 +228,23 @@ export type Product = {
   expiryAt?: string;
 };
 
+export type InventoryBatch = {
+  id: string;
+  storeId?: string;
+  productId: string;
+  source: "首批入库" | "手动入库" | "采购入库" | "盘点调整" | "退款回滚";
+  quantityIn: number;
+  remainingQuantity: number;
+  unitCost: number;
+  expiryAt?: string;
+  supplierId?: string;
+  purchaseOrderId?: string;
+  createdAt: string;
+};
+
 export type Appointment = {
   id: string;
+  storeId?: string;
   customerId: string;
   staffId: string;
   serviceId: string;
@@ -239,6 +264,7 @@ export type Appointment = {
 
 export type OnlineBookingRequest = {
   id: string;
+  storeId?: string;
   storefrontId: string;
   customerName: string;
   phone: string;
@@ -253,6 +279,7 @@ export type OnlineBookingRequest = {
 
 export type StaffUnavailableSlot = {
   id: string;
+  storeId?: string;
   staffId: string;
   startAt: string;
   endAt: string;
@@ -263,6 +290,7 @@ export type StaffUnavailableSlot = {
 
 export type StaffShift = {
   id: string;
+  storeId?: string;
   staffId: string;
   startAt: string;
   endAt: string;
@@ -273,11 +301,15 @@ export type StaffShift = {
 
 export type MemberCard = {
   id: string;
+  storeId?: string;
   customerId: string;
   name: string;
-  type: "储值卡" | "次数卡" | "套餐卡";
+  type: "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
   balance: number;
   remainingTimes: number;
+  discountRate?: number;
+  pointsEarned?: number;
+  benefitText?: string;
   expiresAt: string;
   status: "正常" | "冻结" | "过期" | "已退卡";
   serviceId?: string;
@@ -308,6 +340,7 @@ export type ReferralRelation = {
 
 export type Order = {
   id: string;
+  storeId?: string;
   orderNo: string;
   customerId: string;
   guestName?: string;
@@ -380,6 +413,7 @@ export type CommissionSettlement = {
 
 export type InventoryLog = {
   id: string;
+  storeId?: string;
   productId: string;
   type: "入库" | "采购入库" | "服务消耗" | "销售出库" | "赠品出库" | "报损" | "盘点调整" | "退款回滚";
   delta: number;
@@ -391,6 +425,7 @@ export type InventoryLog = {
 
 export type Refund = {
   id: string;
+  storeId?: string;
   orderId: string;
   amount: number;
   reason: string;
@@ -400,6 +435,7 @@ export type Refund = {
 
 export type MemberCardTransaction = {
   id: string;
+  storeId?: string;
   memberCardId: string;
   orderId?: string;
   type: "开卡" | "充值" | "消费" | "退款" | "退卡" | "冻结" | "解冻" | "延期" | "转卡" | "调整";
@@ -415,6 +451,7 @@ export type MemberCardTransaction = {
 
 export type OperationLog = {
   id: string;
+  storeId?: string;
   userId: string;
   action: string;
   targetType: string;
@@ -436,6 +473,7 @@ export type SystemConfig = {
 
 export type SystemNotification = {
   id: string;
+  storeId?: string;
   title: string;
   desc: string;
   view: ViewKey;
@@ -450,6 +488,7 @@ export type SystemNotification = {
 
 export type DailyClose = {
   id: string;
+  storeId?: string;
   businessDate: string;
   revenue: number;
   refundAmount: number;
@@ -469,6 +508,7 @@ export type DailyClose = {
 
 export type ApprovalRequest = {
   id: string;
+  storeId?: string;
   type: "改价折扣" | "订单退款";
   targetId: string;
   requestedBy: string;
@@ -482,6 +522,7 @@ export type ApprovalRequest = {
 
 export type CustomerServiceRecord = {
   id: string;
+  storeId?: string;
   customerId: string;
   staffId: string;
   serviceId: string;
@@ -500,6 +541,7 @@ export type CustomerServiceRecord = {
 
 export type CustomerSignature = {
   id: string;
+  storeId?: string;
   token: string;
   customerId: string;
   serviceRecordId?: string;
@@ -517,6 +559,7 @@ export type CustomerSignature = {
 
 export type CustomerFollowUp = {
   id: string;
+  storeId?: string;
   customerId: string;
   staffId: string;
   dueAt: string;
@@ -529,6 +572,7 @@ export type CustomerFollowUp = {
 
 export type Supplier = {
   id: string;
+  storeId?: string;
   name: string;
   phone: string;
   contact: string;
@@ -537,18 +581,20 @@ export type Supplier = {
 
 export type PurchaseOrder = {
   id: string;
+  storeId?: string;
   supplierId: string;
   productId: string;
   quantity: number;
   unitCost: number;
   expiryAt?: string;
-  status: "已入库";
+  status: "已入库" | "部分消耗" | "已用完";
   createdBy: string;
   createdAt: string;
 };
 
 export type Stocktake = {
   id: string;
+  storeId?: string;
   productId: string;
   systemStock: number;
   actualStock: number;
@@ -590,6 +636,7 @@ export type AppData = {
   tagDefinitions: TagDefinition[];
   services: Service[];
   products: Product[];
+  inventoryBatches: InventoryBatch[];
   appointments: Appointment[];
   onlineBookingRequests: OnlineBookingRequest[];
   staffUnavailableSlots: StaffUnavailableSlot[];

@@ -46,8 +46,10 @@ import {
   joinInviteByCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  normalizeStoreScopedData,
   openMemberCard,
   previewFormalDataCleanup,
+  scopeDataToStore,
   updateTagDefinition,
   updateStaffMember,
   updateAccountProfile,
@@ -58,6 +60,7 @@ import {
   updateMemberCardStatus,
   platformInviteIssuerId,
   isStoreStaffInviteCode,
+  storeIdForUser,
 } from "../src/domain/business";
 import { hashPassword } from "../src/lib/password";
 
@@ -413,8 +416,10 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "PATCH" && url.pathname === "/api/store-profile") {
         requirePermission(session, "settings:view");
         const body = await readJson(request);
+        const currentData = database.readData();
         const nextData = addOperationLog(
-          updateStoreProfile(database.readData(), {
+          updateStoreProfile(currentData, {
+            storeId: sessionStoreId(currentData, session),
             name: requiredString(body, "name"),
             phone: requiredString(body, "phone"),
             address: optionalString(body, "address") ?? "",
@@ -439,8 +444,10 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/staff") {
         requirePermission(session, "staff:manage");
         const body = await readJson(request);
+        const currentData = database.readData();
         const nextData = addOperationLog(
-          addStaffMember(database.readData(), {
+          addStaffMember(currentData, {
+            storeId: sessionStoreId(currentData, session),
             name: requiredString(body, "name"),
             phone: requiredString(body, "phone"),
             role: requiredString(body, "role"),
@@ -560,6 +567,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 更新线上店铺分享配置`,
         }, (data) =>
           upsertOnlineStorefront(data, {
+            storeId: sessionStoreId(data, session),
             shareCode: requiredString(body, "shareCode"),
             status: optionalString(body, "status") as "启用" | "停用" | undefined,
             headline: requiredString(body, "headline"),
@@ -575,7 +583,9 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "pos:manage");
         const body = await readJson(request);
         const checkoutRequestId = optionalString(body, "checkoutRequestId");
-        const checkedOutData = checkoutOrder(database.readData(), {
+        const currentData = database.readData();
+        const checkedOutData = checkoutOrder(currentData, {
+          storeId: sessionStoreId(currentData, session),
           customerId: optionalString(body, "customerId"),
           guestName: optionalString(body, "guestName"),
           guestPhone: optionalString(body, "guestPhone"),
@@ -616,7 +626,9 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "pos:manage");
         const orderId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = refundOrder(database.readData(), {
+        const currentData = database.readData();
+        const nextData = refundOrder(currentData, {
+          storeId: sessionStoreId(currentData, session),
           orderId,
           reason: optionalString(body, "reason") ?? "门店退款",
           userId: session.user.id,
@@ -631,8 +643,10 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/inventory/adjust") {
         requirePermission(session, "inventory:manage");
         const body = await readJson(request);
+        const currentData = database.readData();
         const adjustedData = addOperationLog(
-          adjustInventory(database.readData(), {
+          adjustInventory(currentData, {
+            storeId: sessionStoreId(currentData, session),
             productId: requiredString(body, "productId"),
             type: requiredString(body, "type") as InventoryLog["type"],
             quantity: requiredNumber(body, "quantity"),
@@ -655,6 +669,7 @@ export function createApiServer(database = new BeautyDatabase()) {
               view: "inventory",
               targetType: "product",
               targetId: product.id,
+              storeId: product.storeId,
               audienceRoles: ["owner", "manager"],
             })
           : adjustedData;
@@ -673,6 +688,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 新增预约`,
         }, (data) =>
           createAppointment(data, {
+            storeId: sessionStoreId(data, session),
             customerId: requiredString(body, "customerId"),
             staffId: requiredString(body, "staffId"),
             serviceId: requiredString(body, "serviceId"),
@@ -702,7 +718,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/staff-unavailable-slots") {
         requirePermission(session, "appointments:manage");
         const body = await readJson(request);
-        const nextData = createStaffUnavailableSlot(database.readData(), {
+        const currentData = database.readData();
+        const nextData = createStaffUnavailableSlot(currentData, {
+          storeId: sessionStoreId(currentData, session),
           staffId: requiredString(body, "staffId"),
           startAt: requiredString(body, "startAt"),
           endAt: requiredString(body, "endAt"),
@@ -717,7 +735,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/staff-shifts") {
         requirePermission(session, "appointments:manage");
         const body = await readJson(request);
-        const nextData = createStaffShift(database.readData(), {
+        const currentData = database.readData();
+        const nextData = createStaffShift(currentData, {
+          storeId: sessionStoreId(currentData, session),
           staffId: requiredString(body, "staffId"),
           startAt: requiredString(body, "startAt"),
           endAt: requiredString(body, "endAt"),
@@ -795,6 +815,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           customers: [
             {
               id: makeId("c"),
+              storeId: sessionStoreId(data, session),
               name: requiredString(body, "name"),
               phone: requiredString(body, "phone"),
               level: optionalString(body, "level") ?? "普通会员",
@@ -883,14 +904,18 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/member-cards") {
         requirePermission(session, "customers:manage");
         const body = await readJson(request);
-        const nextData = openMemberCard(database.readData(), {
+        const currentData = database.readData();
+        const nextData = openMemberCard(currentData, {
+          storeId: sessionStoreId(currentData, session),
           customerId: optionalString(body, "customerId"),
           customerName: optionalString(body, "customerName"),
           customerPhone: optionalString(body, "customerPhone"),
           name: optionalString(body, "name"),
-          type: optionalString(body, "type") as "储值卡" | "次数卡" | "套餐卡" | undefined,
+          type: optionalString(body, "type") as "储值卡" | "次数卡" | "套餐卡" | "折扣卡" | undefined,
           balance: optionalNumber(body, "balance"),
           remainingTimes: optionalNumber(body, "remainingTimes"),
+          discountRate: optionalNumber(body, "discountRate"),
+          benefitText: optionalString(body, "benefitText"),
           serviceId: optionalString(body, "serviceId"),
           serviceIds: optionalStringArray(body, "serviceIds"),
           paidAmount: optionalNumber(body, "paidAmount"),
@@ -986,7 +1011,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/approvals") {
         requirePermission(session, "pos:manage");
         const body = await readJson(request);
-        const approvalData = createApprovalRequest(database.readData(), {
+        const currentData = database.readData();
+        const approvalData = createApprovalRequest(currentData, {
+          storeId: sessionStoreId(currentData, session),
           type: requiredString(body, "type") as "改价折扣" | "订单退款",
           targetId: requiredString(body, "targetId"),
           requestedBy: session.user.id,
@@ -1000,6 +1027,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           view: "approvals",
           targetType: "approvalRequest",
           targetId: approval.id,
+          storeId: approval.storeId,
           audienceRoles: ["owner", "manager", "finance"],
         });
         database.replaceData(nextData);
@@ -1105,6 +1133,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           targetId: "latest",
           summary: `${session.user.name} 新增服务项目 ${requiredString(body, "name")}`,
         }, (data) => {
+          const storeId = sessionStoreId(data, session);
           consumables.forEach((item) => {
             const product = data.products.find((candidate) => candidate.id === item.productId);
             if (!product) throw new Error("商品不存在");
@@ -1114,6 +1143,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             services: [
               {
                 id: makeId("v"),
+                storeId,
                 name: requiredString(body, "name"),
                 category: optionalString(body, "category") ?? "自定义项目",
                 price: requiredNumber(body, "price"),
@@ -1182,6 +1212,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           products: [
             {
               id: productId,
+              storeId: sessionStoreId(data, session),
               name: requiredString(body, "name"),
               type: optionalString(body, "type") === "consumable" ? "consumable" : "sale",
               category: optionalString(body, "category") ?? "面护类",
@@ -1200,6 +1231,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             ? [
                 {
                   id: makeId("il"),
+                  storeId: sessionStoreId(data, session),
                   productId,
                   type: "入库",
                   delta: stock,
@@ -1211,6 +1243,22 @@ export function createApiServer(database = new BeautyDatabase()) {
                 ...data.inventoryLogs,
               ]
             : data.inventoryLogs,
+          inventoryBatches: stock > 0
+            ? [
+                {
+                  id: makeId("ib"),
+                  storeId: sessionStoreId(data, session),
+                  productId,
+                  source: "首批入库",
+                  quantityIn: stock,
+                  remainingQuantity: stock,
+                  unitCost: optionalNumber(body, "cost") ?? 0,
+                  expiryAt,
+                  createdAt,
+                },
+                ...(data.inventoryBatches ?? []),
+              ]
+            : (data.inventoryBatches ?? []),
         }));
         sendJson(response, 201, scopeDataForSession(nextData, session));
         return;
@@ -1219,7 +1267,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/suppliers") {
         requirePermission(session, "inventory:manage");
         const body = await readJson(request);
-        const nextData = addSupplier(database.readData(), {
+        const currentData = database.readData();
+        const nextData = addSupplier(currentData, {
+          storeId: sessionStoreId(currentData, session),
           name: requiredString(body, "name"),
           phone: optionalString(body, "phone") ?? "",
           contact: optionalString(body, "contact") ?? "",
@@ -1232,7 +1282,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/purchase-orders") {
         requirePermission(session, "inventory:manage");
         const body = await readJson(request);
-        const nextData = receivePurchaseOrder(database.readData(), {
+        const currentData = database.readData();
+        const nextData = receivePurchaseOrder(currentData, {
+          storeId: sessionStoreId(currentData, session),
           supplierId: requiredString(body, "supplierId"),
           productId: requiredString(body, "productId"),
           quantity: requiredNumber(body, "quantity"),
@@ -1248,7 +1300,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/inventory/restock-low") {
         requirePermission(session, "inventory:manage");
         const body = await readJson(request);
-        const nextData = restockLowInventory(database.readData(), {
+        const currentData = database.readData();
+        const nextData = restockLowInventory(currentData, {
+          storeId: sessionStoreId(currentData, session),
           supplierId: optionalString(body, "supplierId"),
           userId: session.user.id,
         });
@@ -1260,7 +1314,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/stocktakes") {
         requirePermission(session, "inventory:manage");
         const body = await readJson(request);
-        const nextData = createStocktake(database.readData(), {
+        const currentData = database.readData();
+        const nextData = createStocktake(currentData, {
+          storeId: sessionStoreId(currentData, session),
           productId: requiredString(body, "productId"),
           actualStock: requiredNumber(body, "actualStock"),
           reason: optionalString(body, "reason") ?? "库存盘点",
@@ -1286,7 +1342,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/daily-close") {
         requirePermission(session, "reports:view");
         const body = await readJson(request);
-        const nextData = createDailyClose(database.readData(), {
+        const currentData = database.readData();
+        const nextData = createDailyClose(currentData, {
+          storeId: sessionStoreId(currentData, session),
           businessDate: optionalString(body, "businessDate") ?? new Date().toISOString().slice(0, 10),
           userId: session.user.id,
         });
@@ -1298,7 +1356,9 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/daily-close/reverse") {
         requirePermission(session, "reports:view");
         const body = await readJson(request);
-        const nextData = reverseDailyClose(database.readData(), {
+        const currentData = database.readData();
+        const nextData = reverseDailyClose(currentData, {
+          storeId: sessionStoreId(currentData, session),
           businessDate: requiredString(body, "businessDate"),
           userId: session.user.id,
         });
@@ -1331,6 +1391,10 @@ function updateData(
   const nextData = addOperationLog(updater(database.readData()), { userId: session.user.id, ...log });
   database.replaceData(nextData);
   return nextData;
+}
+
+function sessionStoreId(data: AppData, session: UserSession) {
+  return storeIdForUser(normalizeStoreScopedData(data), session.user);
 }
 
 function requirePermission(session: UserSession, permission: Permission) {
@@ -1419,15 +1483,20 @@ function shortTimeText(value: string) {
 }
 
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
+  const normalizedData = normalizeStoreScopedData(data);
+  const currentStoreId = storeIdForUser(normalizedData, session.user);
+  const sessionData = session.user.role === "superadmin"
+    ? normalizedData
+    : scopeDataToStore(normalizedData, currentStoreId);
   const sanitizedData = {
-    ...data,
-    authUsers: data.authUsers.map((user) => ({ ...user, password: "" })),
-    storeOwnerApplications: (data.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
-    notifications: (data.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
+    ...sessionData,
+    authUsers: sessionData.authUsers.map((user) => ({ ...user, password: "" })),
+    storeOwnerApplications: (sessionData.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
+    notifications: (sessionData.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
     distributors: [],
     referralRelations: [],
     distributionCommissions: [],
-    commissionSettlements: data.commissionSettlements.filter((item) => item.type !== "分销佣金"),
+    commissionSettlements: sessionData.commissionSettlements.filter((item) => item.type !== "分销佣金"),
   };
   if (session.user.role !== "therapist" || !session.user.staffId) {
     return sanitizedData;

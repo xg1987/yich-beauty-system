@@ -14,7 +14,9 @@ import type {
   CashPayMethod,
   Customer,
   DailyClose,
+  InventoryBatch,
   InventoryLog,
+  MemberCard,
   MemberCardTransaction,
   OnlineBookingRequest,
   OnlineStorefront,
@@ -71,6 +73,143 @@ function positiveNumber(value: number | undefined, fallback = 0) {
 
 function isBusinessStaff(staff: Staff) {
   return staff.role !== "老板";
+}
+
+export function defaultStoreId(data: AppData) {
+  return data.storeProfiles[0]?.id;
+}
+
+function itemStoreId<T extends { storeId?: string }>(item: T | undefined, fallbackStoreId?: string) {
+  return item?.storeId ?? fallbackStoreId;
+}
+
+export function storeIdForUser(data: AppData, user: Pick<AuthUser, "id" | "role" | "staffId" | "storeId">) {
+  if (user.role === "superadmin") return undefined;
+  const fallbackStoreId = defaultStoreId(data);
+  if (user.storeId) return user.storeId;
+  if (user.staffId) {
+    const staff = data.staff.find((item) => item.id === user.staffId);
+    if (staff?.storeId) return staff.storeId;
+  }
+  return fallbackStoreId;
+}
+
+function storeIdForStaff(data: AppData, staffId: string, fallbackStoreId?: string) {
+  return itemStoreId(data.staff.find((item) => item.id === staffId), fallbackStoreId);
+}
+
+function storeIdForCustomer(data: AppData, customerId: string, fallbackStoreId?: string) {
+  return itemStoreId(data.customers.find((item) => item.id === customerId), fallbackStoreId);
+}
+
+function storeIdForProduct(data: AppData, productId: string, fallbackStoreId?: string) {
+  return itemStoreId(data.products.find((item) => item.id === productId), fallbackStoreId);
+}
+
+function storeIdForMemberCard(data: AppData, cardId: string, fallbackStoreId?: string) {
+  const card = data.memberCards.find((item) => item.id === cardId);
+  return card?.storeId ?? storeIdForCustomer(data, card?.customerId ?? "", fallbackStoreId);
+}
+
+function scopedStoreId(data: AppData, explicitStoreId?: string) {
+  return explicitStoreId ?? defaultStoreId(data);
+}
+
+export function normalizeStoreScopedData(data: AppData): AppData {
+  const fallbackStoreId = defaultStoreId(data);
+  const withStore = <T extends { storeId?: string }>(item: T, storeId?: string): T => ({
+    ...item,
+    storeId: item.storeId ?? storeId ?? fallbackStoreId,
+  });
+  const staff = data.staff.map((item) => withStore(item));
+  const authUsers = data.authUsers.map((item) =>
+    item.role === "superadmin"
+      ? item
+      : withStore(item, staff.find((staffItem) => staffItem.id === item.staffId)?.storeId),
+  );
+  const customers = data.customers.map((item) => withStore(item));
+  const services = data.services.map((item) => withStore(item));
+  const products = data.products.map((item) => withStore(item));
+  const memberCards = data.memberCards.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId)));
+  const orders = data.orders.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId)));
+  const appointments = data.appointments.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId)));
+  const inventoryBatches = data.inventoryBatches ?? [];
+  return {
+    ...data,
+    staff,
+    authUsers,
+    staffInvites: data.staffInvites.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId))),
+    customers,
+    tagDefinitions: data.tagDefinitions.map((item) => withStore(item)),
+    services,
+    products,
+    inventoryBatches: inventoryBatches.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
+    appointments,
+    onlineBookingRequests: data.onlineBookingRequests.map((item) =>
+      withStore(item, data.onlineStorefronts.find((storefront) => storefront.id === item.storefrontId)?.storeId),
+    ),
+    staffUnavailableSlots: data.staffUnavailableSlots.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId))),
+    staffShifts: data.staffShifts.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId))),
+    memberCards,
+    orders,
+    refunds: data.refunds.map((item) => withStore(item, orders.find((order) => order.id === item.orderId)?.storeId)),
+    inventoryLogs: data.inventoryLogs.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
+    memberCardTransactions: data.memberCardTransactions.map((item) => withStore(item, storeIdForMemberCard({ ...data, customers, memberCards } as AppData, item.memberCardId, fallbackStoreId))),
+    operationLogs: data.operationLogs.map((item) => withStore(item, authUsers.find((user) => user.id === item.userId)?.storeId)),
+    notifications: data.notifications.map((item) => withStore(item, item.staffId ? storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId) : item.storeId)),
+    dailyCloses: data.dailyCloses.map((item) => withStore(item)),
+    approvalRequests: data.approvalRequests.map((item) => withStore(item)),
+    customerServiceRecords: data.customerServiceRecords.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId))),
+    customerSignatures: data.customerSignatures.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId))),
+    customerFollowUps: data.customerFollowUps.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId))),
+    suppliers: data.suppliers.map((item) => withStore(item)),
+    purchaseOrders: data.purchaseOrders.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
+    stocktakes: data.stocktakes.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
+  };
+}
+
+export function scopeDataToStore(data: AppData, storeId: string | undefined): AppData {
+  if (!storeId) return normalizeStoreScopedData(data);
+  const normalized = normalizeStoreScopedData(data);
+  const belongsToStore = (item: { storeId?: string }) => item.storeId === storeId;
+  const visibleOrders = normalized.orders.filter(belongsToStore);
+  const visibleOrderIds = new Set(visibleOrders.map((item) => item.id));
+  const visibleCards = normalized.memberCards.filter(belongsToStore);
+  const visibleCardIds = new Set(visibleCards.map((item) => item.id));
+  return {
+    ...normalized,
+    storeProfiles: normalized.storeProfiles.filter((item) => item.id === storeId),
+    onlineStorefronts: normalized.onlineStorefronts.filter((item) => item.storeId === storeId),
+    authUsers: normalized.authUsers.filter((item) => item.role === "superadmin" || item.storeId === storeId),
+    storeOwnerInvites: [],
+    storeOwnerApplications: normalized.storeOwnerApplications.filter((item) => item.storeId === storeId),
+    staffInvites: normalized.staffInvites.filter(belongsToStore),
+    staff: normalized.staff.filter(belongsToStore),
+    customers: normalized.customers.filter(belongsToStore),
+    tagDefinitions: normalized.tagDefinitions.filter(belongsToStore),
+    services: normalized.services.filter(belongsToStore),
+    products: normalized.products.filter(belongsToStore),
+    inventoryBatches: normalized.inventoryBatches.filter(belongsToStore),
+    appointments: normalized.appointments.filter(belongsToStore),
+    onlineBookingRequests: normalized.onlineBookingRequests.filter(belongsToStore),
+    staffUnavailableSlots: normalized.staffUnavailableSlots.filter(belongsToStore),
+    staffShifts: normalized.staffShifts.filter(belongsToStore),
+    memberCards: visibleCards,
+    orders: visibleOrders,
+    refunds: normalized.refunds.filter((item) => item.storeId === storeId || visibleOrderIds.has(item.orderId)),
+    inventoryLogs: normalized.inventoryLogs.filter(belongsToStore),
+    memberCardTransactions: normalized.memberCardTransactions.filter((item) => item.storeId === storeId || visibleCardIds.has(item.memberCardId)),
+    operationLogs: normalized.operationLogs.filter((item) => item.storeId === storeId || item.userId === "system"),
+    notifications: normalized.notifications.filter((item) => !item.storeId || item.storeId === storeId),
+    dailyCloses: normalized.dailyCloses.filter(belongsToStore),
+    approvalRequests: normalized.approvalRequests.filter(belongsToStore),
+    customerServiceRecords: normalized.customerServiceRecords.filter(belongsToStore),
+    customerSignatures: normalized.customerSignatures.filter(belongsToStore),
+    customerFollowUps: normalized.customerFollowUps.filter(belongsToStore),
+    suppliers: normalized.suppliers.filter(belongsToStore),
+    purchaseOrders: normalized.purchaseOrders.filter(belongsToStore),
+    stocktakes: normalized.stocktakes.filter(belongsToStore),
+  };
 }
 
 function assertActiveStaff(staff: Staff | undefined, message = "员工不存在或已停用") {
@@ -342,6 +481,7 @@ export type RegisterStoreInput = {
 };
 
 export type StoreProfileInput = {
+  storeId?: string;
   name: string;
   phone: string;
   address: string;
@@ -358,6 +498,7 @@ export type StoreStatusInput = {
 };
 
 export type StaffInput = {
+  storeId?: string;
   name: string;
   phone: string;
   role: string;
@@ -371,6 +512,7 @@ export type StaffUpdateInput = Partial<StaffInput> & {
 };
 
 export type OnlineStorefrontInput = {
+  storeId?: string;
   shareCode: string;
   status?: OnlineStorefront["status"];
   headline: string;
@@ -446,6 +588,7 @@ export type AuthUserStatusInput = {
 };
 
 export type CheckoutInput = {
+  storeId?: string;
   customerId?: string;
   guestName?: string;
   guestPhone?: string;
@@ -471,6 +614,7 @@ export type CheckoutProductItemInput = {
 };
 
 export type InventoryAdjustmentInput = {
+  storeId?: string;
   productId: string;
   type: InventoryLog["type"];
   quantity: number;
@@ -479,6 +623,7 @@ export type InventoryAdjustmentInput = {
 };
 
 export type ApprovalRequestInput = {
+  storeId?: string;
   type: ApprovalRequest["type"];
   targetId: string;
   requestedBy: string;
@@ -493,6 +638,7 @@ export type ApprovalDecisionInput = {
 };
 
 export type RefundInput = {
+  storeId?: string;
   orderId: string;
   reason: string;
   userId: string;
@@ -507,13 +653,16 @@ export type RefundMemberCardInput = {
 };
 
 export type OpenMemberCardInput = {
+  storeId?: string;
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
   name?: string;
-  type?: "储值卡" | "次数卡" | "套餐卡";
+  type?: MemberCard["type"];
   balance?: number;
   remainingTimes?: number;
+  discountRate?: number;
+  benefitText?: string;
   serviceId?: string;
   serviceIds?: string[];
   paidAmount?: number;
@@ -524,6 +673,7 @@ export type OpenMemberCardInput = {
 };
 
 export type OperationLogInput = {
+  storeId?: string;
   userId: string;
   action: string;
   targetType: string;
@@ -532,6 +682,7 @@ export type OperationLogInput = {
 };
 
 export type NotificationInput = {
+  storeId?: string;
   title: string;
   desc: string;
   view: ViewKey;
@@ -558,6 +709,7 @@ export type NotificationReadAllInput = {
 };
 
 export type AppointmentInput = {
+  storeId?: string;
   customerId: string;
   staffId: string;
   serviceId: string;
@@ -584,11 +736,13 @@ export type AppointmentRescheduleInput = {
 };
 
 export type DailyCloseInput = {
+  storeId?: string;
   businessDate: string;
   userId: string;
 };
 
 export type StaffUnavailableSlotInput = {
+  storeId?: string;
   staffId: string;
   startAt: string;
   endAt: string;
@@ -597,6 +751,7 @@ export type StaffUnavailableSlotInput = {
 };
 
 export type StaffShiftInput = {
+  storeId?: string;
   staffId: string;
   startAt: string;
   endAt: string;
@@ -685,12 +840,14 @@ export type SettleCommissionInput = {
 };
 
 export type SupplierInput = {
+  storeId?: string;
   name: string;
   phone: string;
   contact: string;
 };
 
 export type PurchaseOrderInput = {
+  storeId?: string;
   supplierId: string;
   productId: string;
   quantity: number;
@@ -700,11 +857,13 @@ export type PurchaseOrderInput = {
 };
 
 export type RestockLowInventoryInput = {
+  storeId?: string;
   supplierId?: string;
   userId: string;
 };
 
 export type StocktakeInput = {
+  storeId?: string;
   productId: string;
   actualStock: number;
   reason: string;
@@ -947,11 +1106,12 @@ export function registerStore(
 
   const staffId = idFactory("s");
   const ownerUserId = idFactory("u");
+  const storeId = data.storeProfiles[0]?.id ?? idFactory("store");
   return {
     ...data,
     storeProfiles: [
       {
-        id: data.storeProfiles[0]?.id ?? idFactory("store"),
+        id: storeId,
         name: input.storeName,
         phone: input.phone,
         address: input.address ?? "",
@@ -966,6 +1126,7 @@ export function registerStore(
     staff: [
       {
         id: staffId,
+        storeId,
         name: input.ownerName,
         phone: input.phone,
         role: "老板",
@@ -980,6 +1141,7 @@ export function registerStore(
     authUsers: [
       {
         id: ownerUserId,
+        storeId,
         name: input.ownerName,
         account: input.account,
         password: input.password,
@@ -994,10 +1156,11 @@ export function registerStore(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: ownerUserId,
         action: "注册门店",
         targetType: "store",
-        targetId: data.storeProfiles[0]?.id ?? "store",
+        targetId: storeId,
         summary: `${input.storeName} 完成门店注册`,
         createdAt,
       },
@@ -1022,6 +1185,7 @@ export function updateStoreStatus(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId: store.id,
         userId: input.userId,
         action: input.status === "active" ? "启用门店" : "停用门店",
         targetType: "store",
@@ -1035,7 +1199,7 @@ export function updateStoreStatus(
 }
 
 export function updateStoreProfile(data: AppData, input: StoreProfileInput): AppData {
-  const current = data.storeProfiles[0];
+  const current = input.storeId ? data.storeProfiles.find((store) => store.id === input.storeId) : data.storeProfiles[0];
   if (!current) throw new Error("请先完成门店注册");
   const name = input.name.trim();
   const phone = input.phone.trim();
@@ -1059,19 +1223,20 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
 
   return {
     ...data,
-    storeProfiles: [
-      {
-        ...current,
-        name,
-        phone,
-        address,
-        businessHours,
-        roomNames,
-        maintenanceRoomNames,
-        maintenanceRoomCount: maintenanceRoomNames.length,
-      },
-      ...data.storeProfiles.slice(1),
-    ],
+    storeProfiles: data.storeProfiles.map((store) =>
+      store.id === current.id
+        ? {
+            ...store,
+            name,
+            phone,
+            address,
+            businessHours,
+            roomNames,
+            maintenanceRoomNames,
+            maintenanceRoomCount: maintenanceRoomNames.length,
+          }
+        : store,
+    ),
   };
 }
 
@@ -1386,7 +1551,7 @@ export function upsertOnlineStorefront(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const updatedAt = (options.now ?? nowIso)();
-  const store = data.storeProfiles[0];
+  const store = input.storeId ? data.storeProfiles.find((item) => item.id === input.storeId) : data.storeProfiles[0];
   if (!store) throw new Error("请先完成门店注册");
   if (!/^[a-zA-Z0-9-]{4,32}$/.test(input.shareCode)) throw new Error("分享码只能包含字母、数字和短横线，长度 4-32 位");
   if (input.enabledServiceIds.length === 0) throw new Error("至少选择一个线上展示项目");
@@ -1432,6 +1597,7 @@ export function createOnlineBookingRequest(
 
   const request: OnlineBookingRequest = {
     id: idFactory("obr"),
+    storeId: storefront.storeId,
     storefrontId: storefront.id,
     customerName: input.customerName.trim(),
     phone: input.phone.trim(),
@@ -1492,6 +1658,7 @@ export function convertOnlineBookingRequest(
   if (!customer) {
     customer = {
       id: idFactory("c"),
+      storeId: request.storeId ?? data.onlineStorefronts.find((item) => item.id === request.storefrontId)?.storeId,
       name: request.customerName,
       phone: request.phone,
       level: "普通会员",
@@ -1509,6 +1676,7 @@ export function convertOnlineBookingRequest(
     nextData,
     {
       customerId: customer.id,
+      storeId: request.storeId,
       staffId: input.staffId,
       serviceId: request.serviceId,
       startAt: request.preferredAt,
@@ -1556,6 +1724,7 @@ export function addStaffMember(
   if ((input.commissionRate ?? 0) < 0) throw new Error("提成比例不能小于 0");
   const staff: Staff = {
     id: idFactory("s"),
+    storeId: scopedStoreId(data, input.storeId),
     name,
     phone,
     role,
@@ -1676,6 +1845,7 @@ export function createStaffInvite(
   if (hasActiveInvite) throw new Error("该员工或账号已有待加入邀请");
   const invite: StaffInvite = {
     id: idFactory("si"),
+    storeId: staff.storeId ?? scopedStoreId(data),
     staffId: staff.id,
     account,
     role: input.role,
@@ -1769,11 +1939,13 @@ export function joinStaffInvite(
   if (staff.accountId || data.authUsers.some((user) => user.staffId === staff.id)) throw new Error("该员工已开通账号");
   if (data.authUsers.some((user) => user.account === invite.account)) throw new Error("登录账号已存在");
   const userId = idFactory("u");
+  const storeId = scopedStoreId(data, staff.storeId);
   return {
     ...data,
     authUsers: [
       {
         id: userId,
+        storeId,
         name: input.name.trim() || staff.name,
         account: invite.account,
         password: input.password,
@@ -1785,7 +1957,7 @@ export function joinStaffInvite(
       },
       ...data.authUsers,
     ],
-    staff: data.staff.map((item) => (item.id === staff.id ? { ...item, name: input.name.trim() || item.name, accountId: userId } : item)),
+    staff: data.staff.map((item) => (item.id === staff.id ? { ...item, storeId, name: input.name.trim() || item.name, accountId: userId } : item)),
     staffInvites: data.staffInvites.map((item) =>
       item.id === invite.id ? { ...item, status: "已加入", joinedAt: createdAt } : item,
     ),
@@ -1882,11 +2054,13 @@ export function joinStoreStaffInvite(
   if (data.authUsers.some((user) => user.account === account)) throw new Error("登录账号已存在");
   const staffId = idFactory("s");
   const userId = idFactory("u");
+  const storeId = storeIdForUser(data, data.authUsers.find((user) => user.id === issuerId) ?? { id: issuerId, role: "owner" as UserRole });
   return {
     ...data,
     staff: [
       {
         id: staffId,
+        storeId,
         name,
         phone: account,
         role: "员工",
@@ -1901,6 +2075,7 @@ export function joinStoreStaffInvite(
     authUsers: [
       {
         id: userId,
+        storeId,
         name,
         account,
         password: input.password,
@@ -1915,6 +2090,7 @@ export function joinStoreStaffInvite(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId,
         action: "员工加入门店",
         targetType: "staff",
@@ -1992,6 +2168,7 @@ export function decideStoreOwnerApplication(
     staff: [
       {
         id: staffId,
+        storeId,
         name: application.ownerName,
         phone: application.phone,
         role: "老板",
@@ -2006,6 +2183,7 @@ export function decideStoreOwnerApplication(
     authUsers: [
       {
         id: userId,
+        storeId,
         name: application.ownerName,
         account: application.account,
         password: application.password,
@@ -2028,6 +2206,7 @@ export function decideStoreOwnerApplication(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: input.userId,
         action: "门店申请审批通过",
         targetType: "store",
@@ -2092,6 +2271,7 @@ export function checkoutOrder(
   const selectedStaff = data.staff.find((item) => item.id === input.staffId);
   const productOnlyCheckout = Boolean(productItems.length > 0 && !selectedService);
   assertActiveStaff(selectedStaff, productOnlyCheckout ? "收银员工不存在或已停用" : "服务人员不存在或已停用");
+  const storeId = scopedStoreId(data, input.storeId ?? selectedStaff?.storeId ?? selectedCustomer?.storeId ?? selectedService?.storeId);
   (input.collaboratorStaffIds ?? []).forEach((staffId) => {
     const collaborator = data.staff.find((item) => item.id === staffId);
     assertActiveStaff(collaborator, "协作人员不存在或已停用");
@@ -2197,6 +2377,7 @@ export function checkoutOrder(
   }
   const order: Order = {
     id: orderId,
+    storeId,
     orderNo: `SO${Date.now().toString().slice(-8)}`,
     customerId,
     guestName: customerId ? undefined : guestName,
@@ -2247,6 +2428,10 @@ export function checkoutOrder(
     delta -= consumptionByProduct.get(product.id) ?? 0;
     return delta ? { ...product, stock: product.stock + delta } : product;
   });
+  let inventoryBatches = data.inventoryBatches ?? [];
+  for (const [productId, quantity] of consumptionByProduct) {
+    inventoryBatches = consumeInventoryBatches(inventoryBatches, productId, quantity);
+  }
 
   const inventoryLogs: InventoryLog[] = [...data.inventoryLogs];
   const changedProducts = products.filter((product) => data.products.find((old) => old.id === product.id)?.stock !== product.stock);
@@ -2255,6 +2440,7 @@ export function checkoutOrder(
     if (!previousProduct) return;
     inventoryLogs.unshift({
       id: idFactory("il"),
+      storeId: product.storeId ?? storeId,
       productId: product.id,
       type: soldProductByProduct.has(product.id)
         ? "销售出库"
@@ -2285,6 +2471,7 @@ export function checkoutOrder(
       ? [
           {
             id: idFactory("mt"),
+            storeId,
             memberCardId: selectedCardAfterCheckout.id,
             orderId,
             type: "消费",
@@ -2329,6 +2516,7 @@ export function checkoutOrder(
     ? [
         {
           id: idFactory("sig"),
+          storeId,
           token: idFactory("sign"),
           customerId,
           orderId,
@@ -2345,11 +2533,12 @@ export function checkoutOrder(
   return {
     ...data,
     products,
+    inventoryBatches,
     memberCards,
     inventoryLogs,
     orders: [order, ...data.orders],
     memberCardTransactions,
-    customers: data.customers.map((customer) => (customer.id === customerId ? { ...customer, lastVisit: createdAt } : customer)),
+    customers: data.customers.map((customer) => (customer.id === customerId ? { ...customer, lastVisit: createdAt, points: Math.max(0, (customer.points ?? 0) + Math.floor(paidAmount / 10)) } : customer)),
     appointments: appointment
       ? data.appointments.map((item) =>
           item.id === appointment.id ? { ...item, status: "已完成", completedAt: createdAt, updatedAt: createdAt } : item,
@@ -2391,8 +2580,10 @@ export function refundOrder(
   }
 
   const service = data.services.find((item) => item.id === order.serviceId);
+  const storeId = scopedStoreId(data, input.storeId ?? order.storeId);
   const refund: Refund = {
     id: idFactory("rf"),
+    storeId,
     orderId: order.id,
     amount: refundAmount,
     reason: input.reason,
@@ -2401,6 +2592,7 @@ export function refundOrder(
   };
 
   let products = data.products;
+  let inventoryBatches = data.inventoryBatches ?? [];
   const inventoryLogs: InventoryLog[] = [...data.inventoryLogs];
 
   const restoreProduct = (productId: string | undefined, quantity: number) => {
@@ -2408,8 +2600,19 @@ export function refundOrder(
     products = products.map((product) => {
       if (product.id !== productId) return product;
       const stockAfter = product.stock + quantity;
+      const batch = inventoryBatchRecord(idFactory, {
+        storeId: product.storeId ?? storeId,
+        productId,
+        source: "退款回滚",
+        quantity,
+        unitCost: product.cost,
+        createdAt,
+        expiryAt: product.expiryAt,
+      });
+      if (batch) inventoryBatches = [batch, ...inventoryBatches];
       inventoryLogs.unshift({
         id: idFactory("il"),
+        storeId: product.storeId ?? storeId,
         productId,
         type: "退款回滚",
         delta: quantity,
@@ -2453,6 +2656,7 @@ export function refundOrder(
       memberCardTransactions = [
         {
           id: idFactory("mt"),
+          storeId,
           memberCardId: card.id,
           orderId: order.id,
           type: "退款",
@@ -2472,6 +2676,7 @@ export function refundOrder(
   return {
     ...data,
     products,
+    inventoryBatches,
     memberCards,
     memberCardTransactions,
     inventoryLogs,
@@ -2521,29 +2726,32 @@ export function openMemberCard(
   const serviceIds = input.serviceIds?.filter(Boolean) ?? [];
   const remainingTimes = positiveNumber(input.remainingTimes);
   const requestedType = input.type;
-  const cardType = requestedType === "套餐卡" || requestedType === "次数卡" || requestedType === "储值卡"
+  const cardType = requestedType === "套餐卡" || requestedType === "次数卡" || requestedType === "储值卡" || requestedType === "折扣卡"
     ? requestedType
     : remainingTimes > 0 && serviceIds.length > 1
       ? "套餐卡"
       : remainingTimes > 0
         ? "次数卡"
         : "储值卡";
-  const cardName = trimText(input.name) || (cardType === "储值卡" ? "储值卡" : "");
+  const cardName = trimText(input.name) || (cardType === "储值卡" ? "储值卡" : cardType === "折扣卡" ? "会员折扣卡" : "");
   if (!cardName) throw new Error("请填写卡名称");
   const balance = cardType === "储值卡" ? positiveNumber(input.balance) : 0;
   const paidAmount = positiveNumber(input.paidAmount, cardType === "储值卡" ? balance : 0);
   const payMethod = normalizeCashPayMethod(input.payMethod);
   const expiresAt = trimText(input.expiresAt) || "2027-12-31";
+  const discountRate = cardType === "折扣卡" ? positiveNumber(input.discountRate, 0.9) : undefined;
 
   if (paidAmount <= 0) throw new Error("开卡需要填写实收金额");
   if (cardType === "储值卡" && balance <= 0) throw new Error("储值卡需要填写到账余额");
-  if (cardType !== "储值卡" && remainingTimes <= 0) throw new Error("次数卡和套餐卡需要填写可用次数");
+  if ((cardType === "次数卡" || cardType === "套餐卡") && remainingTimes <= 0) throw new Error("次数卡和套餐卡需要填写可用次数");
   if (cardType === "次数卡" && !input.serviceId) throw new Error("次数卡需要绑定一个服务项目");
   if (cardType === "套餐卡" && serviceIds.length === 0) throw new Error("套餐卡至少选择一个可用项目");
+  if (cardType === "折扣卡" && (!discountRate || discountRate <= 0 || discountRate >= 1)) throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
 
   let customerId = input.customerId;
   let customers = data.customers;
   const existingCustomer = customerId ? data.customers.find((customer) => customer.id === customerId) : undefined;
+  const storeId = scopedStoreId(data, input.storeId ?? existingCustomer?.storeId);
   if (!existingCustomer) {
     const customerName = trimText(input.customerName);
     const customerPhone = trimText(input.customerPhone);
@@ -2555,6 +2763,7 @@ export function openMemberCard(
       customerId = idFactory("c");
       const customer: Customer = {
         id: customerId,
+        storeId,
         name: customerName,
         phone: customerPhone,
         level: "普通会员",
@@ -2567,9 +2776,10 @@ export function openMemberCard(
   }
 
   if (!customerId) throw new Error("开卡客户不存在");
+  const pointsEarned = Math.floor(paidAmount / 10);
   const taggedCustomers = customers.map((customer) =>
     customer.id === customerId
-      ? { ...customer, tags: Array.from(new Set([...(customer.tags ?? []), "会员"])), lastVisit: createdAt }
+      ? { ...customer, storeId: customer.storeId ?? storeId, tags: Array.from(new Set([...(customer.tags ?? []), "会员"])), points: Math.max(0, (customer.points ?? 0) + pointsEarned), lastVisit: createdAt }
       : customer,
   );
   const cardId = idFactory("m");
@@ -2581,11 +2791,15 @@ export function openMemberCard(
     memberCards: [
       {
         id: cardId,
+        storeId,
         customerId,
         name: cardName,
         type: cardType,
         balance,
         remainingTimes,
+        discountRate,
+        pointsEarned,
+        benefitText: trimText(input.benefitText) || (cardType === "折扣卡" ? `${Number(((discountRate ?? 1) * 10).toFixed(1))} 折权益` : undefined),
         expiresAt,
         status: "正常",
         serviceId: cardType === "次数卡" ? input.serviceId : undefined,
@@ -2596,6 +2810,7 @@ export function openMemberCard(
     memberCardTransactions: [
       {
         id: idFactory("mt"),
+        storeId,
         memberCardId: cardId,
         type: "开卡",
         paidAmount,
@@ -2612,6 +2827,7 @@ export function openMemberCard(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: input.userId,
         action: "开卡",
         targetType: "memberCard",
@@ -2652,6 +2868,7 @@ export function refundMemberCard(
 
   const amountDelta = -card.balance;
   const timesDelta = -card.remainingTimes;
+  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {
     ...data,
@@ -2661,6 +2878,7 @@ export function refundMemberCard(
     memberCardTransactions: [
       {
         id: idFactory("mt"),
+        storeId,
         memberCardId: card.id,
         type: "退卡",
         amountDelta,
@@ -2675,6 +2893,7 @@ export function refundMemberCard(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: input.userId,
         action: "会员退卡",
         targetType: "memberCard",
@@ -2694,8 +2913,10 @@ export function createApprovalRequest(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
+  const storeId = scopedStoreId(data, input.storeId);
   const request: ApprovalRequest = {
     id: idFactory("ap"),
+    storeId,
     type: input.type,
     targetId: input.targetId,
     requestedBy: input.requestedBy,
@@ -2710,6 +2931,7 @@ export function createApprovalRequest(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: input.requestedBy,
         action: "提交审批",
         targetType: "approvalRequest",
@@ -2743,6 +2965,7 @@ export function decideApprovalRequest(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId: request.storeId,
         userId: input.userId,
         action: input.approved ? "审批通过" : "审批拒绝",
         targetType: "approvalRequest",
@@ -2777,13 +3000,19 @@ export function rechargeMemberCard(
     balance: card.balance + amountDelta,
     remainingTimes: card.remainingTimes + timesDelta,
   };
+  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
+  const pointsEarned = Math.floor(paidAmount / 10);
 
   return {
     ...data,
     memberCards: data.memberCards.map((item) => (item.id === card.id ? nextCard : item)),
+    customers: pointsEarned > 0
+      ? data.customers.map((customer) => (customer.id === card.customerId ? { ...customer, points: Math.max(0, (customer.points ?? 0) + pointsEarned), lastVisit: createdAt } : customer))
+      : data.customers,
     memberCardTransactions: [
       {
         id: idFactory("mt"),
+        storeId,
         memberCardId: card.id,
         type: "充值",
         paidAmount: paidAmount > 0 ? paidAmount : undefined,
@@ -2821,6 +3050,7 @@ export function updateMemberCardStatus(
   const createdAt = (options.now ?? nowIso)();
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
   if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可操作");
+  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {
     ...data,
@@ -2828,6 +3058,7 @@ export function updateMemberCardStatus(
     memberCardTransactions: [
       {
         id: idFactory("mt"),
+        storeId,
         memberCardId: card.id,
         type: input.status === "冻结" ? "冻结" : "解冻",
         amountDelta: 0,
@@ -2851,6 +3082,7 @@ export function extendMemberCard(
   const createdAt = (options.now ?? nowIso)();
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
   if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可延期");
+  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {
     ...data,
@@ -2858,6 +3090,7 @@ export function extendMemberCard(
     memberCardTransactions: [
       {
         id: idFactory("mt"),
+        storeId,
         memberCardId: card.id,
         type: "延期",
         amountDelta: 0,
@@ -2882,6 +3115,7 @@ export function transferMemberCard(
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
   if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可转卡");
   if (!data.customers.some((customer) => customer.id === input.toCustomerId)) throw new Error("转入客户不存在");
+  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {
     ...data,
@@ -2889,6 +3123,7 @@ export function transferMemberCard(
     memberCardTransactions: [
       {
         id: idFactory("mt"),
+        storeId,
         memberCardId: card.id,
         type: "转卡",
         amountDelta: 0,
@@ -2903,6 +3138,7 @@ export function transferMemberCard(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: input.userId,
         action: "会员转卡",
         targetType: "memberCard",
@@ -2924,6 +3160,7 @@ export function addOperationLog(
   const currentTime = options.now ?? nowIso;
   const operationLog: OperationLog = {
     id: idFactory("op"),
+    storeId: scopedStoreId(data, input.storeId ?? data.authUsers.find((user) => user.id === input.userId)?.storeId),
     userId: input.userId,
     action: input.action,
     targetType: input.targetType,
@@ -2947,6 +3184,7 @@ export function addSystemNotification(
   const currentTime = options.now ?? nowIso;
   const notification: SystemNotification = {
     id: idFactory("ntf"),
+    storeId: input.storeId ?? (input.staffId ? storeIdForStaff(data, input.staffId) : undefined),
     title: input.title,
     desc: input.desc,
     view: input.view,
@@ -3020,12 +3258,14 @@ export function createAppointment(
     endAt,
     roomName,
   });
+  const storeId = scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId) ?? storeIdForCustomer(data, input.customerId));
 
   return {
     ...data,
     appointments: [
       {
         id: idFactory("a"),
+        storeId,
         customerId: input.customerId,
         staffId: input.staffId,
         serviceId: input.serviceId,
@@ -3305,6 +3545,7 @@ export function createStaffShift(
   if (hasShiftConflict) throw new Error("员工班次冲突");
   const shift: StaffShift = {
     id: idFactory("ss"),
+    storeId: scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId)),
     staffId: input.staffId,
     startAt: input.startAt,
     endAt: input.endAt,
@@ -3358,6 +3599,7 @@ export function createStaffUnavailableSlot(
   const createdAt = currentTime();
   const slot: StaffUnavailableSlot = {
     id: idFactory("su"),
+    storeId: scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId)),
     staffId: input.staffId,
     startAt: input.startAt,
     endAt: input.endAt,
@@ -3372,6 +3614,7 @@ export function createStaffUnavailableSlot(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId: slot.storeId,
         userId: input.userId,
         action: "锁定员工时间",
         targetType: "staffUnavailableSlot",
@@ -3392,16 +3635,18 @@ export function createDailyClose(
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
   const createdAt = currentTime();
+  const storeId = scopedStoreId(data, input.storeId);
 
-  if (data.dailyCloses.some((item) => item.businessDate === input.businessDate && item.status === "已锁定")) {
+  if (data.dailyCloses.some((item) => item.businessDate === input.businessDate && (item.storeId ?? defaultStoreId(data)) === storeId && item.status === "已锁定")) {
     throw new Error("该营业日已日结");
   }
 
-  const orders = data.orders.filter((order) => order.createdAt.slice(0, 10) === input.businessDate);
-  const refunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === input.businessDate);
+  const orders = data.orders.filter((order) => order.createdAt.slice(0, 10) === input.businessDate && (order.storeId ?? defaultStoreId(data)) === storeId);
+  const orderIds = new Set(orders.map((order) => order.id));
+  const refunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === input.businessDate && ((refund.storeId ?? defaultStoreId(data)) === storeId || orderIds.has(refund.orderId)));
   const commissions = data.commissions.filter((commission) => commission.createdAt.slice(0, 10) === input.businessDate);
   const memberCardIncomeTransactions = data.memberCardTransactions.filter(
-    (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && memberCardCashIn(transaction) > 0,
+    (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashIn(transaction) > 0,
   );
 
   const orderAmountByMethod = (method: Order["payMethod"]) =>
@@ -3417,6 +3662,7 @@ export function createDailyClose(
 
   const dailyClose: DailyClose = {
     id: idFactory("dc"),
+    storeId,
     businessDate: input.businessDate,
     revenue: cashRevenue,
     refundAmount: refunds.reduce((sum, refund) => sum + refund.amount, 0),
@@ -3431,7 +3677,7 @@ export function createDailyClose(
     createdAt,
     status: "已锁定",
   };
-  const reversedClose = data.dailyCloses.find((item) => item.businessDate === input.businessDate && item.status === "已反结");
+  const reversedClose = data.dailyCloses.find((item) => item.businessDate === input.businessDate && (item.storeId ?? defaultStoreId(data)) === storeId && item.status === "已反结");
   const nextDailyCloses = reversedClose
     ? data.dailyCloses.map((item) => (item.id === reversedClose.id ? { ...dailyClose, id: item.id } : item))
     : [dailyClose, ...data.dailyCloses];
@@ -3442,6 +3688,7 @@ export function createDailyClose(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: input.userId,
         action: "财务日结",
         targetType: "dailyClose",
@@ -3461,7 +3708,8 @@ export function reverseDailyClose(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  const close = data.dailyCloses.find((item) => item.businessDate === input.businessDate && item.status === "已锁定");
+  const storeId = scopedStoreId(data, input.storeId);
+  const close = data.dailyCloses.find((item) => item.businessDate === input.businessDate && (item.storeId ?? defaultStoreId(data)) === storeId && item.status === "已锁定");
   if (!close) throw new Error("可反结日结不存在");
   return {
     ...data,
@@ -3471,6 +3719,7 @@ export function reverseDailyClose(
     operationLogs: [
       {
         id: idFactory("op"),
+        storeId,
         userId: input.userId,
         action: "财务反结",
         targetType: "dailyClose",
@@ -3523,6 +3772,52 @@ function earlierExpiryAt(current?: string, next?: string) {
   return next < current ? next : current;
 }
 
+function inventoryBatchRecord(
+  idFactory: IdFactory,
+  input: {
+    storeId?: string;
+    productId: string;
+    source: InventoryBatch["source"];
+    quantity: number;
+    unitCost: number;
+    createdAt: string;
+    expiryAt?: string;
+    supplierId?: string;
+    purchaseOrderId?: string;
+  },
+): InventoryBatch | undefined {
+  if (input.quantity <= 0) return undefined;
+  return {
+    id: idFactory("ib"),
+    storeId: input.storeId,
+    productId: input.productId,
+    source: input.source,
+    quantityIn: input.quantity,
+    remainingQuantity: input.quantity,
+    unitCost: input.unitCost,
+    expiryAt: input.expiryAt,
+    supplierId: input.supplierId,
+    purchaseOrderId: input.purchaseOrderId,
+    createdAt: input.createdAt,
+  };
+}
+
+function consumeInventoryBatches(batches: InventoryBatch[] | undefined, productId: string, quantity: number) {
+  if (!batches?.length || quantity <= 0) return batches ?? [];
+  let remaining = quantity;
+  const sortedIds = [...batches]
+    .filter((batch) => batch.productId === productId && batch.remainingQuantity > 0)
+    .sort((current, next) => (current.expiryAt ?? "9999-12-31").localeCompare(next.expiryAt ?? "9999-12-31") || current.createdAt.localeCompare(next.createdAt))
+    .map((batch) => batch.id);
+  const sortedIdSet = new Set(sortedIds);
+  return batches.map((batch) => {
+    if (!sortedIdSet.has(batch.id) || remaining <= 0) return batch;
+    const consumed = Math.min(batch.remainingQuantity, remaining);
+    remaining -= consumed;
+    return { ...batch, remainingQuantity: Math.max(0, batch.remainingQuantity - consumed) };
+  });
+}
+
 export function adjustInventory(
   data: AppData,
   input: InventoryAdjustmentInput,
@@ -3537,6 +3832,7 @@ export function adjustInventory(
   if (!targetProduct) {
     throw new Error("商品不存在");
   }
+  const storeId = scopedStoreId(data, input.storeId ?? targetProduct.storeId);
   const expiryAt = input.type === "入库" ? stockInExpiryAt(targetProduct, createdAt, input.expiryAt) : undefined;
   let stockAfter = 0;
   const products = data.products.map((product) => {
@@ -3544,13 +3840,28 @@ export function adjustInventory(
     stockAfter = Math.max(0, product.stock + input.quantity * direction);
     return { ...product, stock: stockAfter, expiryAt: earlierExpiryAt(product.expiryAt, expiryAt) };
   });
+  const newBatch = input.type === "入库"
+    ? inventoryBatchRecord(idFactory, {
+        storeId,
+        productId: input.productId,
+        source: "手动入库",
+        quantity: input.quantity,
+        unitCost: targetProduct.cost,
+        expiryAt,
+        createdAt,
+      })
+    : undefined;
 
   return {
     ...data,
     products,
+    inventoryBatches: newBatch
+      ? [newBatch, ...(data.inventoryBatches ?? [])]
+      : consumeInventoryBatches(data.inventoryBatches, input.productId, input.quantity),
     inventoryLogs: [
       {
         id: idFactory("il"),
+        storeId,
         productId: input.productId,
         type: input.type,
         delta: input.quantity * direction,
@@ -3570,7 +3881,7 @@ export function addSupplier(
   options: { idFactory?: IdFactory } = {},
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
-  const supplier: Supplier = { id: idFactory("sp"), name: input.name, phone: input.phone, contact: input.contact, status: "active" };
+  const supplier: Supplier = { id: idFactory("sp"), storeId: scopedStoreId(data, input.storeId), name: input.name, phone: input.phone, contact: input.contact, status: "active" };
   return { ...data, suppliers: [supplier, ...data.suppliers] };
 }
 
@@ -3585,10 +3896,12 @@ export function receivePurchaseOrder(
   if (!data.suppliers.some((supplier) => supplier.id === input.supplierId)) throw new Error("供应商不存在");
   const product = data.products.find((item) => item.id === input.productId);
   if (!product) throw new Error("商品不存在");
+  const storeId = scopedStoreId(data, input.storeId ?? product.storeId);
   const stockAfter = product.stock + input.quantity;
   const expiryAt = stockInExpiryAt(product, createdAt, input.expiryAt);
   const purchaseOrder: PurchaseOrder = {
     id: idFactory("po"),
+    storeId,
     supplierId: input.supplierId,
     productId: input.productId,
     quantity: input.quantity,
@@ -3598,13 +3911,26 @@ export function receivePurchaseOrder(
     createdBy: input.userId,
     createdAt,
   };
+  const batch = inventoryBatchRecord(idFactory, {
+    storeId,
+    productId: product.id,
+    source: "采购入库",
+    quantity: input.quantity,
+    unitCost: input.unitCost,
+    expiryAt,
+    supplierId: input.supplierId,
+    purchaseOrderId: purchaseOrder.id,
+    createdAt,
+  });
   return {
     ...data,
     products: data.products.map((item) => (item.id === product.id ? { ...item, stock: stockAfter, cost: input.unitCost, expiryAt: earlierExpiryAt(item.expiryAt, expiryAt) } : item)),
+    inventoryBatches: batch ? [batch, ...(data.inventoryBatches ?? [])] : (data.inventoryBatches ?? []),
     purchaseOrders: [purchaseOrder, ...data.purchaseOrders],
     inventoryLogs: [
       {
         id: idFactory("il"),
+        storeId,
         productId: product.id,
         type: "采购入库",
         delta: input.quantity,
@@ -3627,7 +3953,8 @@ export function restockLowInventory(
   const currentTime = options.now ?? nowIso;
   const createdAt = currentTime();
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
-  const lowStockProducts = data.products.filter((product) => product.stock <= product.warningStock);
+  const storeId = scopedStoreId(data, input.storeId);
+  const lowStockProducts = data.products.filter((product) => product.stock <= product.warningStock && (!storeId || (product.storeId ?? defaultStoreId(data)) === storeId));
   if (lowStockProducts.length === 0) throw new Error("当前没有需要补货的商品");
 
   const existingSupplier = input.supplierId
@@ -3643,6 +3970,7 @@ export function restockLowInventory(
     status: "active",
   };
   const purchaseOrders: PurchaseOrder[] = [];
+  const inventoryBatches: InventoryBatch[] = [];
   const inventoryLogs: InventoryLog[] = [];
   const stockByProduct = new Map<string, number>();
 
@@ -3652,6 +3980,7 @@ export function restockLowInventory(
     const expiryAt = stockInExpiryAt(product, createdAt);
     const purchaseOrder: PurchaseOrder = {
       id: idFactory("po"),
+      storeId,
       supplierId: supplier.id,
       productId: product.id,
       quantity,
@@ -3662,8 +3991,21 @@ export function restockLowInventory(
       createdAt,
     };
     purchaseOrders.push(purchaseOrder);
+    const batch = inventoryBatchRecord(idFactory, {
+      storeId,
+      productId: product.id,
+      source: "采购入库",
+      quantity,
+      unitCost: product.cost,
+      expiryAt,
+      supplierId: supplier.id,
+      purchaseOrderId: purchaseOrder.id,
+      createdAt,
+    });
+    if (batch) inventoryBatches.push(batch);
     inventoryLogs.push({
       id: idFactory("il"),
+      storeId,
       productId: product.id,
       type: "采购入库",
       delta: quantity,
@@ -3683,6 +4025,7 @@ export function restockLowInventory(
       const expiryAt = purchaseOrders.find((order) => order.productId === product.id)?.expiryAt;
       return { ...product, stock: stockByProduct.get(product.id) ?? product.stock, expiryAt: earlierExpiryAt(product.expiryAt, expiryAt) };
     }),
+    inventoryBatches: [...inventoryBatches, ...(data.inventoryBatches ?? [])],
     purchaseOrders: [...purchaseOrders, ...data.purchaseOrders],
     inventoryLogs: [...inventoryLogs, ...data.inventoryLogs],
     operationLogs: [
@@ -3710,9 +4053,11 @@ export function createStocktake(
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
   const product = data.products.find((item) => item.id === input.productId);
   if (!product) throw new Error("商品不存在");
+  const storeId = scopedStoreId(data, input.storeId ?? product.storeId);
   const delta = input.actualStock - product.stock;
   const stocktake: Stocktake = {
     id: idFactory("st"),
+    storeId,
     productId: product.id,
     systemStock: product.stock,
     actualStock: input.actualStock,
@@ -3724,10 +4069,24 @@ export function createStocktake(
   return {
     ...data,
     products: data.products.map((item) => (item.id === product.id ? { ...item, stock: input.actualStock } : item)),
+    inventoryBatches: delta > 0
+      ? [
+          inventoryBatchRecord(idFactory, {
+            storeId,
+            productId: product.id,
+            source: "盘点调整",
+            quantity: delta,
+            unitCost: product.cost,
+            createdAt,
+          }),
+          ...(data.inventoryBatches ?? []),
+        ].filter((item): item is InventoryBatch => Boolean(item))
+      : consumeInventoryBatches(data.inventoryBatches, product.id, Math.abs(delta)),
     stocktakes: [stocktake, ...data.stocktakes],
     inventoryLogs: [
       {
         id: idFactory("il"),
+        storeId,
         productId: product.id,
         type: "盘点调整",
         delta,
@@ -3753,6 +4112,7 @@ export function addCustomerServiceRecord(
   if (!isBusinessStaff(staff)) throw new Error("老板不能作为服务员工");
   const service = data.services.find((item) => item.id === input.serviceId);
   if (!service) throw new Error("服务项目不存在");
+  const storeId = scopedStoreId(data, storeIdForCustomer(data, input.customerId) ?? staff.storeId ?? service.storeId);
   let memberCardTransactionId: string | undefined;
   if (input.orderId) {
     const order = data.orders.find((item) => item.id === input.orderId);
@@ -3765,6 +4125,7 @@ export function addCustomerServiceRecord(
   }
   const record: CustomerServiceRecord = {
     id: idFactory("sr"),
+    storeId,
     customerId: input.customerId,
     staffId: input.staffId,
     serviceId: input.serviceId,
@@ -3786,6 +4147,7 @@ export function addCustomerServiceRecord(
   const followUp: CustomerFollowUp | undefined = input.nextFollowUpAt
     ? {
         id: idFactory("fu"),
+        storeId,
         customerId: input.customerId,
         staffId: input.staffId,
         dueAt: input.nextFollowUpAt,
@@ -3823,6 +4185,7 @@ export function createCustomerSignature(
   }
   const signature: CustomerSignature = {
     id: idFactory("sig"),
+    storeId: scopedStoreId(data, storeIdForCustomer(data, customer.id)),
     token: idFactory("sign"),
     customerId: customer.id,
     serviceRecordId: input.serviceRecordId,
@@ -3884,6 +4247,7 @@ export function addCustomerFollowUp(
     customerFollowUps: [
       {
         id: idFactory("fu"),
+        storeId: scopedStoreId(data, storeIdForCustomer(data, input.customerId) ?? storeIdForStaff(data, input.staffId)),
         customerId: input.customerId,
         staffId: input.staffId,
         dueAt: input.dueAt,
@@ -3947,16 +4311,59 @@ export function reportSummary(data: AppData) {
   const refundAmount = data.refunds.reduce((sum, item) => sum + item.amount, 0);
   const cardBalance = data.memberCards.reduce((sum, item) => sum + item.balance, 0);
   const commission = data.commissions.filter((item) => item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0);
-  const serviceCount = data.orders.filter((item) => item.status !== "已退款").length;
+  const effectiveOrders = data.orders.filter((item) => item.status !== "已退款");
+  const serviceCount = effectiveOrders.length;
+  const inventoryBatches = data.inventoryBatches ?? [];
+  const inventoryCost = inventoryBatches.length
+    ? inventoryBatches.reduce((sum, batch) => sum + batch.remainingQuantity * batch.unitCost, 0)
+    : data.products.reduce((sum, product) => sum + product.stock * product.cost, 0);
+  const orderProductCost = effectiveOrders.reduce((sum, order) => {
+    const productItems = [
+      ...(order.productItems ?? (order.productId ? [{ productId: order.productId, quantity: 1, unitPrice: 0, amount: 0 }] : [])),
+      ...(order.giftProductItems ?? (order.giftProductId ? [{ productId: order.giftProductId, quantity: 1, unitPrice: 0, amount: 0 }] : [])),
+    ];
+    const directProductCost = productItems.reduce((itemSum, item) => {
+      const product = data.products.find((candidate) => candidate.id === item.productId);
+      return itemSum + (product?.cost ?? 0) * item.quantity;
+    }, 0);
+    const service = data.services.find((candidate) => candidate.id === order.serviceId);
+    const serviceCost = service ? serviceConsumables(service).reduce((itemSum, item) => {
+      const product = data.products.find((candidate) => candidate.id === item.productId);
+      return itemSum + (product?.cost ?? 0) * item.quantity;
+    }, 0) : 0;
+    return sum + directProductCost + serviceCost;
+  }, 0);
+  const customerOrderCounts = new Map<string, number>();
+  effectiveOrders.forEach((order) => {
+    if (!order.customerId) return;
+    customerOrderCounts.set(order.customerId, (customerOrderCounts.get(order.customerId) ?? 0) + 1);
+  });
+  const repeatCustomerCount = Array.from(customerOrderCounts.values()).filter((count) => count >= 2).length;
+  const activeCustomerCount = customerOrderCounts.size;
+  const expiringInventoryCount = inventoryBatches.filter((batch) => {
+    if (!batch.expiryAt || batch.remainingQuantity <= 0) return false;
+    const days = Math.ceil((Date.parse(`${batch.expiryAt}T00:00:00.000Z`) - Date.now()) / 86400000);
+    return Number.isFinite(days) && days <= 30;
+  }).length;
 
   return {
     revenue,
     refundAmount,
+    netRevenue: revenue - refundAmount,
     cardBalance,
     commission,
     serviceCount,
     averageOrderValue: serviceCount ? revenue / serviceCount : 0,
     lowStockCount: data.products.filter((item) => item.stock <= item.warningStock).length,
+    inventoryCost,
+    orderProductCost,
+    grossProfit: revenue - refundAmount - orderProductCost,
+    grossMargin: revenue > 0 ? (revenue - refundAmount - orderProductCost) / revenue : 0,
+    activeCustomerCount,
+    repeatCustomerCount,
+    repeatRate: activeCustomerCount ? repeatCustomerCount / activeCustomerCount : 0,
+    expiringInventoryCount,
+    totalMemberPoints: data.customers.reduce((sum, customer) => sum + (customer.points ?? 0), 0),
   };
 }
 

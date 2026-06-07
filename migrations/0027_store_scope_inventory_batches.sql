@@ -1,0 +1,24 @@
+ALTER TABLE staff ADD COLUMN storeId TEXT;
+ALTER TABLE customers ADD COLUMN storeId TEXT;
+ALTER TABLE customers ADD COLUMN points REAL NOT NULL DEFAULT 0;
+ALTER TABLE customers ADD COLUMN birthday TEXT;
+ALTER TABLE customers ADD COLUMN nextFollowUpAt TEXT;
+ALTER TABLE services ADD COLUMN storeId TEXT;
+ALTER TABLE products ADD COLUMN storeId TEXT;
+ALTER TABLE appointments ADD COLUMN storeId TEXT;
+ALTER TABLE staffUnavailableSlots ADD COLUMN storeId TEXT;
+ALTER TABLE memberCards ADD COLUMN storeId TEXT;
+ALTER TABLE memberCards ADD COLUMN discountRate REAL;
+ALTER TABLE memberCards ADD COLUMN pointsEarned REAL NOT NULL DEFAULT 0;
+ALTER TABLE memberCards ADD COLUMN benefitText TEXT;
+ALTER TABLE orders ADD COLUMN storeId TEXT;
+ALTER TABLE refunds ADD COLUMN storeId TEXT;
+ALTER TABLE inventoryLogs ADD COLUMN storeId TEXT;
+ALTER TABLE memberCardTransactions ADD COLUMN storeId TEXT;
+ALTER TABLE operationLogs ADD COLUMN storeId TEXT;
+ALTER TABLE dailyCloses ADD COLUMN storeId TEXT;
+
+CREATE TABLE IF NOT EXISTS inventoryBatches (
+  id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL
+);

@@ -14,6 +14,7 @@ import type {
   DailyClose,
   DistributionCommission,
   Distributor,
+  InventoryBatch,
   InventoryLog,
   MemberCard,
   MemberCardTransaction,
@@ -58,6 +59,7 @@ const tableNames: TableName[] = [
   "tagDefinitions",
   "services",
   "products",
+  "inventoryBatches",
   "appointments",
   "onlineBookingRequests",
   "staffUnavailableSlots",
@@ -115,6 +117,7 @@ export class D1BeautyDatabase {
       tagDefinitions: await this.all("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC", mapJsonPayload<TagDefinition>),
       services: await this.all("SELECT * FROM services ORDER BY rowid ASC", mapService),
       products: await this.all("SELECT * FROM products ORDER BY rowid ASC", mapProduct),
+      inventoryBatches: await this.all("SELECT payload_json FROM inventoryBatches ORDER BY rowid DESC", mapJsonPayload<InventoryBatch>),
       appointments: await this.all("SELECT * FROM appointments ORDER BY rowid ASC", mapAppointment),
       onlineBookingRequests: await this.all("SELECT payload_json FROM onlineBookingRequests ORDER BY rowid DESC", mapJsonPayload<OnlineBookingRequest>),
       staffUnavailableSlots: await this.all(
@@ -185,8 +188,9 @@ export class D1BeautyDatabase {
     this.writeJsonTable(statements, "storeOwnerApplications", data.storeOwnerApplications ?? []);
 
     for (const staff of data.staff) {
-      statements.push(this.statement("INSERT INTO staff (id, name, phone, role, status, accountId, hiredAt, baseSalary, commissionRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+      statements.push(this.statement("INSERT INTO staff (id, storeId, name, phone, role, status, accountId, hiredAt, baseSalary, commissionRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
         staff.id,
+        staff.storeId ?? null,
         staff.name,
         staff.phone,
         staff.role,
@@ -200,11 +204,15 @@ export class D1BeautyDatabase {
 
     for (const customer of data.customers) {
       statements.push(
-        this.statement("INSERT INTO customers (id, name, phone, level, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           customer.id,
+          customer.storeId ?? null,
           customer.name,
           customer.phone,
           customer.level,
+          customer.points ?? 0,
+          customer.birthday ?? null,
+          customer.nextFollowUpAt ?? null,
           customer.source,
           JSON.stringify(customer.tags),
           customer.lastVisit,
@@ -217,9 +225,10 @@ export class D1BeautyDatabase {
     for (const service of data.services) {
       statements.push(
         this.statement(
-          "INSERT INTO services (id, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO services (id, storeId, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             service.id,
+            service.storeId ?? null,
             service.name,
             service.category,
             service.price,
@@ -235,8 +244,9 @@ export class D1BeautyDatabase {
 
     for (const product of data.products) {
       statements.push(
-        this.statement("INSERT INTO products (id, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           product.id,
+          product.storeId ?? null,
           product.name,
           product.type,
           product.category ?? null,
@@ -252,10 +262,13 @@ export class D1BeautyDatabase {
       );
     }
 
+    this.writeJsonTable(statements, "inventoryBatches", data.inventoryBatches ?? []);
+
     for (const appointment of data.appointments) {
       statements.push(
-        this.statement("INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO appointments (id, storeId, customerId, staffId, serviceId, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           appointment.id,
+          appointment.storeId ?? null,
           appointment.customerId,
           appointment.staffId,
           appointment.serviceId,
@@ -280,8 +293,8 @@ export class D1BeautyDatabase {
     for (const slot of data.staffUnavailableSlots) {
       statements.push(
         this.statement(
-          "INSERT INTO staffUnavailableSlots (id, staffId, startAt, endAt, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [slot.id, slot.staffId, slot.startAt, slot.endAt, slot.reason, slot.createdBy, slot.createdAt],
+          "INSERT INTO staffUnavailableSlots (id, storeId, staffId, startAt, endAt, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [slot.id, slot.storeId ?? null, slot.staffId, slot.startAt, slot.endAt, slot.reason, slot.createdBy, slot.createdAt],
         ),
       );
     }
@@ -291,14 +304,18 @@ export class D1BeautyDatabase {
     for (const card of data.memberCards) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCards (id, customerId, name, type, balance, remainingTimes, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             card.id,
+            card.storeId ?? null,
             card.customerId,
             card.name,
             card.type,
             card.balance,
             card.remainingTimes,
+            card.discountRate ?? null,
+            card.pointsEarned ?? 0,
+            card.benefitText ?? null,
             card.expiresAt,
             card.status,
             card.serviceId ?? null,
@@ -314,9 +331,10 @@ export class D1BeautyDatabase {
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
+            order.storeId ?? null,
             order.orderNo,
             order.customerId,
             order.guestName ?? null,
@@ -345,8 +363,9 @@ export class D1BeautyDatabase {
 
     for (const refund of data.refunds) {
       statements.push(
-        this.statement("INSERT INTO refunds (id, orderId, amount, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO refunds (id, storeId, orderId, amount, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)", [
           refund.id,
+          refund.storeId ?? null,
           refund.orderId,
           refund.amount,
           refund.reason,
@@ -382,8 +401,9 @@ export class D1BeautyDatabase {
 
     for (const log of data.inventoryLogs) {
       statements.push(
-        this.statement("INSERT INTO inventoryLogs (id, productId, type, delta, stockAfter, note, expiryAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO inventoryLogs (id, storeId, productId, type, delta, stockAfter, note, expiryAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           log.id,
+          log.storeId ?? null,
           log.productId,
           log.type,
           log.delta,
@@ -398,9 +418,10 @@ export class D1BeautyDatabase {
     for (const transaction of data.memberCardTransactions) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCardTransactions (id, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             transaction.id,
+            transaction.storeId ?? null,
             transaction.memberCardId,
             transaction.orderId ?? null,
             transaction.type,
@@ -420,8 +441,8 @@ export class D1BeautyDatabase {
     for (const log of data.operationLogs) {
       statements.push(
         this.statement(
-          "INSERT INTO operationLogs (id, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [log.id, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt],
+          "INSERT INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [log.id, log.storeId ?? null, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt],
         ),
       );
     }
@@ -431,9 +452,10 @@ export class D1BeautyDatabase {
     for (const close of data.dailyCloses) {
       statements.push(
         this.statement(
-          "INSERT INTO dailyCloses (id, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO dailyCloses (id, storeId, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             close.id,
+            close.storeId ?? null,
             close.businessDate,
             close.revenue,
             close.refundAmount,
@@ -491,6 +513,7 @@ function mapStaff(row: unknown): Staff {
   const value = row as Staff;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     accountId: value.accountId ?? undefined,
     hiredAt: value.hiredAt ?? undefined,
     baseSalary: value.baseSalary ?? undefined,
@@ -500,7 +523,14 @@ function mapStaff(row: unknown): Staff {
 
 function mapCustomer(row: unknown): Customer {
   const value = row as Customer & { tags_json: string };
-  return { ...value, tags: JSON.parse(value.tags_json) as string[] };
+  return {
+    ...value,
+    storeId: value.storeId ?? undefined,
+    points: value.points ?? 0,
+    birthday: value.birthday ?? undefined,
+    nextFollowUpAt: value.nextFollowUpAt ?? undefined,
+    tags: JSON.parse(value.tags_json) as string[],
+  };
 }
 
 function parseJsonArray<T>(value?: string | null): T[] | undefined {
@@ -517,6 +547,7 @@ function mapService(row: unknown): Service {
   const value = row as Service & { consumables_json?: string | null };
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     defaultTimes: value.defaultTimes ?? 1,
     consumables: parseJsonArray<ServiceConsumable>(value.consumables_json) ?? value.consumables,
     consumableProductId: value.consumableProductId ?? undefined,
@@ -528,6 +559,7 @@ function mapProduct(row: unknown): Product {
   const value = row as Product;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     category: value.category ?? undefined,
     subcategory: value.subcategory ?? undefined,
     shelfLifeMonths: value.shelfLifeMonths ?? undefined,
@@ -539,6 +571,7 @@ function mapAppointment(row: unknown): Appointment {
   const value = row as Appointment;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     endAt: value.endAt ?? undefined,
     roomName: value.roomName ?? undefined,
     arrivedAt: value.arrivedAt ?? undefined,
@@ -559,6 +592,10 @@ function mapMemberCard(row: unknown): MemberCard {
   const value = row as MemberCard & { serviceIds_json?: string };
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
+    discountRate: value.discountRate ?? undefined,
+    pointsEarned: value.pointsEarned ?? 0,
+    benefitText: value.benefitText ?? undefined,
     serviceId: value.serviceId ?? undefined,
     serviceIds: value.serviceIds_json ? (JSON.parse(value.serviceIds_json) as string[]) : undefined,
   };
@@ -568,6 +605,7 @@ function mapOrder(row: unknown): Order {
   const value = row as Order & { productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     guestName: value.guestName ?? undefined,
     guestPhone: value.guestPhone ?? undefined,
     productId: value.productId ?? undefined,
@@ -584,7 +622,8 @@ function mapOrder(row: unknown): Order {
 }
 
 function mapRefund(row: unknown): Refund {
-  return row as Refund;
+  const value = row as Refund;
+  return { ...value, storeId: value.storeId ?? undefined };
 }
 
 function mapCommission(row: unknown): Commission {
@@ -594,22 +633,24 @@ function mapCommission(row: unknown): Commission {
 
 function mapInventoryLog(row: unknown): InventoryLog {
   const value = row as InventoryLog;
-  return { ...value, expiryAt: value.expiryAt ?? undefined };
+  return { ...value, storeId: value.storeId ?? undefined, expiryAt: value.expiryAt ?? undefined };
 }
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {
   const value = row as MemberCardTransaction;
-  return { ...value, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
+  return { ...value, storeId: value.storeId ?? undefined, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
 }
 
 function mapOperationLog(row: unknown): OperationLog {
-  return row as OperationLog;
+  const value = row as OperationLog;
+  return { ...value, storeId: value.storeId ?? undefined };
 }
 
 function mapDailyClose(row: unknown): DailyClose {
   const value = row as DailyClose;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     status: value.status ?? "已锁定",
     reversedBy: value.reversedBy ?? undefined,
     reversedAt: value.reversedAt ?? undefined,

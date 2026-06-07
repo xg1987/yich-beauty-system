@@ -17,6 +17,7 @@ import type {
   DailyClose,
   DistributionCommission,
   Distributor,
+  InventoryBatch,
   InventoryLog,
   MemberCard,
   MemberCardTransaction,
@@ -62,6 +63,7 @@ const tableNames: TableName[] = [
   "tagDefinitions",
   "services",
   "products",
+  "inventoryBatches",
   "appointments",
   "onlineBookingRequests",
   "staffUnavailableSlots",
@@ -141,6 +143,7 @@ export class BeautyDatabase {
       tagDefinitions: this.db.prepare("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC").all().map(mapJsonPayload<TagDefinition>),
       services: this.db.prepare("SELECT * FROM services ORDER BY rowid ASC").all().map(mapService),
       products: this.db.prepare("SELECT * FROM products ORDER BY rowid ASC").all().map(mapProduct),
+      inventoryBatches: this.db.prepare("SELECT payload_json FROM inventoryBatches ORDER BY rowid DESC").all().map(mapJsonPayload<InventoryBatch>),
       appointments: this.db.prepare("SELECT * FROM appointments ORDER BY rowid ASC").all().map(mapAppointment),
       onlineBookingRequests: this.db.prepare("SELECT payload_json FROM onlineBookingRequests ORDER BY rowid DESC").all().map(mapJsonPayload<OnlineBookingRequest>),
       staffUnavailableSlots: this.db
@@ -209,9 +212,10 @@ export class BeautyDatabase {
 
     for (const staff of data.staff) {
       this.db
-        .prepare("INSERT INTO staff (id, name, phone, role, status, accountId, hiredAt, baseSalary, commissionRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .prepare("INSERT INTO staff (id, storeId, name, phone, role, status, accountId, hiredAt, baseSalary, commissionRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .run(
           staff.id,
+          staff.storeId ?? null,
           staff.name,
           staff.phone,
           staff.role,
@@ -225,8 +229,20 @@ export class BeautyDatabase {
 
     for (const customer of data.customers) {
       this.db
-        .prepare("INSERT INTO customers (id, name, phone, level, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(customer.id, customer.name, customer.phone, customer.level, customer.source, JSON.stringify(customer.tags), customer.lastVisit);
+        .prepare("INSERT INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(
+          customer.id,
+          customer.storeId ?? null,
+          customer.name,
+          customer.phone,
+          customer.level,
+          customer.points ?? 0,
+          customer.birthday ?? null,
+          customer.nextFollowUpAt ?? null,
+          customer.source,
+          JSON.stringify(customer.tags),
+          customer.lastVisit,
+        );
     }
 
     this.writeJsonTable("tagDefinitions", data.tagDefinitions);
@@ -234,10 +250,11 @@ export class BeautyDatabase {
     for (const service of data.services) {
       this.db
         .prepare(
-          "INSERT INTO services (id, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO services (id, storeId, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           service.id,
+          service.storeId ?? null,
           service.name,
           service.category,
           service.price,
@@ -251,9 +268,10 @@ export class BeautyDatabase {
 
     for (const product of data.products) {
       this.db
-        .prepare("INSERT INTO products (id, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .prepare("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .run(
           product.id,
+          product.storeId ?? null,
           product.name,
           product.type,
           product.category ?? null,
@@ -268,13 +286,16 @@ export class BeautyDatabase {
         );
     }
 
+    this.writeJsonTable("inventoryBatches", data.inventoryBatches ?? []);
+
     for (const appointment of data.appointments) {
       this.db
         .prepare(
-          "INSERT INTO appointments (id, customerId, staffId, serviceId, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO appointments (id, storeId, customerId, staffId, serviceId, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           appointment.id,
+          appointment.storeId ?? null,
           appointment.customerId,
           appointment.staffId,
           appointment.serviceId,
@@ -298,9 +319,9 @@ export class BeautyDatabase {
     for (const slot of data.staffUnavailableSlots) {
       this.db
         .prepare(
-          "INSERT INTO staffUnavailableSlots (id, staffId, startAt, endAt, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO staffUnavailableSlots (id, storeId, staffId, startAt, endAt, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(slot.id, slot.staffId, slot.startAt, slot.endAt, slot.reason, slot.createdBy, slot.createdAt);
+        .run(slot.id, slot.storeId ?? null, slot.staffId, slot.startAt, slot.endAt, slot.reason, slot.createdBy, slot.createdAt);
     }
 
     this.writeJsonTable("staffShifts", data.staffShifts);
@@ -308,15 +329,19 @@ export class BeautyDatabase {
     for (const card of data.memberCards) {
       this.db
         .prepare(
-          "INSERT INTO memberCards (id, customerId, name, type, balance, remainingTimes, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           card.id,
+          card.storeId ?? null,
           card.customerId,
           card.name,
           card.type,
           card.balance,
           card.remainingTimes,
+          card.discountRate ?? null,
+          card.pointsEarned ?? 0,
+          card.benefitText ?? null,
           card.expiresAt,
           card.status,
           card.serviceId ?? null,
@@ -330,10 +355,11 @@ export class BeautyDatabase {
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
+          order.storeId ?? null,
           order.orderNo,
           order.customerId,
           order.guestName ?? null,
@@ -360,8 +386,8 @@ export class BeautyDatabase {
 
     for (const refund of data.refunds) {
       this.db
-        .prepare("INSERT INTO refunds (id, orderId, amount, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(refund.id, refund.orderId, refund.amount, refund.reason, refund.createdBy, refund.createdAt);
+        .prepare("INSERT INTO refunds (id, storeId, orderId, amount, reason, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(refund.id, refund.storeId ?? null, refund.orderId, refund.amount, refund.reason, refund.createdBy, refund.createdAt);
     }
 
     for (const commission of data.commissions) {
@@ -390,18 +416,19 @@ export class BeautyDatabase {
     for (const log of data.inventoryLogs) {
       this.db
         .prepare(
-          "INSERT INTO inventoryLogs (id, productId, type, delta, stockAfter, note, expiryAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO inventoryLogs (id, storeId, productId, type, delta, stockAfter, note, expiryAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(log.id, log.productId, log.type, log.delta, log.stockAfter, log.note, log.expiryAt ?? null, log.createdAt);
+        .run(log.id, log.storeId ?? null, log.productId, log.type, log.delta, log.stockAfter, log.note, log.expiryAt ?? null, log.createdAt);
     }
 
     for (const transaction of data.memberCardTransactions) {
       this.db
         .prepare(
-          "INSERT INTO memberCardTransactions (id, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           transaction.id,
+          transaction.storeId ?? null,
           transaction.memberCardId,
           transaction.orderId ?? null,
           transaction.type,
@@ -419,9 +446,9 @@ export class BeautyDatabase {
     for (const log of data.operationLogs) {
       this.db
         .prepare(
-          "INSERT INTO operationLogs (id, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(log.id, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt);
+        .run(log.id, log.storeId ?? null, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt);
     }
 
     this.writeJsonTable("notifications", data.notifications ?? []);
@@ -429,10 +456,11 @@ export class BeautyDatabase {
     for (const close of data.dailyCloses) {
       this.db
         .prepare(
-          "INSERT INTO dailyCloses (id, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO dailyCloses (id, storeId, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount, cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           close.id,
+          close.storeId ?? null,
           close.businessDate,
           close.revenue,
           close.refundAmount,
@@ -772,6 +800,11 @@ export class BeautyDatabase {
         payload_json TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS inventoryBatches (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS checkoutSubmissionLocks (
         id TEXT PRIMARY KEY,
         createdAt TEXT NOT NULL
@@ -818,6 +851,25 @@ export class BeautyDatabase {
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
     this.addColumnIfMissing("services", "defaultTimes", "INTEGER NOT NULL DEFAULT 1");
     this.addColumnIfMissing("services", "consumables_json", "TEXT");
+    this.addColumnIfMissing("staff", "storeId", "TEXT");
+    this.addColumnIfMissing("customers", "storeId", "TEXT");
+    this.addColumnIfMissing("customers", "points", "REAL NOT NULL DEFAULT 0");
+    this.addColumnIfMissing("customers", "birthday", "TEXT");
+    this.addColumnIfMissing("customers", "nextFollowUpAt", "TEXT");
+    this.addColumnIfMissing("services", "storeId", "TEXT");
+    this.addColumnIfMissing("products", "storeId", "TEXT");
+    this.addColumnIfMissing("appointments", "storeId", "TEXT");
+    this.addColumnIfMissing("staffUnavailableSlots", "storeId", "TEXT");
+    this.addColumnIfMissing("memberCards", "storeId", "TEXT");
+    this.addColumnIfMissing("memberCards", "discountRate", "REAL");
+    this.addColumnIfMissing("memberCards", "pointsEarned", "REAL NOT NULL DEFAULT 0");
+    this.addColumnIfMissing("memberCards", "benefitText", "TEXT");
+    this.addColumnIfMissing("orders", "storeId", "TEXT");
+    this.addColumnIfMissing("refunds", "storeId", "TEXT");
+    this.addColumnIfMissing("inventoryLogs", "storeId", "TEXT");
+    this.addColumnIfMissing("memberCardTransactions", "storeId", "TEXT");
+    this.addColumnIfMissing("operationLogs", "storeId", "TEXT");
+    this.addColumnIfMissing("dailyCloses", "storeId", "TEXT");
   }
 
   private addColumnIfMissing(tableName: string, columnName: string, definition: string) {
@@ -843,6 +895,7 @@ function mapStaff(row: unknown): Staff {
   const value = row as Staff;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     accountId: value.accountId ?? undefined,
     hiredAt: value.hiredAt ?? undefined,
     baseSalary: value.baseSalary ?? undefined,
@@ -852,7 +905,14 @@ function mapStaff(row: unknown): Staff {
 
 function mapCustomer(row: unknown): Customer {
   const value = row as Customer & { tags_json: string };
-  return { ...value, tags: JSON.parse(value.tags_json) as string[] };
+  return {
+    ...value,
+    storeId: value.storeId ?? undefined,
+    points: value.points ?? 0,
+    birthday: value.birthday ?? undefined,
+    nextFollowUpAt: value.nextFollowUpAt ?? undefined,
+    tags: JSON.parse(value.tags_json) as string[],
+  };
 }
 
 function parseJsonArray<T>(value?: string | null): T[] | undefined {
@@ -869,6 +929,7 @@ function mapService(row: unknown): Service {
   const value = row as Service & { consumables_json?: string | null };
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     defaultTimes: value.defaultTimes ?? 1,
     consumables: parseJsonArray<ServiceConsumable>(value.consumables_json) ?? value.consumables,
     consumableProductId: value.consumableProductId ?? undefined,
@@ -880,6 +941,7 @@ function mapProduct(row: unknown): Product {
   const value = row as Product;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     category: value.category ?? undefined,
     subcategory: value.subcategory ?? undefined,
     shelfLifeMonths: value.shelfLifeMonths ?? undefined,
@@ -891,6 +953,7 @@ function mapAppointment(row: unknown): Appointment {
   const value = row as Appointment;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     endAt: value.endAt ?? undefined,
     roomName: value.roomName ?? undefined,
     arrivedAt: value.arrivedAt ?? undefined,
@@ -911,6 +974,10 @@ function mapMemberCard(row: unknown): MemberCard {
   const value = row as MemberCard & { serviceIds_json?: string };
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
+    discountRate: value.discountRate ?? undefined,
+    pointsEarned: value.pointsEarned ?? 0,
+    benefitText: value.benefitText ?? undefined,
     serviceId: value.serviceId ?? undefined,
     serviceIds: value.serviceIds_json ? (JSON.parse(value.serviceIds_json) as string[]) : undefined,
   };
@@ -920,6 +987,7 @@ function mapOrder(row: unknown): Order {
   const value = row as Order & { productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     guestName: value.guestName ?? undefined,
     guestPhone: value.guestPhone ?? undefined,
     productId: value.productId ?? undefined,
@@ -936,7 +1004,8 @@ function mapOrder(row: unknown): Order {
 }
 
 function mapRefund(row: unknown): Refund {
-  return row as Refund;
+  const value = row as Refund;
+  return { ...value, storeId: value.storeId ?? undefined };
 }
 
 function mapCommission(row: unknown): Commission {
@@ -946,22 +1015,24 @@ function mapCommission(row: unknown): Commission {
 
 function mapInventoryLog(row: unknown): InventoryLog {
   const value = row as InventoryLog;
-  return { ...value, expiryAt: value.expiryAt ?? undefined };
+  return { ...value, storeId: value.storeId ?? undefined, expiryAt: value.expiryAt ?? undefined };
 }
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {
   const value = row as MemberCardTransaction;
-  return { ...value, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
+  return { ...value, storeId: value.storeId ?? undefined, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
 }
 
 function mapOperationLog(row: unknown): OperationLog {
-  return row as OperationLog;
+  const value = row as OperationLog;
+  return { ...value, storeId: value.storeId ?? undefined };
 }
 
 function mapDailyClose(row: unknown): DailyClose {
   const value = row as DailyClose;
   return {
     ...value,
+    storeId: value.storeId ?? undefined,
     status: value.status ?? "已锁定",
     reversedBy: value.reversedBy ?? undefined,
     reversedAt: value.reversedAt ?? undefined,
