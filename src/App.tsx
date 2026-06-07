@@ -4574,7 +4574,11 @@ function Pos({
         cardId: usesCustomer && payMethod === "会员卡" ? cardId : undefined,
       }),
     ).then((nextData) => {
-      const latestOrderNo = nextData.orders[0]?.orderNo;
+      const latestOrder = nextData.orders[0];
+      const latestOrderNo = latestOrder?.orderNo;
+      const pendingSignature = usesService && usesCustomer && latestOrder
+        ? nextData.customerSignatures.find((signature) => signature.orderId === latestOrder.id && signature.status === "待签名")
+        : undefined;
       setAppointmentId("");
       setGuestName("");
       setGuestPhone("");
@@ -4586,7 +4590,11 @@ function Pos({
       setDiscountAmount(0);
       setCheckoutDiscountRateInput("");
       setAdjustmentReason("");
-      const signatureHint = usesService && usesCustomer ? "待签名记录已生成。" : "";
+      if (pendingSignature) {
+        window.location.assign(signatureUrl(pendingSignature.token));
+        return;
+      }
+      const signatureHint = usesService && usesCustomer ? "待签名记录已生成，请从服务确认签名进入。" : "";
       setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。${signatureHint}` : `下单成功，订单已生成。${signatureHint}`);
       checkoutRequestIdRef.current = makeId("checkout");
       if (fromManagement && onReturnManagement) {
