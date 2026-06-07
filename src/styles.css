@@ -16629,25 +16629,107 @@ textarea,
   gap: 14px;
 }
 
-.catalog-inline-control > div.inventory-category-editor {
+.inventory-category-manage-button {
+  width: fit-content;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.1);
+  color: #5b2ca8;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(91, 44, 168, 0.08);
+}
+
+.inventory-category-manage-button:hover,
+.inventory-category-manage-button:focus-visible {
+  border-color: rgba(111, 66, 193, 0.34);
+  background: rgba(111, 66, 193, 0.16);
+  outline: none;
+}
+
+.inventory-category-manager {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(104px, 0.44fr) minmax(136px, 0.86fr) minmax(150px, 1fr) minmax(104px, 0.44fr);
+  gap: 16px;
+}
+
+.inventory-category-overview {
+  display: grid;
+  gap: 10px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.inventory-category-overview > div {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.inventory-category-overview strong {
+  color: #2f255f;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.inventory-category-overview span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.inventory-category-overview em {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #5b2ca8;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.inventory-category-manager-forms {
+  display: grid;
+  gap: 12px;
+}
+
+.inventory-category-manager-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 12px;
   padding: 12px;
   border: 1px solid rgba(111, 66, 193, 0.12);
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.62);
 }
 
-.inventory-category-editor label,
-.inventory-category-editor input,
-.inventory-category-editor button {
+.inventory-category-manager-subcategory-form {
+  grid-template-columns: minmax(136px, 0.68fr) minmax(0, 1fr) auto;
+}
+
+.inventory-category-manager-form label,
+.inventory-category-manager-form input,
+.inventory-category-manager-form .field,
+.inventory-category-manager-form select,
+.inventory-category-manager-form button {
   min-width: 0;
 }
 
-.inventory-category-editor button {
+.inventory-category-manager-form button {
   min-height: 44px;
+  padding: 0 16px;
   border: 1px solid rgba(111, 66, 193, 0.18);
   border-radius: 12px;
   background: rgba(111, 66, 193, 0.1);
@@ -16656,8 +16738,8 @@ textarea,
   cursor: pointer;
 }
 
-.inventory-category-editor button:hover,
-.inventory-category-editor button:focus-visible {
+.inventory-category-manager-form button:hover,
+.inventory-category-manager-form button:focus-visible {
   border-color: rgba(111, 66, 193, 0.34);
   background: rgba(111, 66, 193, 0.16);
   outline: none;
@@ -17131,9 +17213,13 @@ textarea,
   }
 
   .inventory-product-form-main,
-  .inventory-product-form-stock,
-  .catalog-inline-control > div.inventory-category-editor {
+  .inventory-product-form-stock {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-category-manager-form,
+  .inventory-category-manager-subcategory-form {
+    grid-template-columns: 1fr;
   }
 
   .inventory-product-form-stock .form-submit-row {
