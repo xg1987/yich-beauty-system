@@ -184,7 +184,7 @@ function downloadCsvFile(filename: string, columns: Array<string | number>, rows
 const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
 const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
 const permissionLabels: Record<Permission, string> = {
-  "dashboard:view": "工作台",
+  "dashboard:view": "今日总览",
   "appointments:manage": "预约管理",
   "pos:manage": "开单收银",
   "customers:manage": "客户档案",
@@ -254,7 +254,7 @@ function productExpiryStatus(product: Product) {
   return undefined;
 }
 const viewTitles: Record<ViewKey, string> = {
-  dashboard: "工作台",
+  dashboard: "今日总览",
   appointments: "预约管理",
   pos: "开单收银",
   customers: "客户档案",
@@ -499,7 +499,7 @@ function getSystemThemeMode(): EffectiveThemeMode {
 }
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
-  { key: "dashboard", label: "工作台", icon: LayoutDashboard },
+  { key: "dashboard", label: "今日总览", icon: LayoutDashboard },
   { key: "appointments", label: "预约管理", icon: CalendarDays },
   { key: "pos", label: "开单收银", icon: CreditCard },
   { key: "customers", label: "客户档案", icon: UsersRound },
@@ -511,7 +511,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
 ];
 
 const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey }> = [
-  { key: "workbench", label: "工作台", icon: LayoutDashboard, view: "dashboard" },
+  { key: "workbench", label: "今日", icon: LayoutDashboard, view: "dashboard" },
   { key: "appointments", label: "预约", icon: CalendarDays, view: "appointments" },
   { key: "cashier", label: "收银", icon: CreditCard, view: "pos" },
   { key: "customers", label: "客户", icon: UsersRound, view: "customers" },
@@ -934,7 +934,7 @@ function ManagementCenter({
   ];
   const staffManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "工作台", desc: "今日任务 / 服务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
+    { title: "今日总览", desc: "今日任务 / 服务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
     { title: "预约管理", desc: "我的预约 / 房间安排", icon: CalendarDays, tone: "violet", view: "appointments" },
     { title: "客户档案", desc: "客户资料 / 护理记录", icon: HeartHandshake, tone: "violet", view: "customers" },
     { title: "我的提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
@@ -942,7 +942,7 @@ function ManagementCenter({
   ];
   const financeManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "工作台", desc: "今日任务 / 财务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
+    { title: "今日总览", desc: "今日任务 / 财务提醒", icon: LayoutDashboard, tone: "violet", view: "dashboard" },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "报表分析", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
@@ -1185,7 +1185,7 @@ function managementEntryDetails(
   return {
     ...base,
     items: [
-      { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "工作台统计" },
+      { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "今日总览统计" },
       { label: "今日收款", value: money(todayRevenue), hint: "经营统计" },
       { label: "待审批", value: `${pendingApprovals} 单`, hint: "管理事项" },
     ],
@@ -2049,7 +2049,7 @@ function PlatformAccountAdminView({
         <div className="page-hero-stats">
           <StatCard title="系统管理员" value={`${adminAccounts.length} 个`} hint="平台管理员" />
           <StatCard title="门店账号" value={`${ownerAccounts.length} 个`} hint="负责人账号" />
-          <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店工作台成员" />
+          <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店成员账号" />
         </div>
       </section>
 
@@ -2650,15 +2650,25 @@ function workbarForView(view: ViewKey): WorkbarKey {
 }
 
 function Dashboard({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
-  const paidRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const paidRevenue = data.orders
+    .filter((order) => order.payMethod !== "会员卡")
+    .reduce((sum, order) => sum + order.paidAmount, 0)
+    + data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
   const today = new Date();
   const todayAppointmentsList = data.appointments
     .filter((item) => new Date(item.startAt).toDateString() === today.toDateString())
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
+  const todayOrders = data.orders.filter((item) => new Date(item.createdAt).toDateString() === today.toDateString());
+  const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashIn(transaction) > 0);
   const userStaffId = session.user.staffId;
   const roleAppointmentsList = session.user.role === "therapist" && userStaffId
     ? todayAppointmentsList.filter((item) => item.staffId === userStaffId)
     : todayAppointmentsList;
+  const roleOrders = session.user.role === "therapist" && userStaffId
+    ? todayOrders.filter((item) => item.staffId === userStaffId)
+    : todayOrders;
+  const roleCashOrders = roleOrders.filter((order) => order.payMethod !== "会员卡");
+  const roleMemberCardIncomeTransactions = session.user.role === "therapist" ? [] : todayMemberCardIncomeTransactions;
   const todayAppointments = roleAppointmentsList.length;
   const lowStock = data.products.filter((item) => item.stock <= item.warningStock);
   const pendingCommissions = data.commissions.filter((item) => item.status === "待结算").reduce((sum, item) => sum + item.amount, 0);
@@ -2667,16 +2677,25 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   const roleFollowUps = session.user.role === "therapist" && userStaffId ? followUps.filter((item) => item.staffId === userStaffId) : followUps;
   const pendingFollowUps = roleFollowUps.length;
   const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
-  const todayRevenue = data.orders
-    .filter((item) => new Date(item.createdAt).toDateString() === today.toDateString())
-    .reduce((sum, item) => sum + item.paidAmount, 0);
+  const todayRevenue = roleCashOrders.reduce((sum, item) => sum + item.paidAmount, 0)
+    + roleMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
+  const todayCashPaymentCount = roleCashOrders.length + roleMemberCardIncomeTransactions.length;
   const completedAppointments = roleAppointmentsList.filter((item) => item.status === "已完成").length;
+  const pendingConfirmAppointments = roleAppointmentsList.filter((item) => item.status === "待确认");
+  const pendingArrivalAppointments = roleAppointmentsList.filter((item) => item.status === "已确认");
+  const arrivedWaitingCheckout = roleAppointmentsList.filter(
+    (item) => item.status === "已到店" && !data.orders.some((order) => order.appointmentId === item.id && order.status !== "已退款"),
+  );
   const onlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理").length;
   const myCommission = userStaffId ? data.commissions.filter((item) => item.staffId === userStaffId && item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0) : 0;
-  const careList = roleFollowUps
-    .slice()
-    .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
-    .slice(0, 4);
+  const signatureStaffId = (signature: CustomerSignature) => {
+    const record = signature.serviceRecordId ? data.customerServiceRecords.find((item) => item.id === signature.serviceRecordId) : undefined;
+    const order = signature.orderId ? data.orders.find((item) => item.id === signature.orderId) : undefined;
+    return record?.staffId ?? order?.staffId ?? "";
+  };
+  const pendingSignatureList = data.customerSignatures
+    .filter((item) => item.status === "待签名")
+    .filter((item) => session.user.role !== "therapist" || !userStaffId || signatureStaffId(item) === userStaffId);
   const dashboardContent = roleDashboardContent({
     activeCards,
     completedAppointments,
@@ -2691,15 +2710,55 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     todayAppointments,
     todayRevenue,
   });
-  const roleTasks = roleHomeCards(data, session).filter((item) => canAccessView(session, item.view)).slice(0, 4);
   const todayLabel = today.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+  const waitingArrivalCount = pendingConfirmAppointments.length + pendingArrivalAppointments.length;
   const isOrdinaryEmployee = session.user.role === "therapist" || session.user.role === "frontdesk";
   const heroLine = session.user.role === "therapist" ? "护理有序，客户安心" : session.user.role === "frontdesk" ? "到店有序，客户清晰" : "今日有序，门店有数";
   const heroStats = session.user.role === "therapist"
     ? `我的预约 ${todayAppointments} · 待回访 ${pendingFollowUps} · 提成 ${money(myCommission)}`
     : isOrdinaryEmployee
-      ? `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 客户 ${data.customers.length}`
-      : `预约 ${todayAppointments} · 待到店 ${roleAppointmentsList.filter((item) => ["待确认", "已确认"].includes(item.status)).length} · 营业额 ${money(todayRevenue)}`;
+      ? `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 客户 ${data.customers.length}`
+      : `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 今日实收 ${money(todayRevenue)}`;
+  const businessItems = [
+    { label: "今日实收", value: money(todayRevenue), hint: `${todayCashPaymentCount} 笔收款` },
+    { label: "到店待收银", value: `${arrivedWaitingCheckout.length} 单`, hint: "已到店未生成订单" },
+    { label: "待签名", value: `${pendingSignatureList.length} 份`, hint: "服务完成确认" },
+    { label: "有效会员卡", value: `${activeCards} 张`, hint: "客户可用资产" },
+  ];
+  const cashPaymentBreakdown = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[])
+    .map((method) => {
+      const methodOrders = roleCashOrders.filter((order) => order.payMethod === method);
+      const methodCardTransactions = roleMemberCardIncomeTransactions.filter((transaction) => transaction.payMethod === method);
+      return {
+        amount: methodOrders.reduce((sum, order) => sum + order.paidAmount, 0)
+          + methodCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0),
+        count: methodOrders.length + methodCardTransactions.length,
+        method,
+      };
+    })
+    .filter((item) => item.count > 0);
+  const memberCardRedemptions = roleOrders.filter((order) => order.payMethod === "会员卡");
+  const paymentBreakdown: Array<{ method: string; amount: number; count: number }> = [
+    ...cashPaymentBreakdown,
+    ...(memberCardRedemptions.length
+      ? [{
+          amount: memberCardRedemptions.reduce((sum, order) => sum + order.paidAmount, 0),
+          count: memberCardRedemptions.length,
+          method: "会员卡核销",
+        }]
+      : []),
+  ];
+  const staffTodayStats = businessStaffOf(data)
+    .map((staff) => {
+      const appointments = todayAppointmentsList.filter((item) => item.staffId === staff.id);
+      const orders = todayOrders.filter((item) => item.staffId === staff.id);
+      const revenue = orders.reduce((sum, order) => sum + order.paidAmount, 0);
+      const completed = appointments.filter((item) => item.status === "已完成").length;
+      return { appointments: appointments.length, completed, orders: orders.length, revenue, staff };
+    })
+    .filter((item) => item.appointments > 0 || item.orders > 0 || item.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue || b.completed - a.completed || b.appointments - a.appointments)
+    .slice(0, 5);
 
   return (
     <div className="dashboard-page workbench-visual-page">
@@ -2716,50 +2775,44 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         ))}
       </section>
 
-      <section className="workbench-content-grid">
-        <div className="workbench-panel workbench-today-panel">
-          <PanelTitle icon={<CalendarDays size={18} />} title="今日待办" action={dashboardContent.scheduleTitle} />
-          <div className="timeline-list">
-            {roleAppointmentsList.slice(0, 5).map((item) => (
-              <article key={item.id} className="timeline-item">
-                <time>{shortDate(item.startAt).split(" ")[1] ?? shortDate(item.startAt)}</time>
-                <div>
-                  <strong>{nameOf(data.customers, item.customerId)}</strong>
-                  <span>{nameOf(data.services, item.serviceId)} · {nameOf(data.staff, item.staffId)}</span>
-                </div>
-                <Badge text={item.status} tone={item.status === "已完成" ? "ok" : undefined} />
-              </article>
-            ))}
-            {roleAppointmentsList.length === 0 && <p className="empty">{dashboardContent.emptySchedule}</p>}
-          </div>
+      <section className="workbench-panel workbench-business-panel">
+        <PanelTitle icon={<CreditCard size={18} />} title="今日经营" action={money(todayRevenue)} />
+        <div className="workbench-business-grid">
+          {businessItems.map((item) => (
+            <article key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.hint}</small>
+            </article>
+          ))}
         </div>
-
-        <div className="workbench-panel">
-          <PanelTitle icon={<HeartHandshake size={18} />} title={dashboardContent.followTitle} action={`${pendingFollowUps} 个待跟进`} />
-          <div className="care-list">
-            {careList.map((item) => (
-              <article key={item.id} className="care-item">
-                <div>
-                  <strong>{nameOf(data.customers, item.customerId)}</strong>
-                  <span>{item.method} · {shortDate(item.dueAt)}</span>
-                </div>
-                <small>{item.note}</small>
-              </article>
-            ))}
-            {careList.length === 0 && <p className="empty">暂无待跟进客户</p>}
-          </div>
+        <div className="workbench-pay-list">
+          {paymentBreakdown.map((item) => (
+            <div key={item.method}>
+              <span>{item.method}</span>
+              <strong>{money(item.amount)}</strong>
+              <small>{item.count} 笔</small>
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="workbench-panel workbench-quick-panel">
-        <PanelTitle icon={<LayoutDashboard size={18} />} title="快捷入口" action="高频操作" />
-        <div className="workbench-quick-list">
-          {roleTasks.map((item) => (
-            <button key={item.title} onClick={() => setView(item.view)}>
-              <strong>{item.value}</strong>
-              <span>{item.title}</span>
-            </button>
+      <section className="workbench-panel workbench-staff-panel">
+        <PanelTitle icon={<UsersRound size={18} />} title="员工今日表现" action={`${staffTodayStats.length} 人有记录`} />
+        <div className="workbench-staff-list">
+          {staffTodayStats.map((item) => (
+            <article key={item.staff.id} className="workbench-staff-row">
+              <div>
+                <strong>{item.staff.name}</strong>
+                <span>{displayStaffRole(item.staff.role)}</span>
+              </div>
+              <div>
+                <strong>{money(item.revenue)}</strong>
+                <span>{item.completed}/{item.appointments} 服务 · {item.orders} 单</span>
+              </div>
+            </article>
           ))}
+          {staffTodayStats.length === 0 && <p className="empty">今日暂无员工服务或收款记录</p>}
         </div>
       </section>
     </div>
@@ -2786,7 +2839,7 @@ function workbenchQuickTaskDetails(view: ViewKey, input: WorkbenchQuickDetailInp
       label: "预约管理",
       description: "查看今日预约、房间安排和到店状态。",
       items: [
-        { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "当前工作台统计" },
+        { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "当前今日总览统计" },
         { label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待转门店预约" },
         { label: "客户跟进", value: `${input.pendingFollowUps} 位`, hint: "护理后待联系" },
       ],
@@ -2889,9 +2942,9 @@ function workbenchQuickTaskDetails(view: ViewKey, input: WorkbenchQuickDetailInp
     label: "功能入口",
     description: "打开对应功能页面继续处理。",
     items: [
-      { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "工作台统计" },
-      { label: "今日实收", value: money(input.todayRevenue), hint: "工作台统计" },
-      { label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "工作台统计" },
+      { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "今日总览统计" },
+      { label: "今日实收", value: money(input.todayRevenue), hint: "今日总览统计" },
+      { label: "待跟进", value: `${input.pendingFollowUps} 位`, hint: "今日总览统计" },
     ],
   };
 }
@@ -2926,7 +2979,7 @@ type RoleDashboardContent = {
 function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   if (input.role === "therapist") {
     return {
-      title: "员工服务工作台",
+      title: "员工今日服务",
       desc: "今日预约、护理记录、客户回访和个人提成集中呈现。",
       scheduleTitle: "我的今日预约",
       emptySchedule: "今天暂无分配给你的预约",
@@ -2951,7 +3004,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   }
   if (input.role === "frontdesk") {
     return {
-      title: "前台到店工作台",
+      title: "前台今日到店",
       desc: "把预约确认、线上到店申请和客户建档放在首屏，前台按到店流程连续处理。",
       scheduleTitle: "今日到店安排",
       emptySchedule: "今日暂无预约，可从预约栏新增到店计划",
@@ -2977,7 +3030,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   }
   if (input.role === "finance") {
     return {
-      title: "财务日结工作台",
+      title: "财务今日核对",
       desc: "围绕实收、退款、提成、日结锁账和审批风险组织数据，财务优先核对资金与结算。",
       scheduleTitle: "今日收银关联服务",
       emptySchedule: "今日暂无需要核对的到店服务",
@@ -3003,7 +3056,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   }
   const operatorLabel = "店长";
   return {
-    title: `${operatorLabel}经营看板`,
+    title: `${operatorLabel}今日总览`,
     desc: `${operatorLabel}首屏看现金流、客户档案、审批风险和库存风险，用一页判断门店今天是否健康。`,
     scheduleTitle: "今日服务动线",
     emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",

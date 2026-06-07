@@ -6595,10 +6595,6 @@ textarea,
   background: rgba(255, 255, 255, 0.68);
 }
 
-.workbench-today-panel {
-  min-height: 100%;
-}
-
 .workbench-quick-panel {
   padding: 16px;
 }
@@ -17864,5 +17860,121 @@ textarea,
   .appointment-room-slot-section,
   .appointment-today-panel {
     padding: 10px;
+  }
+}
+
+/* Today overview: clearer operational surface for the first signed-in screen. */
+.dashboard-page.workbench-visual-page {
+  gap: 16px;
+}
+
+.workbench-business-grid,
+.workbench-pay-list,
+.workbench-staff-list {
+  display: grid;
+  gap: 10px;
+}
+
+.workbench-staff-row div {
+  min-width: 0;
+}
+
+.workbench-staff-row strong,
+.workbench-business-grid strong,
+.workbench-pay-list strong {
+  display: block;
+  color: #2f255f;
+  font-weight: 920;
+  line-height: 1.2;
+}
+
+.workbench-staff-row span,
+.workbench-business-grid span,
+.workbench-business-grid small,
+.workbench-pay-list span,
+.workbench-pay-list small {
+  color: rgba(47, 37, 95, 0.66);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.workbench-business-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workbench-business-grid article {
+  min-height: 96px;
+  padding: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.workbench-business-grid strong {
+  margin: 8px 0 4px;
+  font-size: 23px;
+}
+
+.workbench-pay-list div,
+.workbench-staff-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.workbench-staff-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.workbench-staff-row > div:last-child {
+  text-align: right;
+}
+
+.dashboard-page.workbench-visual-page .workbench-panel .empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed rgba(111, 66, 193, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.56);
+  color: rgba(47, 37, 95, 0.62);
+  text-align: center;
+}
+
+.theme-day .dashboard-page.workbench-visual-page .workbench-staff-row strong,
+.theme-day .dashboard-page.workbench-visual-page .workbench-business-grid strong,
+.theme-day .dashboard-page.workbench-visual-page .workbench-pay-list strong,
+.theme-night .dashboard-page.workbench-visual-page .workbench-staff-row strong,
+.theme-night .dashboard-page.workbench-visual-page .workbench-business-grid strong,
+.theme-night .dashboard-page.workbench-visual-page .workbench-pay-list strong {
+  color: #2f255f;
+}
+
+.theme-day .dashboard-page.workbench-visual-page .workbench-staff-row span,
+.theme-day .dashboard-page.workbench-visual-page .workbench-business-grid span,
+.theme-day .dashboard-page.workbench-visual-page .workbench-business-grid small,
+.theme-day .dashboard-page.workbench-visual-page .workbench-pay-list span,
+.theme-day .dashboard-page.workbench-visual-page .workbench-pay-list small,
+.theme-night .dashboard-page.workbench-visual-page .workbench-staff-row span,
+.theme-night .dashboard-page.workbench-visual-page .workbench-business-grid span,
+.theme-night .dashboard-page.workbench-visual-page .workbench-business-grid small,
+.theme-night .dashboard-page.workbench-visual-page .workbench-pay-list span,
+.theme-night .dashboard-page.workbench-visual-page .workbench-pay-list small {
+  color: rgba(47, 37, 95, 0.66);
+}
+
+@media (max-width: 767px) {
+  .workbench-business-grid,
+  .workbench-pay-list div,
+  .workbench-staff-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-staff-row > div:last-child {
+    text-align: left;
   }
 }
