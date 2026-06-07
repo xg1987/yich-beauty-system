@@ -77,4 +77,34 @@ npm run deploy:pages
 API_BASE_URL=https://yich-beauty-system-22u.pages.dev npm run verify:cloudflare-api
 ```
 
+## 发布验收 SOP
+
+每次修复代码或 UI 后，不能只用 `npm run build` 判断完成。发布前后都必须确认真实页面没有白屏、接口可以连接、版本已经更新。
+
+发布前本地验收：
+
+```bash
+npm run build
+npm run verify:business
+git diff --check
+```
+
+随后打开本地开发地址，至少验证当前改动相关页面和登录入口：
+
+- 页面主体不能白屏，`document.body.innerText` 不能为空。
+- 控制台不能出现阻断渲染的 React/Vite/runtime 错误。
+- `/api/health` 必须返回 `ok: true`。
+- 如果页面出现 `连接失败` 或长时间停留在加载页，必须先修复连接或数据加载问题，不能发布。
+
+发布后线上验收：
+
+```bash
+curl -s https://yich-beauty-system-22u.pages.dev/api/health
+```
+
+- `/api/health` 返回的版本必须和 `package.json` 一致。
+- 打开 `https://yich-beauty-system-22u.pages.dev/`，确认首屏正常渲染，不能白屏。
+- 打开本次修改涉及的实际路由，确认页面没有卡在 `连接失败`、无限加载或空白状态。
+- 线上验收失败时，回到代码修复并重新执行完整验收，不得只报告构建成功。
+
 Cloudflare 后端复用 `src/domain/business.ts` 的业务规则，D1 读写层在 `src/cloudflare/d1Database.ts`，入口在 `functions/api/[[path]].ts`。

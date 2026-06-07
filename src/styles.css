@@ -95,28 +95,71 @@ button[aria-busy="true"] {
   overflow: hidden;
   padding: 0;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 248, 245, 0.36)),
-    url("/assets/loading-beauty-bg.png") center / cover no-repeat,
-    #f8f1ef;
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.92), transparent 34%),
+    radial-gradient(circle at 18% 18%, rgba(124, 90, 149, 0.12), transparent 30%),
+    radial-gradient(circle at 86% 16%, rgba(140, 106, 82, 0.1), transparent 32%),
+    linear-gradient(135deg, #fbf8ff 0%, #fffdf9 48%, #f8f1f7 100%);
+  color: #2f255f;
 }
 
 .loading-page::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(92, 44, 76, 0.06));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 34%),
+    linear-gradient(90deg, rgba(111, 66, 193, 0.03), transparent 36%, rgba(140, 106, 82, 0.035));
   pointer-events: none;
+}
+
+.loading-brand {
+  position: absolute;
+  z-index: 1;
+  top: clamp(52px, 8vh, 88px);
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-items: center;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 9px;
+  transform: translateX(-50%);
+  color: #2f255f;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.loading-brand span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #4f2a91;
+}
+
+.loading-brand strong {
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: clamp(18px, 1.9vw, 25px);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.loading-brand small {
+  grid-column: 1 / -1;
+  color: rgba(47, 37, 95, 0.58);
+  font-size: clamp(12px, 1vw, 15px);
+  font-weight: 760;
+  letter-spacing: 0.42em;
 }
 
 .loading-minimal {
   position: absolute;
   z-index: 1;
-  top: 58%;
-  left: 57%;
-  width: min(360px, 80vw);
+  top: 50%;
+  left: 50%;
+  width: min(620px, calc(100vw - 48px));
   display: grid;
   justify-items: center;
-  gap: 12px;
+  gap: 20px;
   padding: 0;
   transform: translate(-50%, -50%);
   text-align: center;
@@ -124,40 +167,58 @@ button[aria-busy="true"] {
 
 .loading-minimal h1 {
   margin: 0;
-  color: #3c233d;
-  font-size: 34px;
-  font-weight: 760;
-  line-height: 1.2;
-  text-shadow: 0 2px 18px rgba(255, 255, 255, 0.78);
+  color: #2f255f;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: clamp(48px, 5vw, 76px);
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  line-height: 1.08;
+  text-shadow: 0 18px 42px rgba(111, 66, 193, 0.1);
 }
 
 .loading-minimal p {
   margin: 0;
-  color: rgba(62, 39, 64, 0.7);
-  font-size: 14px;
-  text-shadow: 0 2px 12px rgba(255, 255, 255, 0.68);
+  color: rgba(47, 37, 95, 0.72);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: clamp(22px, 2.2vw, 32px);
+  font-weight: 760;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
 }
 
-.loading-page:not(.is-error) .loading-minimal::after {
-  content: "";
-  width: 170px;
-  height: 2px;
+.loading-minimal small {
   margin-top: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(113, 53, 89, 0.72), transparent);
-  animation: loading-line-pulse 1.4s ease-in-out infinite;
+  color: rgba(47, 37, 95, 0.42);
+  font-size: 15px;
+  font-weight: 760;
+  letter-spacing: 0.36em;
 }
 
-@keyframes loading-line-pulse {
+.loading-progress {
+  width: min(440px, 54vw);
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.14);
+}
+
+.loading-progress i {
+  display: block;
+  width: 78%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5b2ca8 0%, #7c5a95 56%, #8c6a52 100%);
+  animation: loading-progress-flow 1.8s ease-in-out infinite;
+}
+
+@keyframes loading-progress-flow {
   0%,
   100% {
-    opacity: 0.32;
-    transform: scaleX(0.56);
+    transform: translateX(-18%) scaleX(0.72);
   }
 
   50% {
-    opacity: 1;
-    transform: scaleX(1);
+    transform: translateX(34%) scaleX(0.96);
   }
 }
 
@@ -193,19 +254,28 @@ button[aria-busy="true"] {
 }
 
 @media (max-width: 620px) {
-  .loading-page {
-    background-position: 14% center;
+  .loading-brand {
+    top: 48px;
+    column-gap: 12px;
   }
 
   .loading-minimal {
-    top: 62%;
-    left: 70%;
-    width: 160px;
-    gap: 10px;
+    width: min(340px, calc(100vw - 36px));
+    gap: 16px;
   }
 
   .loading-minimal h1 {
-    font-size: 26px;
+    font-size: clamp(36px, 11vw, 48px);
+    letter-spacing: 0.08em;
+  }
+
+  .loading-minimal p {
+    font-size: clamp(18px, 6vw, 24px);
+    letter-spacing: 0.1em;
+  }
+
+  .loading-progress {
+    width: min(280px, 72vw);
   }
 }
 
@@ -19030,13 +19100,16 @@ textarea,
 
 .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
   margin: 3px 0 0;
+  max-width: min(760px, 62vw);
   color: #fffdfa;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
-  font-size: clamp(38px, 4.4vw, 56px);
+  font-size: clamp(30px, 3vw, 42px);
   font-weight: 950;
-  line-height: 0.98;
+  line-height: 1.06;
   letter-spacing: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-copy p {
@@ -19070,7 +19143,8 @@ textarea,
   }
 
   .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
-    font-size: clamp(32px, 4vw, 44px);
+    max-width: min(620px, 58vw);
+    font-size: clamp(28px, 3.6vw, 36px);
   }
 }
 
@@ -19096,7 +19170,8 @@ textarea,
   }
 
   .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-copy h2 {
-    font-size: clamp(28px, 9vw, 38px);
+    max-width: calc(100vw - 128px);
+    font-size: clamp(24px, 7vw, 32px);
   }
 
   .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-copy p {

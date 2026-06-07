@@ -4,6 +4,7 @@ import { normalizeUserSession, type UserSession } from "../domain/auth";
 import type { AppData } from "../domain/types";
 
 const SESSION_KEY = "yich-system-session";
+const STORE_NAME_KEY = "yich-store-name";
 
 function readSavedSession() {
   const savedSession = localStorage.getItem(SESSION_KEY);
@@ -82,6 +83,7 @@ export function useApiData() {
 
   const logout = () => {
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(STORE_NAME_KEY);
     setSession(undefined);
     setData(undefined);
     setError(undefined);
@@ -100,6 +102,7 @@ export function useApiData() {
       const message = caught instanceof Error ? caught.message : "加载数据失败";
       if (message.includes("请先登录")) {
         localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(STORE_NAME_KEY);
         setSession(undefined);
         setData(undefined);
       }

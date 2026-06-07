@@ -20,7 +20,7 @@ export const testFixtureData: AppData = {
       storeId: "store1",
       shareCode: "yich-store",
       status: "启用",
-      headline: "祝融｜坤锋 美业门店系统",
+      headline: "祝融｜坤锋美业门店系统",
       description: "线上查看项目并提交到店预约意向",
       enabledServiceIds: ["v1", "v2", "v3"],
       createdAt: nowIso(),

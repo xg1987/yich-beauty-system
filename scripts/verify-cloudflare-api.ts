@@ -82,7 +82,7 @@ assert.equal(afterProduct.inventoryLogs[0].expiryAt, futureDay(180), "D1 should 
 const afterConsumableProduct = await request<AppData>(baseUrl, "/api/products", {
   method: "POST",
   token: ownerSession.token,
-  body: { name: `验证服务耗材 ${runId}`, type: "consumable", category: "养生类", subcategory: "身体油", unit: "瓶", price: 88, cost: 36, stock: 12, warningStock: 4, shelfLifeMonths: 12, expiryAt: futureDay(120) },
+  body: { name: `验证护理套盒 ${runId}`, type: "consumable", category: "养生类", subcategory: "套盒", unit: "套", price: 88, cost: 36, stock: 12, warningStock: 4, shelfLifeMonths: 12, expiryAt: futureDay(120) },
 });
 const consumableProductId = afterConsumableProduct.products[0].id;
 assert.equal(afterConsumableProduct.products[0].serviceStockDeductible, true, "D1 should default intake products to stock deduction");
@@ -339,7 +339,7 @@ assert.deepEqual(afterCheckout.orders[0].productItems?.map((item) => [item.produ
 assert.deepEqual(afterCheckout.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity]), [[consumableProductId, 1]], "D1 checkout should persist gift item lines");
 assert.equal(afterCheckout.appointments.find((item) => item.id === appointmentId)?.status, "已完成", "D1 appointment checkout should complete appointment");
 assert.equal(afterCheckout.products.find((item) => item.id === productId)?.stock, 22, "D1 checkout should consume retail stock");
-assert.equal(afterCheckout.products.find((item) => item.id === consumableProductId)?.stock, 11, "D1 checkout should only consume direct gift stock for liquid service products");
+assert.equal(afterCheckout.products.find((item) => item.id === consumableProductId)?.stock, 10, "D1 checkout should consume service recipe stock and direct gift stock");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "checkout should create commission in D1");
 assert.equal(afterCheckout.commissions.find((item) => item.orderId === orderId)?.rate, 0.1, "D1 should persist staff commission rate");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "服务提成"), "D1 should create service commission");

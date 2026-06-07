@@ -97,8 +97,10 @@ const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", 
 const MutationPendingContext = createContext(false);
 
 const THEME_KEY = "yich-system-theme";
+const STORE_NAME_KEY = "yich-store-name";
 const APP_VERSION = packageJson.version;
 const APP_BUILD_DATE = "2026-06-07";
+const DEFAULT_SYSTEM_TITLE = "祝融｜坤锋美业门店系统";
 const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
 const AUTO_THEME_DAY_START_HOUR = 8;
 const AUTO_THEME_NIGHT_START_HOUR = 19;
@@ -378,6 +380,14 @@ function firstActiveStaffId(data: AppData) {
   return activeStaffOf(data)[0]?.id ?? "";
 }
 
+function primaryStoreName(data: AppData) {
+  return data.storeProfiles[0]?.name?.trim() || "";
+}
+
+function cachedStoreName() {
+  return localStorage.getItem(STORE_NAME_KEY)?.trim() || "";
+}
+
 function normalizedAccount(account: string) {
   return account.trim().toLowerCase();
 }
@@ -549,11 +559,13 @@ function initialInventoryModuleFromUrl(): InventoryModuleKey {
 
 function loadingTargetLabel(view: ViewKey) {
   if (view === "pos") return "收银台";
+  if (view === "dashboard") return "今日总览";
   return navItems.find((item) => item.key === view)?.label ?? "门店系统";
 }
 
 function LoadingGate({
   targetView,
+  storeName,
   stage,
   loading,
   error,
@@ -561,6 +573,7 @@ function LoadingGate({
   logout,
 }: {
   targetView: ViewKey;
+  storeName: string;
   stage: LoadingGateStage;
   loading: boolean;
   error?: string;
@@ -570,14 +583,23 @@ function LoadingGate({
   const targetLabel = loadingTargetLabel(targetView);
   const isError = Boolean(error);
   const headline = isError ? "连接失败" : targetView === "pos" ? "进入收银台" : `进入${targetLabel}`;
-  const statusText = isError ? "请重试" : stage === "connecting" ? "" : "连接较慢";
+  const statusText = isError ? "请重试" : stage === "stalled" ? "数据连接较慢，请稍候" : "正在同步门店数据";
   const showActions = isError || stage === "stalled";
+  const brandTitle = storeName || DEFAULT_SYSTEM_TITLE;
 
   return (
     <div className={`loading-page ${isError ? "is-error" : ""}`} aria-live="polite">
+      <div className="loading-brand">
+        <span aria-hidden="true" />
+        <strong>{brandTitle}</strong>
+        <span aria-hidden="true" />
+        <small>美业门店管理系统</small>
+      </div>
       <section className="loading-minimal">
         <h1>{headline}</h1>
-        {statusText && <p>{statusText}</p>}
+        <p>{statusText}</p>
+        {!isError && <div className="loading-progress" aria-hidden="true"><i /></div>}
+        {!isError && <small>请稍候</small>}
         {showActions && (
           <div className="loading-actions">
             <button type="button" className="loading-action-primary" disabled={loading && !isError && stage !== "stalled"} onClick={() => void refreshData()}>
@@ -655,6 +677,16 @@ export default function App() {
     };
   }, [session, data, error]);
 
+  useEffect(() => {
+    if (!data) return;
+    const nextStoreName = primaryStoreName(data);
+    if (nextStoreName) {
+      localStorage.setItem(STORE_NAME_KEY, nextStoreName);
+    } else {
+      localStorage.removeItem(STORE_NAME_KEY);
+    }
+  }, [data]);
+
   const publicStoreMatch = window.location.pathname.match(/^\/store\/([^/]+)/);
   if (publicStoreMatch) {
     return <StorefrontPage shareCode={decodeURIComponent(publicStoreMatch[1])} fetchPublicStore={fetchPublicStore} createPublicBookingRequest={createPublicBookingRequest} />;
@@ -679,6 +711,7 @@ export default function App() {
     return (
       <LoadingGate
         targetView={view}
+        storeName={cachedStoreName()}
         stage={loadingGateStage}
         loading={loading}
         error={error}
@@ -724,6 +757,8 @@ export default function App() {
     finance: "财务后台",
   };
   const shellDisplayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
+  const topbarStoreName = primaryStoreName(data);
+  const topbarTitle = session.user.role === "superadmin" ? DEFAULT_SYSTEM_TITLE : topbarStoreName || DEFAULT_SYSTEM_TITLE;
   const currentAuthUser = data.authUsers.find((user) => user.id === session.user.id);
   const currentAvatarUrl = currentAuthUser?.avatarUrl ?? session.user.avatarUrl;
 
@@ -750,7 +785,7 @@ export default function App() {
             </div>
           </div>
           <div className="topbar-title">
-              <p>祝融｜坤锋 美业门店系统</p>
+              <p>{topbarTitle}</p>
           </div>
           <div className="topbar-actions" ref={topbarActionsRef}>
             {error && <span className="error-chip">{error}</span>}
@@ -8506,7 +8541,7 @@ function SettingsView({
       </div>
 
       <footer className="settings-version" aria-label="软件版本">
-        <strong>祝融｜坤锋 美业门店系统 · v{APP_VERSION}</strong>
+        <strong>祝融｜坤锋美业门店系统 · v{APP_VERSION}</strong>
         <span>© 2026 祝融｜坤锋 · 构建于 {APP_BUILD_DATE}</span>
       </footer>
     </div>
