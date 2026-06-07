@@ -7127,10 +7127,11 @@ textarea,
 }
 
 .customer-workspace {
+  --customer-panel-height: clamp(560px, calc(100dvh - 188px), 680px);
   display: grid;
   grid-template-columns: minmax(280px, 0.36fr) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .customer-directory-panel,
@@ -7147,14 +7148,18 @@ textarea,
   position: sticky;
   top: 112px;
   display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 14px;
-  max-height: calc(100dvh - 188px);
+  height: var(--customer-panel-height);
+  max-height: var(--customer-panel-height);
+  min-height: 0;
   padding: 18px;
   overflow: hidden;
 }
 
 .customer-detail-panel {
   min-width: 0;
+  min-height: var(--customer-panel-height);
   padding: 20px;
 }
 
@@ -7305,10 +7310,14 @@ textarea,
 
 .customer-list {
   display: grid;
+  align-content: start;
   gap: 10px;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 2px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .customer-list-card {
@@ -7740,12 +7749,12 @@ textarea,
 
   .customer-directory-panel {
     position: static;
-    max-height: none;
+    height: var(--customer-panel-height);
+    max-height: var(--customer-panel-height);
   }
 
   .customer-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: none;
   }
 }
 
@@ -7786,12 +7795,22 @@ textarea,
     border-radius: 20px;
   }
 
+  .customer-directory-panel {
+    height: auto;
+    max-height: none;
+  }
+
+  .customer-detail-panel {
+    min-height: 0;
+  }
+
   .customer-directory-head {
     align-items: flex-start;
   }
 
   .customer-list {
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .customer-profile-head {
