@@ -70,7 +70,7 @@ type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "batches" | "logs";
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
-type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
+type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 type SubmitStatusButtonProps = {
   idleText: string;
@@ -586,6 +586,7 @@ export default function App() {
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
   const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
+  const [posEntryCustomerId, setPosEntryCustomerId] = useState<string | undefined>();
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>(() => initialViewFromUrl() === "inventory" ? initialInventoryModuleFromUrl() : undefined);
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -683,6 +684,7 @@ export default function App() {
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
     setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
+    setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
     setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
   };
@@ -791,8 +793,8 @@ export default function App() {
             )}
             {activeView === "dashboard" && (isPlatformAdmin ? <PlatformAdminView data={data} /> : <Dashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && <Appointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
-            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} onReturnManagement={() => navigate("settings")} />}
-            {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "pos" && <Pos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "customers" && <Customers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={inventoryEntryModule} onReturnManagement={() => navigate("settings")} />}
@@ -4063,6 +4065,7 @@ function Pos({
   fromManagement = false,
   initialModule,
   initialAppointmentId,
+  initialCustomerId,
   onReturnManagement,
 }: {
   data: AppData;
@@ -4071,6 +4074,7 @@ function Pos({
   fromManagement?: boolean;
   initialModule?: PosModuleKey;
   initialAppointmentId?: string;
+  initialCustomerId?: string;
   onReturnManagement?: () => void;
 }) {
   const mutationPending = useMutationPending();
@@ -4505,6 +4509,14 @@ function Pos({
     }
     if (fromManagement) setActiveModule("single");
   }, [fromManagement, initialModule]);
+
+  useEffect(() => {
+    if (!initialCustomerId || !data.customers.some((customer) => customer.id === initialCustomerId)) return;
+    setCustomerId(initialCustomerId);
+    setCardCustomerMode("existing");
+    setCardCustomerName("");
+    setCardCustomerPhone("");
+  }, [data.customers, initialCustomerId]);
 
   const openCard = (event: FormEvent) => {
     event.preventDefault();
@@ -5270,12 +5282,14 @@ function Customers({
   data,
   actions,
   runMutation,
+  setView,
   fromManagement = false,
   onReturnManagement,
 }: {
   data: AppData;
   actions: ApiActions;
   runMutation: RunMutation;
+  setView: NavigateToView;
   fromManagement?: boolean;
   onReturnManagement?: () => void;
 }) {
@@ -5323,7 +5337,7 @@ function Customers({
   const [signatureTitle, setSignatureTitle] = useState("服务完成确认签名");
   const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务已完成，服务项目、项目卡核销和服务档案内容无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
-  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>(fromManagement ? "profile" : undefined);
+  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>();
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerFilter, setCustomerFilter] = useState<"all" | "follow" | "card" | "recent">("all");
   const [selectedCustomerId, setSelectedCustomerId] = useState(data.customers[0]?.id ?? "");
@@ -5629,7 +5643,7 @@ function Customers({
   const showEmptyCustomerDetail = !selectedCustomer;
   type CustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
-    { key: "profile", title: "客户档案", desc: "新增客户和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
+    { key: "profile", title: "客户档案", desc: "客户资料和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
     { key: "cards", title: "项目次数卡", desc: "开项目卡、充值次数和核销记录", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
     { key: "records", title: "服务记录", desc: "护理过程、项目卡消耗和回访", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
     { key: "signature", title: "服务确认签名", desc: "", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
@@ -5649,6 +5663,10 @@ function Customers({
       setSignatureCustomerId(selectedCustomer.id);
     }
     setActiveModule(module);
+  };
+  const renewSelectedCustomer = () => {
+    if (!selectedCustomer) return;
+    setView("pos", { posModule: "card", posCustomerId: selectedCustomer.id });
   };
 
   return (
@@ -5671,10 +5689,6 @@ function Customers({
             <div>
               <span><UsersRound size={17} /> 客户列表</span>
             </div>
-            <button type="button" onClick={() => openCustomerModule("profile")}>
-              <Plus size={16} />
-              新增客户
-            </button>
           </div>
           <label className="customer-search-field">
             <Search size={17} />
@@ -5726,7 +5740,7 @@ function Customers({
             {filteredCustomers.length === 0 && (
               <div className="customer-empty-state">
                 <strong>没有找到客户</strong>
-                <span>换个关键词，或先新增客户档案。</span>
+                <span>换个关键词，或检查客户是否已在收银建档。</span>
               </div>
             )}
           </div>
@@ -5737,8 +5751,7 @@ function Customers({
             <div className="customer-detail-empty">
               <UsersRound size={34} />
               <strong>暂无客户档案</strong>
-              <span>新增客户后，可以在这里查看项目卡、服务记录和跟进。</span>
-              <button type="button" onClick={() => openCustomerModule("profile")}>新增客户</button>
+              <span>客户在收银流程建档后，可以在这里查看项目卡、服务记录和跟进。</span>
             </div>
           ) : (
             <>
@@ -5757,13 +5770,9 @@ function Customers({
                     <ClipboardList size={16} />
                     新增记录
                   </button>
-                  <button type="button" onClick={() => openCustomerModule("cards")}>
+                  <button type="button" onClick={renewSelectedCustomer}>
                     <CreditCard size={16} />
-                    开卡/续卡
-                  </button>
-                  <button type="button" onClick={() => openCustomerModule("signature")}>
-                    <LockKeyhole size={16} />
-                    生成签名
+                    续费
                   </button>
                 </div>
               </div>
@@ -5811,7 +5820,7 @@ function Customers({
                   <section className="customer-info-card">
                     <div className="customer-section-title">
                       <strong>项目卡</strong>
-                      <button type="button" onClick={() => openCustomerModule("cards")}>管理</button>
+                      <button type="button" onClick={renewSelectedCustomer}>续费</button>
                     </div>
                     <div className="customer-card-stack">
                       {selectedCustomerCards.slice(0, 3).map((card) => (
