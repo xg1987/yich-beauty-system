@@ -708,16 +708,16 @@ function card(data: AppData, cardId: string) {
 {
   const usageData = {
     ...cloneSeed(),
-    products: cloneSeed().products.map((product) => (product.id === "p3" ? { ...product, serviceUsesPerUnit: 5 } : product)),
+    products: cloneSeed().products.map((product) => (product.id === "p3" ? { ...product, serviceUnit: "片", serviceUnitsPerStockUnit: 5 } : product)),
     services: [
       {
         id: "v_usage",
-        name: "按单件次数扣减护理",
+        name: "按片数扣减护理",
         category: "皮肤管理",
         price: 520,
         duration: 70,
         consumables: [
-          { productId: "p3", quantity: 0 },
+          { productId: "p3", quantity: 1 },
           { productId: "p2", quantity: 0 },
         ],
       },
@@ -729,7 +729,7 @@ function card(data: AppData, cardId: string) {
     { customerId: "c1", staffId: "s2", serviceId: "v_usage", payMethod: "微信" },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(productStock(checkedOut, "p3"), 8.8, "tracked package should deduct by uses per unit when recipe quantity is zero");
+  assert.equal(productStock(checkedOut, "p3"), 8.8, "tracked package should deduct service units by package size");
   assert.equal(productStock(checkedOut, "p2"), 12, "liquid product-only usage should stay display-only");
   assert.equal(checkedOut.inventoryLogs.find((item) => item.type === "服务消耗")?.delta, -0.2, "service log should preserve fractional package deduction");
 }

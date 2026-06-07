@@ -227,6 +227,8 @@ export type Product = {
   shelfLifeMonths?: number;
   expiryAt?: string;
   serviceStockDeductible?: boolean;
+  serviceUnit?: string;
+  serviceUnitsPerStockUnit?: number;
   serviceUsesPerUnit?: number;
 };
 

@@ -1,6 +1,6 @@
 import { seedData } from "../domain/seed";
 import { normalizeSystemConfigs } from "../domain/business";
-import { normalizeProductServiceFields, productServiceStockDeductible, productServiceUsesPerUnit } from "../domain/products";
+import { normalizeProductServiceFields, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit } from "../domain/products";
 import type {
   AppData,
   ApprovalRequest,
@@ -245,7 +245,7 @@ export class D1BeautyDatabase {
 
     for (const product of data.products) {
       statements.push(
-        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceUsesPerUnit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceUsesPerUnit, serviceUnit, serviceUnitsPerStockUnit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           product.id,
           product.storeId ?? null,
           product.name,
@@ -260,7 +260,9 @@ export class D1BeautyDatabase {
           product.shelfLifeMonths ?? null,
           product.expiryAt ?? null,
           productServiceStockDeductible(product) ? 1 : 0,
-          productServiceStockDeductible(product) ? productServiceUsesPerUnit(product) : null,
+          productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
+          productServiceStockDeductible(product) ? productServiceUnit(product) : null,
+          productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
         ]),
       );
     }
@@ -559,7 +561,12 @@ function mapService(row: unknown): Service {
 }
 
 function mapProduct(row: unknown): Product {
-  const value = row as Product & { serviceStockDeductible?: boolean | number | null; serviceUsesPerUnit?: number | null };
+  const value = row as Product & {
+    serviceStockDeductible?: boolean | number | null;
+    serviceUnit?: string | null;
+    serviceUnitsPerStockUnit?: number | null;
+    serviceUsesPerUnit?: number | null;
+  };
   return normalizeProductServiceFields({
     ...value,
     storeId: value.storeId ?? undefined,
@@ -570,6 +577,8 @@ function mapProduct(row: unknown): Product {
     serviceStockDeductible: value.serviceStockDeductible === undefined || value.serviceStockDeductible === null
       ? undefined
       : Boolean(value.serviceStockDeductible),
+    serviceUnit: value.serviceUnit ?? undefined,
+    serviceUnitsPerStockUnit: value.serviceUnitsPerStockUnit ?? value.serviceUsesPerUnit ?? undefined,
     serviceUsesPerUnit: value.serviceUsesPerUnit ?? undefined,
   });
 }

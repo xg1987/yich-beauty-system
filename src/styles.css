@@ -5376,11 +5376,51 @@ html[data-theme="day"],
   font-weight: 820;
 }
 
+.catalog-product-tags .catalog-product-usage-chip {
+  min-height: 38px;
+  flex-wrap: wrap;
+  padding: 6px 8px 6px 10px;
+  border-radius: 12px;
+}
+
+.catalog-product-usage-chip strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .catalog-product-tags small {
   color: rgba(17, 97, 79, 0.72);
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.catalog-product-usage-chip label {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(47, 37, 95, 0.72);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.catalog-product-usage-chip input {
+  width: 64px;
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #2f255f;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.catalog-product-usage-chip em {
+  color: rgba(17, 97, 79, 0.74);
+  font-style: normal;
+  font-weight: 900;
 }
 
 .catalog-product-tags span > button {

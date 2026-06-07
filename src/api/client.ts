@@ -231,7 +231,7 @@ export function createApiClient(getToken: () => string | undefined) {
         body: { consumables },
         token: getToken(),
       }),
-    addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; category?: string; subcategory?: string; unit?: string; warningStock?: number; price?: number; cost?: number; shelfLifeMonths?: number; expiryAt?: string; serviceStockDeductible?: boolean; serviceUsesPerUnit?: number }) =>
+    addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; category?: string; subcategory?: string; unit?: string; warningStock?: number; price?: number; cost?: number; shelfLifeMonths?: number; expiryAt?: string; serviceStockDeductible?: boolean; serviceUnit?: string; serviceUnitsPerStockUnit?: number; serviceUsesPerUnit?: number }) =>
       request<AppData>("/api/products", { method: "POST", body, token: getToken() }),
     addSupplier: (body: { name: string; phone?: string; contact?: string }) =>
       request<AppData>("/api/suppliers", { method: "POST", body, token: getToken() }),

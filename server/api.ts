@@ -67,6 +67,7 @@ import { hashPassword } from "../src/lib/password";
 // Read version from package.json (Node.js ESM)
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
+import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { makeId, nowIso } from "../src/domain/utils";
@@ -1200,30 +1201,53 @@ export function createApiServer(database = new BeautyDatabase()) {
         const body = await readJson(request);
         const productId = makeId("p");
         const createdAt = nowIso();
+        const name = requiredString(body, "name");
         const stock = requiredNumber(body, "stock");
+        const category = optionalString(body, "category") ?? "面护类";
+        const subcategory = optionalString(body, "subcategory") ?? "";
+        const unit = optionalString(body, "unit") ?? "件";
         const expiryAt = optionalString(body, "expiryAt");
+        const serviceStockDeductible = productServiceStockDeductible({
+          name,
+          category,
+          subcategory,
+          unit,
+          serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
+          serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"),
+          serviceUnit: optionalString(body, "serviceUnit"),
+        });
+        const serviceUnit = serviceStockDeductible
+          ? productServiceUnit({ name, category, subcategory, unit, serviceStockDeductible, serviceUnit: optionalString(body, "serviceUnit") })
+          : undefined;
+        const serviceUnitsPerStockUnit = serviceStockDeductible
+          ? normalizeProductServiceUnitsPerStockUnit(optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"))
+          : undefined;
         const nextData = updateData(database, session, {
           action: "新增商品",
           targetType: "product",
           targetId: productId,
-          summary: `${session.user.name} 新增商品 ${requiredString(body, "name")}`,
+          summary: `${session.user.name} 新增商品 ${name}`,
         }, (data) => ({
           ...data,
           products: [
             {
               id: productId,
               storeId: sessionStoreId(data, session),
-              name: requiredString(body, "name"),
+              name,
               type: optionalString(body, "type") === "consumable" ? "consumable" : "sale",
-              category: optionalString(body, "category") ?? "面护类",
-              subcategory: optionalString(body, "subcategory") ?? "",
-              unit: optionalString(body, "unit") ?? "件",
+              category,
+              subcategory,
+              unit,
               price: optionalNumber(body, "price") ?? 0,
               cost: optionalNumber(body, "cost") ?? 0,
               stock,
               warningStock: optionalNumber(body, "warningStock") ?? 5,
               shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
               expiryAt,
+              serviceStockDeductible,
+              serviceUnit,
+              serviceUnitsPerStockUnit,
+              serviceUsesPerUnit: serviceUnitsPerStockUnit,
             },
             ...data.products,
           ],

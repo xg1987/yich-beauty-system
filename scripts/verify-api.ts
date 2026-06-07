@@ -1027,12 +1027,14 @@ try {
   const afterLowStockProduct = await request<AppData>(baseUrl, "/api/products", {
     method: "POST",
     token: session.token,
-    body: { name: "API 低库存耗材", type: "consumable", category: "养生类", subcategory: "泥灸", stock: 1, warningStock: 5, unit: "瓶", price: 30, cost: 12, shelfLifeMonths: 18, expiryAt: "2027-11-30" },
+    body: { name: "API 低库存耗材", type: "consumable", category: "养生类", subcategory: "泥灸", stock: 1, warningStock: 5, unit: "盒", price: 30, cost: 12, shelfLifeMonths: 18, expiryAt: "2027-11-30", serviceStockDeductible: true, serviceUnit: "份", serviceUnitsPerStockUnit: 6 },
   });
   const lowStockProductId = afterLowStockProduct.products[0].id;
   assert.equal(afterLowStockProduct.products[0].category, "养生类", "product API should persist category");
   assert.equal(afterLowStockProduct.products[0].subcategory, "泥灸", "product API should persist subcategory");
   assert.equal(afterLowStockProduct.products[0].expiryAt, "2027-11-30", "product API should persist first-batch expiry");
+  assert.equal(afterLowStockProduct.products[0].serviceUnit, "份", "product API should persist service unit");
+  assert.equal(afterLowStockProduct.products[0].serviceUnitsPerStockUnit, 6, "product API should persist package quantity");
   assert.equal(afterLowStockProduct.inventoryLogs[0].expiryAt, "2027-11-30", "product API should create first-batch inventory log with expiry");
   const afterRestock = await request<AppData>(baseUrl, "/api/inventory/restock-low", {
     method: "POST",

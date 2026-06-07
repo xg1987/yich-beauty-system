@@ -993,7 +993,7 @@ function serviceInventoryConsumables(data: AppData, service: Service): ServiceCo
   serviceUsedProducts(service).forEach((item) => {
     const product = data.products.find((candidate) => candidate.id === item.productId);
     if (!product || !productServiceStockDeductible(product)) return;
-    const quantity = item.quantity > 0 ? item.quantity : serviceStockQuantityForProduct(product);
+    const quantity = item.quantity > 0 ? serviceStockQuantityForProduct(product, item.quantity) : 0;
     if (quantity <= 0) return;
     merged.set(item.productId, roundStockQuantity((merged.get(item.productId) ?? 0) + quantity));
   });

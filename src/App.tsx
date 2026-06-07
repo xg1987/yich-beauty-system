@@ -53,7 +53,16 @@ import { Select } from "./components/ui/Select";
 import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentEndAt, appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "./domain/auth";
-import { formatStockQuantity, normalizeProductServiceUsesPerUnit, productServiceDeductionLabel, productServiceStockDeductible } from "./domain/products";
+import {
+  formatProductStockWithServiceUnits,
+  formatStockQuantity,
+  normalizeProductServiceUnitsPerStockUnit,
+  productServiceDeductionLabel,
+  productServiceStockDeductible,
+  productServiceUnit,
+  productServiceUnitsPerStockUnit,
+  serviceStockQuantityForProduct,
+} from "./domain/products";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
@@ -243,7 +252,7 @@ function productShelfLifeText(product: Product) {
   return product.shelfLifeMonths ? `${product.shelfLifeMonths}个月` : "未设置";
 }
 
-function productServiceUsesPerUnitText(product: Product) {
+function productServicePackageText(product: Product) {
   return productServiceDeductionLabel(product).replace("扣库存 · ", "");
 }
 
@@ -6220,8 +6229,20 @@ function Catalog({
     setShowServiceCreate(false);
   };
 
+  const defaultServiceConsumableForProduct = (productId: string, products = data.products): ServiceConsumable => {
+    const product = products.find((item) => item.id === productId);
+    return {
+      productId,
+      quantity: product && productServiceStockDeductible(product) ? 1 : 0,
+    };
+  };
+
   const addServiceConsumable = (productId: string) => {
-    setServiceConsumables((items) => mergeUsedProducts([...items, { productId, quantity: 0 }]));
+    setServiceConsumables((items) => mergeUsedProducts([...items, defaultServiceConsumableForProduct(productId)]));
+  };
+
+  const updateServiceConsumableQuantity = (productId: string, quantity: number) => {
+    setServiceConsumables((items) => mergeUsedProducts(items.map((item) => (item.productId === productId ? { ...item, quantity } : item))));
   };
 
   const removeServiceConsumable = (productId: string) => {
@@ -6233,7 +6254,7 @@ function Catalog({
       const nextData = await actions.addProduct({ name, stock: 0, type: "sale", category, subcategory, unit: "件" });
       const product = findCreatedProduct(nextData.products, name, category, subcategory);
       if (product) {
-        setServiceConsumables((items) => mergeUsedProducts([...items, { productId: product.id, quantity: 0 }]));
+        setServiceConsumables((items) => mergeUsedProducts([...items, defaultServiceConsumableForProduct(product.id, nextData.products)]));
       }
       return nextData;
     });
@@ -6262,7 +6283,12 @@ function Catalog({
 
   const addRecipeProduct = (productId: string) => {
     if (!recipeServiceId) return;
-    const nextConsumables = mergeUsedProducts([...recipeConsumables, { productId, quantity: 0 }]);
+    const nextConsumables = mergeUsedProducts([...recipeConsumables, defaultServiceConsumableForProduct(productId)]);
+    void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
+  };
+
+  const updateRecipeConsumableQuantity = (productId: string, quantity: number) => {
+    const nextConsumables = mergeUsedProducts(recipeConsumables.map((item) => (item.productId === productId ? { ...item, quantity } : item)));
     void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
   };
 
@@ -6273,7 +6299,7 @@ function Catalog({
       const product = findCreatedProduct(nextData.products, name, category, subcategory);
       if (!product) return nextData;
       const nextService = nextData.services.find((service) => service.id === recipeServiceId);
-      const nextConsumables = mergeUsedProducts([...serviceConsumablesOf(nextService), { productId: product.id, quantity: 0 }]);
+      const nextConsumables = mergeUsedProducts([...serviceConsumablesOf(nextService), defaultServiceConsumableForProduct(product.id, nextData.products)]);
       return actions.updateServiceConsumables(recipeServiceId, nextConsumables);
     });
   };
@@ -6317,6 +6343,7 @@ function Catalog({
       onAdd={addServiceConsumable}
       onCreate={createServiceConsumable}
       onRemove={removeServiceConsumable}
+      onQuantityChange={updateServiceConsumableQuantity}
     />
   );
 
@@ -6366,6 +6393,7 @@ function Catalog({
             onAdd={addRecipeProduct}
             onCreate={createRecipeProduct}
             onRemove={removeRecipeConsumable}
+            onQuantityChange={updateRecipeConsumableQuantity}
           />
         </form>
         </section>
@@ -6428,7 +6456,7 @@ function Catalog({
         {activeModule === "productList" && (
         <section className="panel">
         <PanelTitle icon={<Boxes size={18} />} title="商品列表" action="库存资料" />
-	        <DataTable columns={["商品", "大类", "小类", "库存", "预警", "项目扣减"]} rows={data.products.map((item) => [item.name, item.category ?? "面护类", item.subcategory ?? "-", `${formatStockQuantity(item.stock)}${item.unit}`, `${item.warningStock}${item.unit}`, productServiceDeductionLabel(item)])} />
+        <DataTable columns={["商品", "大类", "小类", "库存", "预警", "项目扣减"]} rows={data.products.map((item) => [item.name, item.category ?? "面护类", item.subcategory ?? "-", formatProductStockWithServiceUnits(item, item.stock), `${item.warningStock}${item.unit}`, productServiceDeductionLabel(item)])} />
         </section>
         )}
         {activeModule === "formulaList" && (
@@ -6452,12 +6480,14 @@ function ProductUsagePicker({
   onAdd,
   onCreate,
   onRemove,
+  onQuantityChange,
 }: {
   products: Product[];
   selected: ServiceConsumable[];
   onAdd: (productId: string) => void;
   onCreate: (input: { name: string; category: string; subcategory: string }) => void;
   onRemove: (productId: string) => void;
+  onQuantityChange: (productId: string, quantity: number) => void;
 }) {
   const [category, setCategory] = useState("全部");
   const [subcategory, setSubcategory] = useState("全部");
@@ -6536,25 +6566,42 @@ function ProductUsagePicker({
         {matchingProducts.map((product) => (
           <button className="catalog-product-result" key={product.id} type="button" onClick={() => addProduct(product.id)}>
             <strong>{product.name}</strong>
-	            <span>{product.subcategory ? `${product.category ?? "面护类"} / ${product.subcategory} · ${productServiceDeductionLabel(product)}` : `${product.category ?? "面护类"} · ${productServiceDeductionLabel(product)}`}</span>
+            <span>{product.subcategory ? `${product.category ?? "面护类"} / ${product.subcategory} · ${productServiceDeductionLabel(product)}` : `${product.category ?? "面护类"} · ${productServiceDeductionLabel(product)}`}</span>
           </button>
         ))}
         {canCreate && (
           <button className="catalog-product-result create" type="button" onClick={createProduct}>
             <strong>新增“{query.trim()}”</strong>
-	            <span>{createSubcategory ? `${createCategory} / ${createSubcategory}` : createCategory}</span>
+            <span>{createSubcategory ? `${createCategory} / ${createSubcategory}` : createCategory}</span>
           </button>
         )}
       </div>
       {selected.length > 0 && (
         <div className="catalog-product-tags">
-	          {selected.map((item) => (
-	            <span key={item.productId}>
-	              {serviceConsumableDisplay(item, products)}
-	              <small>{serviceConsumableModeText(item, products)}</small>
-	              <button type="button" onClick={() => onRemove(item.productId)}>×</button>
-	            </span>
-	          ))}
+          {selected.map((item) => {
+            const product = products.find((candidate) => candidate.id === item.productId);
+            const tracked = product ? productServiceStockDeductible(product) : false;
+            return (
+              <span className="catalog-product-usage-chip" key={item.productId}>
+                <strong>{serviceConsumableDisplay(item, products)}</strong>
+                <small>{serviceConsumableModeText(item, products)}</small>
+                {tracked && product && (
+                  <label>
+                    每次
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.1"
+                      value={item.quantity}
+                      onChange={(event) => onQuantityChange(item.productId, numberFromInput(event.target.value, 0))}
+                    />
+                    <em>{productServiceUnit(product)}</em>
+                  </label>
+                )}
+                <button type="button" onClick={() => onRemove(item.productId)}>×</button>
+              </span>
+            );
+          })}
         </div>
       )}
     </div>
@@ -6968,10 +7015,12 @@ function Inventory({
   const [newInventoryCategoryName, setNewInventoryCategoryName] = useState("");
   const [newInventorySubcategoryName, setNewInventorySubcategoryName] = useState("");
   const [newInventorySubcategoryCategory, setNewInventorySubcategoryCategory] = useState("面护类");
-	  const [newInventoryProductUnit, setNewInventoryProductUnit] = useState("件");
-	  const [newInventoryServiceStockDeductible, setNewInventoryServiceStockDeductible] = useState(productServiceStockDeductible({ name: "", category: "面护类", subcategory: "膏霜", unit: "件" }));
-	  const [newInventoryServiceUsesPerUnit, setNewInventoryServiceUsesPerUnit] = useState("1");
-	  const [newInventoryProductStock, setNewInventoryProductStock] = useState("");
+  const [newInventoryProductUnit, setNewInventoryProductUnit] = useState("件");
+  const initialInventoryServiceDraft = { name: "", category: "面护类", subcategory: "膏霜", unit: "件" };
+  const [newInventoryServiceStockDeductible, setNewInventoryServiceStockDeductible] = useState(productServiceStockDeductible(initialInventoryServiceDraft));
+  const [newInventoryServiceUnit, setNewInventoryServiceUnit] = useState(productServiceUnit(initialInventoryServiceDraft));
+  const [newInventoryServiceUnitsPerStockUnit, setNewInventoryServiceUnitsPerStockUnit] = useState(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
+  const [newInventoryProductStock, setNewInventoryProductStock] = useState("");
   const [newInventoryWarningStock, setNewInventoryWarningStock] = useState("5");
   const [newInventoryShelfLifeMonths, setNewInventoryShelfLifeMonths] = useState("3");
   const [newInventoryExpiryAt, setNewInventoryExpiryAt] = useState(addMonthsInputValue(3));
@@ -6986,18 +7035,25 @@ function Inventory({
   const inventoryCategoryOptions = inventoryCategoryNamesForForm.map((category) => ({ value: category, label: category }));
   const newInventorySubcategoryOptions = inventorySubcategoryNames(data.products, newInventoryProductCategory, inventoryCategoryPresets);
 
-	  const defaultExpiryForProduct = (nextProductId: string) => {
-	    const product = data.products.find((item) => item.id === nextProductId);
-	    return addMonthsInputValue(product?.shelfLifeMonths ?? 24);
-	  };
+  const defaultExpiryForProduct = (nextProductId: string) => {
+    const product = data.products.find((item) => item.id === nextProductId);
+    return addMonthsInputValue(product?.shelfLifeMonths ?? 24);
+  };
 
-	  const inferredProductServiceDeductible = (input: { name?: string; category?: string; subcategory?: string; unit?: string }) =>
-	    productServiceStockDeductible({
-	      name: input.name ?? newInventoryProductName,
-	      category: input.category ?? newInventoryProductCategory,
-	      subcategory: input.subcategory ?? newInventoryProductSubcategory,
-	      unit: input.unit ?? newInventoryProductUnit,
-	    });
+  const inventoryProductServiceDraft = (input: { name?: string; category?: string; subcategory?: string; unit?: string }) => ({
+    name: input.name ?? newInventoryProductName,
+    category: input.category ?? newInventoryProductCategory,
+    subcategory: input.subcategory ?? newInventoryProductSubcategory,
+    unit: input.unit ?? newInventoryProductUnit,
+  });
+
+  const syncInventoryProductServiceDefaults = (input: { name?: string; category?: string; subcategory?: string; unit?: string }) => {
+    const draft = inventoryProductServiceDraft(input);
+    const deductible = productServiceStockDeductible(draft);
+    setNewInventoryServiceStockDeductible(deductible);
+    setNewInventoryServiceUnit(productServiceUnit(draft));
+    setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(draft)));
+  };
 
   const changeStock = (event: FormEvent) => {
     event.preventDefault();
@@ -7036,34 +7092,36 @@ function Inventory({
 
   const addInventoryProduct = (event: FormEvent) => {
     event.preventDefault();
-	    const stock = numberFromInput(newInventoryProductStock, 0);
-	    const warningStock = numberFromInput(newInventoryWarningStock, 0);
-	    const shelfLifeMonths = optionalNumberFromInput(newInventoryShelfLifeMonths);
-	    const serviceUsesPerUnit = normalizeProductServiceUsesPerUnit(optionalNumberFromInput(newInventoryServiceUsesPerUnit));
-	    setInventoryProductSaveMessage(undefined);
-	    void runMutation(() =>
-	      actions.addProduct({
-	        name: newInventoryProductName,
+    const stock = numberFromInput(newInventoryProductStock, 0);
+    const warningStock = numberFromInput(newInventoryWarningStock, 0);
+    const shelfLifeMonths = optionalNumberFromInput(newInventoryShelfLifeMonths);
+    const serviceUnitsPerStockUnit = normalizeProductServiceUnitsPerStockUnit(optionalNumberFromInput(newInventoryServiceUnitsPerStockUnit));
+    setInventoryProductSaveMessage(undefined);
+    void runMutation(() =>
+      actions.addProduct({
+        name: newInventoryProductName,
         stock,
         type: "sale",
         category: newInventoryProductCategory.trim() || "面护类",
         subcategory: newInventoryProductSubcategory.trim(),
         unit: newInventoryProductUnit,
-	        warningStock,
-	        shelfLifeMonths,
-	        expiryAt: newInventoryExpiryAt || undefined,
-	        serviceStockDeductible: newInventoryServiceStockDeductible,
-	        serviceUsesPerUnit: newInventoryServiceStockDeductible ? serviceUsesPerUnit : undefined,
-	      }),
-	    )
+        warningStock,
+        shelfLifeMonths,
+        expiryAt: newInventoryExpiryAt || undefined,
+        serviceStockDeductible: newInventoryServiceStockDeductible,
+        serviceUnit: newInventoryServiceStockDeductible ? newInventoryServiceUnit.trim() || undefined : undefined,
+        serviceUnitsPerStockUnit: newInventoryServiceStockDeductible ? serviceUnitsPerStockUnit : undefined,
+      }),
+    )
       .then(() => {
         setNewInventoryProductName("");
         setNewInventoryProductCategory("面护类");
-	        setNewInventoryProductSubcategory("膏霜");
-	        setNewInventoryProductUnit("件");
-	        setNewInventoryServiceStockDeductible(productServiceStockDeductible({ name: "", category: "面护类", subcategory: "膏霜", unit: "件" }));
-	        setNewInventoryServiceUsesPerUnit("1");
-	        setNewInventoryProductStock("");
+        setNewInventoryProductSubcategory("膏霜");
+        setNewInventoryProductUnit("件");
+        setNewInventoryServiceStockDeductible(productServiceStockDeductible(initialInventoryServiceDraft));
+        setNewInventoryServiceUnit(productServiceUnit(initialInventoryServiceDraft));
+        setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
+        setNewInventoryProductStock("");
         setNewInventoryWarningStock("5");
         setNewInventoryShelfLifeMonths("3");
         setNewInventoryExpiryAt(addMonthsInputValue(3));
@@ -7204,7 +7262,7 @@ function Inventory({
     return { inbound, used, total, usagePercent };
   };
   const exportInventoryCsv = () => {
-	    const columns = ["商品名称", "大类", "小类", "总数", "已使用", "剩余", "项目扣减", "使用占比", "预警库存", "保质期", "到期日期", "剩余天数", "状态"];
+      const columns = ["商品名称", "大类", "小类", "总数", "已使用", "剩余", "项目扣减", "使用占比", "预警库存", "保质期", "到期日期", "剩余天数", "状态"];
     const rows = data.products.map((item) => {
       const usage = inventoryProductUsage(item);
       const status = [
@@ -7215,11 +7273,11 @@ function Inventory({
         item.name,
         item.category ?? "面护类",
         item.subcategory ?? "",
-	        `${formatStockQuantity(usage.total)}${item.unit}`,
-	        `${formatStockQuantity(usage.used)}${item.unit}`,
-	        `${formatStockQuantity(item.stock)}${item.unit}`,
-	        productServiceDeductionLabel(item),
-	        `${usage.usagePercent}%`,
+          formatProductStockWithServiceUnits(item, usage.total),
+          formatProductStockWithServiceUnits(item, usage.used),
+          formatProductStockWithServiceUnits(item, item.stock),
+          productServiceDeductionLabel(item),
+          `${usage.usagePercent}%`,
         `${item.warningStock}${item.unit}`,
         productShelfLifeText(item),
         productExpiryText(item),
@@ -7354,7 +7412,7 @@ function Inventory({
                 <div className="catalog-inline-control inventory-inline-control">
                   <div>
                     <strong>新增商品</strong>
-	                    <span>录入分类、库存、保质期和项目扣减方式</span>
+                    <span>录入分类、库存、保质期和项目扣减方式</span>
                   </div>
                   <div className="inventory-category-editor" aria-label="商品分类维护">
                     <label>新增大类<input value={newInventoryCategoryName} onChange={(event) => setNewInventoryCategoryName(event.target.value)} placeholder="例如 身体类" /></label>
@@ -7370,56 +7428,67 @@ function Inventory({
                   </div>
                   <form className="form catalog-inline-form inventory-product-form" onSubmit={addInventoryProduct}>
                     <div className="inventory-product-form-row inventory-product-form-main">
-	                      <label>物品名称<input value={newInventoryProductName} onChange={(event) => {
-	                        const nextName = event.target.value;
-	                        setNewInventoryProductName(nextName);
-	                        setNewInventoryServiceStockDeductible(inferredProductServiceDeductible({ name: nextName }));
-	                      }} required /></label>
+                      <label>物品名称<input value={newInventoryProductName} onChange={(event) => {
+                        const nextName = event.target.value;
+                        setNewInventoryProductName(nextName);
+                        syncInventoryProductServiceDefaults({ name: nextName });
+                      }} required /></label>
                       <Select
                         label="大类"
                         value={newInventoryProductCategory}
                         onChange={(value) => {
-	                          setNewInventoryProductCategory(value);
-	                          setNewInventorySubcategoryCategory(value);
-	                          const nextSubcategory = inventorySubcategoryNames(data.products, value, inventoryCategoryPresets)[0] ?? "";
-	                          setNewInventoryProductSubcategory(nextSubcategory);
-	                          setNewInventoryServiceStockDeductible(inferredProductServiceDeductible({ category: value, subcategory: nextSubcategory }));
-	                        }}
-	                        options={inventoryCategoryOptions}
-	                      />
+                          setNewInventoryProductCategory(value);
+                          setNewInventorySubcategoryCategory(value);
+                          const nextSubcategory = inventorySubcategoryNames(data.products, value, inventoryCategoryPresets)[0] ?? "";
+                          setNewInventoryProductSubcategory(nextSubcategory);
+                          syncInventoryProductServiceDefaults({ category: value, subcategory: nextSubcategory });
+                        }}
+                        options={inventoryCategoryOptions}
+                      />
                       <Select
                         label="小类"
                         value={newInventoryProductSubcategory}
-	                        onChange={(value) => {
-	                          setNewInventoryProductSubcategory(value);
-	                          setNewInventoryServiceStockDeductible(inferredProductServiceDeductible({ subcategory: value }));
-	                        }}
-	                        options={newInventorySubcategoryOptions.map((subcategory) => ({ value: subcategory, label: subcategory }))}
-	                      />
-	                      <label>单位<input value={newInventoryProductUnit} onChange={(event) => {
-	                        const nextUnit = event.target.value;
-	                        setNewInventoryProductUnit(nextUnit);
-	                        setNewInventoryServiceStockDeductible(inferredProductServiceDeductible({ unit: nextUnit }));
-	                      }} required /></label>
-	                    </div>
-	                    <div className="inventory-product-form-row inventory-product-form-stock">
-	                      <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
-	                      <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
-	                      <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
+                        onChange={(value) => {
+                          setNewInventoryProductSubcategory(value);
+                          syncInventoryProductServiceDefaults({ subcategory: value });
+                        }}
+                        options={newInventorySubcategoryOptions.map((subcategory) => ({ value: subcategory, label: subcategory }))}
+                      />
+                      <label>单位<input value={newInventoryProductUnit} onChange={(event) => {
+                        const nextUnit = event.target.value;
+                        setNewInventoryProductUnit(nextUnit);
+                        syncInventoryProductServiceDefaults({ unit: nextUnit });
+                      }} required /></label>
+                    </div>
+                    <div className="inventory-product-form-row inventory-product-form-stock">
+                      <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
+                      <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
+                      <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
                         const nextValue = event.target.value;
                         setNewInventoryShelfLifeMonths(nextValue);
                         const months = optionalNumberFromInput(nextValue);
                         setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
-	                      }} /></label>
-	                      <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
-	                      <Select
-	                        label="项目扣减"
-	                        value={newInventoryServiceStockDeductible ? "deduct" : "display"}
-	                        onChange={(value) => setNewInventoryServiceStockDeductible(value === "deduct")}
-	                        options={serviceDeductionModeOptions}
-	                      />
-	                      <label>单件次数<input type="number" min={1} disabled={!newInventoryServiceStockDeductible} value={newInventoryServiceUsesPerUnit} onChange={(event) => setNewInventoryServiceUsesPerUnit(event.target.value)} /></label>
-	                      <div className="form-submit-row">
+                      }} /></label>
+                      <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
+                      <Select
+                        label="项目扣减"
+                        value={newInventoryServiceStockDeductible ? "deduct" : "display"}
+                        onChange={(value) => {
+                          const deductible = value === "deduct";
+                          setNewInventoryServiceStockDeductible(deductible);
+                          if (deductible) {
+                            const draft = inventoryProductServiceDraft({});
+                            setNewInventoryServiceUnit(newInventoryServiceUnit.trim() || productServiceUnit(draft));
+                            setNewInventoryServiceUnitsPerStockUnit(
+                              String(normalizeProductServiceUnitsPerStockUnit(optionalNumberFromInput(newInventoryServiceUnitsPerStockUnit) ?? productServiceUnitsPerStockUnit(draft))),
+                            );
+                          }
+                        }}
+                        options={serviceDeductionModeOptions}
+                      />
+                      <label>{`每${newInventoryProductUnit || "件"}数量`}<input type="number" min={1} disabled={!newInventoryServiceStockDeductible} value={newInventoryServiceUnitsPerStockUnit} onChange={(event) => setNewInventoryServiceUnitsPerStockUnit(event.target.value)} /></label>
+                      <label>消耗单位<input disabled={!newInventoryServiceStockDeductible} value={newInventoryServiceUnit} onChange={(event) => setNewInventoryServiceUnit(event.target.value)} /></label>
+                      <div className="form-submit-row">
                         <SubmitStatusButton idleText="保存商品" busyText="保存中..." />
                       </div>
                     </div>
@@ -7438,10 +7507,10 @@ function Inventory({
                               <strong>{product.name}</strong>
                               <span>{`${product.category ?? "面护类"}${product.subcategory ? ` / ${product.subcategory}` : ""}`}</span>
                             </div>
-	                            <span><small>首批</small>{`${formatStockQuantity(log ? log.delta : product.stock)}${product.unit}`}</span>
-	                            <span><small>当前</small>{`${formatStockQuantity(product.stock)}${product.unit}`}</span>
-	                            <Badge text={productServiceStockDeductible(product) ? "扣库存" : "仅展示"} tone={productServiceStockDeductible(product) ? "ok" : undefined} />
-	                            <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
+                              <span><small>首批</small>{formatProductStockWithServiceUnits(product, log ? log.delta : product.stock)}</span>
+                              <span><small>当前</small>{formatProductStockWithServiceUnits(product, product.stock)}</span>
+                              <Badge text={productServiceStockDeductible(product) ? "扣库存" : "仅展示"} tone={productServiceStockDeductible(product) ? "ok" : undefined} />
+                              <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
                           </div>
                         ))}
                       </div>
@@ -7538,21 +7607,21 @@ function Inventory({
                                   <span className="inventory-product-card-metrics">
                                     <span>
                                       <small>总数</small>
-	                                      <strong>{formatStockQuantity(usage.total)}{item.unit}</strong>
-	                                    </span>
-	                                    <span>
-	                                      <small>已使用</small>
-	                                      <strong>{formatStockQuantity(usage.used)}{item.unit}</strong>
-	                                    </span>
-	                                    <span>
-	                                      <small>剩余</small>
-	                                      <strong>{formatStockQuantity(item.stock)}{item.unit}</strong>
-	                                    </span>
-	                            <span>
-	                              <small>项目扣减</small>
-	                              <strong>{productServiceStockDeductible(item) ? `${productServiceUsesPerUnitText(item)}` : "仅展示"}</strong>
-	                            </span>
-	                            <span>
+                                        <strong>{formatProductStockWithServiceUnits(item, usage.total)}</strong>
+                                      </span>
+                                      <span>
+                                        <small>已使用</small>
+                                        <strong>{formatProductStockWithServiceUnits(item, usage.used)}</strong>
+                                      </span>
+                                      <span>
+                                        <small>剩余</small>
+                                        <strong>{formatProductStockWithServiceUnits(item, item.stock)}</strong>
+                                      </span>
+                              <span>
+                                <small>项目扣减</small>
+                                <strong>{productServiceStockDeductible(item) ? `${productServicePackageText(item)}` : "仅展示"}</strong>
+                              </span>
+                              <span>
                               <small>使用占比</small>
                               <strong>{usage.usagePercent}%</strong>
                             </span>
@@ -8508,9 +8577,13 @@ function mergeUsedProducts(consumables: ServiceConsumable[]) {
   consumables.forEach((item) => {
     if (!item.productId || seen.has(item.productId)) return;
     seen.add(item.productId);
-    merged.push({ productId: item.productId, quantity: 0 });
+    merged.push({ productId: item.productId, quantity: Math.max(0, roundDisplayQuantity(item.quantity)) });
   });
   return merged;
+}
+
+function roundDisplayQuantity(value: number) {
+  return Math.round((Number.isFinite(value) ? value : 0) * 1000) / 1000;
 }
 
 function serviceConsumableDisplay(item: ServiceConsumable, products: Product[]) {
@@ -8521,8 +8594,8 @@ function serviceConsumableModeText(item: ServiceConsumable, products: Product[])
   const product = products.find((candidate) => candidate.id === item.productId);
   if (!product) return "仅展示";
   if (!productServiceStockDeductible(product)) return "仅展示";
-  if (item.quantity > 0) return `扣库存 · ${formatStockQuantity(item.quantity)}${product.unit}/次`;
-  return productServiceDeductionLabel(product);
+  if (item.quantity <= 0) return `待填用量 · ${productServicePackageText(product)}`;
+  return `每次${formatStockQuantity(item.quantity)}${productServiceUnit(product)} · 折${formatStockQuantity(serviceStockQuantityForProduct(product, item.quantity))}${product.unit}`;
 }
 
 function serviceFormulaSummary(service: Service, products: Product[]) {

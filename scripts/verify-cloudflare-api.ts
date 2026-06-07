@@ -71,10 +71,12 @@ assert.equal(afterTag.tagDefinitions[0].name, `验证标签 ${runId}`, "D1 shoul
 const afterProduct = await request<AppData>(baseUrl, "/api/products", {
   method: "POST",
   token: ownerSession.token,
-  body: { name: `验证零售商品 ${runId}`, type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8, shelfLifeMonths: 18, expiryAt: futureDay(180) },
+  body: { name: `验证零售商品 ${runId}`, type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8, shelfLifeMonths: 18, expiryAt: futureDay(180), serviceStockDeductible: true, serviceUnit: "片", serviceUnitsPerStockUnit: 10 },
 });
 const productId = afterProduct.products[0].id;
 assert.equal(afterProduct.products[0].category, "面护类", "D1 should persist product category");
+assert.equal(afterProduct.products[0].serviceUnit, "片", "D1 should persist service unit");
+assert.equal(afterProduct.products[0].serviceUnitsPerStockUnit, 10, "D1 should persist package quantity");
 assert.equal(afterProduct.inventoryLogs[0].expiryAt, futureDay(180), "D1 should persist initial stock expiry log");
 
 const afterConsumableProduct = await request<AppData>(baseUrl, "/api/products", {

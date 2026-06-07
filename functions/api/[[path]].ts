@@ -65,7 +65,7 @@ import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
-import { normalizeProductServiceUsesPerUnit, productServiceStockDeductible } from "../../src/domain/products";
+import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
@@ -1173,10 +1173,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         subcategory,
         unit,
         serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
-        serviceUsesPerUnit: optionalNumber(body, "serviceUsesPerUnit"),
+        serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"),
+        serviceUnit: optionalString(body, "serviceUnit"),
       });
-      const serviceUsesPerUnit = serviceStockDeductible
-        ? normalizeProductServiceUsesPerUnit(optionalNumber(body, "serviceUsesPerUnit"))
+      const serviceUnit = serviceStockDeductible
+        ? productServiceUnit({ name, category, subcategory, unit, serviceStockDeductible, serviceUnit: optionalString(body, "serviceUnit") })
+        : undefined;
+      const serviceUnitsPerStockUnit = serviceStockDeductible
+        ? normalizeProductServiceUnitsPerStockUnit(optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"))
         : undefined;
       const nextData = updateData(await database.readData(), session, {
         action: "新增商品",
@@ -1201,7 +1205,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
             expiryAt,
             serviceStockDeductible,
-            serviceUsesPerUnit,
+            serviceUnit,
+            serviceUnitsPerStockUnit,
+            serviceUsesPerUnit: serviceUnitsPerStockUnit,
           },
           ...data.products,
         ],
