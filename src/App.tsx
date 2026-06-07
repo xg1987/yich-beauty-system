@@ -12,6 +12,8 @@ import {
   DoorOpen,
   ArrowLeft,
   BedDouble,
+  Eye,
+  EyeOff,
   Gift,
   HeartHandshake,
   HeartPulse,
@@ -48,7 +50,7 @@ import { DataTable } from "./components/ui/DataTable";
 import { DateTimeInput } from "./components/ui/DateTimeInput";
 import { Modal } from "./components/ui/Modal";
 import { Select } from "./components/ui/Select";
-import { calculateOrderTotal, memberCardCashIn, reportSummary } from "./domain/business";
+import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "./domain/business";
 import { appointmentEndAt, appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "./domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "./domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
@@ -850,6 +852,20 @@ function ManagementCenter({
   actions: ApiActions;
   runMutation: RunMutation;
 }) {
+  const systemInviteCode = platformInviteCodeForPlatformAdmin({
+    id: session.user.id,
+    account: session.user.account,
+    role: session.user.role,
+  }, data.authUsers);
+  const storeStaffInviteCode = storeStaffInviteCodeForStoreUser({
+    id: session.user.id,
+    account: session.user.account,
+    role: session.user.role,
+  }, data.authUsers);
+  const managementInviteCode = systemInviteCode ?? storeStaffInviteCode ?? "";
+  const showInviteSection = Boolean(managementInviteCode);
+  const inviteSectionTitle = systemInviteCode ? "系统邀请码" : "员工邀请码";
+  const inviteSectionHint = systemInviteCode ? "店长/门店加入或开通" : "员工加入门店";
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
   const currentAuthUser = data.authUsers.find((user) => user.id === session.user.id);
@@ -857,7 +873,27 @@ function ManagementCenter({
   const linkedStaff = currentAuthUser?.staffId ? data.staff.find((staff) => staff.id === currentAuthUser.staffId) : undefined;
   const accountContact = session.user.account.includes("@") ? session.user.account.split("@")[0] : session.user.account;
   const displayContact = linkedStaff?.phone ?? accountContact;
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [inviteCopyStatus, setInviteCopyStatus] = useState<"idle" | "copied" | "selected">("idle");
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
+  const inviteInputRef = useRef<HTMLInputElement>(null);
+
+  const copyInviteCode = () => {
+    if (!managementInviteCode) return;
+    void copyTextToClipboard(managementInviteCode).then((copied) => {
+      if (copied) {
+        setInviteCopyStatus("copied");
+      } else {
+        setInviteVisible(true);
+        window.requestAnimationFrame(() => {
+          inviteInputRef.current?.focus();
+          inviteInputRef.current?.select();
+        });
+        setInviteCopyStatus("selected");
+      }
+      window.setTimeout(() => setInviteCopyStatus("idle"), 1800);
+    });
+  };
 
   type ManagementCard = {
     title: string;
@@ -939,6 +975,40 @@ function ManagementCenter({
           <p>{displayRole} · {displayContact}</p>
         </div>
       </section>
+
+      {showInviteSection && (
+        <section className="admin-invite-section" aria-label={inviteSectionTitle}>
+          <div className="admin-invite-heading">
+            <span>{inviteSectionTitle}</span>
+            <small>{inviteSectionHint}</small>
+          </div>
+          <div className="admin-invite-card">
+            <span>{inviteSectionTitle}</span>
+            <div className="admin-invite-code">
+              <input
+                ref={inviteInputRef}
+                className="admin-invite-value"
+                type={inviteVisible ? "text" : "password"}
+                value={managementInviteCode}
+                readOnly
+                aria-label={`${inviteSectionTitle}内容`}
+                tabIndex={-1}
+              />
+              <button type="button" aria-label={inviteVisible ? "隐藏邀请码" : "显示邀请码"} onClick={() => setInviteVisible((visible) => !visible)} disabled={!managementInviteCode}>
+                {inviteVisible ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+              <button type="button" aria-label="复制邀请码" onClick={copyInviteCode} disabled={!managementInviteCode}>
+                <Copy size={17} />
+              </button>
+            </div>
+            {inviteCopyStatus !== "idle" && (
+              <small className="admin-invite-copied">
+                {inviteCopyStatus === "copied" ? "已复制" : "已选中，请按 Command+C"}
+              </small>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="admin-module-section">
         <div className="admin-section-title">
