@@ -7169,7 +7169,7 @@ textarea,
 
 .customer-directory-head > div {
   display: grid;
-  gap: 5px;
+  gap: 0;
 }
 
 .customer-directory-head span,

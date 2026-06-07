@@ -5670,7 +5670,6 @@ function Customers({
           <div className="customer-directory-head">
             <div>
               <span><UsersRound size={17} /> 客户列表</span>
-              <strong>先找客户，再处理服务</strong>
             </div>
             <button type="button" onClick={() => openCustomerModule("profile")}>
               <Plus size={16} />
