@@ -47,6 +47,10 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
     event.preventDefault();
     if (submittingRef.current) return;
     setError(undefined);
+    if (!signerName.trim()) {
+      setError("请填写签名人姓名");
+      return;
+    }
     const canvas = canvasRef.current;
     if (!canvas || !hasSignature) {
       setError("请完成手写签名");
@@ -125,32 +129,52 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
           <span>客户确认签名</span>
           <h1>{signature?.title ?? "客户服务确认"}</h1>
           <p>{payload?.customer ? `${payload.customer.name} · ${payload.customer.phone}` : "请核对服务内容后签名确认"}</p>
+          {signature && (
+            <div className="signature-hero-meta" aria-label="签名状态">
+              <span>{signature.status}</span>
+              {payload?.order && <span>{payload.order.orderNo}</span>}
+              {signature.expiresAt && <span>有效期至 {shortDate(signature.expiresAt)}</span>}
+            </div>
+          )}
         </section>
         <section className="public-store-panel">
-          {loading && <p className="empty">正在加载签名内容</p>}
+          {loading && (
+            <div className="signature-state-card">
+              <strong>正在加载签名内容</strong>
+              <span>请稍候，系统正在读取本次服务确认信息。</span>
+            </div>
+          )}
           {error && <p className="public-status error">{error}</p>}
+          {!loading && error && !payload && (
+            <div className="signature-state-card error">
+              <strong>签名链接暂时无法打开</strong>
+              <span>请联系门店重新发送签名链接，或回到门店现场确认。</span>
+            </div>
+          )}
           {!loading && payload && signature && (
             <div className={isSigned ? "signature-grid signature-grid-complete" : "signature-grid"}>
               <section className="signature-detail">
                 <PanelTitle icon={<ClipboardList size={18} />} title="确认内容" action={signature.status} />
-                <p>{signature.content}</p>
+                <div className="signature-content-card">
+                  <p>{signature.content}</p>
+                </div>
                 {payload.order && (
                   <div className="signature-info-list">
-                    <span>订单：{payload.order.orderNo}</span>
-                    <span>项目：{payload.order.serviceName}</span>
-                    <span>实收：{money(payload.order.paidAmount)} · {payload.order.payMethod}</span>
+                    <span><small>订单</small>{payload.order.orderNo}</span>
+                    <span><small>项目</small>{payload.order.serviceName}</span>
+                    <span><small>实收</small>{money(payload.order.paidAmount)} · {payload.order.payMethod}</span>
                   </div>
                 )}
                 {payload.serviceRecord && (
                   <div className="signature-info-list">
-                    <span>服务：{payload.serviceRecord.serviceName}</span>
-                    <span>员工：{payload.serviceRecord.staffName}</span>
-                    <span>护理步骤：{payload.serviceRecord.careSteps || "已完成服务流程"}</span>
-                    <span>服务后：{payload.serviceRecord.afterNote || "无补充"}</span>
-                    <span>下次建议：{payload.serviceRecord.nextCareAdvice || "无补充"}</span>
+                    <span><small>服务</small>{payload.serviceRecord.serviceName}</span>
+                    <span><small>员工</small>{payload.serviceRecord.staffName}</span>
+                    <span><small>护理步骤</small>{payload.serviceRecord.careSteps || "已完成服务流程"}</span>
+                    <span><small>服务后</small>{payload.serviceRecord.afterNote || "无补充"}</span>
+                    <span><small>下次建议</small>{payload.serviceRecord.nextCareAdvice || "无补充"}</span>
                   </div>
                 )}
-                {signature.expiresAt && <small>有效期至：{shortDate(signature.expiresAt)}</small>}
+                {signature.expiresAt && <small className="signature-expiry">有效期至：{shortDate(signature.expiresAt)}</small>}
               </section>
               <form className="public-booking-form signature-form" onSubmit={submit} aria-busy={submitting}>
                 <PanelTitle icon={<LockKeyhole size={18} />} title={isSigned ? "已完成签名" : "签名确认"} action={signature.signedAt ? shortDate(signature.signedAt) : undefined} />
@@ -175,23 +199,28 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                     <label>签名人姓名<input value={signerName} disabled={submitting} onChange={(event) => setSignerName(event.target.value)} /></label>
                     <label>
                       手写签名
-                      <canvas
-                        ref={canvasRef}
-                        width={640}
-                        height={220}
-                        onPointerDown={startSignature}
-                        onPointerMove={drawSignature}
-                        onPointerUp={stopSignature}
-                        onPointerCancel={stopSignature}
-                        aria-disabled={submitting}
-                        style={{ display: "block", width: "100%", height: 180, marginTop: 8, border: "1px solid rgba(0,0,0,0.14)", borderRadius: 8, background: "#fff", touchAction: "none" }}
-                      />
+                      <div className="signature-canvas-wrap">
+                        <canvas
+                          ref={canvasRef}
+                          width={720}
+                          height={260}
+                          className="signature-canvas"
+                          onPointerDown={startSignature}
+                          onPointerMove={drawSignature}
+                          onPointerUp={stopSignature}
+                          onPointerCancel={stopSignature}
+                          aria-disabled={submitting}
+                        />
+                        {!hasSignature && <span>请在此处手写签名</span>}
+                      </div>
                     </label>
-                    <button type="button" className="secondary-button" disabled={submitting} onClick={clearSignature}>清除签名</button>
-                    <button className="primary-button" disabled={submitting} aria-busy={submitting}>
-                      <LockKeyhole size={17} />
-                      {submitting ? "签名提交中..." : "确认签名"}
-                    </button>
+                    <div className="signature-form-actions">
+                      <button type="button" className="secondary-button" disabled={submitting} onClick={clearSignature}>清除签名</button>
+                      <button className="primary-button" disabled={submitting} aria-busy={submitting}>
+                        <LockKeyhole size={17} />
+                        {submitting ? "签名提交中..." : "确认签名"}
+                      </button>
+                    </div>
                   </>
                 )}
               </form>
