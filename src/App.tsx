@@ -11,10 +11,12 @@ import {
   Database,
   DoorOpen,
   ArrowLeft,
+  BedDouble,
   Eye,
   EyeOff,
   Gift,
   HeartHandshake,
+  HeartPulse,
   LayoutDashboard,
   LockKeyhole,
   Megaphone,
@@ -30,6 +32,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  Crown,
   Trash2,
   UserRound,
   UsersRound,
@@ -3598,6 +3601,13 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const availableRoomNames = roomNames.filter((name) => !maintenanceRoomNames.has(name) && !roomUsage.roomAssignments.some((assignment) => assignment.roomName === name));
   const occupiedRoomAssignments = roomUsage.roomAssignments.filter(({ roomName }) => !maintenanceRoomNames.has(roomName));
   const maintenanceRoomList = roomNames.filter((name) => maintenanceRoomNames.has(name));
+  const roomIcon = (name: string) => {
+    if (/vip/i.test(name)) return <Crown size={18} />;
+    if (name.includes("身心")) return <HeartPulse size={18} />;
+    if (name.includes("仪器")) return <Sparkles size={18} />;
+    if (name.includes("备用")) return <DoorOpen size={18} />;
+    return <BedDouble size={18} />;
+  };
   useEffect(() => {
     const selectedRoom = roomAvailabilityOptions.find((option) => option.value === roomName);
     if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
@@ -3914,8 +3924,13 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                     disabled={option.disabled}
                     onClick={() => setRoomName(option.value)}
                   >
-                    <strong>{option.value}</strong>
-                    <span>{option.reason}</span>
+                    <span className="appointment-room-slot-icon" aria-hidden="true">
+                      {roomIcon(option.value)}
+                    </span>
+                    <span className="appointment-room-slot-text">
+                      <strong>{option.value}</strong>
+                      <span>{option.reason}</span>
+                    </span>
                   </button>
                 )) : (
                   <div className="checkout-product-empty">请先到管理中心设置房间</div>
@@ -5309,6 +5324,10 @@ function Customers({
   const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务已完成，服务项目、项目卡核销和服务档案内容无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
   const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>(fromManagement ? "profile" : undefined);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerFilter, setCustomerFilter] = useState<"all" | "follow" | "card" | "recent">("all");
+  const [selectedCustomerId, setSelectedCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [customerDetailTab, setCustomerDetailTab] = useState<"overview" | "cards" | "records" | "signatures" | "followups">("overview");
   const [selectedSignatureId, setSelectedSignatureId] = useState("");
 
   useEffect(() => {
@@ -5436,6 +5455,16 @@ function Customers({
     const firstStaffId = serviceStaff[0]?.id ?? "";
     if (!serviceStaff.some((staff) => staff.id === recordStaffId)) setRecordStaffId(firstStaffId);
   }, [recordStaffId, serviceStaff]);
+
+  useEffect(() => {
+    if (data.customers.length === 0) {
+      if (selectedCustomerId) setSelectedCustomerId("");
+      return;
+    }
+    if (!data.customers.some((customer) => customer.id === selectedCustomerId)) {
+      setSelectedCustomerId(data.customers[0].id);
+    }
+  }, [data.customers, selectedCustomerId]);
   const serviceProductSummary = (order: Order) => {
     const service = data.services.find((item) => item.id === order.serviceId);
     const consumables =
@@ -5530,6 +5559,74 @@ function Customers({
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
   }).length;
+  const pendingFollowUps = data.customerFollowUps.filter((followUp) => followUp.status === "待跟进").length;
+  const customerRecentVisit = (lastVisit: string) => {
+    const days = (Date.now() - +new Date(lastVisit)) / 86400000;
+    return Number.isFinite(days) && days <= 30;
+  };
+  const customerHasPendingFollowUp = (id: string) => data.customerFollowUps.some((followUp) => followUp.customerId === id && followUp.status === "待跟进");
+  const customerHasActiveCard = (id: string) => data.memberCards.some((card) => card.customerId === id && card.status === "正常");
+  const filteredCustomers = data.customers.filter((customer) => {
+    const keyword = customerSearch.trim().toLowerCase();
+    const matchesKeyword = !keyword
+      || customer.name.toLowerCase().includes(keyword)
+      || customer.phone.toLowerCase().includes(keyword)
+      || customer.tags.some((tag) => tag.toLowerCase().includes(keyword));
+    const matchesFilter =
+      customerFilter === "all"
+      || (customerFilter === "follow" && customerHasPendingFollowUp(customer.id))
+      || (customerFilter === "card" && customerHasActiveCard(customer.id))
+      || (customerFilter === "recent" && customerRecentVisit(customer.lastVisit));
+    return matchesKeyword && matchesFilter;
+  });
+  const selectedCustomer = data.customers.find((customer) => customer.id === selectedCustomerId) ?? filteredCustomers[0] ?? data.customers[0];
+  const selectedCustomerCards = selectedCustomer ? data.memberCards.filter((card) => card.customerId === selectedCustomer.id) : [];
+  const selectedCustomerActiveCards = selectedCustomerCards.filter((card) => card.status === "正常");
+  const selectedCustomerRecords = selectedCustomer
+    ? data.customerServiceRecords
+        .filter((record) => record.customerId === selectedCustomer.id)
+        .slice()
+        .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))
+    : [];
+  const selectedCustomerOrders = selectedCustomer
+    ? data.orders
+        .filter((order) => order.customerId === selectedCustomer.id)
+        .slice()
+        .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))
+    : [];
+  const selectedCustomerSignatures = selectedCustomer
+    ? data.customerSignatures
+        .filter((signature) => signature.customerId === selectedCustomer.id)
+        .slice()
+        .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))
+    : [];
+  const selectedCustomerFollowUps = selectedCustomer
+    ? data.customerFollowUps
+        .filter((followUp) => followUp.customerId === selectedCustomer.id)
+        .slice()
+        .sort((left, right) => +new Date(right.dueAt) - +new Date(left.dueAt))
+    : [];
+  const selectedCardBalance = selectedCustomerActiveCards.reduce((sum, card) => sum + card.balance, 0);
+  const selectedRemainingTimes = selectedCustomerActiveCards.reduce((sum, card) => sum + card.remainingTimes, 0);
+  const activeCardCustomerCount = new Set(activeCards.map((card) => card.customerId)).size;
+  const lastServiceRecord = selectedCustomerRecords[0];
+  const latestOrder = selectedCustomerOrders[0];
+  const nextFollowUp = selectedCustomerFollowUps.find((followUp) => followUp.status === "待跟进");
+  const customerInitial = selectedCustomer?.name.trim().slice(0, 1) || "客";
+  const customerFilterOptions = [
+    { key: "all", label: "全部", count: data.customers.length },
+    { key: "follow", label: "待跟进", count: pendingFollowUps },
+    { key: "card", label: "有项目卡", count: activeCardCustomerCount },
+    { key: "recent", label: "近期到店", count: recentVisits },
+  ] as const;
+  const customerDetailTabs = [
+    { key: "overview", label: "客户概览", count: selectedCustomer ? 1 : 0 },
+    { key: "cards", label: "项目卡", count: selectedCustomerCards.length },
+    { key: "records", label: "服务记录", count: selectedCustomerRecords.length },
+    { key: "signatures", label: "签名记录", count: selectedCustomerSignatures.length },
+    { key: "followups", label: "跟进备注", count: selectedCustomerFollowUps.length },
+  ] as const;
+  const showEmptyCustomerDetail = !selectedCustomer;
   type CustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
     { key: "profile", title: "客户档案", desc: "新增客户和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
@@ -5545,21 +5642,302 @@ function Customers({
     }
     setActiveModule(undefined);
   };
+  const openCustomerModule = (module: CustomerModuleKey) => {
+    if (selectedCustomer) {
+      setCustomerId(selectedCustomer.id);
+      setRecordCustomerId(selectedCustomer.id);
+      setSignatureCustomerId(selectedCustomer.id);
+    }
+    setActiveModule(module);
+  };
 
   return (
     <div className="page-stack customer-module-page module-hub">
       <PageHero
         icon={<UsersRound size={15} />}
         eyebrow="客户档案"
-        title="客户服务档案"
-        desc="管理客户资料、项目次数卡、到店服务记录和现场签名确认。"
+        title="客户管理"
+        desc="围绕客户查看资料、项目卡、到店记录、签名和跟进。"
         stats={[
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
           { label: "有效项目卡", value: `${activeCards.length} 张`, hint: `${totalRemainingTimes} 次可核销`, icon: <CreditCard size={18} /> },
+          { label: "待跟进", value: `${pendingFollowUps} 位`, hint: "客户关怀任务", icon: <MessageCircle size={18} /> },
           { label: "待签名", value: `${pendingSignatures} 份`, hint: "服务完成确认", icon: <LockKeyhole size={18} /> },
         ]}
       />
-      {!fromManagement && <ModuleOverview modules={customerModules} activeKey={activeModule} onSelect={setActiveModule} />}
+      <section className="customer-workspace">
+        <aside className="customer-directory-panel">
+          <div className="customer-directory-head">
+            <div>
+              <span><UsersRound size={17} /> 客户列表</span>
+              <strong>先找客户，再处理服务</strong>
+            </div>
+            <button type="button" onClick={() => openCustomerModule("profile")}>
+              <Plus size={16} />
+              新增客户
+            </button>
+          </div>
+          <label className="customer-search-field">
+            <Search size={17} />
+            <input value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="搜索姓名 / 手机号 / 标签" />
+          </label>
+          <div className="customer-filter-tabs" aria-label="客户筛选">
+            {customerFilterOptions.map((option) => (
+              <button
+                type="button"
+                key={option.key}
+                className={customerFilter === option.key ? "active" : undefined}
+                aria-pressed={customerFilter === option.key}
+                onClick={() => setCustomerFilter(option.key)}
+              >
+                <span>{option.label}</span>
+                <em>{option.count}</em>
+              </button>
+            ))}
+          </div>
+          <div className="customer-list">
+            {filteredCustomers.map((customer) => {
+              const cardCount = data.memberCards.filter((card) => card.customerId === customer.id && card.status === "正常").length;
+              const recordCount = data.customerServiceRecords.filter((record) => record.customerId === customer.id).length;
+              const hasFollow = customerHasPendingFollowUp(customer.id);
+              return (
+                <button
+                  type="button"
+                  key={customer.id}
+                  className={selectedCustomer?.id === customer.id ? "customer-list-card active" : "customer-list-card"}
+                  onClick={() => {
+                    setSelectedCustomerId(customer.id);
+                    setCustomerDetailTab("overview");
+                  }}
+                >
+                  <span className="customer-avatar">{customer.name.trim().slice(0, 1) || "客"}</span>
+                  <span className="customer-list-main">
+                    <strong>{customer.name}</strong>
+                    <small>{customer.phone} · 最近 {shortDate(customer.lastVisit)}</small>
+                    <span className="customer-mini-tags">
+                      <i>{customer.level || "普通会员"}</i>
+                      {cardCount > 0 && <i>{cardCount} 张卡</i>}
+                      {hasFollow && <i>待跟进</i>}
+                      {recordCount > 0 && <i>{recordCount} 次服务</i>}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+            {filteredCustomers.length === 0 && (
+              <div className="customer-empty-state">
+                <strong>没有找到客户</strong>
+                <span>换个关键词，或先新增客户档案。</span>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <section className="customer-detail-panel">
+          {showEmptyCustomerDetail ? (
+            <div className="customer-detail-empty">
+              <UsersRound size={34} />
+              <strong>暂无客户档案</strong>
+              <span>新增客户后，可以在这里查看项目卡、服务记录和跟进。</span>
+              <button type="button" onClick={() => openCustomerModule("profile")}>新增客户</button>
+            </div>
+          ) : (
+            <>
+              <div className="customer-profile-head">
+                <span className="customer-profile-avatar">{customerInitial}</span>
+                <div className="customer-profile-copy">
+                  <span>{selectedCustomer.level || "普通会员"}</span>
+                  <strong>{selectedCustomer.name}</strong>
+                  <small>{selectedCustomer.phone} · 来源 {selectedCustomer.source || "门店建档"} · 最近到店 {shortDate(selectedCustomer.lastVisit)}</small>
+                  <div className="customer-profile-tags">
+                    {(selectedCustomer.tags.length ? selectedCustomer.tags : ["门店客户"]).slice(0, 4).map((tag) => <i key={tag}>{tag}</i>)}
+                  </div>
+                </div>
+                <div className="customer-profile-actions">
+                  <button type="button" onClick={() => openCustomerModule("records")}>
+                    <ClipboardList size={16} />
+                    新增记录
+                  </button>
+                  <button type="button" onClick={() => openCustomerModule("cards")}>
+                    <CreditCard size={16} />
+                    开卡/续卡
+                  </button>
+                  <button type="button" onClick={() => openCustomerModule("signature")}>
+                    <LockKeyhole size={16} />
+                    生成签名
+                  </button>
+                </div>
+              </div>
+
+              <div className="customer-asset-grid">
+                <div>
+                  <span>项目卡次数</span>
+                  <strong>{selectedRemainingTimes} 次</strong>
+                  <small>{selectedCustomerActiveCards.length} 张有效卡</small>
+                </div>
+                <div>
+                  <span>储值余额</span>
+                  <strong>{money(selectedCardBalance)}</strong>
+                  <small>可用于卡扣/储值消费</small>
+                </div>
+                <div>
+                  <span>最近消费</span>
+                  <strong>{latestOrder ? money(latestOrder.paidAmount) : "-"}</strong>
+                  <small>{latestOrder ? shortDate(latestOrder.createdAt) : "暂无订单"}</small>
+                </div>
+                <div>
+                  <span>下次跟进</span>
+                  <strong>{nextFollowUp ? shortDate(nextFollowUp.dueAt) : "-"}</strong>
+                  <small>{nextFollowUp ? nextFollowUp.note : "暂无待跟进"}</small>
+                </div>
+              </div>
+
+              <div className="customer-detail-tabs" aria-label="客户详情标签">
+                {customerDetailTabs.map((tab) => (
+                  <button
+                    type="button"
+                    key={tab.key}
+                    className={customerDetailTab === tab.key ? "active" : undefined}
+                    aria-pressed={customerDetailTab === tab.key}
+                    onClick={() => setCustomerDetailTab(tab.key)}
+                  >
+                    <span>{tab.label}</span>
+                    <em>{tab.count}</em>
+                  </button>
+                ))}
+              </div>
+
+              {customerDetailTab === "overview" && (
+                <div className="customer-overview-grid">
+                  <section className="customer-info-card">
+                    <div className="customer-section-title">
+                      <strong>项目卡</strong>
+                      <button type="button" onClick={() => openCustomerModule("cards")}>管理</button>
+                    </div>
+                    <div className="customer-card-stack">
+                      {selectedCustomerCards.slice(0, 3).map((card) => (
+                        <article key={card.id}>
+                          <div>
+                            <strong>{card.name}</strong>
+                            <span>{card.type} · {projectScope(card.serviceId, card.serviceIds)}</span>
+                          </div>
+                          <em>{card.remainingTimes > 0 ? `${card.remainingTimes} 次` : money(card.balance)}</em>
+                        </article>
+                      ))}
+                      {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">暂无项目卡</p>}
+                    </div>
+                  </section>
+                  <section className="customer-info-card">
+                    <div className="customer-section-title">
+                      <strong>最近服务</strong>
+                      <button type="button" onClick={() => setCustomerDetailTab("records")}>查看</button>
+                    </div>
+                    <div className="customer-timeline">
+                      {selectedCustomerRecords.slice(0, 3).map((record) => (
+                        <article key={record.id}>
+                          <time>{shortDate(record.createdAt)}</time>
+                          <div>
+                            <strong>{nameOf(data.services, record.serviceId)}</strong>
+                            <span>{nameOf(data.staff, record.staffId)} · {record.customerFeedback || record.nextCareAdvice || "已完成服务"}</span>
+                          </div>
+                        </article>
+                      ))}
+                      {selectedCustomerRecords.length === 0 && <p className="customer-soft-empty">暂无服务记录</p>}
+                    </div>
+                  </section>
+                  <section className="customer-info-card customer-advice-card">
+                    <div className="customer-section-title">
+                      <strong>下次建议</strong>
+                      <button type="button" onClick={() => openCustomerModule("records")}>记录</button>
+                    </div>
+                    <p>{lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在服务记录中补充客户状态和下次建议。"}</p>
+                  </section>
+                </div>
+              )}
+
+              {customerDetailTab === "cards" && (
+                <div className="customer-table-panel">
+                  <DataTable
+                    columns={["卡名", "类型", "余额", "次数", "适用项目", "有效期", "状态"]}
+                    rows={selectedCustomerCards.map((card) => [
+                      card.name,
+                      card.type,
+                      money(card.balance),
+                      `${card.remainingTimes} 次`,
+                      projectScope(card.serviceId, card.serviceIds),
+                      shortDate(card.expiresAt),
+                      <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "正常" ? "ok" : "warn"} />,
+                    ])}
+                  />
+                  {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">当前客户暂无项目卡</p>}
+                </div>
+              )}
+
+              {customerDetailTab === "records" && (
+                <div className="customer-table-panel">
+                  <DataTable
+                    columns={["时间", "项目", "员工", "皮肤情况", "护理步骤", "客户反馈", "下次建议"]}
+                    rows={selectedCustomerRecords.map((record) => [
+                      shortDate(record.createdAt),
+                      nameOf(data.services, record.serviceId),
+                      nameOf(data.staff, record.staffId),
+                      record.skinCondition,
+                      record.careSteps || "-",
+                      record.customerFeedback || "-",
+                      record.nextCareAdvice || "-",
+                    ])}
+                  />
+                  {selectedCustomerRecords.length === 0 && <p className="customer-soft-empty">当前客户暂无服务记录</p>}
+                </div>
+              )}
+
+              {customerDetailTab === "signatures" && (
+                <div className="customer-table-panel">
+                  <DataTable
+                    columns={["服务项目", "状态", "签名人", "签名时间", "操作"]}
+                    rows={selectedCustomerSignatures.map((signature) => {
+                      const context = signatureRecordContext(data, signature);
+                      return [
+                        context.serviceName,
+                        <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+                        signature.signerName ?? "-",
+                        signature.signedAt ? shortDate(signature.signedAt) : "-",
+                        <span className="signature-record-actions" key={`${signature.id}-actions`}>
+                          {signature.status === "待签名" && <a href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">签名页</a>}
+                          <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>详情</button>
+                        </span>,
+                      ];
+                    })}
+                  />
+                  {selectedSignature && <SignatureRecordDetail data={data} signature={selectedSignature} />}
+                  {selectedCustomerSignatures.length === 0 && <p className="customer-soft-empty">当前客户暂无签名记录</p>}
+                </div>
+              )}
+
+              {customerDetailTab === "followups" && (
+                <div className="customer-table-panel">
+                  <DataTable
+                    columns={["计划时间", "员工", "方式", "状态", "备注", "操作"]}
+                    rows={selectedCustomerFollowUps.map((followUp) => [
+                      shortDate(followUp.dueAt),
+                      nameOf(data.staff, followUp.staffId),
+                      followUp.method,
+                      <Badge key={`${followUp.id}-status`} text={followUp.status} tone={followUp.status === "已完成" ? "ok" : "warn"} />,
+                      followUp.note,
+                      followUp.status === "待跟进" ? (
+                        <button key={`${followUp.id}-done`} disabled={mutationPending} onClick={() => void runMutation(() => actions.completeFollowUp(followUp.id))}>
+                          {mutationPending ? "处理中..." : "完成"}
+                        </button>
+                      ) : "已完成",
+                    ])}
+                  />
+                  {selectedCustomerFollowUps.length === 0 && <p className="customer-soft-empty">当前客户暂无跟进记录</p>}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      </section>
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "客户档案"}
