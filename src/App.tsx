@@ -5337,7 +5337,12 @@ function Customers({
   const [signatureTitle, setSignatureTitle] = useState("服务完成确认签名");
   const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务已完成，服务项目、项目卡核销和服务档案内容无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
-  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "records" | "signature" | undefined>();
+  const [followUpCustomerId, setFollowUpCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [followUpStaffId, setFollowUpStaffId] = useState(serviceStaff[0]?.id ?? "");
+  const [followUpMethod, setFollowUpMethod] = useState<"电话" | "微信" | "到店">("微信");
+  const [followUpDueAt, setFollowUpDueAt] = useState(toLocalInputValue(tomorrowAt(24)));
+  const [followUpNote, setFollowUpNote] = useState("客户跟进备注");
+  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "followup" | "signature" | undefined>();
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerFilter, setCustomerFilter] = useState<"all" | "follow" | "card" | "recent">("all");
   const [selectedCustomerId, setSelectedCustomerId] = useState(data.customers[0]?.id ?? "");
@@ -5443,6 +5448,25 @@ function Customers({
         nextFollowUpAt: followUpAt ? new Date(followUpAt).toISOString() : undefined,
       }),
     );
+  };
+
+  const addCustomerFollowUp = (event: FormEvent) => {
+    event.preventDefault();
+    const note = followUpNote.trim();
+    if (!note) return;
+    void runMutation(() =>
+      actions.addFollowUp({
+        customerId: followUpCustomerId,
+        staffId: followUpStaffId,
+        dueAt: new Date(followUpDueAt).toISOString(),
+        method: followUpMethod,
+        note,
+      }),
+    ).then(() => {
+      setFollowUpNote("");
+      setCustomerDetailTab("followups");
+      setActiveModule(undefined);
+    });
   };
 
   const createSignature = (event: FormEvent) => {
@@ -5645,7 +5669,7 @@ function Customers({
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
     { key: "profile", title: "客户档案", desc: "客户资料和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
     { key: "cards", title: "项目次数卡", desc: "开项目卡、充值次数和核销记录", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
-    { key: "records", title: "服务记录", desc: "护理过程、项目卡消耗和回访", icon: ClipboardList, tone: "jade", meta: `${data.customerServiceRecords.length} 条` },
+    { key: "followup", title: "新增跟进", desc: "客户关怀备注和回访计划", icon: MessageCircle, tone: "jade", meta: `${pendingFollowUps} 位` },
     { key: "signature", title: "服务确认签名", desc: "", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
@@ -5660,6 +5684,7 @@ function Customers({
     if (selectedCustomer) {
       setCustomerId(selectedCustomer.id);
       setRecordCustomerId(selectedCustomer.id);
+      setFollowUpCustomerId(selectedCustomer.id);
       setSignatureCustomerId(selectedCustomer.id);
     }
     setActiveModule(module);
@@ -5766,9 +5791,9 @@ function Customers({
                   </div>
                 </div>
                 <div className="customer-profile-actions">
-                  <button type="button" onClick={() => openCustomerModule("records")}>
-                    <ClipboardList size={16} />
-                    新增记录
+                  <button type="button" onClick={() => openCustomerModule("followup")}>
+                    <MessageCircle size={16} />
+                    新增跟进
                   </button>
                   <button type="button" onClick={renewSelectedCustomer}>
                     <CreditCard size={16} />
@@ -5855,9 +5880,9 @@ function Customers({
                   <section className="customer-info-card customer-advice-card">
                     <div className="customer-section-title">
                       <strong>下次建议</strong>
-                      <button type="button" onClick={() => openCustomerModule("records")}>记录</button>
+                      <button type="button" onClick={() => openCustomerModule("followup")}>新增跟进</button>
                     </div>
-                    <p>{lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在服务记录中补充客户状态和下次建议。"}</p>
+                    <p>{lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在跟进备注中补充客户状态和下次建议。"}</p>
                   </section>
                 </div>
               )}
@@ -6023,35 +6048,16 @@ function Customers({
         </div>
         </>
         )}
-        {activeModule === "records" && (
+        {activeModule === "followup" && (
         <>
-        <PanelTitle icon={<ClipboardList size={18} />} title="服务记录" action="护理记录/项目卡核销" />
-        <div className="order-record-shortcuts">
-          {data.orders
-            .filter((order) => !recordLinkedOrderIds.has(order.id) && order.status !== "已退款")
-            .slice(0, 4)
-            .map((order) => (
-              <button type="button" key={order.id} onClick={() => hydrateServiceRecordFromOrder(order.id)}>
-                <strong>{order.orderNo}</strong>
-                <span>{nameOf(data.customers, order.customerId)} · {nameOf(data.services, order.serviceId)}</span>
-                <small>{cardConsumptionSummary(order) || order.payMethod}</small>
-              </button>
-            ))}
-        </div>
-        <form className="form" onSubmit={addServiceRecord}>
-          <Select label="客户" value={recordCustomerId} onChange={setRecordCustomerId} options={data.customers.map(optionOf)} />
-          <Select label="关联订单" value={recordOrderId} onChange={hydrateServiceRecordFromOrder} options={recordOrderOptions} />
-          <Select label="员工" value={recordStaffId} onChange={setRecordStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
-          <Select label="项目" value={recordServiceId} onChange={setRecordServiceId} options={data.services.map(optionOf)} />
-          <label>皮肤情况<input value={skinCondition} onChange={(event) => setSkinCondition(event.target.value)} /></label>
-          <label>服务前记录<textarea value={beforeNote} onChange={(event) => setBeforeNote(event.target.value)} /></label>
-          <label>护理步骤<textarea value={careSteps} onChange={(event) => setCareSteps(event.target.value)} /></label>
-          <label>使用产品<textarea value={productsUsed} onChange={(event) => setProductsUsed(event.target.value)} /></label>
-          <label>服务后记录<textarea value={afterNote} onChange={(event) => setAfterNote(event.target.value)} /></label>
-          <label>客户反馈<textarea value={customerFeedback} onChange={(event) => setCustomerFeedback(event.target.value)} /></label>
-          <label>下次护理建议<textarea value={nextCareAdvice} onChange={(event) => setNextCareAdvice(event.target.value)} /></label>
-          <DateTimeInput label="下次回访" value={followUpAt} onChange={setFollowUpAt} />
-          <SubmitStatusButton idleText="保存档案" busyText="保存中..." disabled={!recordStaffId} />
+        <PanelTitle icon={<MessageCircle size={18} />} title="新增跟进" action="客户关怀备注" />
+        <form className="form" onSubmit={addCustomerFollowUp}>
+          <Select label="客户" value={followUpCustomerId} onChange={setFollowUpCustomerId} options={data.customers.map(optionOf)} />
+          <Select label="员工" value={followUpStaffId} onChange={setFollowUpStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
+          <Select label="跟进方式" value={followUpMethod} onChange={(value) => setFollowUpMethod(value as "电话" | "微信" | "到店")} options={["微信", "电话", "到店"].map((item) => ({ value: item, label: item }))} />
+          <DateTimeInput label="计划跟进时间" value={followUpDueAt} onChange={setFollowUpDueAt} />
+          <label>跟进备注<textarea value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} placeholder="例如：提醒客户 7 天后复查皮肤状态，确认下次护理时间。" /></label>
+          <SubmitStatusButton idleText="保存跟进" busyText="保存中..." disabled={!followUpCustomerId || !followUpStaffId || !followUpNote.trim()} />
         </form>
         </>
         )}
@@ -6129,53 +6135,6 @@ function Customers({
             transaction.remainingTimesAfter,
             transaction.note,
             shortDate(transaction.createdAt),
-          ])}
-        />
-        </section>
-        )}
-        {activeModule === "records" && (
-        <section className="panel">
-        <PanelTitle icon={<ClipboardList size={18} />} title="服务记录" action={`${data.customerServiceRecords.length} 条`} />
-        <DataTable
-          columns={["客户", "员工", "项目", "订单", "卡项消耗", "皮肤情况", "服务前", "护理步骤", "使用产品", "服务后", "客户反馈", "下次建议", "时间"]}
-          rows={data.customerServiceRecords.map((record) => [
-            nameOf(data.customers, record.customerId),
-            nameOf(data.staff, record.staffId),
-            nameOf(data.services, record.serviceId),
-            record.orderId ? data.orders.find((order) => order.id === record.orderId)?.orderNo ?? record.orderId : "未关联",
-            record.memberCardTransactionId
-              ? (() => {
-                  const transaction = data.memberCardTransactions.find((item) => item.id === record.memberCardTransactionId);
-                  const card = transaction ? data.memberCards.find((item) => item.id === transaction.memberCardId) : undefined;
-                  return transaction ? `${card?.name ?? "项目卡"} · ${transaction.amountDelta ? `${Math.abs(transaction.amountDelta)} 元` : `${Math.abs(transaction.timesDelta)} 次`}` : "未扣卡";
-                })()
-              : "未扣卡",
-            record.skinCondition,
-            record.beforeNote,
-            record.careSteps || "未记录",
-            record.productsUsed || "未记录",
-            record.afterNote,
-            record.customerFeedback || "未记录",
-            record.nextCareAdvice || "未记录",
-            shortDate(record.createdAt),
-          ])}
-        />
-        <div className="divider" />
-        <PanelTitle icon={<ClipboardList size={18} />} title="客户跟进" action={`${data.customerFollowUps.length} 条`} />
-        <DataTable
-          columns={["客户", "员工", "方式", "计划时间", "状态", "备注", "操作"]}
-          rows={data.customerFollowUps.map((followUp) => [
-            nameOf(data.customers, followUp.customerId),
-            nameOf(data.staff, followUp.staffId),
-            followUp.method,
-            shortDate(followUp.dueAt),
-            <Badge key={`${followUp.id}-status`} text={followUp.status} />,
-            followUp.note,
-            followUp.status === "待跟进" ? (
-              <button key={`${followUp.id}-done`} disabled={mutationPending} onClick={() => void runMutation(() => actions.completeFollowUp(followUp.id))}>{mutationPending ? "处理中..." : "完成"}</button>
-            ) : (
-              "已完成"
-            ),
           ])}
         />
         </section>
