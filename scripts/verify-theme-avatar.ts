@@ -35,7 +35,7 @@ if (!userAvatarSource.includes("showImage = false")) {
   violations.push("UserAvatar must default to generic icon mode.");
 }
 
-if (!userAvatarSource.includes("if (showImage && avatarUrl)")) {
+if (!userAvatarSource.includes("const canShowImage = showImage && avatarUrl && failedAvatarUrl !== avatarUrl;")) {
   violations.push("UserAvatar must render uploaded images only when showImage is explicitly enabled.");
 }
 

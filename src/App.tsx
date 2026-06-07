@@ -862,6 +862,9 @@ function ManagementCenter({
   const displayRole = displayRoleName(session.user);
   const currentAuthUser = data.authUsers.find((user) => user.id === session.user.id);
   const currentAvatarUrl = currentAuthUser?.avatarUrl ?? session.user.avatarUrl;
+  const linkedStaff = currentAuthUser?.staffId ? data.staff.find((staff) => staff.id === currentAuthUser.staffId) : undefined;
+  const accountContact = session.user.account.includes("@") ? session.user.account.split("@")[0] : session.user.account;
+  const displayContact = linkedStaff?.phone ?? accountContact;
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopyStatus, setInviteCopyStatus] = useState<"idle" | "copied" | "selected">("idle");
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
@@ -963,7 +966,7 @@ function ManagementCenter({
         <div className="admin-profile-copy">
           <span className="admin-role-pill"><ShieldCheck size={14} /> {displayRole}</span>
           <h2>{displayName}</h2>
-          <p>{displayRole} · {session.user.account}</p>
+          <p>{displayRole} · {displayContact}</p>
         </div>
       </section>
 
