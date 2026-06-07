@@ -10,10 +10,11 @@ type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   size?: ModalSize;
+  className?: string;
   onClose: () => void;
 };
 
-export function Modal({ open, title, subtitle, children, footer, size = "medium", onClose }: ModalProps) {
+export function Modal({ open, title, subtitle, children, footer, size = "medium", className, onClose }: ModalProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -36,7 +37,7 @@ export function Modal({ open, title, subtitle, children, footer, size = "medium"
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         aria-modal="true"
-        className={`system-modal ${size}`}
+        className={["system-modal", size, className].filter(Boolean).join(" ")}
         role="dialog"
         aria-labelledby="system-modal-title"
         onMouseDown={(event) => event.stopPropagation()}

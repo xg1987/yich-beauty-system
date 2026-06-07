@@ -7009,8 +7009,6 @@ function Inventory({
   const [newInventoryProductCategory, setNewInventoryProductCategory] = useState("面护类");
   const [newInventoryProductSubcategory, setNewInventoryProductSubcategory] = useState("膏霜");
   const [newInventoryCategoryName, setNewInventoryCategoryName] = useState("");
-  const [newInventorySubcategoryName, setNewInventorySubcategoryName] = useState("");
-  const [inventoryCategoryJustAdded, setInventoryCategoryJustAdded] = useState("");
   const [showInventoryCategoryManager, setShowInventoryCategoryManager] = useState(false);
   const [newInventoryProductUnit, setNewInventoryProductUnit] = useState("件");
   const initialInventoryServiceDraft = { name: "", category: "面护类", subcategory: "膏霜", unit: "件" };
@@ -7030,7 +7028,6 @@ function Inventory({
   const [inventorySubcategoryFilter, setInventorySubcategoryFilter] = useState("全部");
   const inventoryCategoryNamesForForm = inventoryCategoryNames(data.products, inventoryCategoryPresets);
   const inventoryCategoryOptions = inventoryCategoryNamesForForm.map((category) => ({ value: category, label: category }));
-  const newInventorySubcategoryOptions = inventorySubcategoryNames(data.products, newInventoryProductCategory, inventoryCategoryPresets);
 
   const defaultExpiryForProduct = (nextProductId: string) => {
     const product = data.products.find((item) => item.id === nextProductId);
@@ -7053,15 +7050,12 @@ function Inventory({
   const openInventoryCategoryManager = () => {
     setInventoryCategoryMessage(undefined);
     setNewInventoryCategoryName("");
-    setNewInventorySubcategoryName("");
-    setInventoryCategoryJustAdded("");
     setShowInventoryCategoryManager(true);
   };
 
   const closeInventoryCategoryManager = () => {
     setShowInventoryCategoryManager(false);
     setInventoryCategoryMessage(undefined);
-    setInventoryCategoryJustAdded("");
   };
 
   const changeStock = (event: FormEvent) => {
@@ -7157,32 +7151,8 @@ function Inventory({
     ));
     setNewInventoryProductCategory(category);
     setNewInventoryProductSubcategory("");
-    setInventoryCategoryJustAdded(category);
     setNewInventoryCategoryName("");
-    setInventoryCategoryMessage({ type: "success", text: "大类已加入，可继续添加小类。" });
-  };
-
-  const addInventorySubcategory = () => {
-    const category = inventoryCategoryJustAdded.trim();
-    const subcategory = newInventorySubcategoryName.trim();
-    setInventoryCategoryMessage(undefined);
-    if (!category) {
-      setInventoryCategoryMessage({ type: "error", text: "请先添加大类" });
-      return;
-    }
-    if (!subcategory) {
-      setInventoryCategoryMessage({ type: "error", text: "请输入小类名称" });
-      return;
-    }
-    setInventoryCategoryPresets((current) => {
-      const currentSubcategories = current[category] ?? [];
-      if (currentSubcategories.includes(subcategory)) return current;
-      return { ...current, [category]: [...currentSubcategories, subcategory] };
-    });
-    setNewInventoryProductCategory(category);
-    setNewInventoryProductSubcategory(subcategory);
-    setNewInventorySubcategoryName("");
-    setInventoryCategoryMessage({ type: "success", text: "小类已加入，可继续添加小类。" });
+    setInventoryCategoryMessage({ type: "success", text: "大类已加入，可在新增商品里填写小类。" });
   };
 
   const addSupplier = (event: FormEvent) => {
@@ -7205,13 +7175,6 @@ function Inventory({
   const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
   const selectedLossProduct = data.products.find((item) => item.id === lossProductId);
   const recentLossLogs = data.inventoryLogs.filter((log) => log.type === "报损").slice(0, 8);
-
-  useEffect(() => {
-    const options = inventorySubcategoryNames(data.products, newInventoryProductCategory, inventoryCategoryPresets);
-    if (options?.length && !options.includes(newInventoryProductSubcategory)) {
-      setNewInventoryProductSubcategory(options[0]);
-    }
-  }, [data.products, inventoryCategoryPresets, newInventoryProductCategory, newInventoryProductSubcategory]);
 
   useEffect(() => {
     if (type === "入库") setStockExpiryAt(defaultExpiryForProduct(productId));
@@ -7445,21 +7408,16 @@ function Inventory({
                         value={newInventoryProductCategory}
                         onChange={(value) => {
                           setNewInventoryProductCategory(value);
-                          const nextSubcategory = inventorySubcategoryNames(data.products, value, inventoryCategoryPresets)[0] ?? "";
-                          setNewInventoryProductSubcategory(nextSubcategory);
-                          syncInventoryProductServiceDefaults({ category: value, subcategory: nextSubcategory });
+                          setNewInventoryProductSubcategory("");
+                          syncInventoryProductServiceDefaults({ category: value, subcategory: "" });
                         }}
                         options={inventoryCategoryOptions}
                       />
-                      <Select
-                        label="小类"
-                        value={newInventoryProductSubcategory}
-                        onChange={(value) => {
-                          setNewInventoryProductSubcategory(value);
-                          syncInventoryProductServiceDefaults({ subcategory: value });
-                        }}
-                        options={newInventorySubcategoryOptions.map((subcategory) => ({ value: subcategory, label: subcategory }))}
-                      />
+                      <label>小类<input value={newInventoryProductSubcategory} onChange={(event) => {
+                        const nextSubcategory = event.target.value;
+                        setNewInventoryProductSubcategory(nextSubcategory);
+                        syncInventoryProductServiceDefaults({ subcategory: nextSubcategory });
+                      }} placeholder="例如 肩颈" required /></label>
                       <label>单位<input value={newInventoryProductUnit} onChange={(event) => {
                         const nextUnit = event.target.value;
                         setNewInventoryProductUnit(nextUnit);
@@ -7713,7 +7671,8 @@ function Inventory({
       <Modal
         open={showInventoryCategoryManager}
         title="新增分类"
-        subtitle="商品大类和小类"
+        subtitle="商品大类"
+        className="inventory-category-modal"
         onClose={closeInventoryCategoryManager}
       >
         <section className="inventory-category-manager">
@@ -7722,16 +7681,6 @@ function Inventory({
               <label>新增大类<input value={newInventoryCategoryName} onChange={(event) => setNewInventoryCategoryName(event.target.value)} placeholder="例如 身体类" /></label>
               <button type="button" onClick={addInventoryCategory}>添加大类</button>
             </div>
-            {inventoryCategoryJustAdded && (
-              <div className="inventory-category-manager-form inventory-category-manager-subcategory-form">
-                <div className="inventory-category-target">
-                  <span>小类所属</span>
-                  <strong>{inventoryCategoryJustAdded}</strong>
-                </div>
-                <label>新增小类<input value={newInventorySubcategoryName} onChange={(event) => setNewInventorySubcategoryName(event.target.value)} placeholder="例如 肩颈" /></label>
-                <button type="button" onClick={addInventorySubcategory}>添加小类</button>
-              </div>
-            )}
           </div>
           {inventoryCategoryMessage && (
             <p className={inventoryCategoryMessage.type === "success" ? "form-success" : "form-error"}>
