@@ -85,6 +85,7 @@ const afterConsumableProduct = await request<AppData>(baseUrl, "/api/products", 
   body: { name: `验证服务耗材 ${runId}`, type: "consumable", category: "养生类", subcategory: "身体油", unit: "瓶", price: 88, cost: 36, stock: 12, warningStock: 4, shelfLifeMonths: 12, expiryAt: futureDay(120) },
 });
 const consumableProductId = afterConsumableProduct.products[0].id;
+assert.equal(afterConsumableProduct.products[0].serviceStockDeductible, true, "D1 should default intake products to stock deduction");
 
 const afterService = await request<AppData>(baseUrl, "/api/services", {
   method: "POST",

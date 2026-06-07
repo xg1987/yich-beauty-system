@@ -721,7 +721,7 @@ try {
   assert.deepEqual(afterCheckout.orders[0].productItems?.map((item) => [item.productId, item.quantity]), [["p4", 2]], "checkout API should persist sale item lines");
   assert.equal(afterCheckout.orders[0].giftProductId, "p2", "checkout API should persist gift product");
   assert.deepEqual(afterCheckout.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity]), [["p2", 2]], "checkout API should persist gift item lines");
-  assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 18, "checkout API should not consume liquid service stock");
+  assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 16, "checkout API should consume configured service product stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p2")?.stock, 10, "checkout API should consume gift stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 22, "checkout API should consume retail stock");
   const checkoutCommissions = afterCheckout.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id);
@@ -757,7 +757,7 @@ try {
   assert.ok(refundedOrder, "refunded order should still exist");
   assert.equal(refundedOrder.status, "已退款", "refund API should update order status");
   assert.equal(afterRefund.refunds[0].amount, 796, "refund API should write refund record");
-  assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 18, "refund API should leave display-only service stock unchanged");
+  assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 17, "refund API should restore this order's service product stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p2")?.stock, 12, "refund API should restore gift stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p4")?.stock, 24, "refund API should restore retail stock");
   assert.ok(afterRefund.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id).every((item) => item.status === "已冲销"), "refund API should reverse commission");
@@ -902,7 +902,7 @@ try {
     token: session.token,
     body: { productId: "p1", type: "入库", quantity: 2, note: "API 入库", expiryAt: "2027-08-01" },
   });
-  assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 20, "inventory API should increase stock");
+  assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 16, "inventory API should increase stock from current service-deducted stock");
   assert.equal(afterInventory.inventoryLogs[0].note, "API 入库", "inventory API should persist note");
   assert.equal(afterInventory.inventoryLogs[0].expiryAt, "2027-08-01", "inventory API should persist expiry date");
 
@@ -1027,14 +1027,15 @@ try {
   const afterLowStockProduct = await request<AppData>(baseUrl, "/api/products", {
     method: "POST",
     token: session.token,
-    body: { name: "API 低库存耗材", type: "consumable", category: "养生类", subcategory: "泥灸", stock: 1, warningStock: 5, unit: "盒", price: 30, cost: 12, shelfLifeMonths: 18, expiryAt: "2027-11-30", serviceStockDeductible: true, serviceUnit: "份", serviceUnitsPerStockUnit: 6 },
+    body: { name: "API 低库存耗材", type: "consumable", category: "养生类", subcategory: "精油", stock: 1, warningStock: 5, unit: "瓶", price: 30, cost: 12, shelfLifeMonths: 18, expiryAt: "2027-11-30", serviceUnit: "滴", serviceUnitsPerStockUnit: 20 },
   });
   const lowStockProductId = afterLowStockProduct.products[0].id;
   assert.equal(afterLowStockProduct.products[0].category, "养生类", "product API should persist category");
-  assert.equal(afterLowStockProduct.products[0].subcategory, "泥灸", "product API should persist subcategory");
+  assert.equal(afterLowStockProduct.products[0].subcategory, "精油", "product API should persist subcategory");
   assert.equal(afterLowStockProduct.products[0].expiryAt, "2027-11-30", "product API should persist first-batch expiry");
-  assert.equal(afterLowStockProduct.products[0].serviceUnit, "份", "product API should persist service unit");
-  assert.equal(afterLowStockProduct.products[0].serviceUnitsPerStockUnit, 6, "product API should persist package quantity");
+  assert.equal(afterLowStockProduct.products[0].serviceStockDeductible, true, "product API should default intake products to stock deduction");
+  assert.equal(afterLowStockProduct.products[0].serviceUnit, "滴", "product API should persist service unit");
+  assert.equal(afterLowStockProduct.products[0].serviceUnitsPerStockUnit, 20, "product API should persist package quantity");
   assert.equal(afterLowStockProduct.inventoryLogs[0].expiryAt, "2027-11-30", "product API should create first-batch inventory log with expiry");
   const afterRestock = await request<AppData>(baseUrl, "/api/inventory/restock-low", {
     method: "POST",

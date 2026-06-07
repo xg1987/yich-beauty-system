@@ -5,34 +5,8 @@ type ProductUsageFields = Pick<
   "name" | "category" | "subcategory" | "unit" | "serviceStockDeductible" | "serviceUsesPerUnit" | "serviceUnitsPerStockUnit" | "serviceUnit"
 >;
 
-const untrackedServiceProductKeywords = [
-  "精油",
-  "身体油",
-  "按摩油",
-  "精华",
-  "精华液",
-  "原液",
-  "乳",
-  "液",
-  "水",
-  "膏霜",
-  "面霜",
-  "乳霜",
-  "防晒",
-  "洁面",
-  "喷雾",
-  "凝胶",
-  "啫喱",
-];
-
-export function isUntrackedServiceProduct(product: Pick<ProductUsageFields, "name" | "category" | "subcategory" | "unit">) {
-  const text = [product.name, product.category, product.subcategory, product.unit].filter(Boolean).join(" ");
-  return untrackedServiceProductKeywords.some((keyword) => text.includes(keyword));
-}
-
-export function productServiceStockDeductible(product: ProductUsageFields) {
-  if (typeof product.serviceStockDeductible === "boolean") return product.serviceStockDeductible;
-  return !isUntrackedServiceProduct(product);
+export function productServiceStockDeductible(_product: ProductUsageFields) {
+  return true;
 }
 
 export function normalizeProductServiceUnitsPerStockUnit(value?: number) {

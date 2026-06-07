@@ -16685,6 +16685,31 @@ textarea,
   min-width: 0;
 }
 
+.inventory-deduction-fixed {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.inventory-deduction-fixed span {
+  color: #766f82;
+  font-size: 0.86rem;
+}
+
+.inventory-deduction-fixed strong {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(47, 191, 143, 0.24);
+  border-radius: 12px;
+  background: rgba(47, 191, 143, 0.1);
+  color: #12765c;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
 .form-submit-row {
   grid-column: 1 / -1;
   display: flex;

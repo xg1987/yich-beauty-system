@@ -108,10 +108,6 @@ const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
 const DEFAULT_DISCOUNT_CARD_NAME = "会员折扣卡";
 const cashPayMethodOptions = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((item) => ({ value: item, label: item }));
 const customerFollowUpTypeOptions = (["服务后回访", "下次护理提醒", "卡项会员提醒", "客户关系维护", "异常处理"] as CustomerFollowUpType[]).map((item) => ({ value: item, label: item }));
-const serviceDeductionModeOptions = [
-  { value: "deduct", label: "扣库存" },
-  { value: "display", label: "仅展示" },
-];
 const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
   面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
   养生类: ["泥灸", "私密", "套盒", "膏霜", "身体油", "泡脚汤", "艾灸"],
@@ -7017,7 +7013,6 @@ function Inventory({
   const [newInventorySubcategoryCategory, setNewInventorySubcategoryCategory] = useState("面护类");
   const [newInventoryProductUnit, setNewInventoryProductUnit] = useState("件");
   const initialInventoryServiceDraft = { name: "", category: "面护类", subcategory: "膏霜", unit: "件" };
-  const [newInventoryServiceStockDeductible, setNewInventoryServiceStockDeductible] = useState(productServiceStockDeductible(initialInventoryServiceDraft));
   const [newInventoryServiceUnit, setNewInventoryServiceUnit] = useState(productServiceUnit(initialInventoryServiceDraft));
   const [newInventoryServiceUnitsPerStockUnit, setNewInventoryServiceUnitsPerStockUnit] = useState(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
   const [newInventoryProductStock, setNewInventoryProductStock] = useState("");
@@ -7049,8 +7044,6 @@ function Inventory({
 
   const syncInventoryProductServiceDefaults = (input: { name?: string; category?: string; subcategory?: string; unit?: string }) => {
     const draft = inventoryProductServiceDraft(input);
-    const deductible = productServiceStockDeductible(draft);
-    setNewInventoryServiceStockDeductible(deductible);
     setNewInventoryServiceUnit(productServiceUnit(draft));
     setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(draft)));
   };
@@ -7108,9 +7101,9 @@ function Inventory({
         warningStock,
         shelfLifeMonths,
         expiryAt: newInventoryExpiryAt || undefined,
-        serviceStockDeductible: newInventoryServiceStockDeductible,
-        serviceUnit: newInventoryServiceStockDeductible ? newInventoryServiceUnit.trim() || undefined : undefined,
-        serviceUnitsPerStockUnit: newInventoryServiceStockDeductible ? serviceUnitsPerStockUnit : undefined,
+        serviceStockDeductible: true,
+        serviceUnit: newInventoryServiceUnit.trim() || undefined,
+        serviceUnitsPerStockUnit,
       }),
     )
       .then(() => {
@@ -7118,7 +7111,6 @@ function Inventory({
         setNewInventoryProductCategory("面护类");
         setNewInventoryProductSubcategory("膏霜");
         setNewInventoryProductUnit("件");
-        setNewInventoryServiceStockDeductible(productServiceStockDeductible(initialInventoryServiceDraft));
         setNewInventoryServiceUnit(productServiceUnit(initialInventoryServiceDraft));
         setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
         setNewInventoryProductStock("");
@@ -7412,7 +7404,7 @@ function Inventory({
                 <div className="catalog-inline-control inventory-inline-control">
                   <div>
                     <strong>新增商品</strong>
-                    <span>录入分类、库存、保质期和项目扣减方式</span>
+                    <span>录入分类、库存、保质期和包装扣减数量</span>
                   </div>
                   <div className="inventory-category-editor" aria-label="商品分类维护">
                     <label>新增大类<input value={newInventoryCategoryName} onChange={(event) => setNewInventoryCategoryName(event.target.value)} placeholder="例如 身体类" /></label>
@@ -7470,24 +7462,12 @@ function Inventory({
                         setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
                       }} /></label>
                       <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
-                      <Select
-                        label="项目扣减"
-                        value={newInventoryServiceStockDeductible ? "deduct" : "display"}
-                        onChange={(value) => {
-                          const deductible = value === "deduct";
-                          setNewInventoryServiceStockDeductible(deductible);
-                          if (deductible) {
-                            const draft = inventoryProductServiceDraft({});
-                            setNewInventoryServiceUnit(newInventoryServiceUnit.trim() || productServiceUnit(draft));
-                            setNewInventoryServiceUnitsPerStockUnit(
-                              String(normalizeProductServiceUnitsPerStockUnit(optionalNumberFromInput(newInventoryServiceUnitsPerStockUnit) ?? productServiceUnitsPerStockUnit(draft))),
-                            );
-                          }
-                        }}
-                        options={serviceDeductionModeOptions}
-                      />
-                      <label>{`每${newInventoryProductUnit || "件"}数量`}<input type="number" min={1} disabled={!newInventoryServiceStockDeductible} value={newInventoryServiceUnitsPerStockUnit} onChange={(event) => setNewInventoryServiceUnitsPerStockUnit(event.target.value)} /></label>
-                      <label>消耗单位<input disabled={!newInventoryServiceStockDeductible} value={newInventoryServiceUnit} onChange={(event) => setNewInventoryServiceUnit(event.target.value)} /></label>
+                      <div className="inventory-deduction-fixed">
+                        <span>项目扣减</span>
+                        <strong>扣库存</strong>
+                      </div>
+                      <label>{`每${newInventoryProductUnit || "件"}数量`}<input type="number" min={1} value={newInventoryServiceUnitsPerStockUnit} onChange={(event) => setNewInventoryServiceUnitsPerStockUnit(event.target.value)} /></label>
+                      <label>消耗单位<input value={newInventoryServiceUnit} onChange={(event) => setNewInventoryServiceUnit(event.target.value)} /></label>
                       <div className="form-submit-row">
                         <SubmitStatusButton idleText="保存商品" busyText="保存中..." />
                       </div>
