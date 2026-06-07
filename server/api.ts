@@ -1135,9 +1135,10 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 新增服务项目 ${requiredString(body, "name")}`,
         }, (data) => {
           const storeId = sessionStoreId(data, session);
-          consumables.forEach((item) => {
+          const stockConsumables = consumables.filter((item) => {
             const product = data.products.find((candidate) => candidate.id === item.productId);
             if (!product) throw new Error("商品不存在");
+            return productServiceStockDeductible(product);
           });
           return {
             ...data,
@@ -1150,9 +1151,9 @@ export function createApiServer(database = new BeautyDatabase()) {
                 price: requiredNumber(body, "price"),
                 duration: optionalNumber(body, "duration") ?? 60,
                 defaultTimes: optionalNumber(body, "defaultTimes") ?? 1,
-                consumables,
-                consumableProductId: consumables[0]?.productId ?? optionalString(body, "consumableProductId"),
-                consumableQty: consumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
+                consumables: stockConsumables,
+                consumableProductId: stockConsumables[0]?.productId ?? optionalString(body, "consumableProductId"),
+                consumableQty: stockConsumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
               },
               ...data.services,
             ],
@@ -1174,9 +1175,10 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 更新项目使用产品`,
         }, (data) => {
           if (!data.services.some((service) => service.id === serviceId)) throw new Error("服务项目不存在");
-          consumables.forEach((item) => {
+          const stockConsumables = consumables.filter((item) => {
             const product = data.products.find((candidate) => candidate.id === item.productId);
             if (!product) throw new Error("商品不存在");
+            return productServiceStockDeductible(product);
           });
           return {
             ...data,
@@ -1184,9 +1186,9 @@ export function createApiServer(database = new BeautyDatabase()) {
               service.id === serviceId
                 ? {
                     ...service,
-                    consumables,
-                    consumableProductId: consumables[0]?.productId,
-                    consumableQty: consumables[0]?.quantity,
+                    consumables: stockConsumables,
+                    consumableProductId: stockConsumables[0]?.productId,
+                    consumableQty: stockConsumables[0]?.quantity,
                   }
                 : service,
             ),

@@ -16633,6 +16633,49 @@ textarea,
   align-items: end;
 }
 
+.theme-day .system-modal .catalog-inline-form label,
+.theme-night .system-modal .catalog-inline-form label,
+.theme-day .system-modal .catalog-inline-form .field,
+.theme-night .system-modal .catalog-inline-form .field,
+.theme-day .system-modal .catalog-product-search,
+.theme-night .system-modal .catalog-product-search {
+  color: #51456f;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.theme-day .system-modal .catalog-inline-form input,
+.theme-day .system-modal .catalog-inline-form select,
+.theme-day .system-modal .catalog-inline-form textarea,
+.theme-night .system-modal .catalog-inline-form input,
+.theme-night .system-modal .catalog-inline-form select,
+.theme-night .system-modal .catalog-inline-form textarea {
+  border-color: rgba(111, 66, 193, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  color: #241b55;
+  font-size: 14px;
+  font-weight: 760;
+  opacity: 1;
+}
+
+.theme-day .system-modal .catalog-inline-form input::placeholder,
+.theme-day .system-modal .catalog-inline-form textarea::placeholder,
+.theme-night .system-modal .catalog-inline-form input::placeholder,
+.theme-night .system-modal .catalog-inline-form textarea::placeholder {
+  color: rgba(47, 37, 95, 0.48);
+  font-weight: 700;
+}
+
+.theme-day .system-modal .catalog-inline-form input:focus,
+.theme-day .system-modal .catalog-inline-form select:focus,
+.theme-day .system-modal .catalog-inline-form textarea:focus,
+.theme-night .system-modal .catalog-inline-form input:focus,
+.theme-night .system-modal .catalog-inline-form select:focus,
+.theme-night .system-modal .catalog-inline-form textarea:focus {
+  border-color: rgba(111, 66, 193, 0.72);
+  box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.14);
+}
+
 .inventory-product-form {
   display: grid;
   grid-template-columns: 1fr;
@@ -16721,7 +16764,7 @@ textarea,
 }
 
 .inventory-product-form-main {
-  grid-template-columns: minmax(220px, 1.8fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(90px, 0.72fr);
+  grid-template-columns: minmax(220px, 1.8fr) minmax(140px, 1fr) minmax(140px, 1fr);
 }
 
 .inventory-product-form-stock {

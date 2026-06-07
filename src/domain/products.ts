@@ -5,8 +5,13 @@ type ProductUsageFields = Pick<
   "name" | "category" | "subcategory" | "unit" | "serviceStockDeductible" | "serviceUsesPerUnit" | "serviceUnitsPerStockUnit" | "serviceUnit"
 >;
 
-export function productServiceStockDeductible(_product: ProductUsageFields) {
-  return true;
+export function isLiquidProduct(product: Pick<ProductUsageFields, "name" | "category" | "subcategory" | "unit">) {
+  const text = [product.name, product.category, product.subcategory, product.unit].filter(Boolean).join(" ");
+  return /(精华|精油|按摩油|身体油|爽肤水|化妆水|乳液|喷雾|液|油)/.test(text);
+}
+
+export function productServiceStockDeductible(product: ProductUsageFields) {
+  return !isLiquidProduct(product);
 }
 
 export function normalizeProductServiceUnitsPerStockUnit(value?: number) {
@@ -57,7 +62,7 @@ export function normalizeProductServiceFields<T extends ProductUsageFields>(prod
 }
 
 export function productServiceDeductionLabel(product: ProductUsageFields) {
-  if (!productServiceStockDeductible(product)) return "仅展示";
+  if (!productServiceStockDeductible(product)) return "不计项目";
   return `扣库存 · ${productServiceUnitsPerStockUnit(product)}${productServiceUnit(product)}/${product.unit || "件"}`;
 }
 
