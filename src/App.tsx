@@ -3442,6 +3442,11 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     setCancelReason(appointment.cancelReason ?? "客户临时取消");
   };
 
+  const closeAppointmentAction = () => {
+    setActiveAppointmentAction(undefined);
+    setActiveAppointmentId("");
+  };
+
   const submitReschedule = (event: FormEvent) => {
     event.preventDefault();
     const appointmentId = activeAppointmentId;
@@ -3455,8 +3460,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         note: rescheduleNote,
       }),
     ).then(() => {
-      setActiveAppointmentAction(undefined);
-      setActiveAppointmentId("");
+      closeAppointmentAction();
+      setView("appointments");
     });
   };
 
@@ -3464,8 +3469,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     event.preventDefault();
     const appointmentId = activeAppointmentId;
     void runMutation(() => actions.updateAppointmentStatus(appointmentId, "已取消", cancelReason)).then(() => {
-      setActiveAppointmentAction(undefined);
-      setActiveAppointmentId("");
+      closeAppointmentAction();
     });
   };
 
@@ -3990,7 +3994,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         title="改约"
         subtitle={activeAppointment ? `${nameOf(data.customers, activeAppointment.customerId)} · ${appointmentTimeRange(data, activeAppointment)}` : "调整预约时间和房间"}
         size="large"
-        onClose={() => setActiveAppointmentAction(undefined)}
+        onClose={closeAppointmentAction}
       >
         <form className="form appointment-action-form" onSubmit={submitReschedule}>
           <Select label="服务员工" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先新增员工" }]} />
@@ -4012,7 +4016,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
           </label>
           <div className="row-actions">
             <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={!rescheduleStaffId || !rescheduleServiceId || !rescheduleRoomName} />
-            <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>取消</button>
+            <button type="button" onClick={closeAppointmentAction}>取消</button>
           </div>
         </form>
       </Modal>
@@ -4020,7 +4024,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         open={activeAppointmentAction === "cancel"}
         title="取消预约"
         subtitle={activeAppointment ? `${nameOf(data.customers, activeAppointment.customerId)} · ${appointmentTimeRange(data, activeAppointment)}` : "取消预约必须填写原因"}
-        onClose={() => setActiveAppointmentAction(undefined)}
+        onClose={closeAppointmentAction}
       >
         <form className="form appointment-action-form" onSubmit={submitCancel}>
           <label>
@@ -4029,7 +4033,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
           </label>
           <div className="row-actions">
             <SubmitStatusButton idleText="确认取消" busyText="处理中..." disabled={!cancelReason.trim()} />
-            <button type="button" onClick={() => setActiveAppointmentAction(undefined)}>返回</button>
+            <button type="button" onClick={closeAppointmentAction}>返回</button>
           </div>
         </form>
       </Modal>
