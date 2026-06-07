@@ -6409,7 +6409,9 @@ function Catalog({
           <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
           <label>可用次数<input type="number" min={1} value={serviceDefaultTimes} onChange={(event) => setServiceDefaultTimes(Number(event.target.value))} /></label>
           {serviceProductPicker}
-          <SubmitStatusButton idleText="保存项目" busyText="保存中..." />
+          <div className="form-submit-row">
+            <SubmitStatusButton idleText="保存项目" busyText="保存中..." />
+          </div>
         </form>
         </section>
         )}
@@ -6464,7 +6466,9 @@ function Catalog({
               <label>服务时长<input type="number" value={serviceDuration} onChange={(event) => setServiceDuration(Number(event.target.value))} /></label>
               <label>可用次数<input type="number" min={1} value={serviceDefaultTimes} onChange={(event) => setServiceDefaultTimes(Number(event.target.value))} /></label>
               {serviceProductPicker}
-              <SubmitStatusButton idleText="保存项目" busyText="保存中..." />
+              <div className="form-submit-row">
+                <SubmitStatusButton idleText="保存项目" busyText="保存中..." />
+              </div>
             </form>
           </div>
           )}
