@@ -5820,7 +5820,6 @@ function Customers({
                   <section className="customer-info-card">
                     <div className="customer-section-title">
                       <strong>项目卡</strong>
-                      <button type="button" onClick={renewSelectedCustomer}>续费</button>
                     </div>
                     <div className="customer-card-stack">
                       {selectedCustomerCards.slice(0, 3).map((card) => (
