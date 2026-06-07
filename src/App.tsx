@@ -3382,6 +3382,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [roomName, setRoomName] = useState(roomNames[0] ?? "");
   const [rescheduleRoomName, setRescheduleRoomName] = useState(roomNames[0] ?? "");
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
+  const [showRoomStatus, setShowRoomStatus] = useState(false);
   const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
 
   useEffect(() => {
@@ -3590,6 +3591,9 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     };
   });
   const firstAvailableRoom = roomAvailabilityOptions.find((option) => !option.disabled)?.value ?? "";
+  const availableRoomNames = roomNames.filter((name) => !maintenanceRoomNames.has(name) && !roomUsage.roomAssignments.some((assignment) => assignment.roomName === name));
+  const occupiedRoomAssignments = roomUsage.roomAssignments.filter(({ roomName }) => !maintenanceRoomNames.has(roomName));
+  const maintenanceRoomList = roomNames.filter((name) => maintenanceRoomNames.has(name));
   useEffect(() => {
     const selectedRoom = roomAvailabilityOptions.find((option) => option.value === roomName);
     if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
@@ -3675,6 +3679,12 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         eyebrow="预约管理"
         title="预约管理"
         desc="处理确认、到店、收银和房间安排。"
+        stats={[
+          { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "今日服务安排", icon: <CalendarDays size={18} /> },
+          { label: "待确认", value: `${pendingConfirmAppointments.length} 单`, hint: "需要先确认", icon: <ClipboardList size={18} /> },
+          { label: "待到店", value: `${pendingArrivalAppointments.length} 单`, hint: "等待客户到店", icon: <UserRound size={18} /> },
+          { label: "线上申请", value: `${pendingOnlineRequests.length} 单`, hint: "待转门店预约", icon: <Share2 size={18} /> },
+        ]}
       />
       <div className="module-detail-stack">
         <section className="panel appointment-workbench-panel">
@@ -3700,6 +3710,10 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             <button type="button" className="appointment-room-add-button" onClick={() => setShowAppointmentForm(true)}>
               <CalendarDays size={18} />
               新增预约
+            </button>
+            <button type="button" className="appointment-room-status-button" onClick={() => setShowRoomStatus(true)}>
+              <Building2 size={18} />
+              查看房态
             </button>
           </div>
           <div className="appointment-workbench-metrics">
@@ -3768,14 +3782,15 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             )}
           </div>
         </section>
-        <section className="panel appointment-room-panel">
-          <div className="appointment-room-board-head">
-            <div>
-              <span><Building2 size={18} /> 房间资源看板</span>
-              <strong>{roomUsage.remainingRoomSlots} 间可预约</strong>
-              <small>辅助查看今日房间占用，预约处理请看上方处理台。</small>
-            </div>
-          </div>
+      </div>
+      <Modal
+        open={showRoomStatus}
+        title="今日房态"
+        subtitle="查看今日可预约、已占用和维护中的房间"
+        size="large"
+        onClose={() => setShowRoomStatus(false)}
+      >
+        <div className="appointment-room-status-modal">
           <div className="appointment-room-summary">
             <div>
               <span>可用房间</span>
@@ -3798,37 +3813,60 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <small>不可预约</small>
             </div>
           </div>
-          <div className="appointment-room-list-head">
-            <strong>房间列表（共 {roomNames.length} 间）</strong>
-            <small>房间数量来自管理中心的房间设置</small>
+          <div className="appointment-room-status-groups">
+            <section>
+              <div className="appointment-room-list-head">
+                <strong>可预约</strong>
+                <small>{availableRoomNames.length} 间</small>
+              </div>
+              <div className="appointment-room-chip-list">
+                {availableRoomNames.length ? availableRoomNames.map((name) => <span className="available" key={name}>{name}</span>) : <em>暂无可预约房间</em>}
+              </div>
+            </section>
+            <section>
+              <div className="appointment-room-list-head">
+                <strong>已占用</strong>
+                <small>{occupiedRoomAssignments.length} 间</small>
+              </div>
+              <div className="appointment-room-chip-list">
+                {occupiedRoomAssignments.length ? occupiedRoomAssignments.map(({ roomName, appointment }) => (
+                  <span className="occupied" key={`${roomName}-${appointment.id}`}>{roomName} · {shortTime(appointment.startAt)}</span>
+                )) : <em>暂无占用房间</em>}
+              </div>
+            </section>
+            <section>
+              <div className="appointment-room-list-head">
+                <strong>维护中</strong>
+                <small>{maintenanceRoomList.length} 间</small>
+              </div>
+              <div className="appointment-room-chip-list">
+                {maintenanceRoomList.length ? maintenanceRoomList.map((name) => <span className="maintenance" key={name}>{name}</span>) : <em>暂无维护房间</em>}
+              </div>
+            </section>
           </div>
-          <div className="appointment-room-state-scroll">
-            <div className="appointment-room-state-grid">
-              {roomNames.map((name, index) => {
-                const assignment = roomUsage.roomAssignments.find((item) => item.roomName === name)?.appointment;
-                const isMaintenance = maintenanceRoomNames.has(name);
-                const statusText = isMaintenance ? "维护中" : assignment ? "已占用" : "空闲";
-                const statusHint = isMaintenance
-                  ? "暂不可预约"
-                  : assignment
-                    ? `${nameOf(data.customers, assignment.customerId)} · ${shortDate(assignment.startAt)}`
-                    : "今日暂无预约";
-                return (
-                  <article className={`appointment-room-state-card ${isMaintenance ? "maintenance" : assignment ? "occupied" : "available"}`} key={`${name}-${index}`}>
-                    <span className="room-card-index appointment-room-card-index">
-                      <DoorOpen size={16} />
-                      <em>{index + 1}</em>
-                    </span>
-                    <b>{statusText}</b>
-                    <strong>{name}</strong>
-                    <small>{statusHint}</small>
-                  </article>
-                );
-              })}
+          <div className="appointment-room-status-detail">
+            <div className="appointment-room-list-head">
+              <strong>占用明细</strong>
+              <small>今日预约房间安排</small>
             </div>
+            <DataTable
+              columns={["房间", "时间", "客户", "项目", "状态"]}
+              rows={occupiedRoomAssignments.map(({ roomName, appointment }) => [
+                roomName,
+                appointmentTimeRange(data, appointment),
+                nameOf(data.customers, appointment.customerId),
+                nameOf(data.services, appointment.serviceId),
+                <Badge key={`${appointment.id}-room-status`} text={appointment.status} tone={appointmentBadgeTone(appointment.status)} />,
+              ])}
+            />
           </div>
-        </section>
-      </div>
+          <div className="appointment-room-status-actions">
+            <button type="button" onClick={() => { setShowRoomStatus(false); setView("roomSettings"); }}>
+              房间管理
+            </button>
+          </div>
+        </div>
+      </Modal>
       <Modal
         open={showAppointmentForm}
         title="新增预约"
