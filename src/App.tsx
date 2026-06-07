@@ -7010,7 +7010,7 @@ function Inventory({
   const [newInventoryProductSubcategory, setNewInventoryProductSubcategory] = useState("膏霜");
   const [newInventoryCategoryName, setNewInventoryCategoryName] = useState("");
   const [newInventorySubcategoryName, setNewInventorySubcategoryName] = useState("");
-  const [newInventorySubcategoryCategory, setNewInventorySubcategoryCategory] = useState("面护类");
+  const [inventoryCategoryJustAdded, setInventoryCategoryJustAdded] = useState("");
   const [showInventoryCategoryManager, setShowInventoryCategoryManager] = useState(false);
   const [newInventoryProductUnit, setNewInventoryProductUnit] = useState("件");
   const initialInventoryServiceDraft = { name: "", category: "面护类", subcategory: "膏霜", unit: "件" };
@@ -7048,6 +7048,20 @@ function Inventory({
     const draft = inventoryProductServiceDraft(input);
     setNewInventoryServiceUnit(productServiceUnit(draft));
     setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(draft)));
+  };
+
+  const openInventoryCategoryManager = () => {
+    setInventoryCategoryMessage(undefined);
+    setNewInventoryCategoryName("");
+    setNewInventorySubcategoryName("");
+    setInventoryCategoryJustAdded("");
+    setShowInventoryCategoryManager(true);
+  };
+
+  const closeInventoryCategoryManager = () => {
+    setShowInventoryCategoryManager(false);
+    setInventoryCategoryMessage(undefined);
+    setInventoryCategoryJustAdded("");
   };
 
   const changeStock = (event: FormEvent) => {
@@ -7134,22 +7148,26 @@ function Inventory({
       setInventoryCategoryMessage({ type: "error", text: "请输入大类名称" });
       return;
     }
+    if (inventoryCategoryNamesForForm.includes(category)) {
+      setInventoryCategoryMessage({ type: "error", text: "大类已存在，请输入新的大类" });
+      return;
+    }
     setInventoryCategoryPresets((current) => (
       current[category] ? current : { ...current, [category]: [] }
     ));
     setNewInventoryProductCategory(category);
     setNewInventoryProductSubcategory("");
-    setNewInventorySubcategoryCategory(category);
+    setInventoryCategoryJustAdded(category);
     setNewInventoryCategoryName("");
     setInventoryCategoryMessage({ type: "success", text: "大类已加入，可继续添加小类。" });
   };
 
   const addInventorySubcategory = () => {
-    const category = newInventorySubcategoryCategory.trim();
+    const category = inventoryCategoryJustAdded.trim();
     const subcategory = newInventorySubcategoryName.trim();
     setInventoryCategoryMessage(undefined);
     if (!category) {
-      setInventoryCategoryMessage({ type: "error", text: "请先选择或新增大类" });
+      setInventoryCategoryMessage({ type: "error", text: "请先添加大类" });
       return;
     }
     if (!subcategory) {
@@ -7164,7 +7182,7 @@ function Inventory({
     setNewInventoryProductCategory(category);
     setNewInventoryProductSubcategory(subcategory);
     setNewInventorySubcategoryName("");
-    setInventoryCategoryMessage({ type: "success", text: "小类已加入，可直接保存商品。" });
+    setInventoryCategoryMessage({ type: "success", text: "小类已加入，可继续添加小类。" });
   };
 
   const addSupplier = (event: FormEvent) => {
@@ -7405,14 +7423,16 @@ function Inventory({
                 <section className="panel">
                 <PanelTitle icon={<PackagePlus size={18} />} title="商品入库" action="新增商品" />
                 <div className="catalog-inline-control inventory-inline-control">
-                  <div>
-                    <strong>新增商品</strong>
-                    <span>录入分类、库存、保质期和包装扣减数量</span>
+                  <div className="inventory-inline-header">
+                    <div className="inventory-inline-title">
+                      <strong>新增商品</strong>
+                      <span>录入分类、库存、保质期和包装扣减数量</span>
+                    </div>
+                    <button className="inventory-category-manage-button" type="button" onClick={openInventoryCategoryManager}>
+                      <Settings size={16} />
+                      管理分类
+                    </button>
                   </div>
-                  <button className="inventory-category-manage-button" type="button" onClick={() => setShowInventoryCategoryManager(true)}>
-                    <Settings size={16} />
-                    管理分类
-                  </button>
                   <form className="form catalog-inline-form inventory-product-form" onSubmit={addInventoryProduct}>
                     <div className="inventory-product-form-row inventory-product-form-main">
                       <label>物品名称<input value={newInventoryProductName} onChange={(event) => {
@@ -7425,7 +7445,6 @@ function Inventory({
                         value={newInventoryProductCategory}
                         onChange={(value) => {
                           setNewInventoryProductCategory(value);
-                          setNewInventorySubcategoryCategory(value);
                           const nextSubcategory = inventorySubcategoryNames(data.products, value, inventoryCategoryPresets)[0] ?? "";
                           setNewInventoryProductSubcategory(nextSubcategory);
                           syncInventoryProductServiceDefaults({ category: value, subcategory: nextSubcategory });
@@ -7693,38 +7712,26 @@ function Inventory({
       </Modal>
       <Modal
         open={showInventoryCategoryManager}
-        title="分类管理"
+        title="新增分类"
         subtitle="商品大类和小类"
-        onClose={() => setShowInventoryCategoryManager(false)}
+        onClose={closeInventoryCategoryManager}
       >
         <section className="inventory-category-manager">
-          <div className="inventory-category-overview" aria-label="已有商品分类">
-            {inventoryCategoryNamesForForm.map((category) => (
-              <div key={category}>
-                <strong>{category}</strong>
-                <span>
-                  {inventorySubcategoryNames(data.products, category, inventoryCategoryPresets).map((subcategory) => (
-                    <em key={subcategory}>{subcategory}</em>
-                  ))}
-                </span>
-              </div>
-            ))}
-          </div>
           <div className="inventory-category-manager-forms">
-            <div className="inventory-category-manager-form inventory-category-manager-subcategory-form">
+            <div className="inventory-category-manager-form">
               <label>新增大类<input value={newInventoryCategoryName} onChange={(event) => setNewInventoryCategoryName(event.target.value)} placeholder="例如 身体类" /></label>
               <button type="button" onClick={addInventoryCategory}>添加大类</button>
             </div>
-            <div className="inventory-category-manager-form">
-              <Select
-                label="小类所属"
-                value={newInventorySubcategoryCategory}
-                onChange={setNewInventorySubcategoryCategory}
-                options={inventoryCategoryOptions}
-              />
-              <label>新增小类<input value={newInventorySubcategoryName} onChange={(event) => setNewInventorySubcategoryName(event.target.value)} placeholder="例如 肩颈" /></label>
-              <button type="button" onClick={addInventorySubcategory}>添加小类</button>
-            </div>
+            {inventoryCategoryJustAdded && (
+              <div className="inventory-category-manager-form inventory-category-manager-subcategory-form">
+                <div className="inventory-category-target">
+                  <span>小类所属</span>
+                  <strong>{inventoryCategoryJustAdded}</strong>
+                </div>
+                <label>新增小类<input value={newInventorySubcategoryName} onChange={(event) => setNewInventorySubcategoryName(event.target.value)} placeholder="例如 肩颈" /></label>
+                <button type="button" onClick={addInventorySubcategory}>添加小类</button>
+              </div>
+            )}
           </div>
           {inventoryCategoryMessage && (
             <p className={inventoryCategoryMessage.type === "success" ? "form-success" : "form-error"}>

@@ -16618,6 +16618,16 @@ textarea,
   line-height: 1.45;
 }
 
+.catalog-inline-control > div.inventory-inline-header {
+  align-items: center;
+}
+
+.inventory-inline-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .catalog-inline-form {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
@@ -16657,48 +16667,6 @@ textarea,
   gap: 16px;
 }
 
-.inventory-category-overview {
-  display: grid;
-  gap: 10px;
-  max-height: 220px;
-  overflow: auto;
-  padding: 12px;
-  border: 1px solid rgba(111, 66, 193, 0.12);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.66);
-}
-
-.inventory-category-overview > div {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid rgba(111, 66, 193, 0.1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.inventory-category-overview strong {
-  color: #2f255f;
-  font-size: 15px;
-  font-weight: 950;
-}
-
-.inventory-category-overview span {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.inventory-category-overview em {
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: rgba(111, 66, 193, 0.08);
-  color: #5b2ca8;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 850;
-}
-
 .inventory-category-manager-forms {
   display: grid;
   gap: 12px;
@@ -16717,6 +16685,31 @@ textarea,
 
 .inventory-category-manager-subcategory-form {
   grid-template-columns: minmax(136px, 0.68fr) minmax(0, 1fr) auto;
+}
+
+.inventory-category-target {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.inventory-category-target span {
+  color: rgba(47, 37, 95, 0.6);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.inventory-category-target strong {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #2f255f;
+  font-size: 15px;
+  font-weight: 950;
 }
 
 .inventory-category-manager-form label,
@@ -17256,6 +17249,12 @@ textarea,
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .catalog-inline-control > div.inventory-inline-header {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
   }
 
   .catalog-inline-form {
