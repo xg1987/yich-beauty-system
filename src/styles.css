@@ -7136,6 +7136,7 @@ textarea,
 
 .customer-directory-panel,
 .customer-detail-panel {
+  box-sizing: border-box;
   border: 1px solid rgba(111, 66, 193, 0.18);
   border-radius: 24px;
   background:
@@ -7159,8 +7160,14 @@ textarea,
 
 .customer-detail-panel {
   min-width: 0;
-  min-height: var(--customer-panel-height);
+  height: var(--customer-panel-height);
+  max-height: var(--customer-panel-height);
+  min-height: 0;
   padding: 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .customer-directory-head,
@@ -7801,7 +7808,10 @@ textarea,
   }
 
   .customer-detail-panel {
+    height: auto;
+    max-height: none;
     min-height: 0;
+    overflow: visible;
   }
 
   .customer-directory-head {
