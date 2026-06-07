@@ -721,7 +721,7 @@ try {
   assert.deepEqual(afterCheckout.orders[0].productItems?.map((item) => [item.productId, item.quantity]), [["p4", 2]], "checkout API should persist sale item lines");
   assert.equal(afterCheckout.orders[0].giftProductId, "p2", "checkout API should persist gift product");
   assert.deepEqual(afterCheckout.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity]), [["p2", 2]], "checkout API should persist gift item lines");
-  assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 16, "checkout API should consume service stock");
+  assert.equal(afterCheckout.products.find((item) => item.id === "p1")?.stock, 18, "checkout API should not consume liquid service stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p2")?.stock, 10, "checkout API should consume gift stock");
   assert.equal(afterCheckout.products.find((item) => item.id === "p4")?.stock, 22, "checkout API should consume retail stock");
   const checkoutCommissions = afterCheckout.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id);
@@ -757,7 +757,7 @@ try {
   assert.ok(refundedOrder, "refunded order should still exist");
   assert.equal(refundedOrder.status, "已退款", "refund API should update order status");
   assert.equal(afterRefund.refunds[0].amount, 796, "refund API should write refund record");
-  assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 17, "refund API should restore service stock");
+  assert.equal(afterRefund.products.find((item) => item.id === "p1")?.stock, 18, "refund API should leave display-only service stock unchanged");
   assert.equal(afterRefund.products.find((item) => item.id === "p2")?.stock, 12, "refund API should restore gift stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p4")?.stock, 24, "refund API should restore retail stock");
   assert.ok(afterRefund.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id).every((item) => item.status === "已冲销"), "refund API should reverse commission");
@@ -902,7 +902,7 @@ try {
     token: session.token,
     body: { productId: "p1", type: "入库", quantity: 2, note: "API 入库", expiryAt: "2027-08-01" },
   });
-  assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 16, "inventory API should increase stock");
+  assert.equal(afterInventory.products.find((item) => item.id === "p1")?.stock, 20, "inventory API should increase stock");
   assert.equal(afterInventory.inventoryLogs[0].note, "API 入库", "inventory API should persist note");
   assert.equal(afterInventory.inventoryLogs[0].expiryAt, "2027-08-01", "inventory API should persist expiry date");
 

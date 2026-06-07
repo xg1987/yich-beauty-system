@@ -336,7 +336,7 @@ assert.deepEqual(afterCheckout.orders[0].productItems?.map((item) => [item.produ
 assert.deepEqual(afterCheckout.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity]), [[consumableProductId, 1]], "D1 checkout should persist gift item lines");
 assert.equal(afterCheckout.appointments.find((item) => item.id === appointmentId)?.status, "已完成", "D1 appointment checkout should complete appointment");
 assert.equal(afterCheckout.products.find((item) => item.id === productId)?.stock, 22, "D1 checkout should consume retail stock");
-assert.equal(afterCheckout.products.find((item) => item.id === consumableProductId)?.stock, 10, "D1 checkout should consume service and gift stock");
+assert.equal(afterCheckout.products.find((item) => item.id === consumableProductId)?.stock, 11, "D1 checkout should only consume direct gift stock for liquid service products");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "checkout should create commission in D1");
 assert.equal(afterCheckout.commissions.find((item) => item.orderId === orderId)?.rate, 0.1, "D1 should persist staff commission rate");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "服务提成"), "D1 should create service commission");

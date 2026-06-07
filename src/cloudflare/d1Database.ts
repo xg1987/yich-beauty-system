@@ -1,5 +1,6 @@
 import { seedData } from "../domain/seed";
 import { normalizeSystemConfigs } from "../domain/business";
+import { normalizeProductServiceFields, productServiceStockDeductible, productServiceUsesPerUnit } from "../domain/products";
 import type {
   AppData,
   ApprovalRequest,
@@ -244,7 +245,7 @@ export class D1BeautyDatabase {
 
     for (const product of data.products) {
       statements.push(
-        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceUsesPerUnit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           product.id,
           product.storeId ?? null,
           product.name,
@@ -258,6 +259,8 @@ export class D1BeautyDatabase {
           product.warningStock,
           product.shelfLifeMonths ?? null,
           product.expiryAt ?? null,
+          productServiceStockDeductible(product) ? 1 : 0,
+          productServiceStockDeductible(product) ? productServiceUsesPerUnit(product) : null,
         ]),
       );
     }
@@ -556,15 +559,19 @@ function mapService(row: unknown): Service {
 }
 
 function mapProduct(row: unknown): Product {
-  const value = row as Product;
-  return {
+  const value = row as Product & { serviceStockDeductible?: boolean | number | null; serviceUsesPerUnit?: number | null };
+  return normalizeProductServiceFields({
     ...value,
     storeId: value.storeId ?? undefined,
     category: value.category ?? undefined,
     subcategory: value.subcategory ?? undefined,
     shelfLifeMonths: value.shelfLifeMonths ?? undefined,
     expiryAt: value.expiryAt ?? undefined,
-  };
+    serviceStockDeductible: value.serviceStockDeductible === undefined || value.serviceStockDeductible === null
+      ? undefined
+      : Boolean(value.serviceStockDeductible),
+    serviceUsesPerUnit: value.serviceUsesPerUnit ?? undefined,
+  });
 }
 
 function mapAppointment(row: unknown): Appointment {

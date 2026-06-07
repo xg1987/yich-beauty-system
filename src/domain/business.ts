@@ -47,6 +47,7 @@ import type {
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { appointmentEndAt, assignAppointmentRooms } from "./appointments";
+import { normalizeProductServiceFields, productServiceStockDeductible, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 import { makeId, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
@@ -129,7 +130,7 @@ export function normalizeStoreScopedData(data: AppData): AppData {
   );
   const customers = data.customers.map((item) => withStore(item));
   const services = data.services.map((item) => withStore(item));
-  const products = data.products.map((item) => withStore(item));
+  const products = data.products.map((item) => normalizeProductServiceFields(withStore(item)));
   const memberCards = data.memberCards.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId)));
   const orders = data.orders.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId)));
   const appointments = data.appointments.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId)));
@@ -978,19 +979,31 @@ export function updateTagDefinition(data: AppData, input: TagDefinitionUpdateInp
   };
 }
 
-function serviceConsumables(service: Service): ServiceConsumable[] {
-  const consumables = service.consumables?.filter((item) => item.productId && item.quantity > 0) ?? [];
+function serviceUsedProducts(service: Service): ServiceConsumable[] {
+  const consumables = service.consumables?.filter((item) => item.productId) ?? [];
   if (consumables.length > 0) return consumables;
-  if (service.consumableProductId && (service.consumableQty ?? 0) > 0) {
+  if (service.consumableProductId) {
     return [{ productId: service.consumableProductId, quantity: service.consumableQty ?? 0 }];
   }
   return [];
 }
 
+function serviceInventoryConsumables(data: AppData, service: Service): ServiceConsumable[] {
+  const merged = new Map<string, number>();
+  serviceUsedProducts(service).forEach((item) => {
+    const product = data.products.find((candidate) => candidate.id === item.productId);
+    if (!product || !productServiceStockDeductible(product)) return;
+    const quantity = item.quantity > 0 ? item.quantity : serviceStockQuantityForProduct(product);
+    if (quantity <= 0) return;
+    merged.set(item.productId, roundStockQuantity((merged.get(item.productId) ?? 0) + quantity));
+  });
+  return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
+}
+
 function serviceUsedProductIds(service: Service): string[] {
-  const productIds = service.consumables?.map((item) => item.productId).filter(Boolean) ?? [];
+  const productIds = serviceUsedProducts(service).map((item) => item.productId).filter(Boolean);
   if (productIds.length > 0) return Array.from(new Set(productIds));
-  return service.consumableProductId ? [service.consumableProductId] : [];
+  return [];
 }
 
 function normalizeTagName(value: string) {
@@ -2400,7 +2413,7 @@ export function checkoutOrder(
     createdAt,
   };
 
-  const serviceConsumption = selectedService ? serviceConsumables(selectedService) : [];
+  const serviceConsumption = selectedService ? serviceInventoryConsumables(data, selectedService) : [];
   const serviceConsumptionByProduct = new Map<string, number>();
   const soldProductByProduct = new Map<string, number>();
   const giftProductByProduct = new Map<string, number>();
@@ -2426,7 +2439,7 @@ export function checkoutOrder(
   const products = data.products.map((product) => {
     let delta = 0;
     delta -= consumptionByProduct.get(product.id) ?? 0;
-    return delta ? { ...product, stock: product.stock + delta } : product;
+    return delta ? { ...product, stock: roundStockQuantity(product.stock + delta) } : product;
   });
   let inventoryBatches = data.inventoryBatches ?? [];
   for (const [productId, quantity] of consumptionByProduct) {
@@ -2447,7 +2460,7 @@ export function checkoutOrder(
         : giftProductByProduct.has(product.id)
           ? "赠品出库"
           : "服务消耗",
-      delta: product.stock - previousProduct.stock,
+      delta: roundStockQuantity(product.stock - previousProduct.stock),
       stockAfter: product.stock,
       note: [
         order.orderNo,
@@ -2626,7 +2639,7 @@ export function refundOrder(
 
   if (isFullRefund) {
     if (service) {
-      serviceConsumables(service).forEach((item) => restoreProduct(item.productId, item.quantity));
+      serviceInventoryConsumables(data, service).forEach((item) => restoreProduct(item.productId, item.quantity));
     }
     if (order.productItems?.length) {
       order.productItems.forEach((item) => restoreProduct(item.productId, item.quantity));
@@ -3976,7 +3989,7 @@ export function restockLowInventory(
 
   for (const product of lowStockProducts) {
     const quantity = Math.max(10, product.warningStock * 2 - product.stock);
-    const stockAfter = product.stock + quantity;
+      const stockAfter = roundStockQuantity(product.stock + quantity);
     const expiryAt = stockInExpiryAt(product, createdAt);
     const purchaseOrder: PurchaseOrder = {
       id: idFactory("po"),
@@ -4327,7 +4340,7 @@ export function reportSummary(data: AppData) {
       return itemSum + (product?.cost ?? 0) * item.quantity;
     }, 0);
     const service = data.services.find((candidate) => candidate.id === order.serviceId);
-    const serviceCost = service ? serviceConsumables(service).reduce((itemSum, item) => {
+    const serviceCost = service ? serviceInventoryConsumables(data, service).reduce((itemSum, item) => {
       const product = data.products.find((candidate) => candidate.id === item.productId);
       return itemSum + (product?.cost ?? 0) * item.quantity;
     }, 0) : 0;

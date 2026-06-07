@@ -680,7 +680,7 @@ function card(data: AppData, cardId: string) {
         price: 520,
         duration: 70,
         consumables: [
-          { productId: "p1", quantity: 2 },
+          { productId: "p3", quantity: 2 },
           { productId: "p2", quantity: 0.5 },
         ],
       },
@@ -692,17 +692,46 @@ function card(data: AppData, cardId: string) {
     { customerId: "c1", staffId: "s2", serviceId: "v_recipe", payMethod: "微信" },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(productStock(checkedOut, "p1"), 16, "service recipe should consume first product");
-  assert.equal(productStock(checkedOut, "p2"), 11.5, "service recipe should consume second product");
-  assert.equal(checkedOut.inventoryLogs.filter((item) => item.type === "服务消耗").length, 2, "service recipe should log each consumable");
+  assert.equal(productStock(checkedOut, "p3"), 7, "service recipe should consume tracked package product");
+  assert.equal(productStock(checkedOut, "p2"), 12, "liquid service product should not reduce stock");
+  assert.equal(checkedOut.inventoryLogs.filter((item) => item.type === "服务消耗").length, 1, "service recipe should only log tracked consumables");
 
   const refunded = refundOrder(
     checkedOut,
     { orderId: checkedOut.orders[0].id, reason: "配方项目退款", userId: "u_manager" },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(productStock(refunded, "p1"), 18, "recipe refund should restore first product");
-  assert.equal(productStock(refunded, "p2"), 12, "recipe refund should restore second product");
+  assert.equal(productStock(refunded, "p3"), 9, "recipe refund should restore tracked package product");
+  assert.equal(productStock(refunded, "p2"), 12, "liquid service product should remain unchanged after refund");
+}
+
+{
+  const usageData = {
+    ...cloneSeed(),
+    products: cloneSeed().products.map((product) => (product.id === "p3" ? { ...product, serviceUsesPerUnit: 5 } : product)),
+    services: [
+      {
+        id: "v_usage",
+        name: "按单件次数扣减护理",
+        category: "皮肤管理",
+        price: 520,
+        duration: 70,
+        consumables: [
+          { productId: "p3", quantity: 0 },
+          { productId: "p2", quantity: 0 },
+        ],
+      },
+      ...cloneSeed().services,
+    ],
+  };
+  const checkedOut = checkoutOrder(
+    usageData,
+    { customerId: "c1", staffId: "s2", serviceId: "v_usage", payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(checkedOut, "p3"), 8.8, "tracked package should deduct by uses per unit when recipe quantity is zero");
+  assert.equal(productStock(checkedOut, "p2"), 12, "liquid product-only usage should stay display-only");
+  assert.equal(checkedOut.inventoryLogs.find((item) => item.type === "服务消耗")?.delta, -0.2, "service log should preserve fractional package deduction");
 }
 
 {
@@ -720,9 +749,9 @@ function card(data: AppData, cardId: string) {
 
   assert.equal(data.orders.length, 1, "checkout should create one order");
   assert.equal(data.orders[0].totalAmount, 597, "order total should include service and retail product");
-  assert.equal(productStock(data, "p1"), 17, "service consumable stock should decrease");
+  assert.equal(productStock(data, "p1"), 18, "liquid service product should not reduce stock");
   assert.equal(productStock(data, "p4"), 23, "retail product stock should decrease");
-  assert.equal(data.inventoryLogs.length, 2, "service and retail stock changes should both log");
+  assert.equal(data.inventoryLogs.length, 1, "only tracked stock changes should log");
   const orderCommissions = data.commissions.filter((item) => item.orderId === data.orders[0].id);
   assert.equal(orderCommissions.length, 2, "checkout should create service and sales commissions");
   assert.equal(orderCommissions.find((item) => item.type === "服务提成")?.amount, 48, "service commission should be based on service amount");
@@ -815,7 +844,7 @@ function card(data: AppData, cardId: string) {
   );
 
   assert.equal(card(data, "m1").balance, 2202, "stored-value card should deduct service price");
-  assert.equal(productStock(data, "p1"), 17, "member-card checkout should still consume stock");
+  assert.equal(productStock(data, "p1"), 18, "member-card checkout should not deduct liquid service stock");
   assert.equal(data.memberCardTransactions[0].type, "消费", "member card checkout should write card transaction");
   assert.equal(data.memberCardTransactions[0].amountDelta, -398, "stored-value transaction should record amount delta");
 }
@@ -961,7 +990,7 @@ function card(data: AppData, cardId: string) {
 
   assert.equal(refunded.orders[0].status, "已退款", "refund should update order status");
   assert.equal(refunded.refunds[0].amount, 597, "refund should preserve refund amount");
-  assert.equal(productStock(refunded, "p1"), 18, "refund should restore service consumable stock");
+  assert.equal(productStock(refunded, "p1"), 18, "refund should leave display-only service product unchanged");
   assert.equal(productStock(refunded, "p4"), 24, "refund should restore retail product stock");
   assert.equal(refunded.commissions[0].status, "已冲销", "refund should reverse commission");
   assert.equal(refunded.operationLogs[0].action, "订单退款", "refund should write operation log");
@@ -1023,7 +1052,7 @@ function card(data: AppData, cardId: string) {
 
   assert.equal(refunded.orders[0].status, "部分退款", "partial refund should keep order open");
   assert.equal(refunded.orders[0].paidAmount, 497, "partial refund should reduce paid amount");
-  assert.equal(productStock(refunded, "p1"), 17, "partial refund should not restore service stock");
+  assert.equal(productStock(refunded, "p1"), 18, "partial refund should leave display-only service product unchanged");
   assert.equal(productStock(refunded, "p4"), 23, "partial refund should not restore retail stock");
   assert.ok(refunded.commissions[0].amount < checkedOut.commissions[0].amount, "partial refund should reduce commission");
 }
@@ -1671,7 +1700,7 @@ function card(data: AppData, cardId: string) {
     { productId: "p1", type: "入库", quantity: 1 },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(productStock(adjusted, "p1"), 18, "inventory changes should be allowed after reverse close");
+  assert.equal(productStock(adjusted, "p1"), 19, "inventory changes should be allowed after reverse close");
 }
 
 console.log("业务规则验证通过：开单、审批、卡项、预约/班次、线上店铺、服务档案、客户签名、回访、人员注册邀请、进销存、日结锁账/反结、退款、提成、报表。");

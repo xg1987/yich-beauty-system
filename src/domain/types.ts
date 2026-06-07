@@ -226,6 +226,8 @@ export type Product = {
   warningStock: number;
   shelfLifeMonths?: number;
   expiryAt?: string;
+  serviceStockDeductible?: boolean;
+  serviceUsesPerUnit?: number;
 };
 
 export type InventoryBatch = {
