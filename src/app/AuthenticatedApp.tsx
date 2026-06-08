@@ -37,13 +37,14 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { createContext, FormEvent, KeyboardEvent, memo, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, FormEvent, KeyboardEvent, lazy, memo, ReactNode, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { NotificationPanel, visibleNotifications } from "../components/business/NotificationPanel";
 import { UserAvatar } from "../components/business/UserAvatar";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import { StatCard } from "../components/layout/StatCard";
+import { ModuleOverview, type FeatureModule, type ModuleTone } from "../components/layout/ModuleOverview";
 import { Badge } from "../components/ui/Badge";
 import { CheckboxGroup } from "../components/ui/CheckboxGroup";
 import { DataTable } from "../components/ui/DataTable";
@@ -290,53 +291,6 @@ const viewTitles: Record<ViewKey, string> = {
   roomSettings: "房间设置",
   settings: "管理中心",
 };
-
-type ModuleTone = "rose" | "violet" | "teal" | "amber" | "jade" | "plum";
-type FeatureModule<Key extends string> = {
-  key: Key;
-  title: string;
-  desc: string;
-  icon: typeof LayoutDashboard;
-  tone: ModuleTone;
-  meta?: string;
-  points?: string[];
-};
-
-function ModuleOverview<Key extends string>({
-  modules,
-  activeKey,
-  onSelect,
-}: {
-  modules: Array<FeatureModule<Key>>;
-  activeKey?: Key;
-  onSelect: (key: Key) => void;
-}) {
-  return (
-    <section className="module-overview" aria-label="功能模块">
-      {modules.map((item) => {
-        const Icon = item.icon;
-        return (
-          <button
-            type="button"
-            aria-pressed={activeKey === item.key}
-            className={`module-entry-card ${item.tone}${activeKey === item.key ? " active" : ""}`}
-            key={item.key}
-            onClick={() => onSelect(item.key)}
-          >
-            <span className={`admin-module-icon ${item.tone}`}><Icon size={20} /></span>
-            <strong>{item.title}</strong>
-            {item.points && (
-              <span className="module-entry-points">
-                {item.points.map((point) => <i key={point}>{point}</i>)}
-              </span>
-            )}
-            {item.meta && <em>{item.meta}</em>}
-          </button>
-        );
-      })}
-    </section>
-  );
-}
 
 function ModuleSubpageHeader({
   parentTitle,
@@ -636,9 +590,7 @@ const MemoCustomers = memo(Customers);
 const MemoCatalog = memo(Catalog);
 const MemoStaffCommissions = memo(StaffCommissions);
 const MemoInventory = memo(Inventory);
-const MemoReports = memo(Reports);
 const MemoApprovals = memo(Approvals);
-const MemoOperationLogs = memo(OperationLogs);
 const MemoManagementCenter = memo(ManagementCenter);
 const MemoPlatformDataReadOnlyView = memo(PlatformDataReadOnlyView);
 const MemoPlatformAccountAdminView = memo(PlatformAccountAdminView);
@@ -646,6 +598,18 @@ const MemoPlatformPermissionReadOnlyView = memo(PlatformPermissionReadOnlyView);
 const MemoPlatformSystemConfigView = memo(PlatformSystemConfigView);
 const MemoPlatformUsageReadOnlyView = memo(PlatformUsageReadOnlyView);
 const MemoRoomSettings = memo(RoomSettings);
+const LazyReports = lazy(() => import("../pages/shared/Reports"));
+const LazyOperationLogs = lazy(() => import("../pages/shared/OperationLogs"));
+
+function ViewFallback({ title }: { title: string }) {
+  return (
+    <div className="page-stack">
+      <section className="panel">
+        <p className="empty">{title}加载中...</p>
+      </section>
+    </div>
+  );
+}
 
 export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataResult }) {
   const { data, session, loading, mutationPending, error, updateAccountProfile, logout, refreshData, refreshDataView, setActiveDataScope, runMutation, actions } = apiState;
@@ -733,6 +697,27 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     }
   }, [session?.token, session?.user.role, view]);
 
+  const navigate = useCallback<NavigateToView>((nextView, options) => {
+    setView(nextView);
+    setAccountSettingsOpen(false);
+    setNotificationPanelOpen(false);
+    setAccountMenuOpen(false);
+    setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
+    setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
+    setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
+    setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
+    setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
+    setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
+  }, []);
+  const returnFromAccountSettings = useCallback((nextView: ViewKey) => {
+    setView(nextView);
+    setAccountSettingsOpen(false);
+    setNotificationPanelOpen(false);
+    setAccountMenuOpen(false);
+    setAdminDetailFromCenter(false);
+  }, []);
+  const returnToManagement = useCallback(() => navigate("settings"), [navigate]);
+
   if (!session) {
     return null;
   }
@@ -756,26 +741,6 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const activeWorkbar = workbarForView(activeView);
   const currentWorkbarItems = isPlatformAdmin ? platformWorkbarItems : workbarItems;
   const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
-  const navigate = useCallback<NavigateToView>((nextView, options) => {
-    setView(nextView);
-    setAccountSettingsOpen(false);
-    setNotificationPanelOpen(false);
-    setAccountMenuOpen(false);
-    setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
-    setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
-    setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
-    setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
-    setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
-    setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
-  }, []);
-  const returnFromAccountSettings = useCallback((nextView: ViewKey) => {
-    setView(nextView);
-    setAccountSettingsOpen(false);
-    setNotificationPanelOpen(false);
-    setAccountMenuOpen(false);
-    setAdminDetailFromCenter(false);
-  }, []);
-  const returnToManagement = useCallback(() => navigate("settings"), [navigate]);
 
   const showAdminDetailBack = false;
   const showManagementBack = adminDetailFromCenter && activeView !== "settings" && activeView !== "roomSettings";
@@ -882,10 +847,18 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             {activeView === "inventory" && <MemoInventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={inventoryEntryModule} onReturnManagement={returnToManagement} />}
             {activeView === "reports" && (isPlatformAdmin
               ? <MemoPlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />
-              : <MemoReports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />
+              : (
+                <Suspense fallback={<ViewFallback title="报表分析" />}>
+                  <LazyReports data={data} actions={actions} runMutation={runMutation} mutationPending={mutationPending} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />
+                </Suspense>
+              )
             )}
             {activeView === "approvals" && <MemoApprovals data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
-            {activeView === "logs" && <MemoOperationLogs data={data} session={session} />}
+            {activeView === "logs" && (
+              <Suspense fallback={<ViewFallback title="操作日志" />}>
+                <LazyOperationLogs data={data} session={session} />
+              </Suspense>
+            )}
             {activeView === "accounts" && <MemoPlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "permissions" && <MemoPlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "platformConfig" && <MemoPlatformSystemConfigView data={data} actions={actions} runMutation={runMutation} />}
@@ -7858,285 +7831,6 @@ function Inventory({
   );
 }
 
-function Reports({
-  data,
-  actions,
-  runMutation,
-  fromManagement = false,
-  onReturnManagement,
-}: {
-  data: AppData;
-  actions: ApiActions;
-  runMutation: RunMutation;
-  fromManagement?: boolean;
-  onReturnManagement?: () => void;
-}) {
-  const [businessDate, setBusinessDate] = useState(new Date().toISOString().slice(0, 10));
-  const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | "trend" | undefined>(fromManagement ? "summary" : undefined);
-  const summary = reportSummary(data);
-  const percentText = (value: number) => `${(value * 100).toFixed(1)}%`;
-  const exportCsv = (filename: string, columns: string[], rows: Array<Array<string | number>>) => {
-    downloadCsvFile(filename, columns, rows);
-  };
-  const payMethods = [
-    ...(["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((method) => ({
-      method,
-      amount: data.orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + order.paidAmount, 0)
-        + data.memberCardTransactions
-          .filter((transaction) => transaction.payMethod === method)
-          .reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0),
-    })),
-    {
-      method: "会员卡核销",
-      amount: data.orders.filter((order) => order.payMethod === "会员卡").reduce((sum, order) => sum + order.paidAmount, 0),
-    },
-  ];
-
-  // 员工业绩排行 (B feature)
-  const staffPerformance = businessStaffOf(data)
-    .map((staff) => {
-      const staffOrders = data.orders.filter((o) => o.staffId === staff.id);
-      const revenue = staffOrders.reduce((sum, o) => sum + o.paidAmount, 0);
-      const commissions = data.commissions.filter((c) => c.staffId === staff.id).reduce((sum, c) => sum + (c.amount || 0), 0);
-      return { staff, revenue, commissions, orderCount: staffOrders.length };
-    })
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 8);
-
-  // 会员分析 (B feature)
-  const totalCardBalance = data.memberCards.reduce((sum, card) => sum + (card.balance || 0), 0);
-  const activeMembers = data.memberCards.filter((c) => c.status === "正常").length;
-  const newCustomersThisMonth = data.customers.filter((c) => {
-    const created = new Date(c.lastVisit || Date.now());
-    const now = new Date();
-    return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
-  }).length;
-
-  // 额外：Top 服务项目排行 (B 深化)
-  const serviceRevenue = data.services.map(service => {
-    const revenue = data.orders
-      .filter(o => o.serviceId === service.id)
-      .reduce((sum, o) => sum + o.paidAmount, 0);
-    return { name: service.name, revenue };
-  }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-  const dailyTrend = Array.from({ length: 14 }).map((_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (13 - index));
-    const key = date.toISOString().slice(0, 10);
-    const dayOrders = data.orders.filter((order) => order.createdAt.slice(0, 10) === key && order.status !== "已退款");
-    const dayRefunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === key);
-    return {
-      date: key,
-      revenue: dayOrders.reduce((sum, order) => sum + order.paidAmount, 0),
-      orders: dayOrders.length,
-      refunds: dayRefunds.reduce((sum, refund) => sum + refund.amount, 0),
-      appointments: data.appointments.filter((appointment) => appointment.startAt.slice(0, 10) === key).length,
-    };
-  });
-  const exportReportSummary = () => exportCsv("yich-report-summary.csv", ["指标", "结果", "说明"], [
-    ["实收现金流", summary.revenue, "扣除退款前的实收订单合计"],
-    ["净收入", summary.netRevenue, "实收现金流 - 退款"],
-    ["毛利", summary.grossProfit, "净收入 - 商品/库存成本"],
-    ["毛利率", percentText(summary.grossMargin), "毛利 / 净收入"],
-    ["退款金额", summary.refundAmount, "退款记录合计"],
-    ["服务订单", summary.serviceCount, "已完成收银订单"],
-    ["员工提成", summary.commission, "服务提成合计"],
-    ["会员卡余额", summary.cardBalance, "客户未消耗储值"],
-    ["会员积分", summary.totalMemberPoints, "客户积分合计"],
-    ["复购率", percentText(summary.repeatRate), "复购客户 / 活跃客户"],
-    ["库存估值", summary.inventoryCost, "剩余批次成本"],
-    ["临期库存", summary.expiringInventoryCount, "30 天内到期批次"],
-    ["低库存项", summary.lowStockCount, "低于预警值"],
-  ]);
-  const exportTrend = () => exportCsv("yich-report-trend.csv", ["日期", "实收", "订单", "退款", "预约"], dailyTrend.map((item) => [
-    item.date,
-    item.revenue,
-    item.orders,
-    item.refunds,
-    item.appointments,
-  ]));
-  type ReportsModuleKey = NonNullable<typeof activeModule>;
-  const reportModules: Array<FeatureModule<ReportsModuleKey>> = [
-    { key: "summary", title: "经营总览", desc: "客单价、预约转化和库存风险", icon: ChartNoAxesColumnIncreasing, tone: "violet", meta: money(summary.revenue) },
-    { key: "trend", title: "经营趋势", desc: "近 14 天实收、订单和预约", icon: ChartNoAxesColumnIncreasing, tone: "teal", meta: `${dailyTrend.length} 天` },
-    { key: "payments", title: "收银流水", desc: "支付方式和实收结构", icon: CreditCard, tone: "rose", meta: `${data.orders.length} 单` },
-    { key: "daily", title: "财务日结", desc: "营业日锁定和反结记录", icon: ClipboardList, tone: "amber", meta: `${data.dailyCloses.length} 天` },
-    { key: "staff", title: "员工业绩", desc: "员工订单、实收和提成排行", icon: BadgeCent, tone: "jade", meta: `${staffPerformance.length} 人` },
-    { key: "members", title: "会员资产", desc: "会员卡余额和客户规模", icon: UsersRound, tone: "teal", meta: `${activeMembers} 张` },
-    { key: "services", title: "项目排行", desc: "热门项目和项目实收", icon: Sparkles, tone: "plum", meta: `${serviceRevenue.length} 项` },
-  ];
-  const activeModuleTitle = activeModule ? reportModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
-  const closeModule = () => {
-    if (fromManagement && onReturnManagement) {
-      onReturnManagement();
-      return;
-    }
-    setActiveModule(undefined);
-  };
-
-  return (
-    <div className="page-stack module-hub reports-module-page">
-      <PageHero
-        icon={<ChartNoAxesColumnIncreasing size={15} />}
-        eyebrow="报表分析"
-        title="报表分析"
-        desc="查看实收、退款、会员储值、员工提成与营业日结。"
-        stats={[
-          { label: "净收入", value: money(summary.netRevenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
-          { label: "项目服务数", value: `${summary.serviceCount} 单`, hint: "已完成收银", icon: <Sparkles size={18} /> },
-          { label: "毛利率", value: percentText(summary.grossMargin), hint: `毛利 ${money(summary.grossProfit)}`, icon: <BadgeCent size={18} /> },
-          { label: "会员资产", value: `${activeMembers} 张`, hint: `余额 ${money(summary.cardBalance)}`, icon: <UsersRound size={18} /> },
-        ]}
-      />
-      {!fromManagement && <ModuleOverview modules={reportModules} activeKey={activeModule} onSelect={setActiveModule} />}
-      <Modal
-        open={Boolean(activeModule)}
-        title={activeModuleTitle || "报表分析"}
-        subtitle="经营指标、收银流水和财务日结数据"
-        size="large"
-        onClose={closeModule}
-      >
-      <div className="module-detail-stack reports-modal-detail">
-        {activeModule === "payments" && (
-        <section className="panel">
-        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="实收 / 核销" />
-        <div className="bar-list">
-          {payMethods.map((item) => (
-            <div className="bar-row" key={item.method}>
-              <span>{item.method}</span>
-              <div><i style={{ width: `${summary.revenue ? Math.max(8, (item.amount / summary.revenue) * 100) : 0}%` }} /></div>
-              <strong>{money(item.amount)}</strong>
-            </div>
-          ))}
-        </div>
-        </section>
-        )}
-        {activeModule === "summary" && (
-        <section className="panel">
-        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action={<button type="button" onClick={exportReportSummary}>导出 CSV</button>} />
-        <DataTable
-          columns={["指标", "结果", "说明"]}
-          rows={[
-            ["客单价", money(summary.averageOrderValue), "实收 / 订单数"],
-            ["净收入", money(summary.netRevenue), "实收现金流 - 退款"],
-            ["毛利", money(summary.grossProfit), "扣除商品/库存成本"],
-            ["毛利率", percentText(summary.grossMargin), "毛利 / 净收入"],
-            ["客户数", `${data.customers.length} 人`, "客户资产规模"],
-            ["活跃客户", `${summary.activeCustomerCount} 人`, "有订单客户"],
-            ["复购率", percentText(summary.repeatRate), `${summary.repeatCustomerCount} 位复购客户`],
-            ["会员积分", `${summary.totalMemberPoints} 分`, "客户积分合计"],
-            ["预约转化", `${data.orders.length}/${data.appointments.length}`, "已收银订单 / 预约"],
-            ["库存估值", money(summary.inventoryCost), "剩余批次成本"],
-            ["临期库存", `${summary.expiringInventoryCount} 批`, "30 天内到期批次"],
-            ["低库存项", `${summary.lowStockCount} 项`, "低于预警值"],
-          ]}
-        />
-        <div className="divider" />
-        <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营趋势" action={<button type="button" onClick={exportTrend}>导出趋势 CSV</button>} />
-        <DataTable
-          columns={["日期", "实收", "订单", "退款", "预约"]}
-          rows={dailyTrend.map((item) => [
-            item.date,
-            money(item.revenue),
-            `${item.orders} 单`,
-            money(item.refunds),
-            `${item.appointments} 单`,
-          ])}
-        />
-        </section>
-        )}
-        {activeModule === "trend" && (
-        <section className="panel">
-          <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营趋势" action={<button type="button" onClick={exportTrend}>导出 CSV</button>} />
-          <DataTable
-            columns={["日期", "实收", "订单", "退款", "预约"]}
-            rows={dailyTrend.map((item) => [
-              item.date,
-              money(item.revenue),
-              `${item.orders} 单`,
-              money(item.refunds),
-              `${item.appointments} 单`,
-            ])}
-          />
-        </section>
-        )}
-        {activeModule === "daily" && (
-        <section className="panel">
-        <PanelTitle icon={<ClipboardList size={18} />} title="财务日结" action="营业日锁定记录" />
-        <DailyCloseControl
-          businessDate={businessDate}
-          setBusinessDate={setBusinessDate}
-          onClose={() => void runMutation(() => actions.createDailyClose(businessDate))}
-          onReverse={() => void runMutation(() => actions.reverseDailyClose(businessDate))}
-        />
-        <DataTable
-          columns={["营业日", "状态", "实收", "退款", "订单", "微信", "会员卡核销", "提成", "时间"]}
-          rows={data.dailyCloses.map((item) => [
-            item.businessDate,
-            <Badge key={`${item.id}-status`} text={item.status} tone={item.status === "已反结" ? "warn" : "ok"} />,
-            money(item.revenue),
-            money(item.refundAmount),
-            item.orderCount,
-            money(item.wechatAmount),
-            money(item.memberCardAmount),
-            money(item.commissionAmount),
-            shortDate(item.createdAt),
-          ])}
-        />
-        </section>
-        )}
-
-        {/* 员工业绩排行 (B) */}
-        {activeModule === "staff" && (
-        <section className="panel">
-          <PanelTitle icon={<BadgeCent size={18} />} title="员工业绩排行" action="按实收排序" />
-          <DataTable
-            columns={["员工", "角色", "订单数", "实收业绩", "提成合计"]}
-            rows={staffPerformance.map((item) => [
-              item.staff.name,
-              displayStaffRole(item.staff.role),
-              item.orderCount,
-              money(item.revenue),
-              money(item.commissions),
-            ])}
-          />
-        </section>
-        )}
-
-        {/* 会员分析 (B) */}
-        {activeModule === "members" && (
-        <section className="panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="会员分析" action="客户资产概览" />
-          <DataTable
-            columns={["指标", "数值", "说明"]}
-            rows={[
-              ["有效会员卡", `${activeMembers} 张`, "当前正常状态"],
-              ["会员卡总余额", money(totalCardBalance), "客户未消耗储值"],
-              ["客户积分", `${summary.totalMemberPoints} 分`, "开卡、充值和消费累计"],
-              ["复购率", percentText(summary.repeatRate), `${summary.repeatCustomerCount} 位复购客户`],
-              ["本月新增客户", `${newCustomersThisMonth} 人`, "按最近到店时间"],
-              ["客户总数", `${data.customers.length} 人`, "累计建档"],
-            ]}
-          />
-        </section>
-        )}
-
-        {/* Top 服务项目排行 (B 深化) */}
-        {activeModule === "services" && (
-        <section className="panel">
-          <PanelTitle icon={<Sparkles size={18} />} title="热门项目排行" action="按实收" />
-          <DataTable
-            columns={["项目", "实收金额"]}
-            rows={serviceRevenue.map(s => [s.name, money(s.revenue)])}
-          />
-        </section>
-        )}
-      </div>
-      </Modal>
-    </div>
-  );
-}
-
 function Approvals({
   data,
   actions,
@@ -8252,116 +7946,6 @@ function Approvals({
         )}
       </div>
       </Modal>
-    </div>
-  );
-}
-
-function DailyCloseControl({
-  businessDate,
-  setBusinessDate,
-  onClose,
-  onReverse,
-}: {
-  businessDate: string;
-  setBusinessDate: (value: string) => void;
-  onClose: () => void;
-  onReverse: () => void;
-}) {
-  const mutationPending = useMutationPending();
-  return (
-    <div className="inline-form">
-      <label>
-        营业日
-        <input type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} />
-      </label>
-      <button disabled={mutationPending} onClick={onClose}>{mutationPending ? "处理中..." : "生成日结"}</button>
-      <button className="secondary-button" disabled={mutationPending} onClick={onReverse}>{mutationPending ? "处理中..." : "反结解锁"}</button>
-    </div>
-  );
-}
-
-function OperationLogs({ data, session }: { data: AppData; session: UserSession }) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [actionFilter, setActionFilter] = useState("");
-
-  const logs = [...(data.operationLogs ?? [])]
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .filter((log) => {
-      const matchesSearch =
-        !searchTerm ||
-        log.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.action.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesAction = !actionFilter || log.action === actionFilter;
-      return matchesSearch && matchesAction;
-    });
-
-  const uniqueActions = Array.from(new Set((data.operationLogs ?? []).map((l) => l.action)));
-
-  const exportLogs = () => {
-    downloadCsvFile(
-      `操作日志_${new Date().toISOString().slice(0,10)}.csv`,
-      ["时间", "操作人", "动作", "对象类型", "摘要"],
-      logs.map((log) => [
-        log.createdAt,
-        nameOf(data.staff, data.authUsers.find((u) => u.id === log.userId)?.staffId ?? "") || "系统",
-        log.action,
-        log.targetType,
-        log.summary,
-      ]),
-    );
-  };
-
-  return (
-    <div className="page-stack operation-logs-page">
-      <PageHero
-        icon={<ClipboardList size={15} />}
-        eyebrow="系统记录"
-        title="操作日志"
-        desc="关键操作记录、业务变更和异常追踪。"
-        stats={[
-          { label: "总记录数", value: `${data.operationLogs?.length ?? 0} 条`, hint: "已记录操作", icon: <ClipboardList size={18} /> },
-        ]}
-      />
-
-      <div className="panel">
-        <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            type="text"
-            placeholder="搜索操作内容或动作..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ flex: 1, minWidth: "240px" }}
-          />
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-            <option value="">所有动作</option>
-            {uniqueActions.map((action) => (
-              <option key={action} value={action}>{action}</option>
-            ))}
-          </select>
-          <button onClick={exportLogs}>导出 CSV</button>
-        </div>
-
-        {logs.length === 0 ? (
-          <p className="empty">暂无操作记录</p>
-        ) : (
-          <DataTable
-            columns={["时间", "操作人", "动作", "对象类型", "摘要"]}
-            rows={logs.slice(0, 100).map((log) => [
-              shortDate(log.createdAt),
-              nameOf(data.staff, data.authUsers.find((u) => u.id === log.userId)?.staffId ?? "") || "系统",
-              log.action,
-              log.targetType,
-              log.summary,
-            ])}
-          />
-        )}
-
-        {logs.length > 100 && (
-          <p style={{ marginTop: "12px", color: "var(--yich-muted)", fontSize: "13px" }}>
-            仅显示最近 100 条记录
-          </p>
-        )}
-      </div>
     </div>
   );
 }
