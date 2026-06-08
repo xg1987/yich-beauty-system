@@ -1,6 +1,6 @@
 {
   "name": "yich-beauty-system",
-  "version": "0.1.129",
+  "version": "0.1.130",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,6 +16,8 @@
     "verify:api": "tsx scripts/verify-api.ts",
     "verify:cloudflare-api": "tsx scripts/verify-cloudflare-api.ts",
     "verify:night-theme": "tsx scripts/verify-night-theme.ts",
+    "android:sync": "sh scripts/build-android-apk.sh sync",
+    "android:apk": "sh scripts/build-android-apk.sh apk",
     "preview": "vite preview --host 0.0.0.0",
     "cf:login": "wrangler login",
     "cf:whoami": "wrangler whoami",
@@ -25,6 +27,9 @@
     "deploy:pages": "npm run build && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/splash-screen": "^8.0.1",
     "@vitejs/plugin-react": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "lucide-react": "^0.562.0",
@@ -34,6 +39,7 @@
     "vite": "^7.2.7"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",

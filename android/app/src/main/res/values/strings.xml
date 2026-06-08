@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">祝融坤锋美业</string>
+    <string name="title_activity_main">祝融坤锋美业</string>
+    <string name="package_name">com.zhurongkftech.beauty</string>
+    <string name="custom_url_scheme">com.zhurongkftech.beauty</string>
+</resources>

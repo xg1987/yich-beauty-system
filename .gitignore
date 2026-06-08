@@ -9,3 +9,4 @@ vite.config.d.ts
 data/*.sqlite
 data/*.sqlite-*
 .local-r2/
+output/
