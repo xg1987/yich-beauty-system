@@ -202,7 +202,6 @@ function downloadCsvFile(filename: string, columns: Array<string | number>, rows
 }
 
 function DownloadGuidePage() {
-  const downloadUrl = "https://zhurongkftech.com/download";
   const appUrl = "https://zhurongkftech.com/";
   const androidApkUrl = "/zhurongkftech-app.apk";
   const [copiedKey, setCopiedKey] = useState("");
@@ -243,14 +242,10 @@ function DownloadGuidePage() {
           <div className="download-qr-frame">
             <img src="/download-qr.svg" alt="祝融坤锋美业门店系统下载二维码" />
           </div>
-          <p className="download-card-url">{downloadUrl}</p>
           <div className="download-action-row">
             <button type="button" onClick={saveQrCode}>
               <Download size={16} />
               下载二维码图片
-            </button>
-            <button type="button" className="secondary" onClick={() => copyText(downloadUrl, "download")}>
-              {copiedKey === "download" ? "已复制" : "复制链接"}
             </button>
           </div>
           <p className="download-card-tip">保存到相册 · 转发到群里 · 放大更好扫</p>
