@@ -71,7 +71,7 @@ import CustomerSignaturePage from "./pages/public/CustomerSignaturePage";
 import StorefrontPage from "./pages/public/StorefrontPage";
 import packageJson from "../package.json";
 
-type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "admin";
+type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "reports" | "accounts" | "logs" | "admin";
 type ThemeMode = "auto" | "day" | "night";
 type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
 type CardType = "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
@@ -559,6 +559,16 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
+const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "logs", "usage", "settings"]);
+
+const platformWorkbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey }> = [
+  { key: "workbench", label: "总览", icon: LayoutDashboard, view: "dashboard" },
+  { key: "reports", label: "数据", icon: ChartNoAxesColumnIncreasing, view: "reports" },
+  { key: "accounts", label: "账号", icon: UsersRound, view: "accounts" },
+  { key: "logs", label: "日志", icon: ClipboardList, view: "logs" },
+  { key: "admin", label: "管理", icon: UserRound, view: "settings" },
+];
+
 function initialViewFromUrl(): ViewKey {
   const requestedView = new URLSearchParams(window.location.search).get("view");
   return navItems.some((item) => item.key === requestedView) ? (requestedView as ViewKey) : "dashboard";
@@ -725,9 +735,11 @@ export default function App() {
     );
   }
 
-  const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key));
-  const activeView = canAccessView(session, view) ? view : visibleNavItems[0]?.key ?? "dashboard";
+  const isPlatformAdmin = session.user.role === "superadmin";
+  const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key) && (!isPlatformAdmin || platformAdminAllowedViews.has(item.key)));
+  const activeView = canAccessView(session, view) && (!isPlatformAdmin || platformAdminAllowedViews.has(view)) ? view : visibleNavItems[0]?.key ?? "dashboard";
   const activeWorkbar = workbarForView(activeView);
+  const currentWorkbarItems = isPlatformAdmin ? platformWorkbarItems : workbarItems;
   const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
   const navigate: NavigateToView = (nextView, options) => {
     setView(nextView);
@@ -749,7 +761,6 @@ export default function App() {
     setAdminDetailFromCenter(false);
   };
 
-  const isPlatformAdmin = session.user.role === "superadmin";
   const showAdminDetailBack = false;
   const showManagementBack = adminDetailFromCenter && activeView !== "settings" && activeView !== "roomSettings";
   const shellRoleLabel: Record<UserRole, string> = {
@@ -853,7 +864,10 @@ export default function App() {
             {activeView === "catalog" && <Catalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={() => navigate("settings")} />}
             {activeView === "staff" && <StaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "inventory" && <Inventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={inventoryEntryModule} onReturnManagement={() => navigate("settings")} />}
-            {activeView === "reports" && <Reports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
+            {activeView === "reports" && (isPlatformAdmin
+              ? <PlatformDataReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />
+              : <Reports data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />
+            )}
             {activeView === "approvals" && <Approvals data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={() => navigate("settings")} />}
             {activeView === "logs" && <OperationLogs data={data} session={session} />}
             {activeView === "accounts" && <PlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
@@ -875,7 +889,7 @@ export default function App() {
         )}
       </main>
       <nav className="workbar" aria-label="主工作栏">
-        {workbarItems.filter((item) => canAccessView(session, item.view)).map((item) => {
+        {currentWorkbarItems.filter((item) => canAccessView(session, item.view) && (!isPlatformAdmin || platformAdminAllowedViews.has(item.view))).map((item) => {
           const Icon = item.icon;
           return (
             <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => navigate(item.view)}>
@@ -960,24 +974,13 @@ function ManagementCenter({
   };
 
   const platformManagementCards: ManagementCard[] = [
-    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
-    { title: "权限审批", desc: "开屏授权 / 关键操作", icon: ShieldCheck, tone: "violet", view: "permissions" },
-    { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
+    { title: "经营数据", desc: "只读报表 / 门店汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
+    { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
+    { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
-    { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
-    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
-    { title: "商品档案", desc: "商品资料 / 编码规格", icon: Boxes, tone: "teal", view: "catalog", catalogModule: "productList" },
-    { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
-    { title: "销售业绩", desc: "经营数据 / 员工业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
-    { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
-    { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
-    { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
-    { title: "供应商采购", desc: "供应商 / 采购入库", icon: Building2, tone: "amber", view: "inventory", inventoryModule: "purchase" },
-    { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
   ];
   const storeManagementCards: ManagementCard[] = [
     { title: "账号管理", desc: "员工审核 / 密码重置", icon: UsersRound, tone: "violet", view: "accounts" },
@@ -1344,7 +1347,36 @@ function PlatformAdminView({
   const staffAccounts = visibleAuthUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const activeAccounts = visibleAuthUsers.filter((user) => user.status === "active").length;
   const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
-  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()).length;
+  const today = new Date();
+  const isToday = (value: string) => new Date(value).toDateString() === today.toDateString();
+  const belongsToStore = (storeId: string, itemStoreId?: string) => itemStoreId === storeId || (!itemStoreId && data.storeProfiles.length === 1);
+  const todayAppointments = data.appointments.filter((item) => isToday(item.startAt)).length;
+  const storeRows = data.storeProfiles.map((store) => {
+    const storeOrders = data.orders.filter((order) => belongsToStore(store.id, order.storeId));
+    const todayOrders = storeOrders.filter((order) => isToday(order.createdAt));
+    const storeCustomers = data.customers.filter((customer) => belongsToStore(store.id, customer.storeId));
+    const storeStaff = data.staff.filter((staff) => belongsToStore(store.id, staff.storeId) && staff.role !== "老板");
+    const storeProducts = data.products.filter((product) => belongsToStore(store.id, product.storeId));
+    const storeAppointments = data.appointments.filter((appointment) => belongsToStore(store.id, appointment.storeId));
+    const ownerUser = ownerAccounts.find((user) => user.storeId === store.id)
+      ?? data.authUsers.find((user) => {
+        const staff = user.staffId ? data.staff.find((item) => item.id === user.staffId) : undefined;
+        return staff?.storeId === store.id && staff.role === "老板";
+      });
+    const todayRevenue = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
+    const lowStockCount = storeProducts.filter((product) => product.stock <= product.warningStock).length;
+    return [
+      store.name,
+      ownerUser?.name ?? "未绑定",
+      money(todayRevenue),
+      `${todayOrders.length} 单`,
+      `${storeAppointments.filter((appointment) => isToday(appointment.startAt)).length} 条`,
+      `${storeCustomers.length} 人`,
+      `${storeStaff.length} 人`,
+      `${lowStockCount} 项`,
+      <Badge key={`${store.id}-status`} text={(store.status ?? "active") === "active" ? "启用" : "停用"} tone={(store.status ?? "active") === "active" ? "ok" : "warn"} />,
+    ];
+  });
   const platformMetrics = [
     { icon: <ShieldCheck size={18} />, label: "启用账号", value: `${activeAccounts} 个`, hint: "平台账号" },
     { icon: <Building2 size={18} />, label: "门店账号", value: `${ownerAccounts.length} 个`, hint: "负责人账号" },
@@ -1376,6 +1408,14 @@ function PlatformAdminView({
             ["实收汇总", money(totalRevenue), "已记录收款金额"],
             ["门店数量", `${data.storeProfiles.length} 家`, "已开通门店"],
           ]}
+        />
+      </section>
+
+      <section className="workbench-panel">
+        <PanelTitle icon={<Building2 size={18} />} title="门店运营概览" action={`${data.storeProfiles.length} 家门店`} />
+        <DataTable
+          columns={["门店", "店长", "今日收款", "今日订单", "今日预约", "客户", "员工", "库存预警", "状态"]}
+          rows={storeRows}
         />
       </section>
     </div>
@@ -2751,6 +2791,9 @@ function workbarForView(view: ViewKey): WorkbarKey {
   if (view === "appointments") return "appointments";
   if (view === "pos") return "cashier";
   if (view === "customers") return "customers";
+  if (view === "reports") return "reports";
+  if (view === "accounts") return "accounts";
+  if (view === "logs") return "logs";
   if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "usage", "roomSettings"].includes(view)) return "admin";
   return "workbench";
 }
