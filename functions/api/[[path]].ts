@@ -25,6 +25,7 @@ import {
   completeCustomerFollowUp,
   decideApprovalRequest,
   decideStoreOwnerApplication,
+  deleteStaffMember,
   extendMemberCard,
   receivePurchaseOrder,
   rechargeMemberCard,
@@ -51,6 +52,7 @@ import {
   updateStaffMember,
   updateAccountProfile,
   updateAuthUserStatus,
+  resetAuthUserPassword,
   updateStoreProfile,
   updateStoreStatus,
   updateSystemConfig,
@@ -199,8 +201,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const staffInvite = currentData.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === inviteCode.trim().toUpperCase());
       const joinedAccount = staffInvite?.account ?? (isStoreStaffInviteCode(currentData, inviteCode) ? optionalString(body, "account") : undefined);
       if (!joinedAccount) throw new Error("邀请账号不存在");
-      const loginResult = await loginWithD1(context.env.DB, joinedAccount, plainPassword);
-      return sendJson(201, loginResult.session);
+      return sendJson(202, {
+        status: "pending_approval",
+        message: "员工账号已提交，请等待店长审核通过后再登录。",
+      });
     }
 
     if (context.request.method === "GET" && pathname.startsWith("/api/public/store/")) {
@@ -284,14 +288,29 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) {
-      if (session.user.role !== "superadmin") {
-        throw new Error("只有平台 Admin 可以管理账号状态");
-      }
+      requirePermission(session, "staff:manage");
       const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = updateAuthUserStatus(await database.readData(), {
+      const currentData = await database.readData();
+      assertCanManageAuthUser(currentData, session, userId);
+      const nextData = updateAuthUserStatus(currentData, {
         userId,
-        status: requiredString(body, "status") as "active" | "disabled",
+        status: requiredString(body, "status") as "active" | "disabled" | "pending",
+        operatedBy: session.user.id,
+      });
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/password")) {
+      requirePermission(session, "staff:manage");
+      const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const currentData = await database.readData();
+      assertCanManageAuthUser(currentData, session, userId);
+      const nextData = resetAuthUserPassword(currentData, {
+        userId,
+        password: await hashPassword(requiredString(body, "password")),
         operatedBy: session.user.id,
       });
       await database.replaceData(nextData);
@@ -473,6 +492,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新员工资料`,
         },
       );
+      await database.replaceData(nextData);
+      return sendJson(200, scopeDataForSession(nextData, session));
+    }
+
+    if (context.request.method === "DELETE" && pathname.startsWith("/api/staff/")) {
+      requirePermission(session, "staff:manage");
+      const staffId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      const currentData = await database.readData();
+      assertCanManageStaff(currentData, session, staffId);
+      const nextData = deleteStaffMember(currentData, {
+        staffId,
+        operatedBy: session.user.id,
+      });
       await database.replaceData(nextData);
       return sendJson(200, scopeDataForSession(nextData, session));
     }
@@ -1365,6 +1397,30 @@ function updateData(
 
 function sessionStoreId(data: AppData, session: UserSession) {
   return storeIdForUser(normalizeStoreScopedData(data), session.user);
+}
+
+function assertCanManageAuthUser(data: AppData, session: UserSession, userId: string) {
+  if (session.user.role === "superadmin") return;
+  const normalizedData = normalizeStoreScopedData(data);
+  const user = normalizedData.authUsers.find((item) => item.id === userId);
+  if (!user) throw new Error("账号不存在");
+  if (user.role === "superadmin" || user.role === "owner") throw new Error("店长只能管理员工账号");
+  const currentStoreId = sessionStoreId(normalizedData, session);
+  const targetStoreId = storeIdForUser(normalizedData, user);
+  if (!currentStoreId || !targetStoreId || currentStoreId !== targetStoreId) throw new Error("只能管理本门店员工账号");
+}
+
+function assertCanManageStaff(data: AppData, session: UserSession, staffId: string) {
+  if (session.user.role === "superadmin") return;
+  const normalizedData = normalizeStoreScopedData(data);
+  const staff = normalizedData.staff.find((item) => item.id === staffId);
+  if (!staff) throw new Error("员工不存在");
+  if (staff.role === "老板") throw new Error("不能删除老板档案");
+  const linkedUser = normalizedData.authUsers.find((user) => user.staffId === staff.id || staff.accountId === user.id);
+  if (linkedUser?.role === "superadmin" || linkedUser?.role === "owner") throw new Error("店长只能管理员工账号");
+  const currentStoreId = sessionStoreId(normalizedData, session);
+  const targetStoreId = staff.storeId ?? (linkedUser ? storeIdForUser(normalizedData, linkedUser) : undefined);
+  if (!currentStoreId || !targetStoreId || currentStoreId !== targetStoreId) throw new Error("只能管理本门店员工");
 }
 
 function requirePermission(session: UserSession, permission: Permission) {

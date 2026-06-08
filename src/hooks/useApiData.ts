@@ -156,6 +156,7 @@ export function useApiData() {
   const actions = {
     addStaff: client.addStaff,
     updateStaff: client.updateStaff,
+    deleteStaff: client.deleteStaff,
     updateStoreProfile: client.updateStoreProfile,
     fetchR2Usage: client.fetchR2Usage,
     fetchWorkerUsage: client.fetchWorkerUsage,
@@ -163,6 +164,7 @@ export function useApiData() {
     cleanupFormalData: client.cleanupFormalData,
     uploadAccountAvatar: client.uploadAccountAvatar,
     updateAuthUserStatus: client.updateAuthUserStatus,
+    resetAuthUserPassword: client.resetAuthUserPassword,
     updateSystemConfig: client.updateSystemConfig,
     updateStoreStatus: client.updateStoreStatus,
     createStaffInvite: client.createStaffInvite,

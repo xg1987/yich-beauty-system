@@ -63,7 +63,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "./domain/products";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
+import type { AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "./domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "./domain/utils";
 import { type ApiActions, useApiData } from "./hooks/useApiData";
 import LoginPage from "./pages/auth/LoginPage";
@@ -427,6 +427,18 @@ function displayUserRole(role: UserRole) {
     finance: "财务",
   };
   return labels[role];
+}
+
+function displayAuthUserStatus(status: AuthUser["status"]) {
+  if (status === "active") return "启用";
+  if (status === "pending") return "待审核";
+  return "停用";
+}
+
+function authUserStatusTone(status: AuthUser["status"]) {
+  if (status === "active") return "ok" as const;
+  if (status === "pending") return undefined;
+  return "warn" as const;
 }
 
 function roomNamesOf(data: AppData) {
@@ -968,6 +980,7 @@ function ManagementCenter({
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
   ];
   const storeManagementCards: ManagementCard[] = [
+    { title: "账号管理", desc: "员工审核 / 密码重置", icon: UsersRound, tone: "violet", view: "accounts" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
     { title: "商品档案", desc: "商品资料 / 编码规格", icon: Boxes, tone: "teal", view: "catalog", catalogModule: "productList" },
@@ -2055,10 +2068,29 @@ function PlatformAccountAdminView({
   runMutation: RunMutation;
 }) {
   const mutationPending = useMutationPending();
+  const [resetUserId, setResetUserId] = useState("");
+  const [resetPassword, setResetPassword] = useState("123456");
   const visibleAuthUsers = data.authUsers.filter(isVisibleAccount);
+  const isPlatformAdmin = session.user.role === "superadmin";
   const adminAccounts = visibleAuthUsers.filter(isVisiblePlatformAdmin);
   const ownerAccounts = visibleAuthUsers.filter((user) => user.role === "owner" && !isVisiblePlatformAdmin(user));
   const staffAccounts = visibleAuthUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
+  const accountRows = isPlatformAdmin ? visibleAuthUsers : staffAccounts;
+  const resetUser = accountRows.find((user) => user.id === resetUserId);
+  const submitPasswordReset = (event: FormEvent) => {
+    event.preventDefault();
+    if (!resetUserId || !resetPassword.trim()) return;
+    void runMutation(() => actions.resetAuthUserPassword(resetUserId, resetPassword.trim())).then(() => {
+      setResetUserId("");
+      setResetPassword("123456");
+    });
+  };
+  const deleteLinkedStaff = (user: AuthUser) => {
+    const staffId = user.staffId;
+    if (!staffId) return;
+    if (!window.confirm(`确定删除员工 ${user.name}？已有订单/预约记录的员工不能删除，只能停用。`)) return;
+    void runMutation(() => actions.deleteStaff(staffId));
+  };
   const storeRows = data.storeProfiles.map((store) => {
     const ownerStaff = data.staff.find((staff) => {
       const linkedUser = data.authUsers.find((user) => user.staffId === staff.id);
@@ -2088,50 +2120,78 @@ function PlatformAccountAdminView({
       {showBack && <PlatformPageTitle title="账号管理" onBack={() => setView("settings")} />}
       <section className="page-hero platform-admin-readonly-hero">
         <div>
-          <span className="eyebrow"><UsersRound size={15} /> 平台账号</span>
+          <span className="eyebrow"><UsersRound size={15} /> {isPlatformAdmin ? "平台账号" : "门店账号"}</span>
           <h1>账号管理</h1>
-          <p>平台账号、门店账号、员工账号和门店绑定关系。</p>
+          <p>{isPlatformAdmin ? "平台账号、门店账号、员工账号和门店绑定关系。" : "员工审核、账号启停、密码重置和员工删除都在这里处理。"}</p>
         </div>
         <div className="page-hero-stats">
-          <StatCard title="系统管理员" value={`${adminAccounts.length} 个`} hint="平台管理员" />
-          <StatCard title="门店账号" value={`${ownerAccounts.length} 个`} hint="负责人账号" />
+          {isPlatformAdmin && <StatCard title="系统管理员" value={`${adminAccounts.length} 个`} hint="平台管理员" />}
+          {isPlatformAdmin && <StatCard title="门店账号" value={`${ownerAccounts.length} 个`} hint="负责人账号" />}
           <StatCard title="员工账号" value={`${staffAccounts.length} 个`} hint="门店成员账号" />
+          <StatCard title="待审核" value={`${staffAccounts.filter((user) => user.status === "pending").length} 个`} hint="需店长通过" />
         </div>
       </section>
 
       <section className="account-admin-stack">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="账号列表" action={`${visibleAuthUsers.length} 个账号`} />
+          <PanelTitle icon={<UsersRound size={18} />} title="账号列表" action={`${accountRows.length} 个账号`} />
+          {resetUser && (
+            <form className="staff-edit-form" onSubmit={submitPasswordReset}>
+              <div className="staff-edit-head">
+                <strong>重置密码</strong>
+                <span>{resetUser.name} · {resetUser.account}</span>
+              </div>
+              <label>新密码<input value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} required /></label>
+              <div className="staff-edit-actions">
+                <SubmitStatusButton idleText="确认重置" busyText="重置中..." />
+                <button type="button" onClick={() => setResetUserId("")}>取消</button>
+              </div>
+            </form>
+          )}
           <DataTable
             columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
-            rows={visibleAuthUsers.map((user) => [
+            rows={accountRows.map((user) => [
               user.name,
               user.account,
               displayRoleName(user),
-              <Badge key={`${user.id}-status`} text={user.status === "active" ? "启用" : "停用"} tone={user.status === "active" ? "ok" : "warn"} />,
+              <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
               shortDate(user.createdAt),
               user.id === session.user.id ? (
                 <span key={`${user.id}-self`}>当前账号</span>
               ) : (
-                <button
-                  key={`${user.id}-toggle`}
-                  type="button"
-                  disabled={mutationPending}
-                  onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, user.status === "active" ? "disabled" : "active"))}
-                >
-                  {mutationPending ? "处理中..." : user.status === "active" ? "停用" : "启用"}
-                </button>
+                <div className="row-actions" key={`${user.id}-actions`}>
+                  {user.status === "pending" && (
+                    <button
+                      type="button"
+                      disabled={mutationPending}
+                      onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, "active"))}
+                    >
+                      {mutationPending ? "处理中..." : "通过"}
+                    </button>
+                  )}
+                  {user.status !== "pending" && (
+                    <button
+                      type="button"
+                      disabled={mutationPending}
+                      onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, user.status === "active" ? "disabled" : "active"))}
+                    >
+                      {mutationPending ? "处理中..." : user.status === "active" ? "停用" : "启用"}
+                    </button>
+                  )}
+                  <button type="button" disabled={mutationPending} onClick={() => setResetUserId(user.id)}>重置密码</button>
+                  {user.staffId && <button type="button" disabled={mutationPending} onClick={() => deleteLinkedStaff(user)}>删除员工</button>}
+                </div>
               ),
             ])}
           />
         </div>
-        <div className="panel dashboard-panel">
+        {isPlatformAdmin && <div className="panel dashboard-panel">
           <PanelTitle icon={<Building2 size={18} />} title="门店账号" action={`${data.storeProfiles.length} 家门店`} />
           <DataTable
             columns={["门店", "负责人", "登录账号", "门店电话", "状态", "开通时间", "操作"]}
             rows={storeRows}
           />
-        </div>
+        </div>}
       </section>
     </div>
   );

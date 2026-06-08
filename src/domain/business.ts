@@ -588,6 +588,17 @@ export type AuthUserStatusInput = {
   operatedBy: string;
 };
 
+export type AuthUserPasswordResetInput = {
+  userId: string;
+  password: string;
+  operatedBy: string;
+};
+
+export type DeleteStaffInput = {
+  staffId: string;
+  operatedBy: string;
+};
+
 export type CheckoutInput = {
   storeId?: string;
   customerId?: string;
@@ -1809,7 +1820,7 @@ export function updateAccountProfile(data: AppData, input: AccountProfileInput):
 export function updateAuthUserStatus(data: AppData, input: AuthUserStatusInput): AppData {
   const user = data.authUsers.find((item) => item.id === input.userId);
   if (!user) throw new Error("账号不存在");
-  if (input.status !== "active" && input.status !== "disabled") throw new Error("账号状态不正确");
+  if (input.status !== "active" && input.status !== "disabled" && input.status !== "pending") throw new Error("账号状态不正确");
   if (user.id === input.operatedBy && input.status === "disabled") throw new Error("不能停用当前登录账号");
   const activeSuperadminCount = data.authUsers.filter((item) => effectiveRoleForUser(item) === "superadmin" && item.status === "active").length;
   if (effectiveRoleForUser(user) === "superadmin" && user.status === "active" && input.status === "disabled" && activeSuperadminCount <= 1) {
@@ -1822,10 +1833,65 @@ export function updateAuthUserStatus(data: AppData, input: AuthUserStatusInput):
       {
         id: makeId("op"),
         userId: input.operatedBy,
-        action: input.status === "active" ? "启用账号" : "停用账号",
+        action: input.status === "active" ? "启用账号" : input.status === "pending" ? "账号待审核" : "停用账号",
         targetType: "authUser",
         targetId: user.id,
-        summary: `${input.status === "active" ? "启用" : "停用"}账号 ${user.account}`,
+        summary: `${input.status === "active" ? "启用" : input.status === "pending" ? "待审核" : "停用"}账号 ${user.account}`,
+        createdAt: nowIso(),
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function resetAuthUserPassword(data: AppData, input: AuthUserPasswordResetInput): AppData {
+  const user = data.authUsers.find((item) => item.id === input.userId);
+  if (!user) throw new Error("账号不存在");
+  if (!input.password) throw new Error("请输入新密码");
+  return {
+    ...data,
+    authUsers: data.authUsers.map((item) => (item.id === user.id ? { ...item, password: input.password } : item)),
+    operationLogs: [
+      {
+        id: makeId("op"),
+        userId: input.operatedBy,
+        action: "重置账号密码",
+        targetType: "authUser",
+        targetId: user.id,
+        summary: `重置账号 ${user.account} 的密码`,
+        createdAt: nowIso(),
+      },
+      ...data.operationLogs,
+    ],
+  };
+}
+
+export function deleteStaffMember(data: AppData, input: DeleteStaffInput): AppData {
+  const staff = data.staff.find((item) => item.id === input.staffId);
+  if (!staff) throw new Error("员工不存在");
+  const linkedUserIds = new Set(data.authUsers.filter((user) => user.staffId === staff.id || staff.accountId === user.id).map((user) => user.id));
+  const hasBusinessRecords =
+    data.appointments.some((item) => item.staffId === staff.id) ||
+    data.orders.some((item) => item.staffId === staff.id) ||
+    data.commissions.some((item) => item.staffId === staff.id) ||
+    data.staffShifts.some((item) => item.staffId === staff.id) ||
+    data.staffUnavailableSlots.some((item) => item.staffId === staff.id) ||
+    data.customerServiceRecords.some((item) => item.staffId === staff.id) ||
+    data.customerFollowUps.some((item) => item.staffId === staff.id);
+  if (hasBusinessRecords) throw new Error("该员工已有预约、订单或提成记录，不能删除，请停用账号和员工档案");
+  return {
+    ...data,
+    staff: data.staff.filter((item) => item.id !== staff.id),
+    authUsers: data.authUsers.filter((item) => !linkedUserIds.has(item.id)),
+    staffInvites: data.staffInvites.filter((item) => item.staffId !== staff.id),
+    operationLogs: [
+      {
+        id: makeId("op"),
+        userId: input.operatedBy,
+        action: "删除员工",
+        targetType: "staff",
+        targetId: staff.id,
+        summary: `删除员工 ${staff.name}`,
         createdAt: nowIso(),
       },
       ...data.operationLogs,
@@ -1965,7 +2031,7 @@ export function joinStaffInvite(
         role: invite.role,
         roleName: roleNameOf(invite.role),
         staffId: staff.id,
-        status: "active",
+        status: "pending",
         createdAt,
       },
       ...data.authUsers,
@@ -2095,7 +2161,7 @@ export function joinStoreStaffInvite(
         role: "therapist",
         roleName: roleNameOf("therapist"),
         staffId,
-        status: "active",
+        status: "pending",
         createdAt,
       },
       ...data.authUsers,

@@ -27,7 +27,7 @@ export type StoreProfile = {
   roomNames?: string[];
   maintenanceRoomNames?: string[];
   maintenanceRoomCount?: number;
-  status?: "active" | "disabled";
+  status?: "active" | "disabled" | "pending";
   createdAt: string;
 };
 
@@ -66,7 +66,7 @@ export type AuthUser = {
   role: UserRole;
   roleName: string;
   staffId?: string;
-  status: "active" | "disabled";
+  status: "active" | "disabled" | "pending";
   createdAt: string;
 };
 

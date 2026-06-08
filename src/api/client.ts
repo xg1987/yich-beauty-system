@@ -56,8 +56,10 @@ export function createApiClient(getToken: () => string | undefined) {
     },
     updateAccountProfile: (body: { name: string; avatarUrl?: string }) =>
       request<{ session: UserSession; data: AppData }>("/api/account-profile", { method: "PATCH", body, token: getToken() }),
-    updateAuthUserStatus: (userId: string, status: "active" | "disabled") =>
+    updateAuthUserStatus: (userId: string, status: "active" | "disabled" | "pending") =>
       request<AppData>(`/api/auth-users/${encodeURIComponent(userId)}/status`, { method: "PATCH", body: { status }, token: getToken() }),
+    resetAuthUserPassword: (userId: string, password: string) =>
+      request<AppData>(`/api/auth-users/${encodeURIComponent(userId)}/password`, { method: "PATCH", body: { password }, token: getToken() }),
     markNotificationRead: (notificationId: string) =>
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
     archiveNotification: (notificationId: string) =>
@@ -74,6 +76,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
     updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>
       request<AppData>(`/api/staff/${encodeURIComponent(staffId)}`, { method: "PATCH", body, token: getToken() }),
+    deleteStaff: (staffId: string) =>
+      request<AppData>(`/api/staff/${encodeURIComponent(staffId)}`, { method: "DELETE", token: getToken() }),
     createStaffInvite: (body: { staffId: string; account: string; role: UserRole; validDays?: number }) =>
       request<AppData>("/api/staff-invites", { method: "POST", body, token: getToken() }),
     createStoreOwnerInvite: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; validDays?: number }) =>
