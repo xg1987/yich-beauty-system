@@ -95,8 +95,9 @@ button[aria-busy="true"] {
   overflow: hidden;
   padding: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.48), transparent 42%),
-    linear-gradient(135deg, #fbf8f4 0%, #faf6fb 52%, #fbf8f5 100%);
+    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.42) 28%, transparent 58%),
+    linear-gradient(135deg, rgba(155, 120, 189, 0.26) 0%, rgba(252, 248, 252, 0.9) 46%, rgba(176, 138, 127, 0.22) 100%),
+    linear-gradient(180deg, #fbf8ff 0%, #fffafa 52%, #f7eef5 100%);
   color: #2f255f;
 }
 
@@ -105,7 +106,9 @@ button[aria-busy="true"] {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(58, 39, 89, 0.035), transparent 18%, transparent 82%, rgba(58, 39, 89, 0.025));
+    radial-gradient(circle at 7% 4%, rgba(126, 91, 166, 0.12), transparent 32%),
+    radial-gradient(circle at 94% 92%, rgba(169, 126, 118, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(58, 39, 89, 0.025), transparent 22%, transparent 78%, rgba(58, 39, 89, 0.02));
   pointer-events: none;
 }
 
@@ -124,23 +127,30 @@ button[aria-busy="true"] {
 }
 
 .loading-brand span {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 999px;
-  background: rgba(80, 45, 116, 0.72);
+  background: linear-gradient(180deg, #f1d88c 0%, #b88632 100%);
+  box-shadow: 0 4px 14px rgba(136, 96, 32, 0.18);
 }
 
 .loading-brand strong {
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
-  font-size: clamp(20px, 2vw, 30px);
+  font-size: clamp(30px, 3vw, 48px);
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
+  color: #d7ad55;
+  background: linear-gradient(180deg, #fff0bc 0%, #d3a64e 48%, #9d722f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 10px 24px rgba(91, 61, 18, 0.12);
 }
 
 .loading-brand small {
   grid-column: 1 / -1;
-  color: rgba(45, 31, 80, 0.54);
-  font-size: clamp(11px, 0.92vw, 14px);
+  color: rgba(55, 45, 86, 0.5);
+  font-size: clamp(13px, 1.05vw, 17px);
   font-weight: 760;
   letter-spacing: 0.42em;
 }
@@ -153,7 +163,7 @@ button[aria-busy="true"] {
   width: min(560px, calc(100vw - 48px));
   display: grid;
   justify-items: center;
-  gap: 18px;
+  gap: 20px;
   padding: 0;
   transform: translate(-50%, -50%);
   text-align: center;
@@ -187,19 +197,19 @@ button[aria-busy="true"] {
 }
 
 .loading-minimal small {
-  margin-top: 0;
-  color: rgba(45, 31, 80, 0.4);
+  margin-top: -2px;
+  color: rgba(55, 45, 86, 0.42);
   font-size: 14px;
   font-weight: 760;
   letter-spacing: 0.36em;
 }
 
 .loading-progress {
-  width: min(340px, 42vw);
-  height: 5px;
+  width: min(360px, 42vw);
+  height: 4px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(74, 45, 116, 0.12);
+  background: rgba(111, 75, 152, 0.16);
 }
 
 .loading-progress i {
@@ -207,7 +217,7 @@ button[aria-busy="true"] {
   width: 78%;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #432264 0%, #725394 58%, #a48a62 100%);
+  background: linear-gradient(90deg, #4f28a2 0%, #8e65dc 56%, #e1d0f0 100%);
   animation: loading-progress-flow 1.8s ease-in-out infinite;
 }
 
