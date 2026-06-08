@@ -24,7 +24,7 @@
     "d1:migrate:local": "wrangler d1 migrations apply yich-beauty-db --local",
     "d1:migrate:remote": "wrangler d1 migrations apply yich-beauty-db --remote",
     "dev:cloudflare": "npm run build && wrangler pages dev dist --compatibility-date=2026-05-24",
-    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true"
+    "deploy:pages": "npm run android:apk && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
