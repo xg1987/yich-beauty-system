@@ -2,6 +2,24 @@ import type { UserSession } from "../domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, WorkerUsageSnapshot } from "../domain/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const DATA_CACHE_TTL_MS = 30_000;
+const cacheableGetPaths = new Set(["/api/data"]);
+const responseCache = new Map<string, { expiresAt: number; payload: unknown }>();
+const pendingRequests = new Map<string, Promise<unknown>>();
+
+function requestCacheKey(path: string, token?: string) {
+  return `${token ?? "public"}:${path}`;
+}
+
+function invalidateDataCache(token?: string) {
+  const prefix = `${token ?? "public"}:/api/data`;
+  Array.from(responseCache.keys()).forEach((key) => {
+    if (key === prefix) responseCache.delete(key);
+  });
+  Array.from(pendingRequests.keys()).forEach((key) => {
+    if (key === prefix) pendingRequests.delete(key);
+  });
+}
 
 export type PublicCustomerSignaturePayload = {
   signature: Pick<CustomerSignature, "id" | "token" | "title" | "content" | "status" | "createdAt" | "expiresAt" | "signerName" | "signatureText" | "signedAt">;
@@ -265,24 +283,49 @@ async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; token?: string } = {},
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? "GET",
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  const method = options.method ?? "GET";
+  const cacheKey = requestCacheKey(path, options.token);
+  const cacheable = method === "GET" && cacheableGetPaths.has(path);
+  if (cacheable) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.payload as T;
+    }
+    const pending = pendingRequests.get(cacheKey);
+    if (pending) return pending as Promise<T>;
+  }
 
-  const text = await response.text();
-  const payload = text ? parseJson<T | { error: string }>(text) : undefined;
-  if (!response.ok) {
-    throw new Error(isErrorPayload(payload) ? payload.error : `HTTP ${response.status}`);
+  const pending = (async () => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+
+    const text = await response.text();
+    const payload = text ? parseJson<T | { error: string }>(text) : undefined;
+    if (!response.ok) {
+      throw new Error(isErrorPayload(payload) ? payload.error : `HTTP ${response.status}`);
+    }
+    if (payload === undefined) {
+      throw new Error("服务暂时不可用，请稍后重试");
+    }
+    if (cacheable) {
+      responseCache.set(cacheKey, { expiresAt: Date.now() + DATA_CACHE_TTL_MS, payload });
+    } else if (method !== "GET") {
+      invalidateDataCache(options.token);
+    }
+    return payload as T;
+  })();
+
+  if (cacheable) {
+    pendingRequests.set(cacheKey, pending);
+    void pending.finally(() => pendingRequests.delete(cacheKey)).catch(() => undefined);
   }
-  if (payload === undefined) {
-    throw new Error("服务暂时不可用，请稍后重试");
-  }
-  return payload as T;
+  return pending;
 }
 
 async function requestForm<T>(

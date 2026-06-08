@@ -21,8 +21,8 @@ const allViews: ViewKey[] = [
 
 const expectedViewsByRole: Record<UserRole, ViewKey[]> = {
   superadmin: allViews,
-  owner: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "settings"],
-  manager: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "settings"],
+  owner: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "accounts", "settings"],
+  manager: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "accounts", "settings"],
   frontdesk: ["dashboard", "appointments", "customers", "settings"],
   therapist: ["dashboard", "appointments", "customers", "staff", "settings"],
   finance: ["dashboard", "pos", "staff", "reports", "approvals", "settings"],

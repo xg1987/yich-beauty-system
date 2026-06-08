@@ -174,7 +174,7 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   reports: "reports:view",
   approvals: "approvals:manage",
   logs: "logs:view",
-  accounts: "settings:view",
+  accounts: "staff:manage",
   permissions: "settings:view",
   platformConfig: "settings:view",
   usage: "settings:view",

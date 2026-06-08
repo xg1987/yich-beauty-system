@@ -153,7 +153,7 @@ export function useApiData() {
     }
   };
 
-  const actions = {
+  const actions = useMemo(() => ({
     addStaff: client.addStaff,
     updateStaff: client.updateStaff,
     deleteStaff: client.deleteStaff,
@@ -210,7 +210,7 @@ export function useApiData() {
     markNotificationRead: client.markNotificationRead,
     archiveNotification: client.archiveNotification,
     markAllNotificationsRead: client.markAllNotificationsRead,
-  };
+  }), [client]);
 
   return {
     session,
@@ -235,3 +235,4 @@ export function useApiData() {
 }
 
 export type ApiActions = ReturnType<typeof useApiData>["actions"];
+export type UseApiDataResult = ReturnType<typeof useApiData>;

@@ -12,6 +12,22 @@ export default defineConfig({
   define: {
     "import.meta.env.PACKAGE_VERSION": JSON.stringify(pkg.version),
   },
+  build: {
+    modulePreload: {
+      resolveDependencies(_filename, deps, context) {
+        if (context.hostType !== "html") return deps;
+        return deps.filter((dep) => dep.startsWith("assets/vendor-"));
+      },
+    },
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) return "vendor-react";
+          if (id.includes("node_modules/lucide-react")) return "vendor-icons";
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {
