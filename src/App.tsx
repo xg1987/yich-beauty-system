@@ -557,14 +557,7 @@ function initialInventoryModuleFromUrl(): InventoryModuleKey {
   return inventoryModuleKeys.some((key) => key === requestedModule) ? (requestedModule as InventoryModuleKey) : "stockIn";
 }
 
-function loadingTargetLabel(view: ViewKey) {
-  if (view === "pos") return "收银台";
-  if (view === "dashboard") return "今日总览";
-  return navItems.find((item) => item.key === view)?.label ?? "门店系统";
-}
-
 function LoadingGate({
-  targetView,
   storeName,
   stage,
   loading,
@@ -572,7 +565,6 @@ function LoadingGate({
   refreshData,
   logout,
 }: {
-  targetView: ViewKey;
   storeName: string;
   stage: LoadingGateStage;
   loading: boolean;
@@ -580,24 +572,25 @@ function LoadingGate({
   refreshData: () => Promise<void>;
   logout: () => void;
 }) {
-  const targetLabel = loadingTargetLabel(targetView);
   const isError = Boolean(error);
-  const headline = isError ? "连接失败" : targetView === "pos" ? "进入收银台" : `进入${targetLabel}`;
-  const statusText = isError ? "请重试" : stage === "stalled" ? "数据连接较慢，请稍候" : "正在同步门店数据";
   const showActions = isError || stage === "stalled";
   const brandTitle = storeName || DEFAULT_SYSTEM_TITLE;
 
   return (
     <div className={`loading-page ${isError ? "is-error" : ""}`} aria-live="polite">
-      <div className="loading-brand">
-        <span aria-hidden="true" />
-        <strong>{brandTitle}</strong>
-        <span aria-hidden="true" />
-        <small>美业门店管理系统</small>
-      </div>
       <section className="loading-minimal">
-        <h1>{headline}</h1>
-        <p>{statusText}</p>
+        <div className="loading-brand">
+          <span aria-hidden="true" />
+          <strong>{brandTitle}</strong>
+          <span aria-hidden="true" />
+          <small>美业门店管理系统</small>
+        </div>
+        {isError && (
+          <div className="loading-error-copy">
+            <h1>连接失败</h1>
+            <p>请重试</p>
+          </div>
+        )}
         {!isError && <div className="loading-progress" aria-hidden="true"><i /></div>}
         {!isError && <small>请稍候</small>}
         {showActions && (
@@ -710,7 +703,6 @@ export default function App() {
   if (!data) {
     return (
       <LoadingGate
-        targetView={view}
         storeName={cachedStoreName()}
         stage={loadingGateStage}
         loading={loading}
