@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createApiClient, type JoinInviteResult } from "../api/client";
+import { createApiClient, setActiveDataScope, type JoinInviteResult } from "../api/client";
 import { normalizeUserSession, type UserSession } from "../domain/auth";
-import type { AppData } from "../domain/types";
+import { isAppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
+import type { AppData, ViewKey } from "../domain/types";
 
 const SESSION_KEY = "yich-system-session";
 const STORE_NAME_KEY = "yich-store-name";
@@ -30,8 +31,13 @@ export function useApiData() {
   const [mutationPending, setMutationPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const mutationPendingRef = useRef(false);
+  const dataRef = useRef<AppData | undefined>(undefined);
 
   const client = useMemo(() => createApiClient(() => session?.token), [session?.token]);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   useEffect(() => {
     if (!session || data) return;
@@ -112,7 +118,22 @@ export function useApiData() {
     }
   };
 
-  const runMutation = async (mutation: () => Promise<AppData>) => {
+  const refreshDataView = async (view: ViewKey) => {
+    if (!session || !dataRef.current) return;
+    setError(undefined);
+    try {
+      const slice = await client.fetchDataSlice(view);
+      setData((current) => mergeAppDataUpdate(current, slice));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "刷新页面数据失败");
+    }
+  };
+
+  const updateActiveDataScope = (view: ViewKey | undefined) => {
+    setActiveDataScope(view);
+  };
+
+  const runMutation = async (mutation: () => Promise<AppDataUpdate>) => {
     if (mutationPendingRef.current) {
       const duplicateError = new Error("操作正在处理中，请勿重复点击");
       setError(duplicateError.message);
@@ -123,7 +144,8 @@ export function useApiData() {
     setMutationPending(true);
     setError(undefined);
     try {
-      const nextData = await mutation();
+      const update = await mutation();
+      const nextData = mergeAppDataUpdate(dataRef.current, update);
       setData(nextData);
       return nextData;
     } catch (caught) {
@@ -229,6 +251,8 @@ export function useApiData() {
     updateAccountProfile,
     logout,
     refreshData,
+    refreshDataView,
+    setActiveDataScope: updateActiveDataScope,
     runMutation,
     actions,
   };
@@ -236,3 +260,16 @@ export function useApiData() {
 
 export type ApiActions = ReturnType<typeof useApiData>["actions"];
 export type UseApiDataResult = ReturnType<typeof useApiData>;
+
+function mergeAppDataUpdate(current: AppData | undefined, update: AppDataUpdate): AppData {
+  if (!isAppDataSlice(update)) {
+    return update;
+  }
+  if (!current) {
+    throw new Error("本地数据尚未加载，请刷新后重试");
+  }
+  return {
+    ...current,
+    ...update.data,
+  };
+}

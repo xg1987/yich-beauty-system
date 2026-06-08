@@ -11,7 +11,6 @@ import {
   signCustomerSignature,
   addStaffMember,
   addSupplier,
-  accountForInvite,
   adjustInventory,
   cleanupFormalData,
   convertOnlineBookingRequest,
@@ -70,6 +69,7 @@ import { normalizeUserSession, type Permission, type UserSession } from "../src/
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
+import { isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
 import { getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase } from "./database";
@@ -190,11 +190,13 @@ export function createApiServer(database = new BeautyDatabase()) {
           return;
         }
 
-        const joinedAccount = accountForInvite(currentData, inviteCode)
-          || (isStoreStaffInviteCode(currentData, inviteCode) ? optionalString(body, "account") : undefined);
+        const staffInvite = currentData.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === inviteCode.trim().toUpperCase());
+        const joinedAccount = staffInvite?.account ?? (isStoreStaffInviteCode(currentData, inviteCode) ? optionalString(body, "account") : undefined);
         if (!joinedAccount) throw new Error("邀请账号不存在");
-        const loginResult = await login(joinedAccount, plainPassword, nextData.authUsers);
-        sendJson(response, 201, loginResult.session);
+        sendJson(response, 202, {
+          status: "pending_approval",
+          message: "员工账号已提交，请等待店长审核通过后再登录。",
+        });
         return;
       }
 
@@ -298,13 +300,13 @@ export function createApiServer(database = new BeautyDatabase()) {
           operatedBy: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/api/data") {
         requirePermission(session, "dashboard:view");
-        sendJson(response, 200, scopeDataForSession(database.readData(), session));
+        sendScopedData(request, response, 200, database.readData(), session);
         return;
       }
 
@@ -346,7 +348,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 清理巡检命中的非正式数据`,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -354,7 +356,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const notificationId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const nextData = markNotificationRead(database.readData(), { notificationId, userId: session.user.id });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -362,7 +364,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const notificationId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const nextData = archiveNotification(database.readData(), { notificationId, userId: session.user.id });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -373,7 +375,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           staffId: session.user.staffId,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -394,7 +396,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           },
           (data) => updateSystemConfig(data, { key, value: requiredString(body, "value"), updatedBy: session.user.id }),
         );
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -410,7 +412,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -438,7 +440,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           },
         );
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -464,7 +466,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           },
         );
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -491,7 +493,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           },
         );
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -506,7 +508,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           validDays: optionalNumber(body, "validDays"),
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -525,7 +527,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           validDays: optionalNumber(body, "validDays"),
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -542,7 +544,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           rejectReason: optionalString(body, "rejectReason"),
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -554,7 +556,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           revokedBy: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -576,7 +578,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             enabledServiceIds: optionalStringArray(body, "enabledServiceIds") ?? [],
           }),
         );
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -619,7 +621,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           },
         );
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -637,7 +639,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           approvalId: optionalString(body, "approvalId"),
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -675,7 +677,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             })
           : adjustedData;
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -712,7 +714,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           staffId: appointment.staffId,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -729,7 +731,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -746,7 +748,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -770,7 +772,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             note: optionalString(body, "note"),
           }),
         );
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -785,7 +787,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           targetId: appointmentId,
           summary: `${session.user.name} 将预约状态改为 ${status}`,
         }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -799,7 +801,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -827,7 +829,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             ...data.customers,
           ],
         }));
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -858,7 +860,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             ),
           };
         });
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -877,7 +879,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             color: optionalString(body, "color"),
           }),
         );
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -898,7 +900,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             status: optionalString(body, "status") as "启用" | "停用" | undefined,
           }),
         );
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -926,7 +928,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -940,7 +942,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -960,7 +962,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -975,7 +977,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -990,7 +992,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -1005,7 +1007,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1032,7 +1034,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           audienceRoles: ["owner", "manager", "finance"],
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1046,7 +1048,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           approved: optionalBoolean(body, "approved") ?? true,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -1079,7 +1081,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           staffId: followUp.staffId,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1096,7 +1098,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           validDays: optionalNumber(body, "validDays"),
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1111,7 +1113,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           note: optionalString(body, "note") ?? "",
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1120,7 +1122,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const followUpId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const nextData = completeCustomerFollowUp(database.readData(), { followUpId });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -1159,7 +1161,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             ],
           };
         });
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1194,7 +1196,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             ),
           };
         });
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -1286,7 +1288,7 @@ export function createApiServer(database = new BeautyDatabase()) {
               ]
             : (data.inventoryBatches ?? []),
         }));
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1301,7 +1303,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           contact: optionalString(body, "contact") ?? "",
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1319,7 +1321,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1333,7 +1335,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1349,7 +1351,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1361,7 +1363,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           targetId: "all",
           summary: `${session.user.name} 结算全部待结算提成`,
         }, (data) => settleCommissions(data, { userId: session.user.id }));
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -1375,7 +1377,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 201, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 201, nextData, session);
         return;
       }
 
@@ -1389,7 +1391,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
         });
         database.replaceData(nextData);
-        sendJson(response, 200, scopeDataForSession(nextData, session));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -1836,10 +1838,26 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
   response.end(JSON.stringify(payload));
 }
 
+function sendScopedData(request: IncomingMessage, response: ServerResponse, statusCode: number, data: AppData, session: UserSession) {
+  const scopedData = scopeDataForSession(data, session);
+  if (request.headers["x-app-data-mode"] === "slice") {
+    const requestedView = stringHeader(request.headers["x-app-data-view"]) ?? new URL(request.url ?? "/", "http://localhost").searchParams.get("view");
+    if (isViewKey(requestedView)) {
+      sendJson(response, statusCode, makeAppDataSlice(scopedData, requestedView));
+      return;
+    }
+  }
+  sendJson(response, statusCode, scopedData);
+}
+
+function stringHeader(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 function setCorsHeaders(response: ServerResponse) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View");
 }
 
 function requiredString(body: JsonBody, key: string) {

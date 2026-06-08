@@ -648,7 +648,7 @@ const MemoPlatformUsageReadOnlyView = memo(PlatformUsageReadOnlyView);
 const MemoRoomSettings = memo(RoomSettings);
 
 export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataResult }) {
-  const { data, session, loading, mutationPending, error, updateAccountProfile, logout, refreshData, runMutation, actions } = apiState;
+  const { data, session, loading, mutationPending, error, updateAccountProfile, logout, refreshData, refreshDataView, setActiveDataScope, runMutation, actions } = apiState;
   const [view, setView] = useState<ViewKey>(initialViewFromUrl);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
@@ -718,6 +718,20 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
       localStorage.removeItem(STORE_NAME_KEY);
     }
   }, [data]);
+
+  useEffect(() => {
+    if (!session) {
+      setActiveDataScope(undefined);
+      return;
+    }
+    const platformAdmin = session.user.role === "superadmin";
+    const scopedNavItems = navItems.filter((item) => canAccessView(session, item.key) && (!platformAdmin || platformAdminAllowedViews.has(item.key)));
+    const nextActiveView = canAccessView(session, view) && (!platformAdmin || platformAdminAllowedViews.has(view)) ? view : scopedNavItems[0]?.key ?? "dashboard";
+    setActiveDataScope(nextActiveView);
+    if (data) {
+      void refreshDataView(nextActiveView);
+    }
+  }, [session?.token, session?.user.role, view]);
 
   if (!session) {
     return null;

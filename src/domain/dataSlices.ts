@@ -1,0 +1,175 @@
+import type { AppData, ViewKey } from "./types";
+
+export type AppDataSlice = {
+  kind: "app-data-slice";
+  view: ViewKey;
+  data: Partial<AppData>;
+  generatedAt: string;
+};
+
+export type AppDataUpdate = AppData | AppDataSlice;
+
+type AppDataKey = keyof AppData;
+
+const commonKeys: AppDataKey[] = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "notifications",
+  "systemConfigs",
+];
+
+const viewKeys: Record<ViewKey, AppDataKey[]> = {
+  dashboard: [
+    "customers",
+    "appointments",
+    "orders",
+    "products",
+    "memberCards",
+    "approvalRequests",
+    "dailyCloses",
+    "operationLogs",
+  ],
+  appointments: [
+    "customers",
+    "services",
+    "appointments",
+    "onlineBookingRequests",
+    "staffUnavailableSlots",
+    "staffShifts",
+    "orders",
+  ],
+  pos: [
+    "customers",
+    "services",
+    "products",
+    "appointments",
+    "memberCards",
+    "orders",
+    "refunds",
+    "commissions",
+    "inventoryBatches",
+    "inventoryLogs",
+    "memberCardTransactions",
+    "approvalRequests",
+    "customerServiceRecords",
+    "customerSignatures",
+    "customerFollowUps",
+    "dailyCloses",
+  ],
+  customers: [
+    "customers",
+    "tagDefinitions",
+    "services",
+    "products",
+    "appointments",
+    "orders",
+    "memberCards",
+    "memberCardTransactions",
+    "customerServiceRecords",
+    "customerSignatures",
+    "customerFollowUps",
+  ],
+  catalog: [
+    "tagDefinitions",
+    "services",
+    "products",
+    "inventoryBatches",
+    "inventoryLogs",
+  ],
+  staff: [
+    "staffInvites",
+    "orders",
+    "commissions",
+    "commissionSettlements",
+  ],
+  inventory: [
+    "services",
+    "products",
+    "inventoryBatches",
+    "inventoryLogs",
+    "suppliers",
+    "purchaseOrders",
+    "stocktakes",
+  ],
+  reports: [
+    "customers",
+    "services",
+    "products",
+    "appointments",
+    "orders",
+    "refunds",
+    "commissions",
+    "commissionSettlements",
+    "inventoryLogs",
+    "memberCards",
+    "memberCardTransactions",
+    "dailyCloses",
+  ],
+  approvals: [
+    "customers",
+    "orders",
+    "approvalRequests",
+  ],
+  logs: [
+    "operationLogs",
+  ],
+  accounts: [
+    "storeOwnerInvites",
+    "storeOwnerApplications",
+    "staffInvites",
+  ],
+  permissions: [
+    "storeOwnerApplications",
+  ],
+  platformConfig: [
+    "storeOwnerApplications",
+  ],
+  usage: [
+    "storeOwnerApplications",
+  ],
+  roomSettings: [
+    "appointments",
+    "staffUnavailableSlots",
+    "staffShifts",
+  ],
+  settings: [
+    "onlineStorefronts",
+    "staffInvites",
+    "storeOwnerInvites",
+    "storeOwnerApplications",
+  ],
+};
+
+export function isAppDataSlice(value: unknown): value is AppDataSlice {
+  return typeof value === "object"
+    && value !== null
+    && (value as { kind?: unknown }).kind === "app-data-slice"
+    && typeof (value as { data?: unknown }).data === "object"
+    && (value as { data?: unknown }).data !== null;
+}
+
+export function isViewKey(value: string | undefined | null): value is ViewKey {
+  return typeof value === "string" && value in viewKeys;
+}
+
+export function dataKeysForView(view: ViewKey) {
+  return Array.from(new Set([...commonKeys, ...viewKeys[view]]));
+}
+
+export function dataSliceForView(data: AppData, view: ViewKey): Partial<AppData> {
+  const slice: Partial<AppData> = {};
+  for (const key of dataKeysForView(view)) {
+    slice[key] = data[key] as never;
+  }
+  return slice;
+}
+
+export function makeAppDataSlice(data: AppData, view: ViewKey): AppDataSlice {
+  return {
+    kind: "app-data-slice",
+    view,
+    data: dataSliceForView(data, view),
+    generatedAt: new Date().toISOString(),
+  };
+}

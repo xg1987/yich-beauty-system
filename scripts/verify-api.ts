@@ -7,6 +7,7 @@ import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
 import { platformInviteCodeForUser } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
+import type { AppDataSlice } from "../src/domain/dataSlices";
 import type { AppData, WorkerUsageSnapshot } from "../src/domain/types";
 
 const tempDir = mkdtempSync(join(tmpdir(), "beauty-api-"));
@@ -50,6 +51,26 @@ try {
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
   assert.equal(initialData.systemConfigs.length, 5, "API data should include normalized system configs");
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
+  const posSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=pos", {
+    token: session.token,
+    headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "pos" },
+  });
+  assert.equal(posSlice.kind, "app-data-slice", "data slice API should return slice marker");
+  assert.equal(posSlice.view, "pos", "data slice API should echo requested view");
+  assert.ok(posSlice.data.orders, "POS slice should include orders");
+  assert.ok(posSlice.data.products, "POS slice should include products");
+  assert.equal("storeOwnerApplications" in posSlice.data, false, "POS slice should omit unrelated platform application data");
+  assert.ok(JSON.stringify(posSlice).length < JSON.stringify(initialData).length, "view slice should be smaller than full AppData");
+  const customerMutationSlice = await request<AppDataSlice>(baseUrl, "/api/customers", {
+    method: "POST",
+    token: session.token,
+    headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "customers" },
+    body: { name: "分片验证客户", phone: "13900000001" },
+  });
+  assert.equal(customerMutationSlice.kind, "app-data-slice", "mutation with slice header should return AppData slice");
+  assert.equal(customerMutationSlice.view, "customers", "mutation slice should use active view");
+  assert.ok(customerMutationSlice.data.customers?.some((customer) => customer.name === "分片验证客户"), "mutation slice should include updated customers");
+  assert.equal("purchaseOrders" in customerMutationSlice.data, false, "customer mutation slice should omit inventory purchase orders");
 
   const adminSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
     method: "POST",
@@ -421,11 +442,12 @@ try {
   });
   assert.equal(afterInvite.staffInvites[0].status, "待加入", "staff invite API should create invite");
   assert.ok(afterInvite.staffInvites[0].expiresAt, "staff invite API should persist expiry");
-  const joinedSession = await request<{ token: string; user: { account: string; roleName: string } }>(baseUrl, "/api/auth/join-invite", {
+  const joinedStaffResult = await request<{ status: string; message: string }>(baseUrl, "/api/auth/join-invite", {
     method: "POST",
     body: { inviteCode: afterInvite.staffInvites[0].inviteCode, name: "API 新员工", password: "secret" },
   });
-  assert.equal(joinedSession.user.account, "api-staff@test.local", "join invite API should login invited staff");
+  assert.equal(joinedStaffResult.status, "pending_approval", "join invite API should wait for staff approval");
+  assert.match(joinedStaffResult.message, /店长审核/, "join invite API should explain staff approval");
 
   const afterRevocableStaff = await request<AppData>(baseUrl, "/api/staff", {
     method: "POST",
@@ -1201,12 +1223,13 @@ function close(server: Server) {
   });
 }
 
-async function request<T>(baseUrl: string, path: string, options: { method?: string; body?: unknown; token?: string } = {}) {
+async function request<T>(baseUrl: string, path: string, options: { method?: string; body?: unknown; token?: string; headers?: Record<string, string> } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? "GET",
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+      ...(options.headers ?? {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

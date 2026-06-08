@@ -1,11 +1,17 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AppDataSlice } from "../domain/dataSlices";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const DATA_CACHE_TTL_MS = 30_000;
-const cacheableGetPaths = new Set(["/api/data"]);
+const cacheableGetPaths = ["/api/data"];
 const responseCache = new Map<string, { expiresAt: number; payload: unknown }>();
 const pendingRequests = new Map<string, Promise<unknown>>();
+let activeDataScope: ViewKey | undefined;
+
+export function setActiveDataScope(view: ViewKey | undefined) {
+  activeDataScope = view;
+}
 
 function requestCacheKey(path: string, token?: string) {
   return `${token ?? "public"}:${path}`;
@@ -14,11 +20,15 @@ function requestCacheKey(path: string, token?: string) {
 function invalidateDataCache(token?: string) {
   const prefix = `${token ?? "public"}:/api/data`;
   Array.from(responseCache.keys()).forEach((key) => {
-    if (key === prefix) responseCache.delete(key);
+    if (key.startsWith(prefix)) responseCache.delete(key);
   });
   Array.from(pendingRequests.keys()).forEach((key) => {
-    if (key === prefix) pendingRequests.delete(key);
+    if (key.startsWith(prefix)) pendingRequests.delete(key);
   });
+}
+
+function isCacheableGet(path: string) {
+  return cacheableGetPaths.some((cacheablePath) => path === cacheablePath || path.startsWith(`${cacheablePath}?`));
 }
 
 export type PublicCustomerSignaturePayload = {
@@ -62,6 +72,12 @@ export function createApiClient(getToken: () => string | undefined) {
     signPublicCustomerSignature: (token: string, body: { signerName: string; signatureText: string }) =>
       request<PublicCustomerSignaturePayload>(`/api/public/customer-signatures/${encodeURIComponent(token)}/sign`, { method: "POST", body }),
     fetchData: () => request<AppData>("/api/data", { token: getToken() }),
+    fetchDataSlice: (view: ViewKey) =>
+      request<AppDataSlice>(`/api/data?view=${encodeURIComponent(view)}`, {
+        token: getToken(),
+        dataMode: "slice",
+        dataScope: view,
+      }),
     fetchR2Usage: () => request<R2UsageSnapshot>("/api/usage/r2", { token: getToken() }),
     fetchWorkerUsage: () => request<WorkerUsageSnapshot>("/api/usage/worker", { token: getToken() }),
     fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
@@ -281,11 +297,13 @@ export function createApiClient(getToken: () => string | undefined) {
 
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; token?: string } = {},
+  options: { method?: string; body?: unknown; token?: string; dataMode?: "slice"; dataScope?: ViewKey } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
   const cacheKey = requestCacheKey(path, options.token);
-  const cacheable = method === "GET" && cacheableGetPaths.has(path);
+  const cacheable = method === "GET" && isCacheableGet(path);
+  const dataScope = options.dataScope ?? (method === "GET" ? undefined : activeDataScope);
+  const dataMode = options.dataMode ?? (method === "GET" || !dataScope ? undefined : "slice");
   if (cacheable) {
     const cached = responseCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -301,6 +319,8 @@ async function request<T>(
       headers: {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+        ...(dataMode ? { "X-App-Data-Mode": dataMode } : {}),
+        ...(dataScope ? { "X-App-Data-View": dataScope } : {}),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });

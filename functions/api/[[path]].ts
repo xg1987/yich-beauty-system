@@ -67,6 +67,7 @@ import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
+import { isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
@@ -299,7 +300,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         operatedBy: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/password")) {
@@ -314,12 +315,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         operatedBy: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
-      return sendJson(200, scopeDataForSession(await database.readData(), session));
+      return sendScopedData(context.request, 200, await database.readData(), session);
     }
 
     if (context.request.method === "GET" && pathname === "/api/usage/r2") {
@@ -355,21 +356,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         summary: `${session.user.name} 清理巡检命中的非正式数据`,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) {
       const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const nextData = markNotificationRead(await database.readData(), { notificationId, userId: session.user.id });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) {
       const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const nextData = archiveNotification(await database.readData(), { notificationId, userId: session.user.id });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/notifications/read-all") {
@@ -379,7 +380,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: session.user.staffId,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/system-configs/")) {
@@ -400,7 +401,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         (data) => updateSystemConfig(data, { key, value: requiredString(body, "value"), updatedBy: session.user.id }),
       );
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/stores/") && pathname.endsWith("/status")) {
@@ -415,7 +416,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname === "/api/store-profile") {
@@ -442,7 +443,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         },
       );
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff") {
@@ -467,7 +468,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         },
       );
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/staff/")) {
@@ -493,7 +494,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         },
       );
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "DELETE" && pathname.startsWith("/api/staff/")) {
@@ -506,7 +507,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         operatedBy: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff-invites") {
@@ -520,7 +521,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         validDays: optionalNumber(body, "validDays"),
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/store-owner-invites") {
@@ -538,7 +539,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         validDays: optionalNumber(body, "validDays"),
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) {
@@ -554,7 +555,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         rejectReason: optionalString(body, "rejectReason"),
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/staff-invites/")) {
@@ -565,7 +566,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         revokedBy: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/online-storefront") {
@@ -587,7 +588,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }),
       );
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/checkout") {
@@ -630,7 +631,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         },
       );
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/orders/") && pathname.endsWith("/refund")) {
@@ -647,7 +648,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         approvalId: optionalString(body, "approvalId"),
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/inventory/adjust") {
@@ -684,7 +685,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           })
         : adjustedData;
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/appointments") {
@@ -720,7 +721,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: appointment.staffId,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff-unavailable-slots") {
@@ -736,7 +737,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff-shifts") {
@@ -752,7 +753,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/appointments/") && pathname.endsWith("/reschedule")) {
@@ -776,7 +777,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }),
       );
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/appointments/")) {
@@ -791,7 +792,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         summary: `${session.user.name} 将预约状态改为 ${status}`,
       }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/online-booking-requests/") && pathname.endsWith("/convert")) {
@@ -804,7 +805,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/customers") {
@@ -832,7 +833,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         ],
       }));
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/customers/")) {
@@ -863,7 +864,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         };
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/tags") {
@@ -882,7 +883,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }),
       );
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/tags/")) {
@@ -903,7 +904,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }),
       );
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/member-cards") {
@@ -930,7 +931,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/recharge")) {
@@ -949,7 +950,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/status")) {
@@ -963,7 +964,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/extend")) {
@@ -977,7 +978,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/transfer")) {
@@ -991,7 +992,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/approvals") {
@@ -1017,7 +1018,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         audienceRoles: ["owner", "manager", "finance"],
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/approvals/")) {
@@ -1030,7 +1031,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         approved: optionalBoolean(body, "approved") ?? true,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/service-records") {
@@ -1062,7 +1063,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: followUp.staffId,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/customer-signatures") {
@@ -1078,7 +1079,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         validDays: optionalNumber(body, "validDays"),
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/follow-ups") {
@@ -1092,7 +1093,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         note: optionalString(body, "note") ?? "",
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/follow-ups/")) {
@@ -1100,7 +1101,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const followUpId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const nextData = completeCustomerFollowUp(await database.readData(), { followUpId });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/refund")) {
@@ -1113,7 +1114,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/services") {
@@ -1152,7 +1153,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         };
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/services/") && pathname.endsWith("/consumables")) {
@@ -1187,7 +1188,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         };
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/products") {
@@ -1279,7 +1280,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           : (data.inventoryBatches ?? []),
       }));
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/suppliers") {
@@ -1293,7 +1294,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         contact: optionalString(body, "contact") ?? "",
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/purchase-orders") {
@@ -1310,7 +1311,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/inventory/restock-low") {
@@ -1323,7 +1324,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/stocktakes") {
@@ -1338,7 +1339,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/commissions/settle") {
@@ -1350,7 +1351,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         summary: `${session.user.name} 结算全部待结算提成`,
       }, (data) => settleCommissions(data, { userId: session.user.id }));
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/daily-close") {
@@ -1363,7 +1364,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(201, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 201, nextData, session);
     }
 
     if (context.request.method === "POST" && pathname === "/api/daily-close/reverse") {
@@ -1376,7 +1377,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       await database.replaceData(nextData);
-      return sendJson(200, scopeDataForSession(nextData, session));
+      return sendScopedData(context.request, 200, nextData, session);
     }
 
     return sendJson(404, { error: "Not found" });
@@ -1824,6 +1825,17 @@ function sendJson(statusCode: number, payload: unknown) {
   });
 }
 
+function sendScopedData(request: Request, statusCode: number, data: AppData, session: UserSession) {
+  const scopedData = scopeDataForSession(data, session);
+  if (request.headers.get("X-App-Data-Mode") === "slice") {
+    const requestedView = request.headers.get("X-App-Data-View") ?? new URL(request.url).searchParams.get("view");
+    if (isViewKey(requestedView)) {
+      return sendJson(statusCode, makeAppDataSlice(scopedData, requestedView));
+    }
+  }
+  return sendJson(statusCode, scopedData);
+}
+
 function handleCors(request: Request) {
   if (request.method !== "OPTIONS") return undefined;
   return new Response(null, { status: 204, headers: corsHeaders() });
@@ -1833,7 +1845,7 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View",
   };
 }
 
