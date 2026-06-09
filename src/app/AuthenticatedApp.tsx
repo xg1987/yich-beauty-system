@@ -4242,6 +4242,7 @@ function Pos({
   const [checkoutValidationMessages, setCheckoutValidationMessages] = useState<string[]>([]);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState("");
+  const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const checkoutSubmittingRef = useRef(false);
   const checkoutRequestIdRef = useRef(makeId("checkout"));
   const appliedInitialAppointmentRef = useRef<string | undefined>(undefined);
@@ -4653,6 +4654,7 @@ function Pos({
 
   const openCard = (event: FormEvent) => {
     event.preventDefault();
+    setCardFormMessage(undefined);
     void runMutation(async () => {
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
@@ -4685,6 +4687,14 @@ function Pos({
       setCardCustomerName("");
       setCardCustomerPhone("");
       setCardNote("");
+      setCheckoutSuccessMessage("开卡成功，已保存。");
+      if (fromManagement && onReturnManagement) {
+        onReturnManagement();
+      } else {
+        setActiveModule(undefined);
+      }
+    }).catch((caught) => {
+      setCardFormMessage({ type: "error", text: caught instanceof Error ? caught.message : "开卡保存失败" });
     });
   };
 
@@ -4866,7 +4876,11 @@ function Pos({
           <button
             type="button"
             className={`cashier-orbit-center ${activeModule === "card" ? "active" : ""}`}
-            onClick={() => setActiveModule("card")}
+            onClick={() => {
+              setCardFormMessage(undefined);
+              setCheckoutSuccessMessage("");
+              setActiveModule("card");
+            }}
           >
             <CreditCard size={34} />
             <strong>开卡</strong>
@@ -4933,6 +4947,11 @@ function Pos({
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
           <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "折扣卡" ? "如生日月权益、全店项目折扣" : cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
+          {cardFormMessage && (
+            <p className={cardFormMessage.type === "success" ? "form-success" : "form-error"}>
+              {cardFormMessage.text}
+            </p>
+          )}
           <SubmitStatusButton idleText="保存开卡" busyText="保存中..." />
         </form>
         </section>
@@ -5445,6 +5464,7 @@ function Customers({
   const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
   const [cardNote, setCardNote] = useState("");
+  const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
   const [rechargeAmount, setRechargeAmount] = useState(300);
   const [rechargeTimes, setRechargeTimes] = useState(0);
@@ -5504,6 +5524,7 @@ function Customers({
 
   const openCard = (event: FormEvent) => {
     event.preventDefault();
+    setCardFormMessage(undefined);
     void runMutation(async () => {
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
@@ -5548,6 +5569,9 @@ function Customers({
       setCardCustomerName("");
       setCardCustomerPhone("");
       setCardNote("");
+      setCardFormMessage({ type: "success", text: "开卡成功，已保存。" });
+    }).catch((caught) => {
+      setCardFormMessage({ type: "error", text: caught instanceof Error ? caught.message : "开卡保存失败" });
     });
   };
 
@@ -6156,6 +6180,11 @@ function Customers({
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
           <label>备注<input value={cardNote} onChange={(event) => setCardNote(event.target.value)} placeholder={cardType === "折扣卡" ? "如生日月权益、全店项目折扣" : cardType === "储值卡" ? "如充值赠送、全店通用说明" : "如活动价、赠送说明"} /></label>
+          {cardFormMessage && (
+            <p className={cardFormMessage.type === "success" ? "form-success" : "form-error"}>
+              {cardFormMessage.text}
+            </p>
+          )}
           <SubmitStatusButton idleText="保存开卡" busyText="保存中..." />
         </form>
         <div className="divider" />
