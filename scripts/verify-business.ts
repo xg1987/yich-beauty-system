@@ -23,6 +23,7 @@ import {
   joinInviteByCode,
   signCustomerSignature,
   addSystemNotification,
+  calculateMemberCardRefundQuote,
   cleanupFormalData,
   formalDataAudit,
   markAllVisibleNotificationsRead,
@@ -1330,6 +1331,52 @@ function card(data: AppData, cardId: string) {
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(closedAfterRefund.dailyCloses[0].refundAmount, 980, "daily close should include member card refund amount");
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "SPA退费客户",
+      customerPhone: "13800003980",
+      name: "3980元10次SPA",
+      type: "次数卡",
+      remainingTimes: 10,
+      serviceId: "v1",
+      paidAmount: 3980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const usedOnce = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "会员卡",
+      cardId: opened.memberCards[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const quote = calculateMemberCardRefundQuote(usedOnce.memberCards[0], usedOnce.memberCardTransactions);
+  assert.equal(quote.purchasedTimes, 10, "refund quote should keep purchased package times");
+  assert.equal(quote.usedTimes, 1, "refund quote should derive used package times");
+  assert.equal(quote.unitDeduction, 398, "refund quote should deduct one unit price per used session");
+  assert.equal(quote.usedDeduction, 398, "refund quote should show mandatory used-session deduction");
+  assert.equal(quote.refundableAmount, 3582, "refund quote should return paid amount minus used-session deduction");
+  assert.throws(
+    () =>
+      refundMemberCard(
+        usedOnce,
+        { memberCardId: usedOnce.memberCards[0].id, reason: "超额退费", refundAmount: 3583, payMethod: "微信", userId: "u_manager" },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /不能大于扣除已用次数后的可退金额/,
+    "member card refund should reject amounts above used-session deduction quote",
+  );
 }
 
 {

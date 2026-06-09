@@ -2942,6 +2942,42 @@ export function memberCardCashRefund(transaction: MemberCardTransaction) {
   return Math.max(0, -transaction.amountDelta);
 }
 
+export type MemberCardRefundQuote = {
+  paidAmount: number;
+  purchasedTimes: number;
+  usedTimes: number;
+  remainingTimes: number;
+  unitDeduction: number;
+  usedDeduction: number;
+  refundableAmount: number;
+};
+
+function roundMoneyValue(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+export function calculateMemberCardRefundQuote(card: MemberCard, transactions: MemberCardTransaction[]): MemberCardRefundQuote {
+  const cardTransactions = transactions.filter((transaction) => transaction.memberCardId === card.id);
+  const paidAmount = roundMoneyValue(cardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0));
+  const purchasedTimes = cardTransactions.reduce((sum, transaction) => sum + Math.max(0, transaction.timesDelta), 0);
+  const remainingTimes = Math.max(0, card.remainingTimes);
+  const usedTimes = Math.max(0, purchasedTimes - remainingTimes);
+  const unitDeduction = purchasedTimes > 0 ? roundMoneyValue(paidAmount / purchasedTimes) : 0;
+  const usedDeduction = roundMoneyValue(Math.min(paidAmount, usedTimes * unitDeduction));
+  const timeBasedRefund = Math.max(0, paidAmount - usedDeduction);
+  const refundableAmount = purchasedTimes > 0 ? roundMoneyValue(timeBasedRefund) : roundMoneyValue(Math.max(0, card.balance));
+
+  return {
+    paidAmount,
+    purchasedTimes,
+    usedTimes,
+    remainingTimes,
+    unitDeduction,
+    usedDeduction,
+    refundableAmount,
+  };
+}
+
 export function refundMemberCard(
   data: AppData,
   input: RefundMemberCardInput,
@@ -2962,7 +2998,11 @@ export function refundMemberCard(
 
   const amountDelta = -card.balance;
   const timesDelta = -card.remainingTimes;
+  const refundQuote = calculateMemberCardRefundQuote(card, data.memberCardTransactions);
   const refundAmount = positiveNumber(input.refundAmount, card.balance);
+  if (refundQuote.purchasedTimes > 0 && refundAmount > refundQuote.refundableAmount) {
+    throw new Error(`实退金额不能大于扣除已用次数后的可退金额 ${refundQuote.refundableAmount} 元`);
+  }
   if (card.balance > 0 && refundAmount > card.balance) {
     throw new Error("实退金额不能大于当前余额");
   }

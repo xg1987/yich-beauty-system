@@ -6692,6 +6692,101 @@ textarea,
   font-weight: 750;
 }
 
+.refund-quote-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.refund-quote-grid span {
+  display: grid;
+  gap: 5px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid rgba(122, 86, 180, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.refund-quote-grid small {
+  color: #7a6c89;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.refund-quote-grid strong {
+  color: #2f1b58;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.staff-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.staff-schedule-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(122, 86, 180, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.staff-schedule-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.staff-schedule-card-head > div,
+.staff-schedule-section {
+  display: grid;
+  gap: 6px;
+}
+
+.staff-schedule-card-head strong {
+  color: #24183f;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.staff-schedule-card-head span,
+.staff-schedule-section small {
+  color: #7a6c89;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.staff-schedule-section p {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(119, 74, 188, 0.08);
+}
+
+.staff-schedule-section.blocked p {
+  background: rgba(199, 68, 102, 0.08);
+}
+
+.staff-schedule-section p span {
+  color: #2f2445;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.staff-schedule-section p em {
+  color: #776b82;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 750;
+}
+
 .settings-mode-toggle {
   display: flex;
   flex-wrap: wrap;

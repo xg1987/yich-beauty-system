@@ -2,10 +2,10 @@ import { CalendarDays, CreditCard, LockKeyhole } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import type { ApiActions } from "../../hooks/useApiData";
 import type { AppData, CashPayMethod, Staff } from "../../domain/types";
-import { money, shortDate, toLocalInputValue, tomorrowAt } from "../../domain/utils";
+import { calculateMemberCardRefundQuote } from "../../domain/business";
+import { money, shortDate } from "../../domain/utils";
 import { Badge } from "../ui/Badge";
 import { DataTable } from "../ui/DataTable";
-import { DateTimeInput } from "../ui/DateTimeInput";
 import { Select } from "../ui/Select";
 import { PanelTitle } from "../layout/PanelTitle";
 
@@ -35,12 +35,15 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const refundableCards = data.memberCards.filter((card) => card.status !== "已退卡");
   const [cardId, setCardId] = useState(refundableCards[0]?.id ?? "");
   const selectedCard = data.memberCards.find((card) => card.id === cardId);
-  const [refundAmount, setRefundAmount] = useState(() => String(refundableCards[0]?.balance ?? 0));
+  const selectedRefundQuote = selectedCard ? calculateMemberCardRefundQuote(selectedCard, data.memberCardTransactions) : undefined;
+  const initialRefundQuote = refundableCards[0] ? calculateMemberCardRefundQuote(refundableCards[0], data.memberCardTransactions) : undefined;
+  const [refundAmount, setRefundAmount] = useState(() => String(initialRefundQuote?.refundableAmount ?? refundableCards[0]?.balance ?? 0));
   const [payMethod, setPayMethod] = useState<CashPayMethod>("微信");
   const [reason, setReason] = useState("客户退卡退费");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string }>();
   const refundValue = Number(refundAmount);
-  const invalidRefundAmount = !Number.isFinite(refundValue) || refundValue < 0 || Boolean(selectedCard && selectedCard.balance > 0 && refundValue > selectedCard.balance);
+  const maxRefundAmount = selectedRefundQuote?.refundableAmount ?? selectedCard?.balance ?? 0;
+  const invalidRefundAmount = !Number.isFinite(refundValue) || refundValue < 0 || Boolean(selectedCard && refundValue > maxRefundAmount);
   const cardOptions = refundableCards.length
     ? refundableCards.map((card) => ({
       value: card.id,
@@ -51,7 +54,8 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const selectCard = (nextCardId: string) => {
     setCardId(nextCardId);
     const nextCard = data.memberCards.find((card) => card.id === nextCardId);
-    setRefundAmount(String(nextCard?.balance ?? 0));
+    const nextQuote = nextCard ? calculateMemberCardRefundQuote(nextCard, data.memberCardTransactions) : undefined;
+    setRefundAmount(String(nextQuote?.refundableAmount ?? nextCard?.balance ?? 0));
     setMessage(undefined);
   };
 
@@ -63,7 +67,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       return;
     }
     if (invalidRefundAmount) {
-      setMessage({ type: "error", text: "请填写正确的实退金额，储值卡不能大于当前余额。" });
+      setMessage({ type: "error", text: `请填写正确的实退金额，不能大于扣除已用金额后的 ${money(maxRefundAmount)}。` });
       return;
     }
     void runMutation(() =>
@@ -102,9 +106,19 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
               <strong>{nameOf(data.customers, selectedCard.customerId)} · {selectedCard.name}</strong>
               <span>类型：{selectedCard.type} · 状态：{selectedCard.status}</span>
               <span>余额：{money(selectedCard.balance)} · 剩余次数：{selectedCard.remainingTimes} 次</span>
+              {selectedRefundQuote && (
+                <div className="refund-quote-grid">
+                  <span><small>购买金额</small><strong>{money(selectedRefundQuote.paidAmount)}</strong></span>
+                  <span><small>购买次数</small><strong>{selectedRefundQuote.purchasedTimes} 次</strong></span>
+                  <span><small>已使用</small><strong>{selectedRefundQuote.usedTimes} 次</strong></span>
+                  <span><small>单次扣除</small><strong>{money(selectedRefundQuote.unitDeduction)}</strong></span>
+                  <span><small>必须扣除</small><strong>{money(selectedRefundQuote.usedDeduction)}</strong></span>
+                  <span><small>建议实退</small><strong>{money(selectedRefundQuote.refundableAmount)}</strong></span>
+                </div>
+              )}
             </div>
           )}
-          <label>实退金额<input type="number" min={0} step={1} value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} /></label>
+          <label>实退金额<input type="number" min={0} max={maxRefundAmount} step={1} value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} /></label>
           <Select label="退款方式" value={payMethod} onChange={(value) => setPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>退款原因<textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="例如：客户退卡、余额退回、活动协商退款。" /></label>
           {message && <p className={message.type === "success" ? "form-success" : "form-error"}>{message.text}</p>}
@@ -120,87 +134,57 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   );
 }
 
-export function StaffScheduleManagement({ data, actions, runMutation }: ManagementOperationProps) {
-  const staffOptions = activeBusinessStaff(data).map((staff) => ({ value: staff.id, label: `${staff.name} · ${staff.role}` }));
-  const fallbackStaffId = staffOptions[0]?.value ?? "";
-  const [shiftStaffId, setShiftStaffId] = useState(fallbackStaffId);
-  const [shiftStartAt, setShiftStartAt] = useState(toLocalInputValue(tomorrowAt(10)));
-  const [shiftEndAt, setShiftEndAt] = useState(toLocalInputValue(tomorrowAt(18)));
-  const [shiftNote, setShiftNote] = useState("正常上班");
-  const [blockedStaffId, setBlockedStaffId] = useState(fallbackStaffId);
-  const [blockedStartAt, setBlockedStartAt] = useState(toLocalInputValue(tomorrowAt(14)));
-  const [blockedEndAt, setBlockedEndAt] = useState(toLocalInputValue(tomorrowAt(15)));
-  const [blockedReason, setBlockedReason] = useState("请假/培训");
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string }>();
-
-  const sortedShifts = useMemo(() =>
-    data.staffShifts.slice().sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
-  [data.staffShifts]);
-  const sortedBlocks = useMemo(() =>
-    data.staffUnavailableSlots.slice().sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
-  [data.staffUnavailableSlots]);
-
-  const addShift = (event: FormEvent) => {
-    event.preventDefault();
-    setMessage(undefined);
-    void runMutation(() =>
-      actions.addStaffShift({
-        staffId: shiftStaffId,
-        startAt: new Date(shiftStartAt).toISOString(),
-        endAt: new Date(shiftEndAt).toISOString(),
-        note: shiftNote.trim() || "正常上班",
-      }),
-    ).then(() => {
-      setMessage({ type: "success", text: "员工班次已保存，预约会按班次判断可预约时间。" });
-    }).catch((caught) => {
-      setMessage({ type: "error", text: caught instanceof Error ? caught.message : "班次保存失败" });
-    });
-  };
-
-  const addBlockedSlot = (event: FormEvent) => {
-    event.preventDefault();
-    setMessage(undefined);
-    void runMutation(() =>
-      actions.addStaffUnavailableSlot({
-        staffId: blockedStaffId,
-        startAt: new Date(blockedStartAt).toISOString(),
-        endAt: new Date(blockedEndAt).toISOString(),
-        reason: blockedReason.trim() || "不可预约",
-      }),
-    ).then(() => {
-      setMessage({ type: "success", text: "不可预约时间已锁定，预约时会自动避开。" });
-    }).catch((caught) => {
-      setMessage({ type: "error", text: caught instanceof Error ? caught.message : "锁定时间失败" });
-    });
-  };
+export function StaffScheduleManagement({ data }: ManagementOperationProps) {
+  const businessStaff = activeBusinessStaff(data);
+  const now = Date.now();
+  const sortedShifts = useMemo(
+    () => data.staffShifts.slice().sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
+    [data.staffShifts],
+  );
+  const sortedBlocks = useMemo(
+    () => data.staffUnavailableSlots.slice().sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
+    [data.staffUnavailableSlots],
+  );
+  const upcomingShifts = sortedShifts.filter((shift) => +new Date(shift.endAt) >= now);
+  const upcomingBlocks = sortedBlocks.filter((slot) => +new Date(slot.endAt) >= now);
 
   return (
     <div className="module-detail-stack">
-      {message && <p className={message.type === "success" ? "form-success" : "form-error"}>{message.text}</p>}
       <section className="panel">
-        <PanelTitle icon={<CalendarDays size={18} />} title="新增员工班次" action="上班时间" />
-        <form className="form" onSubmit={addShift}>
-          <Select label="员工" value={shiftStaffId} onChange={setShiftStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先新增员工", disabled: true }]} />
-          <DateTimeInput label="上班开始" value={shiftStartAt} onChange={setShiftStartAt} />
-          <DateTimeInput label="上班结束" value={shiftEndAt} onChange={setShiftEndAt} />
-          <label>备注<input value={shiftNote} onChange={(event) => setShiftNote(event.target.value)} /></label>
-          <button className="primary-button" type="submit" disabled={!shiftStaffId}>保存班次</button>
-        </form>
+        <PanelTitle icon={<CalendarDays size={18} />} title="员工排班查看" action={`${businessStaff.length} 名员工`} />
+        <div className="staff-schedule-grid">
+          {businessStaff.map((staff) => {
+            const staffShifts = upcomingShifts.filter((shift) => shift.staffId === staff.id).slice(0, 4);
+            const staffBlocks = upcomingBlocks.filter((slot) => slot.staffId === staff.id).slice(0, 4);
+            return (
+              <article className="staff-schedule-card" key={staff.id}>
+                <div className="staff-schedule-card-head">
+                  <div>
+                    <strong>{staff.name}</strong>
+                    <span>{staff.role}</span>
+                  </div>
+                  <Badge text={staff.status === "active" ? "在职" : "停用"} tone={staff.status === "active" ? "ok" : "warn"} />
+                </div>
+                <div className="staff-schedule-section">
+                  <small>班次</small>
+                  {staffShifts.length ? staffShifts.map((shift) => (
+                    <p key={shift.id}><span>{shortDate(shift.startAt)} - {shortDate(shift.endAt)}</span><em>{shift.note || "正常上班"}</em></p>
+                  )) : <p><span>暂无未来班次</span><em>预约时会按已有规则判断</em></p>}
+                </div>
+                <div className="staff-schedule-section blocked">
+                  <small>不可预约</small>
+                  {staffBlocks.length ? staffBlocks.map((slot) => (
+                    <p key={slot.id}><span>{shortDate(slot.startAt)} - {shortDate(slot.endAt)}</span><em>{slot.reason}</em></p>
+                  )) : <p><span>暂无锁定时间</span><em>无请假/培训/休息记录</em></p>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       <section className="panel">
-        <PanelTitle icon={<LockKeyhole size={18} />} title="锁定不可预约时间" action="请假 / 培训 / 休息" />
-        <form className="form" onSubmit={addBlockedSlot}>
-          <Select label="员工" value={blockedStaffId} onChange={setBlockedStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先新增员工", disabled: true }]} />
-          <DateTimeInput label="开始时间" value={blockedStartAt} onChange={setBlockedStartAt} />
-          <DateTimeInput label="结束时间" value={blockedEndAt} onChange={setBlockedEndAt} />
-          <label>原因<input value={blockedReason} onChange={(event) => setBlockedReason(event.target.value)} /></label>
-          <button className="primary-button" type="submit" disabled={!blockedStaffId}>锁定时间</button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <PanelTitle icon={<CalendarDays size={18} />} title="排班表" action={`${sortedShifts.length} 条班次`} />
+        <PanelTitle icon={<CalendarDays size={18} />} title="全员班次明细" action={`${sortedShifts.length} 条班次`} />
         <DataTable
           columns={["员工", "开始", "结束", "备注"]}
           rows={sortedShifts.slice(0, 120).map((shift) => [
@@ -213,7 +197,7 @@ export function StaffScheduleManagement({ data, actions, runMutation }: Manageme
       </section>
 
       <section className="panel">
-        <PanelTitle icon={<LockKeyhole size={18} />} title="不可预约时间" action={`${sortedBlocks.length} 条`} />
+        <PanelTitle icon={<LockKeyhole size={18} />} title="全员不可预约时间" action={`${sortedBlocks.length} 条`} />
         <DataTable
           columns={["员工", "开始", "结束", "原因"]}
           rows={sortedBlocks.slice(0, 120).map((slot) => [
