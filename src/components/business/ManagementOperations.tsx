@@ -155,9 +155,11 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const [selectedRefundTransactionId, setSelectedRefundTransactionId] = useState("");
   const [refundSignerName, setRefundSignerName] = useState("");
   const [hasRefundSignatureDrawing, setHasRefundSignatureDrawing] = useState(false);
+  const [refundActionPending, setRefundActionPending] = useState(false);
   const refundCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const refundDrawingRef = useRef(false);
   const refundSubmittingRef = useRef(false);
+  const refundActionPendingRef = useRef(false);
   const refundValue = Number(refundAmount);
   const maxRefundAmount = selectedRefundQuote?.refundableAmount ?? selectedCard?.balance ?? 0;
   const invalidRefundAmount = !Number.isFinite(refundValue) || refundValue < 0 || Boolean(selectedCard && refundValue > maxRefundAmount);
@@ -192,6 +194,28 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     : selectedRefundSignature.status === "待签名"
       ? "确认客户签名"
       : "确认退费并关闭卡";
+  const refundSubmitText = refundActionPending ? "处理中..." : refundActionLabel;
+
+  const runRefundAction = async (mutation: () => Promise<AppData>) => {
+    if (refundActionPendingRef.current) {
+      const duplicateError = new Error("正在处理，请勿重复点击");
+      setMessage({ type: "error", text: duplicateError.message });
+      throw duplicateError;
+    }
+    refundActionPendingRef.current = true;
+    setRefundActionPending(true);
+    const startedAt = Date.now();
+    try {
+      return await runMutation(mutation);
+    } finally {
+      const remainingPendingMs = 500 - (Date.now() - startedAt);
+      if (remainingPendingMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingPendingMs));
+      }
+      refundActionPendingRef.current = false;
+      setRefundActionPending(false);
+    }
+  };
 
   useEffect(() => {
     setRefundSignerName(selectedCustomer?.name ?? "");
@@ -272,7 +296,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       return undefined;
     }
     const previousSignatureIds = new Set(data.customerSignatures.map((signature) => signature.id));
-    return runMutation(() =>
+    return runRefundAction(() =>
       actions.createCustomerSignature({
         customerId: selectedCard.customerId,
         title: "会员卡退费确认签名",
@@ -307,7 +331,10 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
 
   const signRefundSignature = () => {
     setMessage(undefined);
-    if (refundSubmittingRef.current) return;
+    if (refundSubmittingRef.current || refundActionPendingRef.current) {
+      setMessage({ type: "error", text: "正在处理，请勿重复点击" });
+      return;
+    }
     if (!selectedRefundSignature || selectedRefundSignature.status !== "待签名") {
       setMessage({ type: "error", text: "请先生成客户退费签名。" });
       return;
@@ -322,7 +349,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       return;
     }
     refundSubmittingRef.current = true;
-    void runMutation(() =>
+    void runRefundAction(() =>
       actions.signCustomerSignature(selectedRefundSignature.id, {
         signerName: refundSignerName,
         signatureText: canvas.toDataURL("image/png"),
@@ -352,7 +379,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       setMessage({ type: "error", text: "请先完成客户退费签名。" });
       return;
     }
-    void runMutation(() =>
+    void runRefundAction(() =>
       actions.refundMemberCard(selectedCard.id, {
         reason: reason.trim() || "客户退卡",
         refundAmount: refundValue,
@@ -552,7 +579,8 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
             </div>
           )}
           {message && <p className={message.type === "success" ? "form-success" : "form-error"}>{message.text}</p>}
-          <button className="primary-button" type="submit" disabled={!selectedCard || invalidRefundAmount}>{refundActionLabel}</button>
+          {refundActionPending && <p className="form-note refund-action-pending">正在处理，请勿重复点击</p>}
+          <button className="primary-button" type="submit" disabled={!selectedCard || invalidRefundAmount || refundActionPending}>{refundSubmitText}</button>
         </form>
       </section>
 

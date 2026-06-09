@@ -6837,6 +6837,112 @@ textarea,
   background: #fff;
 }
 
+.refund-action-pending {
+  margin: 0;
+  justify-content: center;
+  color: #4a278f;
+  font-weight: 900;
+}
+
+.appointment-completed-detail,
+.cashier-record-detail {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.appointment-completed-detail-head,
+.cashier-record-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.appointment-completed-detail-head strong,
+.cashier-record-detail-head strong {
+  color: #25194c;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.appointment-completed-detail-head button,
+.cashier-record-detail-head button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(111, 66, 193, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #4a278f;
+  font-weight: 850;
+}
+
+.appointment-completed-detail dl,
+.cashier-record-detail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.appointment-completed-detail dl div,
+.cashier-record-detail dl div {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 12px;
+  background: rgba(248, 245, 255, 0.72);
+}
+
+.appointment-completed-detail dt,
+.cashier-record-detail dt {
+  color: #726683;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.appointment-completed-detail dd,
+.cashier-record-detail dd {
+  margin: 0;
+  color: #25194c;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.appointment-completed-signature,
+.cashier-record-signature {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(42, 143, 125, 0.14);
+  border-radius: 14px;
+  background: rgba(241, 255, 250, 0.76);
+}
+
+.appointment-completed-signature strong,
+.cashier-record-signature strong {
+  color: #1f6f61;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.appointment-completed-signature img,
+.cashier-record-signature img {
+  display: block;
+  width: min(100%, 520px);
+  max-height: 180px;
+  object-fit: contain;
+  border: 1px solid rgba(42, 143, 125, 0.14);
+  border-radius: 12px;
+  background: #fff;
+}
+
 .refund-picker,
 .refund-card-list,
 .refund-order-list,

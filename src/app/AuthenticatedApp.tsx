@@ -3528,6 +3528,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [onlineRequestStaffId, setOnlineRequestStaffId] = useState(firstBusinessStaffId(data));
   const [activeAppointmentAction, setActiveAppointmentAction] = useState<"reschedule" | "cancel" | undefined>();
   const [activeAppointmentId, setActiveAppointmentId] = useState("");
+  const [selectedAppointmentDetailId, setSelectedAppointmentDetailId] = useState("");
   const [rescheduleStaffId, setRescheduleStaffId] = useState(firstBusinessStaffId(data));
   const [rescheduleServiceId, setRescheduleServiceId] = useState(data.services[0]?.id ?? "");
   const [rescheduleStartAt, setRescheduleStartAt] = useState(toLocalInputValue(tomorrowAt(12)));
@@ -3789,6 +3790,13 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         </button>
       );
     }
+    if (appointment.status === "已完成") {
+      return (
+        <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>
+          查看详情
+        </button>
+      );
+    }
     return <span>-</span>;
   };
   const appointmentStatusText = (status: Appointment["status"]) => (status === "已确认" ? "已确认预约" : status);
@@ -3841,6 +3849,13 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     },
   ];
   const activeAppointment = data.appointments.find((appointment) => appointment.id === activeAppointmentId);
+  const selectedCompletedAppointment = data.appointments.find((appointment) => appointment.id === selectedAppointmentDetailId && appointment.status === "已完成");
+  const selectedCompletedOrder = selectedCompletedAppointment
+    ? data.orders.find((order) => order.appointmentId === selectedCompletedAppointment.id && order.status !== "已退款")
+    : undefined;
+  const selectedCompletedSignature = selectedCompletedOrder
+    ? data.customerSignatures.find((signature) => signature.orderId === selectedCompletedOrder.id)
+    : undefined;
 
   return (
     <div className="page-stack appointment-room-page">
@@ -3924,12 +3939,12 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
           <div className="appointment-range-list">
             <div className="appointment-room-list-head">
               <strong>{selectedAppointmentRange.label}预约明细</strong>
-              <small>已完成 {completedRangeAppointments.length} 单 · 已取消/爽约不进入处理台</small>
+              <small>已完成 {completedRangeAppointments.length} 单</small>
             </div>
-            {visibleRangeAppointments.length > 0 ? (
+            {completedRangeAppointments.length > 0 ? (
               <DataTable
                 columns={["时间", "客户", "项目", "员工", "房间", "状态", "操作"]}
-                rows={visibleRangeAppointments.slice(0, 20).map((appointment) => [
+                rows={completedRangeAppointments.slice(0, 20).map((appointment) => [
                   appointmentTimeRange(data, appointment),
                   nameOf(data.customers, appointment.customerId),
                   nameOf(data.services, appointment.serviceId),
@@ -3942,7 +3957,33 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 ])}
               />
             ) : (
-              <div className="appointment-work-empty">当前范围暂无预约</div>
+              <div className="appointment-work-empty">当前范围暂无已完成预约</div>
+            )}
+            {selectedCompletedAppointment && (
+              <div className="appointment-completed-detail">
+                <div className="appointment-completed-detail-head">
+                  <strong>预约完成详情</strong>
+                  <button type="button" onClick={() => setSelectedAppointmentDetailId("")}>收起</button>
+                </div>
+                <dl>
+                  <div><dt>客户</dt><dd>{nameOf(data.customers, selectedCompletedAppointment.customerId)}</dd></div>
+                  <div><dt>项目</dt><dd>{nameOf(data.services, selectedCompletedAppointment.serviceId)}</dd></div>
+                  <div><dt>员工</dt><dd>{nameOf(data.staff, selectedCompletedAppointment.staffId)}</dd></div>
+                  <div><dt>房间</dt><dd>{selectedCompletedAppointment.roomName ?? "-"}</dd></div>
+                  <div><dt>预约时间</dt><dd>{appointmentTimeRange(data, selectedCompletedAppointment)}</dd></div>
+                  <div><dt>完成时间</dt><dd>{selectedCompletedAppointment.completedAt ? shortDate(selectedCompletedAppointment.completedAt) : "-"}</dd></div>
+                  <div><dt>订单编号</dt><dd>{selectedCompletedOrder?.orderNo ?? "-"}</dd></div>
+                  <div><dt>支付方式</dt><dd>{selectedCompletedOrder?.payMethod ?? "-"}</dd></div>
+                  <div><dt>实收/扣款</dt><dd>{selectedCompletedOrder ? money(selectedCompletedOrder.paidAmount) : "-"}</dd></div>
+                  <div><dt>签名状态</dt><dd>{selectedCompletedSignature?.status ?? "-"}</dd></div>
+                </dl>
+                {selectedCompletedSignature?.signatureText && (
+                  <div className="appointment-completed-signature">
+                    <strong>客户签名</strong>
+                    <img src={selectedCompletedSignature.signatureText} alt="客户签名" />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </section>
@@ -4258,8 +4299,7 @@ function Pos({
   const [discountAmount, setDiscountAmount] = useState(0);
   const [checkoutDiscountRateInput, setCheckoutDiscountRateInput] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
-  const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
-  const [refundApprovalIds, setRefundApprovalIds] = useState<Record<string, string>>({});
+  const [selectedCashierRecordId, setSelectedCashierRecordId] = useState("");
   const [checkoutValidationMessages, setCheckoutValidationMessages] = useState<string[]>([]);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState("");
@@ -4455,6 +4495,26 @@ function Pos({
     ].filter(Boolean).join(" + ") || "商品";
   };
   const cashierFlowRecords = buildCashierFlowRecords(data);
+  const selectedCashierRecord = cashierFlowRecords.find((record) => record.id === selectedCashierRecordId);
+  const selectedCashierOrder = selectedCashierRecord?.kind === "order" ? selectedCashierRecord.order : undefined;
+  const selectedCashierTransaction = selectedCashierRecord?.kind === "memberCard" ? selectedCashierRecord.transaction : undefined;
+  const selectedCashierMemberCard = selectedCashierTransaction
+    ? data.memberCards.find((card) => card.id === selectedCashierTransaction.memberCardId)
+    : selectedCashierOrder?.cardId
+      ? data.memberCards.find((card) => card.id === selectedCashierOrder.cardId)
+      : undefined;
+  const selectedCashierCustomerId = selectedCashierOrder?.customerId || selectedCashierMemberCard?.customerId || "";
+  const selectedCashierCustomer = data.customers.find((customer) => customer.id === selectedCashierCustomerId);
+  const selectedCashierAppointment = selectedCashierOrder?.appointmentId
+    ? data.appointments.find((appointment) => appointment.id === selectedCashierOrder.appointmentId)
+    : undefined;
+  const selectedCashierSignature = selectedCashierOrder
+    ? data.customerSignatures.find((signature) => signature.orderId === selectedCashierOrder.id)
+    : undefined;
+  const cashierPaymentText = (record: ReturnType<typeof buildCashierFlowRecords>[number]) => {
+    if (record.kind === "order" && record.payMethod === "会员卡") return "会员卡扣款";
+    return record.payMethod;
+  };
 
   // 打印小票功能
   const printReceipt = (order: Order) => {
@@ -5252,54 +5312,50 @@ function Pos({
           action={`${cashierFlowRecords.length} 笔`}
         />
           <DataTable
-          columns={["流水", "客户", "内容", "员工", "来源", "支付", "实收", "状态", "时间", "操作"]}
+          columns={["客户", "来源", "内容", "员工", "支付/扣款", "金额", "状态", "时间", "操作"]}
           rows={cashierFlowRecords
             .map((record) => [
-            record.orderNo,
             record.customerName,
+            record.source,
             record.itemName,
             record.staffName,
-            record.source,
-            record.payMethod,
-            `${money(record.paidAmount)}${record.discountAmount ? ` / 优惠${money(record.discountAmount)}` : ""}`,
+            cashierPaymentText(record),
+            money(record.paidAmount),
             <Badge key={`${record.id}-status`} text={record.status} tone={record.status === "已退款" ? "warn" : "ok"} />,
             shortDate(record.createdAt),
-            record.kind === "order" && record.order.status === "已支付" ? (
-              <div key={`${record.id}-refund`} className="table-action">
-                <input
-                  aria-label={`${record.orderNo}退款金额`}
-                  placeholder="全额"
-                  value={refundAmounts[record.order.id] ?? ""}
-                  onChange={(event) => setRefundAmounts((previous) => ({ ...previous, [record.order.id]: event.target.value }))}
-                />
-                <input
-                  aria-label={`${record.orderNo}退款审批`}
-                  placeholder="审批ID"
-                  value={refundApprovalIds[record.order.id] ?? ""}
-                  onChange={(event) => setRefundApprovalIds((previous) => ({ ...previous, [record.order.id]: event.target.value }))}
-                />
-                <button
-                  type="button"
-                  disabled={mutationPending}
-                  onClick={() =>
-                    void runMutation(() =>
-                      actions.refundOrder(
-                        record.order.id,
-                        "门店退款",
-                        refundAmounts[record.order.id] ? Number(refundAmounts[record.order.id]) : undefined,
-                        refundApprovalIds[record.order.id] || undefined,
-                      ),
-                    )
-                  }
-                >
-                  {mutationPending ? "处理中..." : "退款"}
-                </button>
-              </div>
-            ) : (
-              "已处理"
-            ),
+            <button key={`${record.id}-detail`} type="button" onClick={() => setSelectedCashierRecordId(record.id)}>
+              查看详情
+            </button>,
           ])}
         />
+        {selectedCashierRecord && (
+          <div className="cashier-record-detail">
+            <div className="cashier-record-detail-head">
+              <strong>流水详情</strong>
+              <button type="button" onClick={() => setSelectedCashierRecordId("")}>收起</button>
+            </div>
+            <dl>
+              <div><dt>客户</dt><dd>{selectedCashierCustomer ? `${selectedCashierCustomer.name} · ${selectedCashierCustomer.phone || "-"}` : selectedCashierRecord.customerName}</dd></div>
+              <div><dt>来源</dt><dd>{selectedCashierRecord.source}</dd></div>
+              <div><dt>内容</dt><dd>{selectedCashierRecord.itemName}</dd></div>
+              <div><dt>员工</dt><dd>{selectedCashierRecord.staffName}</dd></div>
+              <div><dt>支付/扣款</dt><dd>{cashierPaymentText(selectedCashierRecord)}</dd></div>
+              <div><dt>金额</dt><dd>{money(selectedCashierRecord.paidAmount)}</dd></div>
+              <div><dt>状态</dt><dd>{selectedCashierRecord.status}</dd></div>
+              <div><dt>时间</dt><dd>{shortDate(selectedCashierRecord.createdAt)}</dd></div>
+              <div><dt>流水编号</dt><dd>{selectedCashierRecord.orderNo}</dd></div>
+              <div><dt>关联预约</dt><dd>{selectedCashierAppointment ? appointmentTimeRange(data, selectedCashierAppointment) : "-"}</dd></div>
+              <div><dt>会员卡</dt><dd>{selectedCashierMemberCard?.name ?? "-"}</dd></div>
+              <div><dt>客户签名</dt><dd>{selectedCashierSignature?.status ?? "-"}</dd></div>
+            </dl>
+            {selectedCashierSignature?.signatureText && (
+              <div className="cashier-record-signature">
+                <strong>客户签名</strong>
+                <img src={selectedCashierSignature.signatureText} alt="客户签名" />
+              </div>
+            )}
+          </div>
+        )}
         </section>
         )}
       </div>
