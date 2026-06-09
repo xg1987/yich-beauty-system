@@ -1,7 +1,7 @@
 import { CalendarDays, CreditCard, Search } from "lucide-react";
 import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { ApiActions } from "../../hooks/useApiData";
-import type { AppData, CashPayMethod, MemberCard, Order, Staff, StaffShift } from "../../domain/types";
+import type { AppData, CashPayMethod, MemberCard, MemberCardTransaction, Order, Staff, StaffShift } from "../../domain/types";
 import { appointmentEndAt } from "../../domain/appointments";
 import { calculateMemberCardRefundQuote } from "../../domain/business";
 import { money, shortDate } from "../../domain/utils";
@@ -33,6 +33,15 @@ function memberCardTabOf(card: MemberCard): MemberCardRefundTab {
 
 function customerPhoneOf(data: AppData, customerId: string) {
   return data.customers.find((customer) => customer.id === customerId)?.phone ?? "";
+}
+
+function customerNameForTransaction(data: AppData, transaction: MemberCardTransaction) {
+  const card = data.memberCards.find((item) => item.id === transaction.memberCardId);
+  return card ? nameOf(data.customers, card.customerId) : "-";
+}
+
+function signatureIdFromTransaction(transaction: MemberCardTransaction) {
+  return transaction.note.match(/签名\s+([A-Za-z0-9_-]+)/)?.[1];
 }
 
 function orderCustomerName(data: AppData, order: Order) {
@@ -143,6 +152,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const [payMethod, setPayMethod] = useState<CashPayMethod>("微信");
   const [reason, setReason] = useState("客户退卡退费");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string }>();
+  const [selectedRefundTransactionId, setSelectedRefundTransactionId] = useState("");
   const [refundSignerName, setRefundSignerName] = useState("");
   const [hasRefundSignatureDrawing, setHasRefundSignatureDrawing] = useState(false);
   const refundCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -172,6 +182,11 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     .slice(0, 20);
   const selectedRefundSignature = refundSignatureId ? data.customerSignatures.find((signature) => signature.id === refundSignatureId) : undefined;
   const hasSignedRefundSignature = Boolean(selectedRefundSignature && selectedRefundSignature.status === "已签名");
+  const selectedRefundTransaction = data.memberCardTransactions.find((transaction) => transaction.id === selectedRefundTransactionId);
+  const selectedRefundCard = selectedRefundTransaction ? data.memberCards.find((card) => card.id === selectedRefundTransaction.memberCardId) : undefined;
+  const selectedRefundCustomer = selectedRefundCard ? data.customers.find((customer) => customer.id === selectedRefundCard.customerId) : undefined;
+  const selectedRefundDetailSignatureId = selectedRefundTransaction ? signatureIdFromTransaction(selectedRefundTransaction) : undefined;
+  const selectedRefundDetailSignature = selectedRefundDetailSignatureId ? data.customerSignatures.find((signature) => signature.id === selectedRefundDetailSignatureId) : undefined;
   const refundActionLabel = !selectedRefundSignature
     ? "生成客户退费签名"
     : selectedRefundSignature.status === "待签名"
@@ -201,6 +216,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     setRefundSignatureId("");
     setHasRefundSignatureDrawing(false);
     setMessage(undefined);
+    setSelectedRefundTransactionId("");
   };
 
   const refundSignaturePoint = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -379,13 +395,22 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     .filter((transaction) => transaction.type === "退卡" || transaction.type === "退款")
     .slice(0, 80)
     .map((transaction) => [
+      customerNameForTransaction(data, transaction),
       nameOf(data.memberCards, transaction.memberCardId),
       transaction.type,
       transaction.paidAmount ? money(transaction.paidAmount) : money(Math.abs(transaction.amountDelta)),
       transaction.payMethod ?? "-",
       transaction.note,
       shortDate(transaction.createdAt),
+      <button key={`${transaction.id}-detail`} className="ghost-button compact" type="button" onClick={() => setSelectedRefundTransactionId(transaction.id)}>查看详情</button>,
     ]);
+  const selectedCustomerCards = selectedCustomer ? data.memberCards.filter((card) => card.customerId === selectedCustomer.id) : [];
+  const selectedCustomerRefunds = selectedCustomer
+    ? data.memberCardTransactions.filter((transaction) => {
+      const card = data.memberCards.find((item) => item.id === transaction.memberCardId);
+      return card?.customerId === selectedCustomer.id && (transaction.type === "退卡" || transaction.type === "退款");
+    })
+    : [];
 
   return (
     <div className="module-detail-stack">
@@ -443,6 +468,34 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
               <strong>{nameOf(data.customers, selectedCard.customerId)} · {selectedCard.name}</strong>
               <span>类型：{selectedCard.type} · 状态：{selectedCard.status}</span>
               <span>余额：{money(selectedCard.balance)} · 剩余次数：{selectedCard.remainingTimes} 次</span>
+              {selectedCustomer && (
+                <div className="refund-customer-detail">
+                  <div>
+                    <small>客户姓名</small>
+                    <strong>{selectedCustomer.name}</strong>
+                  </div>
+                  <div>
+                    <small>手机号码</small>
+                    <strong>{selectedCustomer.phone || "-"}</strong>
+                  </div>
+                  <div>
+                    <small>客户等级</small>
+                    <strong>{selectedCustomer.level || "-"}</strong>
+                  </div>
+                  <div>
+                    <small>来源</small>
+                    <strong>{selectedCustomer.source || "-"}</strong>
+                  </div>
+                  <div>
+                    <small>会员卡</small>
+                    <strong>{selectedCustomerCards.length} 张</strong>
+                  </div>
+                  <div>
+                    <small>退费记录</small>
+                    <strong>{selectedCustomerRefunds.length} 条</strong>
+                  </div>
+                </div>
+              )}
               {selectedRefundQuote && (
                 <div className="refund-quote-grid">
                   <span><small>购买金额</small><strong>{money(selectedRefundQuote.paidAmount)}</strong></span>
@@ -505,7 +558,35 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
 
       <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="退费记录" action={`${recentRefundRows.length} 条`} />
-        <DataTable columns={["会员卡", "类型", "实退", "方式", "原因", "时间"]} rows={recentRefundRows} />
+        <DataTable columns={["客户", "会员卡", "类型", "实退", "方式", "原因", "时间", "操作"]} rows={recentRefundRows} />
+        {selectedRefundTransaction && (
+          <div className="refund-record-detail">
+            <div>
+              <strong>退费详情</strong>
+              <button type="button" onClick={() => setSelectedRefundTransactionId("")}>收起</button>
+            </div>
+            <dl>
+              <div><dt>客户</dt><dd>{selectedRefundCustomer?.name ?? "-"} · {selectedRefundCustomer?.phone || "-"}</dd></div>
+              <div><dt>会员卡</dt><dd>{selectedRefundCard?.name ?? "-"}</dd></div>
+              <div><dt>类型</dt><dd>{selectedRefundTransaction.type}</dd></div>
+              <div><dt>实退</dt><dd>{selectedRefundTransaction.paidAmount ? money(selectedRefundTransaction.paidAmount) : money(Math.abs(selectedRefundTransaction.amountDelta))}</dd></div>
+              <div><dt>方式</dt><dd>{selectedRefundTransaction.payMethod ?? "-"}</dd></div>
+              <div><dt>时间</dt><dd>{shortDate(selectedRefundTransaction.createdAt)}</dd></div>
+              <div><dt>余额变化</dt><dd>{money(selectedRefundTransaction.amountDelta)}，退后余额 {money(selectedRefundTransaction.balanceAfter)}</dd></div>
+              <div><dt>次数变化</dt><dd>{selectedRefundTransaction.timesDelta} 次，退后次数 {selectedRefundTransaction.remainingTimesAfter} 次</dd></div>
+              <div><dt>签名编号</dt><dd>{selectedRefundDetailSignatureId ?? "-"}</dd></div>
+              <div><dt>签名人</dt><dd>{selectedRefundDetailSignature?.signerName ?? "-"}</dd></div>
+              <div><dt>签名时间</dt><dd>{selectedRefundDetailSignature?.signedAt ? shortDate(selectedRefundDetailSignature.signedAt) : "-"}</dd></div>
+              <div><dt>原因</dt><dd>{selectedRefundTransaction.note}</dd></div>
+            </dl>
+            {selectedRefundDetailSignature?.signatureText && (
+              <div className="refund-detail-signature">
+                <strong>客户签名</strong>
+                <img src={selectedRefundDetailSignature.signatureText} alt="客户退费签名" />
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

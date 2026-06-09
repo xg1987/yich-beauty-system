@@ -136,7 +136,6 @@ export function useApiData() {
   const runMutation = async (mutation: () => Promise<AppDataUpdate>) => {
     if (mutationPendingRef.current) {
       const duplicateError = new Error("操作正在处理中，请勿重复点击");
-      setError(duplicateError.message);
       throw duplicateError;
     }
     mutationPendingRef.current = true;

@@ -6720,6 +6720,123 @@ textarea,
   line-height: 1.15;
 }
 
+.refund-customer-detail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.refund-customer-detail > div {
+  display: grid;
+  gap: 5px;
+  min-height: 64px;
+  padding: 11px 12px;
+  border: 1px solid rgba(42, 143, 125, 0.14);
+  border-radius: 12px;
+  background: rgba(245, 255, 252, 0.72);
+}
+
+.refund-customer-detail small {
+  color: #6b6079;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.refund-customer-detail strong {
+  color: #25194c;
+  font-size: 16px;
+  line-height: 1.15;
+}
+
+.refund-record-detail {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.refund-record-detail > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.refund-record-detail > div:first-child strong {
+  color: #25194c;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.refund-record-detail > div:first-child button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(111, 66, 193, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #4a278f;
+  font-weight: 850;
+}
+
+.refund-record-detail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.refund-record-detail dl div {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 12px;
+  background: rgba(248, 245, 255, 0.72);
+}
+
+.refund-record-detail dt {
+  color: #726683;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.refund-record-detail dd {
+  margin: 0;
+  color: #25194c;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.refund-detail-signature {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(42, 143, 125, 0.14);
+  border-radius: 14px;
+  background: rgba(241, 255, 250, 0.76);
+}
+
+.refund-detail-signature strong {
+  color: #1f6f61;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.refund-detail-signature img {
+  display: block;
+  width: min(100%, 520px);
+  max-height: 180px;
+  object-fit: contain;
+  border: 1px solid rgba(42, 143, 125, 0.14);
+  border-radius: 12px;
+  background: #fff;
+}
+
 .refund-picker,
 .refund-card-list,
 .refund-order-list,

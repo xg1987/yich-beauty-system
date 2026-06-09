@@ -166,13 +166,8 @@ function SubmitStatusButton({ idleText, busyText = "处理中...", disabled = fa
 }
 
 function GlobalMutationStatus() {
-  const mutationPending = useMutationPending();
-  if (!mutationPending) return null;
-  return (
-    <div className="global-mutation-status" role="status" aria-live="assertive">
-      正在处理，请勿重复点击
-    </div>
-  );
+  useMutationPending();
+  return null;
 }
 
 function csvCell(value: string | number) {
@@ -3775,8 +3770,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const appointmentAction = (appointment: Appointment) => {
     if (appointment.status === "待确认") {
       return (
-        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
-          {mutationPending ? "处理中..." : "确认到店"}
+        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已确认")}>
+          {mutationPending ? "处理中..." : "确认预约"}
         </button>
       );
     }
@@ -3823,18 +3818,18 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     {
       key: "arrival",
       title: "已确认预约",
-      desc: "等待到店",
+      desc: "等待客户到店",
       value: confirmedAppointments.length,
       appointments: confirmedAppointments,
       empty: "暂无已确认预约",
     },
     {
       key: "confirm",
-      title: "到店待确认",
-      desc: "确认客户已到店",
+      title: "待确认",
+      desc: "需要门店确认",
       value: pendingConfirmAppointments.length,
       appointments: pendingConfirmAppointments,
-      empty: "暂无到店待确认",
+      empty: "暂无待确认预约",
     },
     {
       key: "checkout",
@@ -3894,12 +3889,12 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             <div>
               <span>已确认预约</span>
               <strong>{confirmedAppointments.length}</strong>
-              <small>等待到店</small>
+              <small>等待客户到店</small>
             </div>
             <div>
-              <span>到店待确认</span>
+              <span>待确认</span>
               <strong>{pendingConfirmAppointments.length}</strong>
-              <small>确认客户已到店</small>
+              <small>需要门店确认</small>
             </div>
             <div>
               <span>待收银</span>
