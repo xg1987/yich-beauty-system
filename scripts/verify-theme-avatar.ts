@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const appSource = readFileSync(join(process.cwd(), "src/App.tsx"), "utf8");
+const appSource = readFileSync(join(process.cwd(), "src/app/AuthenticatedApp.tsx"), "utf8");
 const userAvatarSource = readFileSync(join(process.cwd(), "src/components/business/UserAvatar.tsx"), "utf8");
 const accountMenuSource = readFileSync(join(process.cwd(), "src/components/business/AccountMenu.tsx"), "utf8");
 

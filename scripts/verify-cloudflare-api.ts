@@ -7,7 +7,7 @@ const isRemotePagesTarget = /^https:\/\/.+\.pages\.dev\/?$/.test(baseUrl);
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const scheduleDayOffset = 30 + (Date.now() % 300);
 const roomName = "护理房 1";
-const today = new Date().toISOString().slice(0, 10);
+const closeBusinessDate = futureDay(1000 + (Date.now() % 100000));
 
 if (isRemotePagesTarget && !allowPersistentWrite) {
   throw new Error("线上验证会写入正式 D1 数据。请改用本地 wrangler pages dev，或明确设置 ALLOW_PERSISTENT_CLOUDFLARE_VERIFY=1。");
@@ -41,7 +41,7 @@ await assert.rejects(
 await requestIfAvailable(baseUrl, "/api/daily-close/reverse", {
   method: "POST",
   token: ownerSession.token,
-  body: { businessDate: today },
+  body: { businessDate: closeBusinessDate },
 });
 
 const initialData = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
@@ -159,20 +159,55 @@ const afterTherapistInvite = await request<AppData>(baseUrl, "/api/staff-invites
   body: { staffId: therapistStaffId, account: `cf-therapist-${runId}@test.local`, role: "therapist", validDays: 3 },
 });
 assert.ok(afterTherapistInvite.staffInvites[0].expiresAt, "D1 should persist staff invite expiry");
-const therapistSession = await request<{ token: string; user: { account: string } }>(baseUrl, "/api/auth/join-invite", {
+const therapistJoinResult = await request<{ status: string; message: string }>(baseUrl, "/api/auth/join-invite", {
   method: "POST",
   body: { inviteCode: afterTherapistInvite.staffInvites[0].inviteCode, name: `验证员工 ${runId}`, password: "secret" },
 });
-assert.equal(therapistSession.user.account, `cf-therapist-${runId}@test.local`, "D1 should join therapist invite");
+assert.equal(therapistJoinResult.status, "pending_approval", "D1 should keep therapist invite join pending for owner approval");
+assert.match(therapistJoinResult.message, /店长审核/, "D1 should explain staff approval after invite join");
+const dataAfterTherapistJoin = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
+const therapistUser = dataAfterTherapistJoin.authUsers.find((user) => user.account === `cf-therapist-${runId}@test.local`);
+assert.ok(therapistUser, "D1 should create pending therapist auth user");
+assert.equal(therapistUser.status, "pending", "D1 therapist user should wait for approval");
+const afterTherapistApproval = await request<AppData>(baseUrl, `/api/auth-users/${therapistUser.id}/status`, {
+  method: "PATCH",
+  token: ownerSession.token,
+  body: { status: "active" },
+});
+assert.equal(afterTherapistApproval.authUsers.find((user) => user.id === therapistUser.id)?.status, "active", "D1 owner should approve therapist account");
+const afterTherapistPasswordReset = await request<AppData>(baseUrl, `/api/auth-users/${therapistUser.id}/password`, {
+  method: "PATCH",
+  token: ownerSession.token,
+  body: { password: "new-secret" },
+});
+assert.equal(afterTherapistPasswordReset.operationLogs[0].action, "重置账号密码", "D1 should reset staff password through owner account management");
+const therapistSession = await request<{ token: string; user: { account: string } }>(baseUrl, "/api/auth/login", {
+  method: "POST",
+  body: { account: `cf-therapist-${runId}@test.local`, password: "new-secret" },
+});
+assert.equal(therapistSession.user.account, `cf-therapist-${runId}@test.local`, "D1 approved therapist should login with reset password");
 
 const afterFrontdeskInvite = await request<AppData>(baseUrl, "/api/staff-invites", {
   method: "POST",
   token: ownerSession.token,
   body: { staffId: frontdeskStaffId, account: `cf-frontdesk-${runId}@test.local`, role: "frontdesk", validDays: 7 },
 });
-const frontdeskSession = await request<{ token: string }>(baseUrl, "/api/auth/join-invite", {
+const frontdeskJoinResult = await request<{ status: string; message: string }>(baseUrl, "/api/auth/join-invite", {
   method: "POST",
   body: { inviteCode: afterFrontdeskInvite.staffInvites[0].inviteCode, name: `验证前台 ${runId}`, password: "secret" },
+});
+assert.equal(frontdeskJoinResult.status, "pending_approval", "D1 should keep frontdesk invite join pending for owner approval");
+const dataAfterFrontdeskJoin = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
+const frontdeskUser = dataAfterFrontdeskJoin.authUsers.find((user) => user.account === `cf-frontdesk-${runId}@test.local`);
+assert.ok(frontdeskUser, "D1 should create pending frontdesk auth user");
+await request<AppData>(baseUrl, `/api/auth-users/${frontdeskUser.id}/status`, {
+  method: "PATCH",
+  token: ownerSession.token,
+  body: { status: "active" },
+});
+const frontdeskSession = await request<{ token: string }>(baseUrl, "/api/auth/login", {
+  method: "POST",
+  body: { account: `cf-frontdesk-${runId}@test.local`, password: "secret" },
 });
 
 const afterRevocableStaff = await request<AppData>(baseUrl, "/api/staff", {
@@ -190,6 +225,12 @@ const afterInviteRevoked = await request<AppData>(baseUrl, `/api/staff-invites/$
   token: ownerSession.token,
 });
 assert.equal(afterInviteRevoked.staffInvites.find((item) => item.id === afterRevocableInvite.staffInvites[0].id)?.status, "已作废", "D1 should revoke pending staff invite");
+const afterDeleteRevocableStaff = await request<AppData>(baseUrl, `/api/staff/${afterRevocableStaff.staff[0].id}`, {
+  method: "DELETE",
+  token: ownerSession.token,
+});
+assert.equal(afterDeleteRevocableStaff.staff.some((item) => item.id === afterRevocableStaff.staff[0].id), false, "D1 should delete staff without business records");
+assert.equal(afterDeleteRevocableStaff.operationLogs[0].action, "删除员工", "D1 staff delete should write operation log");
 await assert.rejects(
   () =>
     request<AppData>(baseUrl, "/api/inventory/adjust", {
@@ -482,13 +523,13 @@ assert.equal(afterStocktake.stocktakes[0].actualStock, 20, "D1 should persist st
 const afterDailyClose = await request<AppData>(baseUrl, "/api/daily-close", {
   method: "POST",
   token: ownerSession.token,
-  body: { businessDate: today },
+  body: { businessDate: closeBusinessDate },
 });
 assert.equal(afterDailyClose.dailyCloses[0].status, "已锁定", "daily close should persist in D1");
 const afterReverseClose = await request<AppData>(baseUrl, "/api/daily-close/reverse", {
   method: "POST",
   token: ownerSession.token,
-  body: { businessDate: today },
+  body: { businessDate: closeBusinessDate },
 });
 assert.equal(afterReverseClose.dailyCloses[0].status, "已反结", "reverse close should persist in D1");
 

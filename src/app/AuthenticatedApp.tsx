@@ -52,6 +52,7 @@ import { DateTimeInput } from "../components/ui/DateTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
 import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
+import { buildCashierFlowRecords } from "../domain/cashierFlow";
 import { appointmentEndAt, appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import {
@@ -64,7 +65,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
-import type { AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, MemberCardTransaction, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import packageJson from "../../package.json";
@@ -78,38 +79,6 @@ type CustomerFollowUpType = "服务后回访" | "下次护理提醒" | "卡项�
 type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "batches" | "logs";
-type CashierFlowPayMethod = Order["payMethod"] | "-";
-type CashierFlowRecord =
-  | {
-    kind: "order";
-    id: string;
-    createdAt: string;
-    orderNo: string;
-    customerName: string;
-    itemName: string;
-    staffName: string;
-    source: string;
-    payMethod: CashierFlowPayMethod;
-    paidAmount: number;
-    discountAmount: number;
-    status: Order["status"];
-    order: Order;
-  }
-  | {
-    kind: "memberCard";
-    id: string;
-    createdAt: string;
-    orderNo: string;
-    customerName: string;
-    itemName: string;
-    staffName: string;
-    source: string;
-    payMethod: CashierFlowPayMethod;
-    paidAmount: number;
-    discountAmount: 0;
-    status: "已收款";
-    transaction: MemberCardTransaction;
-  };
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
@@ -1665,7 +1634,7 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
         <div>
           <span className="eyebrow"><CreditCard size={15} /> 开单收银</span>
           <h1>订单与收款记录</h1>
-          <p>订单流水、支付方式、实收金额和退款记录。</p>
+          <p>收银流水、支付方式、实收金额和退款记录。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="实收金额" value={money(totalRevenue)} hint="收款汇总" />
@@ -1756,7 +1725,7 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
       </section>
 
       <section className="cashier-panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="订单流水" action={`${cashierFlowRecords.length} 笔`} />
+        <PanelTitle icon={<CreditCard size={18} />} title="收银流水" action={`${cashierFlowRecords.length} 笔`} />
         {rows.length > 0 ? (
           <DataTable columns={["流水", "客户", "内容", "员工", "支付方式", "实收", "状态", "时间"]} rows={rows} />
         ) : (
@@ -3016,7 +2985,7 @@ function workbenchQuickTaskDetails(view: ViewKey, input: WorkbenchQuickDetailInp
       tone: "teal",
       icon: <CreditCard size={24} />,
       label: "开单收银",
-      description: "进入快速开单或查看订单流水。",
+      description: "进入快速开单或查看收银流水。",
       items: [
         { label: "今日实收", value: money(input.todayRevenue), hint: "当天收银汇总" },
         { label: "累计实收", value: money(input.paidRevenue), hint: "全部订单实收" },
@@ -3293,7 +3262,7 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
   }
   return [
     { title: "预约管理", value: `${todayAppointments} 单`, hint: "今日预约和到店", view: "appointments" },
-    { title: "开单收银", value: money(revenue), hint: "收银和订单流水", view: "pos" },
+    { title: "开单收银", value: money(revenue), hint: "收款与流水", view: "pos" },
     { title: "客户档案", value: `${data.customers.length} 人`, hint: "客户资料和服务档案", view: "customers" },
     { title: "管理中心", value: `${pendingApprovals + lowStock} 项`, hint: "审批、库存和设置", view: "settings" },
   ];
@@ -4716,11 +4685,12 @@ function Pos({
       setCardCustomerName("");
       setCardCustomerPhone("");
       setCardNote("");
-      setCheckoutSuccessMessage("开卡成功，已保存。");
+      setCardFormMessage({ type: "success", text: "开卡成功，已写入收银流水。" });
+      setCheckoutSuccessMessage("开卡成功，已写入收银流水。");
       if (fromManagement && onReturnManagement) {
         onReturnManagement();
       } else {
-        setActiveModule(undefined);
+        window.setTimeout(() => setActiveModule("orders"), 800);
       }
     }).catch((caught) => {
       setCardFormMessage({ type: "error", text: caught instanceof Error ? caught.message : "开卡保存失败" });
@@ -4812,7 +4782,7 @@ function Pos({
     product: "商品",
     signature: "服务确认签名",
     single: "项目服务",
-    orders: "订单流水",
+    orders: "收银流水",
   };
   const activeModuleTitle = activeModule ? posModuleTitles[activeModule] : "";
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
@@ -4931,7 +4901,7 @@ function Pos({
               onClick={() => setActiveModule("orders")}
             >
               <ClipboardList size={22} />
-              <strong>订单流水</strong>
+              <strong>收银流水</strong>
               <em>{cashierFlowRecords.length} 笔</em>
             </button>
           </div>
@@ -5254,7 +5224,7 @@ function Pos({
         <section className="panel">
         <PanelTitle
           icon={<ClipboardList size={18} />}
-          title="订单流水"
+          title="收银流水"
           action={`${cashierFlowRecords.length} 笔`}
         />
           <DataTable
@@ -5598,7 +5568,7 @@ function Customers({
       setCardCustomerName("");
       setCardCustomerPhone("");
       setCardNote("");
-      setCardFormMessage({ type: "success", text: "开卡成功，已保存。" });
+      setCardFormMessage({ type: "success", text: "开卡成功，已写入收银流水。" });
     }).catch((caught) => {
       setCardFormMessage({ type: "error", text: caught instanceof Error ? caught.message : "开卡保存失败" });
     });
@@ -8460,79 +8430,6 @@ function optionalNumberFromInput(value: string) {
 
 function nameOf(collection: Array<{ id: string; name: string }>, id: string) {
   return collection.find((item) => item.id === id)?.name ?? "-";
-}
-
-function orderCustomerLabel(data: AppData, order: Order) {
-  if (order.customerId) return nameOf(data.customers, order.customerId);
-  const name = order.guestName?.trim();
-  const phone = order.guestPhone?.trim();
-  if (!name && !phone) return "新客";
-  return [name || "新客", phone].filter(Boolean).join(" · ");
-}
-
-function orderProductLineLabels(data: AppData, order: Order) {
-  if (order.productItems?.length) {
-    return order.productItems.map((item) => `${nameOf(data.products, item.productId)} x${item.quantity}`);
-  }
-  return order.productId ? [nameOf(data.products, order.productId)] : [];
-}
-
-function orderGiftLineLabels(data: AppData, order: Order) {
-  if (order.giftProductItems?.length) {
-    return order.giftProductItems.map((item) => `赠 ${nameOf(data.products, item.productId)} x${item.quantity}`);
-  }
-  return order.giftProductId ? [`赠 ${nameOf(data.products, order.giftProductId)}`] : [];
-}
-
-function orderItemLabel(data: AppData, order: Order) {
-  const serviceName = order.serviceId ? nameOf(data.services, order.serviceId) : "";
-  return [
-    serviceName !== "-" ? serviceName : "",
-    ...orderProductLineLabels(data, order).filter((name) => !name.startsWith("-")),
-    ...orderGiftLineLabels(data, order).filter((name) => !name.startsWith("赠 -")),
-  ].filter(Boolean).join(" + ") || "商品";
-}
-
-function buildCashierFlowRecords(data: AppData): CashierFlowRecord[] {
-  const orderRows: CashierFlowRecord[] = data.orders.map((order) => ({
-    kind: "order",
-    id: order.id,
-    createdAt: order.createdAt,
-    orderNo: order.orderNo,
-    customerName: orderCustomerLabel(data, order),
-    itemName: orderItemLabel(data, order),
-    staffName: nameOf(data.staff, order.staffId),
-    source: order.appointmentId ? "预约到店" : "手工开单",
-    payMethod: order.payMethod,
-    paidAmount: order.paidAmount,
-    discountAmount: order.discountAmount,
-    status: order.status,
-    order,
-  }));
-  const memberCardRows = data.memberCardTransactions
-    .map((transaction): CashierFlowRecord | undefined => {
-      const paidAmount = memberCardCashIn(transaction);
-      if (paidAmount <= 0) return undefined;
-      const card = data.memberCards.find((item) => item.id === transaction.memberCardId);
-      const customerName = card ? nameOf(data.customers, card.customerId) : "-";
-      return {
-        kind: "memberCard",
-        id: transaction.id,
-        createdAt: transaction.createdAt,
-        orderNo: `${transaction.type}流水`,
-        customerName,
-        itemName: `${transaction.type} · ${card?.name || "会员卡"}`,
-        staffName: "-",
-        source: "会员卡",
-        payMethod: transaction.payMethod ?? "-",
-        paidAmount,
-        discountAmount: 0,
-        status: "已收款",
-        transaction,
-      };
-    })
-    .filter((row): row is CashierFlowRecord => Boolean(row));
-  return [...orderRows, ...memberCardRows].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }
 
 function parseTags(value: string) {

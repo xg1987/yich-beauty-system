@@ -26,6 +26,7 @@ import {
   createStaffInvite,
   createStocktake,
   decideStoreOwnerApplication,
+  deleteStaffMember,
   completeCustomerFollowUp,
   decideApprovalRequest,
   extendMemberCard,
@@ -38,6 +39,7 @@ import {
   reverseDailyClose,
   restockLowInventory,
   rescheduleAppointment,
+  resetAuthUserPassword,
   settleCommissions,
   updateAppointmentStatus,
   transferMemberCard,
@@ -289,14 +291,30 @@ export function createApiServer(database = new BeautyDatabase()) {
       }
 
       if (request.method === "PATCH" && url.pathname.startsWith("/api/auth-users/") && url.pathname.endsWith("/status")) {
-        if (session.user.role !== "superadmin") {
-          throw new Error("只有平台 Admin 可以管理账号状态");
-        }
+        requirePermission(session, "staff:manage");
         const userId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = updateAuthUserStatus(database.readData(), {
+        const currentData = database.readData();
+        assertCanManageAuthUser(currentData, session, userId);
+        const nextData = updateAuthUserStatus(currentData, {
           userId,
-          status: requiredString(body, "status") as "active" | "disabled",
+          status: requiredString(body, "status") as "active" | "disabled" | "pending",
+          operatedBy: session.user.id,
+        });
+        database.replaceData(nextData);
+        sendScopedData(request, response, 200, nextData, session);
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/auth-users/") && url.pathname.endsWith("/password")) {
+        requirePermission(session, "staff:manage");
+        const userId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        const currentData = database.readData();
+        assertCanManageAuthUser(currentData, session, userId);
+        const nextData = resetAuthUserPassword(currentData, {
+          userId,
+          password: await hashPassword(requiredString(body, "password")),
           operatedBy: session.user.id,
         });
         database.replaceData(nextData);
@@ -492,6 +510,20 @@ export function createApiServer(database = new BeautyDatabase()) {
             summary: `${session.user.name} 更新员工资料`,
           },
         );
+        database.replaceData(nextData);
+        sendScopedData(request, response, 200, nextData, session);
+        return;
+      }
+
+      if (request.method === "DELETE" && url.pathname.startsWith("/api/staff/")) {
+        requirePermission(session, "staff:manage");
+        const staffId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        const currentData = database.readData();
+        assertCanManageStaff(currentData, session, staffId);
+        const nextData = deleteStaffMember(currentData, {
+          staffId,
+          operatedBy: session.user.id,
+        });
         database.replaceData(nextData);
         sendScopedData(request, response, 200, nextData, session);
         return;
@@ -1425,6 +1457,30 @@ function sessionStoreId(data: AppData, session: UserSession) {
   return storeIdForUser(normalizeStoreScopedData(data), session.user);
 }
 
+function assertCanManageAuthUser(data: AppData, session: UserSession, userId: string) {
+  if (session.user.role === "superadmin") return;
+  const normalizedData = normalizeStoreScopedData(data);
+  const user = normalizedData.authUsers.find((item) => item.id === userId);
+  if (!user) throw new Error("账号不存在");
+  if (user.role === "superadmin" || user.role === "owner") throw new Error("店长只能管理员工账号");
+  const currentStoreId = sessionStoreId(normalizedData, session);
+  const targetStoreId = storeIdForUser(normalizedData, user);
+  if (!currentStoreId || !targetStoreId || currentStoreId !== targetStoreId) throw new Error("只能管理本门店员工账号");
+}
+
+function assertCanManageStaff(data: AppData, session: UserSession, staffId: string) {
+  if (session.user.role === "superadmin") return;
+  const normalizedData = normalizeStoreScopedData(data);
+  const staff = normalizedData.staff.find((item) => item.id === staffId);
+  if (!staff) throw new Error("员工不存在");
+  if (staff.role === "老板") throw new Error("不能删除老板档案");
+  const linkedUser = normalizedData.authUsers.find((user) => user.staffId === staff.id || staff.accountId === user.id);
+  if (linkedUser?.role === "superadmin" || linkedUser?.role === "owner") throw new Error("店长只能管理员工账号");
+  const currentStoreId = sessionStoreId(normalizedData, session);
+  const targetStoreId = staff.storeId ?? (linkedUser ? storeIdForUser(normalizedData, linkedUser) : undefined);
+  if (!currentStoreId || !targetStoreId || currentStoreId !== targetStoreId) throw new Error("只能管理本门店员工");
+}
+
 function requirePermission(session: UserSession, permission: Permission) {
   if (!session.user.permissions.includes(permission)) {
     throw new Error("当前角色无权执行此操作");
@@ -1856,7 +1912,7 @@ function stringHeader(value: string | string[] | undefined) {
 
 function setCorsHeaders(response: ServerResponse) {
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View");
 }
 

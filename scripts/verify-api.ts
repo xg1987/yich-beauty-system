@@ -448,6 +448,27 @@ try {
   });
   assert.equal(joinedStaffResult.status, "pending_approval", "join invite API should wait for staff approval");
   assert.match(joinedStaffResult.message, /店长审核/, "join invite API should explain staff approval");
+  const dataAfterStaffJoin = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  const joinedStaffUser = dataAfterStaffJoin.authUsers.find((user) => user.account === "api-staff@test.local");
+  assert.ok(joinedStaffUser, "staff invite join should create a pending auth user");
+  assert.equal(joinedStaffUser.status, "pending", "joined staff user should wait for manager approval");
+  const afterApproveStaffUser = await request<AppData>(baseUrl, `/api/auth-users/${joinedStaffUser.id}/status`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "active" },
+  });
+  assert.equal(afterApproveStaffUser.authUsers.find((user) => user.id === joinedStaffUser.id)?.status, "active", "manager should approve own-store staff account");
+  const afterStaffPasswordReset = await request<AppData>(baseUrl, `/api/auth-users/${joinedStaffUser.id}/password`, {
+    method: "PATCH",
+    token: session.token,
+    body: { password: "new-secret" },
+  });
+  assert.equal(afterStaffPasswordReset.operationLogs[0].action, "重置账号密码", "staff password reset should write operation log");
+  const approvedStaffSession = await request<{ token: string; user: { role: string } }>(baseUrl, "/api/auth/login", {
+    method: "POST",
+    body: { account: "api-staff@test.local", password: "new-secret" },
+  });
+  assert.equal(approvedStaffSession.user.role, "therapist", "approved staff should login with reset password");
 
   const afterRevocableStaff = await request<AppData>(baseUrl, "/api/staff", {
     method: "POST",
@@ -464,6 +485,12 @@ try {
     token: session.token,
   });
   assert.equal(afterInviteRevoked.staffInvites.find((item) => item.id === afterRevocableInvite.staffInvites[0].id)?.status, "已作废", "staff invite API should revoke pending invite");
+  const afterDeleteRevocableStaff = await request<AppData>(baseUrl, `/api/staff/${afterRevocableStaff.staff[0].id}`, {
+    method: "DELETE",
+    token: session.token,
+  });
+  assert.equal(afterDeleteRevocableStaff.staff.some((item) => item.id === afterRevocableStaff.staff[0].id), false, "staff API should delete staff without business records");
+  assert.equal(afterDeleteRevocableStaff.operationLogs[0].action, "删除员工", "staff delete API should write operation log");
 
   const afterCustomer = await request<AppData>(baseUrl, "/api/customers", {
     method: "POST",

@@ -386,10 +386,16 @@ function card(data: AppData, cardId: string) {
   assert.equal(updatedStore.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile should update business hours");
   assert.deepEqual(updatedStore.storeProfiles[0].roomNames, ["护理房 A", "护理房 B", "VIP 房"], "store profile should update appointment room names");
   assert.deepEqual(updatedStore.storeProfiles[0].maintenanceRoomNames, ["护理房 B"], "store profile should update specified maintenance rooms");
+  const roomSchedulingStore: AppData = {
+    ...updatedStore,
+    appointments: [],
+    staffShifts: [],
+    staffUnavailableSlots: [],
+  };
   assert.throws(
     () =>
       createAppointment(
-        updatedStore,
+        roomSchedulingStore,
         {
           customerId: "c1",
           staffId: "s3",
@@ -403,7 +409,7 @@ function card(data: AppData, cardId: string) {
     "appointment should reject rooms marked as maintenance",
   );
   const roomBookedStore = createAppointment(
-    updatedStore,
+    roomSchedulingStore,
     {
       customerId: "c1",
       staffId: "s3",
@@ -416,7 +422,7 @@ function card(data: AppData, cardId: string) {
   const firstRoomAppointmentId = roomBookedStore.appointments[0].id;
   assert.equal(roomBookedStore.appointments[0].endAt, "2026-07-10T03:00:00.000Z", "appointment should derive an end time from service duration when missing");
   const longRoomBookedStore = createAppointment(
-    updatedStore,
+    roomSchedulingStore,
     {
       customerId: "c1",
       staffId: "s3",
@@ -462,7 +468,7 @@ function card(data: AppData, cardId: string) {
     "appointment should reject overlapping bookings for the same room",
   );
   const legacyRoomlessStore: AppData = {
-    ...updatedStore,
+    ...roomSchedulingStore,
     appointments: [
       {
         id: "a_legacy_roomless",
@@ -473,7 +479,6 @@ function card(data: AppData, cardId: string) {
         status: "待确认",
         note: "旧预约未保存房间",
       },
-      ...updatedStore.appointments,
     ],
   };
   assert.throws(
