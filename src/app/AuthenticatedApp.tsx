@@ -1143,7 +1143,7 @@ function managementEntryDetails(
       ...base,
       value: `${todayAppointments.length} 单`,
       items: [
-        { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "待确认、到店和已完成" },
+        { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "已预约、待确认和已完成" },
         { label: "房间数量", value: `${rooms.length} 间`, hint: "来自房间设置" },
         { label: "维护房间", value: `${maintenanceRooms} 间`, hint: "预约不可选择" },
       ],
@@ -1545,7 +1545,7 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
             <div>
               <span>待到店</span>
               <strong>{rangePending}</strong>
-              <small>待确认 / 已确认</small>
+              <small>待确认 / 已确认预约</small>
             </div>
             <div>
               <span>已完成</span>
@@ -3174,7 +3174,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       followTitle: "待联系客户",
       healthTitle: "前台执行概览",
       metrics: [
-        { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待确认到店" },
+        { icon: <Share2 size={18} />, label: "线上申请", value: `${input.onlineRequests} 单`, hint: "待门店处理" },
         { icon: <CalendarDays size={18} />, label: "今日预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
         { icon: <UsersRound size={18} />, label: "项目卡", value: `${input.activeCards} 张`, hint: "有效卡项" },
       ],
@@ -3222,7 +3222,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
     title: `${operatorLabel}今日总览`,
     desc: `${operatorLabel}首屏看现金流、客户档案、审批风险和库存风险，用一页判断门店今天是否健康。`,
     scheduleTitle: "今日服务动线",
-    emptySchedule: "今日暂无预约，前台可从预约栏新增客户到店计划",
+    emptySchedule: "今日暂无预约，前台可从预约栏新增到店计划",
     followTitle: "客户关怀",
     healthTitle: "经营健康度",
     metrics: [
@@ -3276,7 +3276,7 @@ function roleHomeCards(data: AppData, session: UserSession): Array<{ title: stri
   }
   if (session.user.role === "frontdesk") {
     return [
-      { title: "今日预约", value: `${todayAppointments} 单`, hint: "确认到店与改约", view: "appointments" },
+      { title: "今日预约", value: `${todayAppointments} 单`, hint: "到店登记与改约", view: "appointments" },
       { title: "客户档案", value: `${data.customers.length} 人`, hint: "建档与项目卡", view: "customers" },
       { title: "待联系客户", value: `${pendingFollowUps} 位`, hint: "到店与回访", view: "customers" },
     ];
@@ -3712,7 +3712,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     .slice()
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
-  const bookedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
+  const confirmedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认");
+  const pendingConfirmAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "待确认");
   const arrivedCheckoutAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
   const selectedService = data.services.find((item) => item.id === serviceId);
@@ -3782,7 +3783,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     if (appointment.status === "已确认") {
       return (
         <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
-          {mutationPending ? "处理中..." : "确认到店"}
+          {mutationPending ? "处理中..." : "登记到店"}
         </button>
       );
     }
@@ -3795,13 +3796,14 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     }
     return <span>-</span>;
   };
+  const appointmentStatusText = (status: Appointment["status"]) => (status === "已确认" ? "已确认预约" : status);
   const appointmentBadgeTone = (status: Appointment["status"]) =>
     status === "已完成" || status === "已到店" ? "ok" : status === "已取消" || status === "爽约" ? "warn" : undefined;
   const renderAppointmentCard = (appointment: Appointment) => (
     <article className={`appointment-work-card status-${appointment.status}`} key={appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
-        <Badge text={appointment.status} tone={appointmentBadgeTone(appointment.status)} />
+        <Badge text={appointmentStatusText(appointment.status)} tone={appointmentBadgeTone(appointment.status)} />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
         <span>{nameOf(data.services, appointment.serviceId)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
@@ -3819,12 +3821,20 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   );
   const appointmentWorkflowGroups = [
     {
-      key: "booked",
-      title: "已预约",
-      desc: "等待客户到店",
-      value: bookedAppointments.length,
-      appointments: bookedAppointments,
-      empty: "暂无已预约客户",
+      key: "arrival",
+      title: "已确认预约",
+      desc: "等待到店",
+      value: confirmedAppointments.length,
+      appointments: confirmedAppointments,
+      empty: "暂无已确认预约",
+    },
+    {
+      key: "confirm",
+      title: "到店待确认",
+      desc: "确认客户已到店",
+      value: pendingConfirmAppointments.length,
+      appointments: pendingConfirmAppointments,
+      empty: "暂无到店待确认",
     },
     {
       key: "checkout",
@@ -3882,19 +3892,19 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <small>{selectedAppointmentRange.label}范围</small>
             </div>
             <div>
-              <span>已预约</span>
-              <strong>{bookedAppointments.length}</strong>
-              <small>等待客户到店</small>
+              <span>已确认预约</span>
+              <strong>{confirmedAppointments.length}</strong>
+              <small>等待到店</small>
+            </div>
+            <div>
+              <span>到店待确认</span>
+              <strong>{pendingConfirmAppointments.length}</strong>
+              <small>确认客户已到店</small>
             </div>
             <div>
               <span>待收银</span>
               <strong>{arrivedCheckoutAppointments.length}</strong>
               <small>已到店服务</small>
-            </div>
-            <div>
-              <span>已完成</span>
-              <strong>{completedRangeAppointments.length}</strong>
-              <small>{selectedAppointmentRange.label}完成</small>
             </div>
           </div>
           <div className="appointment-workflow-grid">
@@ -3930,7 +3940,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                   nameOf(data.services, appointment.serviceId),
                   nameOf(data.staff, appointment.staffId),
                   appointment.roomName ?? "-",
-                  <Badge key={`${appointment.id}-status`} text={appointment.status} tone={appointmentBadgeTone(appointment.status)} />,
+                  <Badge key={`${appointment.id}-status`} text={appointmentStatusText(appointment.status)} tone={appointmentBadgeTone(appointment.status)} />,
                   <div key={`${appointment.id}-action`} className="table-action">
                     {appointmentAction(appointment)}
                   </div>,
