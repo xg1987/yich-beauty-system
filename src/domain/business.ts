@@ -2416,11 +2416,8 @@ export function checkoutOrder(
     if (selectedCard.type !== "储值卡" && selectedCard.remainingTimes <= 0) {
       throw new Error("会员卡次数不足");
     }
-    if (selectedCard.type !== "储值卡" && selectedCard.serviceId && selectedCard.serviceId !== serviceId) {
+    if (selectedCard.type !== "储值卡" && !memberCardSupportsService(selectedCard, serviceId)) {
       throw new Error("该次数卡不可用于当前项目");
-    }
-    if (selectedCard.type !== "储值卡" && selectedCard.serviceIds?.length && !selectedCard.serviceIds.includes(serviceId)) {
-      throw new Error("该套餐卡不可用于当前项目");
     }
   }
 
@@ -4351,8 +4348,9 @@ export function createCustomerSignature(
 export function signCustomerSignature(
   data: AppData,
   input: CustomerSignatureSubmitInput,
-  options: { now?: () => string } = {},
+  options: { idFactory?: IdFactory; now?: () => string } = {},
 ): AppData {
+  const idFactory = options.idFactory ?? makeId;
   const signedAt = (options.now ?? nowIso)();
   const token = input.token.trim();
   const signerName = input.signerName.trim();
@@ -4364,8 +4362,48 @@ export function signCustomerSignature(
   if (!signerName) throw new Error("请输入签名人姓名");
   if (!signatureText) throw new Error("请输入签名确认内容");
   if (signatureText.length > 120_000) throw new Error("签名图片过大，请清除后重新签名");
+  const linkedOrder = signature.orderId ? data.orders.find((order) => order.id === signature.orderId) : undefined;
+  const alreadyDebited = linkedOrder
+    ? data.memberCardTransactions.some((transaction) => transaction.orderId === linkedOrder.id && transaction.type === "消费")
+    : false;
+  const debitCard = linkedOrder && !alreadyDebited ? selectSignatureDebitCard(data, linkedOrder) : undefined;
+  const memberCards = debitCard
+    ? data.memberCards.map((card) => {
+        if (card.id !== debitCard.id || !linkedOrder) return card;
+        if (card.type === "储值卡") return { ...card, balance: Math.max(0, card.balance - linkedOrder.paidAmount) };
+        return { ...card, remainingTimes: Math.max(0, card.remainingTimes - 1) };
+      })
+    : data.memberCards;
+  const debitedCard = debitCard ? memberCards.find((card) => card.id === debitCard.id) : undefined;
+  const memberCardTransactions: MemberCardTransaction[] =
+    linkedOrder && debitedCard
+      ? [
+          {
+            id: idFactory("mt"),
+            storeId: linkedOrder.storeId ?? debitedCard.storeId,
+            memberCardId: debitedCard.id,
+            orderId: linkedOrder.id,
+            type: "消费",
+            amountDelta: debitedCard.type === "储值卡" ? -linkedOrder.paidAmount : 0,
+            timesDelta: debitedCard.type === "储值卡" ? 0 : -1,
+            balanceAfter: debitedCard.balance,
+            remainingTimesAfter: debitedCard.remainingTimes,
+            note: `${linkedOrder.orderNo} · 签名确认扣卡`,
+            createdAt: signedAt,
+          },
+          ...data.memberCardTransactions,
+        ]
+      : data.memberCardTransactions;
+  const orders = debitCard && linkedOrder
+    ? data.orders.map((order) =>
+        order.id === linkedOrder.id ? { ...order, cardId: debitCard.id, payMethod: "会员卡" as const } : order,
+      )
+    : data.orders;
   return {
     ...data,
+    memberCards,
+    memberCardTransactions,
+    orders,
     customerSignatures: (data.customerSignatures ?? []).map((item) =>
       item.id === signature.id
         ? {
@@ -4378,6 +4416,40 @@ export function signCustomerSignature(
         : item,
     ),
   };
+}
+
+function memberCardSupportsService(card: MemberCard, serviceId: string) {
+  if (card.type === "储值卡") return true;
+  if (!serviceId) return false;
+  if (card.serviceId && card.serviceId !== serviceId) return false;
+  if (card.serviceIds?.length && !card.serviceIds.includes(serviceId)) return false;
+  return true;
+}
+
+function selectSignatureDebitCard(data: AppData, order: Order) {
+  if (!order.customerId || !order.serviceId) return undefined;
+  const explicitCard = order.cardId
+    ? data.memberCards.find((card) => card.id === order.cardId && canDebitCardForOrder(card, order))
+    : undefined;
+  if (explicitCard) return explicitCard;
+  const cards = data.memberCards
+    .filter((card) => canDebitCardForOrder(card, order))
+    .sort((a, b) => signatureDebitCardPriority(a, order.serviceId) - signatureDebitCardPriority(b, order.serviceId));
+  return cards[0];
+}
+
+function canDebitCardForOrder(card: MemberCard, order: Order) {
+  if (card.customerId !== order.customerId || card.status !== "正常") return false;
+  if (!memberCardSupportsService(card, order.serviceId)) return false;
+  if (card.type === "储值卡") return card.balance >= order.paidAmount;
+  if (card.type === "折扣卡") return false;
+  return card.remainingTimes > 0;
+}
+
+function signatureDebitCardPriority(card: MemberCard, serviceId: string) {
+  const serviceSpecific = card.serviceId === serviceId || Boolean(card.serviceIds?.includes(serviceId));
+  const typePriority = card.type === "次数卡" ? 0 : card.type === "套餐卡" ? 1 : card.type === "储值卡" ? 2 : 3;
+  return (serviceSpecific ? 0 : 10) + typePriority;
 }
 
 export function addCustomerFollowUp(

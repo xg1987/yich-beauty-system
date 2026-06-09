@@ -2,6 +2,7 @@ import { CalendarDays, CreditCard, LockKeyhole } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import type { ApiActions } from "../../hooks/useApiData";
 import type { AppData, CashPayMethod, Staff } from "../../domain/types";
+import { appointmentEndAt } from "../../domain/appointments";
 import { calculateMemberCardRefundQuote } from "../../domain/business";
 import { money, shortDate } from "../../domain/utils";
 import { Badge } from "../ui/Badge";
@@ -145,8 +146,17 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
     () => data.staffUnavailableSlots.slice().sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
     [data.staffUnavailableSlots],
   );
+  const sortedAppointments = useMemo(
+    () =>
+      data.appointments
+        .filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约")
+        .slice()
+        .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
+    [data.appointments],
+  );
   const upcomingShifts = sortedShifts.filter((shift) => +new Date(shift.endAt) >= now);
   const upcomingBlocks = sortedBlocks.filter((slot) => +new Date(slot.endAt) >= now);
+  const upcomingAppointments = sortedAppointments.filter((appointment) => +appointmentEndAt(appointment, data.services) >= now);
 
   return (
     <div className="module-detail-stack">
@@ -156,6 +166,7 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
           {businessStaff.map((staff) => {
             const staffShifts = upcomingShifts.filter((shift) => shift.staffId === staff.id).slice(0, 4);
             const staffBlocks = upcomingBlocks.filter((slot) => slot.staffId === staff.id).slice(0, 4);
+            const staffAppointments = upcomingAppointments.filter((appointment) => appointment.staffId === staff.id).slice(0, 4);
             return (
               <article className="staff-schedule-card" key={staff.id}>
                 <div className="staff-schedule-card-head">
@@ -171,6 +182,15 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
                     <p key={shift.id}><span>{shortDate(shift.startAt)} - {shortDate(shift.endAt)}</span><em>{shift.note || "正常上班"}</em></p>
                   )) : <p><span>暂无未来班次</span><em>预约时会按已有规则判断</em></p>}
                 </div>
+                <div className="staff-schedule-section">
+                  <small>预约</small>
+                  {staffAppointments.length ? staffAppointments.map((appointment) => (
+                    <p key={appointment.id}>
+                      <span>{shortDate(appointment.startAt)} - {shortDate(appointmentEndAt(appointment, data.services).toISOString())}</span>
+                      <em>{nameOf(data.customers, appointment.customerId)} · {nameOf(data.services, appointment.serviceId)} · {appointment.status}</em>
+                    </p>
+                  )) : <p><span>暂无未来预约</span><em>没有待确认/已确认/已到店预约</em></p>}
+                </div>
                 <div className="staff-schedule-section blocked">
                   <small>不可预约</small>
                   {staffBlocks.length ? staffBlocks.map((slot) => (
@@ -181,6 +201,21 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
             );
           })}
         </div>
+      </section>
+
+      <section className="panel">
+        <PanelTitle icon={<CalendarDays size={18} />} title="全员预约明细" action={`${sortedAppointments.length} 条预约`} />
+        <DataTable
+          columns={["员工", "客户", "项目", "开始", "结束", "状态"]}
+          rows={sortedAppointments.slice(0, 120).map((appointment) => [
+            nameOf(data.staff, appointment.staffId),
+            nameOf(data.customers, appointment.customerId),
+            nameOf(data.services, appointment.serviceId),
+            shortDate(appointment.startAt),
+            shortDate(appointmentEndAt(appointment, data.services).toISOString()),
+            appointment.status,
+          ])}
+        />
       </section>
 
       <section className="panel">

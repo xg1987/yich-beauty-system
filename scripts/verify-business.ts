@@ -1380,6 +1380,49 @@ function card(data: AppData, cardId: string) {
 }
 
 {
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "签名扣卡客户",
+      customerPhone: "13800001980",
+      name: "面部护理十次卡",
+      type: "次数卡",
+      remainingTimes: 10,
+      serviceId: "v1",
+      paidAmount: 1980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const checkedOut = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signed = signCustomerSignature(
+    checkedOut,
+    {
+      token: checkedOut.customerSignatures[0].token,
+      signerName: "签名扣卡客户",
+      signatureText: "data:image/png;base64,abc123",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(signed.memberCards[0].remainingTimes, 9, "service completion signature should deduct one package-card use");
+  assert.equal(signed.memberCardTransactions[0].type, "消费", "signature deduction should write a consumption transaction");
+  assert.equal(signed.memberCardTransactions[0].timesDelta, -1, "signature deduction should record one used session");
+  assert.equal(signed.orders[0].payMethod, "会员卡", "signature deduction should convert the service order to member-card redemption");
+  assert.equal(signed.orders[0].cardId, opened.memberCards[0].id, "signature deduction should link the redeemed member card");
+}
+
+{
   const lowBalanceData = cloneSeed();
   lowBalanceData.memberCards = lowBalanceData.memberCards.map((item) =>
     item.id === "m1" ? { ...item, balance: 1 } : item,
