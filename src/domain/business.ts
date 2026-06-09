@@ -1130,7 +1130,11 @@ export function registerStore(
 
   const staffId = idFactory("s");
   const ownerUserId = idFactory("u");
-  const storeId = data.storeProfiles[0]?.id ?? idFactory("store");
+  const existingStoreIds = new Set(data.storeProfiles.map((store) => store.id));
+  let storeId = idFactory("store");
+  while (existingStoreIds.has(storeId)) {
+    storeId = idFactory("store");
+  }
   return {
     ...data,
     storeProfiles: [
@@ -1146,6 +1150,7 @@ export function registerStore(
         status: "active",
         createdAt,
       },
+      ...data.storeProfiles,
     ],
     staff: [
       {

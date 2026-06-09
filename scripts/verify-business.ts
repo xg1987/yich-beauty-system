@@ -192,8 +192,12 @@ function card(data: AppData, cardId: string) {
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(registered.storeProfiles[0].name, "测试美业门店", "store registration should update store profile");
+  assert.notEqual(registered.storeProfiles[0].id, cloneSeed().storeProfiles[0].id, "store registration should create an independent store id");
+  assert.equal(registered.storeProfiles.length, cloneSeed().storeProfiles.length + 1, "store registration should keep existing stores");
   assert.equal(registered.authUsers[0].role, "owner", "store registration should create owner account");
+  assert.equal(registered.authUsers[0].storeId, registered.storeProfiles[0].id, "owner account should belong to the new store");
   assert.equal(registered.staff[0].accountId, registered.authUsers[0].id, "owner staff should bind account");
+  assert.equal(registered.staff[0].storeId, registered.storeProfiles[0].id, "owner staff should belong to the new store");
   const storeStaffInviteCode = storeStaffInviteCodeForStoreUser(registered.authUsers[0], registered.authUsers);
   assert.ok(storeStaffInviteCode, "owner should have a stable staff invite code after registration");
   const joinedByStoreInvite = joinInviteByCode(
