@@ -3428,7 +3428,7 @@ export function createAppointment(
         startAt: input.startAt,
         endAt,
         roomName,
-        status: "待确认",
+        status: "已确认",
         note: input.note ?? "",
         updatedAt: (options.now ?? nowIso)(),
       },

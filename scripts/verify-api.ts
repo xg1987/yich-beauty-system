@@ -71,6 +71,27 @@ try {
   assert.equal(customerMutationSlice.view, "customers", "mutation slice should use active view");
   assert.ok(customerMutationSlice.data.customers?.some((customer) => customer.name === "分片验证客户"), "mutation slice should include updated customers");
   assert.equal("purchaseOrders" in customerMutationSlice.data, false, "customer mutation slice should omit inventory purchase orders");
+  const settingsAppointmentSlice = await request<AppDataSlice>(baseUrl, "/api/appointments", {
+    method: "POST",
+    token: session.token,
+    headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "settings" },
+    body: {
+      customerId: "c1",
+      staffId: "s3",
+      serviceId: "v1",
+      startAt: futureIso(44, "02:00"),
+      endAt: futureIso(44, "03:00"),
+      roomName: "护理房 1",
+      note: "管理中心预约分片验证",
+    },
+  });
+  assert.equal(settingsAppointmentSlice.kind, "app-data-slice", "settings appointment mutation should return AppData slice");
+  assert.equal(settingsAppointmentSlice.view, "settings", "settings mutation slice should use management-center view");
+  assert.equal(settingsAppointmentSlice.data.appointments?.[0]?.status, "已确认", "manual appointments should enter waiting-arrival column after saving");
+  assert.ok(settingsAppointmentSlice.data.staffShifts, "settings slice should include staff shifts for schedule modal");
+  assert.ok(settingsAppointmentSlice.data.customerSignatures, "settings slice should include customer signatures for refund signing");
+  assert.ok(settingsAppointmentSlice.data.memberCards, "settings slice should include member cards for refund card refresh");
+  assert.ok(settingsAppointmentSlice.data.refunds, "settings slice should include refunds for refund record refresh");
 
   const adminSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
     method: "POST",
@@ -551,7 +572,7 @@ try {
       note: "API 预约",
     },
   });
-  assert.equal(afterAppointment.appointments[0].status, "待确认", "appointment API should create pending appointment");
+  assert.equal(afterAppointment.appointments[0].status, "已确认", "appointment API should create confirmed appointment");
   assert.equal(afterAppointment.appointments[0].endAt, futureIso(31, "03:30"), "appointment API should persist explicit end time");
   const appointmentId = afterAppointment.appointments[0].id;
   assert.equal(afterAppointment.notifications[0].targetId, appointmentId, "appointment API should create a target notification");
@@ -575,15 +596,9 @@ try {
         token: session.token,
         body: { status: "已完成" },
       }),
-    /不能从待确认改为已完成/,
+    /不能从已确认改为已完成/,
     "appointment API should reject invalid status transitions",
   );
-  const afterConfirm = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
-    method: "PATCH",
-    token: session.token,
-    body: { status: "已确认" },
-  });
-  assert.equal(afterConfirm.appointments.find((item) => item.id === appointmentId)?.status, "已确认", "appointment API should confirm");
   const afterArrive = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(appointmentId)}`, {
     method: "PATCH",
     token: session.token,

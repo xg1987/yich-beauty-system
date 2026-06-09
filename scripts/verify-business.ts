@@ -1189,12 +1189,11 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.throws(
     () =>
       updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已完成" }, { now: fixedNow }),
-    /不能从待确认改为已完成/,
+    /不能从已确认改为已完成/,
     "appointment should reject invalid status transition",
   );
 
-  const confirmed = updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已确认" }, { now: fixedNow });
-  const arrived = updateAppointmentStatus(confirmed, { appointmentId: data.appointments[0].id, status: "已到店" }, { now: fixedNow });
+  const arrived = updateAppointmentStatus(data, { appointmentId: data.appointments[0].id, status: "已到店" }, { now: fixedNow });
   assert.equal(arrived.appointments[0].arrivedAt, fixedNow(), "arrival should keep arrival timestamp");
   const completed = updateAppointmentStatus(arrived, { appointmentId: data.appointments[0].id, status: "已完成" }, { now: fixedNow });
   assert.equal(completed.appointments[0].completedAt, fixedNow(), "completion should keep completion timestamp");

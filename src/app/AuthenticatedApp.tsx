@@ -3775,8 +3775,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const appointmentAction = (appointment: Appointment) => {
     if (appointment.status === "待确认") {
       return (
-        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已确认")}>
-          {mutationPending ? "处理中..." : "确认预约"}
+        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
+          {mutationPending ? "处理中..." : "确认到店"}
         </button>
       );
     }
