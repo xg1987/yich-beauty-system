@@ -64,7 +64,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
-import type { AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, MemberCardTransaction, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import packageJson from "../../package.json";
@@ -78,6 +78,38 @@ type CustomerFollowUpType = "服务后回访" | "下次护理提醒" | "卡项�
 type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "batches" | "logs";
+type CashierFlowPayMethod = Order["payMethod"] | "-";
+type CashierFlowRecord =
+  | {
+    kind: "order";
+    id: string;
+    createdAt: string;
+    orderNo: string;
+    customerName: string;
+    itemName: string;
+    staffName: string;
+    source: string;
+    payMethod: CashierFlowPayMethod;
+    paidAmount: number;
+    discountAmount: number;
+    status: Order["status"];
+    order: Order;
+  }
+  | {
+    kind: "memberCard";
+    id: string;
+    createdAt: string;
+    orderNo: string;
+    customerName: string;
+    itemName: string;
+    staffName: string;
+    source: string;
+    payMethod: CashierFlowPayMethod;
+    paidAmount: number;
+    discountAmount: 0;
+    status: "已收款";
+    transaction: MemberCardTransaction;
+  };
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
@@ -964,7 +996,7 @@ function ManagementCenter({
 
   const platformManagementCards: ManagementCard[] = [
     { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
-    { title: "经营数据", desc: "只读报表 / 门店汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "经营数据", desc: "经营报表 / 门店汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
     { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
@@ -1595,39 +1627,35 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
 }
 
 function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
-  const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const cashierFlowRecords = buildCashierFlowRecords(data);
+  const totalRevenue = cashierFlowRecords.reduce((sum, record) => sum + record.paidAmount, 0);
   const refundAmount = data.refunds.reduce((sum, refund) => sum + refund.amount, 0);
   const today = new Date();
-  const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
-  const todayRevenue = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
+  const todayCashierRecords = cashierFlowRecords.filter((record) => new Date(record.createdAt).toDateString() === today.toDateString());
+  const todayRevenue = todayCashierRecords.reduce((sum, record) => sum + record.paidAmount, 0);
   const paidOrders = data.orders.filter((order) => order.status === "已支付").length;
   const refundedOrders = data.orders.filter((order) => order.status !== "已支付").length;
-  const averageOrderValue = data.orders.length ? Math.round(totalRevenue / data.orders.length) : 0;
-  const recentOrders = data.orders
-    .slice()
-    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-    .slice(0, 5);
+  const averageOrderValue = cashierFlowRecords.length ? Math.round(totalRevenue / cashierFlowRecords.length) : 0;
+  const recentCashierRecords = cashierFlowRecords.slice(0, 5);
   const payMethodSummary = (["微信", "支付宝", "现金", "银行卡", "会员卡"] as Order["payMethod"][]).map((method) => {
-    const methodOrders = data.orders.filter((order) => order.payMethod === method);
+    const methodRecords = cashierFlowRecords.filter((record) => record.payMethod === method);
     return {
-      amount: methodOrders.reduce((sum, order) => sum + order.paidAmount, 0),
-      count: methodOrders.length,
+      amount: methodRecords.reduce((sum, record) => sum + record.paidAmount, 0),
+      count: methodRecords.length,
       method,
     };
   });
-  const rows = data.orders
-    .slice()
-    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+  const rows = cashierFlowRecords
     .slice(0, 120)
-    .map((order) => [
-      order.orderNo,
-      nameOf(data.customers, order.customerId),
-      nameOf(data.services, order.serviceId),
-      nameOf(data.staff, order.staffId),
-      order.payMethod,
-      money(order.paidAmount),
-      <Badge key={`${order.id}-status`} text={order.status} tone={order.status === "已支付" ? "ok" : "warn"} />,
-      shortDate(order.createdAt),
+    .map((record) => [
+      record.orderNo,
+      record.customerName,
+      record.itemName,
+      record.staffName,
+      record.payMethod,
+      money(record.paidAmount),
+      <Badge key={`${record.id}-status`} text={record.status} tone={record.status === "已退款" ? "warn" : "ok"} />,
+      shortDate(record.createdAt),
     ]);
 
   return (
@@ -1641,18 +1669,18 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
         </div>
         <div className="page-hero-stats">
           <StatCard title="实收金额" value={money(totalRevenue)} hint="收款汇总" />
-          <StatCard title="订单数" value={`${data.orders.length} 单`} hint="收银订单" />
+          <StatCard title="流水数" value={`${cashierFlowRecords.length} 笔`} hint="收银记录" />
           <StatCard title="退款金额" value={money(refundAmount)} hint={`${data.refunds.length} 条退款`} />
         </div>
       </section>
 
       <section className="cashier-page-grid">
         <div className="cashier-panel cashier-board-panel">
-          <PanelTitle icon={<CreditCard size={18} />} title="今日收银看板" action={`${todayOrders.length} 单`} />
+          <PanelTitle icon={<CreditCard size={18} />} title="今日收银看板" action={`${todayCashierRecords.length} 笔`} />
           <div className="cashier-revenue-card">
             <span>今日实收</span>
             <strong>{money(todayRevenue)}</strong>
-            <small>今日订单 {todayOrders.length} 单 · 客单价 {money(averageOrderValue)}</small>
+            <small>今日流水 {todayCashierRecords.length} 笔 · 均单 {money(averageOrderValue)}</small>
           </div>
           <div className="cashier-status-grid">
             <div>
@@ -1680,7 +1708,7 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
               <article key={item.method}>
                 <div>
                   <strong>{item.method}</strong>
-                  <span>{item.count} 单</span>
+                  <span>{item.count} 笔</span>
                 </div>
                 <em>{money(item.amount)}</em>
               </article>
@@ -1691,22 +1719,22 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
 
       <section className="cashier-page-grid lower">
         <div className="cashier-panel">
-          <PanelTitle icon={<ClipboardList size={18} />} title="最近订单" action="最新 5 单" />
+          <PanelTitle icon={<ClipboardList size={18} />} title="最近流水" action="最新 5 笔" />
           <div className="cashier-order-list">
-            {recentOrders.map((order) => (
-              <article className="cashier-order-card" key={order.id}>
+            {recentCashierRecords.map((record) => (
+              <article className="cashier-order-card" key={record.id}>
                 <div>
-                  <strong>{order.orderNo}</strong>
-                  <span>{nameOf(data.customers, order.customerId)} · {nameOf(data.services, order.serviceId)}</span>
-                  <small>{order.payMethod} · {shortDate(order.createdAt)}</small>
+                  <strong>{record.orderNo}</strong>
+                  <span>{record.customerName} · {record.itemName}</span>
+                  <small>{record.payMethod} · {shortDate(record.createdAt)}</small>
                 </div>
                 <div>
-                  <em>{money(order.paidAmount)}</em>
-                  <Badge text={order.status} tone={order.status === "已支付" ? "ok" : "warn"} />
+                  <em>{money(record.paidAmount)}</em>
+                  <Badge text={record.status} tone={record.status === "已退款" ? "warn" : "ok"} />
                 </div>
               </article>
             ))}
-            {recentOrders.length === 0 && <p className="cashier-soft-empty">暂无收银订单</p>}
+            {recentCashierRecords.length === 0 && <p className="cashier-soft-empty">暂无收银流水</p>}
           </div>
         </div>
 
@@ -1728,11 +1756,11 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
       </section>
 
       <section className="cashier-panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="订单流水" action={`${data.orders.length} 单`} />
+        <PanelTitle icon={<CreditCard size={18} />} title="订单流水" action={`${cashierFlowRecords.length} 笔`} />
         {rows.length > 0 ? (
-          <DataTable columns={["订单号", "客户", "项目", "员工", "支付方式", "实收", "状态", "时间"]} rows={rows} />
+          <DataTable columns={["流水", "客户", "内容", "员工", "支付方式", "实收", "状态", "时间"]} rows={rows} />
         ) : (
-          <p className="cashier-soft-empty">暂无订单流水</p>
+          <p className="cashier-soft-empty">暂无收银流水</p>
         )}
       </section>
     </div>
@@ -4433,6 +4461,7 @@ function Pos({
       ...orderGiftLineNames(order).filter((name) => !name.startsWith("赠 -")),
     ].filter(Boolean).join(" + ") || "商品";
   };
+  const cashierFlowRecords = buildCashierFlowRecords(data);
 
   // 打印小票功能
   const printReceipt = (order: Order) => {
@@ -4903,7 +4932,7 @@ function Pos({
             >
               <ClipboardList size={22} />
               <strong>订单流水</strong>
-              <em>{data.orders.length} 单</em>
+              <em>{cashierFlowRecords.length} 笔</em>
             </button>
           </div>
         </section>
@@ -5226,34 +5255,34 @@ function Pos({
         <PanelTitle
           icon={<ClipboardList size={18} />}
           title="订单流水"
-          action="最近订单"
+          action={`${cashierFlowRecords.length} 笔`}
         />
           <DataTable
-          columns={["单号", "客户", "项目", "员工", "来源", "支付", "实收", "状态", "时间", "操作"]}
-          rows={data.orders
-            .map((order) => [
-            order.orderNo,
-            orderCustomerName(order),
-            orderItemName(order),
-            nameOf(data.staff, order.staffId),
-            order.appointmentId ? "预约到店" : "手工开单",
-            order.payMethod,
-            `${money(order.paidAmount)}${order.discountAmount ? ` / 优惠${money(order.discountAmount)}` : ""}`,
-            <Badge key={`${order.id}-status`} text={order.status} tone={order.status === "已退款" ? "warn" : "ok"} />,
-            shortDate(order.createdAt),
-            order.status === "已支付" ? (
-              <div key={`${order.id}-refund`} className="table-action">
+          columns={["流水", "客户", "内容", "员工", "来源", "支付", "实收", "状态", "时间", "操作"]}
+          rows={cashierFlowRecords
+            .map((record) => [
+            record.orderNo,
+            record.customerName,
+            record.itemName,
+            record.staffName,
+            record.source,
+            record.payMethod,
+            `${money(record.paidAmount)}${record.discountAmount ? ` / 优惠${money(record.discountAmount)}` : ""}`,
+            <Badge key={`${record.id}-status`} text={record.status} tone={record.status === "已退款" ? "warn" : "ok"} />,
+            shortDate(record.createdAt),
+            record.kind === "order" && record.order.status === "已支付" ? (
+              <div key={`${record.id}-refund`} className="table-action">
                 <input
-                  aria-label={`${order.orderNo}退款金额`}
+                  aria-label={`${record.orderNo}退款金额`}
                   placeholder="全额"
-                  value={refundAmounts[order.id] ?? ""}
-                  onChange={(event) => setRefundAmounts((previous) => ({ ...previous, [order.id]: event.target.value }))}
+                  value={refundAmounts[record.order.id] ?? ""}
+                  onChange={(event) => setRefundAmounts((previous) => ({ ...previous, [record.order.id]: event.target.value }))}
                 />
                 <input
-                  aria-label={`${order.orderNo}退款审批`}
+                  aria-label={`${record.orderNo}退款审批`}
                   placeholder="审批ID"
-                  value={refundApprovalIds[order.id] ?? ""}
-                  onChange={(event) => setRefundApprovalIds((previous) => ({ ...previous, [order.id]: event.target.value }))}
+                  value={refundApprovalIds[record.order.id] ?? ""}
+                  onChange={(event) => setRefundApprovalIds((previous) => ({ ...previous, [record.order.id]: event.target.value }))}
                 />
                 <button
                   type="button"
@@ -5261,10 +5290,10 @@ function Pos({
                   onClick={() =>
                     void runMutation(() =>
                       actions.refundOrder(
-                        order.id,
+                        record.order.id,
                         "门店退款",
-                        refundAmounts[order.id] ? Number(refundAmounts[order.id]) : undefined,
-                        refundApprovalIds[order.id] || undefined,
+                        refundAmounts[record.order.id] ? Number(refundAmounts[record.order.id]) : undefined,
+                        refundApprovalIds[record.order.id] || undefined,
                       ),
                     )
                   }
@@ -8431,6 +8460,79 @@ function optionalNumberFromInput(value: string) {
 
 function nameOf(collection: Array<{ id: string; name: string }>, id: string) {
   return collection.find((item) => item.id === id)?.name ?? "-";
+}
+
+function orderCustomerLabel(data: AppData, order: Order) {
+  if (order.customerId) return nameOf(data.customers, order.customerId);
+  const name = order.guestName?.trim();
+  const phone = order.guestPhone?.trim();
+  if (!name && !phone) return "新客";
+  return [name || "新客", phone].filter(Boolean).join(" · ");
+}
+
+function orderProductLineLabels(data: AppData, order: Order) {
+  if (order.productItems?.length) {
+    return order.productItems.map((item) => `${nameOf(data.products, item.productId)} x${item.quantity}`);
+  }
+  return order.productId ? [nameOf(data.products, order.productId)] : [];
+}
+
+function orderGiftLineLabels(data: AppData, order: Order) {
+  if (order.giftProductItems?.length) {
+    return order.giftProductItems.map((item) => `赠 ${nameOf(data.products, item.productId)} x${item.quantity}`);
+  }
+  return order.giftProductId ? [`赠 ${nameOf(data.products, order.giftProductId)}`] : [];
+}
+
+function orderItemLabel(data: AppData, order: Order) {
+  const serviceName = order.serviceId ? nameOf(data.services, order.serviceId) : "";
+  return [
+    serviceName !== "-" ? serviceName : "",
+    ...orderProductLineLabels(data, order).filter((name) => !name.startsWith("-")),
+    ...orderGiftLineLabels(data, order).filter((name) => !name.startsWith("赠 -")),
+  ].filter(Boolean).join(" + ") || "商品";
+}
+
+function buildCashierFlowRecords(data: AppData): CashierFlowRecord[] {
+  const orderRows: CashierFlowRecord[] = data.orders.map((order) => ({
+    kind: "order",
+    id: order.id,
+    createdAt: order.createdAt,
+    orderNo: order.orderNo,
+    customerName: orderCustomerLabel(data, order),
+    itemName: orderItemLabel(data, order),
+    staffName: nameOf(data.staff, order.staffId),
+    source: order.appointmentId ? "预约到店" : "手工开单",
+    payMethod: order.payMethod,
+    paidAmount: order.paidAmount,
+    discountAmount: order.discountAmount,
+    status: order.status,
+    order,
+  }));
+  const memberCardRows = data.memberCardTransactions
+    .map((transaction): CashierFlowRecord | undefined => {
+      const paidAmount = memberCardCashIn(transaction);
+      if (paidAmount <= 0) return undefined;
+      const card = data.memberCards.find((item) => item.id === transaction.memberCardId);
+      const customerName = card ? nameOf(data.customers, card.customerId) : "-";
+      return {
+        kind: "memberCard",
+        id: transaction.id,
+        createdAt: transaction.createdAt,
+        orderNo: `${transaction.type}流水`,
+        customerName,
+        itemName: `${transaction.type} · ${card?.name || "会员卡"}`,
+        staffName: "-",
+        source: "会员卡",
+        payMethod: transaction.payMethod ?? "-",
+        paidAmount,
+        discountAmount: 0,
+        status: "已收款",
+        transaction,
+      };
+    })
+    .filter((row): row is CashierFlowRecord => Boolean(row));
+  return [...orderRows, ...memberCardRows].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }
 
 function parseTags(value: string) {

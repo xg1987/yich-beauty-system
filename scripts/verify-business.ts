@@ -27,6 +27,7 @@ import {
   formalDataAudit,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  memberCardCashIn,
   openMemberCard,
   platformInviteCodeForPlatformAdmin,
   platformInviteCodeForUser,
@@ -1298,6 +1299,7 @@ function card(data: AppData, cardId: string) {
   assert.equal(opened.memberCards[0].remainingTimes, 10, "open card should create member asset");
   assert.equal(opened.memberCardTransactions[0].paidAmount, 2980, "open card should record paid amount");
   assert.equal(opened.memberCardTransactions[0].payMethod, "微信", "open card should record payment method");
+  assert.equal(memberCardCashIn(opened.memberCardTransactions[0]), 2980, "open card should count as cashier flow income");
   const closed = createDailyClose(
     opened,
     { businessDate: "2026-05-24", userId: "u_manager" },
