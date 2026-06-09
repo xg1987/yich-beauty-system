@@ -947,13 +947,14 @@ try {
     body: {
       customerId: "c1",
       title: "会员卡退费确认签名",
-      content: "本人确认办理会员卡退费，退费后会员卡关闭。",
+      content: "本人确认办理尊享储值卡退费，退费后会员卡关闭。",
       validDays: 1,
     },
   });
   const refundSignature = refundSignatureData.customerSignatures[0];
-  await request<{ signature: { status: string } }>(baseUrl, `/api/public/customer-signatures/${refundSignature.token}/sign`, {
+  await request<AppData>(baseUrl, `/api/customer-signatures/${refundSignature.id}/sign`, {
     method: "POST",
+    token: session.token,
     body: { signerName: "周女士", signatureText: "data:image/png;base64,refund-api" },
   });
   const afterCardRefund = await request<AppData>(baseUrl, "/api/member-cards/m1/refund", {

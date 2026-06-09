@@ -257,6 +257,8 @@ export function createApiClient(getToken: () => string | undefined) {
     }) => request<AppData>("/api/service-records", { method: "POST", body, token: getToken() }),
     createCustomerSignature: (body: { customerId: string; serviceRecordId?: string; orderId?: string; title?: string; content?: string; validDays?: number }) =>
       request<AppData>("/api/customer-signatures", { method: "POST", body, token: getToken() }),
+    signCustomerSignature: (signatureId: string, body: { signerName: string; signatureText: string }) =>
+      request<AppData>(`/api/customer-signatures/${encodeURIComponent(signatureId)}/sign`, { method: "POST", body, token: getToken() }),
     addFollowUp: (body: { customerId: string; staffId: string; dueAt: string; method: "电话" | "微信" | "到店"; note: string }) =>
       request<AppData>("/api/follow-ups", { method: "POST", body, token: getToken() }),
     completeFollowUp: (followUpId: string) =>

@@ -1082,6 +1082,22 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendScopedData(context.request, 201, nextData, session);
     }
 
+    if (context.request.method === "POST" && pathname.startsWith("/api/customer-signatures/") && pathname.endsWith("/sign")) {
+      requireAnyPermission(session, ["customers:manage", "pos:manage"]);
+      const signatureId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const currentData = await database.readData();
+      const signature = currentData.customerSignatures.find((item) => item.id === signatureId);
+      if (!signature) throw new Error("签名记录不存在");
+      const nextData = signCustomerSignature(currentData, {
+        token: signature.token,
+        signerName: requiredString(body, "signerName"),
+        signatureText: requiredString(body, "signatureText"),
+      });
+      await database.replaceData(nextData);
+      return sendScopedData(context.request, 201, nextData, session);
+    }
+
     if (context.request.method === "POST" && pathname === "/api/follow-ups") {
       requirePermission(session, "customers:manage");
       const body = await readJson(context.request);

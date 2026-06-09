@@ -1137,6 +1137,23 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
 
+      if (request.method === "POST" && url.pathname.startsWith("/api/customer-signatures/") && url.pathname.endsWith("/sign")) {
+        requireAnyPermission(session, ["customers:manage", "pos:manage"]);
+        const signatureId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        const currentData = database.readData();
+        const signature = currentData.customerSignatures.find((item) => item.id === signatureId);
+        if (!signature) throw new Error("签名记录不存在");
+        const nextData = signCustomerSignature(currentData, {
+          token: signature.token,
+          signerName: requiredString(body, "signerName"),
+          signatureText: requiredString(body, "signatureText"),
+        });
+        database.replaceData(nextData);
+        sendScopedData(request, response, 201, nextData, session);
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/api/follow-ups") {
         requirePermission(session, "customers:manage");
         const body = await readJson(request);

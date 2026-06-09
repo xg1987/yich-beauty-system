@@ -1,5 +1,5 @@
 import { CalendarDays, CreditCard, Search } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { ApiActions } from "../../hooks/useApiData";
 import type { AppData, CashPayMethod, MemberCard, Order, Staff, StaffShift } from "../../domain/types";
 import { appointmentEndAt } from "../../domain/appointments";
@@ -131,20 +131,23 @@ function summaryForDate(date: Date, staffList: Staff[], data: AppData) {
 
 export function CustomerRefundManagement({ data, actions, runMutation }: ManagementOperationProps) {
   const refundableCards = data.memberCards.filter((card) => card.status !== "已退卡");
-  const initialCard = refundableCards.find((card) => card.type === "储值卡") ?? refundableCards[0];
   const [activeTab, setActiveTab] = useState<MemberCardRefundTab>("储值卡");
   const [searchText, setSearchText] = useState("");
   const [refundPickerOpen, setRefundPickerOpen] = useState(false);
-  const [cardId, setCardId] = useState(initialCard?.id ?? "");
+  const [cardId, setCardId] = useState("");
   const [refundSignatureId, setRefundSignatureId] = useState("");
   const selectedCard = data.memberCards.find((card) => card.id === cardId);
   const selectedCustomer = selectedCard ? data.customers.find((customer) => customer.id === selectedCard.customerId) : undefined;
   const selectedRefundQuote = selectedCard ? calculateMemberCardRefundQuote(selectedCard, data.memberCardTransactions) : undefined;
-  const initialRefundQuote = initialCard ? calculateMemberCardRefundQuote(initialCard, data.memberCardTransactions) : undefined;
-  const [refundAmount, setRefundAmount] = useState(() => String(initialRefundQuote?.refundableAmount ?? initialCard?.balance ?? 0));
+  const [refundAmount, setRefundAmount] = useState("0");
   const [payMethod, setPayMethod] = useState<CashPayMethod>("微信");
   const [reason, setReason] = useState("客户退卡退费");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string }>();
+  const [refundSignerName, setRefundSignerName] = useState("");
+  const [hasRefundSignatureDrawing, setHasRefundSignatureDrawing] = useState(false);
+  const refundCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const refundDrawingRef = useRef(false);
+  const refundSubmittingRef = useRef(false);
   const refundValue = Number(refundAmount);
   const maxRefundAmount = selectedRefundQuote?.refundableAmount ?? selectedCard?.balance ?? 0;
   const invalidRefundAmount = !Number.isFinite(refundValue) || refundValue < 0 || Boolean(selectedCard && refundValue > maxRefundAmount);
@@ -167,14 +170,31 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       return !normalizedSearch || target.includes(normalizedSearch);
     })
     .slice(0, 20);
-  const selectedRefundSignature = refundSignatureId ? data.customerSignatures.find((signature) => signature.id === refundSignatureId) : undefined;
+  const latestCardRefundSignature = selectedCard
+    ? data.customerSignatures
+      .filter((signature) =>
+        signature.customerId === selectedCard.customerId
+        && signature.title === "会员卡退费确认签名"
+        && signature.content.includes(selectedCard.name),
+      )
+      .slice()
+      .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))[0]
+    : undefined;
+  const selectedRefundSignature = (refundSignatureId ? data.customerSignatures.find((signature) => signature.id === refundSignatureId) : undefined) ?? latestCardRefundSignature;
   const hasSignedRefundSignature = Boolean(selectedRefundSignature && selectedRefundSignature.status === "已签名");
-  const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
   const refundActionLabel = !selectedRefundSignature
     ? "生成客户退费签名"
     : selectedRefundSignature.status === "待签名"
-      ? "打开客户签名页面"
+      ? "确认客户签名"
       : "确认退费并关闭卡";
+
+  useEffect(() => {
+    setRefundSignerName(selectedCustomer?.name ?? "");
+    setHasRefundSignatureDrawing(false);
+    const canvas = refundCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
+  }, [selectedCustomer?.id, selectedRefundSignature?.id]);
 
   const openRefundTab = (tab: MemberCardRefundTab) => {
     setActiveTab(tab);
@@ -189,7 +209,54 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     setRefundPickerOpen(false);
     setRefundAmount(String(nextQuote?.refundableAmount ?? nextCard?.balance ?? 0));
     setRefundSignatureId("");
+    setHasRefundSignatureDrawing(false);
     setMessage(undefined);
+  };
+
+  const refundSignaturePoint = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const startRefundSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    refundDrawingRef.current = true;
+    const point = refundSignaturePoint(event);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const drawRefundSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!refundDrawingRef.current) return;
+    const context = event.currentTarget.getContext("2d");
+    if (!context) return;
+    const point = refundSignaturePoint(event);
+    context.lineWidth = 4;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.strokeStyle = "#15141a";
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    setHasRefundSignatureDrawing(true);
+  };
+
+  const stopRefundSignature = () => {
+    refundDrawingRef.current = false;
+  };
+
+  const clearRefundSignature = () => {
+    const canvas = refundCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    setHasRefundSignatureDrawing(false);
   };
 
   const createRefundSignature = async () => {
@@ -232,6 +299,39 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     });
   };
 
+  const signRefundSignature = () => {
+    setMessage(undefined);
+    if (refundSubmittingRef.current) return;
+    if (!selectedRefundSignature || selectedRefundSignature.status !== "待签名") {
+      setMessage({ type: "error", text: "请先生成客户退费签名。" });
+      return;
+    }
+    if (!refundSignerName.trim()) {
+      setMessage({ type: "error", text: "请填写签名人姓名。" });
+      return;
+    }
+    const canvas = refundCanvasRef.current;
+    if (!canvas || !hasRefundSignatureDrawing) {
+      setMessage({ type: "error", text: "请先完成手写签名。" });
+      return;
+    }
+    refundSubmittingRef.current = true;
+    void runMutation(() =>
+      actions.signCustomerSignature(selectedRefundSignature.id, {
+        signerName: refundSignerName,
+        signatureText: canvas.toDataURL("image/png"),
+      }),
+    ).then((nextData) => {
+      const signedSignature = nextData.customerSignatures.find((signature) => signature.id === selectedRefundSignature.id);
+      if (signedSignature) setRefundSignatureId(signedSignature.id);
+      setMessage({ type: "success", text: "客户签名已完成，可以确认退费。" });
+    }).catch((caught) => {
+      setMessage({ type: "error", text: caught instanceof Error ? caught.message : "签名失败" });
+    }).finally(() => {
+      refundSubmittingRef.current = false;
+    });
+  };
+
   const completeRefund = () => {
     setMessage(undefined);
     if (!selectedCard) {
@@ -255,6 +355,10 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       }),
     ).then(() => {
       setMessage({ type: "success", text: "退费已完成，会员卡已关闭并写入退卡流水。" });
+      setCardId("");
+      setRefundSignatureId("");
+      setRefundAmount("0");
+      setHasRefundSignatureDrawing(false);
     }).catch((caught) => {
       setMessage({ type: "error", text: caught instanceof Error ? caught.message : "退费失败" });
     });
@@ -271,13 +375,11 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       return;
     }
     if (!selectedRefundSignature) {
-      void createRefundSignature().then((signature) => {
-        if (signature) window.open(signatureUrl(signature.token), "_blank", "noopener,noreferrer");
-      });
+      void createRefundSignature();
       return;
     }
     if (selectedRefundSignature.status === "待签名") {
-      window.open(signatureUrl(selectedRefundSignature.token), "_blank", "noopener,noreferrer");
+      signRefundSignature();
       return;
     }
     completeRefund();
@@ -371,8 +473,29 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
               <strong>客户退费签名</strong>
               <span>{selectedRefundSignature ? `${selectedRefundSignature.status} · ${selectedRefundSignature.signerName ?? nameOf(data.customers, selectedRefundSignature.customerId)}` : "未生成"}</span>
             </div>
-            {selectedRefundSignature?.status === "待签名" ? <button type="button" onClick={() => window.location.reload()}>刷新状态</button> : <span />}
+            {selectedRefundSignature?.status === "待签名" ? <button type="button" onClick={clearRefundSignature}>清除签名</button> : <span />}
           </div>
+          {selectedRefundSignature?.status === "待签名" && (
+            <div className="refund-inline-signature">
+              <label>签名人姓名<input value={refundSignerName} onChange={(event) => setRefundSignerName(event.target.value)} /></label>
+              <label>
+                手写签名
+                <div className="signature-canvas-wrap">
+                  <canvas
+                    ref={refundCanvasRef}
+                    width={720}
+                    height={220}
+                    className="signature-canvas"
+                    onPointerDown={startRefundSignature}
+                    onPointerMove={drawRefundSignature}
+                    onPointerUp={stopRefundSignature}
+                    onPointerCancel={stopRefundSignature}
+                  />
+                  {!hasRefundSignatureDrawing && <span>请在此处手写签名</span>}
+                </div>
+              </label>
+            </div>
+          )}
           {message && <p className={message.type === "success" ? "form-success" : "form-error"}>{message.text}</p>}
           <button className="primary-button" type="submit" disabled={!selectedCard || invalidRefundAmount}>{refundActionLabel}</button>
         </form>

@@ -3001,8 +3001,14 @@ export function refundMemberCard(
   if (signature.customerId !== card.customerId) {
     throw new Error("退费签名不属于当前客户");
   }
+  if (signature.title !== "会员卡退费确认签名" || !signature.content.includes(card.name)) {
+    throw new Error("退费签名不属于当前会员卡");
+  }
   if (signature.status !== "已签名") {
     throw new Error("请先完成客户退费签名");
+  }
+  if (signature.expiresAt && +new Date(signature.expiresAt) <= +new Date(createdAt)) {
+    throw new Error("退费签名已过期");
   }
 
   const amountDelta = -card.balance;

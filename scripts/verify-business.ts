@@ -79,13 +79,13 @@ function card(data: AppData, cardId: string) {
   return result;
 }
 
-function signedRefundSignature(data: AppData, customerId: string) {
+function signedRefundSignature(data: AppData, customerId: string, cardName = "尊享储值卡") {
   const created = createCustomerSignature(
     data,
     {
       customerId,
       title: "会员卡退费确认签名",
-      content: "本人确认办理会员卡退费，退费后会员卡关闭。",
+      content: `本人确认办理${cardName}退费，退费后会员卡关闭。`,
       validDays: 1,
       requestedBy: "u_manager",
     },
@@ -1359,7 +1359,7 @@ function signedRefundSignature(data: AppData, customerId: string) {
   );
   assert.equal(closed.dailyCloses[0].revenue, 2980, "daily close should include member card cash-in");
   assert.equal(closed.dailyCloses[0].wechatAmount, 2980, "daily close should assign member card cash-in to payment method");
-  const signedOpened = signedRefundSignature(opened, opened.memberCards[0].customerId);
+  const signedOpened = signedRefundSignature(opened, opened.memberCards[0].customerId, opened.memberCards[0].name);
   const refundedOpened = refundMemberCard(
     signedOpened,
     { memberCardId: opened.memberCards[0].id, reason: "退预存", refundAmount: 980, payMethod: "微信", signatureId: signedOpened.customerSignatures[0].id, userId: "u_manager" },
@@ -1407,7 +1407,7 @@ function signedRefundSignature(data: AppData, customerId: string) {
   assert.equal(quote.unitDeduction, 398, "refund quote should deduct one unit price per used session");
   assert.equal(quote.usedDeduction, 398, "refund quote should show mandatory used-session deduction");
   assert.equal(quote.refundableAmount, 3582, "refund quote should return paid amount minus used-session deduction");
-  const signedUsedOnce = signedRefundSignature(usedOnce, usedOnce.memberCards[0].customerId);
+  const signedUsedOnce = signedRefundSignature(usedOnce, usedOnce.memberCards[0].customerId, usedOnce.memberCards[0].name);
   assert.throws(
     () =>
       refundMemberCard(

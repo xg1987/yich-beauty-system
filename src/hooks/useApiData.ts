@@ -217,6 +217,7 @@ export function useApiData() {
     decideApproval: client.decideApproval,
     addServiceRecord: client.addServiceRecord,
     createCustomerSignature: client.createCustomerSignature,
+    signCustomerSignature: client.signCustomerSignature,
     addFollowUp: client.addFollowUp,
     completeFollowUp: client.completeFollowUp,
     addService: client.addService,
