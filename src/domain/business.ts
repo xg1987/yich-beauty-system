@@ -661,6 +661,8 @@ export type RefundInput = {
 export type RefundMemberCardInput = {
   memberCardId: string;
   reason: string;
+  refundAmount?: number;
+  payMethod?: CashPayMethod;
   userId: string;
 };
 
@@ -2932,6 +2934,14 @@ export function memberCardCashIn(transaction: MemberCardTransaction) {
   return Math.max(0, transaction.amountDelta);
 }
 
+export function memberCardCashRefund(transaction: MemberCardTransaction) {
+  if (transaction.type !== "退卡" && transaction.type !== "退款") return 0;
+  if (typeof transaction.paidAmount === "number" && Number.isFinite(transaction.paidAmount)) {
+    return Math.max(0, transaction.paidAmount);
+  }
+  return Math.max(0, -transaction.amountDelta);
+}
+
 export function refundMemberCard(
   data: AppData,
   input: RefundMemberCardInput,
@@ -2952,6 +2962,11 @@ export function refundMemberCard(
 
   const amountDelta = -card.balance;
   const timesDelta = -card.remainingTimes;
+  const refundAmount = positiveNumber(input.refundAmount, card.balance);
+  if (card.balance > 0 && refundAmount > card.balance) {
+    throw new Error("实退金额不能大于当前余额");
+  }
+  const payMethod = refundAmount > 0 ? normalizeCashPayMethod(input.payMethod) : undefined;
   const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {
@@ -2969,6 +2984,8 @@ export function refundMemberCard(
         timesDelta,
         balanceAfter: 0,
         remainingTimesAfter: 0,
+        paidAmount: refundAmount > 0 ? refundAmount : undefined,
+        payMethod,
         note: input.reason,
         createdAt,
       },
@@ -2982,7 +2999,7 @@ export function refundMemberCard(
         action: "会员退卡",
         targetType: "memberCard",
         targetId: card.id,
-        summary: `${card.name} 退卡：余额 ${card.balance}，次数 ${card.remainingTimes}，原因：${input.reason}`,
+        summary: `${card.name} 退卡：余额 ${card.balance}，次数 ${card.remainingTimes}，实退 ${refundAmount} 元，原因：${input.reason}`,
         createdAt,
       },
       ...data.operationLogs,
@@ -3732,6 +3749,9 @@ export function createDailyClose(
   const memberCardIncomeTransactions = data.memberCardTransactions.filter(
     (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashIn(transaction) > 0,
   );
+  const memberCardRefundTransactions = data.memberCardTransactions.filter(
+    (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashRefund(transaction) > 0,
+  );
 
   const orderAmountByMethod = (method: Order["payMethod"]) =>
     orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + order.paidAmount, 0);
@@ -3749,7 +3769,8 @@ export function createDailyClose(
     storeId,
     businessDate: input.businessDate,
     revenue: cashRevenue,
-    refundAmount: refunds.reduce((sum, refund) => sum + refund.amount, 0),
+    refundAmount: refunds.reduce((sum, refund) => sum + refund.amount, 0)
+      + memberCardRefundTransactions.reduce((sum, transaction) => sum + memberCardCashRefund(transaction), 0),
     orderCount: orders.filter((order) => order.status !== "已退款").length,
     cashAmount: orderAmountByMethod("现金") + memberCardIncomeByMethod("现金"),
     wechatAmount: orderAmountByMethod("微信") + memberCardIncomeByMethod("微信"),
@@ -4392,7 +4413,8 @@ export function reportSummary(data: AppData) {
     .filter((item) => item.payMethod !== "会员卡")
     .reduce((sum, item) => sum + item.paidAmount, 0);
   const revenue = orderCashRevenue + data.memberCardTransactions.reduce((sum, item) => sum + memberCardCashIn(item), 0);
-  const refundAmount = data.refunds.reduce((sum, item) => sum + item.amount, 0);
+  const refundAmount = data.refunds.reduce((sum, item) => sum + item.amount, 0)
+    + data.memberCardTransactions.reduce((sum, item) => sum + memberCardCashRefund(item), 0);
   const cardBalance = data.memberCards.reduce((sum, item) => sum + item.balance, 0);
   const commission = data.commissions.filter((item) => item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0);
   const effectiveOrders = data.orders.filter((item) => item.status !== "已退款");

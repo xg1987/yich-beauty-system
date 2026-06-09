@@ -601,6 +601,8 @@ const MemoPlatformUsageReadOnlyView = memo(PlatformUsageReadOnlyView);
 const MemoRoomSettings = memo(RoomSettings);
 const LazyReports = lazy(() => import("../pages/shared/Reports"));
 const LazyOperationLogs = lazy(() => import("../pages/shared/OperationLogs"));
+const LazyCustomerRefundManagement = lazy(() => import("../components/business/ManagementOperations").then((module) => ({ default: module.CustomerRefundManagement })));
+const LazyStaffScheduleManagement = lazy(() => import("../components/business/ManagementOperations").then((module) => ({ default: module.StaffScheduleManagement })));
 
 function ViewFallback({ title }: { title: string }) {
   return (
@@ -933,6 +935,8 @@ function ManagementCenter({
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteCopyStatus, setInviteCopyStatus] = useState<"idle" | "copied" | "selected">("idle");
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
+  const [customerRefundOpen, setCustomerRefundOpen] = useState(false);
+  const [staffScheduleOpen, setStaffScheduleOpen] = useState(false);
   const inviteInputRef = useRef<HTMLInputElement>(null);
 
   const copyInviteCode = () => {
@@ -979,8 +983,10 @@ function ManagementCenter({
     { title: "商品档案", desc: "商品资料 / 编码规格", icon: Boxes, tone: "teal", view: "catalog", catalogModule: "productList" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "销售业绩", desc: "经营数据 / 员工业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "客户退费", desc: "会员卡退费 / 退卡记录", icon: CreditCard, tone: "rose", onClick: () => setCustomerRefundOpen(true) },
     { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
     { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
+    { title: "员工排班", desc: "班次设置 / 不可预约时间", icon: CalendarDays, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
     { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
@@ -1079,6 +1085,28 @@ function ManagementCenter({
         onClose={() => setRoomSettingsOpen(false)}
       >
         <RoomSettingsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setRoomSettingsOpen(false)} modal />
+      </Modal>
+      <Modal
+        open={customerRefundOpen}
+        title="客户退费"
+        subtitle="处理会员卡退费、退卡关闭和退费记录"
+        size="large"
+        onClose={() => setCustomerRefundOpen(false)}
+      >
+        <Suspense fallback={<ViewFallback title="客户退费" />}>
+          <LazyCustomerRefundManagement data={data} actions={actions} runMutation={runMutation} />
+        </Suspense>
+      </Modal>
+      <Modal
+        open={staffScheduleOpen}
+        title="员工排班"
+        subtitle="维护员工班次和不可预约时间，预约会按这里判断"
+        size="large"
+        onClose={() => setStaffScheduleOpen(false)}
+      >
+        <Suspense fallback={<ViewFallback title="员工排班" />}>
+          <LazyStaffScheduleManagement data={data} actions={actions} runMutation={runMutation} />
+        </Suspense>
       </Modal>
     </div>
   );

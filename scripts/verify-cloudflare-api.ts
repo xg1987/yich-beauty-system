@@ -5,7 +5,7 @@ const baseUrl = process.env.API_BASE_URL ?? "http://localhost:8788";
 const allowPersistentWrite = process.env.ALLOW_PERSISTENT_CLOUDFLARE_VERIFY === "1";
 const isRemotePagesTarget = /^https:\/\/.+\.pages\.dev\/?$/.test(baseUrl);
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-const scheduleDayOffset = 30 + (Date.now() % 300);
+const scheduleDayOffset = 10000 + (Date.now() % 100000);
 const roomName = "护理房 1";
 const closeBusinessDate = futureDay(1000 + (Date.now() % 100000));
 
@@ -131,7 +131,7 @@ await request<{ ok: boolean }>(baseUrl, "/api/public/online-booking-requests", {
     customerName: `线上预约客户 ${runId}`,
     phone: "13700000001",
     serviceId,
-    preferredAt: `${futureDay(22)}T02:00:00.000Z`,
+    preferredAt: `${futureDay(scheduleDayOffset + 10)}T02:00:00.000Z`,
     note: "Cloudflare 线上预约申请",
   },
 });
@@ -446,6 +446,14 @@ const afterTransfer = await request<AppData>(baseUrl, `/api/member-cards/${cardI
   body: { toCustomerId: secondCustomerId, reason: "Cloudflare 转卡" },
 });
 assert.equal(afterTransfer.memberCards.find((item) => item.id === cardId)?.customerId, secondCustomerId, "D1 should persist card transfer");
+const afterCardRefund = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/refund`, {
+  method: "POST",
+  token: ownerSession.token,
+  body: { reason: "Cloudflare 退卡", refundAmount: 100, payMethod: "银行卡" },
+});
+assert.equal(afterCardRefund.memberCards.find((item) => item.id === cardId)?.status, "已退卡", "D1 should close refunded card");
+assert.equal(afterCardRefund.memberCardTransactions[0].paidAmount, 100, "D1 should persist member card actual refund amount");
+assert.equal(afterCardRefund.memberCardTransactions[0].payMethod, "银行卡", "D1 should persist member card refund method");
 
 const afterServiceRecord = await request<AppData>(baseUrl, "/api/service-records", {
   method: "POST",

@@ -971,6 +971,8 @@ export function createApiServer(database = new BeautyDatabase()) {
         const nextData = refundMemberCard(database.readData(), {
           memberCardId,
           reason: optionalString(body, "reason") ?? "客户退卡",
+          refundAmount: optionalNumber(body, "refundAmount"),
+          payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
           userId: session.user.id,
         });
         database.replaceData(nextData);

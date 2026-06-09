@@ -944,10 +944,12 @@ try {
   const afterCardRefund = await request<AppData>(baseUrl, "/api/member-cards/m1/refund", {
     method: "POST",
     token: session.token,
-    body: { reason: "API 退卡" },
+    body: { reason: "API 退卡", refundAmount: 100, payMethod: "银行卡" },
   });
   assert.equal(afterCardRefund.memberCards.find((item) => item.id === "m1")?.status, "已退卡", "member card refund API should close card");
   assert.equal(afterCardRefund.memberCardTransactions[0].type, "退卡", "member card refund API should write transaction");
+  assert.equal(afterCardRefund.memberCardTransactions[0].paidAmount, 100, "member card refund API should persist actual refund amount");
+  assert.equal(afterCardRefund.memberCardTransactions[0].payMethod, "银行卡", "member card refund API should persist refund payment method");
 
   const afterInventory = await request<AppData>(baseUrl, "/api/inventory/adjust", {
     method: "POST",

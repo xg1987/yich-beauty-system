@@ -27,6 +27,7 @@ import {
   formalDataAudit,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  memberCardCashRefund,
   memberCardCashIn,
   openMemberCard,
   platformInviteCodeForPlatformAdmin,
@@ -1076,6 +1077,8 @@ function card(data: AppData, cardId: string) {
     {
       memberCardId: "m1",
       reason: "客户退卡",
+      refundAmount: 500,
+      payMethod: "微信",
       userId: "u_manager",
     },
     { idFactory: testId, now: fixedNow },
@@ -1084,6 +1087,10 @@ function card(data: AppData, cardId: string) {
   assert.equal(card(refundedCard, "m1").status, "已退卡", "member card refund should close card");
   assert.equal(card(refundedCard, "m1").balance, 0, "member card refund should clear balance");
   assert.equal(refundedCard.memberCardTransactions[0].type, "退卡", "member card refund should write card transaction");
+  assert.equal(refundedCard.memberCardTransactions[0].paidAmount, 500, "member card refund should preserve actual refund amount");
+  assert.equal(refundedCard.memberCardTransactions[0].payMethod, "微信", "member card refund should preserve refund payment method");
+  assert.equal(memberCardCashRefund(refundedCard.memberCardTransactions[0]), 500, "member card refund should count as cash refund");
+  assert.equal(reportSummary(refundedCard).refundAmount, 500, "report should include member card refund amount");
   assert.equal(refundedCard.operationLogs[0].action, "会员退卡", "member card refund should write operation log");
 }
 
@@ -1312,6 +1319,17 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(closed.dailyCloses[0].revenue, 2980, "daily close should include member card cash-in");
   assert.equal(closed.dailyCloses[0].wechatAmount, 2980, "daily close should assign member card cash-in to payment method");
+  const refundedOpened = refundMemberCard(
+    opened,
+    { memberCardId: opened.memberCards[0].id, reason: "退预存", refundAmount: 980, payMethod: "微信", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  const closedAfterRefund = createDailyClose(
+    refundedOpened,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(closedAfterRefund.dailyCloses[0].refundAmount, 980, "daily close should include member card refund amount");
 }
 
 {

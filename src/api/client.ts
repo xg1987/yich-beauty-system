@@ -203,10 +203,10 @@ export function createApiClient(getToken: () => string | undefined) {
       note?: string;
     }) =>
       request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
-    refundMemberCard: (memberCardId: string, reason: string) =>
+    refundMemberCard: (memberCardId: string, body: string | { reason: string; refundAmount?: number; payMethod?: CashPayMethod }) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/refund`, {
         method: "POST",
-        body: { reason },
+        body: typeof body === "string" ? { reason: body } : body,
         token: getToken(),
       }),
     rechargeMemberCard: (memberCardId: string, body: { amount?: number; giftAmount?: number; times?: number; giftTimes?: number; paidAmount?: number; payMethod?: CashPayMethod; note?: string }) =>

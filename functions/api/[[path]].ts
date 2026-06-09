@@ -1111,6 +1111,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const nextData = refundMemberCard(await database.readData(), {
         memberCardId,
         reason: optionalString(body, "reason") ?? "客户退卡",
+        refundAmount: optionalNumber(body, "refundAmount"),
+        payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
         userId: session.user.id,
       });
       await database.replaceData(nextData);
