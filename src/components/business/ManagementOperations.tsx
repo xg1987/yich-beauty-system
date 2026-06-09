@@ -170,17 +170,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       return !normalizedSearch || target.includes(normalizedSearch);
     })
     .slice(0, 20);
-  const latestCardRefundSignature = selectedCard
-    ? data.customerSignatures
-      .filter((signature) =>
-        signature.customerId === selectedCard.customerId
-        && signature.title === "会员卡退费确认签名"
-        && signature.content.includes(selectedCard.name),
-      )
-      .slice()
-      .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))[0]
-    : undefined;
-  const selectedRefundSignature = (refundSignatureId ? data.customerSignatures.find((signature) => signature.id === refundSignatureId) : undefined) ?? latestCardRefundSignature;
+  const selectedRefundSignature = refundSignatureId ? data.customerSignatures.find((signature) => signature.id === refundSignatureId) : undefined;
   const hasSignedRefundSignature = Boolean(selectedRefundSignature && selectedRefundSignature.status === "已签名");
   const refundActionLabel = !selectedRefundSignature
     ? "生成客户退费签名"
@@ -270,7 +260,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       actions.createCustomerSignature({
         customerId: selectedCard.customerId,
         title: "会员卡退费确认签名",
-        content: `${selectedCustomer.name}确认办理${selectedCard.name}退费，实退金额${money(refundValue || 0)}，退款方式${payMethod}，退费后会员卡关闭，余额和剩余次数清零。`,
+        content: `${selectedCustomer.name}确认办理${selectedCard.name}退费，实退金额${money(refundValue || 0)}，退款方式${payMethod}，退款原因${reason.trim() || "客户退卡"}，退费后会员卡关闭，余额和剩余次数清零。`,
         validDays: 1,
       }),
     ).then((nextData) => {
@@ -465,9 +455,21 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
               )}
             </div>
           )}
-          <label>实退金额<input type="number" min={0} max={maxRefundAmount} step={1} value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} /></label>
-          <Select label="退款方式" value={payMethod} onChange={(value) => setPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
-          <label>退款原因<textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="例如：客户退卡、余额退回、活动协商退款。" /></label>
+          <label>实退金额<input type="number" min={0} max={maxRefundAmount} step={1} value={refundAmount} onChange={(event) => {
+            setRefundAmount(event.target.value);
+            setRefundSignatureId("");
+            setHasRefundSignatureDrawing(false);
+          }} /></label>
+          <Select label="退款方式" value={payMethod} onChange={(value) => {
+            setPayMethod(value as CashPayMethod);
+            setRefundSignatureId("");
+            setHasRefundSignatureDrawing(false);
+          }} options={cashPayMethodOptions} />
+          <label>退款原因<textarea value={reason} onChange={(event) => {
+            setReason(event.target.value);
+            setRefundSignatureId("");
+            setHasRefundSignatureDrawing(false);
+          }} placeholder="例如：客户退卡、余额退回、活动协商退款。" /></label>
           <div className="refund-signature-panel">
             <div>
               <strong>客户退费签名</strong>

@@ -3712,8 +3712,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     .slice()
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
-  const pendingConfirmAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "待确认");
-  const pendingArrivalAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认");
+  const bookedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
   const arrivedCheckoutAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
   const selectedService = data.services.find((item) => item.id === serviceId);
@@ -3820,20 +3819,12 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   );
   const appointmentWorkflowGroups = [
     {
-      key: "confirm",
-      title: "待确认",
-      desc: "先和客户确认是否到店",
-      value: pendingConfirmAppointments.length,
-      appointments: pendingConfirmAppointments,
-      empty: "暂无待确认预约",
-    },
-    {
-      key: "arrival",
-      title: "待到店",
-      desc: "客户到店后点确认到店",
-      value: pendingArrivalAppointments.length,
-      appointments: pendingArrivalAppointments,
-      empty: "暂无待到店预约",
+      key: "booked",
+      title: "已预约",
+      desc: "等待客户到店",
+      value: bookedAppointments.length,
+      appointments: bookedAppointments,
+      empty: "暂无已预约客户",
     },
     {
       key: "checkout",
@@ -3891,19 +3882,19 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <small>{selectedAppointmentRange.label}范围</small>
             </div>
             <div>
-              <span>待确认</span>
-              <strong>{pendingConfirmAppointments.length}</strong>
-              <small>需要先确认</small>
-            </div>
-            <div>
-              <span>待到店</span>
-              <strong>{pendingArrivalAppointments.length}</strong>
+              <span>已预约</span>
+              <strong>{bookedAppointments.length}</strong>
               <small>等待客户到店</small>
             </div>
             <div>
               <span>待收银</span>
               <strong>{arrivedCheckoutAppointments.length}</strong>
               <small>已到店服务</small>
+            </div>
+            <div>
+              <span>已完成</span>
+              <strong>{completedRangeAppointments.length}</strong>
+              <small>{selectedAppointmentRange.label}完成</small>
             </div>
           </div>
           <div className="appointment-workflow-grid">

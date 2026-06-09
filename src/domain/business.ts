@@ -48,7 +48,7 @@ import type {
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { appointmentEndAt, assignAppointmentRooms } from "./appointments";
 import { normalizeProductServiceFields, productServiceStockDeductible, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
-import { makeId, nowIso } from "./utils";
+import { makeId, money, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
 
@@ -2994,6 +2994,15 @@ export function refundMemberCard(
     throw new Error("会员卡已退卡");
   }
 
+  const refundQuote = calculateMemberCardRefundQuote(card, data.memberCardTransactions);
+  const refundAmount = positiveNumber(input.refundAmount, card.balance);
+  if (refundQuote.purchasedTimes > 0 && refundAmount > refundQuote.refundableAmount) {
+    throw new Error(`实退金额不能大于扣除已用次数后的可退金额 ${refundQuote.refundableAmount} 元`);
+  }
+  if (card.balance > 0 && refundAmount > card.balance) {
+    throw new Error("实退金额不能大于当前余额");
+  }
+  const payMethod = refundAmount > 0 ? normalizeCashPayMethod(input.payMethod) : undefined;
   const signature = data.customerSignatures.find((item) => item.id === input.signatureId);
   if (!signature) {
     throw new Error("请先生成客户退费签名");
@@ -3001,7 +3010,12 @@ export function refundMemberCard(
   if (signature.customerId !== card.customerId) {
     throw new Error("退费签名不属于当前客户");
   }
-  if (signature.title !== "会员卡退费确认签名" || !signature.content.includes(card.name)) {
+  if (
+    signature.title !== "会员卡退费确认签名"
+    || !signature.content.includes(card.name)
+    || !signature.content.includes(money(refundAmount))
+    || Boolean(payMethod && !signature.content.includes(`退款方式${payMethod}`))
+  ) {
     throw new Error("退费签名不属于当前会员卡");
   }
   if (signature.status !== "已签名") {
@@ -3013,15 +3027,6 @@ export function refundMemberCard(
 
   const amountDelta = -card.balance;
   const timesDelta = -card.remainingTimes;
-  const refundQuote = calculateMemberCardRefundQuote(card, data.memberCardTransactions);
-  const refundAmount = positiveNumber(input.refundAmount, card.balance);
-  if (refundQuote.purchasedTimes > 0 && refundAmount > refundQuote.refundableAmount) {
-    throw new Error(`实退金额不能大于扣除已用次数后的可退金额 ${refundQuote.refundableAmount} 元`);
-  }
-  if (card.balance > 0 && refundAmount > card.balance) {
-    throw new Error("实退金额不能大于当前余额");
-  }
-  const payMethod = refundAmount > 0 ? normalizeCashPayMethod(input.payMethod) : undefined;
   const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {

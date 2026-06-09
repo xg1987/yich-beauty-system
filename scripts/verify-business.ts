@@ -61,6 +61,7 @@ import {
 } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
+import { money } from "../src/domain/utils";
 
 const cloneSeed = (): AppData => structuredClone(testFixtureData);
 const fixedNow = () => "2026-05-24T01:00:00.000Z";
@@ -79,13 +80,13 @@ function card(data: AppData, cardId: string) {
   return result;
 }
 
-function signedRefundSignature(data: AppData, customerId: string, cardName = "尊享储值卡") {
+function signedRefundSignature(data: AppData, customerId: string, cardName = "尊享储值卡", refundAmount = 500, payMethod = "微信") {
   const created = createCustomerSignature(
     data,
     {
       customerId,
       title: "会员卡退费确认签名",
-      content: `本人确认办理${cardName}退费，退费后会员卡关闭。`,
+      content: `本人确认办理${cardName}退费，实退金额${money(refundAmount)}，退款方式${payMethod}，退费后会员卡关闭。`,
       validDays: 1,
       requestedBy: "u_manager",
     },
@@ -1358,7 +1359,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   );
   assert.equal(closed.dailyCloses[0].revenue, 2980, "daily close should include member card cash-in");
   assert.equal(closed.dailyCloses[0].wechatAmount, 2980, "daily close should assign member card cash-in to payment method");
-  const signedOpened = signedRefundSignature(opened, opened.memberCards[0].customerId, opened.memberCards[0].name);
+  const signedOpened = signedRefundSignature(opened, opened.memberCards[0].customerId, opened.memberCards[0].name, 980, "微信");
   const refundedOpened = refundMemberCard(
     signedOpened,
     { memberCardId: opened.memberCards[0].id, reason: "退预存", refundAmount: 980, payMethod: "微信", signatureId: signedOpened.customerSignatures[0].id, userId: "u_manager" },
