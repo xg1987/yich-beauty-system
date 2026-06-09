@@ -389,7 +389,7 @@ function card(data: AppData, cardId: string) {
           customerId: "c1",
           staffId: "s3",
           serviceId: "v1",
-          startAt: "2026-06-10T02:00:00.000Z",
+          startAt: "2026-07-10T02:00:00.000Z",
           roomName: "护理房 B",
         },
         { idFactory: testId, now: fixedNow },
@@ -403,26 +403,26 @@ function card(data: AppData, cardId: string) {
       customerId: "c1",
       staffId: "s3",
       serviceId: "v1",
-      startAt: "2026-06-10T02:00:00.000Z",
+      startAt: "2026-07-10T02:00:00.000Z",
       roomName: "护理房 A",
     },
     { idFactory: testId, now: fixedNow },
   );
   const firstRoomAppointmentId = roomBookedStore.appointments[0].id;
-  assert.equal(roomBookedStore.appointments[0].endAt, "2026-06-10T03:00:00.000Z", "appointment should derive an end time from service duration when missing");
+  assert.equal(roomBookedStore.appointments[0].endAt, "2026-07-10T03:00:00.000Z", "appointment should derive an end time from service duration when missing");
   const longRoomBookedStore = createAppointment(
     updatedStore,
     {
       customerId: "c1",
       staffId: "s3",
       serviceId: "v1",
-      startAt: "2026-06-10T07:00:00.000Z",
-      endAt: "2026-06-10T09:00:00.000Z",
+      startAt: "2026-07-10T07:00:00.000Z",
+      endAt: "2026-07-10T09:00:00.000Z",
       roomName: "护理房 A",
     },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(longRoomBookedStore.appointments[0].endAt, "2026-06-10T09:00:00.000Z", "appointment should persist explicit end time");
+  assert.equal(longRoomBookedStore.appointments[0].endAt, "2026-07-10T09:00:00.000Z", "appointment should persist explicit end time");
   assert.throws(
     () =>
       createAppointment(
@@ -431,8 +431,8 @@ function card(data: AppData, cardId: string) {
           customerId: "c2",
           staffId: "s1",
           serviceId: "v1",
-          startAt: "2026-06-10T08:30:00.000Z",
-          endAt: "2026-06-10T09:30:00.000Z",
+          startAt: "2026-07-10T08:30:00.000Z",
+          endAt: "2026-07-10T09:30:00.000Z",
           roomName: "护理房 A",
         },
         { idFactory: testId, now: fixedNow },
@@ -448,7 +448,7 @@ function card(data: AppData, cardId: string) {
           customerId: "c2",
           staffId: "s1",
           serviceId: "v1",
-          startAt: "2026-06-10T02:30:00.000Z",
+          startAt: "2026-07-10T02:30:00.000Z",
           roomName: "护理房 A",
         },
         { idFactory: testId, now: fixedNow },
@@ -464,7 +464,7 @@ function card(data: AppData, cardId: string) {
         customerId: "c1",
         staffId: "s3",
         serviceId: "v1",
-        startAt: "2026-06-10T02:00:00.000Z",
+        startAt: "2026-07-10T02:00:00.000Z",
         status: "待确认",
         note: "旧预约未保存房间",
       },
@@ -479,7 +479,7 @@ function card(data: AppData, cardId: string) {
           customerId: "c2",
           staffId: "s1",
           serviceId: "v1",
-          startAt: "2026-06-10T02:30:00.000Z",
+          startAt: "2026-07-10T02:30:00.000Z",
           roomName: "护理房 A",
         },
         { idFactory: testId, now: fixedNow },
@@ -493,7 +493,7 @@ function card(data: AppData, cardId: string) {
       customerId: "c2",
       staffId: "s1",
       serviceId: "v1",
-      startAt: "2026-06-10T02:30:00.000Z",
+      startAt: "2026-07-10T02:30:00.000Z",
     },
     { idFactory: testId, now: fixedNow },
   );
@@ -504,7 +504,7 @@ function card(data: AppData, cardId: string) {
       customerId: "c2",
       staffId: "s1",
       serviceId: "v1",
-      startAt: "2026-06-10T03:00:00.000Z",
+      startAt: "2026-07-10T03:00:00.000Z",
       roomName: "护理房 A",
     },
     { idFactory: testId, now: fixedNow },
@@ -516,7 +516,7 @@ function card(data: AppData, cardId: string) {
       customerId: "c2",
       staffId: "s1",
       serviceId: "v1",
-      startAt: "2026-06-10T04:00:00.000Z",
+      startAt: "2026-07-10T04:00:00.000Z",
       roomName: "护理房 A",
     },
     { idFactory: testId, now: fixedNow },
@@ -529,7 +529,7 @@ function card(data: AppData, cardId: string) {
           appointmentId: firstRoomAppointmentId,
           staffId: "s3",
           serviceId: "v1",
-          startAt: "2026-06-10T04:30:00.000Z",
+          startAt: "2026-07-10T04:30:00.000Z",
           roomName: "护理房 A",
         },
         { now: fixedNow },

@@ -7,7 +7,7 @@ const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
 function RouteFallback() {
   return (
     <div className="loading-page">
-      <section className="loading-panel">
+      <section className="loading-minimal">
         <div className="loading-brand">
           <strong>祝融坤锋美业</strong>
           <small>美业门店管理系统</small>
