@@ -941,10 +941,25 @@ try {
   });
   assert.equal(afterTransfer.memberCards.find((item) => item.id === apiCardId)?.customerId, "c3", "transfer API should update card owner");
 
+  const refundSignatureData = await request<AppData>(baseUrl, "/api/customer-signatures", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c1",
+      title: "会员卡退费确认签名",
+      content: "本人确认办理会员卡退费，退费后会员卡关闭。",
+      validDays: 1,
+    },
+  });
+  const refundSignature = refundSignatureData.customerSignatures[0];
+  await request<{ signature: { status: string } }>(baseUrl, `/api/public/customer-signatures/${refundSignature.token}/sign`, {
+    method: "POST",
+    body: { signerName: "周女士", signatureText: "data:image/png;base64,refund-api" },
+  });
   const afterCardRefund = await request<AppData>(baseUrl, "/api/member-cards/m1/refund", {
     method: "POST",
     token: session.token,
-    body: { reason: "API 退卡", refundAmount: 100, payMethod: "银行卡" },
+    body: { reason: "API 退卡", refundAmount: 100, payMethod: "银行卡", signatureId: refundSignature.id },
   });
   assert.equal(afterCardRefund.memberCards.find((item) => item.id === "m1")?.status, "已退卡", "member card refund API should close card");
   assert.equal(afterCardRefund.memberCardTransactions[0].type, "退卡", "member card refund API should write transaction");

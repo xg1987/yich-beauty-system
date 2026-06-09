@@ -79,6 +79,26 @@ function card(data: AppData, cardId: string) {
   return result;
 }
 
+function signedRefundSignature(data: AppData, customerId: string) {
+  const created = createCustomerSignature(
+    data,
+    {
+      customerId,
+      title: "会员卡退费确认签名",
+      content: "本人确认办理会员卡退费，退费后会员卡关闭。",
+      validDays: 1,
+      requestedBy: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signature = created.customerSignatures[0];
+  return signCustomerSignature(
+    created,
+    { token: signature.token, signerName: "退费客户", signatureText: "data:image/png;base64,refund" },
+    { now: fixedNow },
+  );
+}
+
 {
   const cleanReport = formalDataAudit({
     ...cloneSeed(),
@@ -1073,13 +1093,32 @@ function card(data: AppData, cardId: string) {
 }
 
 {
+  assert.throws(
+    () =>
+      refundMemberCard(
+        cloneSeed(),
+        {
+          memberCardId: "m1",
+          reason: "客户退卡",
+          refundAmount: 500,
+          payMethod: "微信",
+          signatureId: "",
+          userId: "u_manager",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /请先生成客户退费签名/,
+    "member card refund should require customer signature",
+  );
+  const signedSeed = signedRefundSignature(cloneSeed(), "c1");
   const refundedCard = refundMemberCard(
-    cloneSeed(),
+    signedSeed,
     {
       memberCardId: "m1",
       reason: "客户退卡",
       refundAmount: 500,
       payMethod: "微信",
+      signatureId: signedSeed.customerSignatures[0].id,
       userId: "u_manager",
     },
     { idFactory: testId, now: fixedNow },
@@ -1320,9 +1359,10 @@ function card(data: AppData, cardId: string) {
   );
   assert.equal(closed.dailyCloses[0].revenue, 2980, "daily close should include member card cash-in");
   assert.equal(closed.dailyCloses[0].wechatAmount, 2980, "daily close should assign member card cash-in to payment method");
+  const signedOpened = signedRefundSignature(opened, opened.memberCards[0].customerId);
   const refundedOpened = refundMemberCard(
-    opened,
-    { memberCardId: opened.memberCards[0].id, reason: "退预存", refundAmount: 980, payMethod: "微信", userId: "u_manager" },
+    signedOpened,
+    { memberCardId: opened.memberCards[0].id, reason: "退预存", refundAmount: 980, payMethod: "微信", signatureId: signedOpened.customerSignatures[0].id, userId: "u_manager" },
     { idFactory: testId, now: fixedNow },
   );
   const closedAfterRefund = createDailyClose(
@@ -1367,11 +1407,12 @@ function card(data: AppData, cardId: string) {
   assert.equal(quote.unitDeduction, 398, "refund quote should deduct one unit price per used session");
   assert.equal(quote.usedDeduction, 398, "refund quote should show mandatory used-session deduction");
   assert.equal(quote.refundableAmount, 3582, "refund quote should return paid amount minus used-session deduction");
+  const signedUsedOnce = signedRefundSignature(usedOnce, usedOnce.memberCards[0].customerId);
   assert.throws(
     () =>
       refundMemberCard(
-        usedOnce,
-        { memberCardId: usedOnce.memberCards[0].id, reason: "超额退费", refundAmount: 3583, payMethod: "微信", userId: "u_manager" },
+        signedUsedOnce,
+        { memberCardId: usedOnce.memberCards[0].id, reason: "超额退费", refundAmount: 3583, payMethod: "微信", signatureId: signedUsedOnce.customerSignatures[0].id, userId: "u_manager" },
         { idFactory: testId, now: fixedNow },
       ),
     /不能大于扣除已用次数后的可退金额/,

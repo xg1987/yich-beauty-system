@@ -6720,14 +6720,191 @@ textarea,
   line-height: 1.15;
 }
 
+.refund-picker,
+.refund-card-list,
+.refund-order-list,
+.refund-signature-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.refund-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.refund-tabs button,
+.refund-card-list button,
+.refund-signature-panel button,
+.refund-signature-panel a {
+  border: 1px solid rgba(122, 86, 180, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f1b58;
+  font-weight: 900;
+}
+
+.refund-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.refund-tabs button.active,
+.refund-card-list button.active {
+  border-color: rgba(105, 62, 186, 0.54);
+  background: rgba(118, 74, 196, 0.12);
+  box-shadow: inset 4px 0 0 rgba(105, 62, 186, 0.9);
+}
+
+.refund-tabs em {
+  color: #7a6c89;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.refund-search {
+  position: relative;
+  display: grid;
+}
+
+.refund-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  color: #7a56b4;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.refund-search input {
+  padding-left: 40px;
+}
+
+.refund-card-list button,
+.refund-order-list article {
+  display: grid;
+  gap: 4px;
+  min-height: 66px;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.refund-card-list strong,
+.refund-order-list strong,
+.refund-signature-panel strong {
+  color: #24183f;
+  font-size: 15px;
+}
+
+.refund-card-list span,
+.refund-order-list span,
+.refund-signature-panel span {
+  color: #776b82;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.refund-order-list article {
+  border: 1px solid rgba(122, 86, 180, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.refund-signature-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(122, 86, 180, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.refund-signature-panel > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refund-signature-panel > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.refund-signature-panel button,
+.refund-signature-panel a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 13px;
+  text-decoration: none;
+}
+
 .staff-schedule-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
+}
+
+.schedule-view-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(86px, 1fr));
+  gap: 8px;
+  width: min(360px, 100%);
+}
+
+.schedule-view-tabs button {
+  min-height: 42px;
+  border: 1px solid rgba(122, 86, 180, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #4d3575;
+  font-weight: 900;
+}
+
+.schedule-view-tabs button.active {
+  border-color: rgba(105, 62, 186, 0.48);
+  background: linear-gradient(135deg, #6d3cc2, #4f2375);
+  color: #fff;
+}
+
+.schedule-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.schedule-summary-strip span {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid rgba(122, 86, 180, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.schedule-summary-strip small,
+.schedule-slot-grid em,
+.schedule-week-list i {
+  color: #776b82;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.schedule-summary-strip strong {
+  color: #2f1b58;
+  font-size: 20px;
 }
 
 .staff-schedule-card {
   display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(0, 1fr);
+  align-items: start;
   gap: 14px;
   padding: 16px;
   border: 1px solid rgba(122, 86, 180, 0.16);
@@ -6759,6 +6936,92 @@ textarea,
   color: #7a6c89;
   font-size: 13px;
   font-weight: 800;
+}
+
+.schedule-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.schedule-slot-grid span {
+  display: grid;
+  gap: 4px;
+  min-height: 66px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(122, 86, 180, 0.12);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.schedule-slot-grid span.free {
+  background: rgba(42, 151, 122, 0.1);
+}
+
+.schedule-slot-grid span.occupied {
+  border-color: rgba(205, 74, 108, 0.22);
+  background: rgba(205, 74, 108, 0.1);
+}
+
+.schedule-slot-grid span.blocked {
+  background: rgba(122, 86, 180, 0.09);
+}
+
+.schedule-slot-grid strong {
+  color: #2f2445;
+  font-size: 14px;
+}
+
+.schedule-rest {
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(122, 86, 180, 0.08);
+  color: #776b82;
+  font-weight: 850;
+}
+
+@media (max-width: 760px) {
+  .staff-schedule-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.schedule-week-list {
+  display: grid;
+  gap: 12px;
+}
+
+.schedule-week-list article {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(122, 86, 180, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.schedule-week-list article > strong {
+  color: #24183f;
+  font-size: 16px;
+}
+
+.schedule-week-list p {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(130px, 1fr) minmax(180px, 1.5fr);
+  gap: 12px;
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(119, 74, 188, 0.07);
+}
+
+.schedule-week-list span,
+.schedule-week-list em {
+  color: #2f2445;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 850;
 }
 
 .staff-schedule-section p {
@@ -19834,4 +20097,60 @@ textarea,
   .workbench-staff-row > div:last-child {
     text-align: left;
   }
+}
+
+/* Management refund module: keep refund selection and customer card readable in every theme. */
+.theme-day .system-modal .refund-search,
+.theme-night .system-modal .refund-search {
+  display: grid;
+  gap: 7px;
+  color: #4f3a75;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.theme-day .system-modal .refund-search > div,
+.theme-night .system-modal .refund-search > div {
+  position: relative;
+  display: grid;
+}
+
+.theme-day .system-modal .refund-search svg,
+.theme-night .system-modal .refund-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  color: #6f42c1;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.theme-day .system-modal .refund-search input,
+.theme-night .system-modal .refund-search input {
+  padding-left: 40px;
+  color: #24183f;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.theme-day .system-modal .refund-selected-card,
+.theme-night .system-modal .refund-selected-card {
+  border: 1px solid rgba(122, 86, 180, 0.18);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(250, 247, 255, 0.92));
+  color: #24183f;
+  box-shadow: inset 4px 0 0 rgba(105, 62, 186, 0.72);
+}
+
+.theme-day .system-modal .refund-selected-card strong,
+.theme-night .system-modal .refund-selected-card strong {
+  color: #24183f;
+}
+
+.theme-day .system-modal .refund-selected-card span,
+.theme-night .system-modal .refund-selected-card span {
+  color: #5e5070;
+}
+
+.theme-day .system-modal .refund-selected-card .refund-quote-grid span,
+.theme-night .system-modal .refund-selected-card .refund-quote-grid span {
+  background: rgba(255, 255, 255, 0.86);
 }

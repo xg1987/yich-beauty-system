@@ -203,7 +203,7 @@ export function createApiClient(getToken: () => string | undefined) {
       note?: string;
     }) =>
       request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
-    refundMemberCard: (memberCardId: string, body: string | { reason: string; refundAmount?: number; payMethod?: CashPayMethod }) =>
+    refundMemberCard: (memberCardId: string, body: string | { reason: string; refundAmount?: number; payMethod?: CashPayMethod; signatureId?: string }) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/refund`, {
         method: "POST",
         body: typeof body === "string" ? { reason: body } : body,

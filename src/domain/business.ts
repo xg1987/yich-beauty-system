@@ -663,6 +663,7 @@ export type RefundMemberCardInput = {
   reason: string;
   refundAmount?: number;
   payMethod?: CashPayMethod;
+  signatureId: string;
   userId: string;
 };
 
@@ -2993,6 +2994,17 @@ export function refundMemberCard(
     throw new Error("会员卡已退卡");
   }
 
+  const signature = data.customerSignatures.find((item) => item.id === input.signatureId);
+  if (!signature) {
+    throw new Error("请先生成客户退费签名");
+  }
+  if (signature.customerId !== card.customerId) {
+    throw new Error("退费签名不属于当前客户");
+  }
+  if (signature.status !== "已签名") {
+    throw new Error("请先完成客户退费签名");
+  }
+
   const amountDelta = -card.balance;
   const timesDelta = -card.remainingTimes;
   const refundQuote = calculateMemberCardRefundQuote(card, data.memberCardTransactions);
@@ -3023,7 +3035,7 @@ export function refundMemberCard(
         remainingTimesAfter: 0,
         paidAmount: refundAmount > 0 ? refundAmount : undefined,
         payMethod,
-        note: input.reason,
+        note: `${input.reason} · 签名 ${signature.id}`,
         createdAt,
       },
       ...data.memberCardTransactions,
@@ -3036,7 +3048,7 @@ export function refundMemberCard(
         action: "会员退卡",
         targetType: "memberCard",
         targetId: card.id,
-        summary: `${card.name} 退卡：余额 ${card.balance}，次数 ${card.remainingTimes}，实退 ${refundAmount} 元，原因：${input.reason}`,
+        summary: `${card.name} 退卡：余额 ${card.balance}，次数 ${card.remainingTimes}，实退 ${refundAmount} 元，原因：${input.reason}，签名：${signature.id}`,
         createdAt,
       },
       ...data.operationLogs,

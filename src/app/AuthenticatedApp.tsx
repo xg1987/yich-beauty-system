@@ -6302,13 +6302,7 @@ function Customers({
             projectScope(card.serviceId, card.serviceIds),
             shortDate(card.expiresAt),
             <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "已退卡" ? "warn" : "ok"} />,
-            card.status === "正常" ? (
-              <button key={`${card.id}-refund`} disabled={mutationPending} onClick={() => void runMutation(() => actions.refundMemberCard(card.id, "客户退卡"))}>
-                {mutationPending ? "处理中..." : "退卡"}
-              </button>
-            ) : (
-              "已处理"
-            ),
+            card.status === "正常" ? "客户退费办理" : "已处理",
           ])}
         />
         <div className="divider" />

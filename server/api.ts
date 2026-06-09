@@ -973,6 +973,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           reason: optionalString(body, "reason") ?? "客户退卡",
           refundAmount: optionalNumber(body, "refundAmount"),
           payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
+          signatureId: requiredString(body, "signatureId"),
           userId: session.user.id,
         });
         database.replaceData(nextData);

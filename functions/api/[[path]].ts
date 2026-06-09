@@ -1113,6 +1113,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         reason: optionalString(body, "reason") ?? "客户退卡",
         refundAmount: optionalNumber(body, "refundAmount"),
         payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
+        signatureId: requiredString(body, "signatureId"),
         userId: session.user.id,
       });
       await database.replaceData(nextData);
