@@ -1121,7 +1121,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       }
 
       if (request.method === "POST" && url.pathname === "/api/customer-signatures") {
-        requirePermission(session, "customers:manage");
+        requireAnyPermission(session, ["customers:manage", "pos:manage"]);
         const body = await readJson(request);
         const nextData = createCustomerSignature(database.readData(), {
           customerId: requiredString(body, "customerId"),

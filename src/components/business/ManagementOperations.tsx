@@ -170,6 +170,11 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const selectedRefundSignature = refundSignatureId ? data.customerSignatures.find((signature) => signature.id === refundSignatureId) : undefined;
   const hasSignedRefundSignature = Boolean(selectedRefundSignature && selectedRefundSignature.status === "已签名");
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
+  const refundActionLabel = !selectedRefundSignature
+    ? "生成客户退费签名"
+    : selectedRefundSignature.status === "待签名"
+      ? "打开客户签名页面"
+      : "确认退费并关闭卡";
 
   const openRefundTab = (tab: MemberCardRefundTab) => {
     setActiveTab(tab);
@@ -187,13 +192,14 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     setMessage(undefined);
   };
 
-  const createRefundSignature = () => {
+  const createRefundSignature = async () => {
     setMessage(undefined);
     if (!selectedCard || !selectedCustomer) {
       setMessage({ type: "error", text: "请选择需要退费的会员卡。" });
-      return;
+      return undefined;
     }
-    void runMutation(() =>
+    const previousSignatureIds = new Set(data.customerSignatures.map((signature) => signature.id));
+    return runMutation(() =>
       actions.createCustomerSignature({
         customerId: selectedCard.customerId,
         title: "会员卡退费确认签名",
@@ -203,6 +209,12 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     ).then((nextData) => {
       const createdSignature = nextData.customerSignatures.find(
         (signature) =>
+          !previousSignatureIds.has(signature.id)
+          && signature.customerId === selectedCard.customerId
+          && signature.title === "会员卡退费确认签名"
+          && signature.status === "待签名",
+      ) ?? nextData.customerSignatures.find(
+        (signature) =>
           signature.customerId === selectedCard.customerId
           && signature.title === "会员卡退费确认签名"
           && signature.status === "待签名",
@@ -210,14 +222,17 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       if (createdSignature) {
         setRefundSignatureId(createdSignature.id);
         setMessage({ type: "success", text: "退费签名已生成。" });
+        return createdSignature;
       }
+      setMessage({ type: "error", text: "签名已创建，但当前页面没有取到签名记录，请刷新后重试。" });
+      return undefined;
     }).catch((caught) => {
       setMessage({ type: "error", text: caught instanceof Error ? caught.message : "生成签名失败" });
+      return undefined;
     });
   };
 
-  const submitRefund = (event: FormEvent) => {
-    event.preventDefault();
+  const completeRefund = () => {
     setMessage(undefined);
     if (!selectedCard) {
       setMessage({ type: "error", text: "请选择需要退费的会员卡。" });
@@ -245,6 +260,29 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     });
   };
 
+  const handleRefundAction = (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedCard) {
+      setMessage({ type: "error", text: "请选择需要退费的会员卡。" });
+      return;
+    }
+    if (invalidRefundAmount) {
+      setMessage({ type: "error", text: `请填写正确的实退金额，不能大于扣除已用金额后的 ${money(maxRefundAmount)}。` });
+      return;
+    }
+    if (!selectedRefundSignature) {
+      void createRefundSignature().then((signature) => {
+        if (signature) window.open(signatureUrl(signature.token), "_blank", "noopener,noreferrer");
+      });
+      return;
+    }
+    if (selectedRefundSignature.status === "待签名") {
+      window.open(signatureUrl(selectedRefundSignature.token), "_blank", "noopener,noreferrer");
+      return;
+    }
+    completeRefund();
+  };
+
   const recentRefundRows = data.memberCardTransactions
     .filter((transaction) => transaction.type === "退卡" || transaction.type === "退款")
     .slice(0, 80)
@@ -261,7 +299,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     <div className="module-detail-stack">
       <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="会员卡退费" action="退余额 / 退卡关闭" />
-        <form className="form" onSubmit={submitRefund}>
+        <form className="form" onSubmit={handleRefundAction}>
           <div className="refund-picker">
             <div className="refund-tabs" role="tablist" aria-label="退费类型">
               {memberCardRefundTabs.map((tab) => (
@@ -333,20 +371,10 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
               <strong>客户退费签名</strong>
               <span>{selectedRefundSignature ? `${selectedRefundSignature.status} · ${selectedRefundSignature.signerName ?? nameOf(data.customers, selectedRefundSignature.customerId)}` : "未生成"}</span>
             </div>
-            <div>
-              <button type="button" onClick={createRefundSignature} disabled={!selectedCard || invalidRefundAmount}>
-                生成签名
-              </button>
-              {selectedRefundSignature?.status === "待签名" && (
-                <a href={signatureUrl(selectedRefundSignature.token)} target="_blank" rel="noreferrer">打开签名页</a>
-              )}
-              {selectedRefundSignature?.status === "待签名" && (
-                <button type="button" onClick={() => window.location.reload()}>刷新状态</button>
-              )}
-            </div>
+            {selectedRefundSignature?.status === "待签名" ? <button type="button" onClick={() => window.location.reload()}>刷新状态</button> : <span />}
           </div>
           {message && <p className={message.type === "success" ? "form-success" : "form-error"}>{message.text}</p>}
-          <button className="primary-button" type="submit" disabled={!selectedCard || invalidRefundAmount || !hasSignedRefundSignature}>确认退费并关闭卡</button>
+          <button className="primary-button" type="submit" disabled={!selectedCard || invalidRefundAmount}>{refundActionLabel}</button>
         </form>
       </section>
 
@@ -413,10 +441,15 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
             <div className="schedule-week-list">
               {weekDates.map((date) => {
                 const dateShifts = shiftsForDate(date);
+                const dateAppointments = appointmentsForDate(date);
+                const shiftStaffIds = new Set(dateShifts.map((shift) => shift.staffId));
+                const appointmentOnlyStaffIds = Array.from(new Set(dateAppointments.map((appointment) => appointment.staffId))).filter((staffId) => !shiftStaffIds.has(staffId));
                 return (
                   <article key={date.toISOString()}>
                     <strong>{dateTitle(date)}</strong>
-                    {dateShifts.length ? dateShifts.map((shift) => {
+                    {dateShifts.length || appointmentOnlyStaffIds.length ? (
+                      <>
+                        {dateShifts.map((shift) => {
                       const staffAppointments = appointmentsForDate(date, shift.staffId);
                       const occupiedRooms = Array.from(new Set(staffAppointments.map((appointment) => appointment.roomName || "未分房")));
                       return (
@@ -426,7 +459,19 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
                           <i>可约 {Math.max(0, scheduleSlotsForShift(shift).length - staffAppointments.length)} · 已占 {staffAppointments.length}{occupiedRooms.length ? `：${occupiedRooms.join("、")}` : ""}</i>
                         </p>
                       );
-                    }) : <p><span>暂无排班</span><em>-</em><i>-</i></p>}
+                    })}
+                        {appointmentOnlyStaffIds.map((staffId) => {
+                          const staffAppointments = appointmentsForDate(date, staffId);
+                          return (
+                            <p key={`appointment-only-${date.toISOString()}-${staffId}`}>
+                              <span>{nameOf(data.staff, staffId)}</span>
+                              <em>未排班</em>
+                              <i>{staffAppointments.map((appointment) => `${timeOnly(appointment.startAt)} ${appointment.roomName || "未分房"} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`).join("；")}</i>
+                            </p>
+                          );
+                        })}
+                      </>
+                    ) : <p><span>暂无排班</span><em>-</em><i>-</i></p>}
                   </article>
                 );
               })}
@@ -444,14 +489,15 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
                 const staffShifts = shiftsForDate(focusedDate, staff.id);
                 const staffAppointments = appointmentsForDate(focusedDate, staff.id);
                 const staffBlocks = blocksForDate(focusedDate, staff.id);
+                const hasAppointmentWithoutShift = staffShifts.length === 0 && staffAppointments.length > 0;
                 return (
                   <article className="staff-schedule-card" key={staff.id}>
                     <div className="staff-schedule-card-head">
                       <div>
                         <strong>{staff.name}</strong>
-                        <span>{staffShifts.length ? staffShifts.map((shift) => timeRange(shift.startAt, shift.endAt)).join(" / ") : "休息"}</span>
+                        <span>{staffShifts.length ? staffShifts.map((shift) => timeRange(shift.startAt, shift.endAt)).join(" / ") : hasAppointmentWithoutShift ? `${staffAppointments.length} 个预约` : "休息"}</span>
                       </div>
-                      <Badge text={staffShifts.length ? "在岗" : "休息"} tone={staffShifts.length ? "ok" : "warn"} />
+                      <Badge text={staffShifts.length ? "在岗" : hasAppointmentWithoutShift ? "有预约" : "休息"} tone={staffShifts.length ? "ok" : "warn"} />
                     </div>
                     {staffShifts.length ? (
                       <div className="schedule-slot-grid">
@@ -468,6 +514,15 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
                             </span>
                           );
                         }))}
+                      </div>
+                    ) : staffAppointments.length ? (
+                      <div className="schedule-slot-grid">
+                        {staffAppointments.map((appointment) => (
+                          <span className="occupied" key={appointment.id}>
+                            <strong>{timeRange(appointment.startAt, appointmentEndAt(appointment, data.services).toISOString())}</strong>
+                            <em>{appointment.roomName || "未分房"} · {nameOf(data.customers, appointment.customerId)} · {nameOf(data.services, appointment.serviceId)}</em>
+                          </span>
+                        ))}
                       </div>
                     ) : (
                       <p className="schedule-rest">今日未排班</p>

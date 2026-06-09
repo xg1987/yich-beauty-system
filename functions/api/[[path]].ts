@@ -1067,7 +1067,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (context.request.method === "POST" && pathname === "/api/customer-signatures") {
-      requirePermission(session, "customers:manage");
+      requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const body = await readJson(context.request);
       const nextData = createCustomerSignature(await database.readData(), {
         customerId: requiredString(body, "customerId"),
