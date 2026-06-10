@@ -148,7 +148,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const selectedCard = data.memberCards.find((card) => card.id === cardId);
   const selectedCustomer = selectedCard ? data.customers.find((customer) => customer.id === selectedCard.customerId) : undefined;
   const selectedRefundQuote = selectedCard ? calculateMemberCardRefundQuote(selectedCard, data.memberCardTransactions) : undefined;
-  const [refundAmount, setRefundAmount] = useState("0");
+  const [refundAmount, setRefundAmount] = useState("");
   const [payMethod, setPayMethod] = useState<CashPayMethod>("微信");
   const [reason, setReason] = useState("客户退卡退费");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string }>();
@@ -160,7 +160,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const refundDrawingRef = useRef(false);
   const refundSubmittingRef = useRef(false);
   const refundActionPendingRef = useRef(false);
-  const refundValue = Number(refundAmount);
+  const refundValue = refundAmount.trim() === "" ? Number.NaN : Number(refundAmount);
   const maxRefundAmount = selectedRefundQuote?.refundableAmount ?? selectedCard?.balance ?? 0;
   const invalidRefundAmount = !Number.isFinite(refundValue) || refundValue < 0 || Boolean(selectedCard && refundValue > maxRefundAmount);
   const normalizedSearch = searchText.trim().toLowerCase();
@@ -300,7 +300,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       actions.createCustomerSignature({
         customerId: selectedCard.customerId,
         title: "会员卡退费确认签名",
-        content: `${selectedCustomer.name}确认办理${selectedCard.name}退费，实退金额${money(refundValue || 0)}，退款方式${payMethod}，退款原因${reason.trim() || "客户退卡"}，退费后会员卡关闭，余额和剩余次数清零。`,
+        content: `${selectedCustomer.name}确认办理${selectedCard.name}退费，实退金额${money(Number.isFinite(refundValue) ? refundValue : 0)}，退款方式${payMethod}，退款原因${reason.trim() || "客户退卡"}，退费后会员卡关闭，余额和剩余次数清零。`,
         validDays: 1,
       }),
     ).then((nextData) => {
@@ -390,7 +390,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       setMessage({ type: "success", text: "退费已完成，会员卡已关闭并写入退卡流水。" });
       setCardId("");
       setRefundSignatureId("");
-      setRefundAmount("0");
+      setRefundAmount("");
       setHasRefundSignatureDrawing(false);
     }).catch((caught) => {
       setMessage({ type: "error", text: caught instanceof Error ? caught.message : "退费失败" });
