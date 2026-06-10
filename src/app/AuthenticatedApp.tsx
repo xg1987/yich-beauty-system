@@ -2892,7 +2892,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
       : `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 今日实收 ${money(todayRevenue)}`;
   const businessItems = [
     { label: "今日实收", value: money(todayRevenue), hint: `${todayCashPaymentCount} 笔收款` },
-    { label: "到店待收银", value: `${arrivedWaitingCheckout.length} 单`, hint: "已到店未生成订单" },
+    { label: "待确认到店", value: `${arrivedWaitingCheckout.length} 单`, hint: "到店后处理" },
     { label: "待签名", value: `${pendingSignatureList.length} 份`, hint: "服务完成确认" },
     { label: "有效会员卡", value: `${activeCards} 张`, hint: "客户可用资产" },
   ];
@@ -3809,7 +3809,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   };
   const appointmentStatusText = (status: Appointment["status"]) => {
     if (status === "待确认" || status === "已确认") return "已预约";
-    if (status === "已到店") return "待收银";
+    if (status === "已到店") return "待确认到店";
     return status;
   };
   const appointmentBadgeTone = (status: Appointment["status"]) =>
@@ -3824,9 +3824,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
       <div className="appointment-work-card-actions">
-        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
-          {mutationPending ? "处理中..." : "登记到店"}
-        </button>
         <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>
         <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
       </div>
@@ -3836,14 +3833,14 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     <article className={`appointment-work-card status-${appointment.status}`} key={appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
-        <Badge text="待收银" tone="ok" />
+        <Badge text="待确认到店" tone="ok" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
         <span>{nameOf(data.services, appointment.serviceId)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
       <div className="appointment-work-card-actions">
         <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
-          去收银
+          确认到店
         </button>
       </div>
     </article>
@@ -3875,11 +3872,11 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     },
     {
       key: "arrival",
-      title: "待收银",
-      desc: "到店后去收银",
+      title: "待确认到店",
+      desc: "到店后进入收银",
       value: arrivedAppointments.length,
       renderItems: () => arrivedAppointments.slice(0, 6).map(renderArrivalAppointmentCard),
-      empty: "暂无待收银",
+      empty: "暂无待确认到店",
     },
     {
       key: "signature",
@@ -3949,9 +3946,9 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <small>新增预约</small>
             </div>
             <div>
-              <span>待收银</span>
+              <span>待确认到店</span>
               <strong>{arrivedAppointments.length}</strong>
-              <small>到店后处理收银</small>
+              <small>到店后处理</small>
             </div>
             <div>
               <span>待服务签名</span>
@@ -5123,7 +5120,7 @@ function Pos({
           {usesService && arrivedAppointments.length > 0 && (
             <div className="checkout-arrived-appointments">
               <div className="checkout-product-section-head">
-                <span>待收银预约</span>
+                <span>待确认到店预约</span>
                 <strong>{arrivedAppointments.length} 单</strong>
               </div>
               <div className="checkout-arrived-list">
@@ -5269,7 +5266,7 @@ function Pos({
                 value={appointmentId}
                 onChange={useAppointmentForCheckout}
                 options={[
-                  { value: "", label: arrivedAppointments.length ? "不关联预约，直接开单" : "暂无待收银到店预约" },
+                  { value: "", label: arrivedAppointments.length ? "不关联预约，直接开单" : "暂无待确认到店预约" },
                   ...arrivedAppointments.map((appointment) => ({
                     value: appointment.id,
                     label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`,
