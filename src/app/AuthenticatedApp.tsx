@@ -3708,10 +3708,26 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     .slice()
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
-  const confirmedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认");
-  const pendingConfirmAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "待确认");
-  const arrivedCheckoutAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
+  const bookedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
+  const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
+  const pendingServiceSignatureTasks = data.customerSignatures
+    .filter((signature) => signature.status === "待签名")
+    .map((signature) => {
+      const order = signature.orderId ? data.orders.find((item) => item.id === signature.orderId) : undefined;
+      const appointment = order?.appointmentId ? data.appointments.find((item) => item.id === order.appointmentId) : undefined;
+      return { signature, order, appointment };
+    })
+    .filter((item): item is { signature: CustomerSignature; order: Order; appointment: Appointment } => {
+      const { order, appointment } = item;
+      return Boolean(
+        order
+        && appointment
+        && appointment.status === "已完成"
+        && visibleRangeAppointments.some((rangeAppointment) => rangeAppointment.id === appointment.id),
+      );
+    })
+    .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
@@ -3769,14 +3785,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
   }, [firstAvailableRoom, roomAvailabilityOptions, roomName]);
   const appointmentAction = (appointment: Appointment) => {
-    if (appointment.status === "待确认") {
-      return (
-        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已确认")}>
-          {mutationPending ? "处理中..." : "确认预约"}
-        </button>
-      );
-    }
-    if (appointment.status === "已确认") {
+    if (appointment.status === "待确认" || appointment.status === "已确认") {
       return (
         <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
           {mutationPending ? "处理中..." : "登记到店"}
@@ -3799,7 +3808,11 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     }
     return <span>-</span>;
   };
-  const appointmentStatusText = (status: Appointment["status"]) => (status === "已确认" ? "已确认预约" : status);
+  const appointmentStatusText = (status: Appointment["status"]) => {
+    if (status === "待确认" || status === "已确认") return "已预约";
+    if (status === "已到店") return "待确认到店";
+    return status;
+  };
   const appointmentBadgeTone = (status: Appointment["status"]) =>
     status === "已完成" || status === "已到店" ? "ok" : status === "已取消" || status === "爽约" ? "warn" : undefined;
   const renderAppointmentCard = (appointment: Appointment) => (
@@ -3822,30 +3835,46 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
       </div>
     </article>
   );
+  const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
+  const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature; order: Order; appointment: Appointment }) => (
+    <article className="appointment-work-card status-待签名" key={signature.id}>
+      <div className="appointment-work-card-main">
+        <time>{appointmentTimeRange(data, appointment)}</time>
+        <Badge text="待服务签名" tone="warn" />
+        <strong>{nameOf(data.customers, signature.customerId)}</strong>
+        <span>{nameOf(data.services, order.serviceId)} · {nameOf(data.staff, order.staffId)}</span>
+        <small>{appointment.roomName ?? "未分配房间"} · {order.orderNo}</small>
+      </div>
+      <div className="appointment-work-card-actions">
+        <button type="button" onClick={() => window.location.assign(signatureUrl(signature.token))}>确认签名</button>
+        <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>
+      </div>
+    </article>
+  );
   const appointmentWorkflowGroups = [
     {
+      key: "booked",
+      title: "已预约",
+      desc: "新增预约后在这里",
+      value: bookedAppointments.length,
+      renderItems: () => bookedAppointments.slice(0, 6).map(renderAppointmentCard),
+      empty: "暂无已预约",
+    },
+    {
       key: "arrival",
-      title: "已确认预约",
-      desc: "等待客户到店",
-      value: confirmedAppointments.length,
-      appointments: confirmedAppointments,
-      empty: "暂无已确认预约",
+      title: "待确认到店",
+      desc: "到店后进入收银",
+      value: arrivedAppointments.length,
+      renderItems: () => arrivedAppointments.slice(0, 6).map(renderAppointmentCard),
+      empty: "暂无待确认到店",
     },
     {
-      key: "confirm",
-      title: "待确认",
-      desc: "需要门店确认",
-      value: pendingConfirmAppointments.length,
-      appointments: pendingConfirmAppointments,
-      empty: "暂无待确认预约",
-    },
-    {
-      key: "checkout",
-      title: "已到店待收银",
-      desc: "进入收银后会带入项目服务",
-      value: arrivedCheckoutAppointments.length,
-      appointments: arrivedCheckoutAppointments,
-      empty: "暂无到店待收银",
+      key: "signature",
+      title: "待服务签名",
+      desc: "服务完成后客户确认",
+      value: pendingServiceSignatureTasks.length,
+      renderItems: () => pendingServiceSignatureTasks.slice(0, 6).map(renderServiceSignatureCard),
+      empty: "暂无待签名服务",
     },
   ];
   const activeAppointment = data.appointments.find((appointment) => appointment.id === activeAppointmentId);
@@ -3902,19 +3931,19 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <small>{selectedAppointmentRange.label}范围</small>
             </div>
             <div>
-              <span>已确认预约</span>
-              <strong>{confirmedAppointments.length}</strong>
-              <small>等待客户到店</small>
+              <span>已预约</span>
+              <strong>{bookedAppointments.length}</strong>
+              <small>新增预约</small>
             </div>
             <div>
-              <span>待确认</span>
-              <strong>{pendingConfirmAppointments.length}</strong>
-              <small>需要门店确认</small>
+              <span>待确认到店</span>
+              <strong>{arrivedAppointments.length}</strong>
+              <small>到店后处理</small>
             </div>
             <div>
-              <span>待收银</span>
-              <strong>{arrivedCheckoutAppointments.length}</strong>
-              <small>已到店服务</small>
+              <span>待服务签名</span>
+              <strong>{pendingServiceSignatureTasks.length}</strong>
+              <small>服务完成确认</small>
             </div>
           </div>
           <div className="appointment-workflow-grid">
@@ -3928,8 +3957,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                   <em>{group.value}</em>
                 </div>
                 <div className="appointment-workflow-list">
-                  {group.appointments.slice(0, 6).map(renderAppointmentCard)}
-                  {group.appointments.length === 0 && (
+                  {group.renderItems()}
+                  {group.value === 0 && (
                     <div className="appointment-work-empty">{group.empty}</div>
                   )}
                 </div>
