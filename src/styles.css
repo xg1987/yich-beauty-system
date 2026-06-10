@@ -20029,6 +20029,29 @@ textarea,
   }
 }
 
+/* Appointment page scroll containment: keep desktop/browser shells scrollable even when
+   the host window does not pass wheel events to the document body. */
+.app-shell:has(> .main > .appointment-room-page) {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.app-shell:has(> .main > .appointment-room-page) .main {
+  height: calc(100dvh - var(--yich-global-header-height, var(--yich-topbar-h, 86px)));
+  min-height: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(var(--yich-bottom-nav-h, 88px) + 34px);
+  scrollbar-gutter: stable;
+}
+
+.app-shell:has(> .main > .appointment-room-page) .appointment-room-page {
+  min-height: auto;
+  padding-bottom: calc(var(--yich-bottom-nav-h, 88px) + 26px);
+}
+
 /* Management identity card refresh. */
 .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
   height: 168px;
