@@ -398,6 +398,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   );
   assert.equal(ownerInvite.storeOwnerInvites[0].inviteCode, "BOSS-UNIQUE", "store owner invite should avoid platform invite code collisions");
   const updatedStore = updateStoreProfile(registered, {
+    storeId: "store1",
     name: "测试皮肤管理中心",
     phone: "13900000002",
     address: "测试新地址",
@@ -405,10 +406,11 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     roomNames: ["护理房 A", "护理房 B", "VIP 房"],
     maintenanceRoomNames: ["护理房 B"],
   });
-  assert.equal(updatedStore.storeProfiles[0].name, "测试皮肤管理中心", "store profile should update store name");
-  assert.equal(updatedStore.storeProfiles[0].businessHours, "09:30 - 22:00", "store profile should update business hours");
-  assert.deepEqual(updatedStore.storeProfiles[0].roomNames, ["护理房 A", "护理房 B", "VIP 房"], "store profile should update appointment room names");
-  assert.deepEqual(updatedStore.storeProfiles[0].maintenanceRoomNames, ["护理房 B"], "store profile should update specified maintenance rooms");
+  const configuredStore = updatedStore.storeProfiles.find((store) => store.id === "store1");
+  assert.equal(configuredStore?.name, "测试皮肤管理中心", "store profile should update store name");
+  assert.equal(configuredStore?.businessHours, "09:30 - 22:00", "store profile should update business hours");
+  assert.deepEqual(configuredStore?.roomNames, ["护理房 A", "护理房 B", "VIP 房"], "store profile should update appointment room names");
+  assert.deepEqual(configuredStore?.maintenanceRoomNames, ["护理房 B"], "store profile should update specified maintenance rooms");
   const roomSchedulingStore: AppData = {
     ...updatedStore,
     appointments: [],

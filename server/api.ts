@@ -912,6 +912,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 新增${requiredString(body, "scope")}标签 ${requiredString(body, "name")}`,
         }, (data) =>
           createTagDefinition(data, {
+            storeId: sessionStoreId(data, session),
             name: requiredString(body, "name"),
             scope: requiredString(body, "scope") as TagScope,
             color: optionalString(body, "color"),

@@ -57,7 +57,8 @@ const PLATFORM_INVITE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const DEFAULT_INVITE_VALID_DAYS = 7;
 const DUPLICATE_CHECKOUT_WINDOW_MS = 30_000;
 const STAFF_BUSINESS_ROLES = new Set(["店长", "主管", "员工", "前台"]);
-const DEFAULT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const LEGACY_DEFAULT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const LEGACY_DEFAULT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_ROOM_NAMES);
 const CASH_PAY_METHODS = new Set<CashPayMethod>(["现金", "微信", "支付宝", "银行卡"]);
 
 function normalizeCashPayMethod(payMethod: CashPayMethod | undefined): CashPayMethod {
@@ -103,6 +104,10 @@ function storeIdForCustomer(data: AppData, customerId: string, fallbackStoreId?:
   return itemStoreId(data.customers.find((item) => item.id === customerId), fallbackStoreId);
 }
 
+function storeIdForAppointment(data: AppData, appointment: Pick<Appointment, "storeId" | "staffId" | "customerId">, fallbackStoreId?: string) {
+  return appointment.storeId ?? storeIdForStaff(data, appointment.staffId, storeIdForCustomer(data, appointment.customerId, fallbackStoreId));
+}
+
 function storeIdForProduct(data: AppData, productId: string, fallbackStoreId?: string) {
   return itemStoreId(data.products.find((item) => item.id === productId), fallbackStoreId);
 }
@@ -114,6 +119,10 @@ function storeIdForMemberCard(data: AppData, cardId: string, fallbackStoreId?: s
 
 function scopedStoreId(data: AppData, explicitStoreId?: string) {
   return explicitStoreId ?? defaultStoreId(data);
+}
+
+function storeProfileOf(data: AppData, storeId?: string) {
+  return storeId ? data.storeProfiles.find((store) => store.id === storeId) : data.storeProfiles[0];
 }
 
 export function normalizeStoreScopedData(data: AppData): AppData {
@@ -888,6 +897,7 @@ export type StocktakeInput = {
 };
 
 export type TagDefinitionInput = {
+  storeId?: string;
   name: string;
   scope: TagScope;
   color?: string;
@@ -951,6 +961,7 @@ export function createTagDefinition(
   }
   const tag: TagDefinition = {
     id: (options.idFactory ?? makeId)("tag"),
+    storeId: scopedStoreId(data, input.storeId),
     name,
     scope: input.scope,
     color: normalizeTagColor(input.color),
@@ -1149,7 +1160,7 @@ export function registerStore(
         phone: input.phone,
         address: input.address ?? "",
         businessHours: "10:00 - 21:00",
-        roomNames: DEFAULT_ROOM_NAMES,
+        roomNames: [],
         maintenanceRoomNames: [],
         maintenanceRoomCount: 0,
         status: "active",
@@ -1239,7 +1250,7 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
   const phone = input.phone.trim();
   const address = input.address.trim();
   const businessHours = input.businessHours.trim();
-  const roomNames = (input.roomNames ?? current.roomNames ?? DEFAULT_ROOM_NAMES)
+  const roomNames = (input.roomNames ?? current.roomNames ?? [])
     .map((roomName) => roomName.trim())
     .filter(Boolean)
     .slice(0, 20);
@@ -1266,6 +1277,7 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
             address,
             businessHours,
             roomNames,
+            roomNamesConfiguredAt: nowIso(),
             maintenanceRoomNames,
             maintenanceRoomCount: maintenanceRoomNames.length,
           }
@@ -2246,7 +2258,7 @@ export function decideStoreOwnerApplication(
         phone: application.phone,
         address: application.address ?? "",
         businessHours: "10:00 - 21:00",
-        roomNames: DEFAULT_ROOM_NAMES,
+        roomNames: [],
         maintenanceRoomNames: [],
         maintenanceRoomCount: 0,
         status: "active",
@@ -3412,9 +3424,15 @@ export function createAppointment(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const serviceIds = normalizeAppointmentServiceIds(data, input.serviceId, input.serviceIds);
+  if (!data.customers.some((item) => item.id === input.customerId)) {
+    throw new Error("客户不存在");
+  }
+  assertBusinessStaff(data.staff.find((item) => item.id === input.staffId));
+  const storeId = scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId) ?? storeIdForCustomer(data, input.customerId));
   const endAt = resolveAppointmentEndAt(data, serviceIds[0], input.startAt, input.endAt, serviceIds).toISOString();
-  const roomName = resolveAppointmentRoomName(data, { ...input, serviceId: serviceIds[0], serviceIds, endAt });
+  const roomName = resolveAppointmentRoomName(data, { ...input, storeId, serviceId: serviceIds[0], serviceIds, endAt });
   validateAppointmentSchedule(data, {
+    storeId,
     customerId: input.customerId,
     staffId: input.staffId,
     serviceId: serviceIds[0],
@@ -3423,7 +3441,6 @@ export function createAppointment(
     endAt,
     roomName,
   });
-  const storeId = scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId) ?? storeIdForCustomer(data, input.customerId));
 
   return {
     ...data,
@@ -3515,7 +3532,9 @@ export function rescheduleAppointment(
       : normalizeAppointmentServiceIds(data, appointment.serviceId, appointment.serviceIds);
   const nextServiceId = nextServiceIds[0];
   const nextEndAt = resolveAppointmentEndAt(data, nextServiceId, input.startAt, input.endAt, nextServiceIds).toISOString();
+  const storeId = scopedStoreId(data, appointment.storeId ?? storeIdForStaff(data, nextStaffId) ?? storeIdForCustomer(data, appointment.customerId));
   const nextRoomName = input.roomName?.trim() || appointment.roomName || resolveAppointmentRoomName(data, {
+    storeId,
     customerId: appointment.customerId,
     staffId: nextStaffId,
     serviceId: nextServiceId,
@@ -3524,6 +3543,7 @@ export function rescheduleAppointment(
     endAt: nextEndAt,
   });
   validateAppointmentSchedule(data, {
+    storeId,
     customerId: appointment.customerId,
     staffId: nextStaffId,
     serviceId: nextServiceId,
@@ -3560,13 +3580,15 @@ function isAppointmentStatus(status: string): status is Appointment["status"] {
   return ["待确认", "已确认", "已到店", "已完成", "已取消", "爽约"].includes(status);
 }
 
-function roomNamesOf(data: AppData) {
-  const names = data.storeProfiles[0]?.roomNames?.map((roomName) => roomName.trim()).filter(Boolean) ?? [];
-  return names.length > 0 ? names : DEFAULT_ROOM_NAMES;
+function roomNamesOf(data: AppData, storeId?: string) {
+  const storeProfile = storeProfileOf(data, storeId);
+  const names = Array.from(new Set(storeProfile?.roomNames?.map((roomName) => roomName.trim()).filter(Boolean) ?? []));
+  if (storeProfile?.roomNamesConfiguredAt) return names;
+  return names.filter((roomName) => !LEGACY_DEFAULT_ROOM_NAME_SET.has(roomName));
 }
 
-function maintenanceRoomNamesOf(data: AppData, roomNames: string[]) {
-  const storeProfile = data.storeProfiles[0];
+function maintenanceRoomNamesOf(data: AppData, roomNames: string[], storeId?: string) {
+  const storeProfile = storeProfileOf(data, storeId);
   return normalizeMaintenanceRoomNames(roomNames, storeProfile?.maintenanceRoomNames ?? storeProfile?.maintenanceRoomCount ?? 0);
 }
 
@@ -3611,8 +3633,10 @@ function resolveAppointmentEndAt(data: AppData, serviceId: string, startAtInput:
 }
 
 function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
-  const roomNames = roomNamesOf(data);
-  const maintenanceRoomNames = maintenanceRoomNamesOf(data, roomNames);
+  const storeId = scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId) ?? storeIdForCustomer(data, input.customerId));
+  const roomNames = roomNamesOf(data, storeId);
+  if (roomNames.length === 0) throw new Error("请先到房间设置配置预约房间");
+  const maintenanceRoomNames = maintenanceRoomNamesOf(data, roomNames, storeId);
   const availableRoomNames = roomNames.filter((roomName) => !maintenanceRoomNames.includes(roomName));
   const requestedRoomName = input.roomName?.trim();
   if (requestedRoomName) return requestedRoomName;
@@ -3622,6 +3646,7 @@ function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
   const overlappingRoomNames = new Set(assignAppointmentRooms(
     data.appointments
       .filter(isActiveAppointmentForRoom)
+      .filter((appointment) => storeIdForAppointment(data, appointment, storeId) === storeId)
       .filter((appointment) => {
         const appointmentStart = new Date(appointment.startAt);
         const appointmentEnd = appointmentEndAt(appointment, data.services);
@@ -3638,6 +3663,7 @@ function resolveAppointmentRoomName(data: AppData, input: AppointmentInput) {
 function validateAppointmentSchedule(
   data: AppData,
   input: {
+    storeId?: string;
     customerId: string;
     staffId: string;
     serviceId: string;
@@ -3659,8 +3685,10 @@ function validateAppointmentSchedule(
   const endAt = resolveAppointmentEndAt(data, serviceIds[0], input.startAt, input.endAt, serviceIds);
   const selectedRoomName = input.roomName?.trim();
   if (!selectedRoomName) throw new Error("请选择预约房间");
-  const roomNames = roomNamesOf(data);
-  const maintenanceRoomNames = maintenanceRoomNamesOf(data, roomNames);
+  const storeId = scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId) ?? storeIdForCustomer(data, input.customerId));
+  const roomNames = roomNamesOf(data, storeId);
+  if (roomNames.length === 0) throw new Error("请先到房间设置配置预约房间");
+  const maintenanceRoomNames = maintenanceRoomNamesOf(data, roomNames, storeId);
   if (!roomNames.includes(selectedRoomName)) throw new Error("预约房间不存在");
   if (maintenanceRoomNames.includes(selectedRoomName)) throw new Error("该房间维护中，不能预约");
 
@@ -3690,6 +3718,7 @@ function validateAppointmentSchedule(
     data.appointments
       .filter((appointment) => appointment.id !== input.excludeAppointmentId)
       .filter(isActiveAppointmentForRoom)
+      .filter((appointment) => storeIdForAppointment(data, appointment, storeId) === storeId)
       .filter((appointment) => {
         const appointmentStart = new Date(appointment.startAt);
         const appointmentEnd = appointmentEndAt(appointment, data.services);

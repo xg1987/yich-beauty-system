@@ -37,7 +37,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { createContext, FormEvent, KeyboardEvent, lazy, memo, ReactNode, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { NotificationPanel, visibleNotifications } from "../components/business/NotificationPanel";
 import { UserAvatar } from "../components/business/UserAvatar";
@@ -99,12 +99,13 @@ const MutationPendingContext = createContext(false);
 const THEME_KEY = "yich-system-theme";
 const STORE_NAME_KEY = "yich-store-name";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-07";
+const APP_BUILD_DATE = "2026-06-10";
 const DEFAULT_SYSTEM_TITLE = "祝融｜坤锋美业门店系统";
 const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
 const AUTO_THEME_DAY_START_HOUR = 8;
 const AUTO_THEME_NIGHT_START_HOUR = 19;
-const DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
+const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES);
 const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
 const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
 const DEFAULT_DISCOUNT_CARD_NAME = "会员折扣卡";
@@ -403,8 +404,10 @@ function authUserStatusTone(status: AuthUser["status"]) {
 }
 
 function roomNamesOf(data: AppData) {
-  const names = data.storeProfiles[0]?.roomNames?.map((roomName) => roomName.trim()).filter(Boolean) ?? [];
-  return names.length > 0 ? names : DEFAULT_APPOINTMENT_ROOM_NAMES;
+  const storeProfile = data.storeProfiles[0];
+  const names = Array.from(new Set(storeProfile?.roomNames?.map((roomName) => roomName.trim()).filter(Boolean) ?? []));
+  if (storeProfile?.roomNamesConfiguredAt) return names;
+  return names.filter((roomName) => !LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET.has(roomName));
 }
 
 function maintenanceRoomNamesOf(data: AppData, roomNames = roomNamesOf(data)) {
@@ -3562,6 +3565,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [showRoomStatus, setShowRoomStatus] = useState(false);
   const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
+  const hasConfiguredRooms = roomNames.length > 0;
 
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
@@ -3600,6 +3604,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
+    if (!hasConfiguredRooms || !roomNames.includes(roomName)) return;
     void runMutation(() =>
       actions.addAppointment({
         customerId,
@@ -3629,7 +3634,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     setRescheduleServiceIds(appointmentServiceIds(appointment));
     setRescheduleStartAt(toLocalInputValue(appointment.startAt));
     setRescheduleEndAt(toLocalInputValue(appointmentEndAt(appointment, data.services).toISOString()));
-    setRescheduleRoomName(appointment.roomName ?? roomNames[0] ?? "");
+    setRescheduleRoomName(roomNames.includes(appointment.roomName ?? "") ? appointment.roomName ?? "" : roomNames[0] ?? "");
     setRescheduleNote(appointment.note);
   };
 
@@ -3646,6 +3651,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
 
   const submitReschedule = (event: FormEvent) => {
     event.preventDefault();
+    if (!hasConfiguredRooms || !roomNames.includes(rescheduleRoomName)) return;
     const appointmentId = activeAppointmentId;
     void runMutation(() =>
       actions.rescheduleAppointment(appointmentId, {
@@ -3841,6 +3847,11 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     const selectedRoom = roomAvailabilityOptions.find((option) => option.value === roomName);
     if (!selectedRoom || selectedRoom.disabled) setRoomName(firstAvailableRoom);
   }, [firstAvailableRoom, roomAvailabilityOptions, roomName]);
+  useEffect(() => {
+    if (!roomNames.includes(rescheduleRoomName)) setRescheduleRoomName(roomNames[0] ?? "");
+  }, [rescheduleRoomName, roomNames]);
+  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const rescheduleSaveDisabled = !rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
     if (appointment.status === "已完成") {
       return (
@@ -3977,9 +3988,9 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 </button>
               ))}
             </div>
-            <button type="button" className="appointment-room-add-button" onClick={() => setShowAppointmentForm(true)}>
+            <button type="button" className="appointment-room-add-button" onClick={() => hasConfiguredRooms ? setShowAppointmentForm(true) : setView("roomSettings")}>
               <CalendarDays size={18} />
-              新增预约
+              {hasConfiguredRooms ? "新增预约" : "设置房间"}
             </button>
             <button type="button" className="appointment-room-status-button" onClick={() => setShowRoomStatus(true)}>
               <Building2 size={18} />
@@ -4225,7 +4236,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                     </span>
                   </button>
                 )) : (
-                  <div className="checkout-product-empty">请先到管理中心设置房间</div>
+                  <div className="checkout-product-empty">请先到房间管理配置预约房间</div>
                 )}
               </div>
             </div>
@@ -4239,8 +4250,10 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             </label>
             {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
             {selectedTimeConflict && <p className="form-warning">该员工在此时间段有不可预约安排，建议调整时间</p>}
+            {!hasConfiguredRooms && <p className="form-warning">当前门店还没有可用于预约的房间，请先到房间管理配置。</p>}
             <div className="row-actions">
-              <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={!staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid} />
+              <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={appointmentSaveDisabled} />
+              {!hasConfiguredRooms && <button type="button" onClick={() => { setShowAppointmentForm(false); setView("roomSettings"); }}>房间管理</button>}
               <button type="button" onClick={() => setShowAppointmentForm(false)}>取消</button>
             </div>
           </form>
@@ -4333,13 +4346,14 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={setRescheduleStartAt} />
             <DateTimeInput label="结束时间" value={rescheduleEndAt} onChange={setRescheduleEndAt} />
           </div>
-          <Select label="房间" value={rescheduleRoomName} onChange={setRescheduleRoomName} options={roomNames.map((name) => ({ value: name, label: name }))} />
+          <Select label="房间" value={rescheduleRoomName} onChange={setRescheduleRoomName} options={roomNames.length ? roomNames.map((name) => ({ value: name, label: name })) : [{ value: "", label: "请先到房间管理配置预约房间" }]} />
           <label>
             备注
             <textarea value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="改约原因或客户偏好" />
           </label>
           <div className="row-actions">
-            <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={!rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName} />
+            <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={rescheduleSaveDisabled} />
+            {!hasConfiguredRooms && <button type="button" onClick={() => { closeAppointmentAction(); setView("roomSettings"); }}>房间管理</button>}
             <button type="button" onClick={closeAppointmentAction}>取消</button>
           </div>
         </form>
@@ -4386,15 +4400,16 @@ function Pos({
 }) {
   const mutationPending = useMutationPending();
   const serviceStaff = activeStaffOf(data);
-  const [appointmentId, setAppointmentId] = useState("");
-  const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">("walkin");
+  const initialCheckoutAppointment = initialAppointmentId ? data.appointments.find((appointment) => appointment.id === initialAppointmentId) : undefined;
+  const [appointmentId, setAppointmentId] = useState(initialCheckoutAppointment?.id ?? "");
+  const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">(initialCheckoutAppointment ? "customer" : "walkin");
   const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product">("service");
   const [customerSearch, setCustomerSearch] = useState("");
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
-  const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [serviceId, setServiceId] = useState("");
-  const [staffId, setStaffId] = useState(firstActiveStaffId(data));
+  const [customerId, setCustomerId] = useState(initialCheckoutAppointment?.customerId ?? data.customers[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState(initialCheckoutAppointment?.serviceId ?? "");
+  const [staffId, setStaffId] = useState(initialCheckoutAppointment?.staffId ?? firstActiveStaffId(data));
   const [collaboratorStaffIds, setCollaboratorStaffIds] = useState<string[]>([]);
   const [checkoutProductItems, setCheckoutProductItems] = useState<CheckoutCartItem[]>([]);
   const [checkoutGiftItems, setCheckoutGiftItems] = useState<CheckoutCartItem[]>([]);
@@ -4434,7 +4449,12 @@ function Pos({
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
   const [cardNote, setCardNote] = useState("");
   const [selectedSignatureId, setSelectedSignatureId] = useState("");
+  const [signatureSignerName, setSignatureSignerName] = useState("");
+  const [signatureMessage, setSignatureMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
+  const [hasSignatureDrawing, setHasSignatureDrawing] = useState(false);
   const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(fromManagement ? initialModule ?? "single" : initialModule);
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const signatureDrawingRef = useRef(false);
   const cardAmountValue = editableNumberValue(cardAmount);
   const cardPaidAmountValue = editableNumberValue(cardPaidAmount);
   const cardTimesValue = editableNumberValue(cardTimes);
@@ -4627,6 +4647,89 @@ function Pos({
   const selectedCashierSignature = selectedCashierOrder
     ? data.customerSignatures.find((signature) => signature.orderId === selectedCashierOrder.id)
     : undefined;
+  useEffect(() => {
+    const customerName = selectedSignature ? nameOf(data.customers, selectedSignature.customerId) : "";
+    setSignatureSignerName(customerName === "-" ? "" : customerName);
+    setSignatureMessage(undefined);
+    setHasSignatureDrawing(false);
+    const canvas = signatureCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
+  }, [data.customers, selectedSignature?.id]);
+
+  const signaturePoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const startSignatureDrawing = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const context = event.currentTarget.getContext("2d");
+    if (!context) return;
+    signatureDrawingRef.current = true;
+    const point = signaturePoint(event);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const drawSignature = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!signatureDrawingRef.current) return;
+    const context = event.currentTarget.getContext("2d");
+    if (!context) return;
+    const point = signaturePoint(event);
+    context.lineWidth = 4;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.strokeStyle = "#15141a";
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    setHasSignatureDrawing(true);
+  };
+
+  const stopSignatureDrawing = () => {
+    signatureDrawingRef.current = false;
+  };
+
+  const clearSignatureDrawing = () => {
+    const canvas = signatureCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSignatureDrawing(false);
+  };
+
+  const signSelectedSignature = () => {
+    setSignatureMessage(undefined);
+    if (!selectedSignature || selectedSignature.status !== "待签名") {
+      setSignatureMessage({ type: "error", text: "请选择待签名记录。" });
+      return;
+    }
+    if (!signatureSignerName.trim()) {
+      setSignatureMessage({ type: "error", text: "请填写签名人姓名。" });
+      return;
+    }
+    const canvas = signatureCanvasRef.current;
+    if (!canvas || !hasSignatureDrawing) {
+      setSignatureMessage({ type: "error", text: "请先完成手写签名。" });
+      return;
+    }
+    void runMutation(() =>
+      actions.signCustomerSignature(selectedSignature.id, {
+        signerName: signatureSignerName.trim(),
+        signatureText: canvas.toDataURL("image/png"),
+      }),
+    ).then((nextData) => {
+      const signedSignature = nextData.customerSignatures.find((signature) => signature.id === selectedSignature.id);
+      if (signedSignature) setSelectedSignatureId(signedSignature.id);
+      setSignatureMessage({ type: "success", text: "服务确认签名已完成。" });
+    }).catch((caught) => {
+      setSignatureMessage({ type: "error", text: caught instanceof Error ? caught.message : "签名失败" });
+    });
+  };
   const cashierPaymentText = (record: ReturnType<typeof buildCashierFlowRecords>[number]) => {
     if (record.kind === "order" && record.payMethod === "会员卡") return "会员卡扣款";
     return record.payMethod;
@@ -4946,6 +5049,10 @@ function Pos({
       const pendingSignature = usesService && usesCustomer && latestOrder
         ? nextData.customerSignatures.find((signature) => signature.orderId === latestOrder.id && signature.status === "待签名")
         : undefined;
+      if (pendingSignature) {
+        setSelectedSignatureId(pendingSignature.id);
+        setActiveModule("signature");
+      }
       setAppointmentId("");
       setGuestName("");
       setGuestPhone("");
@@ -4957,9 +5064,12 @@ function Pos({
       setDiscountAmount(0);
       setCheckoutDiscountRateInput("");
       setAdjustmentReason("");
-      const signatureHint = pendingSignature || (usesService && usesCustomer) ? "待签名记录已生成，请从预约的服务确认签名进入。" : "";
+      const signatureHint = pendingSignature ? "请在当前窗口完成服务确认签名。" : "";
       setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。${signatureHint}` : `下单成功，订单已生成。${signatureHint}`);
       checkoutRequestIdRef.current = makeId("checkout");
+      if (pendingSignature) {
+        return;
+      }
       if (fromManagement && onReturnManagement) {
         onReturnManagement();
       } else {
@@ -4981,7 +5091,6 @@ function Pos({
     orders: "收银流水",
   };
   const activeModuleTitle = activeModule ? posModuleTitles[activeModule] : "";
-  const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
   const closeModule = () => {
     if (fromManagement && onReturnManagement) {
       onReturnManagement();
@@ -5402,9 +5511,9 @@ function Pos({
               context.orderNo !== "-" ? context.orderNo : signature.serviceRecordId ? "服务档案" : "未关联",
               <span className="signature-record-actions" key={`${signature.id}-actions`}>
                 {signature.status === "待签名" && (
-                  <a href={signatureUrl(signature.token)} target="_blank" rel="noreferrer">
-                    打开签名页
-                  </a>
+                  <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
+                    现场签名
+                  </button>
                 )}
                 <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
                   查看详情
@@ -5413,6 +5522,40 @@ function Pos({
             ];
           })}
         />
+        {selectedSignature?.status === "待签名" && (
+          <div className="refund-inline-signature">
+            <div className="checkout-product-section-head">
+              <span>现场签名</span>
+              <button type="button" onClick={clearSignatureDrawing}>清除签名</button>
+            </div>
+            <label>签名人姓名<input value={signatureSignerName} onChange={(event) => setSignatureSignerName(event.target.value)} /></label>
+            <label>
+              手写签名
+              <div className="signature-canvas-wrap">
+                <canvas
+                  ref={signatureCanvasRef}
+                  width={720}
+                  height={220}
+                  className="signature-canvas"
+                  onPointerDown={startSignatureDrawing}
+                  onPointerMove={drawSignature}
+                  onPointerUp={stopSignatureDrawing}
+                  onPointerCancel={stopSignatureDrawing}
+                />
+                {!hasSignatureDrawing && <span>请客户在此处手写签名</span>}
+              </div>
+            </label>
+            {signatureMessage && <p className={signatureMessage.type === "success" ? "form-success" : "form-error"}>{signatureMessage.text}</p>}
+          </div>
+        )}
+        {selectedSignature?.status === "待签名" && (
+          <div className="signature-complete-actions">
+            <button type="button" className="signature-complete-button" disabled={mutationPending} onClick={signSelectedSignature}>
+              <LockKeyhole size={18} />
+              完成服务签名
+            </button>
+          </div>
+        )}
         {selectedSignature && <SignatureRecordDetail data={data} signature={selectedSignature} />}
         </section>
         )}

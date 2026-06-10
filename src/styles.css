@@ -7097,6 +7097,39 @@ textarea,
   min-height: 180px;
 }
 
+.signature-complete-actions {
+  display: grid;
+  margin-top: 4px;
+}
+
+.signature-complete-button {
+  min-height: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6d28d9, #4c1d95);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 850;
+  box-shadow: 0 16px 34px rgba(76, 29, 149, 0.26);
+}
+
+.signature-complete-button:hover,
+.signature-complete-button:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 42px rgba(76, 29, 149, 0.32);
+}
+
+.signature-complete-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
 .staff-schedule-grid {
   display: grid;
   grid-template-columns: 1fr;
