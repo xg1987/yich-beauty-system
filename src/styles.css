@@ -20403,3 +20403,63 @@ textarea,
 .theme-night .system-modal .refund-selected-card .refund-quote-grid span {
   background: rgba(255, 255, 255, 0.86);
 }
+
+/* Room settings layout lock: cards must never overlap their edit/delete controls. */
+.room-settings-panel.panel {
+  overflow: visible;
+}
+
+.room-settings-page .room-settings-panel.panel {
+  overflow: visible;
+}
+
+.room-settings-panel .room-editor-grid,
+.room-settings-page .room-editor-grid,
+.room-settings-modal-detail .room-editor-grid {
+  grid-auto-rows: minmax(344px, max-content);
+  align-items: start;
+  gap: 18px;
+}
+
+.room-settings-modal-detail .room-editor-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  overflow-x: hidden;
+}
+
+.room-settings-panel .room-editor-card {
+  min-height: 324px;
+  height: auto;
+  align-content: start;
+  grid-template-rows: auto auto auto minmax(44px, auto) auto;
+  overflow: visible;
+}
+
+.room-settings-panel .room-editor-card input,
+.room-settings-panel .room-editor-card select {
+  width: 100%;
+  min-width: 0;
+}
+
+.room-settings-panel .room-editor-card-meta {
+  min-height: 44px;
+  gap: 12px;
+}
+
+.room-settings-panel .room-editor-remove {
+  align-self: end;
+  position: static;
+  z-index: auto;
+}
+
+@media (max-width: 1180px) {
+  .room-settings-modal-detail .room-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .room-settings-modal-detail .room-editor-grid,
+  .room-settings-page .room-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
