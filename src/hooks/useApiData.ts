@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createApiClient, setActiveDataScope, type JoinInviteResult } from "../api/client";
 import { normalizeUserSession, type UserSession } from "../domain/auth";
-import { isAppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
+import { emptyAppData, isAppDataSlice, isViewKey, type AppDataUpdate } from "../domain/dataSlices";
 import type { AppData, ViewKey } from "../domain/types";
 
 const SESSION_KEY = "yich-system-session";
 const STORE_NAME_KEY = "yich-store-name";
+
+function initialDataView(): ViewKey {
+  const requestedView = new URLSearchParams(window.location.search).get("view");
+  return isViewKey(requestedView) ? requestedView : "dashboard";
+}
 
 function readSavedSession() {
   const savedSession = localStorage.getItem(SESSION_KEY);
@@ -50,8 +55,8 @@ export function useApiData() {
     try {
       const nextSession = saveSession(await client.login(account, password));
       setSession(nextSession);
-      const nextData = await createApiClient(() => nextSession.token).fetchData();
-      setData(nextData);
+      const nextData = await createApiClient(() => nextSession.token).fetchDataSlice(initialDataView());
+      setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "登录失败");
     } finally {
@@ -65,8 +70,8 @@ export function useApiData() {
     try {
       const nextSession = saveSession(await authAction());
       setSession(nextSession);
-      const nextData = await createApiClient(() => nextSession.token).fetchData();
-      setData(nextData);
+      const nextData = await createApiClient(() => nextSession.token).fetchDataSlice(initialDataView());
+      setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "认证失败");
     } finally {
@@ -103,7 +108,8 @@ export function useApiData() {
     setLoading(true);
     setError(undefined);
     try {
-      setData(await client.fetchData());
+      const nextData = await client.fetchDataSlice(initialDataView());
+      setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "加载数据失败";
       if (message.includes("请先登录")) {
@@ -266,7 +272,10 @@ function mergeAppDataUpdate(current: AppData | undefined, update: AppDataUpdate)
     return update;
   }
   if (!current) {
-    throw new Error("本地数据尚未加载，请刷新后重试");
+    return {
+      ...emptyAppData(),
+      ...update.data,
+    };
   }
   return {
     ...current,

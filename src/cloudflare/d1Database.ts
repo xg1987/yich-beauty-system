@@ -45,9 +45,9 @@ import type {
 } from "../domain/types";
 import type { D1DatabaseBinding, D1PreparedStatement, D1Value } from "./d1Types";
 
-type TableName = keyof AppData;
+export type D1DataTableName = keyof AppData;
 
-const tableNames: TableName[] = [
+const tableNames: D1DataTableName[] = [
   "storeProfiles",
   "onlineStorefronts",
   "authUsers",
@@ -224,6 +224,29 @@ export class D1BeautyDatabase {
     };
   }
 
+  async readDataTables(keys: readonly D1DataTableName[]): Promise<AppData> {
+    const data = emptyData();
+    await Promise.all(Array.from(new Set(keys)).map(async (key) => {
+      data[key] = await this.readTable(key) as never;
+    }));
+    data.systemConfigs = normalizeSystemConfigs(data.systemConfigs);
+    return data;
+  }
+
+  async replacePublicSignatureData(data: AppData) {
+    const statements: D1PreparedStatement[] = [
+      this.db.prepare("DELETE FROM customerSignatures"),
+      this.db.prepare("DELETE FROM orders"),
+      this.db.prepare("DELETE FROM memberCards"),
+      this.db.prepare("DELETE FROM memberCardTransactions"),
+    ];
+    this.writeJsonTable(statements, "customerSignatures", data.customerSignatures ?? []);
+    this.writeOrderStatements(statements, data.orders ?? []);
+    this.writeMemberCardStatements(statements, data.memberCards ?? []);
+    this.writeMemberCardTransactionStatements(statements, data.memberCardTransactions ?? []);
+    await this.db.batch(statements);
+  }
+
   async replaceData(data: AppData) {
     const statements: D1PreparedStatement[] = [];
     for (const tableName of [...tableNames].reverse()) {
@@ -244,6 +267,171 @@ export class D1BeautyDatabase {
   private async all<T>(query: string, mapper: (row: unknown) => T) {
     const result = await this.db.prepare(query).all();
     return (result.results ?? []).map(mapper);
+  }
+
+  private readTable(key: D1DataTableName) {
+    switch (key) {
+      case "storeProfiles":
+        return this.all("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC", mapJsonPayload<StoreProfile>);
+      case "onlineStorefronts":
+        return this.all("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC", mapJsonPayload<OnlineStorefront>);
+      case "authUsers":
+        return this.all("SELECT payload_json FROM authUsers ORDER BY rowid ASC", mapJsonPayload<AuthUser>);
+      case "systemConfigs":
+        return this.all("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC", mapJsonPayload<SystemConfig>);
+      case "staffInvites":
+        return this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>);
+      case "storeOwnerInvites":
+        return this.all("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC", mapJsonPayload<StoreOwnerInvite>);
+      case "storeOwnerApplications":
+        return this.all("SELECT payload_json FROM storeOwnerApplications ORDER BY rowid DESC", mapJsonPayload<StoreOwnerApplication>);
+      case "staff":
+        return this.all("SELECT * FROM staff ORDER BY rowid ASC", mapStaff);
+      case "customers":
+        return this.all("SELECT * FROM customers ORDER BY rowid ASC", mapCustomer);
+      case "tagDefinitions":
+        return this.all("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC", mapJsonPayload<TagDefinition>);
+      case "services":
+        return this.all("SELECT * FROM services ORDER BY rowid ASC", mapService);
+      case "products":
+        return this.all("SELECT * FROM products ORDER BY rowid ASC", mapProduct);
+      case "inventoryBatches":
+        return this.all("SELECT payload_json FROM inventoryBatches ORDER BY rowid DESC", mapJsonPayload<InventoryBatch>);
+      case "appointments":
+        return this.all("SELECT * FROM appointments ORDER BY rowid ASC", mapAppointment);
+      case "onlineBookingRequests":
+        return this.all("SELECT payload_json FROM onlineBookingRequests ORDER BY rowid DESC", mapJsonPayload<OnlineBookingRequest>);
+      case "staffUnavailableSlots":
+        return this.all("SELECT * FROM staffUnavailableSlots ORDER BY startAt ASC", mapStaffUnavailableSlot);
+      case "staffShifts":
+        return this.all("SELECT payload_json FROM staffShifts ORDER BY rowid DESC", mapJsonPayload<StaffShift>);
+      case "memberCards":
+        return this.all("SELECT * FROM memberCards ORDER BY rowid ASC", mapMemberCard);
+      case "distributors":
+        return this.all("SELECT payload_json FROM distributors ORDER BY rowid DESC", mapJsonPayload<Distributor>);
+      case "referralRelations":
+        return this.all("SELECT payload_json FROM referralRelations ORDER BY rowid DESC", mapJsonPayload<ReferralRelation>);
+      case "orders":
+        return this.all("SELECT * FROM orders ORDER BY rowid DESC", mapOrder);
+      case "refunds":
+        return this.all("SELECT * FROM refunds ORDER BY rowid DESC", mapRefund);
+      case "commissions":
+        return this.all("SELECT * FROM commissions ORDER BY rowid DESC", mapCommission);
+      case "distributionCommissions":
+        return this.all("SELECT payload_json FROM distributionCommissions ORDER BY rowid DESC", mapJsonPayload<DistributionCommission>);
+      case "commissionSettlements":
+        return this.all("SELECT payload_json FROM commissionSettlements ORDER BY rowid DESC", mapJsonPayload<CommissionSettlement>);
+      case "inventoryLogs":
+        return this.all("SELECT * FROM inventoryLogs ORDER BY rowid DESC", mapInventoryLog);
+      case "memberCardTransactions":
+        return this.all("SELECT * FROM memberCardTransactions ORDER BY rowid DESC", mapMemberCardTransaction);
+      case "operationLogs":
+        return this.all("SELECT * FROM operationLogs ORDER BY rowid DESC", mapOperationLog);
+      case "notifications":
+        return this.all("SELECT payload_json FROM notifications ORDER BY rowid DESC", mapJsonPayload<SystemNotification>);
+      case "dailyCloses":
+        return this.all("SELECT * FROM dailyCloses ORDER BY businessDate DESC", mapDailyClose);
+      case "approvalRequests":
+        return this.all("SELECT payload_json FROM approvalRequests ORDER BY rowid DESC", mapJsonPayload<ApprovalRequest>);
+      case "customerServiceRecords":
+        return this.all("SELECT payload_json FROM customerServiceRecords ORDER BY rowid DESC", mapJsonPayload<CustomerServiceRecord>);
+      case "customerSignatures":
+        return this.all("SELECT payload_json FROM customerSignatures ORDER BY rowid DESC", mapJsonPayload<CustomerSignature>);
+      case "customerFollowUps":
+        return this.all("SELECT payload_json FROM customerFollowUps ORDER BY rowid DESC", mapJsonPayload<CustomerFollowUp>);
+      case "suppliers":
+        return this.all("SELECT payload_json FROM suppliers ORDER BY rowid DESC", mapJsonPayload<Supplier>);
+      case "purchaseOrders":
+        return this.all("SELECT payload_json FROM purchaseOrders ORDER BY rowid DESC", mapJsonPayload<PurchaseOrder>);
+      case "stocktakes":
+        return this.all("SELECT payload_json FROM stocktakes ORDER BY rowid DESC", mapJsonPayload<Stocktake>);
+    }
+  }
+
+  private writeOrderStatements(statements: D1PreparedStatement[], orders: Order[]) {
+    for (const order of orders) {
+      statements.push(
+        this.statement(
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [
+            order.id,
+            order.storeId ?? null,
+            order.orderNo,
+            order.customerId,
+            order.guestName ?? null,
+            order.guestPhone ?? null,
+            order.staffId,
+            order.serviceId,
+            order.productId ?? null,
+            order.giftProductId ?? null,
+            order.productItems?.length ? JSON.stringify(order.productItems) : null,
+            order.giftProductItems?.length ? JSON.stringify(order.giftProductItems) : null,
+            order.cardId ?? null,
+            order.totalAmount,
+            order.paidAmount,
+            order.discountAmount ?? 0,
+            order.adjustmentReason ?? null,
+            order.approvalId ?? null,
+            order.distributorId ?? null,
+            order.appointmentId ?? null,
+            order.payMethod,
+            order.status,
+            order.createdAt,
+          ],
+        ),
+      );
+    }
+  }
+
+  private writeMemberCardStatements(statements: D1PreparedStatement[], memberCards: MemberCard[]) {
+    for (const card of memberCards) {
+      statements.push(
+        this.statement(
+          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [
+            card.id,
+            card.storeId ?? null,
+            card.customerId,
+            card.name,
+            card.type,
+            card.balance,
+            card.remainingTimes,
+            card.discountRate ?? null,
+            card.pointsEarned ?? 0,
+            card.benefitText ?? null,
+            card.expiresAt,
+            card.status,
+            card.serviceId ?? null,
+            JSON.stringify(card.serviceIds ?? []),
+          ],
+        ),
+      );
+    }
+  }
+
+  private writeMemberCardTransactionStatements(statements: D1PreparedStatement[], transactions: MemberCardTransaction[]) {
+    for (const transaction of transactions) {
+      statements.push(
+        this.statement(
+          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [
+            transaction.id,
+            transaction.storeId ?? null,
+            transaction.memberCardId,
+            transaction.orderId ?? null,
+            transaction.type,
+            transaction.paidAmount ?? null,
+            transaction.payMethod ?? null,
+            transaction.amountDelta,
+            transaction.timesDelta,
+            transaction.balanceAfter,
+            transaction.remainingTimesAfter,
+            transaction.note,
+            transaction.createdAt,
+          ],
+        ),
+      );
+    }
   }
 
   private writeDataStatements(data: AppData) {
@@ -581,6 +769,48 @@ export class D1BeautyDatabase {
   private statement(query: string, values: D1Value[]) {
     return this.db.prepare(query).bind(...values);
   }
+}
+
+function emptyData(): AppData {
+  return {
+    storeProfiles: [],
+    onlineStorefronts: [],
+    authUsers: [],
+    staffInvites: [],
+    storeOwnerInvites: [],
+    storeOwnerApplications: [],
+    staff: [],
+    customers: [],
+    tagDefinitions: [],
+    services: [],
+    products: [],
+    inventoryBatches: [],
+    appointments: [],
+    onlineBookingRequests: [],
+    staffUnavailableSlots: [],
+    staffShifts: [],
+    memberCards: [],
+    distributors: [],
+    referralRelations: [],
+    orders: [],
+    refunds: [],
+    commissions: [],
+    distributionCommissions: [],
+    commissionSettlements: [],
+    inventoryLogs: [],
+    memberCardTransactions: [],
+    operationLogs: [],
+    systemConfigs: [],
+    notifications: [],
+    dailyCloses: [],
+    approvalRequests: [],
+    customerServiceRecords: [],
+    customerSignatures: [],
+    customerFollowUps: [],
+    suppliers: [],
+    purchaseOrders: [],
+    stocktakes: [],
+  };
 }
 
 function mapStaff(row: unknown): Staff {

@@ -22,11 +22,15 @@ const commonKeys: AppDataKey[] = [
 const viewKeys: Record<ViewKey, AppDataKey[]> = {
   dashboard: [
     "customers",
+    "services",
     "appointments",
+    "onlineBookingRequests",
     "orders",
     "products",
     "memberCards",
     "approvalRequests",
+    "customerSignatures",
+    "customerFollowUps",
     "dailyCloses",
     "operationLogs",
   ],
@@ -165,6 +169,48 @@ export function isViewKey(value: string | undefined | null): value is ViewKey {
 
 export function dataKeysForView(view: ViewKey) {
   return Array.from(new Set([...commonKeys, ...viewKeys[view]]));
+}
+
+export function emptyAppData(): AppData {
+  return {
+    storeProfiles: [],
+    onlineStorefronts: [],
+    authUsers: [],
+    staffInvites: [],
+    storeOwnerInvites: [],
+    storeOwnerApplications: [],
+    staff: [],
+    customers: [],
+    tagDefinitions: [],
+    services: [],
+    products: [],
+    inventoryBatches: [],
+    appointments: [],
+    onlineBookingRequests: [],
+    staffUnavailableSlots: [],
+    staffShifts: [],
+    memberCards: [],
+    distributors: [],
+    referralRelations: [],
+    orders: [],
+    refunds: [],
+    commissions: [],
+    distributionCommissions: [],
+    commissionSettlements: [],
+    inventoryLogs: [],
+    memberCardTransactions: [],
+    operationLogs: [],
+    systemConfigs: [],
+    notifications: [],
+    dailyCloses: [],
+    approvalRequests: [],
+    customerServiceRecords: [],
+    customerSignatures: [],
+    customerFollowUps: [],
+    suppliers: [],
+    purchaseOrders: [],
+    stocktakes: [],
+  };
 }
 
 export function dataSliceForView(data: AppData, view: ViewKey): Partial<AppData> {

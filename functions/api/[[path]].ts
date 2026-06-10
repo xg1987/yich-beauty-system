@@ -67,7 +67,7 @@ import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
-import { isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
+import { dataKeysForView, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
@@ -101,6 +101,17 @@ type R2BucketLike = {
   ) => Promise<unknown>;
 };
 type PagesFunction<Bindings> = (context: { request: Request; env: Bindings }) => Response | Promise<Response>;
+
+const publicSignatureDataKeys = [
+  "customers",
+  "orders",
+  "services",
+  "staff",
+  "memberCards",
+  "memberCardTransactions",
+  "customerServiceRecords",
+  "customerSignatures",
+] as const;
 
 export const onRequest: PagesFunction<Env> = async (context) => {
   const database = new D1BeautyDatabase(context.env.DB);
@@ -238,18 +249,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname.startsWith("/api/public/customer-signatures/")) {
       const token = decodeURIComponent(pathname.split("/").at(-1) ?? "");
-      return sendJson(200, publicSignaturePayload(await database.readData(), token));
+      return sendJson(200, publicSignaturePayload(await database.readDataTables(publicSignatureDataKeys), token));
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/public/customer-signatures/") && pathname.endsWith("/sign")) {
       const token = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = signCustomerSignature(await database.readData(), {
+      const nextData = signCustomerSignature(await database.readDataTables(publicSignatureDataKeys), {
         token,
         signerName: requiredString(body, "signerName"),
         signatureText: requiredString(body, "signatureText"),
       });
-      await database.replaceData(nextData);
+      await database.replacePublicSignatureData(nextData);
       return sendJson(201, publicSignaturePayload(nextData, token));
     }
 
@@ -320,7 +331,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
-      return sendScopedData(context.request, 200, await database.readData(), session);
+      return sendScopedData(context.request, 200, await readDataForRequest(database, context.request), session);
     }
 
     if (context.request.method === "GET" && pathname === "/api/usage/r2") {
@@ -1844,13 +1855,28 @@ function sendJson(statusCode: number, payload: unknown) {
   });
 }
 
+function requestedDataView(request: Request) {
+  const requestedView = request.headers.get("X-App-Data-View") ?? new URL(request.url).searchParams.get("view");
+  return isViewKey(requestedView) ? requestedView : undefined;
+}
+
+function isSliceRequest(request: Request) {
+  return request.headers.get("X-App-Data-Mode") === "slice";
+}
+
+function readDataForRequest(database: D1BeautyDatabase, request: Request) {
+  const requestedView = requestedDataView(request);
+  if (isSliceRequest(request) && requestedView) {
+    return database.readDataTables(dataKeysForView(requestedView));
+  }
+  return database.readData();
+}
+
 function sendScopedData(request: Request, statusCode: number, data: AppData, session: UserSession) {
   const scopedData = scopeDataForSession(data, session);
-  if (request.headers.get("X-App-Data-Mode") === "slice") {
-    const requestedView = request.headers.get("X-App-Data-View") ?? new URL(request.url).searchParams.get("view");
-    if (isViewKey(requestedView)) {
-      return sendJson(statusCode, makeAppDataSlice(scopedData, requestedView));
-    }
+  const requestedView = requestedDataView(request);
+  if (isSliceRequest(request) && requestedView) {
+    return sendJson(statusCode, makeAppDataSlice(scopedData, requestedView));
   }
   return sendJson(statusCode, scopedData);
 }
