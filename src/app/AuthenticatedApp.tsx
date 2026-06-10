@@ -4452,6 +4452,7 @@ function Pos({
   const [signatureSignerName, setSignatureSignerName] = useState("");
   const [signatureMessage, setSignatureMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [hasSignatureDrawing, setHasSignatureDrawing] = useState(false);
+  const [signatureNow, setSignatureNow] = useState(() => Date.now());
   const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(fromManagement ? initialModule ?? "single" : initialModule);
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureDrawingRef = useRef(false);
@@ -4487,6 +4488,13 @@ function Pos({
     const timer = window.setTimeout(() => setCheckoutSuccessMessage(""), 4000);
     return () => window.clearTimeout(timer);
   }, [checkoutSuccessMessage]);
+
+  useEffect(() => {
+    if (activeModule !== "signature") return;
+    setSignatureNow(Date.now());
+    const timer = window.setInterval(() => setSignatureNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [activeModule]);
 
   useEffect(() => {
     const validProductIds = new Set(sellableProducts.map((product) => product.id));
@@ -4593,8 +4601,27 @@ function Pos({
     .reduce((sum, order) => sum + order.paidAmount, 0)
     + todayMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
   const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
-  const pendingSignatures = data.customerSignatures.filter((signature) => signature.status === "待签名").length;
+  const pendingSignatures = data.customerSignatures.filter((signature) => {
+    const context = signatureRecordContext(data, signature);
+    return signature.status === "待签名"
+      && !customerSignatureIsExpired(signature, signatureNow)
+      && signatureRecordCanCompleteService(context);
+  }).length;
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
+  const selectedSignatureContext = selectedSignature ? signatureRecordContext(data, selectedSignature) : undefined;
+  const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
+  const selectedSignatureLinkedToService = selectedSignatureContext ? signatureRecordCanCompleteService(selectedSignatureContext) : false;
+  const selectedSignatureCanComplete = Boolean(
+    selectedSignature
+    && selectedSignature.status === "待签名"
+    && !selectedSignatureExpired
+    && selectedSignatureLinkedToService,
+  );
+  const selectedSignatureBlockMessage = selectedSignature && selectedSignature.status === "待签名" && !selectedSignatureCanComplete
+    ? selectedSignatureExpired
+      ? "签名链接已过期，请重新生成签名后再让客户确认。"
+      : "这条签名未关联服务订单，不能作为服务完成签名。"
+    : undefined;
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
   );
@@ -4704,8 +4731,9 @@ function Pos({
 
   const signSelectedSignature = () => {
     setSignatureMessage(undefined);
-    if (!selectedSignature || selectedSignature.status !== "待签名") {
-      setSignatureMessage({ type: "error", text: "请选择待签名记录。" });
+    const signatureToSign = selectedSignature;
+    if (!signatureToSign || !selectedSignatureCanComplete) {
+      setSignatureMessage({ type: "error", text: selectedSignatureBlockMessage ?? "请选择可完成的服务签名记录。" });
       return;
     }
     if (!signatureSignerName.trim()) {
@@ -4718,12 +4746,12 @@ function Pos({
       return;
     }
     void runMutation(() =>
-      actions.signCustomerSignature(selectedSignature.id, {
+      actions.signCustomerSignature(signatureToSign.id, {
         signerName: signatureSignerName.trim(),
         signatureText: canvas.toDataURL("image/png"),
       }),
     ).then((nextData) => {
-      const signedSignature = nextData.customerSignatures.find((signature) => signature.id === selectedSignature.id);
+      const signedSignature = nextData.customerSignatures.find((signature) => signature.id === signatureToSign.id);
       if (signedSignature) setSelectedSignatureId(signedSignature.id);
       setSignatureMessage({ type: "success", text: "服务确认签名已完成。" });
     }).catch((caught) => {
@@ -5502,19 +5530,23 @@ function Pos({
           columns={["客户", "服务项目", "状态", "签名人", "签名时间", "关联记录", "操作"]}
           rows={(data.customerSignatures ?? []).map((signature) => {
             const context = signatureRecordContext(data, signature);
+            const isExpired = customerSignatureIsExpired(signature, signatureNow);
+            const canCompleteService = signature.status === "待签名" && !isExpired && signatureRecordCanCompleteService(context);
             return [
               context.customerName,
               context.serviceName,
-              <Badge key={`${signature.id}-status`} text={signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+              <Badge key={`${signature.id}-status`} text={isExpired ? "已过期" : signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
               signature.signerName ?? "-",
               signature.signedAt ? shortDate(signature.signedAt) : "-",
               context.orderNo !== "-" ? context.orderNo : signature.serviceRecordId ? "服务档案" : "未关联",
               <span className="signature-record-actions" key={`${signature.id}-actions`}>
-                {signature.status === "待签名" && (
+                {canCompleteService ? (
                   <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
                     现场签名
                   </button>
-                )}
+                ) : signature.status === "待签名" ? (
+                  <span className="signature-action-note">{isExpired ? "已过期" : "未关联服务"}</span>
+                ) : null}
                 <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
                   查看详情
                 </button>
@@ -5522,7 +5554,10 @@ function Pos({
             ];
           })}
         />
-        {selectedSignature?.status === "待签名" && (
+        {selectedSignatureBlockMessage && (
+          <p className="signature-blocked-message">{selectedSignatureBlockMessage}</p>
+        )}
+        {selectedSignatureCanComplete && (
           <div className="refund-inline-signature">
             <div className="checkout-product-section-head">
               <span>现场签名</span>
@@ -5548,7 +5583,7 @@ function Pos({
             {signatureMessage && <p className={signatureMessage.type === "success" ? "form-success" : "form-error"}>{signatureMessage.text}</p>}
           </div>
         )}
-        {selectedSignature?.status === "待签名" && (
+        {selectedSignatureCanComplete && (
           <div className="signature-complete-actions">
             <button type="button" className="signature-complete-button" disabled={mutationPending} onClick={signSelectedSignature}>
               <LockKeyhole size={18} />
@@ -8711,6 +8746,16 @@ function signatureRecordContext(data: AppData, signature: CustomerSignature) {
     serviceRecord,
     staffName: staffId ? nameOf(data.staff, staffId) : "-",
   };
+}
+
+function customerSignatureIsExpired(signature: CustomerSignature, nowMs = Date.now()) {
+  return signature.status === "待签名"
+    && Boolean(signature.expiresAt)
+    && +new Date(signature.expiresAt ?? "") <= nowMs;
+}
+
+function signatureRecordCanCompleteService(context: ReturnType<typeof signatureRecordContext>) {
+  return Boolean(context.order?.serviceId || context.serviceRecord?.serviceId);
 }
 
 function SignatureRecordDetail({ data, signature }: { data: AppData; signature: CustomerSignature }) {

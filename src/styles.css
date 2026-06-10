@@ -5534,6 +5534,30 @@ html[data-theme="day"],
   align-items: center;
 }
 
+.signature-action-note {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(190, 18, 60, 0.08);
+  color: #be123c;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.signature-blocked-message {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(190, 18, 60, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 241, 242, 0.78);
+  color: #9f1239;
+  font-size: 14px;
+  font-weight: 850;
+}
+
 .signature-record-detail {
   display: grid;
   gap: 16px;
