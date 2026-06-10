@@ -61,6 +61,11 @@ try {
   assert.ok(posSlice.data.products, "POS slice should include products");
   assert.equal("storeOwnerApplications" in posSlice.data, false, "POS slice should omit unrelated platform application data");
   assert.ok(JSON.stringify(posSlice).length < JSON.stringify(initialData).length, "view slice should be smaller than full AppData");
+  const appointmentSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=appointments", {
+    token: session.token,
+    headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "appointments" },
+  });
+  assert.ok(appointmentSlice.data.customerSignatures, "appointments slice should include service signatures for workflow columns");
   const customerMutationSlice = await request<AppDataSlice>(baseUrl, "/api/customers", {
     method: "POST",
     token: session.token,

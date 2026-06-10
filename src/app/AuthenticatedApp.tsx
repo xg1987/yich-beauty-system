@@ -3724,22 +3724,15 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const bookedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
   const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
-  const pendingServiceSignatureTasks = data.customerSignatures
-    .filter((signature) => signature.status === "待签名")
-    .map((signature) => {
-      const order = signature.orderId ? data.orders.find((item) => item.id === signature.orderId) : undefined;
-      const appointment = order?.appointmentId ? data.appointments.find((item) => item.id === order.appointmentId) : undefined;
-      return { signature, order, appointment };
+  const pendingServiceSignatureTasks = completedRangeAppointments
+    .map((appointment) => {
+      const order = data.orders.find((item) => item.appointmentId === appointment.id && item.status !== "已退款");
+      const signature = order ? data.customerSignatures.find((item) => item.orderId === order.id && item.title === "服务完成确认签名") : undefined;
+      return { appointment, order, signature };
     })
-    .filter((item): item is { signature: CustomerSignature; order: Order; appointment: Appointment } => {
-      const { order, appointment } = item;
-      return Boolean(
-        order
-        && appointment
-        && appointment.status === "已完成"
-        && visibleRangeAppointments.some((rangeAppointment) => rangeAppointment.id === appointment.id),
-      );
-    })
+    .filter((item): item is { appointment: Appointment; order: Order; signature: CustomerSignature | undefined } =>
+      Boolean(item.order && item.signature?.status !== "已签名"),
+    )
     .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
@@ -3846,17 +3839,17 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     </article>
   );
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
-  const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature; order: Order; appointment: Appointment }) => (
-    <article className="appointment-work-card status-待签名" key={signature.id}>
+  const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature | undefined; order: Order; appointment: Appointment }) => (
+    <article className="appointment-work-card status-待签名" key={signature?.id ?? appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
-        <Badge text="待服务签名" tone="warn" />
-        <strong>{nameOf(data.customers, signature.customerId)}</strong>
+        <Badge text={signature ? "待服务签名" : "待生成签名"} tone="warn" />
+        <strong>{nameOf(data.customers, appointment.customerId)}</strong>
         <span>{nameOf(data.services, order.serviceId)} · {nameOf(data.staff, order.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"} · {order.orderNo}</small>
       </div>
       <div className="appointment-work-card-actions">
-        <button type="button" onClick={() => window.location.assign(signatureUrl(signature.token))}>生成签名</button>
+        {signature && <button type="button" onClick={() => window.location.assign(signatureUrl(signature.token))}>生成签名</button>}
         <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>
       </div>
     </article>

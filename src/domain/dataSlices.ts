@@ -38,6 +38,7 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "staffUnavailableSlots",
     "staffShifts",
     "orders",
+    "customerSignatures",
   ],
   pos: [
     "customers",
