@@ -1214,6 +1214,7 @@ try {
       customerId: "c1",
       staffId: "s3",
       serviceId: "v1",
+      serviceIds: ["v1", "v2"],
       startAt: futureIso(36, "08:00"),
       endAt: futureIso(36, "09:00"),
       roomName: "护理房 1",
@@ -1221,6 +1222,7 @@ try {
     },
   });
   const checkoutAppointmentId = afterArrivedAppointment.appointments[0].id;
+  assert.deepEqual(afterArrivedAppointment.appointments[0].serviceIds, ["v1", "v2"], "appointment API should persist multiple services");
   await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(checkoutAppointmentId)}`, {
     method: "PATCH",
     token: session.token,
@@ -1232,12 +1234,13 @@ try {
     body: {
       customerId: "c1",
       staffId: "s3",
-      serviceId: "v1",
+      serviceId: "v2",
       appointmentId: checkoutAppointmentId,
       payMethod: "微信",
     },
   });
   assert.equal(afterAppointmentCheckout.orders[0].appointmentId, checkoutAppointmentId, "checkout API should link arrived appointment");
+  assert.equal(afterAppointmentCheckout.orders[0].serviceId, "v2", "checkout API should allow one of appointment services");
   assert.equal(afterAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已完成", "checkout API should complete appointment");
   assert.equal(afterAppointmentCheckout.customerSignatures[0].orderId, afterAppointmentCheckout.orders[0].id, "checkout API should create pending signature after service checkout");
   await assert.rejects(
@@ -1248,7 +1251,7 @@ try {
         body: {
           customerId: "c1",
           staffId: "s3",
-          serviceId: "v2",
+          serviceId: "v3",
           appointmentId: checkoutAppointmentId,
           payMethod: "微信",
         },

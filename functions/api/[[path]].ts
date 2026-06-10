@@ -713,6 +713,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           customerId: requiredString(body, "customerId"),
           staffId: requiredString(body, "staffId"),
           serviceId: requiredString(body, "serviceId"),
+          serviceIds: optionalStringArray(body, "serviceIds"),
           startAt: requiredString(body, "startAt"),
           endAt: optionalString(body, "endAt"),
           roomName: requiredString(body, "roomName"),
@@ -722,9 +723,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const appointment = appointedData.appointments[0];
       const customer = appointedData.customers.find((item) => item.id === appointment.customerId);
       const service = appointedData.services.find((item) => item.id === appointment.serviceId);
+      const serviceNames = (appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId])
+        .map((serviceId) => appointedData.services.find((item) => item.id === serviceId)?.name)
+        .filter(Boolean)
+        .join("、");
       const nextData = addSystemNotification(appointedData, {
         title: "新的到店预约",
-        desc: `${customer?.name ?? "客户"} · ${service?.name ?? "项目"} · ${shortTimeText(appointment.startAt)}`,
+        desc: `${customer?.name ?? "客户"} · ${serviceNames || service?.name || "项目"} · ${shortTimeText(appointment.startAt)}`,
         view: "appointments",
         targetType: "appointment",
         targetId: appointment.id,
@@ -781,6 +786,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           appointmentId,
           staffId: optionalString(body, "staffId"),
           serviceId: optionalString(body, "serviceId"),
+          serviceIds: optionalStringArray(body, "serviceIds"),
           startAt: requiredString(body, "startAt"),
           endAt: optionalString(body, "endAt"),
           roomName: optionalString(body, "roomName"),

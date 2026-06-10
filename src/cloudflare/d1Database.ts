@@ -528,12 +528,13 @@ export class D1BeautyDatabase {
 
     for (const appointment of data.appointments) {
       statements.push(
-        this.statement("INSERT INTO appointments (id, storeId, customerId, staffId, serviceId, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO appointments (id, storeId, customerId, staffId, serviceId, serviceIds_json, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           appointment.id,
           appointment.storeId ?? null,
           appointment.customerId,
           appointment.staffId,
           appointment.serviceId,
+          JSON.stringify(appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId]),
           appointment.startAt,
           appointment.endAt ?? null,
           appointment.roomName ?? null,
@@ -883,10 +884,12 @@ function mapProduct(row: unknown): Product {
 }
 
 function mapAppointment(row: unknown): Appointment {
-  const value = row as Appointment;
+  const value = row as Appointment & { serviceIds_json?: string | null };
+  const { serviceIds_json: serviceIdsJson, ...appointment } = value;
   return {
-    ...value,
-    storeId: value.storeId ?? undefined,
+    ...appointment,
+    storeId: appointment.storeId ?? undefined,
+    serviceIds: parseJsonArray<string>(serviceIdsJson),
     endAt: value.endAt ?? undefined,
     roomName: value.roomName ?? undefined,
     arrivedAt: value.arrivedAt ?? undefined,

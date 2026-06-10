@@ -24,14 +24,23 @@ export type AppointmentRoomUsage = {
   roomCapacity: number;
 };
 
-export function appointmentEndAt(appointment: Pick<Appointment, "serviceId" | "startAt" | "endAt">, services: Service[] = []) {
+export function appointmentServiceIds(appointment: Pick<Appointment, "serviceId" | "serviceIds">) {
+  const ids = appointment.serviceIds?.filter(Boolean) ?? [];
+  return ids.length ? Array.from(new Set(ids)) : [appointment.serviceId].filter(Boolean);
+}
+
+export function appointmentEndAt(appointment: Pick<Appointment, "serviceId" | "serviceIds" | "startAt" | "endAt">, services: Service[] = []) {
   const startAt = new Date(appointment.startAt);
   const savedEndAt = appointment.endAt ? new Date(appointment.endAt) : undefined;
   if (!Number.isNaN(startAt.getTime()) && savedEndAt && !Number.isNaN(savedEndAt.getTime()) && savedEndAt > startAt) {
     return savedEndAt;
   }
-  const service = services.find((item) => item.id === appointment.serviceId);
-  const minutes = service?.duration && service.duration > 0 ? service.duration : 60;
+  const selectedServices = appointmentServiceIds(appointment)
+    .map((serviceId) => services.find((item) => item.id === serviceId))
+    .filter((service): service is Service => Boolean(service));
+  const minutes = selectedServices.length
+    ? selectedServices.reduce((sum, service) => sum + (service.duration && service.duration > 0 ? service.duration : 60), 0)
+    : 60;
   return new Date(startAt.getTime() + minutes * 60 * 1000);
 }
 

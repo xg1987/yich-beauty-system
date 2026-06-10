@@ -159,7 +159,7 @@ export function createApiClient(getToken: () => string | undefined) {
       }),
     adjustInventory: (body: { productId: string; type: InventoryLog["type"]; quantity: number; note?: string; expiryAt?: string }) =>
       request<AppData>("/api/inventory/adjust", { method: "POST", body, token: getToken() }),
-    addAppointment: (body: { customerId: string; staffId: string; serviceId: string; startAt: string; endAt: string; roomName: string; note: string }) =>
+    addAppointment: (body: { customerId: string; staffId: string; serviceId: string; serviceIds?: string[]; startAt: string; endAt: string; roomName: string; note: string }) =>
       request<AppData>("/api/appointments", { method: "POST", body, token: getToken() }),
     addStaffUnavailableSlot: (body: { staffId: string; startAt: string; endAt: string; reason: string }) =>
       request<AppData>("/api/staff-unavailable-slots", { method: "POST", body, token: getToken() }),
@@ -171,7 +171,7 @@ export function createApiClient(getToken: () => string | undefined) {
         body: { status, reason },
         token: getToken(),
       }),
-    rescheduleAppointment: (id: string, body: { staffId?: string; serviceId?: string; startAt: string; endAt?: string; roomName?: string; note?: string }) =>
+    rescheduleAppointment: (id: string, body: { staffId?: string; serviceId?: string; serviceIds?: string[]; startAt: string; endAt?: string; roomName?: string; note?: string }) =>
       request<AppData>(`/api/appointments/${encodeURIComponent(id)}/reschedule`, {
         method: "POST",
         body,

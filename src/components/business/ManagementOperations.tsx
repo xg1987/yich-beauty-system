@@ -2,7 +2,7 @@ import { CalendarDays, CreditCard, Search } from "lucide-react";
 import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { ApiActions } from "../../hooks/useApiData";
 import type { AppData, CashPayMethod, MemberCard, MemberCardTransaction, Order, Staff, StaffShift } from "../../domain/types";
-import { appointmentEndAt } from "../../domain/appointments";
+import { appointmentEndAt, appointmentServiceIds } from "../../domain/appointments";
 import { calculateMemberCardRefundQuote } from "../../domain/business";
 import { money, shortDate } from "../../domain/utils";
 import { Badge } from "../ui/Badge";
@@ -24,6 +24,10 @@ type MemberCardRefundTab = typeof memberCardRefundTabs[number];
 
 function nameOf(collection: Array<{ id: string; name: string }>, id: string) {
   return collection.find((item) => item.id === id)?.name ?? "-";
+}
+
+function appointmentServiceNames(data: AppData, appointment: { serviceId: string; serviceIds?: string[] }) {
+  return appointmentServiceIds(appointment).map((serviceId) => nameOf(data.services, serviceId)).join("、") || "-";
 }
 
 function memberCardTabOf(card: MemberCard): MemberCardRefundTab {
@@ -700,7 +704,7 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
                             <p key={`appointment-only-${date.toISOString()}-${staffId}`}>
                               <span>{nameOf(data.staff, staffId)}</span>
                               <em>未排班</em>
-                              <i>{staffAppointments.map((appointment) => `${timeOnly(appointment.startAt)} ${appointment.roomName || "未分房"} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`).join("；")}</i>
+                              <i>{staffAppointments.map((appointment) => `${timeOnly(appointment.startAt)} ${appointment.roomName || "未分房"} · ${nameOf(data.customers, appointment.customerId)} · ${appointmentServiceNames(data, appointment)}`).join("；")}</i>
                             </p>
                           );
                         })}
@@ -739,7 +743,7 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
                           const appointment = staffAppointments.find((item) => intervalsOverlap(slot.startAt, slot.endAt, item.startAt, appointmentEndAt(item, data.services).toISOString()));
                           const block = staffBlocks.find((item) => intervalsOverlap(slot.startAt, slot.endAt, item.startAt, item.endAt));
                           const status = appointment
-                            ? `${appointment.roomName || "未分房"} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`
+                            ? `${appointment.roomName || "未分房"} · ${nameOf(data.customers, appointment.customerId)} · ${appointmentServiceNames(data, appointment)}`
                             : block ? "不可约" : "空闲";
                           return (
                             <span className={appointment ? "occupied" : block ? "blocked" : "free"} key={`${shift.id}-${slot.startAt}`}>
@@ -754,7 +758,7 @@ export function StaffScheduleManagement({ data }: ManagementOperationProps) {
                         {staffAppointments.map((appointment) => (
                           <span className="occupied" key={appointment.id}>
                             <strong>{timeRange(appointment.startAt, appointmentEndAt(appointment, data.services).toISOString())}</strong>
-                            <em>{appointment.roomName || "未分房"} · {nameOf(data.customers, appointment.customerId)} · {nameOf(data.services, appointment.serviceId)}</em>
+                            <em>{appointment.roomName || "未分房"} · {nameOf(data.customers, appointment.customerId)} · {appointmentServiceNames(data, appointment)}</em>
                           </span>
                         ))}
                       </div>

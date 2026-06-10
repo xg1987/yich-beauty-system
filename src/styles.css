@@ -15982,6 +15982,11 @@ textarea,
   background: rgba(255, 255, 255, 0.78);
 }
 
+.checkout-service-stack {
+  display: grid;
+  gap: 8px;
+}
+
 .checkout-service-line > div:first-child {
   min-width: 0;
   display: grid;
@@ -16174,6 +16179,13 @@ textarea,
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+}
+
+.compact-service-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  max-height: 300px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .product-picker-card {

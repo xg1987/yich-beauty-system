@@ -53,7 +53,7 @@ import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
 import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
 import { buildCashierFlowRecords } from "../domain/cashierFlow";
-import { appointmentEndAt, appointmentRangeMap, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "../domain/appointments";
+import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import {
   formatProductStockWithServiceUnits,
@@ -435,6 +435,10 @@ function shortTime(iso: string) {
 
 function appointmentTimeRange(data: AppData, appointment: Appointment) {
   return `${shortDate(appointment.startAt)}-${shortTime(appointmentEndAt(appointment, data.services).toISOString())}`;
+}
+
+function appointmentServiceNames(data: AppData, appointment: Pick<Appointment, "serviceId" | "serviceIds">) {
+  return appointmentServiceIds(appointment).map((serviceId) => nameOf(data.services, serviceId)).join("、") || "未选择项目";
 }
 
 function isActiveRoomAppointment(appointment: Appointment) {
@@ -3524,6 +3528,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
+  const [serviceIds, setServiceIds] = useState<string[]>(() => data.services[0]?.id ? [data.services[0].id] : []);
   const [startAt, setStartAt] = useState(toLocalInputValue(tomorrowAt(11)));
   const [endAt, setEndAt] = useState(toLocalInputValue(tomorrowAt(12)));
   const [note, setNote] = useState("");
@@ -3544,6 +3549,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [selectedAppointmentDetailId, setSelectedAppointmentDetailId] = useState("");
   const [rescheduleStaffId, setRescheduleStaffId] = useState(firstBusinessStaffId(data));
   const [rescheduleServiceId, setRescheduleServiceId] = useState(data.services[0]?.id ?? "");
+  const [rescheduleServiceIds, setRescheduleServiceIds] = useState<string[]>(() => data.services[0]?.id ? [data.services[0].id] : []);
   const [rescheduleStartAt, setRescheduleStartAt] = useState(toLocalInputValue(tomorrowAt(12)));
   const [rescheduleEndAt, setRescheduleEndAt] = useState(toLocalInputValue(tomorrowAt(13)));
   const [rescheduleNote, setRescheduleNote] = useState("");
@@ -3567,6 +3573,23 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   }, [blockedStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
 
   useEffect(() => {
+    const validIds = new Set(data.services.map((service) => service.id));
+    const fallbackServiceId = data.services[0]?.id ?? "";
+    setServiceIds((current) => {
+      const nextIds = current.filter((id) => validIds.has(id));
+      if (nextIds.length) return nextIds;
+      return fallbackServiceId ? [fallbackServiceId] : [];
+    });
+    setServiceId((current) => validIds.has(current) ? current : fallbackServiceId);
+    setRescheduleServiceIds((current) => {
+      const nextIds = current.filter((id) => validIds.has(id));
+      if (nextIds.length) return nextIds;
+      return fallbackServiceId ? [fallbackServiceId] : [];
+    });
+    setRescheduleServiceId((current) => validIds.has(current) ? current : fallbackServiceId);
+  }, [data.services]);
+
+  useEffect(() => {
     const currentStartAt = new Date(startAt);
     const currentEndAt = new Date(endAt);
     if (Number.isNaN(currentStartAt.getTime())) return;
@@ -3582,6 +3605,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         customerId,
         staffId,
         serviceId,
+        serviceIds,
         startAt: new Date(startAt).toISOString(),
         endAt: new Date(endAt).toISOString(),
         roomName,
@@ -3602,6 +3626,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     setActiveAppointmentAction("reschedule");
     setRescheduleStaffId(appointment.staffId);
     setRescheduleServiceId(appointment.serviceId);
+    setRescheduleServiceIds(appointmentServiceIds(appointment));
     setRescheduleStartAt(toLocalInputValue(appointment.startAt));
     setRescheduleEndAt(toLocalInputValue(appointmentEndAt(appointment, data.services).toISOString()));
     setRescheduleRoomName(appointment.roomName ?? roomNames[0] ?? "");
@@ -3626,6 +3651,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
       actions.rescheduleAppointment(appointmentId, {
         staffId: rescheduleStaffId,
         serviceId: rescheduleServiceId,
+        serviceIds: rescheduleServiceIds,
         startAt: new Date(rescheduleStartAt).toISOString(),
         endAt: new Date(rescheduleEndAt).toISOString(),
         roomName: rescheduleRoomName,
@@ -3665,14 +3691,31 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     setAppointmentServicePickerOpen(true);
   };
 
-  const selectAppointmentService = (nextServiceId: string) => {
-    setServiceId(nextServiceId);
+  const toggleAppointmentService = (nextServiceId: string) => {
+    setServiceIds((current) => {
+      const nextIds = current.includes(nextServiceId)
+        ? current.filter((id) => id !== nextServiceId)
+        : [...current, nextServiceId];
+      const normalizedIds = nextIds.length ? nextIds : [nextServiceId];
+      setServiceId(normalizedIds[0]);
+      return normalizedIds;
+    });
     const currentStartAt = new Date(startAt);
     const currentEndAt = new Date(endAt);
     if (!Number.isNaN(currentStartAt.getTime()) && (!Number.isFinite(currentEndAt.getTime()) || !(currentStartAt < currentEndAt))) {
       setEndAt(toLocalInputValue(new Date(currentStartAt.getTime() + 60 * 60 * 1000).toISOString()));
     }
-    setAppointmentServicePickerOpen(false);
+  };
+
+  const toggleRescheduleService = (nextServiceId: string) => {
+    setRescheduleServiceIds((current) => {
+      const nextIds = current.includes(nextServiceId)
+        ? current.filter((id) => id !== nextServiceId)
+        : [...current, nextServiceId];
+      const normalizedIds = nextIds.length ? nextIds : [nextServiceId];
+      setRescheduleServiceId(normalizedIds[0]);
+      return normalizedIds;
+    });
   };
 
   const addBlockedSlot = (event: FormEvent) => {
@@ -3741,7 +3784,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     );
   const pendingServiceSignatureTasks = [...arrivedServiceSignatureTasks, ...completedServiceSignatureTasks]
     .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
-  const selectedService = data.services.find((item) => item.id === serviceId);
+  const selectedServices = serviceIds.map((id) => data.services.find((item) => item.id === id)).filter((service): service is Service => Boolean(service));
+  const selectedService = selectedServices[0] ?? data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
   const selectedTimeRangeInvalid = Number.isNaN(selectedStartAt.getTime()) || Number.isNaN(selectedEndAt.getTime()) || !(selectedStartAt < selectedEndAt);
@@ -3820,7 +3864,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         <time>{appointmentTimeRange(data, appointment)}</time>
         <Badge text="已预约" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
-        <span>{nameOf(data.services, appointment.serviceId)} · {nameOf(data.staff, appointment.staffId)}</span>
+        <span>{appointmentServiceNames(data, appointment)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
       <div className="appointment-work-card-actions">
@@ -3835,7 +3879,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         <time>{appointmentTimeRange(data, appointment)}</time>
         <Badge text="待确认到店" tone="ok" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
-        <span>{nameOf(data.services, appointment.serviceId)} · {nameOf(data.staff, appointment.staffId)}</span>
+        <span>{appointmentServiceNames(data, appointment)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
       <div className="appointment-work-card-actions">
@@ -3846,17 +3890,20 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     </article>
   );
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
+  const openSignaturePage = (token: string) => {
+    window.open(signatureUrl(token), "_blank", "noopener,noreferrer");
+  };
   const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature | undefined; order?: Order; appointment: Appointment }) => (
     <article className="appointment-work-card status-待签名" key={signature?.id ?? appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
         <Badge text={signature ? "待服务签名" : order ? "待生成签名" : "已到店待服务"} tone="warn" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
-        <span>{nameOf(data.services, order?.serviceId ?? appointment.serviceId)} · {nameOf(data.staff, order?.staffId ?? appointment.staffId)}</span>
+        <span>{order ? nameOf(data.services, order.serviceId) : appointmentServiceNames(data, appointment)} · {nameOf(data.staff, order?.staffId ?? appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
-        {signature && <button type="button" onClick={() => window.location.assign(signatureUrl(signature.token))}>生成签名</button>}
+        {signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>生成签名</button>}
         {!signature && !order && (
           <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
             进入收银
@@ -3991,7 +4038,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 rows={completedRangeAppointments.slice(0, 20).map((appointment) => [
                   appointmentTimeRange(data, appointment),
                   nameOf(data.customers, appointment.customerId),
-                  nameOf(data.services, appointment.serviceId),
+                  appointmentServiceNames(data, appointment),
                   nameOf(data.staff, appointment.staffId),
                   appointment.roomName ?? "-",
                   <Badge key={`${appointment.id}-status`} text={appointmentStatusText(appointment.status)} tone={appointmentBadgeTone(appointment.status)} />,
@@ -4011,7 +4058,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 </div>
                 <dl>
                   <div><dt>客户</dt><dd>{nameOf(data.customers, selectedCompletedAppointment.customerId)}</dd></div>
-                  <div><dt>项目</dt><dd>{nameOf(data.services, selectedCompletedAppointment.serviceId)}</dd></div>
+                  <div><dt>项目</dt><dd>{appointmentServiceNames(data, selectedCompletedAppointment)}</dd></div>
                   <div><dt>员工</dt><dd>{nameOf(data.staff, selectedCompletedAppointment.staffId)}</dd></div>
                   <div><dt>房间</dt><dd>{selectedCompletedAppointment.roomName ?? "-"}</dd></div>
                   <div><dt>预约时间</dt><dd>{appointmentTimeRange(data, selectedCompletedAppointment)}</dd></div>
@@ -4104,7 +4151,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 roomName,
                 appointmentTimeRange(data, appointment),
                 nameOf(data.customers, appointment.customerId),
-                nameOf(data.services, appointment.serviceId),
+                appointmentServiceNames(data, appointment),
                 <Badge key={`${appointment.id}-room-status`} text={appointment.status} tone={appointmentBadgeTone(appointment.status)} />,
               ])}
             />
@@ -4135,13 +4182,17 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                   选择项目
                 </button>
               </div>
-              {selectedService ? (
-                <div className="checkout-service-line">
-                  <div>
-                    <strong>{selectedService.name}</strong>
-                    <span>{selectedService.category || "未分类"} · {selectedService.duration} 分钟</span>
-                  </div>
-                  <span>{money(selectedService.price)}</span>
+              {selectedServices.length ? (
+                <div className="checkout-service-stack">
+                  {selectedServices.map((service) => (
+                    <div className="checkout-service-line" key={service.id}>
+                      <div>
+                        <strong>{service.name}</strong>
+                        <span>{service.category || "未分类"} · {service.duration} 分钟</span>
+                      </div>
+                      <span>{money(service.price)}</span>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="checkout-product-empty">还没有选择项目</div>
@@ -4189,7 +4240,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
             {selectedTimeConflict && <p className="form-warning">该员工在此时间段有不可预约安排，建议调整时间</p>}
             <div className="row-actions">
-              <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={!staffId || !serviceId || !roomName || selectedTimeRangeInvalid} />
+              <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={!staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid} />
               <button type="button" onClick={() => setShowAppointmentForm(false)}>取消</button>
             </div>
           </form>
@@ -4226,9 +4277,9 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             {appointmentServicePickerServices.length ? appointmentServicePickerServices.map((service) => (
               <button
                 type="button"
-                className={`product-picker-card service-picker-card ${service.id === serviceId ? "selected" : ""}`}
+                className={`product-picker-card service-picker-card ${serviceIds.includes(service.id) ? "selected" : ""}`}
                 key={service.id}
-                onClick={() => selectAppointmentService(service.id)}
+                onClick={() => toggleAppointmentService(service.id)}
               >
                 <div>
                   <strong>{service.name}</strong>
@@ -4257,9 +4308,26 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
           <div className="appointment-service-picker">
             <div className="checkout-product-section-head">
               <span>服务项目</span>
-              <strong>{nameOf(data.services, rescheduleServiceId)}</strong>
+              <strong>{rescheduleServiceIds.map((id) => nameOf(data.services, id)).join("、") || "未选择"}</strong>
             </div>
-            <Select label="选择项目" value={rescheduleServiceId} onChange={setRescheduleServiceId} options={data.services.map(optionOf)} />
+            <div className="product-picker-grid compact-service-grid">
+              {data.services.map((service) => (
+                <button
+                  type="button"
+                  className={`product-picker-card service-picker-card ${rescheduleServiceIds.includes(service.id) ? "selected" : ""}`}
+                  key={service.id}
+                  onClick={() => toggleRescheduleService(service.id)}
+                >
+                  <div>
+                    <strong>{service.name}</strong>
+                    <span>{service.category || "未分类"} · {service.duration} 分钟</span>
+                  </div>
+                  <div className="product-picker-card-meta">
+                    <span>{money(service.price)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
           <div className="appointment-time-grid">
             <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={setRescheduleStartAt} />
@@ -4271,7 +4339,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             <textarea value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="改约原因或客户偏好" />
           </label>
           <div className="row-actions">
-            <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={!rescheduleStaffId || !rescheduleServiceId || !rescheduleRoomName} />
+            <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={!rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName} />
             <button type="button" onClick={closeAppointmentAction}>取消</button>
           </div>
         </form>
@@ -4889,11 +4957,7 @@ function Pos({
       setDiscountAmount(0);
       setCheckoutDiscountRateInput("");
       setAdjustmentReason("");
-      if (pendingSignature) {
-        window.location.assign(signatureUrl(pendingSignature.token));
-        return;
-      }
-      const signatureHint = usesService && usesCustomer ? "待签名记录已生成，请从服务确认签名进入。" : "";
+      const signatureHint = pendingSignature || (usesService && usesCustomer) ? "待签名记录已生成，请从预约的服务确认签名进入。" : "";
       setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。${signatureHint}` : `下单成功，订单已生成。${signatureHint}`);
       checkoutRequestIdRef.current = makeId("checkout");
       if (fromManagement && onReturnManagement) {
@@ -5136,7 +5200,7 @@ function Pos({
                     className={appointment.id === appointmentId ? "active" : ""}
                     onClick={() => useAppointmentForCheckout(appointment.id)}
                   >
-                    <strong>{nameOf(data.customers, appointment.customerId)} · {nameOf(data.services, appointment.serviceId)}</strong>
+                    <strong>{nameOf(data.customers, appointment.customerId)} · {appointmentServiceNames(data, appointment)}</strong>
                     <span>{appointmentTimeRange(data, appointment)} · {appointment.roomName ?? "未分配房间"}</span>
                   </button>
                 ))}
@@ -5274,7 +5338,7 @@ function Pos({
                   { value: "", label: arrivedAppointments.length ? "不关联预约，直接开单" : "暂无待确认到店预约" },
                   ...arrivedAppointments.map((appointment) => ({
                     value: appointment.id,
-                    label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${nameOf(data.services, appointment.serviceId)}`,
+                    label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${appointmentServiceNames(data, appointment)}`,
                   })),
                 ]}
               />

@@ -291,7 +291,7 @@ export class BeautyDatabase {
     for (const appointment of data.appointments) {
       this.db
         .prepare(
-          "INSERT INTO appointments (id, storeId, customerId, staffId, serviceId, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO appointments (id, storeId, customerId, staffId, serviceId, serviceIds_json, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           appointment.id,
@@ -299,6 +299,7 @@ export class BeautyDatabase {
           appointment.customerId,
           appointment.staffId,
           appointment.serviceId,
+          JSON.stringify(appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId]),
           appointment.startAt,
           appointment.endAt ?? null,
           appointment.roomName ?? null,
@@ -590,6 +591,7 @@ export class BeautyDatabase {
         customerId TEXT NOT NULL,
         staffId TEXT NOT NULL,
         serviceId TEXT NOT NULL,
+        serviceIds_json TEXT,
         startAt TEXT NOT NULL,
         endAt TEXT,
         roomName TEXT,
@@ -846,6 +848,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("appointments", "updatedAt", "TEXT");
     this.addColumnIfMissing("appointments", "roomName", "TEXT");
     this.addColumnIfMissing("appointments", "endAt", "TEXT");
+    this.addColumnIfMissing("appointments", "serviceIds_json", "TEXT");
     this.addColumnIfMissing("dailyCloses", "status", "TEXT NOT NULL DEFAULT '已锁定'");
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
@@ -950,10 +953,12 @@ function mapProduct(row: unknown): Product {
 }
 
 function mapAppointment(row: unknown): Appointment {
-  const value = row as Appointment;
+  const value = row as Appointment & { serviceIds_json?: string | null };
+  const { serviceIds_json: serviceIdsJson, ...appointment } = value;
   return {
-    ...value,
-    storeId: value.storeId ?? undefined,
+    ...appointment,
+    storeId: appointment.storeId ?? undefined,
+    serviceIds: parseJsonArray<string>(serviceIdsJson),
     endAt: value.endAt ?? undefined,
     roomName: value.roomName ?? undefined,
     arrivedAt: value.arrivedAt ?? undefined,

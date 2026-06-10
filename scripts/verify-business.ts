@@ -1180,11 +1180,13 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
       customerId: "c1",
       staffId: "s3",
       serviceId: "v1",
+      serviceIds: ["v1", "v2"],
       startAt: "2026-05-25T02:00:00.000Z",
     },
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(data.appointments[0].staffId, "s3", "non-conflicting appointment should be created");
+  assert.deepEqual(data.appointments[0].serviceIds, ["v1", "v2"], "appointment should persist multiple selected services");
   assert.equal(data.appointments[0].updatedAt, fixedNow(), "appointment should stamp update time");
 
   assert.throws(
@@ -1248,13 +1250,14 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     {
       customerId: data.appointments[0].customerId,
       staffId: data.appointments[0].staffId,
-      serviceId: data.appointments[0].serviceId,
+      serviceId: "v2",
       appointmentId: data.appointments[0].id,
       payMethod: "微信",
     },
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(appointmentCheckout.orders[0].appointmentId, data.appointments[0].id, "checkout should link source appointment");
+  assert.equal(appointmentCheckout.orders[0].serviceId, "v2", "appointment checkout should allow any selected appointment service");
   assert.equal(appointmentCheckout.appointments[0].status, "已完成", "checkout should complete source appointment");
   assert.equal(appointmentCheckout.appointments[0].completedAt, fixedNow(), "checkout should stamp appointment completion");
   assert.equal(appointmentCheckout.customerSignatures[0].orderId, appointmentCheckout.orders[0].id, "appointment checkout should create a pending customer signature");
@@ -1266,7 +1269,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
         {
           customerId: data.appointments[0].customerId,
           staffId: data.appointments[0].staffId,
-          serviceId: "v2",
+          serviceId: "v3",
           appointmentId: data.appointments[0].id,
           payMethod: "微信",
         },

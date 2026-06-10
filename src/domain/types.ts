@@ -252,6 +252,7 @@ export type Appointment = {
   customerId: string;
   staffId: string;
   serviceId: string;
+  serviceIds?: string[];
   startAt: string;
   endAt?: string;
   roomName?: string;
