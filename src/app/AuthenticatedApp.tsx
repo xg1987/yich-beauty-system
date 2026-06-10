@@ -3722,9 +3722,15 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
   const bookedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
+  const arrivalConfirmationAppointments = bookedAppointments;
   const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
-  const pendingServiceSignatureTasks = completedRangeAppointments
+  const arrivedServiceSignatureTasks = arrivedAppointments.map((appointment) => {
+    const order = data.orders.find((item) => item.appointmentId === appointment.id && item.status !== "已退款");
+    const signature = order ? data.customerSignatures.find((item) => item.orderId === order.id && item.title === "服务完成确认签名") : undefined;
+    return { appointment, order, signature };
+  });
+  const completedServiceSignatureTasks = completedRangeAppointments
     .map((appointment) => {
       const order = data.orders.find((item) => item.appointmentId === appointment.id && item.status !== "已退款");
       const signature = order ? data.customerSignatures.find((item) => item.orderId === order.id && item.title === "服务完成确认签名") : undefined;
@@ -3732,7 +3738,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     })
     .filter((item): item is { appointment: Appointment; order: Order; signature: CustomerSignature | undefined } =>
       Boolean(item.order && item.signature?.status !== "已签名"),
-    )
+    );
+  const pendingServiceSignatureTasks = [...arrivedServiceSignatureTasks, ...completedServiceSignatureTasks]
     .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
   const selectedService = data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
@@ -3832,24 +3839,29 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
       <div className="appointment-work-card-actions">
-        <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
+        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
           确认到店
         </button>
       </div>
     </article>
   );
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
-  const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature | undefined; order: Order; appointment: Appointment }) => (
+  const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature | undefined; order?: Order; appointment: Appointment }) => (
     <article className="appointment-work-card status-待签名" key={signature?.id ?? appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
-        <Badge text={signature ? "待服务签名" : "待生成签名"} tone="warn" />
+        <Badge text={signature ? "待服务签名" : order ? "待生成签名" : "已到店待服务"} tone="warn" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
-        <span>{nameOf(data.services, order.serviceId)} · {nameOf(data.staff, order.staffId)}</span>
-        <small>{appointment.roomName ?? "未分配房间"} · {order.orderNo}</small>
+        <span>{nameOf(data.services, order?.serviceId ?? appointment.serviceId)} · {nameOf(data.staff, order?.staffId ?? appointment.staffId)}</span>
+        <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
         {signature && <button type="button" onClick={() => window.location.assign(signatureUrl(signature.token))}>生成签名</button>}
+        {!signature && !order && (
+          <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
+            进入收银
+          </button>
+        )}
         <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>
       </div>
     </article>
@@ -3867,8 +3879,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
       key: "arrival",
       title: "待确认到店",
       desc: "到店后进入收银",
-      value: arrivedAppointments.length,
-      renderItems: () => arrivedAppointments.slice(0, 6).map(renderArrivalAppointmentCard),
+      value: arrivalConfirmationAppointments.length,
+      renderItems: () => arrivalConfirmationAppointments.slice(0, 6).map(renderArrivalAppointmentCard),
       empty: "暂无待确认到店",
     },
     {
@@ -3940,8 +3952,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             </div>
             <div>
               <span>待确认到店</span>
-              <strong>{arrivedAppointments.length}</strong>
-              <small>到店后处理</small>
+              <strong>{arrivalConfirmationAppointments.length}</strong>
+              <small>预约确认</small>
             </div>
             <div>
               <span>待服务签名</span>
