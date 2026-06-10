@@ -478,6 +478,24 @@ try {
   const joinedStaffUser = dataAfterStaffJoin.authUsers.find((user) => user.account === "api-staff@test.local");
   assert.ok(joinedStaffUser, "staff invite join should create a pending auth user");
   assert.equal(joinedStaffUser.status, "pending", "joined staff user should wait for manager approval");
+  await assert.rejects(
+    () =>
+      request<{ token: string }>(baseUrl, "/api/auth/login", {
+        method: "POST",
+        body: { account: "api-staff@test.local", password: "wrong-secret" },
+      }),
+    /账号或密码不正确/,
+    "pending staff login with wrong password should keep generic credential error",
+  );
+  await assert.rejects(
+    () =>
+      request<{ token: string }>(baseUrl, "/api/auth/login", {
+        method: "POST",
+        body: { account: "api-staff@test.local", password: "secret" },
+      }),
+    /等待店长审批/,
+    "pending staff login should explain approval status",
+  );
   const afterApproveStaffUser = await request<AppData>(baseUrl, `/api/auth-users/${joinedStaffUser.id}/status`, {
     method: "PATCH",
     token: session.token,

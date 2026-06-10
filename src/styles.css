@@ -4710,6 +4710,19 @@ html[data-theme="day"],
   line-height: 1.45;
 }
 
+.login-field-notice {
+  display: block;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid rgba(217, 119, 6, 0.2);
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
 .login-card-join label {
   color: #615774;
   font-size: 13px;

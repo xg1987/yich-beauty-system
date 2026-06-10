@@ -28,6 +28,7 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
   const [joinAccount, setJoinAccount] = useState("");
   const [joinNotice, setJoinNotice] = useState<string | undefined>();
   const isOwnerInvite = isPlatformInviteCodeFormat(inviteCode);
+  const isPendingApprovalLogin = mode === "login" && error?.includes("等待店长审批");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -83,7 +84,7 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
             <div className="login-card-head">
               <strong>{mode === "login" ? "登录系统" : "邀请码加入"}</strong>
             </div>
-            {error && (
+            {error && !isPendingApprovalLogin && (
               <div className="login-error-toast" role="alert" aria-live="assertive">
                 {error}
               </div>
@@ -105,6 +106,11 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
               <label>
                 账号
                 <input value={account} onChange={(event) => setAccount(event.target.value)} />
+                {isPendingApprovalLogin && (
+                  <span className="login-field-notice" role="alert" aria-live="assertive">
+                    等待店长审批，通过后即可登录
+                  </span>
+                )}
               </label>
             )}
             <label>

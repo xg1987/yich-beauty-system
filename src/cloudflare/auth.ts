@@ -14,13 +14,19 @@ export type LoginResult = {
 export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<LoginResult> {
   const users = await readAuthUsers(db);
   const systemConfigs = await readSystemConfigs(db);
-  const user = users.find((item) => item.account === account && item.status === "active");
+  const user = users.find((item) => item.account === account);
   if (!user) {
     throw new Error("账号或密码不正确");
   }
 
   const { ok, needsMigration } = await verifyPasswordWithLegacySupport(password, user.password);
   if (!ok) {
+    throw new Error("账号或密码不正确");
+  }
+  if (user.status === "pending") {
+    throw new Error("账号正在等待店长审批，请通过后再登录");
+  }
+  if (user.status !== "active") {
     throw new Error("账号或密码不正确");
   }
 

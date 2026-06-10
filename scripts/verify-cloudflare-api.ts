@@ -169,6 +169,24 @@ const dataAfterTherapistJoin = await request<AppData>(baseUrl, "/api/data", { to
 const therapistUser = dataAfterTherapistJoin.authUsers.find((user) => user.account === `cf-therapist-${runId}@test.local`);
 assert.ok(therapistUser, "D1 should create pending therapist auth user");
 assert.equal(therapistUser.status, "pending", "D1 therapist user should wait for approval");
+await assert.rejects(
+  () =>
+    request<{ token: string }>(baseUrl, "/api/auth/login", {
+      method: "POST",
+      body: { account: `cf-therapist-${runId}@test.local`, password: "wrong-secret" },
+    }),
+  /账号或密码不正确/,
+  "D1 pending therapist login with wrong password should keep generic credential error",
+);
+await assert.rejects(
+  () =>
+    request<{ token: string }>(baseUrl, "/api/auth/login", {
+      method: "POST",
+      body: { account: `cf-therapist-${runId}@test.local`, password: "secret" },
+    }),
+  /等待店长审批/,
+  "D1 pending therapist login should explain approval status",
+);
 const afterTherapistApproval = await request<AppData>(baseUrl, `/api/auth-users/${therapistUser.id}/status`, {
   method: "PATCH",
   token: ownerSession.token,

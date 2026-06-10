@@ -117,6 +117,8 @@ export function useApiData() {
         localStorage.removeItem(STORE_NAME_KEY);
         setSession(undefined);
         setData(undefined);
+        setError(undefined);
+        return;
       }
       setError(message);
     } finally {
