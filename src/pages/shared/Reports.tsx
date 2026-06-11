@@ -196,7 +196,6 @@ export default function Reports({
         icon={<ChartNoAxesColumnIncreasing size={15} />}
         eyebrow="报表分析"
         title="报表分析"
-        desc="查看实收、退款、会员储值、员工提成与营业日结。"
         stats={[
           { label: "净收入", value: money(summary.netRevenue), hint: `退款 ${money(summary.refundAmount)}`, icon: <CreditCard size={18} /> },
           { label: "项目服务数", value: `${summary.serviceCount} 单`, hint: "已完成收银", icon: <Sparkles size={18} /> },

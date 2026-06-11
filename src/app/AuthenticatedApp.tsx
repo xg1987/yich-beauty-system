@@ -1813,7 +1813,6 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
         icon={<HeartHandshake size={15} />}
         eyebrow="客户档案"
         title="客户服务档案"
-        desc="客户资料、项目次数卡、到店服务记录和现场签名确认。"
         stats={[
           { label: "客户总数", value: `${data.customers.length} 人`, hint: "客户档案", icon: <UsersRound size={18} /> },
           { label: "项目卡", value: `${data.memberCards.length} 张`, hint: `${totalRemainingTimes} 次可核销`, icon: <CreditCard size={18} /> },
@@ -3161,7 +3160,6 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
         icon={<Megaphone size={18} />}
         eyebrow="AI智能营销"
         title="营销中心"
-        desc="产品图 · 文案 · 客群触达"
       />
 
       <section className="marketing-tool-grid" aria-label="营销工具">
@@ -4168,7 +4166,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     {
       key: "booked",
       title: "已预约",
-      desc: "新增预约后在这里",
       value: bookedAppointments.length,
       renderItems: () => bookedAppointments.slice(0, 6).map(renderBookedAppointmentCard),
       empty: "暂无已预约",
@@ -4176,7 +4173,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     {
       key: "arrival",
       title: "待确认到店",
-      desc: "到店后进入收银",
       value: arrivalConfirmationAppointments.length,
       renderItems: () => arrivalConfirmationAppointments.slice(0, 6).map(renderArrivalAppointmentCard),
       empty: "暂无待确认到店",
@@ -4184,7 +4180,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     {
       key: "signature",
       title: "待服务签名",
-      desc: "服务完成后客户确认",
       value: pendingServiceSignatureTasks.length,
       renderItems: () => pendingServiceSignatureTasks.slice(0, 6).map(renderServiceSignatureCard),
       empty: "暂无待签名服务",
@@ -4205,7 +4200,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         icon={<CalendarDays size={15} />}
         eyebrow="预约管理"
         title="预约管理"
-        desc="处理确认、到店、收银和房间安排。"
       />
       <div className="module-detail-stack">
         <section className="panel appointment-workbench-panel">
@@ -4213,7 +4207,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             <div>
               <span><ClipboardList size={18} /> 预约处理台</span>
               <strong>{selectedAppointmentRange.label}需要处理的预约</strong>
-              <small>确认、到店、收银都在这里完成。</small>
             </div>
             <div className="appointment-range-tabs" aria-label="预约日期筛选">
               {(["today", "tomorrow", "week"] as AppointmentRange[]).map((range) => (
@@ -4237,22 +4230,18 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             <div>
               <span>预约总数</span>
               <strong>{visibleRangeAppointments.length}</strong>
-              <small>{selectedAppointmentRange.label}范围</small>
             </div>
             <div>
               <span>已预约</span>
               <strong>{bookedAppointments.length}</strong>
-              <small>新增预约</small>
             </div>
             <div>
               <span>待确认到店</span>
               <strong>{arrivalConfirmationAppointments.length}</strong>
-              <small>预约确认</small>
             </div>
             <div>
               <span>待服务签名</span>
               <strong>{pendingServiceSignatureTasks.length}</strong>
-              <small>服务完成确认</small>
             </div>
           </div>
           <div className="appointment-workflow-grid">
@@ -4261,7 +4250,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 <div className="appointment-workflow-title">
                   <div>
                     <strong>{group.title}</strong>
-                    <span>{group.desc}</span>
                   </div>
                   <em>{group.value}</em>
                 </div>
@@ -5341,7 +5329,6 @@ function Pos({
         icon={<CreditCard size={15} />}
         eyebrow="开单收银"
         title="开单收银"
-        desc="完成项目开单、会员卡扣款、支付记录、提成计算与库存扣减。"
         stats={[
           { label: "今日收款", value: money(todayPaid), hint: `${todayOrders.length} 笔订单${todayMemberCardIncomeTransactions.length ? ` · 会员${todayMemberCardIncomeTransactions.length} 笔` : ""}`, icon: <ChartNoAxesColumnIncreasing size={18} /> },
           { label: "今日订单", value: `${todayOrders.length} 单`, hint: "当日收银记录", icon: <ClipboardList size={18} /> },
@@ -6402,7 +6389,6 @@ function Customers({
         icon={<UsersRound size={15} />}
         eyebrow="客户档案"
         title="客户管理"
-        desc="围绕客户查看资料、项目卡、到店记录、签名和跟进。"
         stats={[
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
           { label: "有效项目卡", value: `${activeCards.length} 张`, hint: `${totalRemainingTimes} 次可核销`, icon: <CreditCard size={18} /> },
@@ -7034,7 +7020,6 @@ function Catalog({
         icon={<Sparkles size={15} />}
         eyebrow="项目商品"
         title="项目商品"
-        desc="维护服务项目、商品资料、库存和标准价格。"
         stats={[
           { label: "服务项目", value: `${data.services.length} 个`, hint: "可用于预约/开单", icon: <Sparkles size={18} /> },
           { label: "商品资料", value: `${data.products.length} 个`, hint: "库存资料", icon: <Boxes size={18} /> },
@@ -7460,7 +7445,6 @@ function StaffCommissions({
         icon={<BadgeCent size={15} />}
         eyebrow="人员账号"
         title="人员账号"
-        desc="管理员工档案、邀请码、岗位权限与基础提成。"
         stats={[
           { label: "在职员工", value: `${activeStaff} 人`, hint: `${staffRows.length} 人档案`, icon: <UsersRound size={18} /> },
           { label: "待加入员工", value: `${pendingInvites} 个`, hint: "邀请未完成", icon: <LockKeyhole size={18} /> },
@@ -7992,7 +7976,6 @@ function Inventory({
         icon={<Boxes size={15} />}
         eyebrow="库存管理"
         title="库存管理"
-        desc="管理商品库、采购入库、库存流水和盘点差异。"
         stats={[
           { label: "库存品项", value: `${data.products.length} 个`, hint: `合计库存 ${stockValue}`, icon: <Boxes size={18} /> },
           { label: "低库存", value: `${lowStock} 项`, hint: "低于预警值 - 已增强提醒", icon: <PackagePlus size={18} /> },
@@ -8457,7 +8440,6 @@ function Approvals({
         icon={<ShieldCheck size={15} />}
         eyebrow="审批中心"
         title="审批中心"
-        desc="处理改价折扣、订单退款和门店例外审批。"
         stats={[
           { label: "待审批", value: `${pendingApprovals} 单`, hint: "需要处理", icon: <ShieldCheck size={18} /> },
           { label: "已通过", value: `${passedApprovals} 单`, hint: "可用于业务", icon: <ClipboardList size={18} /> },

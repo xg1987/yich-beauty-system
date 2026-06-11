@@ -75,7 +75,6 @@ export default function OperationLogs({ data, session: _session }: OperationLogs
         icon={<ClipboardList size={15} />}
         eyebrow="系统记录"
         title="操作日志"
-        desc="关键操作记录、业务变更和异常追踪。"
         stats={[
           { label: "总记录数", value: `${data.operationLogs?.length ?? 0} 条`, hint: "已记录操作", icon: <ClipboardList size={18} /> },
         ]}
