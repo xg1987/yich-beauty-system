@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { Server } from "node:http";
 import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
-import { platformInviteCodeForUser } from "../src/domain/business";
+import { defaultSystemConfigs, platformInviteCodeForUser } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppDataSlice } from "../src/domain/dataSlices";
 import type { AppData, WorkerUsageSnapshot } from "../src/domain/types";
@@ -49,7 +49,9 @@ try {
   const initialData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(initialData.customers.length, 3, "test fixture should seed customers");
   assert.equal(initialData.orders.length, 0, "seed should start without orders");
-  assert.equal(initialData.systemConfigs.length, 5, "API data should include normalized system configs");
+  for (const config of defaultSystemConfigs()) {
+    assert.ok(initialData.systemConfigs.some((item) => item.key === config.key), `API data should include normalized system config ${config.key}`);
+  }
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
   const posSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=pos", {
     token: session.token,
