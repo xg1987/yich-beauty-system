@@ -20933,6 +20933,19 @@ textarea,
     linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(240, 252, 248, 0.9));
 }
 
+.marketing-tool-grid button.disabled,
+.marketing-tool-grid button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+  opacity: 0.58;
+  transform: none;
+}
+
+.marketing-tool-grid button.disabled span,
+.marketing-tool-grid button:disabled span {
+  background: linear-gradient(135deg, #9ca3af, #cbd5e1);
+}
+
 .marketing-workspace {
   grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
   align-items: start;
@@ -20975,6 +20988,10 @@ textarea,
 .marketing-form-actions,
 .marketing-preview-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.marketing-form-actions.single {
+  grid-template-columns: 1fr;
 }
 
 .marketing-form-actions button,
@@ -21030,12 +21047,116 @@ textarea,
   margin: 0;
 }
 
+.ai-permission-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.ai-permission-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-permission-status-grid article,
+.ai-permission-matrix {
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(42, 143, 125, 0.09), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(247, 241, 255, 0.84));
+}
+
+.ai-permission-status-grid article {
+  display: grid;
+  gap: 6px;
+  min-height: 84px;
+  align-content: center;
+  padding: 14px;
+}
+
+.ai-permission-status-grid article.disabled {
+  filter: grayscale(0.35);
+  opacity: 0.62;
+}
+
+.ai-permission-status-grid span,
+.ai-permission-row small {
+  color: rgba(47, 37, 95, 0.64);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ai-permission-status-grid strong,
+.ai-permission-row strong {
+  color: #2f255f;
+  font-weight: 920;
+  line-height: 1.25;
+}
+
+.ai-permission-matrix {
+  overflow: hidden;
+}
+
+.ai-permission-head,
+.ai-permission-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) repeat(3, minmax(96px, 0.72fr));
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+}
+
+.ai-permission-head {
+  background: rgba(111, 66, 193, 0.08);
+  color: rgba(47, 37, 95, 0.66);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ai-permission-row + .ai-permission-row {
+  border-top: 1px solid rgba(111, 66, 193, 0.12);
+}
+
+.ai-permission-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-permission-row label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f255f;
+  font-size: 12px;
+  font-weight: 880;
+}
+
+.ai-permission-row label.disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.ai-permission-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #6f42c1;
+}
+
 .app-shell.theme-night .employee-stat-grid article,
 .app-shell.theme-night .employee-action-grid button,
 .app-shell.theme-night .employee-appointment-card,
 .app-shell.theme-night .employee-follow-card,
 .app-shell.theme-night .marketing-tool-grid button,
 .app-shell.theme-night .marketing-preview-card,
+.app-shell.theme-night .ai-permission-status-grid article,
+.app-shell.theme-night .ai-permission-matrix,
 .app-shell.theme-night .employee-work-page .empty,
 .app-shell.theme-night .marketing-center-page .empty {
   border-color: var(--night-app-line) !important;
@@ -21050,7 +21171,9 @@ textarea,
 .app-shell.theme-night .employee-appointment-card strong,
 .app-shell.theme-night .employee-follow-card strong,
 .app-shell.theme-night .marketing-tool-grid button strong,
-.app-shell.theme-night .marketing-preview-copy strong {
+.app-shell.theme-night .marketing-preview-copy strong,
+.app-shell.theme-night .ai-permission-status-grid strong,
+.app-shell.theme-night .ai-permission-row strong {
   color: var(--night-app-text) !important;
 }
 
@@ -21061,8 +21184,18 @@ textarea,
 .app-shell.theme-night .employee-follow-card span,
 .app-shell.theme-night .marketing-tool-grid small,
 .app-shell.theme-night .marketing-form-panel label span,
-.app-shell.theme-night .marketing-preview-copy p {
+.app-shell.theme-night .marketing-preview-copy p,
+.app-shell.theme-night .ai-permission-status-grid span,
+.app-shell.theme-night .ai-permission-row small,
+.app-shell.theme-night .ai-permission-head {
   color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .ai-permission-head,
+.app-shell.theme-night .ai-permission-row label {
+  border-color: var(--night-app-line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--night-app-text);
 }
 
 @media (max-width: 1180px) {
@@ -21139,8 +21272,15 @@ textarea,
   .marketing-form-grid,
   .marketing-form-actions,
   .marketing-preview-actions,
-  .poster-upload-row {
+  .poster-upload-row,
+  .ai-permission-status-grid,
+  .ai-permission-head,
+  .ai-permission-row {
     grid-template-columns: 1fr;
+  }
+
+  .ai-permission-head span:not(:first-child) {
+    display: none;
   }
 
   .marketing-preview-visual {

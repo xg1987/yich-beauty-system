@@ -48,11 +48,13 @@ import {
   openMemberCard,
   previewFormalDataCleanup,
   scopeDataToStore,
+  sanitizeSystemConfigsForRole,
   updateTagDefinition,
   updateStaffMember,
   updateAccountProfile,
   updateAuthUserStatus,
   resetAuthUserPassword,
+  updateStoreAiUsagePermissions,
   updateStoreProfile,
   updateStoreStatus,
   updateSystemConfig,
@@ -446,6 +448,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         status: requiredString(body, "status") as "active" | "disabled",
         userId: session.user.id,
       });
+      await database.replaceData(nextData);
+      return sendScopedData(context.request, 200, nextData, session);
+    }
+
+    if (context.request.method === "PATCH" && pathname === "/api/ai-usage-permissions") {
+      requirePermission(session, "settings:view");
+      const body = await readJson(context.request);
+      const currentData = await database.readData();
+      const nextData = addOperationLog(
+        updateStoreAiUsagePermissions(currentData, {
+          storeId: sessionStoreId(currentData, session),
+          permissions: body.permissions,
+        }),
+        {
+          userId: session.user.id,
+          action: "更新AI使用权限",
+          targetType: "store",
+          targetId: sessionStoreId(currentData, session) ?? "primary",
+          summary: `${session.user.name} 更新门店 AI 使用权限`,
+        },
+      );
       await database.replaceData(nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
@@ -1582,6 +1605,7 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     ...sessionData,
     authUsers: sessionData.authUsers.map((user) => ({ ...user, password: "" })),
     storeOwnerApplications: (sessionData.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
+    systemConfigs: sanitizeSystemConfigsForRole(sessionData.systemConfigs, session.user.role),
     notifications: (sessionData.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
     distributors: [],
     referralRelations: [],

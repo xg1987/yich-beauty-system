@@ -34,6 +34,7 @@ import type {
   StaffUnavailableSlot,
   SystemConfig,
   SystemConfigKey,
+  StoreAiUsagePermissions,
   StoreProfile,
   StoreOwnerApplication,
   StoreOwnerInvite,
@@ -60,6 +61,10 @@ const STAFF_BUSINESS_ROLES = new Set(["店长", "主管", "员工", "前台"]);
 const LEGACY_DEFAULT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const LEGACY_DEFAULT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_ROOM_NAMES);
 const CASH_PAY_METHODS = new Set<CashPayMethod>(["现金", "微信", "支付宝", "银行卡"]);
+export const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = {
+  owner: { copy: true, image: true, video: true },
+  staff: { copy: true, image: true, video: false },
+};
 
 function normalizeCashPayMethod(payMethod: CashPayMethod | undefined): CashPayMethod {
   return payMethod && CASH_PAY_METHODS.has(payMethod) ? payMethod : "微信";
@@ -291,6 +296,37 @@ export function systemConfigValue(data: AppData, key: SystemConfigKey) {
   return normalizeSystemConfigs(data.systemConfigs).find((item) => item.key === key)?.value ?? "";
 }
 
+export function sanitizeSystemConfigsForRole(configs: SystemConfig[], role: UserRole) {
+  const normalizedConfigs = normalizeSystemConfigs(configs);
+  if (role === "superadmin") return normalizedConfigs;
+  return normalizedConfigs.map((config) => {
+    if (config.key !== "ai_generation_config" || !config.value) return config;
+    try {
+      const parsed = JSON.parse(config.value) as {
+        copy?: { apiKey?: string };
+        image?: { apiKey?: string };
+        video?: { providers?: Array<{ apiKey?: string }> };
+      };
+      return {
+        ...config,
+        value: JSON.stringify({
+          ...parsed,
+          copy: parsed.copy ? { ...parsed.copy, apiKey: "" } : parsed.copy,
+          image: parsed.image ? { ...parsed.image, apiKey: "" } : parsed.image,
+          video: parsed.video ? {
+            ...parsed.video,
+            providers: Array.isArray(parsed.video.providers)
+              ? parsed.video.providers.map((provider) => ({ ...provider, apiKey: "" }))
+              : parsed.video.providers,
+          } : parsed.video,
+        }),
+      };
+    } catch {
+      return { ...config, value: "" };
+    }
+  });
+}
+
 export function inviteDefaultDays(data: AppData) {
   const parsedDays = Number(systemConfigValue(data, "invite_default_days"));
   return Number.isInteger(parsedDays) && parsedDays >= 1 && parsedDays <= 90 ? parsedDays : DEFAULT_INVITE_VALID_DAYS;
@@ -516,6 +552,11 @@ export type StoreProfileInput = {
   roomNames?: string[];
   maintenanceRoomNames?: string[];
   maintenanceRoomCount?: number;
+};
+
+export type StoreAiUsagePermissionsInput = {
+  storeId?: string;
+  permissions: unknown;
 };
 
 export type StoreStatusInput = {
@@ -1306,6 +1347,34 @@ export function updateStoreProfile(data: AppData, input: StoreProfileInput): App
           }
         : store,
     ),
+  };
+}
+
+export function normalizeStoreAiUsagePermissions(input: unknown): StoreAiUsagePermissions {
+  const source = input && typeof input === "object" ? input as Partial<StoreAiUsagePermissions> : {};
+  const owner = source.owner && typeof source.owner === "object" ? source.owner as Partial<StoreAiUsagePermissions["owner"]> : {};
+  const staff = source.staff && typeof source.staff === "object" ? source.staff as Partial<StoreAiUsagePermissions["staff"]> : {};
+  return {
+    owner: {
+      copy: typeof owner.copy === "boolean" ? owner.copy : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.copy,
+      image: typeof owner.image === "boolean" ? owner.image : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.image,
+      video: typeof owner.video === "boolean" ? owner.video : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.video,
+    },
+    staff: {
+      copy: typeof staff.copy === "boolean" ? staff.copy : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.copy,
+      image: typeof staff.image === "boolean" ? staff.image : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.image,
+      video: typeof staff.video === "boolean" ? staff.video : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.video,
+    },
+  };
+}
+
+export function updateStoreAiUsagePermissions(data: AppData, input: StoreAiUsagePermissionsInput): AppData {
+  const current = input.storeId ? data.storeProfiles.find((store) => store.id === input.storeId) : data.storeProfiles[0];
+  if (!current) throw new Error("请先完成门店注册");
+  const aiUsagePermissions = normalizeStoreAiUsagePermissions(input.permissions);
+  return {
+    ...data,
+    storeProfiles: data.storeProfiles.map((store) => store.id === current.id ? { ...store, aiUsagePermissions } : store),
   };
 }
 

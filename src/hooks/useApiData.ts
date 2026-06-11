@@ -198,6 +198,7 @@ export function useApiData() {
     uploadAccountAvatar: client.uploadAccountAvatar,
     updateAuthUserStatus: client.updateAuthUserStatus,
     resetAuthUserPassword: client.resetAuthUserPassword,
+    updateAiUsagePermissions: client.updateAiUsagePermissions,
     updateSystemConfig: client.updateSystemConfig,
     updateStoreStatus: client.updateStoreStatus,
     createStaffInvite: client.createStaffInvite,

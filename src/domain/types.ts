@@ -20,6 +20,11 @@ export type ViewKey =
   | "settings";
 
 export type UserRole = "superadmin" | "owner" | "manager" | "frontdesk" | "therapist" | "finance";
+export type AiUsageCapability = "copy" | "image" | "video";
+export type StoreAiUsagePermissions = {
+  owner: Record<AiUsageCapability, boolean>;
+  staff: Record<AiUsageCapability, boolean>;
+};
 
 export type StoreProfile = {
   id: string;
@@ -31,6 +36,7 @@ export type StoreProfile = {
   roomNamesConfiguredAt?: string;
   maintenanceRoomNames?: string[];
   maintenanceRoomCount?: number;
+  aiUsagePermissions?: StoreAiUsagePermissions;
   status?: "active" | "disabled" | "pending";
   createdAt: string;
 };

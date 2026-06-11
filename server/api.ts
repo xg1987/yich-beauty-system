@@ -51,10 +51,12 @@ import {
   openMemberCard,
   previewFormalDataCleanup,
   scopeDataToStore,
+  sanitizeSystemConfigsForRole,
   updateTagDefinition,
   updateStaffMember,
   updateAccountProfile,
   updateAuthUserStatus,
+  updateStoreAiUsagePermissions,
   updateStoreProfile,
   updateStoreStatus,
   updateSystemConfig,
@@ -455,6 +457,28 @@ export function createApiServer(database = new BeautyDatabase()) {
             targetType: "store",
             targetId: "primary",
             summary: `${session.user.name} 更新门店基础资料`,
+          },
+        );
+        database.replaceData(nextData);
+        sendScopedData(request, response, 200, nextData, session);
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname === "/api/ai-usage-permissions") {
+        requirePermission(session, "settings:view");
+        const body = await readJson(request);
+        const currentData = database.readData();
+        const nextData = addOperationLog(
+          updateStoreAiUsagePermissions(currentData, {
+            storeId: sessionStoreId(currentData, session),
+            permissions: body.permissions,
+          }),
+          {
+            userId: session.user.id,
+            action: "更新AI使用权限",
+            targetType: "store",
+            targetId: sessionStoreId(currentData, session) ?? "primary",
+            summary: `${session.user.name} 更新门店 AI 使用权限`,
           },
         );
         database.replaceData(nextData);
@@ -1605,14 +1629,11 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sessionData = session.user.role === "superadmin"
     ? normalizedData
     : scopeDataToStore(normalizedData, currentStoreId);
-  const scopedSystemConfigs = session.user.role === "superadmin"
-    ? sessionData.systemConfigs
-    : sessionData.systemConfigs.filter((config) => config.key !== "ai_generation_config");
   const sanitizedData = {
     ...sessionData,
     authUsers: sessionData.authUsers.map((user) => ({ ...user, password: "" })),
     storeOwnerApplications: (sessionData.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
-    systemConfigs: scopedSystemConfigs,
+    systemConfigs: sanitizeSystemConfigsForRole(sessionData.systemConfigs, session.user.role),
     notifications: (sessionData.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
     distributors: [],
     referralRelations: [],

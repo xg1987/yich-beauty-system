@@ -65,7 +65,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
-import type { AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StoreAiUsagePermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import packageJson from "../../package.json";
@@ -156,6 +156,15 @@ const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = {
   seedance: "Seedance",
   kling: "Kling",
   hailuo: "海螺",
+};
+const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = {
+  copy: "AI 写文案",
+  image: "AI 做海报",
+  video: "AI 做视频",
+};
+const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = {
+  owner: { copy: true, image: true, video: true },
+  staff: { copy: true, image: true, video: false },
 };
 const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
   copy: {
@@ -721,6 +730,45 @@ function serializeAiGenerationConfig(config: AiGenerationConfig) {
   return JSON.stringify(normalizeAiGenerationConfig(config));
 }
 
+function normalizeStoreAiUsagePermissions(input: unknown): StoreAiUsagePermissions {
+  const source = input && typeof input === "object" ? input as Partial<StoreAiUsagePermissions> : {};
+  const owner = source.owner && typeof source.owner === "object" ? source.owner as Partial<StoreAiUsagePermissions["owner"]> : {};
+  const staff = source.staff && typeof source.staff === "object" ? source.staff as Partial<StoreAiUsagePermissions["staff"]> : {};
+  return {
+    owner: {
+      copy: typeof owner.copy === "boolean" ? owner.copy : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.copy,
+      image: typeof owner.image === "boolean" ? owner.image : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.image,
+      video: typeof owner.video === "boolean" ? owner.video : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.video,
+    },
+    staff: {
+      copy: typeof staff.copy === "boolean" ? staff.copy : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.copy,
+      image: typeof staff.image === "boolean" ? staff.image : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.image,
+      video: typeof staff.video === "boolean" ? staff.video : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.video,
+    },
+  };
+}
+
+function storeAiUsagePermissions(data: AppData) {
+  return normalizeStoreAiUsagePermissions(data.storeProfiles[0]?.aiUsagePermissions);
+}
+
+function aiUsagePermissionGroup(role: UserRole): keyof StoreAiUsagePermissions {
+  return role === "owner" || role === "manager" ? "owner" : "staff";
+}
+
+function aiCapabilityPlatformEnabled(config: AiGenerationConfig, capability: AiUsageCapability) {
+  if (capability === "copy") return config.copy.enabled;
+  if (capability === "image") return config.image.enabled;
+  return config.video.providers.some((provider) => provider.enabled);
+}
+
+function aiCapabilityUsageState(config: AiGenerationConfig, permissions: StoreAiUsagePermissions, role: UserRole, capability: AiUsageCapability) {
+  if (!aiCapabilityPlatformEnabled(config, capability)) return { enabled: false, label: "平台未启用" };
+  const group = aiUsagePermissionGroup(role);
+  if (!permissions[group][capability]) return { enabled: false, label: "未开通" };
+  return { enabled: true, label: "可用" };
+}
+
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
   { key: "dashboard", label: "今日总览", icon: LayoutDashboard },
   { key: "appointments", label: "预约管理", icon: CalendarDays },
@@ -1174,6 +1222,7 @@ function ManagementCenter({
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const [customerRefundOpen, setCustomerRefundOpen] = useState(false);
   const [staffScheduleOpen, setStaffScheduleOpen] = useState(false);
+  const [aiUsagePermissionsOpen, setAiUsagePermissionsOpen] = useState(false);
   const inviteInputRef = useRef<HTMLInputElement>(null);
 
   const copyInviteCode = () => {
@@ -1227,6 +1276,7 @@ function ManagementCenter({
     { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
     { title: "员工排班", desc: "班次查看 / 不可预约时间", icon: CalendarDays, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "AI 使用权限", desc: "店长 / 员工 AI 功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
     { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
     { title: "供应商采购", desc: "供应商 / 采购入库", icon: Building2, tone: "amber", view: "inventory", inventoryModule: "purchase" },
@@ -1324,6 +1374,15 @@ function ManagementCenter({
         onClose={() => setRoomSettingsOpen(false)}
       >
         <RoomSettingsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setRoomSettingsOpen(false)} modal />
+      </Modal>
+      <Modal
+        open={aiUsagePermissionsOpen}
+        title="AI 使用权限"
+        subtitle="设置店长和员工可使用的 AI 写文案、AI 做海报和 AI 做视频能力"
+        size="large"
+        onClose={() => setAiUsagePermissionsOpen(false)}
+      >
+        <AiUsagePermissionsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setAiUsagePermissionsOpen(false)} />
       </Modal>
       <Modal
         open={customerRefundOpen}
@@ -4204,10 +4263,10 @@ function EmployeeWorkDashboard({
   );
 }
 
-type MarketingToolKey = "product" | "copy" | "poster" | "talk";
+type MarketingToolKey = "copy" | "image" | "video" | "talk";
 
 function MarketingCenter({ data, session, setView }: { data: AppData; session: UserSession; setView: NavigateToView }) {
-  const [tool, setTool] = useState<MarketingToolKey>("product");
+  const [tool, setTool] = useState<MarketingToolKey>("copy");
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [audience, setAudience] = useState("老客");
@@ -4216,33 +4275,42 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
   const product = data.products.find((item) => item.id === productId) ?? data.products[0];
   const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
   const storeName = primaryStoreName(data) || "门店";
-  const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
   const repeatCustomers = data.customers.filter((customer) => data.orders.some((order) => order.customerId === customer.id)).length;
-  const toolCards: Array<{ key: MarketingToolKey; label: string; icon: ReactNode; metric: string }> = [
-    { key: "product", label: "产品图", icon: <PackagePlus size={20} />, metric: `${data.products.length} 件商品` },
-    { key: "copy", label: "文案", icon: <MessageCircle size={20} />, metric: `${data.services.length} 个项目` },
-    { key: "poster", label: "活动图", icon: <Gift size={20} />, metric: `${activeCards} 张会员卡` },
-    { key: "talk", label: "私聊话术", icon: <HeartHandshake size={20} />, metric: `${repeatCustomers} 位客户` },
+  const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
+  const aiPermissions = storeAiUsagePermissions(data);
+  const toolCards: Array<{ key: MarketingToolKey; capability: AiUsageCapability; label: string; icon: ReactNode; metric: string }> = [
+    { key: "copy", capability: "copy", label: "AI写文案", icon: <MessageCircle size={20} />, metric: `${data.services.length} 个项目` },
+    { key: "image", capability: "image", label: "AI做海报", icon: <Gift size={20} />, metric: `${data.products.length} 件商品` },
+    { key: "video", capability: "video", label: "AI做视频", icon: <Megaphone size={20} />, metric: "短视频素材" },
+    { key: "talk", capability: "copy", label: "私聊话术", icon: <HeartHandshake size={20} />, metric: `${repeatCustomers} 位客户` },
   ];
+  const toolStateByKey = Object.fromEntries(toolCards.map((item) => [item.key, aiCapabilityUsageState(aiConfig, aiPermissions, session.user.role, item.capability)])) as Record<MarketingToolKey, { enabled: boolean; label: string }>;
   const channels = ["朋友圈", "小红书", "私聊", "社群"];
   const audiences = ["老客", "新客", "会员卡客户", "沉睡客户"];
   const subjectName = product?.name || service?.name || "护理项目";
   const serviceName = service?.name || "护理项目";
   const productPrice = product ? money(product.price) : "按店内价格";
-  const draftTitle = tool === "product"
-    ? `${subjectName} · ${channel}`
-    : tool === "copy"
+  const draftTitle = tool === "copy"
       ? `${serviceName} · ${audience}`
-      : tool === "poster"
+      : tool === "image"
         ? `${storeName} · 活动素材`
-        : `${audience} · 私聊话术`;
+        : tool === "video"
+          ? `${storeName} · 宣传视频`
+          : `${audience} · 私聊话术`;
+  const activeToolState = toolStateByKey[tool];
   const draftLines = [
     `${storeName} ${subjectName}`,
-    `${audience}可重点推荐${serviceName}，搭配${subjectName}提升到店转化。`,
+    tool === "video" ? `${serviceName}适合拍摄护理前后、产品陈列和房间环境镜头。` : `${audience}可重点推荐${serviceName}，搭配${subjectName}提升到店转化。`,
     product ? `当前库存 ${formatProductStockWithServiceUnits(product, product.stock)} · 到店价 ${productPrice}` : `项目价格 ${service ? money(service.price) : "待定"}`,
     `${channel}发布时建议配合真实护理场景和门店预约入口。`,
   ];
   const copyText = `${draftTitle}\n${draftLines.join("\n")}`;
+
+  useEffect(() => {
+    if (toolStateByKey[tool]?.enabled) return;
+    const firstEnabledTool = toolCards.find((item) => toolStateByKey[item.key].enabled);
+    if (firstEnabledTool) setTool(firstEnabledTool.key);
+  }, [data.storeProfiles, data.systemConfigs, session.user.role, tool]);
 
   const copyDraft = () => {
     if (navigator.clipboard) {
@@ -4260,10 +4328,16 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
 
       <section className="marketing-tool-grid" aria-label="营销工具">
         {toolCards.map((item) => (
-          <button type="button" key={item.key} className={tool === item.key ? "active" : ""} onClick={() => setTool(item.key)}>
+          <button
+            type="button"
+            key={item.key}
+            className={`${tool === item.key ? "active" : ""} ${toolStateByKey[item.key].enabled ? "" : "disabled"}`}
+            disabled={!toolStateByKey[item.key].enabled}
+            onClick={() => setTool(item.key)}
+          >
             <span>{item.icon}</span>
             <strong>{item.label}</strong>
-            <small>{item.metric}</small>
+            <small>{toolStateByKey[item.key].label} · {item.metric}</small>
           </button>
         ))}
       </section>
@@ -4299,12 +4373,9 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
               <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
             ))}
           </div>
-          <div className="marketing-form-actions">
-            <button type="button" className="primary-button" onClick={() => setDraftIndex((value) => value + 1)}>
-              <Sparkles size={16} /> 生成草稿
-            </button>
-            <button type="button" className="secondary-button" onClick={() => setView("pos", { posModule: "card" })}>
-              <CreditCard size={16} /> 开卡转化
+          <div className="marketing-form-actions single">
+            <button type="button" className="primary-button" disabled={!activeToolState.enabled} onClick={() => setDraftIndex((value) => value + 1)}>
+              <Sparkles size={16} /> AI生成草稿
             </button>
           </div>
         </div>
@@ -4658,6 +4729,100 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
       <ModuleSubpageHeader parentTitle="管理中心" moduleTitle="房间设置" onBack={() => setView("settings")} />
       <RoomSettingsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setView("settings")} />
     </div>
+  );
+}
+
+function AiUsagePermissionsContent({ data, actions, runMutation, onClose }: { data: AppData; actions: ApiActions; runMutation: RunMutation; onClose: () => void }) {
+  const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
+  const [draft, setDraft] = useState(() => storeAiUsagePermissions(data));
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const capabilityKeys: AiUsageCapability[] = ["copy", "image", "video"];
+  const roleRows: Array<{ key: keyof StoreAiUsagePermissions; label: string; hint: string }> = [
+    { key: "owner", label: "店长", hint: "店长账号和主管账号" },
+    { key: "staff", label: "员工", hint: "前台、技师、财务等员工账号" },
+  ];
+
+  useEffect(() => {
+    setDraft(storeAiUsagePermissions(data));
+  }, [data.storeProfiles]);
+
+  const setCapability = (roleKey: keyof StoreAiUsagePermissions, capability: AiUsageCapability, enabled: boolean) => {
+    setSaved(false);
+    setError("");
+    setDraft((current) => ({
+      ...current,
+      [roleKey]: {
+        ...current[roleKey],
+        [capability]: enabled,
+      },
+    }));
+  };
+
+  const savePermissions = (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setSaved(false);
+    setError("");
+    void runMutation(() => actions.updateAiUsagePermissions(draft))
+      .then(() => {
+        setSaved(true);
+        window.setTimeout(onClose, 600);
+      })
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "AI 使用权限保存失败"))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <form className="ai-permission-panel" onSubmit={savePermissions}>
+      <div className="ai-permission-status-grid">
+        {capabilityKeys.map((capability) => (
+          <article key={capability} className={!aiCapabilityPlatformEnabled(aiConfig, capability) ? "disabled" : ""}>
+            <span>{AI_USAGE_CAPABILITY_LABELS[capability]}</span>
+            <strong>{aiCapabilityPlatformEnabled(aiConfig, capability) ? "平台已启用" : "平台未启用"}</strong>
+          </article>
+        ))}
+      </div>
+
+      <div className="ai-permission-matrix" role="table" aria-label="AI 使用权限矩阵">
+        <div className="ai-permission-head" role="row">
+          <span>对象</span>
+          {capabilityKeys.map((capability) => <span key={capability}>{AI_USAGE_CAPABILITY_LABELS[capability].replace("AI ", "")}</span>)}
+        </div>
+        {roleRows.map((row) => (
+          <div className="ai-permission-row" role="row" key={row.key}>
+            <div>
+              <strong>{row.label}</strong>
+              <small>{row.hint}</small>
+            </div>
+            {capabilityKeys.map((capability) => {
+              const platformEnabled = aiCapabilityPlatformEnabled(aiConfig, capability);
+              return (
+                <label key={`${row.key}-${capability}`} className={!platformEnabled ? "disabled" : ""}>
+                  <input
+                    type="checkbox"
+                    checked={draft[row.key][capability] && platformEnabled}
+                    disabled={!platformEnabled}
+                    onChange={(event) => setCapability(row.key, capability, event.target.checked)}
+                  />
+                  <span>{draft[row.key][capability] && platformEnabled ? "开启" : platformEnabled ? "关闭" : "不可用"}</span>
+                </label>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {saved && <p className="form-success">AI 使用权限已保存。</p>}
+      <div className="modal-actions">
+        <button type="button" onClick={onClose}>取消</button>
+        <button type="submit" className="primary-button" disabled={saving}>
+          {saving ? "保存中..." : saved ? "已保存" : "保存权限"}
+        </button>
+      </div>
+    </form>
   );
 }
 
