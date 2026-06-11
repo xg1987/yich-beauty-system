@@ -20568,3 +20568,1025 @@ textarea,
     grid-template-columns: 1fr;
   }
 }
+
+/* Night modal system lock: every business modal must stay readable in dark mode. */
+.theme-night .modal-backdrop {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(111, 66, 193, 0.2), transparent 34%),
+    rgba(8, 6, 12, 0.68);
+  backdrop-filter: blur(14px) saturate(1.08);
+}
+
+.theme-night .system-modal,
+.theme-night .system-modal.large {
+  border-color: rgba(224, 206, 255, 0.18);
+  background:
+    radial-gradient(circle at 92% 4%, rgba(143, 88, 242, 0.18), transparent 34%),
+    radial-gradient(circle at 0% 14%, rgba(230, 107, 120, 0.1), transparent 30%),
+    linear-gradient(135deg, rgba(31, 24, 43, 0.98), rgba(18, 14, 25, 0.98));
+  color: var(--night-text);
+  box-shadow:
+    0 28px 88px rgba(0, 0, 0, 0.56),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+}
+
+.theme-night .system-modal-header,
+.theme-night .system-modal-footer {
+  border-color: rgba(224, 206, 255, 0.12);
+  background: rgba(12, 9, 18, 0.2);
+}
+
+.theme-night .system-modal-header strong,
+.theme-night .system-modal-title strong,
+.theme-night .system-modal .panel-title h2,
+.theme-night .system-modal .module-detail-stack .panel-title h2,
+.theme-night .system-modal .module-detail-stack > .panel strong,
+.theme-night .system-modal .appointment-room-list-head strong,
+.theme-night .system-modal .checkout-product-section-head strong,
+.theme-night .system-modal .signature-record-detail strong,
+.theme-night .system-modal .refund-selected-card strong,
+.theme-night .system-modal .room-settings-toolbar > div > strong,
+.theme-night .system-modal .room-settings-summary > div strong,
+.theme-night .system-modal .room-editor-card strong,
+.theme-night .system-modal .product-picker-card strong,
+.theme-night .system-modal .checkout-service-line strong,
+.theme-night .system-modal .checkout-product-line strong,
+.theme-night .system-modal .checkout-total strong {
+  color: var(--night-text) !important;
+}
+
+.theme-night .system-modal-header span,
+.theme-night .system-modal-title span,
+.theme-night .system-modal label,
+.theme-night .system-modal small,
+.theme-night .system-modal .field,
+.theme-night .system-modal .panel-title span,
+.theme-night .system-modal .module-detail-stack .panel-title span,
+.theme-night .system-modal .module-detail-stack > .panel span,
+.theme-night .system-modal .module-detail-stack > .panel small,
+.theme-night .system-modal .module-detail-stack > .panel p,
+.theme-night .system-modal .appointment-room-list-head small,
+.theme-night .system-modal .checkout-product-section-head,
+.theme-night .system-modal .checkout-product-section-head span,
+.theme-night .system-modal .checkout-service-line span,
+.theme-night .system-modal .checkout-product-line span,
+.theme-night .system-modal .product-picker-card span,
+.theme-night .system-modal .product-picker-card small,
+.theme-night .system-modal .room-settings-summary > div span,
+.theme-night .system-modal .room-settings-summary > div small,
+.theme-night .system-modal .room-editor-card-meta,
+.theme-night .system-modal .signature-record-meta small,
+.theme-night .system-modal .signature-record-content p,
+.theme-night .system-modal .refund-selected-card span,
+.theme-night .system-modal .appointment-room-choice-note span {
+  color: var(--night-muted) !important;
+}
+
+.theme-night .system-modal .module-detail-stack > .panel,
+.theme-night .system-modal .module-detail-stack > .panel:nth-child(n),
+.theme-night .system-modal .cashier-modal-detail > .panel,
+.theme-night .system-modal .customer-modal-detail > .panel,
+.theme-night .system-modal .room-settings-panel.panel,
+.theme-night .system-modal .appointment-room-slot-section,
+.theme-night .system-modal .appointment-service-picker,
+.theme-night .system-modal .appointment-today-panel,
+.theme-night .system-modal .checkout-arrived-appointments,
+.theme-night .system-modal .checkout-product-section,
+.theme-night .system-modal .checkout-product-line,
+.theme-night .system-modal .checkout-service-line,
+.theme-night .system-modal .checkout-discount-summary,
+.theme-night .system-modal .checkout-total,
+.theme-night .system-modal .check-group,
+.theme-night .system-modal .sub-panel,
+.theme-night .system-modal .signature-record-detail,
+.theme-night .system-modal .signature-record-content,
+.theme-night .system-modal .signature-record-image-panel,
+.theme-night .system-modal .refund-inline-signature,
+.theme-night .system-modal .refund-selected-card,
+.theme-night .system-modal .refund-search > div,
+.theme-night .system-modal .room-editor-grid,
+.theme-night .system-modal .room-editor-card,
+.theme-night .system-modal .room-settings-summary > div,
+.theme-night .system-modal .appointment-room-choice-note,
+.theme-night .system-modal .product-picker-modal,
+.theme-night .system-modal .product-picker-card,
+.theme-night .system-modal .product-picker-category-list button,
+.theme-night .system-modal .product-picker-subcategory-list button,
+.theme-night .system-modal .catalog-inline-control,
+.theme-night .system-modal .inventory-product-form,
+.theme-night .system-modal .inventory-product-form-row,
+.theme-night .system-modal .inventory-product-form-main,
+.theme-night .system-modal .inventory-product-form-stock {
+  border-color: rgba(224, 206, 255, 0.16) !important;
+  background:
+    radial-gradient(circle at 92% 6%, rgba(143, 88, 242, 0.12), transparent 32%),
+    rgba(255, 255, 255, 0.055) !important;
+  color: var(--night-text) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.theme-night .system-modal .table-wrap,
+.theme-night .system-modal .module-detail-stack .table-wrap {
+  border-color: rgba(224, 206, 255, 0.14) !important;
+  background: rgba(8, 6, 12, 0.42) !important;
+  color: var(--night-text) !important;
+}
+
+.theme-night .system-modal table,
+.theme-night .system-modal .module-detail-stack table {
+  color: var(--night-text-soft) !important;
+}
+
+.theme-night .system-modal th,
+.theme-night .system-modal .module-detail-stack th {
+  border-color: rgba(224, 206, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--night-muted) !important;
+}
+
+.theme-night .system-modal td,
+.theme-night .system-modal .module-detail-stack td {
+  border-color: rgba(224, 206, 255, 0.09) !important;
+  color: var(--night-text-soft) !important;
+}
+
+.theme-night .system-modal input,
+.theme-night .system-modal select,
+.theme-night .system-modal textarea,
+.theme-night .system-modal .datetime-field-control,
+.theme-night .system-modal .form-readonly,
+.theme-night .system-modal .contact-inline-field,
+.theme-night .system-modal .catalog-inline-form input,
+.theme-night .system-modal .catalog-inline-form select,
+.theme-night .system-modal .catalog-inline-form textarea,
+.theme-night .system-modal .refund-search input,
+.theme-night .system-modal .room-editor-card input,
+.theme-night .system-modal .room-editor-card select,
+.theme-night .system-modal .inventory-product-form input,
+.theme-night .system-modal .inventory-product-form select {
+  border-color: rgba(224, 206, 255, 0.2) !important;
+  background: rgba(9, 7, 13, 0.58) !important;
+  color: var(--night-text) !important;
+  opacity: 1 !important;
+  box-shadow: none;
+}
+
+.theme-night .system-modal .datetime-field-control input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.theme-night .system-modal input::placeholder,
+.theme-night .system-modal textarea::placeholder,
+.theme-night .system-modal .catalog-inline-form input::placeholder,
+.theme-night .system-modal .catalog-inline-form textarea::placeholder {
+  color: var(--night-muted-weak) !important;
+}
+
+.theme-night .system-modal input:focus,
+.theme-night .system-modal select:focus,
+.theme-night .system-modal textarea:focus,
+.theme-night .system-modal .datetime-field-control:focus-within {
+  border-color: rgba(185, 152, 255, 0.64) !important;
+  box-shadow: 0 0 0 3px rgba(143, 88, 242, 0.18) !important;
+}
+
+.theme-night .system-modal input:disabled,
+.theme-night .system-modal select:disabled,
+.theme-night .system-modal textarea:disabled,
+.theme-night .system-modal .datetime-field-control[aria-disabled="true"],
+.theme-night .system-modal .datetime-field-control:has(input:disabled) {
+  border-color: rgba(224, 206, 255, 0.11) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: rgba(226, 213, 247, 0.5) !important;
+  -webkit-text-fill-color: rgba(226, 213, 247, 0.5);
+  opacity: 1 !important;
+}
+
+.theme-night .system-modal option {
+  background: #1f182b;
+  color: var(--night-text);
+}
+
+.theme-night .system-modal .system-modal-close,
+.theme-night .system-modal .system-modal-back,
+.theme-night .system-modal-footer button,
+.theme-night .system-modal .row-actions button,
+.theme-night .system-modal .secondary-button,
+.theme-night .system-modal .inline-actions button,
+.theme-night .system-modal .module-panel-actions button,
+.theme-night .system-modal .inventory-row-actions button,
+.theme-night .system-modal .inventory-warning-row button,
+.theme-night .system-modal .checkout-product-section-head button,
+.theme-night .system-modal .checkout-product-toolbar button,
+.theme-night .system-modal .checkout-product-qty button,
+.theme-night .system-modal .checkout-product-remove,
+.theme-night .system-modal .product-picker-card-actions button,
+.theme-night .system-modal .product-picker-category-list button,
+.theme-night .system-modal .product-picker-subcategory-list button,
+.theme-night .system-modal .room-editor-remove,
+.theme-night .system-modal .room-settings-toolbar button,
+.theme-night .system-modal .refund-signature-panel button,
+.theme-night .system-modal .refund-signature-panel a,
+.theme-night .system-modal .signature-record-actions button {
+  border-color: rgba(224, 206, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--night-text) !important;
+  box-shadow: none;
+}
+
+.theme-night .system-modal .primary-button,
+.theme-night .system-modal button.primary-button,
+.theme-night .system-modal-footer button.primary-button,
+.theme-night .system-modal .row-actions .primary-button,
+.theme-night .system-modal .catalog-inline-form .primary-button,
+.theme-night .system-modal .inventory-product-form .form-submit-row .primary-button,
+.theme-night .system-modal .signature-complete-button {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #7c3aed, #be345f) !important;
+  color: #fff !important;
+  box-shadow: 0 16px 34px rgba(124, 58, 237, 0.26);
+}
+
+.theme-night .system-modal button:disabled,
+.theme-night .system-modal .primary-button:disabled,
+.theme-night .system-modal .signature-complete-button:disabled {
+  border-color: rgba(224, 206, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(226, 213, 247, 0.5) !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button {
+  border-color: rgba(69, 211, 164, 0.28) !important;
+  background: rgba(47, 191, 143, 0.13) !important;
+  color: #d9fff0 !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button.selected {
+  border-color: rgba(69, 211, 164, 0.58) !important;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(69, 211, 164, 0.18), transparent 32%),
+    rgba(47, 191, 143, 0.2) !important;
+  box-shadow: 0 12px 28px rgba(47, 191, 143, 0.12);
+}
+
+.theme-night .system-modal .appointment-room-slot-button.disabled {
+  border-color: rgba(255, 137, 171, 0.22) !important;
+  background: rgba(207, 65, 104, 0.12) !important;
+  color: #ffc4d4 !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button strong,
+.theme-night .system-modal .appointment-room-slot-button .appointment-room-slot-text > span,
+.theme-night .system-modal .appointment-room-choice-note strong {
+  color: inherit !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-icon {
+  border-color: rgba(69, 211, 164, 0.28) !important;
+  background: rgba(69, 211, 164, 0.16) !important;
+  color: #d9fff0 !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button.disabled .appointment-room-slot-icon {
+  border-color: rgba(255, 137, 171, 0.22) !important;
+  background: rgba(207, 65, 104, 0.16) !important;
+  color: #ffc4d4 !important;
+}
+
+.theme-night .system-modal .datetime-picker-dialog {
+  border-color: rgba(224, 206, 255, 0.18);
+  background:
+    radial-gradient(circle at 92% 6%, rgba(143, 88, 242, 0.16), transparent 34%),
+    #171120;
+  color: var(--night-text);
+  box-shadow: 0 24px 62px rgba(0, 0, 0, 0.48);
+}
+
+.theme-night .system-modal .datetime-picker-dialog strong,
+.theme-night .system-modal .datetime-picker-calendar button,
+.theme-night .system-modal .datetime-picker-time button {
+  color: var(--night-text);
+}
+
+.theme-night .system-modal .datetime-picker-calendar span,
+.theme-night .system-modal .datetime-picker-time span {
+  color: var(--night-muted);
+}
+
+.theme-night .system-modal .datetime-picker-calendar button,
+.theme-night .system-modal .datetime-picker-time button,
+.theme-night .system-modal .datetime-picker-actions button {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.theme-night .system-modal .datetime-picker-calendar button.muted {
+  color: var(--night-muted-weak);
+}
+
+.theme-night .system-modal .datetime-picker-calendar button.selected,
+.theme-night .system-modal .datetime-picker-time button.selected,
+.theme-night .system-modal .datetime-picker-actions button.primary {
+  background: linear-gradient(135deg, #7c3aed, #be345f);
+  color: #fff;
+}
+
+.theme-night .system-modal .form-warning,
+.theme-night .system-modal .form-error,
+.theme-night .system-modal .signature-blocked-message {
+  border-color: rgba(255, 137, 171, 0.24);
+  background: rgba(207, 65, 104, 0.14);
+  color: #ffc4d4;
+}
+
+.theme-night .system-modal .form-success,
+.theme-night .system-modal .checkout-success-toast {
+  border-color: rgba(69, 211, 164, 0.24);
+  background: rgba(47, 191, 143, 0.14);
+  color: #d9fff0;
+}
+
+.theme-night .system-modal .signature-canvas-wrap,
+.theme-night .system-modal .signature-canvas {
+  border-color: rgba(224, 206, 255, 0.18);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 42px),
+    rgba(8, 6, 12, 0.4);
+}
+
+.theme-night .system-modal .signature-canvas-wrap > span {
+  color: var(--night-muted);
+}
+
+.theme-night .system-modal .badge {
+  border-color: rgba(224, 206, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--night-text-soft);
+}
+
+/* Night modal visual refinement: one soft dark-plum surface system, not black fields. */
+.theme-night .system-modal,
+.theme-night .system-modal.large {
+  --night-modal-surface: rgba(66, 55, 83, 0.97);
+  --night-modal-surface-strong: rgba(76, 64, 96, 0.94);
+  --night-modal-panel: rgba(255, 255, 255, 0.145);
+  --night-modal-panel-strong: rgba(255, 255, 255, 0.175);
+  --night-modal-field: rgba(255, 255, 255, 0.155);
+  --night-modal-border: rgba(235, 223, 255, 0.25);
+  --night-modal-border-strong: rgba(235, 223, 255, 0.36);
+  --night-modal-text: #fbf8ff;
+  --night-modal-muted: rgba(239, 230, 252, 0.74);
+  --night-modal-muted-weak: rgba(239, 230, 252, 0.52);
+  border-color: var(--night-modal-border) !important;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(160, 127, 226, 0.18), transparent 34%),
+    radial-gradient(circle at 2% 12%, rgba(212, 119, 152, 0.12), transparent 32%),
+    linear-gradient(145deg, var(--night-modal-surface), rgba(55, 45, 72, 0.98)) !important;
+  color: var(--night-modal-text) !important;
+  box-shadow:
+    0 28px 76px rgba(15, 10, 22, 0.46),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+}
+
+.theme-night .system-modal-header,
+.theme-night .system-modal-footer {
+  border-color: rgba(229, 215, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.theme-night .system-modal-body {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.018) 42%, transparent),
+    transparent !important;
+}
+
+.theme-night .system-modal-header strong,
+.theme-night .system-modal-title strong,
+.theme-night .system-modal .panel-title h2,
+.theme-night .system-modal .module-detail-stack .panel-title h2,
+.theme-night .system-modal .module-detail-stack > .panel strong,
+.theme-night .system-modal .appointment-room-list-head strong,
+.theme-night .system-modal .checkout-product-section-head strong,
+.theme-night .system-modal .signature-record-detail strong,
+.theme-night .system-modal .refund-selected-card strong,
+.theme-night .system-modal .room-settings-toolbar > div > strong,
+.theme-night .system-modal .room-settings-summary > div strong,
+.theme-night .system-modal .room-editor-card strong,
+.theme-night .system-modal .product-picker-card strong,
+.theme-night .system-modal .checkout-service-line strong,
+.theme-night .system-modal .checkout-product-line strong,
+.theme-night .system-modal .checkout-total strong {
+  color: var(--night-modal-text) !important;
+}
+
+.theme-night .system-modal-header span,
+.theme-night .system-modal-title span,
+.theme-night .system-modal label,
+.theme-night .system-modal small,
+.theme-night .system-modal .field,
+.theme-night .system-modal .panel-title span,
+.theme-night .system-modal .module-detail-stack .panel-title span,
+.theme-night .system-modal .module-detail-stack > .panel span,
+.theme-night .system-modal .module-detail-stack > .panel small,
+.theme-night .system-modal .module-detail-stack > .panel p,
+.theme-night .system-modal .appointment-room-list-head small,
+.theme-night .system-modal .checkout-product-section-head,
+.theme-night .system-modal .checkout-product-section-head span,
+.theme-night .system-modal .checkout-service-line span,
+.theme-night .system-modal .checkout-product-line span,
+.theme-night .system-modal .product-picker-card span,
+.theme-night .system-modal .product-picker-card small,
+.theme-night .system-modal .room-settings-summary > div span,
+.theme-night .system-modal .room-settings-summary > div small,
+.theme-night .system-modal .room-editor-card-meta,
+.theme-night .system-modal .signature-record-meta small,
+.theme-night .system-modal .signature-record-content p,
+.theme-night .system-modal .refund-selected-card span,
+.theme-night .system-modal .appointment-room-choice-note span {
+  color: var(--night-modal-muted) !important;
+}
+
+.theme-night .system-modal .module-detail-stack > .panel,
+.theme-night .system-modal .module-detail-stack > .panel:nth-child(n),
+.theme-night .system-modal .cashier-modal-detail > .panel,
+.theme-night .system-modal .customer-modal-detail > .panel,
+.theme-night .system-modal .room-settings-panel.panel,
+.theme-night .system-modal .appointment-room-slot-section,
+.theme-night .system-modal .appointment-service-picker,
+.theme-night .system-modal .appointment-today-panel,
+.theme-night .system-modal .checkout-arrived-appointments,
+.theme-night .system-modal .checkout-product-section,
+.theme-night .system-modal .checkout-product-line,
+.theme-night .system-modal .checkout-service-line,
+.theme-night .system-modal .checkout-discount-summary,
+.theme-night .system-modal .checkout-total,
+.theme-night .system-modal .check-group,
+.theme-night .system-modal .sub-panel,
+.theme-night .system-modal .signature-record-detail,
+.theme-night .system-modal .signature-record-content,
+.theme-night .system-modal .signature-record-image-panel,
+.theme-night .system-modal .refund-inline-signature,
+.theme-night .system-modal .refund-selected-card,
+.theme-night .system-modal .refund-search > div,
+.theme-night .system-modal .room-editor-grid,
+.theme-night .system-modal .room-editor-card,
+.theme-night .system-modal .room-settings-summary > div,
+.theme-night .system-modal .appointment-room-choice-note,
+.theme-night .system-modal .product-picker-modal,
+.theme-night .system-modal .product-picker-card,
+.theme-night .system-modal .product-picker-category-list button,
+.theme-night .system-modal .product-picker-subcategory-list button,
+.theme-night .system-modal .catalog-inline-control,
+.theme-night .system-modal .inventory-product-form,
+.theme-night .system-modal .inventory-product-form-row,
+.theme-night .system-modal .inventory-product-form-main,
+.theme-night .system-modal .inventory-product-form-stock {
+  border-color: var(--night-modal-border) !important;
+  background:
+    linear-gradient(145deg, var(--night-modal-panel), rgba(255, 255, 255, 0.07)) !important;
+  color: var(--night-modal-text) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025) !important;
+}
+
+.theme-night .system-modal input,
+.theme-night .system-modal select,
+.theme-night .system-modal textarea,
+.theme-night .system-modal .datetime-field-control,
+.theme-night .system-modal .form-readonly,
+.theme-night .system-modal .contact-inline-field,
+.theme-night .system-modal .catalog-inline-form input,
+.theme-night .system-modal .catalog-inline-form select,
+.theme-night .system-modal .catalog-inline-form textarea,
+.theme-night .system-modal .refund-search input,
+.theme-night .system-modal .room-editor-card input,
+.theme-night .system-modal .room-editor-card select,
+.theme-night .system-modal .inventory-product-form input,
+.theme-night .system-modal .inventory-product-form select {
+  border-color: var(--night-modal-border) !important;
+  background: var(--night-modal-field) !important;
+  color: var(--night-modal-text) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035) !important;
+}
+
+.theme-night .system-modal input::placeholder,
+.theme-night .system-modal textarea::placeholder,
+.theme-night .system-modal .catalog-inline-form input::placeholder,
+.theme-night .system-modal .catalog-inline-form textarea::placeholder {
+  color: var(--night-modal-muted-weak) !important;
+}
+
+.theme-night .system-modal input:focus,
+.theme-night .system-modal select:focus,
+.theme-night .system-modal textarea:focus,
+.theme-night .system-modal .datetime-field-control:focus-within {
+  border-color: rgba(190, 165, 255, 0.62) !important;
+  box-shadow:
+    0 0 0 3px rgba(133, 92, 214, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.theme-night .system-modal input:disabled,
+.theme-night .system-modal select:disabled,
+.theme-night .system-modal textarea:disabled,
+.theme-night .system-modal .datetime-field-control[aria-disabled="true"],
+.theme-night .system-modal .datetime-field-control:has(input:disabled) {
+  border-color: rgba(229, 215, 255, 0.14) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: rgba(239, 230, 252, 0.5) !important;
+  -webkit-text-fill-color: rgba(239, 230, 252, 0.5) !important;
+}
+
+.theme-night .system-modal .system-modal-close,
+.theme-night .system-modal .system-modal-back,
+.theme-night .system-modal-footer button,
+.theme-night .system-modal .row-actions button,
+.theme-night .system-modal .secondary-button,
+.theme-night .system-modal .inline-actions button,
+.theme-night .system-modal .module-panel-actions button,
+.theme-night .system-modal .inventory-row-actions button,
+.theme-night .system-modal .inventory-warning-row button,
+.theme-night .system-modal .checkout-product-section-head button,
+.theme-night .system-modal .checkout-product-toolbar button,
+.theme-night .system-modal .checkout-product-qty button,
+.theme-night .system-modal .checkout-product-remove,
+.theme-night .system-modal .product-picker-card-actions button,
+.theme-night .system-modal .product-picker-category-list button,
+.theme-night .system-modal .product-picker-subcategory-list button,
+.theme-night .system-modal .room-editor-remove,
+.theme-night .system-modal .room-settings-toolbar button,
+.theme-night .system-modal .refund-signature-panel button,
+.theme-night .system-modal .refund-signature-panel a,
+.theme-night .system-modal .signature-record-actions button {
+  border-color: var(--night-modal-border) !important;
+  background: var(--night-modal-panel-strong) !important;
+  color: var(--night-modal-text) !important;
+}
+
+.theme-night .system-modal .primary-button,
+.theme-night .system-modal button.primary-button,
+.theme-night .system-modal-footer button.primary-button,
+.theme-night .system-modal .row-actions .primary-button,
+.theme-night .system-modal .catalog-inline-form .primary-button,
+.theme-night .system-modal .inventory-product-form .form-submit-row .primary-button,
+.theme-night .system-modal .signature-complete-button {
+  background: linear-gradient(135deg, #8264e8, #bc4d78) !important;
+  color: #fff !important;
+  box-shadow: 0 16px 34px rgba(91, 63, 171, 0.26) !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button {
+  border-color: rgba(112, 220, 190, 0.32) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.075)) !important;
+  color: var(--night-modal-text) !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button.selected {
+  border-color: rgba(112, 220, 190, 0.56) !important;
+  background:
+    linear-gradient(145deg, rgba(112, 220, 190, 0.18), rgba(255, 255, 255, 0.09)) !important;
+  box-shadow: 0 12px 24px rgba(47, 191, 143, 0.1) !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button.disabled {
+  border-color: rgba(232, 134, 170, 0.28) !important;
+  background: rgba(232, 134, 170, 0.1) !important;
+  color: rgba(255, 218, 230, 0.82) !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-button .appointment-room-slot-text > span {
+  color: var(--night-modal-muted) !important;
+}
+
+.theme-night .system-modal .appointment-room-slot-icon {
+  border-color: rgba(112, 220, 190, 0.34) !important;
+  background: rgba(112, 220, 190, 0.12) !important;
+  color: #d8fff3 !important;
+}
+
+.theme-night .system-modal .table-wrap,
+.theme-night .system-modal .module-detail-stack .table-wrap,
+.theme-night .system-modal .signature-canvas-wrap,
+.theme-night .system-modal .signature-canvas {
+  border-color: var(--night-modal-border) !important;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.032) 0 1px, transparent 1px 42px),
+    rgba(255, 255, 255, 0.075) !important;
+}
+
+.theme-night .system-modal .datetime-picker-dialog {
+  border-color: var(--night-modal-border-strong) !important;
+  background:
+    radial-gradient(circle at 90% 4%, rgba(142, 105, 214, 0.16), transparent 34%),
+    linear-gradient(145deg, rgba(55, 43, 72, 0.98), rgba(42, 32, 57, 0.98)) !important;
+  color: var(--night-modal-text) !important;
+  box-shadow: 0 24px 58px rgba(15, 10, 22, 0.44) !important;
+}
+
+/* Night page surface lock: later appointment/page-specific day styles must not leak white cards into dark mode. */
+.app-shell.theme-night {
+  --night-app-surface: rgba(66, 55, 83, 0.92);
+  --night-app-surface-soft: rgba(255, 255, 255, 0.105);
+  --night-app-surface-strong: rgba(255, 255, 255, 0.145);
+  --night-app-line: rgba(235, 223, 255, 0.22);
+  --night-app-line-strong: rgba(235, 223, 255, 0.34);
+  --night-app-text: #fbf8ff;
+  --night-app-muted: rgba(239, 230, 252, 0.74);
+  --night-app-muted-weak: rgba(239, 230, 252, 0.52);
+}
+
+.app-shell.theme-night .main {
+  color: var(--night-app-text);
+}
+
+.app-shell.theme-night .main :is(
+  .panel,
+  .stat-card,
+  .quick-card,
+  .record-card,
+  .settings-card,
+  .settings-static-panel,
+  .settings-profile-card,
+  .settings-contact-card,
+  .sub-panel,
+  .dashboard-panel,
+  .workbench-panel,
+  .appointment-panel,
+  .appointment-workbench-panel,
+  .appointment-workflow-column,
+  .appointment-range-list,
+  .appointment-work-card,
+  .appointment-room-state-card,
+  .appointment-room-card,
+  .appointment-request-card,
+  .appointment-schedule-card,
+  .cashier-panel,
+  .cashier-revenue-card,
+  .cashier-order-card,
+  .customer-panel,
+  .customer-mini-card,
+  .customer-focus-card,
+  .usage-card,
+  .dashboard-metric,
+  .module-metric-card,
+  .module-entry-card,
+  .admin-module-card,
+  .customer-home-brief,
+  .cashier-home-brief,
+  .customer-home-brief article,
+  .cashier-home-brief article,
+  .workbench-action-row button,
+  .workbench-quick-list button,
+  .workbench-insight-list button
+) {
+  border-color: var(--night-app-line) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(160, 127, 226, 0.13), transparent 34%),
+    linear-gradient(145deg, var(--night-app-surface-soft), rgba(255, 255, 255, 0.075)) !important;
+  color: var(--night-app-text) !important;
+  box-shadow: 0 18px 42px rgba(15, 10, 22, 0.22) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-workflow-column.booked,
+  .appointment-workbench-metrics > div:first-child,
+  .appointment-room-state-card,
+  .module-entry-card.violet,
+  .module-entry-card.plum,
+  .workbench-action-row button:first-child
+) {
+  border-left-color: #9a7cff !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-workflow-column.arrival,
+  .appointment-room-state-card:not(.occupied):not(.maintenance),
+  .appointment-room-card,
+  .module-entry-card.teal,
+  .module-entry-card.jade,
+  .workbench-action-row button:nth-child(2)
+) {
+  border-left-color: #5ed6b8 !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-workflow-column.signature,
+  .appointment-room-state-card.occupied,
+  .module-entry-card.rose,
+  .workbench-action-row button:nth-child(3)
+) {
+  border-left-color: #d86d95 !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-room-state-card.maintenance,
+  .module-entry-card.amber,
+  .workbench-action-row button:nth-child(4)
+) {
+  border-left-color: #d9a64f !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-workbench-metrics > div,
+  .appointment-status-grid > div,
+  .cashier-status-grid > div,
+  .customer-status-grid > div,
+  .customer-tip-list > div,
+  .cashier-tip-list > div,
+  .usage-metrics > div,
+  .page-hero-stat
+) {
+  border-color: var(--night-app-line) !important;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(160, 127, 226, 0.12), transparent 34%),
+    var(--night-app-surface-strong) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .table-wrap,
+  .appointment-range-list .table-wrap,
+  .permission-store-card .table-wrap,
+  .permission-role-card .table-wrap,
+  .permission-approval-card .table-wrap
+) {
+  border-color: var(--night-app-line) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main :is(table, thead, tbody, tr, th, td) {
+  border-color: rgba(235, 223, 255, 0.14) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main th {
+  background: rgba(255, 255, 255, 0.075) !important;
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main td {
+  background: transparent !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .empty,
+  .appointment-empty-state,
+  .appointment-soft-empty,
+  .appointment-work-empty,
+  .cashier-soft-empty,
+  .customer-soft-empty,
+  .notification-panel .empty
+) {
+  border-color: rgba(235, 223, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main :is(
+  h1,
+  h2,
+  h3,
+  strong,
+  .panel-title h2,
+  .appointment-workbench-head strong,
+  .appointment-workflow-title strong,
+  .appointment-work-card-main strong,
+  .appointment-room-state-card strong,
+  .appointment-room-list-head strong,
+  .module-entry-card strong,
+  .module-metric-card strong,
+  .dashboard-metric strong
+) {
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main :is(
+  p,
+  span,
+  small,
+  label,
+  em,
+  time,
+  .panel-title span,
+  .appointment-workbench-head small,
+  .appointment-workbench-metrics span,
+  .appointment-workbench-metrics small,
+  .appointment-workflow-title span,
+  .appointment-work-card-main span,
+  .appointment-work-card-main small,
+  .appointment-room-state-card span,
+  .appointment-room-state-card small,
+  .appointment-room-state-card em,
+  .appointment-room-list-head small,
+  .module-entry-card small,
+  .module-entry-card em,
+  .module-metric-card small,
+  .module-metric-card em,
+  .dashboard-metric small
+) {
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main :is(input, select, textarea, .form-readonly, .contact-inline-field, .datetime-field-control) {
+  border-color: var(--night-app-line) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main :is(input, select, textarea)::placeholder {
+  color: var(--night-app-muted-weak) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-range-tabs,
+  .appointment-date-strip,
+  .theme-toggle,
+  .settings-mode-toggle,
+  .settings-tab-list
+) {
+  border-color: var(--night-app-line) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-range-tabs button,
+  .appointment-date-strip button,
+  .theme-toggle button,
+  .settings-mode-toggle button,
+  .settings-tab-button,
+  .secondary-button
+) {
+  border-color: rgba(235, 223, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-range-tabs button.active,
+  .appointment-date-strip button.active,
+  .theme-toggle button.active,
+  .settings-mode-toggle button.active,
+  .settings-tab-button.active
+) {
+  background: linear-gradient(135deg, #8264e8, #bc4d78) !important;
+  color: #fff !important;
+  box-shadow: 0 14px 26px rgba(91, 63, 171, 0.24) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-room-add-button,
+  .primary-button,
+  button.primary-button,
+  .form-submit-row .primary-button
+) {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #8264e8, #bc4d78) !important;
+  color: #fff !important;
+  box-shadow: 0 16px 32px rgba(91, 63, 171, 0.26) !important;
+}
+
+.app-shell.theme-night .main :is(
+  .appointment-room-status-button,
+  .appointment-work-card-actions button,
+  .table-action button,
+  .row-actions button
+) {
+  border-color: var(--night-app-line) !important;
+  background: rgba(255, 255, 255, 0.11) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-panel.panel {
+  border-color: var(--night-app-line) !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(94, 214, 184, 0.08), transparent 32%),
+    radial-gradient(circle at 0% 8%, rgba(216, 109, 149, 0.08), transparent 30%),
+    linear-gradient(145deg, rgba(66, 55, 83, 0.95), rgba(52, 42, 68, 0.95)) !important;
+  color: var(--night-app-text) !important;
+  box-shadow: 0 22px 54px rgba(15, 10, 22, 0.3) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-head span,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-head span svg {
+  color: #d7c8ff !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-head strong {
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-head small {
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.booked,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.arrival,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.signature,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-work-card,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-list,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-completed-detail,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-completed-detail dl div,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-completed-signature,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance {
+  border-color: var(--night-app-line) !important;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(160, 127, 226, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.08)) !important;
+  color: var(--night-app-text) !important;
+  box-shadow: 0 14px 30px rgba(15, 10, 22, 0.2) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.booked,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div:first-child {
+  border-left-color: #9a7cff !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.arrival,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div:nth-child(2) {
+  border-left-color: #d86d95 !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.signature,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div:nth-child(4),
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card {
+  border-left-color: #5ed6b8 !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div:nth-child(3) {
+  border-left-color: #9a7cff !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card.occupied {
+  border-left-color: #d86d95 !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card.maintenance {
+  border-left-color: #d9a64f !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-tabs,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-tabs button {
+  border-color: var(--night-app-line) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--night-app-muted) !important;
+  box-shadow: none !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-tabs button.active {
+  background: linear-gradient(135deg, #8264e8, #bc4d78) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 24px rgba(91, 63, 171, 0.24) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics span,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics small,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-title span,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-work-card span,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-work-card small,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-list .appointment-room-list-head small,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card span,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card small,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card em {
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics strong,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-title strong,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-work-card strong,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-list-head strong,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-room-state-card strong {
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-work-card time {
+  color: #d7c8ff !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-title em {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-list .table-wrap {
+  border-color: var(--night-app-line) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-list th {
+  background: rgba(255, 255, 255, 0.075) !important;
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-list td {
+  color: var(--night-app-text) !important;
+}
