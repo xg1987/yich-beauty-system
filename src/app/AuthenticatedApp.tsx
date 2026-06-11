@@ -140,7 +140,7 @@ const MutationPendingContext = createContext(false);
 const THEME_KEY = "yich-system-theme";
 const STORE_NAME_KEY = "yich-store-name";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-10";
+const APP_BUILD_DATE = "2026-06-11";
 const DEFAULT_SYSTEM_TITLE = "祝融｜坤锋美业门店系统";
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES);
@@ -435,6 +435,7 @@ const viewTitles: Record<ViewKey, string> = {
   permissions: "权限审批",
   platformConfig: "平台配置",
   aiConfig: "AI 能力配置",
+  aiTest: "AI 智能测试中心",
   usage: "服务器用量监控",
   roomSettings: "房间设置",
   settings: "管理中心",
@@ -741,7 +742,7 @@ const workbarItems: WorkbarItem[] = [
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
-const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "logs", "usage", "settings"]);
+const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "logs", "usage", "settings"]);
 
 const employeeWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
@@ -835,6 +836,7 @@ const MemoPlatformAccountAdminView = memo(PlatformAccountAdminView);
 const MemoPlatformPermissionReadOnlyView = memo(PlatformPermissionReadOnlyView);
 const MemoPlatformSystemConfigView = memo(PlatformSystemConfigView);
 const MemoPlatformAiConfigView = memo(PlatformAiConfigView);
+const MemoPlatformAiTestCenterView = memo(PlatformAiTestCenterView);
 const MemoPlatformUsageReadOnlyView = memo(PlatformUsageReadOnlyView);
 const MemoRoomSettings = memo(RoomSettings);
 const LazyReports = lazy(() => import("../pages/shared/Reports"));
@@ -1099,6 +1101,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             {activeView === "permissions" && <MemoPlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "platformConfig" && <MemoPlatformSystemConfigView data={data} actions={actions} runMutation={runMutation} />}
             {activeView === "aiConfig" && <MemoPlatformAiConfigView data={data} setView={navigate} actions={actions} runMutation={runMutation} />}
+            {activeView === "aiTest" && <MemoPlatformAiTestCenterView data={data} setView={navigate} actions={actions} />}
             {activeView === "usage" && <MemoPlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
             {activeView === "roomSettings" && <MemoRoomSettings data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "settings" && (
@@ -1208,6 +1211,7 @@ function ManagementCenter({
     { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "AI 能力配置", desc: "文案 / 图片 / 视频模型与成本", icon: Sparkles, tone: "plum", view: "aiConfig" },
+    { title: "AI 智能测试中心", desc: "聊天 / 图片 / 视频接口试跑", icon: MessageCircle, tone: "plum", view: "aiTest" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
   ];
@@ -1507,6 +1511,19 @@ function managementEntryDetails(
         { label: "文案模型", value: AI_PROVIDER_LABELS[aiConfig.copy.provider], hint: aiConfig.copy.model },
         { label: "图片模型", value: AI_PROVIDER_LABELS[aiConfig.image.provider], hint: aiConfig.image.model },
         { label: "视频模型", value: `${enabledVideoProviders} 个`, hint: "Seedance / Kling / 海螺" },
+      ],
+    };
+  }
+  if (item.view === "aiTest") {
+    const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
+    const enabledVideoProviders = aiConfig.video.providers.filter((provider) => provider.enabled).length;
+    return {
+      ...base,
+      value: "3 项试跑",
+      items: [
+        { label: "文案对话", value: aiConfig.copy.enabled ? "可测试" : "停用", hint: aiConfig.copy.model },
+        { label: "图片生成", value: aiConfig.image.enabled ? "可测试" : "停用", hint: aiConfig.image.model },
+        { label: "视频任务", value: `${enabledVideoProviders} 个`, hint: "创建 / 查询任务" },
       ],
     };
   }
@@ -1858,7 +1875,7 @@ function PlatformAiConfigView({
       <Modal
         open={activeAiPanel === "video"}
         title="视频模型配置"
-        subtitle="按供应商、时长和分辨率维护成本，员工营销页只看到可用能力。"
+        subtitle="按供应商、时长和分辨率维护成本，员工营销页展示可用能力。"
         size="large"
         className="ai-config-modal ai-video-config-modal"
         onClose={() => setActiveAiPanel(null)}
@@ -2226,6 +2243,239 @@ function PlatformAdminView({
           rows={storeRows}
         />
       </section>
+    </div>
+  );
+}
+
+type AiTestTab = "chat" | "image" | "video";
+
+function formatAiTestJson(value: unknown) {
+  if (value === undefined || value === null) return "";
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function PlatformAiTestCenterView({ data, setView, actions }: { data: AppData; setView: (view: ViewKey) => void; actions: ApiActions }) {
+  const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
+  const [activeTab, setActiveTab] = useState<AiTestTab>("chat");
+  const [chatPrompt, setChatPrompt] = useState("帮我写一条美容院老客回访微信话术，语气自然，不要太营销。");
+  const [imagePrompt, setImagePrompt] = useState("生成一张高端美容院开业活动海报，紫色主色，包含中文标题：开业礼遇。");
+  const [videoPrompt, setVideoPrompt] = useState("高端美容院护理房，柔和灯光，产品陈列干净，镜头缓慢推进，适合门店宣传短视频。");
+  const [videoProvider, setVideoProvider] = useState<AiVideoProviderConfig["provider"]>(aiConfig.video.defaultProvider);
+  const activeVideoConfig = aiConfig.video.providers.find((provider) => provider.provider === videoProvider) ?? aiConfig.video.providers[0];
+  const [videoDuration, setVideoDuration] = useState(activeVideoConfig?.defaultDurationSeconds ?? 5);
+  const [videoResolution, setVideoResolution] = useState<AiVideoResolution>(activeVideoConfig?.defaultResolution ?? "720p");
+  const [videoAspectRatio, setVideoAspectRatio] = useState<AiVideoAspectRatio>(activeVideoConfig?.defaultAspectRatio ?? "9:16");
+  const [videoTaskId, setVideoTaskId] = useState("");
+  const [chatResult, setChatResult] = useState<Awaited<ReturnType<ApiActions["testAiChat"]>> | null>(null);
+  const [imageResult, setImageResult] = useState<Awaited<ReturnType<ApiActions["testAiImage"]>> | null>(null);
+  const [videoResult, setVideoResult] = useState<Awaited<ReturnType<ApiActions["testAiVideo"]>> | null>(null);
+  const [busy, setBusy] = useState<AiTestTab | "video-status" | null>(null);
+  const [error, setError] = useState("");
+  const chatMessages = chatResult
+    ? [
+      { role: "user" as const, content: chatPrompt },
+      { role: "assistant" as const, content: chatResult.text },
+    ]
+    : [];
+
+  const selectVideoProvider = (provider: AiVideoProviderConfig["provider"]) => {
+    const providerConfig = aiConfig.video.providers.find((item) => item.provider === provider);
+    setVideoProvider(provider);
+    if (providerConfig) {
+      setVideoDuration(providerConfig.defaultDurationSeconds);
+      setVideoResolution(providerConfig.defaultResolution);
+      setVideoAspectRatio(providerConfig.defaultAspectRatio);
+    }
+  };
+
+  const submitChatTest = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy("chat");
+    setError("");
+    actions.testAiChat({ prompt: chatPrompt, history: chatMessages }).then(setChatResult).catch((caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "文案对话测试失败");
+    }).finally(() => setBusy(null));
+  };
+  const submitImageTest = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy("image");
+    setError("");
+    actions.testAiImage({ prompt: imagePrompt, size: aiConfig.image.defaultSize, quality: aiConfig.image.defaultQuality }).then(setImageResult).catch((caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "图片生成测试失败");
+    }).finally(() => setBusy(null));
+  };
+  const submitVideoTest = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy("video");
+    setError("");
+    actions.testAiVideo({
+      prompt: videoPrompt,
+      provider: videoProvider,
+      durationSeconds: videoDuration,
+      resolution: videoResolution,
+      aspectRatio: videoAspectRatio,
+    }).then((result) => {
+      setVideoResult(result);
+      if (result.taskId) setVideoTaskId(result.taskId);
+    }).catch((caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "视频任务测试失败");
+    }).finally(() => setBusy(null));
+  };
+  const queryVideoStatus = () => {
+    if (!videoTaskId.trim()) {
+      setError("请输入视频任务 ID");
+      return;
+    }
+    setBusy("video-status");
+    setError("");
+    actions.queryAiVideo({ provider: videoProvider, taskId: videoTaskId.trim() }).then(setVideoResult).catch((caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "查询视频任务失败");
+    }).finally(() => setBusy(null));
+  };
+
+  const capabilityCards = [
+    { key: "chat" as const, title: "文案对话", icon: <MessageCircle size={18} />, provider: AI_PROVIDER_LABELS[aiConfig.copy.provider], model: aiConfig.copy.model, status: aiConfig.copy.enabled ? "已启用" : "停用" },
+    { key: "image" as const, title: "图片生成", icon: <Sparkles size={18} />, provider: "OpenAI", model: aiConfig.image.model, status: aiConfig.image.enabled ? "已启用" : "停用" },
+    { key: "video" as const, title: "视频生成", icon: <Megaphone size={18} />, provider: AI_PROVIDER_LABELS[videoProvider], model: activeVideoConfig?.model ?? "未配置模型", status: activeVideoConfig?.enabled ? "已启用" : "停用" },
+  ];
+
+  return (
+    <div className="admin-center-page platform-admin-page ai-test-page">
+      <PlatformPageTitle title="AI 智能测试中心" onBack={() => setView("settings")} />
+      <section className="page-hero platform-admin-readonly-hero ai-config-hero">
+        <div>
+          <span className="eyebrow"><Sparkles size={15} /> Admin AI 测试</span>
+          <h1>聊天、图片、视频接口试跑</h1>
+          <p>读取当前 AI 能力配置，直接验证模型、Key、返回结果和任务状态。</p>
+        </div>
+      </section>
+
+      <section className="ai-capability-strip ai-test-tabs" aria-label="AI 测试类型">
+        {capabilityCards.map((card) => (
+          <button type="button" className={`ai-capability-card ${activeTab === card.key ? "active" : ""}`} key={card.key} onClick={() => setActiveTab(card.key)}>
+            <span className="ai-capability-icon">{card.icon}</span>
+            <div>
+              <small>{card.title}</small>
+              <strong>{card.provider}</strong>
+              <em>{card.model || "未配置模型"}</em>
+            </div>
+            <b>{card.status}</b>
+            <span>{card.key === "video" ? "创建任务 / 查询任务" : "实时请求供应商接口"}</span>
+          </button>
+        ))}
+      </section>
+
+      {error && <div className="ai-test-error" role="alert">{error}</div>}
+
+      {activeTab === "chat" && (
+        <section className="panel dashboard-panel ai-test-panel">
+          <PanelTitle icon={<MessageCircle size={18} />} title="文案对话测试" action={`${AI_PROVIDER_LABELS[aiConfig.copy.provider]} · ${aiConfig.copy.model}`} />
+          <form className="ai-test-form" onSubmit={submitChatTest}>
+            <label>
+              <span className="field-label">测试内容</span>
+              <textarea value={chatPrompt} onChange={(event) => setChatPrompt(event.target.value)} rows={5} />
+            </label>
+            <button type="submit" className="primary-button" disabled={busy !== null}>{busy === "chat" ? "测试中..." : "发送测试"}</button>
+          </form>
+          {chatResult && (
+            <div className="ai-test-result-grid">
+              <article className="ai-test-output">
+                <small>{chatResult.provider} · {chatResult.model} · {chatResult.elapsedMs}ms</small>
+                <p>{chatResult.text}</p>
+              </article>
+              <pre>{formatAiTestJson({ usage: chatResult.usage, raw: chatResult.raw })}</pre>
+            </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === "image" && (
+        <section className="panel dashboard-panel ai-test-panel">
+          <PanelTitle icon={<Sparkles size={18} />} title="图片生成测试" action={`${aiConfig.image.model} · ${aiConfig.image.defaultSize} · ${aiConfig.image.defaultQuality}`} />
+          <form className="ai-test-form" onSubmit={submitImageTest}>
+            <label>
+              <span className="field-label">图片提示词</span>
+              <textarea value={imagePrompt} onChange={(event) => setImagePrompt(event.target.value)} rows={5} />
+            </label>
+            <button type="submit" className="primary-button" disabled={busy !== null}>{busy === "image" ? "生成中..." : "生成测试图片"}</button>
+          </form>
+          {imageResult && (
+            <div className="ai-test-result-grid">
+              <article className="ai-test-image-output">
+                {imageResult.imageDataUrl && <img src={imageResult.imageDataUrl} alt="AI 生成测试结果" />}
+                <small>{imageResult.provider} · {imageResult.model} · {imageResult.elapsedMs}ms</small>
+                {imageResult.revisedPrompt && <p>{imageResult.revisedPrompt}</p>}
+              </article>
+              <pre>{formatAiTestJson(imageResult.raw)}</pre>
+            </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === "video" && (
+        <section className="panel dashboard-panel ai-test-panel">
+          <PanelTitle icon={<Megaphone size={18} />} title="视频生成测试" action={`${AI_PROVIDER_LABELS[videoProvider]} · ${activeVideoConfig?.model ?? "未配置模型"}`} />
+          <form className="ai-test-form" onSubmit={submitVideoTest}>
+            <div className="ai-test-settings">
+              <label>
+                <span className="field-label">供应商</span>
+                <select value={videoProvider} onChange={(event) => selectVideoProvider(event.target.value as AiVideoProviderConfig["provider"])}>
+                  {aiConfig.video.providers.map((provider) => <option key={provider.provider} value={provider.provider}>{AI_PROVIDER_LABELS[provider.provider]}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="field-label">时长</span>
+                <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
+                  {AI_VIDEO_DURATIONS.map((duration) => <option key={duration} value={duration}>{duration} 秒</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="field-label">分辨率</span>
+                <select value={videoResolution} onChange={(event) => setVideoResolution(event.target.value as AiVideoResolution)}>
+                  {AI_VIDEO_RESOLUTIONS.map((resolution) => <option key={resolution} value={resolution}>{resolution}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="field-label">比例</span>
+                <select value={videoAspectRatio} onChange={(event) => setVideoAspectRatio(event.target.value as AiVideoAspectRatio)}>
+                  {AI_VIDEO_ASPECT_RATIOS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+                </select>
+              </label>
+            </div>
+            <label>
+              <span className="field-label">视频提示词</span>
+              <textarea value={videoPrompt} onChange={(event) => setVideoPrompt(event.target.value)} rows={5} />
+            </label>
+            <div className="ai-test-actions">
+              <button type="submit" className="primary-button" disabled={busy !== null}>{busy === "video" ? "创建中..." : "创建视频任务"}</button>
+              <label>
+                <span className="field-label">任务 ID</span>
+                <input value={videoTaskId} onChange={(event) => setVideoTaskId(event.target.value)} placeholder="生成后自动填入，也可以手动粘贴" />
+              </label>
+              <button type="button" disabled={busy !== null} onClick={queryVideoStatus}>
+                <RefreshCw size={16} />
+                {busy === "video-status" ? "查询中..." : "查询状态"}
+              </button>
+            </div>
+          </form>
+          {videoResult && (
+            <div className="ai-test-result-grid">
+              <article className="ai-test-output">
+                <small>{videoResult.provider} · {videoResult.model} · {videoResult.elapsedMs}ms</small>
+                <p>状态：{videoResult.status ?? "已返回"}</p>
+                {videoResult.taskId && <p>任务 ID：{videoResult.taskId}</p>}
+                {videoResult.fileId && <p>文件 ID：{videoResult.fileId}</p>}
+                {videoResult.videoUrl && <a href={videoResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
+              </article>
+              <pre>{formatAiTestJson({ normalizedRequest: videoResult.normalizedRequest, raw: videoResult.raw })}</pre>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -2907,6 +3157,8 @@ function PlatformAccountAdminView({
   const mutationPending = useMutationPending();
   const [resetUserId, setResetUserId] = useState("");
   const [resetPassword, setResetPassword] = useState("123456");
+  const [accountSearch, setAccountSearch] = useState("");
+  const [expandedStoreIds, setExpandedStoreIds] = useState<Set<string>>(() => new Set());
   const visibleAuthUsers = data.authUsers.filter(isVisibleAccount);
   const isPlatformAdmin = session.user.role === "superadmin";
   const adminAccounts = visibleAuthUsers.filter(isVisiblePlatformAdmin);
@@ -2914,6 +3166,26 @@ function PlatformAccountAdminView({
   const staffAccounts = visibleAuthUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const accountRows = isPlatformAdmin ? visibleAuthUsers : staffAccounts;
   const resetUser = accountRows.find((user) => user.id === resetUserId);
+  const normalizedAccountSearch = accountSearch.trim().toLowerCase();
+  const staffById = new Map(data.staff.map((staff) => [staff.id, staff]));
+  const storeIdForAccount = (user: AuthUser) => user.storeId ?? (user.staffId ? staffById.get(user.staffId)?.storeId : undefined);
+  const accountPhone = (user: AuthUser) => (user.staffId ? staffById.get(user.staffId)?.phone : undefined) || user.account;
+  const accountSearchTarget = (user: AuthUser) => {
+    const linkedStaff = user.staffId ? staffById.get(user.staffId) : undefined;
+    return `${user.name} ${user.account} ${displayRoleName(user)} ${linkedStaff?.phone ?? ""}`.toLowerCase();
+  };
+  const storeSearchTarget = (store: AppData["storeProfiles"][number]) => `${store.name} ${store.phone}`.toLowerCase();
+  const visibleAdminAccounts = normalizedAccountSearch
+    ? adminAccounts.filter((user) => accountSearchTarget(user).includes(normalizedAccountSearch))
+    : adminAccounts;
+  const toggleStoreAccounts = (storeId: string) => {
+    setExpandedStoreIds((current) => {
+      const next = new Set(current);
+      if (next.has(storeId)) next.delete(storeId);
+      else next.add(storeId);
+      return next;
+    });
+  };
   const submitPasswordReset = (event: FormEvent) => {
     event.preventDefault();
     if (!resetUserId || !resetPassword.trim()) return;
@@ -2928,29 +3200,40 @@ function PlatformAccountAdminView({
     if (!window.confirm(`确定删除员工 ${user.name}？已有订单/预约记录的员工不能删除，只能停用。`)) return;
     void runMutation(() => actions.deleteStaff(staffId));
   };
-  const storeRows = data.storeProfiles.map((store) => {
-    const ownerStaff = data.staff.find((staff) => {
-      const linkedUser = data.authUsers.find((user) => user.staffId === staff.id);
-      return staff.role === "老板" && (!linkedUser || !isVisiblePlatformAdmin(linkedUser));
-    });
-    const ownerUser = ownerStaff ? data.authUsers.find((user) => user.staffId === ownerStaff.id) : ownerAccounts[0];
-    return [
-      store.name,
-      ownerUser?.name ?? "未绑定",
-      ownerUser?.account ?? "未绑定",
-      store.phone,
-      <Badge key={`${store.id}-status`} text={(store.status ?? "active") === "active" ? "启用" : "停用"} tone={(store.status ?? "active") === "active" ? "ok" : "warn"} />,
-      shortDate(store.createdAt),
-      <button
-        key={`${store.id}-toggle`}
-        type="button"
-        disabled={mutationPending}
-        onClick={() => void runMutation(() => actions.updateStoreStatus(store.id, (store.status ?? "active") === "active" ? "disabled" : "active"))}
-      >
-        {mutationPending ? "处理中..." : (store.status ?? "active") === "active" ? "停用" : "启用"}
-      </button>,
-    ];
-  });
+  const renderAccountActions = (user: AuthUser) => (
+    user.id === session.user.id ? (
+      <span key={`${user.id}-self`}>当前账号</span>
+    ) : (
+      <div className="row-actions" key={`${user.id}-actions`}>
+        {user.status === "pending" && (
+          <button type="button" disabled={mutationPending} onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, "active"))}>
+            {mutationPending ? "处理中..." : "通过"}
+          </button>
+        )}
+        {user.status !== "pending" && (
+          <button type="button" disabled={mutationPending} onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, user.status === "active" ? "disabled" : "active"))}>
+            {mutationPending ? "处理中..." : user.status === "active" ? "停用" : "启用"}
+          </button>
+        )}
+        <button type="button" disabled={mutationPending} onClick={() => setResetUserId(user.id)}>重置密码</button>
+        {user.staffId && user.role !== "owner" && <button type="button" disabled={mutationPending} onClick={() => deleteLinkedStaff(user)}>删除员工</button>}
+      </div>
+    )
+  );
+  const groupedStoreAccounts = data.storeProfiles
+    .map((store) => {
+      const storeAccounts = visibleAuthUsers.filter((user) => !isVisiblePlatformAdmin(user) && storeIdForAccount(user) === store.id);
+      const ownerStaff = data.staff.find((staff) => staff.role === "老板" && staff.storeId === store.id);
+      const ownerUser = ownerAccounts.find((user) => storeIdForAccount(user) === store.id)
+        ?? (ownerStaff ? visibleAuthUsers.find((user) => user.staffId === ownerStaff.id) : undefined);
+      const visibleAccounts = normalizedAccountSearch
+        ? storeAccounts.filter((user) => accountSearchTarget(user).includes(normalizedAccountSearch))
+        : storeAccounts;
+      const matchesStore = normalizedAccountSearch ? storeSearchTarget(store).includes(normalizedAccountSearch) : true;
+      return { store, ownerUser, accounts: storeAccounts, visibleAccounts, isSearchMatch: matchesStore || visibleAccounts.length > 0 };
+    })
+    .filter((group) => !normalizedAccountSearch || group.isSearchMatch);
+  const totalVisibleStoreAccounts = groupedStoreAccounts.reduce((sum, group) => sum + group.visibleAccounts.length, 0);
 
   return (
     <div className="admin-center-page platform-admin-page">
@@ -2970,7 +3253,15 @@ function PlatformAccountAdminView({
 
       <section className="account-admin-stack">
         <div className="panel dashboard-panel">
-          <PanelTitle icon={<UsersRound size={18} />} title="账号列表" action={`${accountRows.length} 个账号`} />
+          <PanelTitle
+            icon={<UsersRound size={18} />}
+            title={isPlatformAdmin ? "账号列表" : "员工账号"}
+            action={isPlatformAdmin ? `${data.storeProfiles.length} 家门店 · ${ownerAccounts.length + staffAccounts.length} 个门店账号` : `${staffAccounts.length} 个账号`}
+          />
+          <label className="account-admin-search">
+            <Search size={17} />
+            <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} placeholder="搜索姓名 / 手机号 / 登录账号 / 门店名" />
+          </label>
           {resetUser && (
             <form className="staff-edit-form" onSubmit={submitPasswordReset}>
               <div className="staff-edit-head">
@@ -2984,50 +3275,83 @@ function PlatformAccountAdminView({
               </div>
             </form>
           )}
-          <DataTable
-            columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
-            rows={accountRows.map((user) => [
-              user.name,
-              user.account,
-              displayRoleName(user),
-              <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
-              shortDate(user.createdAt),
-              user.id === session.user.id ? (
-                <span key={`${user.id}-self`}>当前账号</span>
-              ) : (
-                <div className="row-actions" key={`${user.id}-actions`}>
-                  {user.status === "pending" && (
-                    <button
-                      type="button"
-                      disabled={mutationPending}
-                      onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, "active"))}
-                    >
-                      {mutationPending ? "处理中..." : "通过"}
-                    </button>
-                  )}
-                  {user.status !== "pending" && (
-                    <button
-                      type="button"
-                      disabled={mutationPending}
-                      onClick={() => void runMutation(() => actions.updateAuthUserStatus(user.id, user.status === "active" ? "disabled" : "active"))}
-                    >
-                      {mutationPending ? "处理中..." : user.status === "active" ? "停用" : "启用"}
-                    </button>
-                  )}
-                  <button type="button" disabled={mutationPending} onClick={() => setResetUserId(user.id)}>重置密码</button>
-                  {user.staffId && <button type="button" disabled={mutationPending} onClick={() => deleteLinkedStaff(user)}>删除员工</button>}
+          {isPlatformAdmin ? (
+            <div className="store-account-admin">
+              {visibleAdminAccounts.length > 0 && (
+                <div className="platform-account-block">
+                  <div className="store-account-block-title"><strong>平台账号</strong><span>{visibleAdminAccounts.length} 个</span></div>
+                  <DataTable
+                    columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
+                    rows={visibleAdminAccounts.map((user) => [
+                      user.name,
+                      user.account,
+                      displayRoleName(user),
+                      <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
+                      shortDate(user.createdAt),
+                      renderAccountActions(user),
+                    ])}
+                  />
                 </div>
-              ),
-            ])}
-          />
+              )}
+              <div className="store-account-list">
+                {groupedStoreAccounts.length ? groupedStoreAccounts.map(({ store, ownerUser, accounts, visibleAccounts }) => {
+                  const ownerPhone = ownerUser ? accountPhone(ownerUser) : store.phone;
+                  const searchExpanded = Boolean(normalizedAccountSearch && visibleAccounts.length > 0);
+                  const isExpanded = expandedStoreIds.has(store.id) || searchExpanded;
+                  const rows = normalizedAccountSearch ? visibleAccounts : accounts;
+                  return (
+                    <article className="store-account-card" key={store.id}>
+                      <button type="button" className="store-account-summary" onClick={() => toggleStoreAccounts(store.id)}>
+                        <div>
+                          <strong>{store.name}</strong>
+                          <span>负责人：{ownerUser?.name ?? "未绑定"} · {ownerPhone || "未绑定"}</span>
+                        </div>
+                        <div className="store-account-meta">
+                          <span>{accounts.length} 个账号</span>
+                          <Badge text={(store.status ?? "active") === "active" ? "启用" : "停用"} tone={(store.status ?? "active") === "active" ? "ok" : "warn"} />
+                          <small>{shortDate(store.createdAt)}</small>
+                          <em>{isExpanded ? "收起" : "展开"}{isExpanded ? <Minus size={15} /> : <Plus size={15} />}</em>
+                        </div>
+                      </button>
+                      {isExpanded && (
+                        <div className="store-account-detail">
+                          <DataTable
+                            columns={["姓名", "手机号 / 账号", "角色", "状态", "创建时间", "操作"]}
+                            rows={rows.map((user) => [
+                              user.name,
+                              accountPhone(user),
+                              displayRoleName(user),
+                              <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
+                              shortDate(user.createdAt),
+                              renderAccountActions(user),
+                            ])}
+                          />
+                        </div>
+                      )}
+                    </article>
+                  );
+                }) : <p className="empty">没有找到匹配的门店或账号</p>}
+              </div>
+              {normalizedAccountSearch && groupedStoreAccounts.length > 0 && (
+                <p className="account-search-result">已匹配 {groupedStoreAccounts.length} 家门店 · {totalVisibleStoreAccounts} 个账号</p>
+              )}
+            </div>
+          ) : (
+            <DataTable
+              columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
+              rows={staffAccounts
+                .filter((user) => !normalizedAccountSearch || accountSearchTarget(user).includes(normalizedAccountSearch))
+                .map((user) => [
+                  user.name,
+                  user.account,
+                  displayRoleName(user),
+                  <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
+                  shortDate(user.createdAt),
+                  renderAccountActions(user),
+                ])}
+            />
+          )}
         </div>
-        {isPlatformAdmin && <div className="panel dashboard-panel">
-          <PanelTitle icon={<Building2 size={18} />} title="门店账号" action={`${data.storeProfiles.length} 家门店`} />
-          <DataTable
-            columns={["门店", "负责人", "登录账号", "门店电话", "状态", "开通时间", "操作"]}
-            rows={storeRows}
-          />
-        </div>}
       </section>
     </div>
   );
@@ -3588,7 +3912,7 @@ function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = 
   if (view === "reports") return "reports";
   if (view === "accounts") return "accounts";
   if (view === "logs") return "logs";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "usage", "roomSettings"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "usage", "roomSettings"].includes(view)) return "admin";
   return "workbench";
 }
 

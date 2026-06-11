@@ -2879,6 +2879,189 @@ td {
   border-radius: 18px;
 }
 
+.account-admin-search {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 0 14px;
+  min-height: 46px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+  color: rgba(47, 37, 95, 0.68);
+}
+
+.account-admin-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #2f255f;
+  font: inherit;
+  font-weight: 760;
+  outline: none;
+}
+
+.account-admin-search input::placeholder {
+  color: rgba(47, 37, 95, 0.48);
+}
+
+.store-account-admin,
+.store-account-list {
+  display: grid;
+  gap: 12px;
+}
+
+.platform-account-block,
+.store-account-card {
+  min-width: 0;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(42, 143, 125, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.64);
+  overflow: hidden;
+}
+
+.store-account-block-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(111, 66, 193, 0.12);
+}
+
+.store-account-block-title strong,
+.store-account-summary strong {
+  color: #2f255f;
+  font-weight: 920;
+}
+
+.store-account-block-title span,
+.account-search-result,
+.store-account-summary span,
+.store-account-meta > span,
+.store-account-meta small {
+  color: rgba(47, 37, 95, 0.62);
+  font-weight: 760;
+}
+
+.store-account-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  min-height: 76px;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.store-account-summary:hover,
+.store-account-summary:focus-visible {
+  background: rgba(111, 66, 193, 0.05);
+  outline: none;
+}
+
+.store-account-summary strong,
+.store-account-summary span {
+  display: block;
+}
+
+.store-account-summary strong {
+  font-size: 18px;
+}
+
+.store-account-summary span {
+  margin-top: 5px;
+}
+
+.store-account-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.store-account-meta em {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.1);
+  color: #52309d;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.store-account-detail {
+  padding: 0 14px 14px;
+}
+
+.store-account-detail .table-wrap,
+.platform-account-block .table-wrap {
+  border-radius: 14px;
+}
+
+.account-search-result {
+  margin: 0;
+  text-align: right;
+}
+
+.app-shell.theme-night .account-admin-search,
+.app-shell.theme-night .platform-account-block,
+.app-shell.theme-night .store-account-card {
+  border-color: var(--night-app-line);
+  background:
+    radial-gradient(circle at 96% 0%, rgba(160, 127, 226, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.08);
+}
+
+.app-shell.theme-night .account-admin-search,
+.app-shell.theme-night .account-admin-search input,
+.app-shell.theme-night .store-account-block-title strong,
+.app-shell.theme-night .store-account-summary strong {
+  color: var(--night-app-text);
+}
+
+.app-shell.theme-night .account-admin-search input::placeholder,
+.app-shell.theme-night .store-account-block-title span,
+.app-shell.theme-night .store-account-summary span,
+.app-shell.theme-night .store-account-meta > span,
+.app-shell.theme-night .store-account-meta small,
+.app-shell.theme-night .account-search-result {
+  color: var(--night-app-muted);
+}
+
+.app-shell.theme-night .store-account-block-title {
+  border-bottom-color: var(--night-app-line);
+}
+
+.app-shell.theme-night .store-account-summary:hover,
+.app-shell.theme-night .store-account-summary:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 820px) {
+  .store-account-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .store-account-meta {
+    justify-content: flex-start;
+  }
+}
+
 .timeline-list,
 .care-list {
   display: grid;
@@ -22810,11 +22993,189 @@ textarea,
   color: rgba(255, 255, 255, 0.82);
 }
 
+.ai-test-page {
+  gap: 14px;
+}
+
+.ai-test-tabs .ai-capability-card.active {
+  border-color: rgba(111, 66, 193, 0.5);
+  background:
+    radial-gradient(circle at 92% 12%, rgba(42, 143, 125, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(245, 238, 255, 0.92));
+  box-shadow: 0 18px 36px rgba(63, 39, 112, 0.14);
+}
+
+.ai-test-error {
+  padding: 12px 14px;
+  border: 1px solid rgba(199, 67, 99, 0.24);
+  border-radius: 14px;
+  background: rgba(199, 67, 99, 0.08);
+  color: #9f1f2d;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.ai-test-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.ai-test-form {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-test-form label,
+.ai-test-settings label,
+.ai-test-actions label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ai-test-form textarea,
+.ai-test-form input,
+.ai-test-form select {
+  width: 100%;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #2f255f;
+  font: inherit;
+  font-weight: 760;
+}
+
+.ai-test-form textarea {
+  min-height: 132px;
+  padding: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.ai-test-form input,
+.ai-test-form select {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.ai-test-settings {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-test-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.ai-test-actions button,
+.ai-test-form > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #2f255f;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.ai-test-actions button:disabled,
+.ai-test-form > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.ai-test-actions .primary-button,
+.ai-test-form > .primary-button {
+  border: 0;
+  background: linear-gradient(135deg, #6f42c1, #c74363);
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(111, 66, 193, 0.22);
+}
+
+.ai-test-result-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.ai-test-output,
+.ai-test-image-output {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 94% 0%, rgba(42, 143, 125, 0.1), transparent 35%),
+    rgba(255, 255, 255, 0.7);
+}
+
+.ai-test-output small,
+.ai-test-image-output small {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.ai-test-output p,
+.ai-test-image-output p {
+  margin: 0;
+  color: #2f255f;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ai-test-output a {
+  color: #6f42c1;
+  font-weight: 900;
+}
+
+.ai-test-image-output img {
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: rgba(47, 37, 95, 0.06);
+}
+
+.ai-test-result-grid pre {
+  max-height: 520px;
+  margin: 0;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 16px;
+  background: rgba(35, 28, 68, 0.94);
+  color: #f9f4ff;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .app-shell.theme-night .ai-config-form-grid input,
 .app-shell.theme-night .ai-config-form-grid select,
 .app-shell.theme-night .ai-video-default-row select,
 .app-shell.theme-night .ai-video-provider-title select,
-.app-shell.theme-night .ai-price-matrix input {
+.app-shell.theme-night .ai-price-matrix input,
+.app-shell.theme-night .ai-test-form textarea,
+.app-shell.theme-night .ai-test-form input,
+.app-shell.theme-night .ai-test-form select {
   border-color: var(--night-app-line);
   background: rgba(255, 255, 255, 0.08);
   color: var(--night-app-text);
@@ -22829,7 +23190,9 @@ textarea,
 
 .app-shell.theme-night .ai-capability-card,
 .app-shell.theme-night .ai-modal-summary,
-.app-shell.theme-night .ai-price-matrix {
+.app-shell.theme-night .ai-price-matrix,
+.app-shell.theme-night .ai-test-output,
+.app-shell.theme-night .ai-test-image-output {
   border-color: var(--night-app-line);
   background:
     radial-gradient(circle at 92% 12%, rgba(160, 127, 226, 0.1), transparent 34%),
@@ -22840,7 +23203,9 @@ textarea,
 .app-shell.theme-night .ai-modal-summary strong,
 .app-shell.theme-night .ai-price-matrix-row > span,
 .app-shell.theme-night .ai-config-footer strong,
-.app-shell.theme-night .ai-capability-card strong {
+.app-shell.theme-night .ai-capability-card strong,
+.app-shell.theme-night .ai-test-output p,
+.app-shell.theme-night .ai-test-image-output p {
   color: var(--night-app-text);
 }
 
@@ -22850,7 +23215,9 @@ textarea,
 .app-shell.theme-night .ai-price-matrix-head span,
 .app-shell.theme-night .ai-capability-card small,
 .app-shell.theme-night .ai-capability-card em,
-.app-shell.theme-night .ai-capability-card > span:last-child {
+.app-shell.theme-night .ai-capability-card > span:last-child,
+.app-shell.theme-night .ai-test-output small,
+.app-shell.theme-night .ai-test-image-output small {
   color: var(--night-app-muted);
 }
 
@@ -22878,7 +23245,10 @@ textarea,
   .ai-config-form-grid,
   .ai-config-form-grid.compact,
   .ai-video-default-row,
-  .ai-config-footer {
+  .ai-config-footer,
+  .ai-test-settings,
+  .ai-test-actions,
+  .ai-test-result-grid {
     grid-template-columns: 1fr;
   }
 
@@ -22895,5 +23265,44 @@ textarea,
 
   .ai-config-footer button {
     width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-center-page:not(.platform-admin-page) .admin-module-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card {
+    min-height: 88px;
+    align-content: center;
+    justify-items: center;
+    gap: 7px;
+    padding: 11px 7px;
+    border-radius: 16px;
+    text-align: center;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card .admin-module-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card .admin-module-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card strong {
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-module-card.module-entry-card em {
+    display: none;
   }
 }

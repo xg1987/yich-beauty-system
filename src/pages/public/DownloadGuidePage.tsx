@@ -3,7 +3,7 @@ import { useState } from "react";
 import packageJson from "../../../package.json";
 
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-07";
+const APP_BUILD_DATE = "2026-06-11";
 
 export default function DownloadGuidePage() {
   const appUrl = "https://zhurongkftech.com/";

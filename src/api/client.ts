@@ -46,6 +46,35 @@ export type PublicCustomerSignaturePayload = {
     staffName: string;
   };
 };
+export type AiVideoProviderKey = "seedance" | "kling" | "hailuo";
+export type AiTestChatMessage = { role: "user" | "assistant"; content: string };
+export type AiTestChatResult = {
+  provider: "openai" | "deepseek";
+  model: string;
+  text: string;
+  usage?: unknown;
+  raw?: unknown;
+  elapsedMs: number;
+};
+export type AiTestImageResult = {
+  provider: "openai";
+  model: string;
+  imageDataUrl?: string;
+  revisedPrompt?: string;
+  raw?: unknown;
+  elapsedMs: number;
+};
+export type AiTestVideoResult = {
+  provider: AiVideoProviderKey;
+  model: string;
+  taskId?: string;
+  status?: string;
+  videoUrl?: string;
+  fileId?: string;
+  normalizedRequest?: Record<string, unknown>;
+  raw?: unknown;
+  elapsedMs: number;
+};
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 export type JoinInviteResult =
@@ -83,6 +112,14 @@ export function createApiClient(getToken: () => string | undefined) {
     fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
     cleanupFormalData: (confirm: string) =>
       request<AppData>("/api/data-quality/cleanup", { method: "POST", body: { confirm }, token: getToken() }),
+    testAiChat: (body: { prompt: string; history?: AiTestChatMessage[] }) =>
+      request<AiTestChatResult>("/api/ai-test/chat", { method: "POST", body, token: getToken() }),
+    testAiImage: (body: { prompt: string; size?: string; quality?: string }) =>
+      request<AiTestImageResult>("/api/ai-test/image", { method: "POST", body, token: getToken() }),
+    testAiVideo: (body: { prompt: string; provider?: AiVideoProviderKey; durationSeconds?: number; resolution?: string; aspectRatio?: string }) =>
+      request<AiTestVideoResult>("/api/ai-test/video", { method: "POST", body, token: getToken() }),
+    queryAiVideo: (body: { provider: AiVideoProviderKey; taskId: string }) =>
+      request<AiTestVideoResult>("/api/ai-test/video-status", { method: "POST", body, token: getToken() }),
     uploadAccountAvatar: (file: File) => {
       const body = new FormData();
       body.append("avatar", file);
