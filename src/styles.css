@@ -21047,6 +21047,108 @@ textarea,
   margin: 0;
 }
 
+@media (min-width: 1181px) {
+  .marketing-center-page {
+    display: grid;
+    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-areas:
+      "hero hero"
+      "tools workspace";
+    align-items: start;
+    gap: 14px;
+  }
+
+  .marketing-center-page > .page-hero {
+    grid-area: hero;
+    height: 128px;
+    min-height: 128px;
+    padding: 18px 24px;
+    border-radius: 24px;
+  }
+
+  .marketing-center-page > .page-hero h2,
+  .marketing-center-page > .page-hero h1 {
+    font-size: clamp(30px, 2.7vw, 38px);
+  }
+
+  .marketing-tool-grid {
+    grid-area: tools;
+    grid-template-columns: 1fr;
+    align-self: stretch;
+    gap: 10px;
+  }
+
+  .marketing-tool-grid button {
+    min-height: 88px;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 14px;
+  }
+
+  .marketing-tool-grid button span {
+    grid-row: 1 / span 2;
+    margin-bottom: 0;
+  }
+
+  .marketing-tool-grid button strong,
+  .marketing-tool-grid button small {
+    min-width: 0;
+  }
+
+  .marketing-workspace {
+    grid-area: workspace;
+    grid-template-columns: minmax(330px, 0.82fr) minmax(430px, 1.18fr);
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .marketing-form-panel,
+  .marketing-preview-panel {
+    min-width: 0;
+    min-height: 438px;
+    display: grid;
+    align-content: start;
+    gap: 14px;
+  }
+
+  .marketing-form-panel {
+    border-left: 6px solid #6f42c1;
+  }
+
+  .marketing-preview-panel {
+    border-left: 6px solid #7b4fd2;
+  }
+
+  .marketing-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .marketing-chip-row {
+    gap: 8px;
+  }
+
+  .marketing-chip-row button {
+    min-height: 36px;
+    padding: 0 13px;
+  }
+
+  .marketing-preview-visual {
+    min-height: 190px;
+  }
+
+  .marketing-preview-visual strong {
+    font-size: clamp(36px, 4vw, 48px);
+  }
+
+  .marketing-preview-copy {
+    padding: 16px 18px;
+  }
+}
+
 .ai-permission-panel {
   display: grid;
   gap: 16px;
