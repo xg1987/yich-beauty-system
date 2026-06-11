@@ -653,6 +653,45 @@ function videoSpecKey(durationSeconds: number, resolution: AiVideoResolution) {
   return `${durationSeconds}s:${resolution}`;
 }
 
+function formatAiCost(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
+  if (!cost) return "费用未返回";
+  if (!cost.priceConfigured) return "未配置单价";
+  const amount = cost.amountUsd;
+  const digits = amount > 0 && amount < 0.01 ? 6 : 4;
+  return `$${amount.toFixed(digits)} ${cost.currency}`;
+}
+
+function formatAiUsageCostDetail(cost?: { basis: string; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimated: boolean }) {
+  if (!cost) return "请检查后台模型价格配置";
+  const tokens = [
+    cost.inputTokens ? `输入 ${cost.inputTokens}` : "",
+    cost.outputTokens ? `输出 ${cost.outputTokens}` : "",
+    cost.totalTokens ? `合计 ${cost.totalTokens}` : "",
+  ].filter(Boolean).join(" · ");
+  return [cost.basis, tokens, cost.estimated ? "预估" : ""].filter(Boolean).join(" · ");
+}
+
+function marketingCopySections(text: string) {
+  const trimmed = text.trim();
+  const matches = [...trimmed.matchAll(/【([^】]{1,16})】/g)];
+  if (matches.length > 0) {
+    return matches.map((match, index) => {
+      const start = (match.index ?? 0) + match[0].length;
+      const end = matches[index + 1]?.index ?? trimmed.length;
+      return {
+        title: match[1].trim(),
+        body: trimmed.slice(start, end).trim(),
+      };
+    }).filter((section) => section.body);
+  }
+
+  const lines = trimmed.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    return lines.map((line, index) => ({ title: index === 0 ? "标题" : `内容 ${index}`, body: line }));
+  }
+  return [{ title: "生成内容", body: trimmed }];
+}
+
 function boundedPrice(value: unknown) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
@@ -4283,6 +4322,7 @@ function MarketingCenter({ data, session, actions }: { data: AppData; session: U
   const [generationBusy, setGenerationBusy] = useState(false);
   const [generationError, setGenerationError] = useState("");
   const [generationResult, setGenerationResult] = useState<Awaited<ReturnType<ApiActions["generateMarketingAi"]>> | null>(null);
+  const [copyResultStatus, setCopyResultStatus] = useState<"idle" | "copied" | "failed">("idle");
   const product = data.products.find((item) => item.id === productId) ?? data.products[0];
   const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
   const selectedCustomer = data.customers[0];
@@ -4312,6 +4352,7 @@ function MarketingCenter({ data, session, actions }: { data: AppData; session: U
   useEffect(() => {
     setGenerationError("");
     setGenerationResult(null);
+    setCopyResultStatus("idle");
   }, [tool]);
 
   const generate = async () => {
@@ -4337,11 +4378,19 @@ function MarketingCenter({ data, session, actions }: { data: AppData; session: U
         talkScene,
         customerName: selectedCustomer?.name,
       }));
+      setCopyResultStatus("idle");
     } catch (caught) {
       setGenerationError(caught instanceof Error ? caught.message : "AI 生成失败");
     } finally {
       setGenerationBusy(false);
     }
+  };
+
+  const copyGenerationText = async () => {
+    const text = generationResult?.text ?? "";
+    const copied = await copyTextToClipboard(text);
+    setCopyResultStatus(copied ? "copied" : "failed");
+    window.setTimeout(() => setCopyResultStatus("idle"), 1800);
   };
 
   return (
@@ -4509,23 +4558,57 @@ function MarketingCenter({ data, session, actions }: { data: AppData; session: U
               {generationError && <p className="marketing-result-error">{generationError}</p>}
               {generationResult?.text && (
                 <div className="marketing-result-copy">
-                  <strong>{tool === "talk" ? "话术结果" : "文案结果"}</strong>
-                  <p>{generationResult.text}</p>
-                  <button type="button" className="secondary-button" onClick={() => void copyTextToClipboard(generationResult.text ?? "")}>
-                    <Copy size={16} /> 复制结果
+                  <div className="marketing-result-head">
+                    <div>
+                      <strong>{tool === "talk" ? "话术结果" : "文案结果"}</strong>
+                      <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                    </div>
+                    <div className="marketing-cost-pill">
+                      <b>{formatAiCost(generationResult.cost)}</b>
+                      <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                    </div>
+                  </div>
+                  <div className="marketing-copy-sections">
+                    {marketingCopySections(generationResult.text).map((section) => (
+                      <article key={section.title}>
+                        <span>{section.title}</span>
+                        <p>{section.body}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <button type="button" className="secondary-button" onClick={() => void copyGenerationText()}>
+                    <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "复制失败" : "复制结果"}
                   </button>
                 </div>
               )}
               {generationResult?.imageDataUrl && (
                 <div className="marketing-result-copy">
-                  <strong>海报结果</strong>
+                  <div className="marketing-result-head">
+                    <div>
+                      <strong>海报结果</strong>
+                      <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                    </div>
+                    <div className="marketing-cost-pill">
+                      <b>{formatAiCost(generationResult.cost)}</b>
+                      <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                    </div>
+                  </div>
                   <img className="marketing-result-image" src={generationResult.imageDataUrl} alt="AI 生成海报" />
                   {generationResult.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
                 </div>
               )}
               {generationResult && tool === "video" && (
                 <div className="marketing-result-copy">
-                  <strong>视频任务</strong>
+                  <div className="marketing-result-head">
+                    <div>
+                      <strong>视频任务</strong>
+                      <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                    </div>
+                    <div className="marketing-cost-pill">
+                      <b>{formatAiCost(generationResult.cost)}</b>
+                      <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                    </div>
+                  </div>
                   <p>状态：{generationResult.status ?? "已提交"}</p>
                   {generationResult.taskId && <p>任务 ID：{generationResult.taskId}</p>}
                   {generationResult.videoUrl && <a href={generationResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}

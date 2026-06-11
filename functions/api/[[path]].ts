@@ -2199,6 +2199,83 @@ function marketingImageSize(posterSize: string | undefined) {
   return "1024x1024";
 }
 
+function aiUsageRecord(usage: unknown) {
+  return usage && typeof usage === "object" ? usage as Record<string, unknown> : {};
+}
+
+function nestedUsageNumber(source: Record<string, unknown>, paths: string[][]) {
+  for (const path of paths) {
+    let current: unknown = source;
+    for (const key of path) {
+      if (!current || typeof current !== "object") {
+        current = undefined;
+        break;
+      }
+      current = (current as Record<string, unknown>)[key];
+    }
+    if (typeof current === "number" && Number.isFinite(current)) return current;
+  }
+  return 0;
+}
+
+function roundAiUsd(value: number) {
+  return Number.isFinite(value) ? Number(value.toFixed(6)) : 0;
+}
+
+function textGenerationCost(config: AiTextModelConfig, usage: unknown) {
+  const record = aiUsageRecord(usage);
+  const inputTokens = nestedUsageNumber(record, [["prompt_tokens"], ["input_tokens"]]);
+  const explicitOutputTokens = nestedUsageNumber(record, [["completion_tokens"], ["output_tokens"]]);
+  const totalTokens = nestedUsageNumber(record, [["total_tokens"]]);
+  const outputTokens = explicitOutputTokens || Math.max(0, totalTokens - inputTokens);
+  const amountUsd = roundAiUsd(inputTokens / 1_000_000 * config.inputTokenUsdPerMillion + outputTokens / 1_000_000 * config.outputTokenUsdPerMillion);
+  return {
+    amountUsd,
+    currency: "USD" as const,
+    basis: inputTokens || outputTokens ? "按文本 token 用量计算" : "供应商未返回 token 用量",
+    priceConfigured: config.inputTokenUsdPerMillion > 0 || config.outputTokenUsdPerMillion > 0,
+    estimated: false,
+    inputTokens: inputTokens || undefined,
+    outputTokens: outputTokens || undefined,
+    totalTokens: totalTokens || undefined,
+  };
+}
+
+function imageGenerationCost(config: AiImageModelConfig, usage: unknown) {
+  const record = aiUsageRecord(usage);
+  const textInputTokens = nestedUsageNumber(record, [["text_input_tokens"], ["input_tokens"], ["prompt_tokens"]]);
+  const imageInputTokens = nestedUsageNumber(record, [["image_input_tokens"], ["input_tokens_details", "image_tokens"]]);
+  const outputTokens = nestedUsageNumber(record, [["image_output_tokens"], ["output_tokens"], ["completion_tokens"]]);
+  const totalTokens = nestedUsageNumber(record, [["total_tokens"]]);
+  const amountUsd = roundAiUsd(
+    textInputTokens / 1_000_000 * config.textInputUsdPerMillion
+    + imageInputTokens / 1_000_000 * config.imageInputUsdPerMillion
+    + outputTokens / 1_000_000 * config.imageOutputUsdPerMillion,
+  );
+  return {
+    amountUsd,
+    currency: "USD" as const,
+    basis: textInputTokens || imageInputTokens || outputTokens ? "按图片生成 token 用量计算" : "供应商未返回 token 用量",
+    priceConfigured: config.textInputUsdPerMillion > 0 || config.imageInputUsdPerMillion > 0 || config.imageOutputUsdPerMillion > 0,
+    estimated: false,
+    inputTokens: (textInputTokens + imageInputTokens) || undefined,
+    outputTokens: outputTokens || undefined,
+    totalTokens: totalTokens || undefined,
+  };
+}
+
+function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
+  const specKey = `${durationSeconds}s:${resolution}`;
+  const amountUsd = roundAiUsd(config.priceUsdBySpec[specKey] ?? 0);
+  return {
+    amountUsd,
+    currency: "USD" as const,
+    basis: `${durationSeconds}秒 · ${resolution}`,
+    priceConfigured: amountUsd > 0,
+    estimated: false,
+  };
+}
+
 function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   const storeName = marketingText(body.storeName, "美业门店");
   const productName = marketingText(body.productName, "护理产品");
@@ -2234,24 +2311,28 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   assertMarketingAiAllowed(data, session, capability);
   const prompt = marketingPrompt(body, kind);
   if (kind === "copy" || kind === "talk") {
+    const config = aiGenerationConfigFromData(data).copy;
     const result = await runAiTextCompletion(data, prompt, {
       systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
     });
-    return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, elapsedMs: result.elapsedMs };
+    return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs };
   }
   if (kind === "image") {
+    const config = aiGenerationConfigFromData(data).image;
     const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
-    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, elapsedMs: result.elapsedMs };
+    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageGenerationCost(config, result.usage), elapsedMs: result.elapsedMs };
   }
   const config = aiGenerationConfigFromData(data);
-  const provider = config.video.defaultProvider;
+  const provider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
+  const durationSeconds = aiVideoDurations.includes(Number(body.videoDuration)) ? Number(body.videoDuration) : provider?.defaultDurationSeconds ?? 5;
+  const resolution = provider?.defaultResolution ?? "720p";
   const result = await runAiVideoTest(data, {
     prompt,
-    provider,
-    durationSeconds: Number(body.videoDuration) || undefined,
+    provider: config.video.defaultProvider,
+    durationSeconds,
     aspectRatio: optionalString(body, "videoRatio"),
   });
-  return { kind, ...result };
+  return { kind, ...result, cost: provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined };
 }
 
 async function runAiImageTest(data: AppData, body: JsonBody) {
@@ -2284,6 +2365,7 @@ async function runAiImageTest(data: AppData, body: JsonBody) {
     model: config.model,
     imageDataUrl: b64 ? `data:image/png;base64,${b64}` : imageUrl,
     revisedPrompt: typeof output?.revised_prompt === "string" ? output.revised_prompt : undefined,
+    usage: payload.usage,
     raw: compactAiRawPayload(payload),
     elapsedMs,
   };

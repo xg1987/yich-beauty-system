@@ -76,11 +76,23 @@ export type AiTestVideoResult = {
   elapsedMs: number;
 };
 export type MarketingAiGenerateKind = "copy" | "image" | "video" | "talk";
+export type MarketingAiCost = {
+  amountUsd: number;
+  currency: "USD";
+  basis: string;
+  priceConfigured: boolean;
+  estimated: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+};
 export type MarketingAiGenerateResult = {
   kind: MarketingAiGenerateKind;
   provider: "openai" | "deepseek" | AiVideoProviderKey;
   model: string;
   text?: string;
+  usage?: unknown;
+  cost?: MarketingAiCost;
   imageDataUrl?: string;
   revisedPrompt?: string;
   taskId?: string;

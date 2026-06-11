@@ -21063,12 +21063,83 @@ textarea,
 
 .marketing-result-copy {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .marketing-result-copy strong {
   color: #2f255f;
   font-weight: 920;
+}
+
+.marketing-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.marketing-result-head > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.marketing-result-head span {
+  color: rgba(47, 37, 95, 0.6);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.marketing-cost-pill {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  max-width: 240px;
+  padding: 9px 12px;
+  border: 1px solid rgba(42, 143, 125, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(42, 143, 125, 0.12), rgba(111, 66, 193, 0.08));
+}
+
+.marketing-cost-pill b {
+  color: #1f6f61;
+  font-size: 15px;
+  font-weight: 940;
+}
+
+.marketing-cost-pill small {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.marketing-copy-sections {
+  display: grid;
+  gap: 10px;
+}
+
+.marketing-copy-sections article {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.13);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.marketing-copy-sections article span {
+  color: #6f42c1;
+  font-size: 12px;
+  font-weight: 920;
+}
+
+.marketing-copy-sections article p {
+  margin: 0;
+  color: #2f255f;
+  line-height: 1.75;
+  white-space: pre-wrap;
 }
 
 .marketing-result-copy .secondary-button {
@@ -21169,6 +21240,33 @@ textarea,
 
 .marketing-preview-copy p {
   margin: 0;
+}
+
+.app-shell.theme-night .marketing-result-head span,
+.app-shell.theme-night .marketing-cost-pill small {
+  color: rgba(244, 237, 255, 0.66);
+}
+
+.app-shell.theme-night .marketing-cost-pill {
+  border-color: rgba(112, 220, 190, 0.24);
+  background: linear-gradient(135deg, rgba(112, 220, 190, 0.14), rgba(167, 127, 226, 0.12));
+}
+
+.app-shell.theme-night .marketing-cost-pill b {
+  color: #9ff0d9;
+}
+
+.app-shell.theme-night .marketing-copy-sections article {
+  border-color: rgba(235, 223, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.app-shell.theme-night .marketing-copy-sections article span {
+  color: #c7b1ff;
+}
+
+.app-shell.theme-night .marketing-copy-sections article p {
+  color: #f7f1ff;
 }
 
 @media (min-width: 1181px) {
@@ -21510,6 +21608,20 @@ textarea,
 
   .marketing-preview-visual strong {
     font-size: clamp(28px, 10vw, 42px);
+  }
+
+  .marketing-result-head {
+    display: grid;
+  }
+
+  .marketing-cost-pill {
+    width: 100%;
+    max-width: none;
+    justify-items: start;
+  }
+
+  .marketing-cost-pill small {
+    text-align: left;
   }
 }
 
