@@ -560,6 +560,7 @@ const afterReverseClose = await request<AppData>(baseUrl, "/api/daily-close/reve
 assert.equal(afterReverseClose.dailyCloses[0].status, "已反结", "reverse close should persist in D1");
 
 const therapistData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
+assert.ok(therapistData.customers.some((item) => item.id === secondCustomerId), "therapist should see same-store customers without own service history");
 assert.ok(therapistData.orders.every((item) => item.staffId === therapistStaffId), "therapist should only see own orders");
 assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
 

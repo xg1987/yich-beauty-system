@@ -1571,11 +1571,10 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const orders = sanitizedData.orders.filter((item) => item.staffId === staffId);
   const orderIds = new Set(orders.map((item) => item.id));
   const appointmentIds = new Set(appointments.map((item) => item.id));
-  const customerIds = new Set([...appointments.map((item) => item.customerId), ...orders.map((item) => item.customerId)]);
 
   return {
     ...sanitizedData,
-    customers: sanitizedData.customers.filter((item) => customerIds.has(item.id)),
+    customers: sanitizedData.customers,
     appointments,
     staffShifts: sanitizedData.staffShifts.filter((item) => item.staffId === staffId),
     staffUnavailableSlots: sanitizedData.staffUnavailableSlots.filter((item) => item.staffId === staffId),
@@ -1590,9 +1589,9 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
     onlineStorefronts: [],
     onlineBookingRequests: sanitizedData.onlineBookingRequests.filter((item) => item.appointmentId && appointmentIds.has(item.appointmentId)),
     distributionCommissions: [],
-    customerServiceRecords: sanitizedData.customerServiceRecords.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
-    customerSignatures: (sanitizedData.customerSignatures ?? []).filter((item) => customerIds.has(item.customerId)),
-    customerFollowUps: sanitizedData.customerFollowUps.filter((item) => item.staffId === staffId || customerIds.has(item.customerId)),
+    customerServiceRecords: sanitizedData.customerServiceRecords,
+    customerSignatures: sanitizedData.customerSignatures ?? [],
+    customerFollowUps: sanitizedData.customerFollowUps,
     operationLogs: sanitizedData.operationLogs.filter((item) => item.userId === session.user.id),
     notifications: sanitizedData.notifications.filter((item) => !item.staffId || item.staffId === staffId),
     commissionSettlements: sanitizedData.commissionSettlements.filter((item) =>

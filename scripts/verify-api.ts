@@ -1196,6 +1196,8 @@ try {
     body: { account: "therapist@test.local", password: "test-password" },
   });
   const therapistData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
+  assert.ok(therapistData.customers.some((item) => item.id === "c3"), "therapist should see same-store customers handled by other staff");
+  assert.ok(therapistData.customerServiceRecords.every((item) => item.storeId === "store1"), "therapist should receive same-store customer service records");
   assert.ok(therapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments");
   assert.ok(therapistData.orders.every((item) => item.staffId === "s2"), "therapist should only see own orders");
   assert.ok(therapistData.staffUnavailableSlots.every((item) => item.staffId === "s2"), "therapist should only see own unavailable slots");
