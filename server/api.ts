@@ -965,6 +965,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           expiresAt: optionalString(body, "expiresAt"),
           note: optionalString(body, "note"),
           userId: session.user.id,
+          staffId: session.user.staffId,
         });
         database.replaceData(nextData);
         sendScopedData(request, response, 201, nextData, session);
@@ -982,6 +983,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
           signatureId: requiredString(body, "signatureId"),
           userId: session.user.id,
+          staffId: session.user.staffId,
         });
         database.replaceData(nextData);
         sendScopedData(request, response, 201, nextData, session);
@@ -1002,6 +1004,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
           note: optionalString(body, "note"),
           userId: session.user.id,
+          staffId: session.user.staffId,
         });
         database.replaceData(nextData);
         sendScopedData(request, response, 201, nextData, session);
@@ -1017,6 +1020,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           status: requiredString(body, "status") as "正常" | "冻结",
           reason: optionalString(body, "reason") ?? "门店操作",
           userId: session.user.id,
+          staffId: session.user.staffId,
         });
         database.replaceData(nextData);
         sendScopedData(request, response, 200, nextData, session);
@@ -1032,6 +1036,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           expiresAt: requiredString(body, "expiresAt"),
           reason: optionalString(body, "reason") ?? "会员卡延期",
           userId: session.user.id,
+          staffId: session.user.staffId,
         });
         database.replaceData(nextData);
         sendScopedData(request, response, 200, nextData, session);
@@ -1047,6 +1052,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           toCustomerId: requiredString(body, "toCustomerId"),
           reason: optionalString(body, "reason") ?? "会员转卡",
           userId: session.user.id,
+          staffId: session.user.staffId,
         });
         database.replaceData(nextData);
         sendScopedData(request, response, 201, nextData, session);

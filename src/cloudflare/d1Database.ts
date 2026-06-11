@@ -413,12 +413,13 @@ export class D1BeautyDatabase {
     for (const transaction of transactions) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, staffId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             transaction.id,
             transaction.storeId ?? null,
             transaction.memberCardId,
             transaction.orderId ?? null,
+            transaction.staffId ?? null,
             transaction.type,
             transaction.paidAmount ?? null,
             transaction.payMethod ?? null,
@@ -681,12 +682,13 @@ export class D1BeautyDatabase {
     for (const transaction of data.memberCardTransactions) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, staffId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             transaction.id,
             transaction.storeId ?? null,
             transaction.memberCardId,
             transaction.orderId ?? null,
+            transaction.staffId ?? null,
             transaction.type,
             transaction.paidAmount ?? null,
             transaction.payMethod ?? null,
@@ -956,7 +958,7 @@ function mapInventoryLog(row: unknown): InventoryLog {
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {
   const value = row as MemberCardTransaction;
-  return { ...value, storeId: value.storeId ?? undefined, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
+  return { ...value, storeId: value.storeId ?? undefined, orderId: value.orderId ?? undefined, staffId: value.staffId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
 }
 
 function mapOperationLog(row: unknown): OperationLog {

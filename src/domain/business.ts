@@ -691,6 +691,7 @@ export type RefundMemberCardInput = {
   payMethod?: CashPayMethod;
   signatureId: string;
   userId: string;
+  staffId?: string;
 };
 
 export type OpenMemberCardInput = {
@@ -711,6 +712,7 @@ export type OpenMemberCardInput = {
   expiresAt?: string;
   note?: string;
   userId: string;
+  staffId?: string;
 };
 
 export type OperationLogInput = {
@@ -812,6 +814,7 @@ export type MemberCardRechargeInput = {
   payMethod?: CashPayMethod;
   note?: string;
   userId: string;
+  staffId?: string;
 };
 
 export type MemberCardStatusInput = {
@@ -819,6 +822,7 @@ export type MemberCardStatusInput = {
   status: "正常" | "冻结";
   reason: string;
   userId: string;
+  staffId?: string;
 };
 
 export type MemberCardExtendInput = {
@@ -826,6 +830,7 @@ export type MemberCardExtendInput = {
   expiresAt: string;
   reason: string;
   userId: string;
+  staffId?: string;
 };
 
 export type MemberCardTransferInput = {
@@ -833,6 +838,7 @@ export type MemberCardTransferInput = {
   toCustomerId: string;
   reason: string;
   userId: string;
+  staffId?: string;
 };
 
 export type CustomerServiceRecordInput = {
@@ -2589,6 +2595,7 @@ export function checkoutOrder(
             storeId,
             memberCardId: selectedCardAfterCheckout.id,
             orderId,
+            staffId: input.staffId,
             type: "消费",
             amountDelta: selectedCardAfterCheckout.type === "储值卡" ? -paidAmount : 0,
             timesDelta: selectedCardAfterCheckout.type === "储值卡" ? 0 : -1,
@@ -2774,6 +2781,7 @@ export function refundOrder(
           storeId,
           memberCardId: card.id,
           orderId: order.id,
+          staffId: order.staffId,
           type: "退款",
           amountDelta: card.type === "储值卡" ? refundAmount : 0,
           timesDelta: card.type === "储值卡" ? 0 : 1,
@@ -2926,6 +2934,7 @@ export function openMemberCard(
         id: idFactory("mt"),
         storeId,
         memberCardId: cardId,
+        staffId: trimText(input.staffId) || undefined,
         type: "开卡",
         paidAmount,
         payMethod,
@@ -3069,6 +3078,7 @@ export function refundMemberCard(
         id: idFactory("mt"),
         storeId,
         memberCardId: card.id,
+        staffId: trimText(input.staffId) || undefined,
         type: "退卡",
         amountDelta,
         timesDelta,
@@ -3205,6 +3215,7 @@ export function rechargeMemberCard(
         id: idFactory("mt"),
         storeId,
         memberCardId: card.id,
+        staffId: trimText(input.staffId) || undefined,
         type: "充值",
         paidAmount: paidAmount > 0 ? paidAmount : undefined,
         payMethod,
@@ -3251,6 +3262,7 @@ export function updateMemberCardStatus(
         id: idFactory("mt"),
         storeId,
         memberCardId: card.id,
+        staffId: trimText(input.staffId) || undefined,
         type: input.status === "冻结" ? "冻结" : "解冻",
         amountDelta: 0,
         timesDelta: 0,
@@ -3283,6 +3295,7 @@ export function extendMemberCard(
         id: idFactory("mt"),
         storeId,
         memberCardId: card.id,
+        staffId: trimText(input.staffId) || undefined,
         type: "延期",
         amountDelta: 0,
         timesDelta: 0,
@@ -3316,6 +3329,7 @@ export function transferMemberCard(
         id: idFactory("mt"),
         storeId,
         memberCardId: card.id,
+        staffId: trimText(input.staffId) || undefined,
         type: "转卡",
         amountDelta: 0,
         timesDelta: 0,
@@ -4476,6 +4490,7 @@ export function signCustomerSignature(
             storeId: linkedOrder.storeId ?? debitedCard.storeId,
             memberCardId: debitedCard.id,
             orderId: linkedOrder.id,
+            staffId: linkedOrder.staffId,
             type: "消费",
             amountDelta: debitedCard.type === "储值卡" ? -linkedOrder.paidAmount : 0,
             timesDelta: debitedCard.type === "储值卡" ? 0 : -1,

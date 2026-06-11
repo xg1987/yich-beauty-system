@@ -433,6 +433,7 @@ const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
   body: { customerId, name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
 });
 const cardId = afterOpenCard.memberCards[0].id;
+assert.ok(afterOpenCard.memberCardTransactions[0].staffId, "D1 open card should persist current staff");
 const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
   method: "POST",
   token: ownerSession.token,

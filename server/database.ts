@@ -425,13 +425,14 @@ export class BeautyDatabase {
     for (const transaction of data.memberCardTransactions) {
       this.db
         .prepare(
-          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, staffId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           transaction.id,
           transaction.storeId ?? null,
           transaction.memberCardId,
           transaction.orderId ?? null,
+          transaction.staffId ?? null,
           transaction.type,
           transaction.paidAmount ?? null,
           transaction.payMethod ?? null,
@@ -722,6 +723,7 @@ export class BeautyDatabase {
         id TEXT PRIMARY KEY,
         memberCardId TEXT NOT NULL,
         orderId TEXT,
+        staffId TEXT,
         type TEXT NOT NULL,
         paidAmount REAL,
         payMethod TEXT,
@@ -816,6 +818,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("memberCards", "serviceId", "TEXT");
     this.addColumnIfMissing("memberCardTransactions", "paidAmount", "REAL");
     this.addColumnIfMissing("memberCardTransactions", "payMethod", "TEXT");
+    this.addColumnIfMissing("memberCardTransactions", "staffId", "TEXT");
     this.addColumnIfMissing("staff", "accountId", "TEXT");
     this.addColumnIfMissing("staff", "hiredAt", "TEXT");
     this.addColumnIfMissing("staff", "baseSalary", "REAL");
@@ -1025,7 +1028,7 @@ function mapInventoryLog(row: unknown): InventoryLog {
 
 function mapMemberCardTransaction(row: unknown): MemberCardTransaction {
   const value = row as MemberCardTransaction;
-  return { ...value, storeId: value.storeId ?? undefined, orderId: value.orderId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
+  return { ...value, storeId: value.storeId ?? undefined, orderId: value.orderId ?? undefined, staffId: value.staffId ?? undefined, paidAmount: value.paidAmount ?? undefined, payMethod: value.payMethod ?? undefined };
 }
 
 function mapOperationLog(row: unknown): OperationLog {

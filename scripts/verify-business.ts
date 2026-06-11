@@ -59,6 +59,7 @@ import {
   upsertOnlineStorefront,
   inviteDefaultDays,
 } from "../src/domain/business";
+import { buildCashierFlowRecords } from "../src/domain/cashierFlow";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
 import { money } from "../src/domain/utils";
@@ -1349,6 +1350,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
       payMethod: "微信",
       expiresAt: "2027-12-31",
       userId: "u_manager",
+      staffId: "s2",
     },
     { idFactory: testId, now: fixedNow },
   );
@@ -1356,6 +1358,8 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(opened.memberCards[0].remainingTimes, 10, "open card should create member asset");
   assert.equal(opened.memberCardTransactions[0].paidAmount, 2980, "open card should record paid amount");
   assert.equal(opened.memberCardTransactions[0].payMethod, "微信", "open card should record payment method");
+  assert.equal(opened.memberCardTransactions[0].staffId, "s2", "open card should record the handling staff");
+  assert.equal(buildCashierFlowRecords(opened)[0].staffName, "小雅", "member-card cashier flow should display handling staff");
   assert.equal(memberCardCashIn(opened.memberCardTransactions[0]), 2980, "open card should count as cashier flow income");
   const closed = createDailyClose(
     opened,

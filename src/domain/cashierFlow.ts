@@ -70,6 +70,33 @@ function orderItemLabel(data: AppData, order: Order) {
   ].filter(Boolean).join(" + ") || "商品";
 }
 
+const memberCardTransactionLogActions: Partial<Record<MemberCardTransaction["type"], string>> = {
+  开卡: "开卡",
+  充值: "会员卡充值",
+  退卡: "会员退卡",
+  转卡: "会员转卡",
+};
+
+function memberCardTransactionStaffName(data: AppData, transaction: MemberCardTransaction) {
+  const linkedOrder = transaction.orderId ? data.orders.find((order) => order.id === transaction.orderId) : undefined;
+  const directStaffId = transaction.staffId || linkedOrder?.staffId;
+  if (directStaffId) return nameOf(data.staff, directStaffId);
+  const action = memberCardTransactionLogActions[transaction.type];
+  if (!action) return "-";
+  const log = data.operationLogs.find((item) =>
+    item.targetType === "memberCard"
+    && item.targetId === transaction.memberCardId
+    && item.action === action
+    && item.createdAt === transaction.createdAt,
+  ) ?? data.operationLogs.find((item) =>
+    item.targetType === "memberCard"
+    && item.targetId === transaction.memberCardId
+    && item.action === action,
+  );
+  const staffId = data.authUsers.find((user) => user.id === log?.userId)?.staffId;
+  return staffId ? nameOf(data.staff, staffId) : "-";
+}
+
 export function buildCashierFlowRecords(data: AppData): CashierFlowRecord[] {
   const orderRows: CashierFlowRecord[] = data.orders.map((order) => ({
     kind: "order",
@@ -99,7 +126,7 @@ export function buildCashierFlowRecords(data: AppData): CashierFlowRecord[] {
         orderNo: `${transaction.type}流水`,
         customerName,
         itemName: `${transaction.type} · ${card?.name || "会员卡"}`,
-        staffName: "-",
+        staffName: memberCardTransactionStaffName(data, transaction),
         source: "会员卡",
         payMethod: transaction.payMethod ?? "-",
         paidAmount,

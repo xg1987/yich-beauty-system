@@ -446,6 +446,7 @@ export type MemberCardTransaction = {
   storeId?: string;
   memberCardId: string;
   orderId?: string;
+  staffId?: string;
   type: "开卡" | "充值" | "消费" | "退款" | "退卡" | "冻结" | "解冻" | "延期" | "转卡" | "调整";
   paidAmount?: number;
   payMethod?: CashPayMethod;

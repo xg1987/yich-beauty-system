@@ -947,6 +947,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         expiresAt: optionalString(body, "expiresAt"),
         note: optionalString(body, "note"),
         userId: session.user.id,
+        staffId: session.user.staffId,
       });
       await database.replaceData(nextData);
       return sendScopedData(context.request, 201, nextData, session);
@@ -966,6 +967,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
         note: optionalString(body, "note"),
         userId: session.user.id,
+        staffId: session.user.staffId,
       });
       await database.replaceData(nextData);
       return sendScopedData(context.request, 201, nextData, session);
@@ -980,6 +982,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         status: requiredString(body, "status") as "正常" | "冻结",
         reason: optionalString(body, "reason") ?? "门店操作",
         userId: session.user.id,
+        staffId: session.user.staffId,
       });
       await database.replaceData(nextData);
       return sendScopedData(context.request, 200, nextData, session);
@@ -994,6 +997,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         expiresAt: requiredString(body, "expiresAt"),
         reason: optionalString(body, "reason") ?? "会员卡延期",
         userId: session.user.id,
+        staffId: session.user.staffId,
       });
       await database.replaceData(nextData);
       return sendScopedData(context.request, 200, nextData, session);
@@ -1008,6 +1012,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         toCustomerId: requiredString(body, "toCustomerId"),
         reason: optionalString(body, "reason") ?? "会员转卡",
         userId: session.user.id,
+        staffId: session.user.staffId,
       });
       await database.replaceData(nextData);
       return sendScopedData(context.request, 201, nextData, session);
@@ -1149,6 +1154,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
         signatureId: requiredString(body, "signatureId"),
         userId: session.user.id,
+        staffId: session.user.staffId,
       });
       await database.replaceData(nextData);
       return sendScopedData(context.request, 201, nextData, session);
