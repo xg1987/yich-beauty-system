@@ -1586,14 +1586,18 @@ function PlatformAiConfigView({
 }) {
   const mutationPending = useMutationPending();
   const [draft, setDraft] = useState(() => aiGenerationConfigFromSystemConfigs(data.systemConfigs));
+  const [activeAiPanel, setActiveAiPanel] = useState<"copy" | "image" | "video" | null>(null);
+  const [activeVideoProvider, setActiveVideoProvider] = useState<AiVideoProviderConfig["provider"]>("seedance");
   const [saved, setSaved] = useState(false);
   const enabledVideoProviders = draft.video.providers.filter((provider) => provider.enabled);
+  const activeVideoConfig = draft.video.providers.find((provider) => provider.provider === activeVideoProvider) ?? draft.video.providers[0] ?? DEFAULT_AI_GENERATION_CONFIG.video.providers[0];
   const configuredPriceRules = draft.video.providers.reduce(
     (sum, provider) => sum + Object.values(provider.priceUsdBySpec).filter((value) => value > 0).length,
     0,
   );
   const capabilityCards = [
     {
+      key: "copy" as const,
       title: "文案",
       provider: AI_PROVIDER_LABELS[draft.copy.provider],
       model: draft.copy.model || "未配置模型",
@@ -1602,6 +1606,7 @@ function PlatformAiConfigView({
       icon: <MessageCircle size={18} />,
     },
     {
+      key: "image" as const,
       title: "图片",
       provider: AI_PROVIDER_LABELS[draft.image.provider],
       model: draft.image.model || "未配置模型",
@@ -1610,6 +1615,7 @@ function PlatformAiConfigView({
       icon: <Sparkles size={18} />,
     },
     {
+      key: "video" as const,
       title: "视频",
       provider: `${enabledVideoProviders.length} 个供应商`,
       model: AI_PROVIDER_LABELS[draft.video.defaultProvider],
@@ -1676,7 +1682,7 @@ function PlatformAiConfigView({
 
       <section className="ai-capability-strip" aria-label="AI 能力状态">
         {capabilityCards.map((card) => (
-          <article className="ai-capability-card" key={card.title}>
+          <button type="button" className="ai-capability-card" key={card.title} onClick={() => setActiveAiPanel(card.key)}>
             <span className="ai-capability-icon">{card.icon}</span>
             <div>
               <small>{card.title}</small>
@@ -1685,9 +1691,247 @@ function PlatformAiConfigView({
             </div>
             <b>{card.status}</b>
             <span>{card.meta}</span>
-          </article>
+          </button>
         ))}
       </section>
+
+      <Modal
+        open={activeAiPanel === "copy"}
+        title="文案模型配置"
+        subtitle="用于美业营销文案、活动话术和产品说明生成。"
+        size="large"
+        className="ai-config-modal"
+        onClose={() => setActiveAiPanel(null)}
+        footer={(
+          <>
+            <button type="button" onClick={() => setActiveAiPanel(null)}>取消</button>
+            <button type="button" className="primary-button" disabled={mutationPending} onClick={saveAiConfig}>
+              {mutationPending ? "保存中..." : saved ? "已保存" : "保存文案配置"}
+            </button>
+          </>
+        )}
+      >
+        <div className="ai-modal-summary">
+          <span className="ai-capability-icon"><MessageCircle size={18} /></span>
+          <div>
+            <strong>{AI_PROVIDER_LABELS[draft.copy.provider]}</strong>
+            <span>{draft.copy.model || "未配置模型"} · {draft.copy.enabled ? "已启用" : "停用"}</span>
+          </div>
+        </div>
+        <div className="ai-config-form-grid">
+          <label>
+            <span className="field-label">启用文案</span>
+            <select value={draft.copy.enabled ? "true" : "false"} onChange={(event) => setCopyConfig({ enabled: event.target.value === "true" })}>
+              <option value="true">启用</option>
+              <option value="false">停用</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">供应商</span>
+            <select value={draft.copy.provider} onChange={(event) => setCopyConfig({ provider: event.target.value as AiTextModelConfig["provider"] })}>
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">模型名称</span>
+            <input value={draft.copy.model} onChange={(event) => setCopyConfig({ model: event.target.value })} placeholder="deepseek-v4-pro" />
+          </label>
+          <label>
+            <span className="field-label">API Key</span>
+            <input type="password" value={draft.copy.apiKey} onChange={(event) => setCopyConfig({ apiKey: event.target.value })} placeholder="sk-..." autoComplete="off" />
+          </label>
+          <label>
+            <span className="field-label">输入单价 / 1M tokens</span>
+            <input type="number" min={0} step="0.0001" value={draft.copy.inputTokenUsdPerMillion} onChange={(event) => setCopyConfig({ inputTokenUsdPerMillion: boundedPrice(event.target.value) })} />
+          </label>
+          <label>
+            <span className="field-label">输出单价 / 1M tokens</span>
+            <input type="number" min={0} step="0.0001" value={draft.copy.outputTokenUsdPerMillion} onChange={(event) => setCopyConfig({ outputTokenUsdPerMillion: boundedPrice(event.target.value) })} />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        open={activeAiPanel === "image"}
+        title="图片模型配置"
+        subtitle="用于产品图解析、海报图片生成和门店营销素材。"
+        size="large"
+        className="ai-config-modal"
+        onClose={() => setActiveAiPanel(null)}
+        footer={(
+          <>
+            <button type="button" onClick={() => setActiveAiPanel(null)}>取消</button>
+            <button type="button" className="primary-button" disabled={mutationPending} onClick={saveAiConfig}>
+              {mutationPending ? "保存中..." : saved ? "已保存" : "保存图片配置"}
+            </button>
+          </>
+        )}
+      >
+        <div className="ai-modal-summary">
+          <span className="ai-capability-icon"><Sparkles size={18} /></span>
+          <div>
+            <strong>OpenAI</strong>
+            <span>{draft.image.model || "未配置模型"} · {draft.image.defaultSize} · {draft.image.defaultQuality}</span>
+          </div>
+        </div>
+        <div className="ai-config-form-grid">
+          <label>
+            <span className="field-label">启用图片</span>
+            <select value={draft.image.enabled ? "true" : "false"} onChange={(event) => setImageConfig({ enabled: event.target.value === "true" })}>
+              <option value="true">启用</option>
+              <option value="false">停用</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">模型名称</span>
+            <input value={draft.image.model} onChange={(event) => setImageConfig({ model: event.target.value })} placeholder="gpt-image-2" />
+          </label>
+          <label>
+            <span className="field-label">API Key</span>
+            <input type="password" value={draft.image.apiKey} onChange={(event) => setImageConfig({ apiKey: event.target.value })} placeholder="sk-..." autoComplete="off" />
+          </label>
+          <label>
+            <span className="field-label">默认尺寸</span>
+            <select value={draft.image.defaultSize} onChange={(event) => setImageConfig({ defaultSize: event.target.value as AiImageModelConfig["defaultSize"] })}>
+              <option value="1024x1024">1024 x 1024</option>
+              <option value="1024x1536">1024 x 1536</option>
+              <option value="1536x1024">1536 x 1024</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">默认质量</span>
+            <select value={draft.image.defaultQuality} onChange={(event) => setImageConfig({ defaultQuality: event.target.value as AiImageModelConfig["defaultQuality"] })}>
+              <option value="standard">standard</option>
+              <option value="high">high</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">单次最多张数</span>
+            <input type="number" min={1} max={8} value={draft.image.maxImagesPerRequest} onChange={(event) => setImageConfig({ maxImagesPerRequest: Math.max(1, Math.min(8, Math.trunc(Number(event.target.value) || 1))) })} />
+          </label>
+          <label>
+            <span className="field-label">文本输入 / 1M tokens</span>
+            <input type="number" min={0} step="0.0001" value={draft.image.textInputUsdPerMillion} onChange={(event) => setImageConfig({ textInputUsdPerMillion: boundedPrice(event.target.value) })} />
+          </label>
+          <label>
+            <span className="field-label">图片输入 / 1M tokens</span>
+            <input type="number" min={0} step="0.0001" value={draft.image.imageInputUsdPerMillion} onChange={(event) => setImageConfig({ imageInputUsdPerMillion: boundedPrice(event.target.value) })} />
+          </label>
+          <label>
+            <span className="field-label">图片输出 / 1M tokens</span>
+            <input type="number" min={0} step="0.0001" value={draft.image.imageOutputUsdPerMillion} onChange={(event) => setImageConfig({ imageOutputUsdPerMillion: boundedPrice(event.target.value) })} />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        open={activeAiPanel === "video"}
+        title="视频模型配置"
+        subtitle="按供应商、时长和分辨率维护成本，员工营销页只看到可用能力。"
+        size="large"
+        className="ai-config-modal ai-video-config-modal"
+        onClose={() => setActiveAiPanel(null)}
+        footer={(
+          <>
+            <button type="button" onClick={() => setActiveAiPanel(null)}>取消</button>
+            <button type="button" className="primary-button" disabled={mutationPending} onClick={saveAiConfig}>
+              {mutationPending ? "保存中..." : saved ? "已保存" : "保存视频配置"}
+            </button>
+          </>
+        )}
+      >
+        <div className="ai-modal-summary">
+          <span className="ai-capability-icon"><Megaphone size={18} /></span>
+          <div>
+            <strong>{AI_PROVIDER_LABELS[activeVideoConfig.provider]}</strong>
+            <span>{activeVideoConfig.model || "未配置模型"} · {activeVideoConfig.enabled ? "已启用" : "停用"}</span>
+          </div>
+        </div>
+        <div className="ai-video-default-row">
+          <label>
+            <span className="field-label">默认视频供应商</span>
+            <select value={draft.video.defaultProvider} onChange={(event) => setDraft((current) => ({ ...current, video: { ...current.video, defaultProvider: event.target.value as AiVideoProviderConfig["provider"] } }))}>
+              {draft.video.providers.map((provider) => (
+                <option key={provider.provider} value={provider.provider}>{AI_PROVIDER_LABELS[provider.provider]}</option>
+              ))}
+            </select>
+          </label>
+          <p>切换下方供应商，只编辑当前选中的一套参数和价格矩阵。</p>
+        </div>
+        <div className="ai-provider-tabs" aria-label="视频供应商">
+          {draft.video.providers.map((provider) => (
+            <button
+              type="button"
+              className={provider.provider === activeVideoProvider ? "active" : ""}
+              key={provider.provider}
+              onClick={() => setActiveVideoProvider(provider.provider)}
+            >
+              {AI_PROVIDER_LABELS[provider.provider]}
+              <span>{provider.enabled ? "启用" : "停用"}</span>
+            </button>
+          ))}
+        </div>
+        <article className="ai-video-provider-card single">
+          <div className="ai-video-provider-title">
+            <strong>{AI_PROVIDER_LABELS[activeVideoConfig.provider]}</strong>
+            <select value={activeVideoConfig.enabled ? "true" : "false"} onChange={(event) => setVideoConfig(activeVideoConfig.provider, { enabled: event.target.value === "true" })}>
+              <option value="true">启用</option>
+              <option value="false">停用</option>
+            </select>
+          </div>
+          <div className="ai-config-form-grid compact">
+            <label>
+              <span className="field-label">模型名称</span>
+              <input value={activeVideoConfig.model} onChange={(event) => setVideoConfig(activeVideoConfig.provider, { model: event.target.value })} />
+            </label>
+            <label>
+              <span className="field-label">API Key</span>
+              <input type="password" value={activeVideoConfig.apiKey} onChange={(event) => setVideoConfig(activeVideoConfig.provider, { apiKey: event.target.value })} placeholder="api key" autoComplete="off" />
+            </label>
+            <label>
+              <span className="field-label">默认时长</span>
+              <select value={activeVideoConfig.defaultDurationSeconds} onChange={(event) => setVideoConfig(activeVideoConfig.provider, { defaultDurationSeconds: Number(event.target.value) })}>
+                {AI_VIDEO_DURATIONS.map((duration) => <option key={duration} value={duration}>{duration} 秒</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="field-label">默认分辨率</span>
+              <select value={activeVideoConfig.defaultResolution} onChange={(event) => setVideoConfig(activeVideoConfig.provider, { defaultResolution: event.target.value as AiVideoResolution })}>
+                {AI_VIDEO_RESOLUTIONS.map((resolution) => <option key={resolution} value={resolution}>{resolution}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="field-label">默认比例</span>
+              <select value={activeVideoConfig.defaultAspectRatio} onChange={(event) => setVideoConfig(activeVideoConfig.provider, { defaultAspectRatio: event.target.value as AiVideoAspectRatio })}>
+                {AI_VIDEO_ASPECT_RATIOS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="ai-price-matrix" aria-label={`${AI_PROVIDER_LABELS[activeVideoConfig.provider]}价格矩阵`}>
+            <div className="ai-price-matrix-head">
+              <span>时长</span>
+              {AI_VIDEO_RESOLUTIONS.map((resolution) => <span key={resolution}>{resolution}</span>)}
+            </div>
+            {AI_VIDEO_DURATIONS.map((duration) => (
+              <div className="ai-price-matrix-row" key={`${activeVideoConfig.provider}-${duration}`}>
+                <span>{duration} 秒</span>
+                {AI_VIDEO_RESOLUTIONS.map((resolution) => (
+                  <input
+                    key={`${activeVideoConfig.provider}-${duration}-${resolution}`}
+                    aria-label={`${AI_PROVIDER_LABELS[activeVideoConfig.provider]} ${duration}秒 ${resolution} 单价`}
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    value={activeVideoConfig.priceUsdBySpec[videoSpecKey(duration, resolution)] ?? 0}
+                    onChange={(event) => setVideoPrice(activeVideoConfig.provider, duration, resolution, Number(event.target.value))}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </article>
+      </Modal>
 
       <section className="ai-config-grid" aria-label="AI 模型配置">
         <div className="panel dashboard-panel ai-config-card">
