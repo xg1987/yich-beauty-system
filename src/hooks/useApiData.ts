@@ -195,6 +195,7 @@ export function useApiData() {
     testAiImage: client.testAiImage,
     testAiVideo: client.testAiVideo,
     queryAiVideo: client.queryAiVideo,
+    generateMarketingAi: client.generateMarketingAi,
     uploadAccountAvatar: client.uploadAccountAvatar,
     updateAuthUserStatus: client.updateAuthUserStatus,
     resetAuthUserPassword: client.resetAuthUserPassword,

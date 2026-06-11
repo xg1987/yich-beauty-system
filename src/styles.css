@@ -21039,6 +21039,50 @@ textarea,
   cursor: pointer;
 }
 
+.marketing-result-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.marketing-result-status,
+.marketing-result-error,
+.marketing-result-copy p {
+  margin: 0;
+  color: rgba(47, 37, 95, 0.68);
+  line-height: 1.65;
+}
+
+.marketing-result-error {
+  color: #b42318;
+  font-weight: 850;
+}
+
+.marketing-result-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.marketing-result-copy strong {
+  color: #2f255f;
+  font-weight: 920;
+}
+
+.marketing-result-copy .secondary-button {
+  width: fit-content;
+  min-width: 140px;
+}
+
+.marketing-result-image {
+  width: min(100%, 420px);
+  border-radius: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  box-shadow: 0 16px 34px rgba(63, 39, 112, 0.12);
+}
+
 .marketing-chip-row {
   display: flex;
   flex-wrap: wrap;

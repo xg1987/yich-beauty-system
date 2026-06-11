@@ -44,6 +44,7 @@ import {
   isStoreStaffInviteCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  normalizeStoreAiUsagePermissions,
   normalizeStoreScopedData,
   openMemberCard,
   previewFormalDataCleanup,
@@ -67,7 +68,7 @@ import { hashPassword } from "../../src/lib/password";
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
@@ -369,6 +370,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/ai-test/video-status") {
       assertSuperadminAiTester(session);
       return sendJson(200, await runAiVideoStatusTest(await database.readData(), await readJson(context.request)));
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/marketing-ai/generate") {
+      requirePermission(session, "marketing:manage");
+      const data = await database.readData();
+      return sendJson(200, await runMarketingAiGenerate(data, session, await readJson(context.request)));
     }
 
     if (context.request.method === "POST" && pathname === "/api/data-quality/cleanup") {
@@ -1937,6 +1944,7 @@ type AiGenerationConfig = {
   };
 };
 type AiChatMessage = { role: "user" | "assistant"; content: string };
+type MarketingAiKind = "copy" | "image" | "video" | "talk";
 
 const aiVideoDurations = [5, 10, 15];
 const aiVideoResolutions: AiVideoResolution[] = ["480p", "720p", "1080p"];
@@ -2110,10 +2118,9 @@ function readAiChatHistory(body: JsonBody): AiChatMessage[] {
   });
 }
 
-async function runAiChatTest(data: AppData, body: JsonBody) {
+async function runAiTextCompletion(data: AppData, prompt: string, options: { history?: AiChatMessage[]; systemPrompt: string }) {
   const config = aiGenerationConfigFromData(data).copy;
   assertAiCapability(config.enabled, config.apiKey, config.model, "文案对话");
-  const prompt = requiredTrimmedText(body, "prompt", 4000);
   const providerName = config.provider === "deepseek" ? "DeepSeek" : "OpenAI";
   const url = config.provider === "deepseek"
     ? "https://api.deepseek.com/chat/completions"
@@ -2128,8 +2135,8 @@ async function runAiChatTest(data: AppData, body: JsonBody) {
       model: config.model,
       stream: false,
       messages: [
-        { role: "system", content: "你是祝融坤锋美业门店系统的 AI 测试助手，回答要直接、可执行，聚焦门店经营、营销、文案和员工操作。" },
-        ...readAiChatHistory(body),
+        { role: "system", content: options.systemPrompt },
+        ...(options.history ?? []),
         { role: "user", content: prompt },
       ],
     }),
@@ -2150,6 +2157,100 @@ async function runAiChatTest(data: AppData, body: JsonBody) {
     raw: compactAiRawPayload(payload),
     elapsedMs,
   };
+}
+
+async function runAiChatTest(data: AppData, body: JsonBody) {
+  const prompt = requiredTrimmedText(body, "prompt", 4000);
+  return runAiTextCompletion(data, prompt, {
+    history: readAiChatHistory(body),
+    systemPrompt: "你是祝融坤锋美业门店系统的 AI 测试助手，回答要直接、可执行，聚焦门店经营、营销、文案和员工操作。",
+  });
+}
+
+function marketingRoleGroup(role: UserRole): "owner" | "staff" {
+  return role === "owner" || role === "manager" || role === "superadmin" ? "owner" : "staff";
+}
+
+function assertMarketingAiAllowed(data: AppData, session: UserSession, capability: AiUsageCapability) {
+  const config = aiGenerationConfigFromData(data);
+  const platformEnabled = capability === "copy"
+    ? config.copy.enabled
+    : capability === "image"
+      ? config.image.enabled
+      : config.video.providers.some((provider) => provider.enabled);
+  const capabilityLabel = capability === "copy" ? "文案" : capability === "image" ? "图片" : "视频";
+  if (!platformEnabled) throw new Error(`平台未启用 AI ${capabilityLabel}能力`);
+  const storeId = sessionStoreId(data, session);
+  const store = storeId ? normalizeStoreScopedData(data).storeProfiles.find((item) => item.id === storeId) : undefined;
+  const permissions = normalizeStoreAiUsagePermissions(store?.aiUsagePermissions);
+  if (!permissions[marketingRoleGroup(session.user.role)][capability]) {
+    throw new Error(`当前门店未开放 AI ${capabilityLabel}权限`);
+  }
+}
+
+function marketingText(value: unknown, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : fallback;
+}
+
+function marketingImageSize(posterSize: string | undefined) {
+  if (posterSize?.includes("16:9")) return "1536x1024";
+  if (posterSize?.includes("9:16") || posterSize?.includes("3:4")) return "1024x1536";
+  return "1024x1024";
+}
+
+function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
+  const storeName = marketingText(body.storeName, "美业门店");
+  const productName = marketingText(body.productName, "护理产品");
+  const serviceName = marketingText(body.serviceName, "护理项目");
+  const audience = marketingText(body.audience, "目标客户");
+  const channel = marketingText(body.channel, "朋友圈");
+  if (kind === "copy") {
+    return `请为美业门店生成一条${channel}营销文案。门店：${storeName}。商品：${productName}。项目：${serviceName}。客群：${audience}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，不要虚假承诺，不要夸大医疗效果。`;
+  }
+  if (kind === "talk") {
+    const customerName = marketingText(body.customerName, audience);
+    const talkScene = marketingText(body.talkScene, "复购邀约");
+    return `请生成一段美业门店私聊话术。客户：${customerName}。场景：${talkScene}。商品：${productName}。项目：${serviceName}。要求：自然、短句、像真人微信沟通，包含问候、推荐理由和预约引导，不要夸大效果。`;
+  }
+  if (kind === "image") {
+    const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
+    const posterTitle = marketingText(body.posterTitle, "到店护理礼遇");
+    const posterOffer = marketingText(body.posterOffer, "限时体验价");
+    const productImageName = marketingText(body.productImageName, "未上传产品图");
+    const sceneImageName = marketingText(body.sceneImageName, "未上传场景图");
+    return `生成一张高端美业门店营销海报，中文标题：${posterTitle}，活动信息：${posterOffer}，商品：${productName}，项目：${serviceName}，门店：${storeName}，尺寸用途：${posterSize}。参考素材名称：产品图 ${productImageName}，场景图 ${sceneImageName}。画面要干净、专业、紫色品牌感，适合手机端传播，避免医疗承诺。`;
+  }
+  const videoRatio = marketingText(body.videoRatio, "9:16");
+  const videoDuration = Number(body.videoDuration) || 5;
+  const videoScript = marketingText(body.videoScript, "门店护理环境、产品陈列、护理手法和预约引导。");
+  return `生成美业门店宣传短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，适合短视频发布，避免医疗承诺。`;
+}
+
+async function runMarketingAiGenerate(data: AppData, session: UserSession, body: JsonBody) {
+  const kind = requiredString(body, "kind") as MarketingAiKind;
+  if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
+  const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
+  assertMarketingAiAllowed(data, session, capability);
+  const prompt = marketingPrompt(body, kind);
+  if (kind === "copy" || kind === "talk") {
+    const result = await runAiTextCompletion(data, prompt, {
+      systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
+    });
+    return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, elapsedMs: result.elapsedMs };
+  }
+  if (kind === "image") {
+    const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
+    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, elapsedMs: result.elapsedMs };
+  }
+  const config = aiGenerationConfigFromData(data);
+  const provider = config.video.defaultProvider;
+  const result = await runAiVideoTest(data, {
+    prompt,
+    provider,
+    durationSeconds: Number(body.videoDuration) || undefined,
+    aspectRatio: optionalString(body, "videoRatio"),
+  });
+  return { kind, ...result };
 }
 
 async function runAiImageTest(data: AppData, body: JsonBody) {

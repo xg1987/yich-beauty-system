@@ -1127,7 +1127,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             {activeView === "appointments" && <MemoAppointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} onReturnManagement={returnToManagement} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
-            {activeView === "marketing" && <MarketingCenter data={data} session={session} setView={navigate} />}
+            {activeView === "marketing" && <MarketingCenter data={data} session={session} actions={actions} />}
             {activeView === "catalog" && <MemoCatalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={returnToManagement} />}
             {activeView === "staff" && <MemoStaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "inventory" && <MemoInventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={inventoryEntryModule} onReturnManagement={returnToManagement} />}
@@ -4265,7 +4265,7 @@ function EmployeeWorkDashboard({
 
 type MarketingToolKey = "copy" | "image" | "video" | "talk";
 
-function MarketingCenter({ data, session, setView }: { data: AppData; session: UserSession; setView: NavigateToView }) {
+function MarketingCenter({ data, session, actions }: { data: AppData; session: UserSession; actions: ApiActions }) {
   const [tool, setTool] = useState<MarketingToolKey>("copy");
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
@@ -4280,6 +4280,9 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
   const [videoDuration, setVideoDuration] = useState(5);
   const [videoScript, setVideoScript] = useState("门店护理环境、产品陈列、护理手法和预约引导。");
   const [talkScene, setTalkScene] = useState("复购邀约");
+  const [generationBusy, setGenerationBusy] = useState(false);
+  const [generationError, setGenerationError] = useState("");
+  const [generationResult, setGenerationResult] = useState<Awaited<ReturnType<ApiActions["generateMarketingAi"]>> | null>(null);
   const product = data.products.find((item) => item.id === productId) ?? data.products[0];
   const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
   const selectedCustomer = data.customers[0];
@@ -4305,6 +4308,41 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
     const firstEnabledTool = toolCards.find((item) => toolStateByKey[item.key].enabled);
     if (firstEnabledTool) setTool(firstEnabledTool.key);
   }, [data.storeProfiles, data.systemConfigs, session.user.role, tool]);
+
+  useEffect(() => {
+    setGenerationError("");
+    setGenerationResult(null);
+  }, [tool]);
+
+  const generate = async () => {
+    setGenerationBusy(true);
+    setGenerationError("");
+    setGenerationResult(null);
+    try {
+      setGenerationResult(await actions.generateMarketingAi({
+        kind: tool,
+        storeName,
+        productName: product?.name,
+        serviceName: service?.name,
+        audience,
+        channel,
+        posterSize,
+        posterTitle,
+        posterOffer,
+        productImageName,
+        sceneImageName,
+        videoRatio,
+        videoDuration,
+        videoScript,
+        talkScene,
+        customerName: selectedCustomer?.name,
+      }));
+    } catch (caught) {
+      setGenerationError(caught instanceof Error ? caught.message : "AI 生成失败");
+    } finally {
+      setGenerationBusy(false);
+    }
+  };
 
   return (
     <div className="page-stack marketing-center-page">
@@ -4461,10 +4499,40 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
             </>
           )}
           <div className="marketing-form-actions single">
-            <button type="button" className="primary-button" disabled={!activeToolState.enabled}>
-              <Sparkles size={16} /> {tool === "image" ? "AI生成海报" : tool === "video" ? "创建视频任务" : tool === "talk" ? "AI生成话术" : "AI生成文案"}
+            <button type="button" className="primary-button" disabled={!activeToolState.enabled || generationBusy} onClick={generate}>
+              <Sparkles size={16} /> {generationBusy ? "生成中..." : tool === "image" ? "AI生成海报" : tool === "video" ? "创建视频任务" : tool === "talk" ? "AI生成话术" : "AI生成文案"}
             </button>
           </div>
+          {(generationBusy || generationError || generationResult) && (
+            <div className="marketing-result-panel">
+              {generationBusy && <p className="marketing-result-status">AI 正在生成，请稍候。</p>}
+              {generationError && <p className="marketing-result-error">{generationError}</p>}
+              {generationResult?.text && (
+                <div className="marketing-result-copy">
+                  <strong>{tool === "talk" ? "话术结果" : "文案结果"}</strong>
+                  <p>{generationResult.text}</p>
+                  <button type="button" className="secondary-button" onClick={() => void copyTextToClipboard(generationResult.text ?? "")}>
+                    <Copy size={16} /> 复制结果
+                  </button>
+                </div>
+              )}
+              {generationResult?.imageDataUrl && (
+                <div className="marketing-result-copy">
+                  <strong>海报结果</strong>
+                  <img className="marketing-result-image" src={generationResult.imageDataUrl} alt="AI 生成海报" />
+                  {generationResult.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
+                </div>
+              )}
+              {generationResult && tool === "video" && (
+                <div className="marketing-result-copy">
+                  <strong>视频任务</strong>
+                  <p>状态：{generationResult.status ?? "已提交"}</p>
+                  {generationResult.taskId && <p>任务 ID：{generationResult.taskId}</p>}
+                  {generationResult.videoUrl && <a href={generationResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
     </div>

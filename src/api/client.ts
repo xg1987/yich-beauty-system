@@ -75,6 +75,21 @@ export type AiTestVideoResult = {
   raw?: unknown;
   elapsedMs: number;
 };
+export type MarketingAiGenerateKind = "copy" | "image" | "video" | "talk";
+export type MarketingAiGenerateResult = {
+  kind: MarketingAiGenerateKind;
+  provider: "openai" | "deepseek" | AiVideoProviderKey;
+  model: string;
+  text?: string;
+  imageDataUrl?: string;
+  revisedPrompt?: string;
+  taskId?: string;
+  status?: string;
+  videoUrl?: string;
+  fileId?: string;
+  normalizedRequest?: Record<string, unknown>;
+  elapsedMs: number;
+};
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 export type JoinInviteResult =
@@ -120,6 +135,24 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AiTestVideoResult>("/api/ai-test/video", { method: "POST", body, token: getToken() }),
     queryAiVideo: (body: { provider: AiVideoProviderKey; taskId: string }) =>
       request<AiTestVideoResult>("/api/ai-test/video-status", { method: "POST", body, token: getToken() }),
+    generateMarketingAi: (body: {
+      kind: MarketingAiGenerateKind;
+      storeName?: string;
+      productName?: string;
+      serviceName?: string;
+      audience?: string;
+      channel?: string;
+      posterSize?: string;
+      posterTitle?: string;
+      posterOffer?: string;
+      productImageName?: string;
+      sceneImageName?: string;
+      videoRatio?: string;
+      videoDuration?: number;
+      videoScript?: string;
+      talkScene?: string;
+      customerName?: string;
+    }) => request<MarketingAiGenerateResult>("/api/marketing-ai/generate", { method: "POST", body, token: getToken() }),
     uploadAccountAvatar: (file: File) => {
       const body = new FormData();
       body.append("avatar", file);

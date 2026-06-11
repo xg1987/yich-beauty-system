@@ -47,6 +47,7 @@ import {
   joinInviteByCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  normalizeStoreAiUsagePermissions,
   normalizeStoreScopedData,
   openMemberCard,
   previewFormalDataCleanup,
@@ -71,7 +72,7 @@ import { hashPassword } from "../src/lib/password";
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
@@ -345,6 +346,12 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "GET" && url.pathname === "/api/data-quality") {
         requirePermission(session, "settings:view");
         sendJson(response, 200, previewFormalDataCleanup(database.readData()));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/marketing-ai/generate") {
+        requirePermission(session, "marketing:manage");
+        sendJson(response, 200, await runMarketingAiGenerate(database.readData(), session, await readJson(request)));
         return;
       }
 
@@ -1862,6 +1869,501 @@ async function readLocalWorkerUsage(): Promise<WorkerUsageSnapshot> {
   } catch (caught) {
     return fallback(caught instanceof Error ? caught.message : "Cloudflare Metrics 读取失败");
   }
+}
+
+type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
+type AiVideoResolution = "480p" | "720p" | "1080p";
+type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
+type AiTextModelConfig = {
+  enabled: boolean;
+  provider: Extract<AiProviderKey, "openai" | "deepseek">;
+  model: string;
+  apiKey: string;
+  inputTokenUsdPerMillion: number;
+  outputTokenUsdPerMillion: number;
+};
+type AiImageModelConfig = {
+  enabled: boolean;
+  provider: "openai";
+  model: string;
+  apiKey: string;
+  defaultSize: "1024x1024" | "1024x1536" | "1536x1024";
+  defaultQuality: "standard" | "high";
+  maxImagesPerRequest: number;
+  textInputUsdPerMillion: number;
+  imageInputUsdPerMillion: number;
+  imageOutputUsdPerMillion: number;
+};
+type AiVideoProviderConfig = {
+  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo">;
+  enabled: boolean;
+  model: string;
+  apiKey: string;
+  defaultDurationSeconds: number;
+  defaultResolution: AiVideoResolution;
+  defaultAspectRatio: AiVideoAspectRatio;
+  priceUsdBySpec: Record<string, number>;
+};
+type AiGenerationConfig = {
+  copy: AiTextModelConfig;
+  image: AiImageModelConfig;
+  video: {
+    defaultProvider: AiVideoProviderConfig["provider"];
+    providers: AiVideoProviderConfig[];
+  };
+};
+type AiChatMessage = { role: "user" | "assistant"; content: string };
+type MarketingAiKind = "copy" | "image" | "video" | "talk";
+
+const aiVideoDurations = [5, 10, 15];
+const aiVideoResolutions: AiVideoResolution[] = ["480p", "720p", "1080p"];
+const aiVideoAspectRatios: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
+const defaultAiGenerationConfig: AiGenerationConfig = {
+  copy: {
+    enabled: true,
+    provider: "deepseek",
+    model: "deepseek-v4-pro",
+    apiKey: "",
+    inputTokenUsdPerMillion: 0.435,
+    outputTokenUsdPerMillion: 0.87,
+  },
+  image: {
+    enabled: true,
+    provider: "openai",
+    model: "gpt-image-2",
+    apiKey: "",
+    defaultSize: "1024x1024",
+    defaultQuality: "high",
+    maxImagesPerRequest: 4,
+    textInputUsdPerMillion: 5,
+    imageInputUsdPerMillion: 8,
+    imageOutputUsdPerMillion: 30,
+  },
+  video: {
+    defaultProvider: "seedance",
+    providers: [
+      { provider: "seedance", enabled: true, model: "seedance-2.0", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+    ],
+  },
+};
+
+function cloneAiGenerationConfig(config: AiGenerationConfig = defaultAiGenerationConfig): AiGenerationConfig {
+  return JSON.parse(JSON.stringify(config)) as AiGenerationConfig;
+}
+
+function normalizeAiPrice(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
+}
+
+function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
+  const fallback = cloneAiGenerationConfig();
+  if (!input || typeof input !== "object") return fallback;
+  const record = input as Partial<AiGenerationConfig>;
+  const copy = record.copy && typeof record.copy === "object" ? record.copy as Partial<AiTextModelConfig> : {};
+  const image = record.image && typeof record.image === "object" ? record.image as Partial<AiImageModelConfig> : {};
+  const video = record.video && typeof record.video === "object" ? record.video as Partial<AiGenerationConfig["video"]> : {};
+  const inputProviders = Array.isArray(video.providers) ? video.providers : [];
+  const providers = fallback.video.providers.map((defaultProvider) => {
+    const incoming = inputProviders.find((item) => item && typeof item === "object" && (item as Partial<AiVideoProviderConfig>).provider === defaultProvider.provider) as Partial<AiVideoProviderConfig> | undefined;
+    return {
+      ...defaultProvider,
+      ...incoming,
+      enabled: typeof incoming?.enabled === "boolean" ? incoming.enabled : defaultProvider.enabled,
+      apiKey: typeof incoming?.apiKey === "string" ? incoming.apiKey : defaultProvider.apiKey,
+      model: typeof incoming?.model === "string" ? incoming.model : defaultProvider.model,
+      defaultDurationSeconds: aiVideoDurations.includes(Number(incoming?.defaultDurationSeconds)) ? Number(incoming?.defaultDurationSeconds) : defaultProvider.defaultDurationSeconds,
+      defaultResolution: aiVideoResolutions.includes(incoming?.defaultResolution as AiVideoResolution) ? incoming?.defaultResolution as AiVideoResolution : defaultProvider.defaultResolution,
+      defaultAspectRatio: aiVideoAspectRatios.includes(incoming?.defaultAspectRatio as AiVideoAspectRatio) ? incoming?.defaultAspectRatio as AiVideoAspectRatio : defaultProvider.defaultAspectRatio,
+      priceUsdBySpec: Object.fromEntries(Object.entries(incoming?.priceUsdBySpec ?? defaultProvider.priceUsdBySpec ?? {}).map(([key, value]) => [key, normalizeAiPrice(value)])),
+    };
+  });
+  const defaultProvider = providers.some((provider) => provider.provider === video.defaultProvider)
+    ? video.defaultProvider as AiVideoProviderConfig["provider"]
+    : fallback.video.defaultProvider;
+  return {
+    copy: {
+      ...fallback.copy,
+      ...copy,
+      enabled: typeof copy.enabled === "boolean" ? copy.enabled : fallback.copy.enabled,
+      provider: copy.provider === "openai" || copy.provider === "deepseek" ? copy.provider : fallback.copy.provider,
+      apiKey: typeof copy.apiKey === "string" ? copy.apiKey : fallback.copy.apiKey,
+      model: typeof copy.model === "string" ? copy.model : fallback.copy.model,
+      inputTokenUsdPerMillion: normalizeAiPrice(copy.inputTokenUsdPerMillion),
+      outputTokenUsdPerMillion: normalizeAiPrice(copy.outputTokenUsdPerMillion),
+    },
+    image: {
+      ...fallback.image,
+      ...image,
+      enabled: typeof image.enabled === "boolean" ? image.enabled : fallback.image.enabled,
+      apiKey: typeof image.apiKey === "string" ? image.apiKey : fallback.image.apiKey,
+      model: typeof image.model === "string" ? image.model : fallback.image.model,
+      defaultSize: ["1024x1024", "1024x1536", "1536x1024"].includes(image.defaultSize ?? "") ? image.defaultSize as AiImageModelConfig["defaultSize"] : fallback.image.defaultSize,
+      defaultQuality: image.defaultQuality === "standard" || image.defaultQuality === "high" ? image.defaultQuality : fallback.image.defaultQuality,
+      maxImagesPerRequest: Math.max(1, Math.min(8, Math.trunc(Number(image.maxImagesPerRequest) || fallback.image.maxImagesPerRequest))),
+      textInputUsdPerMillion: normalizeAiPrice(image.textInputUsdPerMillion),
+      imageInputUsdPerMillion: normalizeAiPrice(image.imageInputUsdPerMillion),
+      imageOutputUsdPerMillion: normalizeAiPrice(image.imageOutputUsdPerMillion),
+    },
+    video: { defaultProvider, providers },
+  };
+}
+
+function aiGenerationConfigFromData(data: AppData) {
+  const rawValue = data.systemConfigs?.find((item) => item.key === "ai_generation_config")?.value;
+  if (!rawValue) return cloneAiGenerationConfig();
+  try {
+    return normalizeAiGenerationConfig(JSON.parse(rawValue));
+  } catch {
+    return cloneAiGenerationConfig();
+  }
+}
+
+function requiredTrimmedText(body: JsonBody, key: string, maxLength: number) {
+  const value = requiredString(body, key).trim();
+  if (!value) throw new Error(`缺少字段 ${key}`);
+  return value.slice(0, maxLength);
+}
+
+function optionalAiString(body: JsonBody, key: string, maxLength: number) {
+  const value = optionalString(body, key)?.trim();
+  return value ? value.slice(0, maxLength) : undefined;
+}
+
+function assertAiCapability(enabled: boolean, apiKey: string, model: string, capabilityName: string) {
+  if (!enabled) throw new Error(`${capabilityName}能力未启用`);
+  if (!apiKey.trim()) throw new Error(`${capabilityName}API Key 未配置`);
+  if (!model.trim()) throw new Error(`${capabilityName}模型未配置`);
+}
+
+async function readProviderJson(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { text };
+  }
+}
+
+function providerErrorMessage(provider: string, status: number, payload: Record<string, unknown>) {
+  const error = payload.error;
+  if (typeof error === "string") return `${provider} 返回错误(${status})：${error}`;
+  if (error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string") {
+    return `${provider} 返回错误(${status})：${(error as { message: string }).message}`;
+  }
+  if (typeof payload.message === "string") return `${provider} 返回错误(${status})：${payload.message}`;
+  if (typeof payload.status_msg === "string") return `${provider} 返回错误(${status})：${payload.status_msg}`;
+  return `${provider} 返回错误(${status})`;
+}
+
+async function fetchProviderJson(provider: string, url: string, init: RequestInit) {
+  const startedAt = Date.now();
+  const response = await fetch(url, init);
+  const payload = await readProviderJson(response);
+  if (!response.ok) {
+    throw new Error(providerErrorMessage(provider, response.status, payload));
+  }
+  return { payload, elapsedMs: Date.now() - startedAt };
+}
+
+async function runAiTextCompletion(data: AppData, prompt: string, options: { history?: AiChatMessage[]; systemPrompt: string }) {
+  const config = aiGenerationConfigFromData(data).copy;
+  assertAiCapability(config.enabled, config.apiKey, config.model, "文案对话");
+  const providerName = config.provider === "deepseek" ? "DeepSeek" : "OpenAI";
+  const url = config.provider === "deepseek"
+    ? "https://api.deepseek.com/chat/completions"
+    : "https://api.openai.com/v1/chat/completions";
+  const { payload, elapsedMs } = await fetchProviderJson(providerName, url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      stream: false,
+      messages: [
+        { role: "system", content: options.systemPrompt },
+        ...(options.history ?? []),
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+  const choices = Array.isArray(payload.choices) ? payload.choices : [];
+  const message = choices[0] && typeof choices[0] === "object" ? (choices[0] as { message?: { content?: unknown }; text?: unknown }).message : undefined;
+  const text = typeof message?.content === "string"
+    ? message.content
+    : typeof (choices[0] as { text?: unknown } | undefined)?.text === "string"
+      ? (choices[0] as { text: string }).text
+      : "";
+  if (!text.trim()) throw new Error(`${providerName} 未返回可读内容`);
+  return {
+    provider: config.provider,
+    model: config.model,
+    text,
+    usage: payload.usage,
+    raw: compactAiRawPayload(payload),
+    elapsedMs,
+  };
+}
+
+function marketingRoleGroup(role: UserRole): "owner" | "staff" {
+  return role === "owner" || role === "manager" || role === "superadmin" ? "owner" : "staff";
+}
+
+function assertMarketingAiAllowed(data: AppData, session: UserSession, capability: AiUsageCapability) {
+  const config = aiGenerationConfigFromData(data);
+  const platformEnabled = capability === "copy"
+    ? config.copy.enabled
+    : capability === "image"
+      ? config.image.enabled
+      : config.video.providers.some((provider) => provider.enabled);
+  const capabilityLabel = capability === "copy" ? "文案" : capability === "image" ? "图片" : "视频";
+  if (!platformEnabled) throw new Error(`平台未启用 AI ${capabilityLabel}能力`);
+  const storeId = sessionStoreId(data, session);
+  const store = storeId ? normalizeStoreScopedData(data).storeProfiles.find((item) => item.id === storeId) : undefined;
+  const permissions = normalizeStoreAiUsagePermissions(store?.aiUsagePermissions);
+  if (!permissions[marketingRoleGroup(session.user.role)][capability]) {
+    throw new Error(`当前门店未开放 AI ${capabilityLabel}权限`);
+  }
+}
+
+function marketingText(value: unknown, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : fallback;
+}
+
+function marketingImageSize(posterSize: string | undefined) {
+  if (posterSize?.includes("16:9")) return "1536x1024";
+  if (posterSize?.includes("9:16") || posterSize?.includes("3:4")) return "1024x1536";
+  return "1024x1024";
+}
+
+function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
+  const storeName = marketingText(body.storeName, "美业门店");
+  const productName = marketingText(body.productName, "护理产品");
+  const serviceName = marketingText(body.serviceName, "护理项目");
+  const audience = marketingText(body.audience, "目标客户");
+  const channel = marketingText(body.channel, "朋友圈");
+  if (kind === "copy") {
+    return `请为美业门店生成一条${channel}营销文案。门店：${storeName}。商品：${productName}。项目：${serviceName}。客群：${audience}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，不要虚假承诺，不要夸大医疗效果。`;
+  }
+  if (kind === "talk") {
+    const customerName = marketingText(body.customerName, audience);
+    const talkScene = marketingText(body.talkScene, "复购邀约");
+    return `请生成一段美业门店私聊话术。客户：${customerName}。场景：${talkScene}。商品：${productName}。项目：${serviceName}。要求：自然、短句、像真人微信沟通，包含问候、推荐理由和预约引导，不要夸大效果。`;
+  }
+  if (kind === "image") {
+    const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
+    const posterTitle = marketingText(body.posterTitle, "到店护理礼遇");
+    const posterOffer = marketingText(body.posterOffer, "限时体验价");
+    const productImageName = marketingText(body.productImageName, "未上传产品图");
+    const sceneImageName = marketingText(body.sceneImageName, "未上传场景图");
+    return `生成一张高端美业门店营销海报，中文标题：${posterTitle}，活动信息：${posterOffer}，商品：${productName}，项目：${serviceName}，门店：${storeName}，尺寸用途：${posterSize}。参考素材名称：产品图 ${productImageName}，场景图 ${sceneImageName}。画面要干净、专业、紫色品牌感，适合手机端传播，避免医疗承诺。`;
+  }
+  const videoRatio = marketingText(body.videoRatio, "9:16");
+  const videoDuration = Number(body.videoDuration) || 5;
+  const videoScript = marketingText(body.videoScript, "门店护理环境、产品陈列、护理手法和预约引导。");
+  return `生成美业门店宣传短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，适合短视频发布，避免医疗承诺。`;
+}
+
+async function runMarketingAiGenerate(data: AppData, session: UserSession, body: JsonBody) {
+  const kind = requiredString(body, "kind") as MarketingAiKind;
+  if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
+  const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
+  assertMarketingAiAllowed(data, session, capability);
+  const prompt = marketingPrompt(body, kind);
+  if (kind === "copy" || kind === "talk") {
+    const result = await runAiTextCompletion(data, prompt, {
+      systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
+    });
+    return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, elapsedMs: result.elapsedMs };
+  }
+  if (kind === "image") {
+    const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
+    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, elapsedMs: result.elapsedMs };
+  }
+  const config = aiGenerationConfigFromData(data);
+  const result = await runAiVideoTest(data, {
+    prompt,
+    provider: config.video.defaultProvider,
+    durationSeconds: Number(body.videoDuration) || undefined,
+    aspectRatio: optionalString(body, "videoRatio"),
+  });
+  return { kind, ...result };
+}
+
+async function runAiImageTest(data: AppData, body: JsonBody) {
+  const config = aiGenerationConfigFromData(data).image;
+  assertAiCapability(config.enabled, config.apiKey, config.model, "图片生成");
+  const prompt = requiredTrimmedText(body, "prompt", 4000);
+  const size = optionalAiString(body, "size", 20) ?? config.defaultSize;
+  const qualityInput = optionalAiString(body, "quality", 20) ?? config.defaultQuality;
+  const quality = qualityInput === "standard" ? "medium" : qualityInput;
+  const { payload, elapsedMs } = await fetchProviderJson("OpenAI", "https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      prompt,
+      size,
+      quality,
+      n: 1,
+    }),
+  });
+  const output = Array.isArray(payload.data) ? payload.data[0] as { b64_json?: unknown; url?: unknown; revised_prompt?: unknown } | undefined : undefined;
+  const b64 = typeof output?.b64_json === "string" ? output.b64_json : undefined;
+  const imageUrl = typeof output?.url === "string" ? output.url : undefined;
+  if (!b64 && !imageUrl) throw new Error("OpenAI 未返回图片数据");
+  return {
+    provider: "openai" as const,
+    model: config.model,
+    imageDataUrl: b64 ? `data:image/png;base64,${b64}` : imageUrl,
+    revisedPrompt: typeof output?.revised_prompt === "string" ? output.revised_prompt : undefined,
+    raw: compactAiRawPayload(payload),
+    elapsedMs,
+  };
+}
+
+async function runAiVideoTest(data: AppData, body: JsonBody) {
+  const config = aiGenerationConfigFromData(data);
+  const providerKey = optionalAiString(body, "provider", 20) as AiVideoProviderConfig["provider"] | undefined;
+  const activeProvider = config.video.providers.find((provider) => provider.provider === (providerKey ?? config.video.defaultProvider)) ?? config.video.providers[0];
+  if (!activeProvider) throw new Error("视频供应商未配置");
+  assertAiCapability(activeProvider.enabled, activeProvider.apiKey, activeProvider.model, `${providerLabel(activeProvider.provider)}视频`);
+  const prompt = requiredTrimmedText(body, "prompt", 2500);
+  const durationSeconds = aiVideoDurations.includes(Number(body.durationSeconds)) ? Number(body.durationSeconds) : activeProvider.defaultDurationSeconds;
+  const resolution = aiVideoResolutions.includes(body.resolution as AiVideoResolution) ? body.resolution as AiVideoResolution : activeProvider.defaultResolution;
+  const aspectRatio = aiVideoAspectRatios.includes(body.aspectRatio as AiVideoAspectRatio) ? body.aspectRatio as AiVideoAspectRatio : activeProvider.defaultAspectRatio;
+  if (activeProvider.provider === "hailuo") {
+    return createHailuoVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio);
+  }
+  if (activeProvider.provider === "kling") {
+    return createKlingVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio);
+  }
+  return createSeedanceVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio);
+}
+
+async function createSeedanceVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio) {
+  const normalizedRequest = { duration: durationSeconds, resolution, ratio: aspectRatio };
+  const { payload, elapsedMs } = await fetchProviderJson("Seedance", "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      content: [{ type: "text", text: prompt }],
+      ratio: aspectRatio,
+      duration: durationSeconds,
+      resolution,
+      watermark: false,
+    }),
+  });
+  return videoResult(config, elapsedMs, payload, {
+    taskId: readFirstString(payload, ["id", "task_id", "taskId"]),
+    status: readFirstString(payload, ["status"]),
+    normalizedRequest,
+  });
+}
+
+async function createKlingVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio) {
+  const normalizedRequest = {
+    duration: durationSeconds === 10 ? "10" : "5",
+    aspect_ratio: aspectRatio,
+    mode: resolution === "1080p" ? "pro" : "std",
+  };
+  const { payload, elapsedMs } = await fetchProviderJson("Kling", "https://api-singapore.klingai.com/v1/videos/text2video", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model_name: config.model,
+      prompt,
+      duration: normalizedRequest.duration,
+      aspect_ratio: normalizedRequest.aspect_ratio,
+      mode: normalizedRequest.mode,
+    }),
+  });
+  return videoResult(config, elapsedMs, payload, {
+    taskId: readFirstString(payload, ["task_id", "taskId", "id", "request_id"]),
+    status: readFirstString(payload, ["status", "message"]),
+    normalizedRequest,
+  });
+}
+
+async function createHailuoVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio) {
+  const normalizedDuration = durationSeconds >= 10 ? 10 : 6;
+  const normalizedResolution = resolution === "1080p" && normalizedDuration === 6 ? "1080P" : "768P";
+  const normalizedRequest = { duration: normalizedDuration, resolution: normalizedResolution, aspectRatio };
+  const { payload, elapsedMs } = await fetchProviderJson("MiniMax", "https://api.minimax.io/v1/video_generation", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      prompt,
+      duration: normalizedDuration,
+      resolution: normalizedResolution,
+    }),
+  });
+  return videoResult(config, elapsedMs, payload, {
+    taskId: readFirstString(payload, ["task_id", "taskId", "id"]),
+    status: readFirstString(payload, ["status"]),
+    normalizedRequest,
+  });
+}
+
+function videoResult(config: AiVideoProviderConfig, elapsedMs: number, raw: Record<string, unknown>, extras: Partial<{ taskId: string; status: string; videoUrl: string; fileId: string; normalizedRequest: Record<string, unknown> }>) {
+  return {
+    provider: config.provider,
+    model: config.model,
+    ...extras,
+    raw: compactAiRawPayload(raw),
+    elapsedMs,
+  };
+}
+
+function providerLabel(provider: AiVideoProviderConfig["provider"]) {
+  if (provider === "seedance") return "Seedance";
+  if (provider === "kling") return "Kling";
+  return "海螺";
+}
+
+function compactAiRawPayload(payload: Record<string, unknown>) {
+  return JSON.parse(JSON.stringify(payload, (key, value) => {
+    if (typeof value === "string" && value.length > 1200) {
+      return `${value.slice(0, 1200)}...`;
+    }
+    return value;
+  })) as Record<string, unknown>;
+}
+
+function readFirstString(payload: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === "number") return String(value);
+  }
+  const data = payload.data;
+  if (data && typeof data === "object") {
+    for (const key of keys) {
+      const value = (data as Record<string, unknown>)[key];
+      if (typeof value === "string" && value.length > 0) return value;
+      if (typeof value === "number") return String(value);
+    }
+  }
+  return undefined;
 }
 
 async function listLocalAssetFiles(directory: string): Promise<string[]> {
