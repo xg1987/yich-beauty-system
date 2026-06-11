@@ -364,6 +364,7 @@ function isVisiblePlatformAdmin(user: { account: string; role: UserRole }) {
 function displayRoleName(user: { account: string; role: UserRole; roleName: string }) {
   if (isVisiblePlatformAdmin(user)) return "系统管理员";
   if (user.role === "owner" || user.role === "manager") return "店长";
+  if (user.role === "therapist") return "服务人员";
   return user.roleName === "老板" || user.roleName === "主管" ? "店长" : user.roleName;
 }
 
@@ -384,7 +385,7 @@ function displayUserRole(role: UserRole) {
     owner: "店长",
     manager: "店长",
     frontdesk: "前台",
-    therapist: "员工",
+    therapist: "服务人员",
     finance: "财务",
   };
   return labels[role];
@@ -756,7 +757,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     owner: "门店老板",
     manager: "门店主管",
     frontdesk: "前台营业",
-    therapist: "员工页面",
+    therapist: "服务页面",
     finance: "财务后台",
   };
   const shellDisplayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
@@ -3054,7 +3055,7 @@ function EmployeeWorkDashboard({
   return (
     <div className="dashboard-page employee-work-page">
       <section className={`workbench-hero employee-work-hero role-hero-${session.user.role}`}>
-        <span className="workbench-hero-kicker"><Sparkles size={15} /> {isTherapist ? "员工工作" : "前台工作"}</span>
+        <span className="workbench-hero-kicker"><Sparkles size={15} /> {isTherapist ? "今日工作" : "前台工作"}</span>
         <h2>{session.user.name} · {storeName || "门店"}</h2>
         <p>{todayLabel} · 预约 {todayAppointments} · 待签名 {pendingSignatureCount} · 有效卡 {activeCards}</p>
       </section>
@@ -3333,8 +3334,8 @@ function workbenchQuickTaskDetails(view: ViewKey, input: WorkbenchQuickDetailInp
     return {
       tone: "amber",
       icon: <BadgeCent size={24} />,
-      label: "员工结算",
-      description: "查看个人提成、员工提成和结算记录。",
+      label: "提成结算",
+      description: "查看个人提成、团队提成和结算记录。",
       items: [
         { label: "待结事项", value: `${input.pendingApprovals} 项`, hint: "按权限查看" },
         { label: "今日预约", value: `${input.todayAppointments} 单`, hint: "关联服务" },
@@ -3424,7 +3425,7 @@ type RoleDashboardContent = {
 function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
   if (input.role === "therapist") {
     return {
-      title: "员工今日服务",
+      title: "今日服务",
       desc: "今日预约、护理记录、客户回访和个人提成集中呈现。",
       scheduleTitle: "我的今日预约",
       emptySchedule: "今天暂无分配给你的预约",
@@ -3489,7 +3490,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       healthMetrics: [
         { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "收银流水" },
         { icon: <ChartNoAxesColumnIncreasing size={18} />, label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
-        { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "员工结算" },
+        { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "提成结算" },
         { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals} 单`, hint: "风险控制" },
       ],
       actions: [

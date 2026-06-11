@@ -1933,7 +1933,7 @@ export function createStaffInvite(
   const staff = data.staff.find((item) => item.id === input.staffId);
   if (!staff) throw new Error("员工不存在");
   if (!isBusinessStaff(staff)) throw new Error("老板账号不走员工邀请码");
-  if (!account) throw new Error("请输入员工登录账号");
+  if (!account) throw new Error("请输入登录账号");
   if (validDays <= 0) throw new Error("邀请码有效期必须大于 0 天");
   if (!["manager", "frontdesk", "therapist", "finance"].includes(input.role)) throw new Error("账号角色不正确");
   if (staff.accountId || data.authUsers.some((user) => user.staffId === staff.id)) throw new Error("该员工已开通账号");
@@ -2150,7 +2150,7 @@ export function joinStoreStaffInvite(
   const name = input.name.trim();
   const account = (input.account ?? "").trim();
   if (!name) throw new Error("请输入姓名");
-  if (!account) throw new Error("请输入员工登录账号");
+  if (!account) throw new Error("请输入登录账号");
   if (!input.password) throw new Error("请输入密码");
   if (data.authUsers.some((user) => user.account === account)) throw new Error("登录账号已存在");
   const staffId = idFactory("s");

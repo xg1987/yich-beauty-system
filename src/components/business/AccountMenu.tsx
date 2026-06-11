@@ -16,6 +16,7 @@ function menuDisplayName(session: UserSession) {
 function menuRoleName(session: UserSession) {
   if (menuDisplayName(session) === "admin") return "管理员";
   if (session.user.role === "owner" || session.user.role === "manager") return "店长";
+  if (session.user.role === "therapist") return "服务人员";
   return session.user.roleName === "老板" || session.user.roleName === "主管" ? "店长" : session.user.roleName;
 }
 
