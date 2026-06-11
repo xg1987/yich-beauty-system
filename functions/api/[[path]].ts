@@ -463,16 +463,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requirePermission(session, "settings:view");
       const body = await readJson(context.request);
       const currentData = await database.readData();
+      const targetStoreId = session.user.role === "superadmin" ? requiredString(body, "storeId") : sessionStoreId(currentData, session);
       const nextData = addOperationLog(
         updateStoreAiUsagePermissions(currentData, {
-          storeId: sessionStoreId(currentData, session),
+          storeId: targetStoreId,
           permissions: body.permissions,
         }),
         {
           userId: session.user.id,
           action: "更新AI使用权限",
           targetType: "store",
-          targetId: sessionStoreId(currentData, session) ?? "primary",
+          targetId: targetStoreId ?? "primary",
           summary: `${session.user.name} 更新门店 AI 使用权限`,
         },
       );

@@ -21251,6 +21251,25 @@ textarea,
   gap: 16px;
 }
 
+.ai-permission-store-picker {
+  display: grid;
+  gap: 8px;
+  color: rgba(47, 37, 95, 0.64);
+  font-size: 12px;
+  font-weight: 880;
+}
+
+.ai-permission-store-picker select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #2f255f;
+  padding: 0 14px;
+  font: inherit;
+}
+
 .ai-permission-status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -21356,6 +21375,7 @@ textarea,
 .app-shell.theme-night .marketing-preview-card,
 .app-shell.theme-night .ai-permission-status-grid article,
 .app-shell.theme-night .ai-permission-matrix,
+.app-shell.theme-night .ai-permission-store-picker select,
 .app-shell.theme-night .employee-work-page .empty,
 .app-shell.theme-night .marketing-center-page .empty {
   border-color: var(--night-app-line) !important;
@@ -21386,6 +21406,7 @@ textarea,
 .app-shell.theme-night .marketing-preview-copy p,
 .app-shell.theme-night .ai-permission-status-grid span,
 .app-shell.theme-night .ai-permission-row small,
+.app-shell.theme-night .ai-permission-store-picker,
 .app-shell.theme-night .ai-permission-head {
   color: var(--night-app-muted) !important;
 }

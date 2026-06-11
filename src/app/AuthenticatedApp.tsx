@@ -1260,6 +1260,7 @@ function ManagementCenter({
     { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "AI 能力配置", desc: "文案 / 图片 / 视频模型与成本", icon: Sparkles, tone: "plum", view: "aiConfig" },
+    { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "AI 智能测试中心", desc: "聊天 / 图片 / 视频接口试跑", icon: MessageCircle, tone: "plum", view: "aiTest" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
@@ -1276,7 +1277,6 @@ function ManagementCenter({
     { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
     { title: "员工排班", desc: "班次查看 / 不可预约时间", icon: CalendarDays, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "AI 使用权限", desc: "店长 / 员工 AI 功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
     { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
     { title: "供应商采购", desc: "供应商 / 采购入库", icon: Building2, tone: "amber", view: "inventory", inventoryModule: "purchase" },
@@ -1382,7 +1382,7 @@ function ManagementCenter({
         size="large"
         onClose={() => setAiUsagePermissionsOpen(false)}
       >
-        <AiUsagePermissionsContent data={data} actions={actions} runMutation={runMutation} onClose={() => setAiUsagePermissionsOpen(false)} />
+        <AiUsagePermissionsContent data={data} session={session} actions={actions} runMutation={runMutation} onClose={() => setAiUsagePermissionsOpen(false)} />
       </Modal>
       <Modal
         open={customerRefundOpen}
@@ -4862,9 +4862,12 @@ function RoomSettings({ data, actions, runMutation, setView }: { data: AppData; 
   );
 }
 
-function AiUsagePermissionsContent({ data, actions, runMutation, onClose }: { data: AppData; actions: ApiActions; runMutation: RunMutation; onClose: () => void }) {
+function AiUsagePermissionsContent({ data, session, actions, runMutation, onClose }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; onClose: () => void }) {
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
-  const [draft, setDraft] = useState(() => storeAiUsagePermissions(data));
+  const isPlatformAdmin = session.user.role === "superadmin";
+  const [selectedStoreId, setSelectedStoreId] = useState(() => data.storeProfiles[0]?.id ?? "");
+  const selectedStore = data.storeProfiles.find((store) => store.id === selectedStoreId) ?? data.storeProfiles[0];
+  const [draft, setDraft] = useState(() => normalizeStoreAiUsagePermissions(selectedStore?.aiUsagePermissions));
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -4875,8 +4878,14 @@ function AiUsagePermissionsContent({ data, actions, runMutation, onClose }: { da
   ];
 
   useEffect(() => {
-    setDraft(storeAiUsagePermissions(data));
-  }, [data.storeProfiles]);
+    const nextStore = data.storeProfiles.find((store) => store.id === selectedStoreId) ?? data.storeProfiles[0];
+    if (nextStore && nextStore.id !== selectedStoreId) {
+      setSelectedStoreId(nextStore.id);
+    }
+    setDraft(normalizeStoreAiUsagePermissions(nextStore?.aiUsagePermissions));
+    setSaved(false);
+    setError("");
+  }, [data.storeProfiles, selectedStoreId]);
 
   const setCapability = (roleKey: keyof StoreAiUsagePermissions, capability: AiUsageCapability, enabled: boolean) => {
     setSaved(false);
@@ -4892,10 +4901,14 @@ function AiUsagePermissionsContent({ data, actions, runMutation, onClose }: { da
 
   const savePermissions = (event: FormEvent) => {
     event.preventDefault();
+    if (isPlatformAdmin && !selectedStore?.id) {
+      setError("请先选择门店");
+      return;
+    }
     setSaving(true);
     setSaved(false);
     setError("");
-    void runMutation(() => actions.updateAiUsagePermissions(draft))
+    void runMutation(() => actions.updateAiUsagePermissions(draft, isPlatformAdmin ? selectedStore?.id : undefined))
       .then(() => {
         setSaved(true);
         window.setTimeout(onClose, 600);
@@ -4906,6 +4919,16 @@ function AiUsagePermissionsContent({ data, actions, runMutation, onClose }: { da
 
   return (
     <form className="ai-permission-panel" onSubmit={savePermissions}>
+      {isPlatformAdmin && (
+        <label className="ai-permission-store-picker">
+          <span>门店</span>
+          <select value={selectedStore?.id ?? ""} onChange={(event) => setSelectedStoreId(event.target.value)}>
+            {data.storeProfiles.map((store) => (
+              <option key={store.id} value={store.id}>{store.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="ai-permission-status-grid">
         {capabilityKeys.map((capability) => (
           <article key={capability} className={!aiCapabilityPlatformEnabled(aiConfig, capability) ? "disabled" : ""}>

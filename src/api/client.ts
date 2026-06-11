@@ -176,8 +176,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/stores/${encodeURIComponent(storeId)}/status`, { method: "PATCH", body: { status }, token: getToken() }),
     updateStoreProfile: (body: { name: string; phone: string; address: string; businessHours: string; roomNames?: string[]; maintenanceRoomNames?: string[]; maintenanceRoomCount?: number }) =>
       request<AppData>("/api/store-profile", { method: "PATCH", body, token: getToken() }),
-    updateAiUsagePermissions: (permissions: StoreAiUsagePermissions) =>
-      request<AppData>("/api/ai-usage-permissions", { method: "PATCH", body: { permissions }, token: getToken() }),
+    updateAiUsagePermissions: (permissions: StoreAiUsagePermissions, storeId?: string) =>
+      request<AppData>("/api/ai-usage-permissions", { method: "PATCH", body: { permissions, storeId }, token: getToken() }),
     addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>
       request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
     updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>
