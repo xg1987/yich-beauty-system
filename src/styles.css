@@ -21590,3 +21590,202 @@ textarea,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-list td {
   color: var(--night-app-text) !important;
 }
+
+/* Night surface audit pass: cover module-specific cards that were still using light-only rules. */
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-business-grid article,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-pay-list div,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-staff-row,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-panel .empty,
+.app-shell.theme-night .main .account-admin-stack .panel.dashboard-panel,
+.app-shell.theme-night .main .account-admin-stack .table-wrap,
+.app-shell.theme-night .main .permission-dashboard-grid .panel.dashboard-panel,
+.app-shell.theme-night .main .permission-dashboard-grid .table-wrap,
+.app-shell.theme-night .main .platform-admin-page .panel.dashboard-panel,
+.app-shell.theme-night .main .platform-admin-page .table-wrap {
+  border-color: var(--night-app-line) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(160, 127, 226, 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.08)) !important;
+  color: var(--night-app-text) !important;
+  box-shadow: 0 14px 30px rgba(15, 10, 22, 0.2) !important;
+}
+
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-business-grid strong,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-pay-list strong,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-staff-row strong,
+.app-shell.theme-night .main .account-admin-stack strong,
+.app-shell.theme-night .main .permission-dashboard-grid strong,
+.app-shell.theme-night .main .platform-admin-page strong {
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-business-grid span,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-business-grid small,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-pay-list span,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-pay-list small,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-staff-row span,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-staff-row small,
+.app-shell.theme-night .main .account-admin-stack span,
+.app-shell.theme-night .main .account-admin-stack small,
+.app-shell.theme-night .main .permission-dashboard-grid span,
+.app-shell.theme-night .main .permission-dashboard-grid small,
+.app-shell.theme-night .main .platform-admin-page span,
+.app-shell.theme-night .main .platform-admin-page small {
+  color: var(--night-app-muted) !important;
+}
+
+.theme-night .system-modal .inventory-modal-detail .panel,
+.theme-night .system-modal .catalog-modal-detail .panel,
+.theme-night .system-modal .staff-modal-detail .panel,
+.theme-night .system-modal .approvals-modal-detail .panel,
+.theme-night .system-modal .catalog-inline-control,
+.theme-night .system-modal .inventory-inline-control,
+.theme-night .system-modal .inventory-category-manager-form,
+.theme-night .system-modal .inventory-intake-history,
+.theme-night .system-modal .inventory-intake-record,
+.theme-night .system-modal .inventory-warning-row,
+.theme-night .system-modal .inventory-summary-strip > div,
+.theme-night .system-modal .inventory-product-card,
+.theme-night .system-modal .inventory-empty-state,
+.theme-night .system-modal .inventory-loss-current,
+.theme-night .system-modal .catalog-product-result,
+.theme-night .system-modal .catalog-product-result.create,
+.theme-night .system-modal .catalog-product-tags,
+.theme-night .system-modal .catalog-product-tags span,
+.theme-night .system-modal .catalog-product-usage-chip,
+.theme-night .system-modal .inventory-product-card-metrics > span,
+.theme-night .system-modal .inventory-deduction-fixed strong {
+  border-color: var(--night-modal-border) !important;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(160, 127, 226, 0.11), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.085)) !important;
+  color: var(--night-modal-text) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025) !important;
+}
+
+.theme-night .system-modal .inventory-filter-row button,
+.theme-night .system-modal .inventory-intake-actions button,
+.theme-night .system-modal .inventory-category-manage-button,
+.theme-night .system-modal .inventory-category-manager-form button,
+.theme-night .system-modal .catalog-product-tags button,
+.theme-night .system-modal .catalog-product-result button,
+.theme-night .system-modal .module-panel-actions button,
+.theme-night .system-modal .inventory-row-actions button,
+.theme-night .system-modal .inventory-warning-row button {
+  border-color: var(--night-modal-border) !important;
+  background: var(--night-modal-panel-strong) !important;
+  color: var(--night-modal-text) !important;
+}
+
+.theme-night .system-modal .inventory-filter-row button.active,
+.theme-night .system-modal .inventory-filter-row button:hover,
+.theme-night .system-modal .inventory-filter-row button:focus-visible,
+.theme-night .system-modal .catalog-product-result:hover,
+.theme-night .system-modal .catalog-product-result:focus-visible {
+  border-color: rgba(112, 220, 190, 0.38) !important;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(112, 220, 190, 0.14), transparent 34%),
+    rgba(255, 255, 255, 0.13) !important;
+  color: var(--night-modal-text) !important;
+}
+
+.theme-night .system-modal .catalog-inline-control strong,
+.theme-night .system-modal .inventory-inline-title strong,
+.theme-night .system-modal .inventory-product-card-head strong,
+.theme-night .system-modal .inventory-product-card-metrics strong,
+.theme-night .system-modal .inventory-summary-strip strong,
+.theme-night .system-modal .inventory-empty-state strong,
+.theme-night .system-modal .inventory-loss-current strong,
+.theme-night .system-modal .inventory-warning-row strong,
+.theme-night .system-modal .catalog-product-result strong,
+.theme-night .system-modal .catalog-product-usage-chip strong,
+.theme-night .system-modal .inventory-intake-record-main strong {
+  color: var(--night-modal-text) !important;
+}
+
+.theme-night .system-modal .catalog-inline-control span,
+.theme-night .system-modal .catalog-inline-control small,
+.theme-night .system-modal .inventory-product-card-head small,
+.theme-night .system-modal .inventory-product-card-metrics small,
+.theme-night .system-modal .inventory-summary-strip span,
+.theme-night .system-modal .inventory-empty-state span,
+.theme-night .system-modal .inventory-loss-current span,
+.theme-night .system-modal .inventory-filter-row > span,
+.theme-night .system-modal .inventory-warning-row span,
+.theme-night .system-modal .inventory-intake-record small,
+.theme-night .system-modal .inventory-intake-record span,
+.theme-night .system-modal .catalog-product-result span,
+.theme-night .system-modal .catalog-product-tags small,
+.theme-night .system-modal .catalog-product-usage-chip label,
+.theme-night .system-modal .catalog-product-usage-chip em {
+  color: var(--night-modal-muted) !important;
+}
+
+.theme-night .system-modal .catalog-product-filter-row,
+.theme-night .system-modal .inventory-filter-stack,
+.theme-night .system-modal .inventory-product-card-grid,
+.theme-night .system-modal .inventory-intake-records,
+.theme-night .system-modal .catalog-product-results,
+.theme-night .system-modal .catalog-product-picker {
+  color: var(--night-modal-text) !important;
+}
+
+.theme-night .system-modal .catalog-product-results {
+  border-color: var(--night-modal-border) !important;
+  background:
+    radial-gradient(circle at 94% 8%, rgba(112, 220, 190, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.08) !important;
+}
+
+.theme-night .system-modal .catalog-product-search,
+.theme-night .system-modal .catalog-product-search input,
+.theme-night .system-modal .catalog-product-usage-chip input {
+  border-color: var(--night-modal-border) !important;
+  background: var(--night-modal-field) !important;
+  color: var(--night-modal-text) !important;
+}
+
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .dashboard-panel,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .usage-card,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .panel {
+  border-color: var(--night-app-line) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(160, 127, 226, 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.08)) !important;
+  color: var(--night-app-text) !important;
+  box-shadow: 0 14px 30px rgba(15, 10, 22, 0.2) !important;
+}
+
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .table-wrap,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .usage-card .table-wrap,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .dashboard-panel .table-wrap {
+  border-color: var(--night-app-line) !important;
+  background-color: rgba(255, 255, 255, 0.09) !important;
+  background-image: none !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page table,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .table-wrap table,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page th,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page td {
+  border-color: rgba(235, 223, 255, 0.14) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page th {
+  background-color: rgba(255, 255, 255, 0.075) !important;
+  background-image: none !important;
+  color: var(--night-app-muted) !important;
+}
+
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .page-hero p,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .page-hero span,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .page-hero small,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .panel-title span,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .dashboard-panel span,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .dashboard-panel small,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .usage-card span,
+.app-shell.theme-night .main > .admin-center-page.platform-admin-page .usage-metrics span {
+  color: var(--night-app-muted) !important;
+}
