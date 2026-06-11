@@ -197,7 +197,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         if (!joinedAccount) throw new Error("邀请账号不存在");
         sendJson(response, 202, {
           status: "pending_approval",
-          message: "员工账号已提交，请等待店长审核通过后再登录。",
+          message: "账号已提交，请等待店长审核通过后再登录。",
         });
         return;
       }

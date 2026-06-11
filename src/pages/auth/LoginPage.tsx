@@ -100,7 +100,7 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
                     <label>门店地址<input value={joinAddress} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" /></label>
                   </>
                 )}
-                <label>{isOwnerInvite ? "店长登录账号" : "员工登录账号"}<input value={joinAccount} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
+                <label>{isOwnerInvite ? "店长登录账号" : "登录账号"}<input value={joinAccount} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
               </>
             ) : (
               <label>
