@@ -3810,7 +3810,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [roomName, setRoomName] = useState(roomNames[0] ?? "");
   const [rescheduleRoomName, setRescheduleRoomName] = useState(roomNames[0] ?? "");
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
-  const [showRoomStatus, setShowRoomStatus] = useState(false);
   const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
   const hasConfiguredRooms = roomNames.length > 0;
 
@@ -4004,13 +4003,10 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     return conflicts.length > 0;
   };
 
-  const today = new Date();
-  const todayAppointments = data.appointments.filter((item) => new Date(item.startAt).toDateString() === today.toDateString());
   const lockedServiceStaff = new Set(data.staffUnavailableSlots.filter((slot) => serviceStaffIds.has(slot.staffId)).map((slot) => slot.staffId));
   const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
   const maintenanceRoomNames = new Set(maintenanceRoomNamesOf(data, roomNames));
-  const roomUsage = calculateAppointmentRoomUsage(todayAppointments, appointmentRangeMap().today, roomNames, Array.from(maintenanceRoomNames));
   const appointmentRanges = appointmentRangeMap();
   const selectedAppointmentRange = appointmentRanges[appointmentRange];
   const rangeAppointments = filterAppointmentsByRange(data.appointments, appointmentRange)
@@ -4080,9 +4076,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     };
   });
   const firstAvailableRoom = roomAvailabilityOptions.find((option) => !option.disabled)?.value ?? "";
-  const availableRoomNames = roomNames.filter((name) => !maintenanceRoomNames.has(name) && !roomUsage.roomAssignments.some((assignment) => assignment.roomName === name));
-  const occupiedRoomAssignments = roomUsage.roomAssignments.filter(({ roomName }) => !maintenanceRoomNames.has(roomName));
-  const maintenanceRoomList = roomNames.filter((name) => maintenanceRoomNames.has(name));
   const roomIcon = (name: string) => {
     if (/vip/i.test(name)) return <Crown size={18} />;
     if (name.includes("身心")) return <HeartPulse size={18} />;
@@ -4239,10 +4232,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <CalendarDays size={18} />
               {hasConfiguredRooms ? "新增预约" : "设置房间"}
             </button>
-            <button type="button" className="appointment-room-status-button" onClick={() => setShowRoomStatus(true)}>
-              <Building2 size={18} />
-              查看房态
-            </button>
           </div>
           <div className="appointment-workbench-metrics">
             <div>
@@ -4337,90 +4326,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
           </div>
         </section>
       </div>
-      <Modal
-        open={showRoomStatus}
-        title="今日房态"
-        subtitle="查看今日可预约、已占用和维护中的房间"
-        size="large"
-        onClose={() => setShowRoomStatus(false)}
-      >
-        <div className="appointment-room-status-modal">
-          <div className="appointment-room-summary">
-            <div>
-              <span>可用房间</span>
-              <strong>{roomUsage.availableRoomCount}</strong>
-              <small>管理中心配置</small>
-            </div>
-            <div>
-              <span>今日占用</span>
-              <strong>{roomUsage.bookedRoomSlots}</strong>
-              <small>已有预约</small>
-            </div>
-            <div>
-              <span>当前剩余</span>
-              <strong>{roomUsage.remainingRoomSlots}</strong>
-              <small>可继续预约</small>
-            </div>
-            <div>
-              <span>维护中</span>
-              <strong>{roomUsage.maintenanceRoomCount}</strong>
-              <small>不可预约</small>
-            </div>
-          </div>
-          <div className="appointment-room-status-groups">
-            <section>
-              <div className="appointment-room-list-head">
-                <strong>可预约</strong>
-                <small>{availableRoomNames.length} 间</small>
-              </div>
-              <div className="appointment-room-chip-list">
-                {availableRoomNames.length ? availableRoomNames.map((name) => <span className="available" key={name}>{name}</span>) : <em>暂无可预约房间</em>}
-              </div>
-            </section>
-            <section>
-              <div className="appointment-room-list-head">
-                <strong>已占用</strong>
-                <small>{occupiedRoomAssignments.length} 间</small>
-              </div>
-              <div className="appointment-room-chip-list">
-                {occupiedRoomAssignments.length ? occupiedRoomAssignments.map(({ roomName, appointment }) => (
-                  <span className="occupied" key={`${roomName}-${appointment.id}`}>{roomName} · {shortTime(appointment.startAt)}</span>
-                )) : <em>暂无占用房间</em>}
-              </div>
-            </section>
-            <section>
-              <div className="appointment-room-list-head">
-                <strong>维护中</strong>
-                <small>{maintenanceRoomList.length} 间</small>
-              </div>
-              <div className="appointment-room-chip-list">
-                {maintenanceRoomList.length ? maintenanceRoomList.map((name) => <span className="maintenance" key={name}>{name}</span>) : <em>暂无维护房间</em>}
-              </div>
-            </section>
-          </div>
-          <div className="appointment-room-status-detail">
-            <div className="appointment-room-list-head">
-              <strong>占用明细</strong>
-              <small>今日预约房间安排</small>
-            </div>
-            <DataTable
-              columns={["房间", "时间", "客户", "项目", "状态"]}
-              rows={occupiedRoomAssignments.map(({ roomName, appointment }) => [
-                roomName,
-                appointmentTimeRange(data, appointment),
-                nameOf(data.customers, appointment.customerId),
-                appointmentServiceNames(data, appointment),
-                <Badge key={`${appointment.id}-room-status`} text={appointment.status} tone={appointmentBadgeTone(appointment.status)} />,
-              ])}
-            />
-          </div>
-          <div className="appointment-room-status-actions">
-            <button type="button" onClick={() => { setShowRoomStatus(false); setView("roomSettings"); }}>
-              房间管理
-            </button>
-          </div>
-        </div>
-      </Modal>
       <Modal
         open={showAppointmentForm}
         title="新增预约"
