@@ -123,8 +123,8 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
               <form className="public-booking-form" onSubmit={submit} aria-busy={submitting}>
                 <PanelTitle icon={<CalendarDays size={18} />} title="到店预约意向" action={selectedService ? money(selectedService.price) : undefined} />
                 {submitted && <p className="public-status ok">预约意向已提交，门店会尽快联系确认到店时间。</p>}
-                <label>姓名<input value={customerName} disabled={submitting} onChange={(event) => setCustomerName(event.target.value)} placeholder="请输入到店人姓名" /></label>
-                <label>手机号<input value={phone} disabled={submitting} onChange={(event) => setPhone(event.target.value)} placeholder="用于门店联系确认" /></label>
+                <label>姓名<input value={customerName} disabled={submitting} onChange={(event) => setCustomerName(event.target.value)} autoComplete="name" placeholder="请输入到店人姓名" /></label>
+                <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={phone} disabled={submitting} onChange={(event) => setPhone(event.target.value)} placeholder="用于门店联系确认" /></label>
                 <Select label="预约项目" value={serviceId} onChange={setServiceId} options={services.map(optionOf)} disabled={submitting} />
                 <DateTimeInput label="期望到店时间" value={preferredAt} onChange={setPreferredAt} disabled={submitting} />
                 <label>备注<textarea value={note} disabled={submitting} onChange={(event) => setNote(event.target.value)} placeholder="例如皮肤状态、想咨询的问题" /></label>

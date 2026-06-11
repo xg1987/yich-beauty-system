@@ -4552,6 +4552,8 @@ function Pos({
   const checkoutSubmittingRef = useRef(false);
   const checkoutRequestIdRef = useRef(makeId("checkout"));
   const appliedInitialAppointmentRef = useRef<string | undefined>(undefined);
+  const appliedInitialCustomerRef = useRef<string | undefined>(undefined);
+  const cardCustomerDraftTouchedRef = useRef(false);
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
@@ -5092,6 +5094,21 @@ function Pos({
     if (service && !cardServiceIds.includes(service)) setCardServiceIds((previous) => [...previous, service]);
   };
 
+  const changeCardCustomerMode = (value: CardCustomerMode) => {
+    setCardCustomerMode(value);
+    if (value === "existing") cardCustomerDraftTouchedRef.current = false;
+  };
+
+  const updateCardCustomerName = (value: string) => {
+    cardCustomerDraftTouchedRef.current = true;
+    setCardCustomerName(value);
+  };
+
+  const updateCardCustomerPhone = (value: string) => {
+    cardCustomerDraftTouchedRef.current = true;
+    setCardCustomerPhone(value);
+  };
+
   useEffect(() => {
     if (initialModule) {
       setActiveModule(normalizePosModule(initialModule));
@@ -5101,7 +5118,14 @@ function Pos({
   }, [employeePosLimited, fromManagement, initialModule]);
 
   useEffect(() => {
-    if (!initialCustomerId || !data.customers.some((customer) => customer.id === initialCustomerId)) return;
+    if (!initialCustomerId) {
+      appliedInitialCustomerRef.current = undefined;
+      return;
+    }
+    if (appliedInitialCustomerRef.current === initialCustomerId) return;
+    if (cardCustomerDraftTouchedRef.current) return;
+    if (!data.customers.some((customer) => customer.id === initialCustomerId)) return;
+    appliedInitialCustomerRef.current = initialCustomerId;
     setCustomerId(initialCustomerId);
     setCardCustomerMode("existing");
     setCardCustomerName("");
@@ -5140,6 +5164,7 @@ function Pos({
         note: cardNote.trim() || undefined,
       });
     }).then(() => {
+      cardCustomerDraftTouchedRef.current = false;
       setCardCustomerName("");
       setCardCustomerPhone("");
       setCardNote("");
@@ -5379,13 +5404,13 @@ function Pos({
         <section className="panel">
         <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
         <form className="form" onSubmit={openCard}>
-          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
+          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           ) : (
             <>
-              <label>客户姓名<input value={cardCustomerName} onChange={(event) => setCardCustomerName(event.target.value)} /></label>
-              <label>客户手机号<input value={cardCustomerPhone} onChange={(event) => setCardCustomerPhone(event.target.value)} /></label>
+              <label>客户姓名<input value={cardCustomerName} onChange={(event) => updateCardCustomerName(event.target.value)} autoComplete="name" /></label>
+              <label>客户手机号<input type="tel" inputMode="tel" autoComplete="tel" value={cardCustomerPhone} onChange={(event) => updateCardCustomerPhone(event.target.value)} /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
@@ -5584,11 +5609,11 @@ function Pos({
               <div className="checkout-guest-grid">
                 <label>
                   {usesProduct && !usesService ? "新客姓名（可选）" : "客户姓名（可选）"}
-                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="不留可空" />
+                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" placeholder="不留可空" />
                 </label>
                 <label>
                   {usesProduct && !usesService ? "联系电话（可选）" : "客户电话（可选）"}
-                  <input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="不留可空" />
+                  <input type="tel" inputMode="tel" autoComplete="tel" value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="不留可空" />
                 </label>
               </div>
             </div>
@@ -5962,6 +5987,7 @@ function Customers({
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
   const [cardNote, setCardNote] = useState("");
   const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
+  const customerCardDraftTouchedRef = useRef(false);
   const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
   const [rechargeAmount, setRechargeAmount] = useState<EditableNumber>(300);
   const [rechargeTimes, setRechargeTimes] = useState<EditableNumber>(0);
@@ -6020,6 +6046,21 @@ function Customers({
     setPhone("");
   };
 
+  const changeCardCustomerMode = (value: CardCustomerMode) => {
+    setCardCustomerMode(value);
+    if (value === "existing") customerCardDraftTouchedRef.current = false;
+  };
+
+  const updateCardCustomerName = (value: string) => {
+    customerCardDraftTouchedRef.current = true;
+    setCardCustomerName(value);
+  };
+
+  const updateCardCustomerPhone = (value: string) => {
+    customerCardDraftTouchedRef.current = true;
+    setCardCustomerPhone(value);
+  };
+
   const selectCardService = (serviceId: string) => {
     setCardServiceId(serviceId);
     const service = data.services.find((item) => item.id === serviceId);
@@ -6070,6 +6111,7 @@ function Customers({
         note: cardNote.trim() || undefined,
       });
     }).then(() => {
+      customerCardDraftTouchedRef.current = false;
       setCardCustomerName("");
       setCardCustomerPhone("");
       setCardNote("");
@@ -6645,8 +6687,8 @@ function Customers({
         <>
         <PanelTitle icon={<UsersRound size={18} />} title="新增客户" action="客户档案沉淀" />
         <form className="form" onSubmit={addCustomer}>
-          <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
-          <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+          <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required /></label>
+          <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
           <SubmitStatusButton idleText="保存客户" busyText="保存中..." />
         </form>
         </>
@@ -6655,13 +6697,13 @@ function Customers({
         <>
         <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
         <form className="form" onSubmit={openCard}>
-          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => setCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
+          <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           ) : (
             <>
-              <label>客户姓名<input value={cardCustomerName} onChange={(event) => setCardCustomerName(event.target.value)} /></label>
-              <label>客户手机号<input value={cardCustomerPhone} onChange={(event) => setCardCustomerPhone(event.target.value)} /></label>
+              <label>客户姓名<input value={cardCustomerName} onChange={(event) => updateCardCustomerName(event.target.value)} autoComplete="name" /></label>
+              <label>客户手机号<input type="tel" inputMode="tel" autoComplete="tel" value={cardCustomerPhone} onChange={(event) => updateCardCustomerPhone(event.target.value)} /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
@@ -7444,8 +7486,8 @@ function StaffCommissions({
         {canManageStaff && activeModule === "profile" ? (
           <>
             <form className="form" onSubmit={addStaff}>
-              <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} required /></label>
-              <label>手机号<input value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+              <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required /></label>
+              <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
               <Select label="岗位" value={role} onChange={setRole} options={staffRoleOptions} />
               <label>底薪<input type="number" value={baseSalary} onChange={(event) => setBaseSalary(Number(event.target.value))} /></label>
               <label>提成比例<input type="number" step="0.01" value={commissionRate} onChange={(event) => setCommissionRate(Number(event.target.value))} /></label>
@@ -7497,8 +7539,8 @@ function StaffCommissions({
               <strong>编辑员工档案</strong>
               <span>{editingStaff.name} · {data.authUsers.find((user) => user.staffId === editingStaff.id)?.account ?? "未开通账号"}</span>
             </div>
-            <label>姓名<input value={editingName} onChange={(event) => setEditingName(event.target.value)} required /></label>
-            <label>手机号<input value={editingPhone} onChange={(event) => setEditingPhone(event.target.value)} required /></label>
+            <label>姓名<input value={editingName} onChange={(event) => setEditingName(event.target.value)} autoComplete="name" required /></label>
+            <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={editingPhone} onChange={(event) => setEditingPhone(event.target.value)} required /></label>
             <Select label="岗位" value={editingRole} onChange={setEditingRole} options={staffRoleOptions} />
             <label>底薪<input type="number" min={0} value={editingBaseSalary} onChange={(event) => setEditingBaseSalary(Number(event.target.value))} /></label>
             <label>提成比例<input type="number" min={0} step="0.01" value={editingCommissionRate} onChange={(event) => setEditingCommissionRate(Number(event.target.value))} /></label>

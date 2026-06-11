@@ -92,11 +92,11 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
             {mode === "join" ? (
               <>
                 <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" /></label>
-                <label>姓名<input value={joinName} onChange={(event) => setJoinName(event.target.value)} placeholder="请输入姓名" /></label>
+                <label>姓名<input value={joinName} onChange={(event) => setJoinName(event.target.value)} autoComplete="name" placeholder="请输入姓名" /></label>
                 {isOwnerInvite && (
                   <>
                     <label>门店名称<input value={joinStoreName} onChange={(event) => setJoinStoreName(event.target.value)} placeholder="请输入门店名称" required /></label>
-                    <label>联系电话<input value={joinPhone} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required /></label>
+                    <label>联系电话<input type="tel" inputMode="tel" autoComplete="tel" value={joinPhone} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required /></label>
                     <label>门店地址<input value={joinAddress} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" /></label>
                   </>
                 )}
