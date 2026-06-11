@@ -2986,7 +2986,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
       </section>
 
       <section className="workbench-panel workbench-staff-panel">
-        <PanelTitle icon={<UsersRound size={18} />} title="员工今日表现" action={`${staffTodayStats.length} 人有记录`} />
+        <PanelTitle icon={<UsersRound size={18} />} title="人员今日表现" action={`${staffTodayStats.length} 人有记录`} />
         <div className="workbench-staff-list">
           {staffTodayStats.map((item) => (
             <article key={item.staff.id} className="workbench-staff-row">
@@ -3000,7 +3000,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
               </div>
             </article>
           ))}
-          {staffTodayStats.length === 0 && <p className="empty">今日暂无员工服务或收款记录</p>}
+          {staffTodayStats.length === 0 && <p className="empty">今日暂无服务或收款记录</p>}
         </div>
       </section>
     </div>
@@ -4313,7 +4313,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             </div>
             {completedRangeAppointments.length > 0 ? (
               <DataTable
-                columns={["时间", "客户", "项目", "员工", "房间", "状态", "操作"]}
+                columns={["时间", "客户", "项目", "服务人员", "房间", "状态", "操作"]}
                 rows={completedRangeAppointments.slice(0, 20).map((appointment) => [
                   appointmentTimeRange(data, appointment),
                   nameOf(data.customers, appointment.customerId),
@@ -4338,7 +4338,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 <dl>
                   <div><dt>客户</dt><dd>{nameOf(data.customers, selectedCompletedAppointment.customerId)}</dd></div>
                   <div><dt>项目</dt><dd>{appointmentServiceNames(data, selectedCompletedAppointment)}</dd></div>
-                  <div><dt>员工</dt><dd>{nameOf(data.staff, selectedCompletedAppointment.staffId)}</dd></div>
+                  <div><dt>服务人员</dt><dd>{nameOf(data.staff, selectedCompletedAppointment.staffId)}</dd></div>
                   <div><dt>房间</dt><dd>{selectedCompletedAppointment.roomName ?? "-"}</dd></div>
                   <div><dt>预约时间</dt><dd>{appointmentTimeRange(data, selectedCompletedAppointment)}</dd></div>
                   <div><dt>完成时间</dt><dd>{selectedCompletedAppointment.completedAt ? shortDate(selectedCompletedAppointment.completedAt) : "-"}</dd></div>
@@ -4452,7 +4452,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         <div className="module-detail-stack appointment-modal-detail">
           <form className="form appointment-create-form" onSubmit={addAppointment}>
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
-            <Select label="服务员工" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
+            <Select label="服务人员" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增人员" }]} />
             <div className="appointment-service-picker">
               <div className="checkout-product-section-head">
                 <span>服务项目</span>
@@ -4517,7 +4517,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
             </label>
             {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
-            {selectedTimeConflict && <p className="form-warning">该员工在此时间段有不可预约安排，建议调整时间</p>}
+            {selectedTimeConflict && <p className="form-warning">该人员在此时间段有不可预约安排，建议调整时间</p>}
             {!hasConfiguredRooms && <p className="form-warning">当前门店还没有可用于预约的房间，请先到房间管理配置。</p>}
             <div className="row-actions">
               <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={appointmentSaveDisabled} />
@@ -4585,7 +4585,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         onClose={closeAppointmentAction}
       >
         <form className="form appointment-action-form" onSubmit={submitReschedule}>
-          <Select label="服务员工" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先新增员工" }]} />
+          <Select label="服务人员" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先新增人员" }]} />
           <div className="appointment-service-picker">
             <div className="checkout-product-section-head">
               <span>服务项目</span>
@@ -5301,7 +5301,7 @@ function Pos({
     if (checkoutSubmittingRef.current || checkoutSubmitting) return;
     const messages: string[] = [];
     if (!staffId) {
-      messages.push(usesProduct && !usesService ? "请选择收银员工。商品开单可以选择店长/老板或员工。" : "请选择服务人员。");
+      messages.push(usesProduct && !usesService ? "请选择收银人员。商品开单可以选择店长/老板或服务人员。" : "请选择服务人员。");
     }
     if (usesService && !serviceId) messages.push("请选择服务项目。");
     if (usesProduct && checkoutProductItems.length === 0) messages.push("请选择销售商品。");
@@ -5643,14 +5643,14 @@ function Pos({
             </div>
           )}
           <Select
-            label={usesService ? "服务人员" : "收银员工"}
+            label={usesService ? "服务人员" : "收银人员"}
             value={staffId}
             onChange={(value) => {
               clearAppointment();
               setStaffId(value);
               setCollaboratorStaffIds((previous) => previous.filter((id) => id !== value));
             }}
-            options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]}
+            options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增人员" }]}
           />
           {usesService && (
             <CheckboxGroup
@@ -5870,7 +5870,7 @@ function Pos({
           action={`${cashierFlowRecords.length} 笔`}
         />
           <DataTable
-          columns={["客户", "来源", "内容", "员工", "支付/扣款", "金额", "状态", "时间", "操作"]}
+          columns={["客户", "来源", "内容", "服务人员", "支付/扣款", "金额", "状态", "时间", "操作"]}
           rows={cashierFlowRecords
             .map((record) => [
             record.customerName,
@@ -5896,7 +5896,7 @@ function Pos({
               <div><dt>客户</dt><dd>{selectedCashierCustomer ? `${selectedCashierCustomer.name} · ${selectedCashierCustomer.phone || "-"}` : selectedCashierRecord.customerName}</dd></div>
               <div><dt>来源</dt><dd>{selectedCashierRecord.source}</dd></div>
               <div><dt>内容</dt><dd>{selectedCashierRecord.itemName}</dd></div>
-              <div><dt>员工</dt><dd>{selectedCashierRecord.staffName}</dd></div>
+              <div><dt>服务人员</dt><dd>{selectedCashierRecord.staffName}</dd></div>
               <div><dt>支付/扣款</dt><dd>{cashierPaymentText(selectedCashierRecord)}</dd></div>
               <div><dt>金额</dt><dd>{money(selectedCashierRecord.paidAmount)}</dd></div>
               <div><dt>状态</dt><dd>{selectedCashierRecord.status}</dd></div>
@@ -6710,7 +6710,7 @@ function Customers({
               {customerDetailTab === "records" && (
                 <div className="customer-table-panel">
                   <DataTable
-                    columns={["时间", "项目", "员工", "皮肤情况", "护理步骤", "客户反馈", "下次建议"]}
+                    columns={["时间", "项目", "服务人员", "皮肤情况", "护理步骤", "客户反馈", "下次建议"]}
                     rows={selectedCustomerRecords.map((record) => [
                       shortDate(record.createdAt),
                       nameOf(data.services, record.serviceId),
@@ -6860,7 +6860,7 @@ function Customers({
         <PanelTitle icon={<MessageCircle size={18} />} title="新增跟进计划" action="客户关怀任务" />
         <form className="form" onSubmit={addCustomerFollowUp}>
           <label>客户<input value={nameOf(data.customers, followUpCustomerId)} readOnly /></label>
-          <Select label="员工" value={followUpStaffId} onChange={setFollowUpStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增员工" }]} />
+          <Select label="负责人" value={followUpStaffId} onChange={setFollowUpStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增人员" }]} />
           <Select label="跟进类型" value={followUpType} onChange={(value) => setFollowUpType(value as CustomerFollowUpType)} options={customerFollowUpTypeOptions} />
           <Select label="跟进方式" value={followUpMethod} onChange={(value) => setFollowUpMethod(value as "电话" | "微信" | "到店")} options={["微信", "电话", "到店"].map((item) => ({ value: item, label: item }))} />
           <DateTimeInput label="计划跟进时间" value={followUpDueAt} onChange={setFollowUpDueAt} />
@@ -9033,7 +9033,7 @@ function SignatureRecordDetail({ data, signature }: { data: AppData; signature: 
       <div className="signature-record-meta">
         <span><small>客户</small>{context.customerName}</span>
         <span><small>服务项目</small>{context.serviceName}</span>
-        <span><small>服务员工</small>{context.staffName}</span>
+        <span><small>服务人员</small>{context.staffName}</span>
         <span><small>订单编号</small>{context.orderNo}</span>
         <span><small>签名状态</small>{signature.status}</span>
         <span><small>签名时间</small>{signedAt}</span>

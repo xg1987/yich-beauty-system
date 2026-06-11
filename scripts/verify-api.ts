@@ -363,7 +363,7 @@ try {
           preferredAt: futureIso(45, "02:15"),
         },
       }),
-    /暂无可预约员工/,
+    /暂无可预约服务人员/,
     "public booking API should reject a time with no available staff",
   );
 
@@ -735,7 +735,7 @@ try {
           note: "班次外预约",
         },
       }),
-    /不在员工班次内/,
+    /不在服务人员班次内/,
     "appointment API should reject time outside shift",
   );
 

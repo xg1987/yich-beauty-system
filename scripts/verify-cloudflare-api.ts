@@ -309,7 +309,7 @@ await assert.rejects(
       token: ownerSession.token,
       body: { customerId, staffId: therapistStaffId, serviceId, startAt: `${shiftDay}T05:00:00.000Z`, roomName, note: "班次外预约" },
     }),
-  /不在员工班次内/,
+  /不在服务人员班次内/,
   "Cloudflare appointment API should reject time outside shift",
 );
 

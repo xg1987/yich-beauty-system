@@ -330,7 +330,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
         },
         { idFactory: testId, now: fixedNow },
       ),
-    /服务员工不存在或已停用/,
+    /服务人员不存在或已停用/,
     "owner should not be selected as service staff for appointment",
   );
   const platformAdmin = cloneSeed().authUsers.find((user) => user.role === "superadmin");
@@ -976,7 +976,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
         },
         { idFactory: testId, now: fixedNow },
       ),
-    /暂无可预约员工/,
+    /暂无可预约服务人员/,
     "online booking should reject a time with no available staff",
   );
 
@@ -1654,7 +1654,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
         },
         { idFactory: testId, now: fixedNow },
       ),
-    /不在员工班次内/,
+    /不在服务人员班次内/,
     "appointment should reject time outside staff shift",
   );
 }

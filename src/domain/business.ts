@@ -226,7 +226,7 @@ function assertActiveStaff(staff: Staff | undefined, message = "员工不存在�
   if (!staff || staff.status !== "active") throw new Error(message);
 }
 
-function assertBusinessStaff(staff: Staff | undefined, message = "服务员工不存在或已停用") {
+function assertBusinessStaff(staff: Staff | undefined, message = "服务人员不存在或已停用") {
   if (!staff || staff.status !== "active" || !isBusinessStaff(staff)) throw new Error(message);
 }
 
@@ -1638,7 +1638,7 @@ export function createOnlineBookingRequest(
   if (!storefront.enabledServiceIds.includes(input.serviceId)) throw new Error("该项目暂未开放线上预约");
   if (+new Date(input.preferredAt) <= +new Date(createdAt)) throw new Error("预约意向时间必须晚于当前时间");
   if (availableStaffForOnlineBooking(data, input.serviceId, input.preferredAt).length === 0) {
-    throw new Error("该时间暂无可预约员工，请选择其他时间");
+    throw new Error("该时间暂无可预约服务人员，请选择其他时间");
   }
 
   const request: OnlineBookingRequest = {
@@ -2371,7 +2371,7 @@ export function checkoutOrder(
   const giftProductItems = normalizeCheckoutProductItems(data, rawGiftProductItems, { gift: true });
   const selectedStaff = data.staff.find((item) => item.id === input.staffId);
   const productOnlyCheckout = Boolean(productItems.length > 0 && !selectedService);
-  assertActiveStaff(selectedStaff, productOnlyCheckout ? "收银员工不存在或已停用" : "服务人员不存在或已停用");
+  assertActiveStaff(selectedStaff, productOnlyCheckout ? "收银人员不存在或已停用" : "服务人员不存在或已停用");
   const storeId = scopedStoreId(data, input.storeId ?? selectedStaff?.storeId ?? selectedCustomer?.storeId ?? selectedService?.storeId);
   (input.collaboratorStaffIds ?? []).forEach((staffId) => {
     const collaborator = data.staff.find((item) => item.id === staffId);
@@ -3702,7 +3702,7 @@ function validateAppointmentSchedule(
   });
 
   if (hasAppointmentConflict) {
-    throw new Error("该员工在此时间段已有预约");
+    throw new Error("该服务人员在此时间段已有预约");
   }
 
   const hasUnavailableConflict = data.staffUnavailableSlots.some((slot) => {
@@ -3711,7 +3711,7 @@ function validateAppointmentSchedule(
   });
 
   if (hasUnavailableConflict) {
-    throw new Error("该员工在此时间段不可预约");
+    throw new Error("该服务人员在此时间段不可预约");
   }
 
   const hasRoomConflict = assignAppointmentRooms(
@@ -3739,7 +3739,7 @@ function validateAppointmentSchedule(
     shiftsForDay.length === 0 ||
     shiftsForDay.some((shift) => startAt >= new Date(shift.startAt) && endAt <= new Date(shift.endAt));
   if (!insideShift) {
-    throw new Error("预约时间不在员工班次内");
+    throw new Error("预约时间不在服务人员班次内");
   }
 }
 
@@ -3752,12 +3752,12 @@ export function createStaffShift(
   const createdAt = (options.now ?? nowIso)();
   const startAt = new Date(input.startAt);
   const endAt = new Date(input.endAt);
-  assertBusinessStaff(data.staff.find((staff) => staff.id === input.staffId), "员工不存在或已停用");
+  assertBusinessStaff(data.staff.find((staff) => staff.id === input.staffId), "服务人员不存在或已停用");
   if (!(startAt < endAt)) throw new Error("班次结束时间必须晚于开始时间");
   const hasShiftConflict = data.staffShifts.some(
     (shift) => shift.staffId === input.staffId && hasTimeOverlap(startAt, endAt, new Date(shift.startAt), new Date(shift.endAt)),
   );
-  if (hasShiftConflict) throw new Error("员工班次冲突");
+  if (hasShiftConflict) throw new Error("服务人员班次冲突");
   const shift: StaffShift = {
     id: idFactory("ss"),
     storeId: scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId)),
@@ -3784,7 +3784,7 @@ export function createStaffUnavailableSlot(
   const startAt = new Date(input.startAt);
   const endAt = new Date(input.endAt);
 
-  assertBusinessStaff(data.staff.find((staff) => staff.id === input.staffId), "员工不存在或已停用");
+  assertBusinessStaff(data.staff.find((staff) => staff.id === input.staffId), "服务人员不存在或已停用");
 
   if (!(startAt < endAt)) {
     throw new Error("不可预约结束时间必须晚于开始时间");
@@ -4328,7 +4328,7 @@ export function addCustomerServiceRecord(
   if (!data.customers.some((customer) => customer.id === input.customerId)) throw new Error("客户不存在");
   const staff = data.staff.find((item) => item.id === input.staffId);
   if (!staff) throw new Error("员工不存在");
-  if (!isBusinessStaff(staff)) throw new Error("老板不能作为服务员工");
+  if (!isBusinessStaff(staff)) throw new Error("老板不能作为服务人员");
   const service = data.services.find((item) => item.id === input.serviceId);
   if (!service) throw new Error("服务项目不存在");
   const storeId = scopedStoreId(data, storeIdForCustomer(data, input.customerId) ?? staff.storeId ?? service.storeId);
@@ -4679,7 +4679,7 @@ function roleNameOf(role: UserRole) {
     owner: "老板",
     manager: "店长",
     frontdesk: "前台",
-    therapist: "员工",
+    therapist: "服务人员",
     finance: "财务",
   };
   return names[role];
