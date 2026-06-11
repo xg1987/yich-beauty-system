@@ -7,28 +7,28 @@ const accountMenuSource = readFileSync(join(process.cwd(), "src/components/busin
 
 const violations: string[] = [];
 
-if (!appSource.includes('type ThemeMode = "auto" | "day" | "night";')) {
-  violations.push("ThemeMode must include auto/day/night.");
+if (!appSource.includes('type ThemeMode = "day" | "night";')) {
+  violations.push("ThemeMode must only include day/night.");
 }
 
-if (!appSource.includes("const effectiveThemeMode: EffectiveThemeMode = themeMode === \"auto\" ? systemThemeMode : themeMode;")) {
-  violations.push("Root theme class must use the effective day/night mode, not the raw preference.");
+if (!appSource.includes('return isThemeMode(savedThemeMode) ? savedThemeMode : "day";')) {
+  violations.push("Theme must default to day mode when no valid saved preference exists.");
 }
 
-if (!appSource.includes("setThemeMode(\"auto\")}>自动</button>")) {
-  violations.push("Appearance settings must include an 自动 option.");
+if (!appSource.includes('className={`app-shell theme-${themeMode}`}')) {
+  violations.push("Root theme class must use the stored day/night preference.");
 }
 
-if (!appSource.includes('const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";')) {
-  violations.push("Auto theme must use Asia/Shanghai time.");
+if (appSource.includes('"auto"') || appSource.includes("setThemeMode(\"auto\")") || appSource.includes(">自动</button>")) {
+  violations.push("Appearance settings must not include auto mode.");
 }
 
-if (!appSource.includes("AUTO_THEME_DAY_START_HOUR") || !appSource.includes("AUTO_THEME_NIGHT_START_HOUR")) {
-  violations.push("Auto theme must have explicit day/night hour boundaries.");
+if (appSource.includes("AUTO_THEME_") || appSource.includes("getSystemThemeMode") || appSource.includes("systemThemeMode")) {
+  violations.push("Auto theme timing logic must be removed.");
 }
 
-if (!appSource.includes("window.setInterval(syncSystemTheme, 60_000)")) {
-  violations.push("Auto theme must refresh while the app is open.");
+if (appSource.includes("window.setInterval(syncSystemTheme, 60_000)")) {
+  violations.push("Auto theme must not refresh while the app is open.");
 }
 
 if (!userAvatarSource.includes("showImage = false")) {

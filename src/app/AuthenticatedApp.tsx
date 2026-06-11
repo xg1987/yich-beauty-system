@@ -71,8 +71,7 @@ import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import packageJson from "../../package.json";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "reports" | "accounts" | "logs" | "admin";
-type ThemeMode = "auto" | "day" | "night";
-type EffectiveThemeMode = Exclude<ThemeMode, "auto">;
+type ThemeMode = "day" | "night";
 type CardType = "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
 type CardCustomerMode = "existing" | "new";
 type CustomerFollowUpType = "服务后回访" | "下次护理提醒" | "卡项会员提醒" | "客户关系维护" | "异常处理";
@@ -101,9 +100,6 @@ const STORE_NAME_KEY = "yich-store-name";
 const APP_VERSION = packageJson.version;
 const APP_BUILD_DATE = "2026-06-10";
 const DEFAULT_SYSTEM_TITLE = "祝融｜坤锋美业门店系统";
-const AUTO_THEME_TIME_ZONE = "Asia/Shanghai";
-const AUTO_THEME_DAY_START_HOUR = 8;
-const AUTO_THEME_NIGHT_START_HOUR = 19;
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES);
 const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
@@ -493,18 +489,7 @@ async function copyTextToClipboard(text: string) {
 }
 
 function isThemeMode(value: string | null): value is ThemeMode {
-  return value === "auto" || value === "day" || value === "night";
-}
-
-function getSystemThemeMode(): EffectiveThemeMode {
-  const shanghaiHourText = new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    hour12: false,
-    timeZone: AUTO_THEME_TIME_ZONE,
-  }).format(new Date());
-  const shanghaiHour = Number(shanghaiHourText === "24" ? "0" : shanghaiHourText);
-  if (!Number.isFinite(shanghaiHour)) return "day";
-  return shanghaiHour >= AUTO_THEME_DAY_START_HOUR && shanghaiHour < AUTO_THEME_NIGHT_START_HOUR ? "day" : "night";
+  return value === "day" || value === "night";
 }
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
@@ -643,25 +628,16 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     const savedThemeMode = localStorage.getItem(THEME_KEY);
-    return isThemeMode(savedThemeMode) ? savedThemeMode : "auto";
+    return isThemeMode(savedThemeMode) ? savedThemeMode : "day";
   });
-  const [systemThemeMode, setSystemThemeMode] = useState<EffectiveThemeMode>(() => getSystemThemeMode());
   const [loadingGateStage, setLoadingGateStage] = useState<LoadingGateStage>("connecting");
-  const effectiveThemeMode: EffectiveThemeMode = themeMode === "auto" ? systemThemeMode : themeMode;
   const topbarActionsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem(THEME_KEY, themeMode);
     document.documentElement.dataset.themePreference = themeMode;
-    document.documentElement.dataset.theme = effectiveThemeMode;
-  }, [themeMode, effectiveThemeMode]);
-
-  useEffect(() => {
-    const syncSystemTheme = () => setSystemThemeMode(getSystemThemeMode());
-    syncSystemTheme();
-    const timer = window.setInterval(syncSystemTheme, 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+    document.documentElement.dataset.theme = themeMode;
+  }, [themeMode]);
 
   useEffect(() => {
     if (!accountMenuOpen && !notificationPanelOpen) return;
@@ -778,7 +754,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
 
   return (
     <MutationPendingContext.Provider value={mutationPending}>
-    <div className={`app-shell theme-${effectiveThemeMode}`} data-mutating={mutationPending ? "true" : undefined}>
+    <div className={`app-shell theme-${themeMode}`} data-mutating={mutationPending ? "true" : undefined}>
       <aside className="sidebar">
         <div className="rail-admin">
           <div className="brand-mark">祝</div>
@@ -1012,14 +988,14 @@ function ManagementCenter({
   const staffManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
     { title: "我的提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
-    { title: "外观通知", desc: "自动模式 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
+    { title: "外观通知", desc: "日间 / 夜间 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
   const financeManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
     { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "销售业绩", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
-    { title: "外观通知", desc: "自动模式 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
+    { title: "外观通知", desc: "日间 / 夜间 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
   const managementCards = session.user.role === "superadmin"
     ? platformManagementCards
@@ -8615,7 +8591,6 @@ function SettingsView({
             <div className="settings-static-panel">
               <strong>外观模式</strong>
               <div className="settings-mode-toggle">
-                <button type="button" className={themeMode === "auto" ? "active" : ""} onClick={() => setThemeMode("auto")}>自动</button>
                 <button type="button" className={themeMode === "day" ? "active" : ""} onClick={() => setThemeMode("day")}>日间模式</button>
                 <button type="button" className={themeMode === "night" ? "active" : ""} onClick={() => setThemeMode("night")}>夜间模式</button>
               </div>
