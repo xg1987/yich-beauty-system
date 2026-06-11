@@ -16,6 +16,12 @@ def appVersionCode = Math.max(1, majorVersion * 1000000 + minorVersion * 1000 + 
 android {
     namespace = "com.zhurongkftech.beauty"
     compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        debug {
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
     defaultConfig {
         applicationId "com.zhurongkftech.beauty"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -30,6 +36,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
