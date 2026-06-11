@@ -20744,6 +20744,7 @@ textarea,
 .marketing-tool-grid,
 .marketing-workspace,
 .marketing-form-grid,
+.marketing-upload-grid,
 .marketing-form-actions,
 .marketing-preview-actions {
   display: grid;
@@ -20919,12 +20920,28 @@ textarea,
 }
 
 .marketing-tool-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .marketing-tool-grid button {
-  min-height: 112px;
-  padding: 16px;
+  min-height: 94px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 14px;
+}
+
+.marketing-tool-grid button span {
+  grid-row: 1 / span 2;
+  margin-bottom: 0;
+}
+
+.marketing-tool-grid button strong,
+.marketing-tool-grid button small {
+  min-width: 0;
 }
 
 .marketing-tool-grid button.active {
@@ -20947,7 +20964,7 @@ textarea,
 }
 
 .marketing-workspace {
-  grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+  grid-template-columns: 1fr;
   align-items: start;
 }
 
@@ -20960,8 +20977,66 @@ textarea,
   gap: 8px;
 }
 
-.marketing-form-panel select {
+.marketing-form-panel select,
+.marketing-form-panel input,
+.marketing-form-panel textarea {
   min-width: 0;
+}
+
+.marketing-text-field {
+  display: grid;
+  gap: 8px;
+}
+
+.marketing-upload-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.marketing-upload-box {
+  position: relative;
+  min-height: 118px;
+  align-content: center;
+  justify-items: center;
+  padding: 18px;
+  border: 1px dashed rgba(111, 66, 193, 0.32);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 92% 10%, rgba(42, 143, 125, 0.1), transparent 36%),
+    rgba(255, 255, 255, 0.68);
+  color: #2f255f;
+  text-align: center;
+  cursor: pointer;
+}
+
+.marketing-upload-box svg {
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #6f42c1, #2a8f7d);
+  color: #ffffff;
+}
+
+.marketing-upload-box strong {
+  color: #2f255f;
+  font-weight: 900;
+}
+
+.marketing-upload-box span {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(47, 37, 95, 0.64);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketing-upload-box input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .marketing-chip-row {
@@ -21003,6 +21078,11 @@ textarea,
 .marketing-preview-card {
   overflow: hidden;
   padding: 0;
+}
+
+.marketing-preview-video,
+.marketing-preview-talk {
+  padding: 18px;
 }
 
 .marketing-preview-visual {
@@ -21049,17 +21129,10 @@ textarea,
 
 @media (min-width: 1181px) {
   .marketing-center-page {
-    display: grid;
-    grid-template-columns: 248px minmax(0, 1fr);
-    grid-template-areas:
-      "hero hero"
-      "tools workspace";
-    align-items: start;
     gap: 14px;
   }
 
   .marketing-center-page > .page-hero {
-    grid-area: hero;
     height: 128px;
     min-height: 128px;
     padding: 18px 24px;
@@ -21072,36 +21145,16 @@ textarea,
   }
 
   .marketing-tool-grid {
-    grid-area: tools;
-    grid-template-columns: 1fr;
-    align-self: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
   .marketing-tool-grid button {
     min-height: 88px;
-    display: grid;
-    grid-template-columns: 42px minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    align-content: center;
-    align-items: center;
-    gap: 4px 12px;
-    padding: 14px;
-  }
-
-  .marketing-tool-grid button span {
-    grid-row: 1 / span 2;
-    margin-bottom: 0;
-  }
-
-  .marketing-tool-grid button strong,
-  .marketing-tool-grid button small {
-    min-width: 0;
   }
 
   .marketing-workspace {
-    grid-area: workspace;
-    grid-template-columns: minmax(330px, 0.82fr) minmax(430px, 1.18fr);
+    grid-template-columns: 1fr;
     align-items: stretch;
     gap: 14px;
   }
@@ -21109,7 +21162,7 @@ textarea,
   .marketing-form-panel,
   .marketing-preview-panel {
     min-width: 0;
-    min-height: 438px;
+    min-height: 0;
     display: grid;
     align-content: start;
     gap: 14px;
@@ -21124,7 +21177,7 @@ textarea,
   }
 
   .marketing-form-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .marketing-chip-row {
@@ -21137,7 +21190,7 @@ textarea,
   }
 
   .marketing-preview-visual {
-    min-height: 190px;
+    min-height: 176px;
   }
 
   .marketing-preview-visual strong {

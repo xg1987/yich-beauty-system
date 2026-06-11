@@ -4271,9 +4271,18 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [audience, setAudience] = useState("老客");
   const [channel, setChannel] = useState("朋友圈");
-  const [draftIndex, setDraftIndex] = useState(0);
+  const [posterSize, setPosterSize] = useState("朋友圈 1:1");
+  const [posterTitle, setPosterTitle] = useState("到店护理礼遇");
+  const [posterOffer, setPosterOffer] = useState("限时体验价");
+  const [productImageName, setProductImageName] = useState("");
+  const [sceneImageName, setSceneImageName] = useState("");
+  const [videoRatio, setVideoRatio] = useState<AiVideoAspectRatio>("9:16");
+  const [videoDuration, setVideoDuration] = useState(5);
+  const [videoScript, setVideoScript] = useState("门店护理环境、产品陈列、护理手法和预约引导。");
+  const [talkScene, setTalkScene] = useState("复购邀约");
   const product = data.products.find((item) => item.id === productId) ?? data.products[0];
   const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
+  const selectedCustomer = data.customers[0];
   const storeName = primaryStoreName(data) || "门店";
   const repeatCustomers = data.customers.filter((customer) => data.orders.some((order) => order.customerId === customer.id)).length;
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
@@ -4287,36 +4296,15 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
   const toolStateByKey = Object.fromEntries(toolCards.map((item) => [item.key, aiCapabilityUsageState(aiConfig, aiPermissions, session.user.role, item.capability)])) as Record<MarketingToolKey, { enabled: boolean; label: string }>;
   const channels = ["朋友圈", "小红书", "私聊", "社群"];
   const audiences = ["老客", "新客", "会员卡客户", "沉睡客户"];
-  const subjectName = product?.name || service?.name || "护理项目";
-  const serviceName = service?.name || "护理项目";
-  const productPrice = product ? money(product.price) : "按店内价格";
-  const draftTitle = tool === "copy"
-      ? `${serviceName} · ${audience}`
-      : tool === "image"
-        ? `${storeName} · 活动素材`
-        : tool === "video"
-          ? `${storeName} · 宣传视频`
-          : `${audience} · 私聊话术`;
+  const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
+  const talkScenes = ["复购邀约", "沉睡唤醒", "护理回访", "到店提醒"];
   const activeToolState = toolStateByKey[tool];
-  const draftLines = [
-    `${storeName} ${subjectName}`,
-    tool === "video" ? `${serviceName}适合拍摄护理前后、产品陈列和房间环境镜头。` : `${audience}可重点推荐${serviceName}，搭配${subjectName}提升到店转化。`,
-    product ? `当前库存 ${formatProductStockWithServiceUnits(product, product.stock)} · 到店价 ${productPrice}` : `项目价格 ${service ? money(service.price) : "待定"}`,
-    `${channel}发布时建议配合真实护理场景和门店预约入口。`,
-  ];
-  const copyText = `${draftTitle}\n${draftLines.join("\n")}`;
 
   useEffect(() => {
     if (toolStateByKey[tool]?.enabled) return;
     const firstEnabledTool = toolCards.find((item) => toolStateByKey[item.key].enabled);
     if (firstEnabledTool) setTool(firstEnabledTool.key);
   }, [data.storeProfiles, data.systemConfigs, session.user.role, tool]);
-
-  const copyDraft = () => {
-    if (navigator.clipboard) {
-      void navigator.clipboard.writeText(copyText);
-    }
-  };
 
   return (
     <div className="page-stack marketing-center-page">
@@ -4344,63 +4332,137 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
 
       <section className="marketing-workspace">
         <div className="workbench-panel marketing-form-panel">
-          <PanelTitle icon={<Search size={18} />} title="素材选择" action={channel} />
-          <div className="marketing-form-grid">
-            <label>
-              <span>商品</span>
-              <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
-                {data.products.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
+          <PanelTitle icon={<Search size={18} />} title={toolCards.find((item) => item.key === tool)?.label ?? "AI营销"} action={toolStateByKey[tool].label} />
+          {(tool === "copy" || tool === "image" || tool === "video") && (
+            <div className="marketing-form-grid">
+              <label>
+                <span>商品</span>
+                <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
+                  {data.products.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>项目</span>
+                <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
+                  {data.services.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+          {tool === "copy" && (
+            <>
+              <div className="marketing-chip-row" aria-label="客群">
+                {audiences.map((item) => (
+                  <button type="button" key={item} className={audience === item ? "active" : ""} onClick={() => setAudience(item)}>{item}</button>
                 ))}
-              </select>
-            </label>
-            <label>
-              <span>项目</span>
-              <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
-                {data.services.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
+              </div>
+              <div className="marketing-chip-row" aria-label="渠道">
+                {channels.map((item) => (
+                  <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
                 ))}
-              </select>
-            </label>
-          </div>
-          <div className="marketing-chip-row" aria-label="客群">
-            {audiences.map((item) => (
-              <button type="button" key={item} className={audience === item ? "active" : ""} onClick={() => setAudience(item)}>{item}</button>
-            ))}
-          </div>
-          <div className="marketing-chip-row" aria-label="渠道">
-            {channels.map((item) => (
-              <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
-            ))}
-          </div>
+              </div>
+            </>
+          )}
+          {tool === "image" && (
+            <>
+              <div className="marketing-upload-grid">
+                <label className="marketing-upload-box">
+                  <Plus size={18} />
+                  <strong>产品图</strong>
+                  <span>{productImageName || "上传图片"}</span>
+                  <input type="file" accept="image/*" onChange={(event) => setProductImageName(event.target.files?.[0]?.name ?? "")} />
+                </label>
+                <label className="marketing-upload-box">
+                  <Plus size={18} />
+                  <strong>场景图</strong>
+                  <span>{sceneImageName || "上传图片"}</span>
+                  <input type="file" accept="image/*" onChange={(event) => setSceneImageName(event.target.files?.[0]?.name ?? "")} />
+                </label>
+              </div>
+              <div className="marketing-form-grid">
+                <label>
+                  <span>海报尺寸</span>
+                  <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
+                    {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>活动信息</span>
+                  <input value={posterOffer} onChange={(event) => setPosterOffer(event.target.value)} />
+                </label>
+              </div>
+              <label className="marketing-text-field">
+                <span>海报标题</span>
+                <input value={posterTitle} onChange={(event) => setPosterTitle(event.target.value)} />
+              </label>
+            </>
+          )}
+          {tool === "video" && (
+            <>
+              <div className="marketing-upload-grid">
+                <label className="marketing-upload-box">
+                  <Plus size={18} />
+                  <strong>产品图</strong>
+                  <span>{productImageName || "上传图片"}</span>
+                  <input type="file" accept="image/*" onChange={(event) => setProductImageName(event.target.files?.[0]?.name ?? "")} />
+                </label>
+                <label className="marketing-upload-box">
+                  <Plus size={18} />
+                  <strong>门店素材</strong>
+                  <span>{sceneImageName || "上传图片"}</span>
+                  <input type="file" accept="image/*" onChange={(event) => setSceneImageName(event.target.files?.[0]?.name ?? "")} />
+                </label>
+              </div>
+              <div className="marketing-form-grid">
+                <label>
+                  <span>视频比例</span>
+                  <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value as AiVideoAspectRatio)}>
+                    {AI_VIDEO_ASPECT_RATIOS.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>视频时长</span>
+                  <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
+                    {[5, 10, 15].map((item) => <option key={item} value={item}>{item} 秒</option>)}
+                  </select>
+                </label>
+              </div>
+              <label className="marketing-text-field">
+                <span>视频脚本</span>
+                <textarea value={videoScript} onChange={(event) => setVideoScript(event.target.value)} rows={4} />
+              </label>
+            </>
+          )}
+          {tool === "talk" && (
+            <>
+              <div className="marketing-form-grid">
+                <label>
+                  <span>客户</span>
+                  <select value={selectedCustomer?.id ?? ""} disabled>
+                    {selectedCustomer ? <option value={selectedCustomer.id}>{selectedCustomer.name}</option> : <option value="">暂无客户</option>}
+                  </select>
+                </label>
+                <label>
+                  <span>场景</span>
+                  <select value={talkScene} onChange={(event) => setTalkScene(event.target.value)}>
+                    {talkScenes.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="marketing-chip-row" aria-label="客群">
+                {audiences.map((item) => (
+                  <button type="button" key={item} className={audience === item ? "active" : ""} onClick={() => setAudience(item)}>{item}</button>
+                ))}
+              </div>
+            </>
+          )}
           <div className="marketing-form-actions single">
-            <button type="button" className="primary-button" disabled={!activeToolState.enabled} onClick={() => setDraftIndex((value) => value + 1)}>
-              <Sparkles size={16} /> AI生成草稿
-            </button>
-          </div>
-        </div>
-
-        <div className="workbench-panel marketing-preview-panel">
-          <PanelTitle icon={<Eye size={18} />} title="营销预览" action={draftIndex > 0 ? "已生成" : "草稿"} />
-          <article className="marketing-preview-card">
-            <div className="marketing-preview-visual">
-              <span>{product?.subcategory || product?.category || "美业护理"}</span>
-              <strong>{subjectName}</strong>
-              <small>{serviceName}</small>
-            </div>
-            <div className="marketing-preview-copy">
-              <strong>{draftTitle}</strong>
-              {draftLines.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
-            </div>
-          </article>
-          <div className="marketing-preview-actions">
-            <button type="button" className="secondary-button" onClick={copyDraft}>
-              <Copy size={16} /> 复制文案
-            </button>
-            <button type="button" className="secondary-button" onClick={() => setView("catalog")}>
-              <PackagePlus size={16} /> 项目商品
+            <button type="button" className="primary-button" disabled={!activeToolState.enabled}>
+              <Sparkles size={16} /> {tool === "image" ? "AI生成海报" : tool === "video" ? "创建视频任务" : tool === "talk" ? "AI生成话术" : "AI生成文案"}
             </button>
           </div>
         </div>
