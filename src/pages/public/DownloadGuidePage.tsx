@@ -95,6 +95,10 @@ export default function DownloadGuidePage() {
               <summary>备选 · 下载 .apk 安装</summary>
               <div>
                 <p>如果浏览器提示「危险网站」，可以下载 .apk 直接安装绕开浏览器：</p>
+                <div className="download-apk-version" aria-label={`安卓安装包版本 v${APP_VERSION}`}>
+                  <span>当前安装包</span>
+                  <strong>v{APP_VERSION}</strong>
+                </div>
                 <a className="download-apk-button" href={androidApkUrl} download>
                   <Download size={18} />
                   下载安卓安装包

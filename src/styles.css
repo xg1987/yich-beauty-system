@@ -5291,6 +5291,26 @@ html[data-theme="day"],
   font-size: 11px;
 }
 
+.download-apk-version {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid rgba(139, 70, 165, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #6d357d;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.download-apk-version strong {
+  color: #3f255f;
+  font-size: 13px;
+  font-weight: 950;
+}
+
 .download-apk-button {
   width: fit-content;
   min-height: 40px;
