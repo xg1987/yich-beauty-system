@@ -710,12 +710,14 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     setNotificationPanelOpen(false);
     setAccountMenuOpen(false);
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
-    setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
+    const employeePosLimited = session?.user.role === "therapist" || session?.user.role === "frontdesk";
+    const nextPosModule = employeePosLimited && options?.posModule === "single" ? "card" : options?.posModule;
+    setPosEntryModule(nextView === "pos" ? nextPosModule : undefined);
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
     setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
-  }, []);
+  }, [session?.user.role]);
   const returnFromAccountSettings = useCallback((nextView: ViewKey) => {
     setView(nextView);
     setAccountSettingsOpen(false);
@@ -848,7 +850,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             )}
             {activeView === "dashboard" && (isPlatformAdmin ? <MemoPlatformAdminView data={data} /> : <MemoDashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && <MemoAppointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
-            {activeView === "pos" && <MemoPos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} onReturnManagement={returnToManagement} />}
+            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} onReturnManagement={returnToManagement} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && <MarketingCenter data={data} session={session} setView={navigate} />}
             {activeView === "catalog" && <MemoCatalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={returnToManagement} />}
@@ -4649,6 +4651,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
 
 function Pos({
   data,
+  session,
   actions,
   runMutation,
   fromManagement = false,
@@ -4658,6 +4661,7 @@ function Pos({
   onReturnManagement,
 }: {
   data: AppData;
+  session: UserSession;
   actions: ApiActions;
   runMutation: RunMutation;
   fromManagement?: boolean;
@@ -4667,6 +4671,8 @@ function Pos({
   onReturnManagement?: () => void;
 }) {
   const mutationPending = useMutationPending();
+  const employeePosLimited = session.user.role === "therapist" || session.user.role === "frontdesk";
+  const normalizePosModule = (module: PosModuleKey | undefined): PosModuleKey | undefined => (employeePosLimited && module === "single" ? "card" : module);
   const serviceStaff = activeStaffOf(data);
   const initialCheckoutAppointment = initialAppointmentId ? data.appointments.find((appointment) => appointment.id === initialAppointmentId) : undefined;
   const [appointmentId, setAppointmentId] = useState(initialCheckoutAppointment?.id ?? "");
@@ -4721,7 +4727,7 @@ function Pos({
   const [signatureMessage, setSignatureMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [hasSignatureDrawing, setHasSignatureDrawing] = useState(false);
   const [signatureNow, setSignatureNow] = useState(() => Date.now());
-  const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(fromManagement ? initialModule ?? "single" : initialModule);
+  const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(() => normalizePosModule(fromManagement ? initialModule ?? "single" : initialModule));
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureDrawingRef = useRef(false);
   const cardAmountValue = editableNumberValue(cardAmount);
@@ -5127,17 +5133,26 @@ function Pos({
   };
 
   useEffect(() => {
+    if (employeePosLimited && activeModule === "single") setActiveModule("card");
+  }, [employeePosLimited, activeModule]);
+
+  useEffect(() => {
     if (!initialAppointmentId) {
       appliedInitialAppointmentRef.current = undefined;
       return;
     }
     if (appliedInitialAppointmentRef.current === initialAppointmentId) return;
     appliedInitialAppointmentRef.current = initialAppointmentId;
+    if (employeePosLimited) {
+      setActiveModule("card");
+      return;
+    }
     setActiveModule("single");
     useAppointmentForCheckout(initialAppointmentId);
-  }, [initialAppointmentId, data.appointments]);
+  }, [employeePosLimited, initialAppointmentId, data.appointments]);
 
   const openCheckoutModule = (module: "product" | "single") => {
+    if (employeePosLimited && module === "single") return;
     const isProductModule = module === "product";
     checkoutRequestIdRef.current = makeId("checkout");
     setCheckoutContentMode(isProductModule ? "product" : "service");
@@ -5235,11 +5250,11 @@ function Pos({
 
   useEffect(() => {
     if (initialModule) {
-      setActiveModule(initialModule);
+      setActiveModule(normalizePosModule(initialModule));
       return;
     }
-    if (fromManagement) setActiveModule("single");
-  }, [fromManagement, initialModule]);
+    if (fromManagement) setActiveModule(normalizePosModule("single"));
+  }, [employeePosLimited, fromManagement, initialModule]);
 
   useEffect(() => {
     if (!initialCustomerId || !data.customers.some((customer) => customer.id === initialCustomerId)) return;
@@ -5463,15 +5478,17 @@ function Pos({
               <strong>商品开单</strong>
               <em>库存扣减</em>
             </button>
-            <button
-              type="button"
-              className={`cashier-orbit-card left bottom ${activeModule === "single" ? "active" : ""}`}
-              onClick={() => openCheckoutModule("single")}
-            >
-              <BadgeCent size={22} />
-              <strong>项目服务</strong>
-              <em>项目收款</em>
-            </button>
+            {!employeePosLimited && (
+              <button
+                type="button"
+                className={`cashier-orbit-card left bottom ${activeModule === "single" ? "active" : ""}`}
+                onClick={() => openCheckoutModule("single")}
+              >
+                <BadgeCent size={22} />
+                <strong>项目服务</strong>
+                <em>项目收款</em>
+              </button>
+            )}
           </div>
           <button
             type="button"

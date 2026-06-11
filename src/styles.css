@@ -22213,3 +22213,130 @@ textarea,
 .app-shell.theme-night .main > .admin-center-page.platform-admin-page .usage-metrics span {
   color: var(--night-app-muted) !important;
 }
+
+/* Mobile metric density: keep four KPI cards readable as a 2x2 grid. */
+@media (max-width: 720px) {
+  .appointment-room-page .appointment-workbench-metrics,
+  .customer-module-page.module-hub .module-metric-strip,
+  .marketing-center-page .module-metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .appointment-room-page .appointment-workflow-grid,
+  .appointment-room-status-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div,
+  .theme-day .appointment-room-page .appointment-workbench-metrics > div,
+  .theme-night .appointment-room-page .appointment-workbench-metrics > div {
+    min-height: 128px;
+    align-content: center;
+    padding: 15px;
+    border-radius: 18px;
+  }
+
+  .customer-module-page.module-hub .module-metric-card,
+  .marketing-center-page .module-metric-card {
+    min-height: 128px;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 10px;
+    align-content: center;
+    padding: 15px 14px;
+    border-radius: 18px;
+  }
+
+  .customer-module-page.module-hub .module-metric-card .metric-icon,
+  .marketing-center-page .module-metric-card .metric-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics span,
+  .app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics small,
+  .theme-day .appointment-room-page .appointment-workbench-metrics span,
+  .theme-day .appointment-room-page .appointment-workbench-metrics small,
+  .theme-night .appointment-room-page .appointment-workbench-metrics span,
+  .theme-night .appointment-room-page .appointment-workbench-metrics small,
+  .customer-module-page.module-hub .module-metric-card small,
+  .customer-module-page.module-hub .module-metric-card em,
+  .marketing-center-page .module-metric-card small,
+  .marketing-center-page .module-metric-card em {
+    font-size: 12px !important;
+    line-height: 1.35;
+  }
+
+  .app-shell .main > .page-stack.appointment-room-page .appointment-workbench-metrics strong,
+  .theme-day .appointment-room-page .appointment-workbench-metrics strong,
+  .theme-night .appointment-room-page .appointment-workbench-metrics strong,
+  .customer-module-page.module-hub .module-metric-card strong,
+  .marketing-center-page .module-metric-card strong {
+    font-size: clamp(24px, 7vw, 32px) !important;
+    line-height: 1.05;
+  }
+
+  .theme-day .marketing-center-page .module-metric-card {
+    border: 1px solid rgba(111, 66, 193, 0.24);
+    border-left: 6px solid #6f42c1;
+    background:
+      radial-gradient(circle at 88% 10%, rgba(111, 66, 193, 0.18), transparent 34%),
+      linear-gradient(135deg, #ffffff, #ede3ff) !important;
+    color: #2f255f;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.76),
+      0 14px 30px rgba(47, 27, 99, 0.08);
+  }
+
+  .theme-day .marketing-center-page .module-metric-card:nth-child(2) {
+    border-color: rgba(42, 143, 125, 0.34);
+    border-left-color: #2a8f7d;
+    background:
+      radial-gradient(circle at 88% 10%, rgba(42, 143, 125, 0.2), transparent 36%),
+      linear-gradient(135deg, #f8fffd, #dff4ee) !important;
+  }
+
+  .theme-day .marketing-center-page .module-metric-card:nth-child(3) {
+    border-color: rgba(199, 67, 99, 0.36);
+    border-left-color: #c74363;
+    background:
+      radial-gradient(circle at 88% 10%, rgba(199, 67, 99, 0.22), transparent 36%),
+      linear-gradient(135deg, #fff9fb, #ffdce7) !important;
+  }
+
+  .theme-day .marketing-center-page .module-metric-card:nth-child(4) {
+    border-color: rgba(184, 118, 33, 0.38);
+    border-left-color: #b87621;
+    background:
+      radial-gradient(circle at 88% 10%, rgba(184, 118, 33, 0.24), transparent 36%),
+      linear-gradient(135deg, #fffdf8, #ffeac2) !important;
+  }
+
+  .theme-day .marketing-center-page .module-metric-card strong {
+    color: #2f255f;
+  }
+
+  .theme-day .marketing-center-page .module-metric-card small,
+  .theme-day .marketing-center-page .module-metric-card em {
+    color: rgba(47, 37, 95, 0.68);
+  }
+
+  .theme-day .marketing-center-page .module-metric-card .metric-icon {
+    background: #6f42c1;
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(111, 66, 193, 0.18);
+  }
+
+  .theme-day .marketing-center-page .module-metric-card:nth-child(2) .metric-icon {
+    background: #2a8f7d;
+  }
+
+  .theme-day .marketing-center-page .module-metric-card:nth-child(3) .metric-icon {
+    background: #c74363;
+  }
+
+  .theme-day .marketing-center-page .module-metric-card:nth-child(4) .metric-icon {
+    background: #b87621;
+  }
+}
