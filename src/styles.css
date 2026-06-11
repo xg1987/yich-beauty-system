@@ -15636,6 +15636,11 @@ textarea,
 
 .cashier-orbit-side.right {
   margin-left: 0;
+  grid-template-rows: 1fr;
+}
+
+.cashier-orbit-side.right .cashier-orbit-card {
+  min-height: 100%;
 }
 
 .cashier-orbit-card,
@@ -16453,10 +16458,10 @@ textarea,
   }
 
   .cashier-orbit {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    grid-template-columns: 1fr;
+    gap: 10px;
     min-height: 0;
-    padding: 10px 0 18px;
+    padding: 10px 0 16px;
   }
 
   .cashier-orbit::before {
@@ -16493,7 +16498,7 @@ textarea,
   .cashier-orbit-center {
     order: 1;
     width: 100%;
-    min-height: 96px;
+    min-height: 92px;
     grid-template-columns: auto minmax(0, 1fr);
     place-items: center start;
     align-content: center;
@@ -16522,7 +16527,7 @@ textarea,
   .cashier-orbit-card,
   .cashier-orbit-card.left,
   .cashier-orbit-card.right {
-    min-height: 96px;
+    min-height: 88px;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 10px;
     border-radius: 18px;
@@ -16544,8 +16549,7 @@ textarea,
   }
 
   .cashier-orbit-card.left.bottom {
-    order: 5;
-    grid-column: 1 / -1;
+    order: 3;
   }
 
   .cashier-orbit-card.left {

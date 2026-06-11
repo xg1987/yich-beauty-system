@@ -5230,12 +5230,6 @@ function Pos({
     .filter((order) => order.payMethod !== "会员卡")
     .reduce((sum, order) => sum + order.paidAmount, 0)
     + todayMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
-  const pendingSignatures = data.customerSignatures.filter((signature) => {
-    const context = signatureRecordContext(data, signature);
-    return signature.status === "待签名"
-      && !customerSignatureIsExpired(signature, signatureNow)
-      && signatureRecordCanCompleteService(context);
-  }).length;
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
   const selectedSignatureContext = selectedSignature ? signatureRecordContext(data, selectedSignature) : undefined;
   const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
@@ -5892,15 +5886,6 @@ function Pos({
             <em>会员卡 / 套餐</em>
           </button>
           <div className="cashier-orbit-side right">
-            <button
-              type="button"
-              className={`cashier-orbit-card right top ${activeModule === "signature" ? "active" : ""}`}
-              onClick={() => setActiveModule("signature")}
-            >
-              <LockKeyhole size={22} />
-              <strong>服务签名</strong>
-              <em>{pendingSignatures} 待签</em>
-            </button>
             <button
               type="button"
               className={`cashier-orbit-card right bottom ${activeModule === "orders" ? "active" : ""}`}
