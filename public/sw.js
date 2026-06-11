@@ -1,4 +1,4 @@
-const CACHE_NAME = "yich-beauty-pwa-v1";
+const CACHE_NAME = "yich-beauty-pwa-v2";
 const APP_SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
@@ -44,10 +44,30 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (["font", "image", "manifest", "script", "style", "worker"].includes(request.destination)) {
+  if (["script", "style", "worker"].includes(request.destination)) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  if (["font", "image", "manifest"].includes(request.destination)) {
     event.respondWith(cacheFirst(request));
   }
 });
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok) {
+      cache.put(request, response.clone()).catch(() => undefined);
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw new Error("Network request failed");
+  }
+}
 
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);
