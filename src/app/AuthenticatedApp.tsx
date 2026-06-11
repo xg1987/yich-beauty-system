@@ -3047,13 +3047,6 @@ function EmployeeWorkDashboard({
     { label: "待签名", value: `${pendingSignatureCount}`, hint: "份" },
     { label: "今日开卡", value: `${todayCardOpens}`, hint: "张" },
   ];
-  const quickActions = [
-    { icon: <Search size={20} />, label: "搜客户", onClick: () => setView("customers") },
-    { icon: <CreditCard size={20} />, label: "开卡", onClick: () => setView("pos", { posModule: "card" }) },
-    { icon: <CalendarDays size={20} />, label: "预约", onClick: () => setView("appointments") },
-    { icon: <LockKeyhole size={20} />, label: "签名", onClick: () => setView("pos", { posModule: "signature" }) },
-  ];
-
   return (
     <div className="dashboard-page employee-work-page">
       <section className={`workbench-hero employee-work-hero role-hero-${session.user.role}`}>
@@ -3069,15 +3062,6 @@ function EmployeeWorkDashboard({
             <strong>{item.value}</strong>
             <small>{item.hint}</small>
           </article>
-        ))}
-      </section>
-
-      <section className="employee-action-grid" aria-label="快捷操作">
-        {quickActions.map((item) => (
-          <button type="button" key={item.label} onClick={item.onClick}>
-            <span>{item.icon}</span>
-            <strong>{item.label}</strong>
-          </button>
         ))}
       </section>
 
@@ -3137,7 +3121,6 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
   const product = data.products.find((item) => item.id === productId) ?? data.products[0];
   const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
   const storeName = primaryStoreName(data) || "门店";
-  const lowStockProducts = data.products.filter((item) => item.stock <= item.warningStock).length;
   const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
   const repeatCustomers = data.customers.filter((customer) => data.orders.some((order) => order.customerId === customer.id)).length;
   const toolCards: Array<{ key: MarketingToolKey; label: string; icon: ReactNode; metric: string }> = [
@@ -3179,12 +3162,6 @@ function MarketingCenter({ data, session, setView }: { data: AppData; session: U
         eyebrow="AI智能营销"
         title="营销中心"
         desc="产品图 · 文案 · 客群触达"
-        stats={[
-          { label: "商品", value: `${data.products.length}`, hint: "可用于素材", icon: <PackagePlus size={18} /> },
-          { label: "项目", value: `${data.services.length}`, hint: "可用于转化", icon: <Sparkles size={18} /> },
-          { label: "客户", value: `${data.customers.length}`, hint: "门店客户池", icon: <UsersRound size={18} /> },
-          { label: "低库存", value: `${lowStockProducts}`, hint: "谨慎推广", icon: <PackageMinus size={18} /> },
-        ]}
       />
 
       <section className="marketing-tool-grid" aria-label="营销工具">
