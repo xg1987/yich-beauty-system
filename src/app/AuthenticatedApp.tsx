@@ -5062,6 +5062,8 @@ function Pos({
   const appliedInitialAppointmentRef = useRef<string | undefined>(undefined);
   const appliedInitialCustomerRef = useRef<string | undefined>(undefined);
   const cardCustomerDraftTouchedRef = useRef(false);
+  const cardCustomerNameInputRef = useRef<HTMLInputElement | null>(null);
+  const cardCustomerPhoneInputRef = useRef<HTMLInputElement | null>(null);
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
@@ -5618,6 +5620,18 @@ function Pos({
     setCardCustomerPhone(value);
   };
 
+  const readCardCustomerName = () => (cardCustomerNameInputRef.current?.value ?? cardCustomerName).trim();
+
+  const readCardCustomerPhone = () => (cardCustomerPhoneInputRef.current?.value ?? cardCustomerPhone).trim();
+
+  const clearCardCustomerDraft = () => {
+    cardCustomerDraftTouchedRef.current = false;
+    setCardCustomerName("");
+    setCardCustomerPhone("");
+    if (cardCustomerNameInputRef.current) cardCustomerNameInputRef.current.value = "";
+    if (cardCustomerPhoneInputRef.current) cardCustomerPhoneInputRef.current.value = "";
+  };
+
   useEffect(() => {
     if (initialModule) {
       setActiveModule(normalizePosModule(initialModule));
@@ -5646,8 +5660,10 @@ function Pos({
     setCardFormMessage(undefined);
     void runMutation(async () => {
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
+      const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
+      const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
-      if (cardCustomerMode === "new" && (!cardCustomerName.trim() || !cardCustomerPhone.trim())) throw new Error("请登记客户姓名和手机号");
+      if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) throw new Error("请填写开卡实收金额");
       if (cardType === "储值卡" && (!Number.isFinite(cardAmountValue) || cardAmountValue <= 0)) throw new Error("请填写储值到账金额");
@@ -5656,8 +5672,8 @@ function Pos({
       if (cardType === "折扣卡" && (!Number.isFinite(cardDiscountRateValue) || cardDiscountRateValue < 1 || cardDiscountRateValue >= 10)) throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
       return actions.openMemberCard({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
-        customerName: cardCustomerMode === "new" ? cardCustomerName.trim() : undefined,
-        customerPhone: cardCustomerMode === "new" ? cardCustomerPhone.trim() : undefined,
+        customerName: cardCustomerMode === "new" ? submittedCustomerName : undefined,
+        customerPhone: cardCustomerMode === "new" ? submittedCustomerPhone : undefined,
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmountValue : 0,
@@ -5672,9 +5688,7 @@ function Pos({
         note: cardNote.trim() || undefined,
       });
     }).then(() => {
-      cardCustomerDraftTouchedRef.current = false;
-      setCardCustomerName("");
-      setCardCustomerPhone("");
+      clearCardCustomerDraft();
       setCardNote("");
       setCardFormMessage({ type: "success", text: "开卡成功，已写入收银流水。" });
       setCheckoutSuccessMessage("开卡成功，已写入收银流水。");
@@ -5917,8 +5931,8 @@ function Pos({
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           ) : (
             <>
-              <label>客户姓名<input value={cardCustomerName} onChange={(event) => updateCardCustomerName(event.target.value)} autoComplete="name" /></label>
-              <label>客户手机号<input type="tel" inputMode="tel" autoComplete="tel" value={cardCustomerPhone} onChange={(event) => updateCardCustomerPhone(event.target.value)} /></label>
+              <label>客户姓名<input ref={cardCustomerNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
+              <label>客户手机号<input ref={cardCustomerPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
@@ -6497,6 +6511,8 @@ function Customers({
   const [cardNote, setCardNote] = useState("");
   const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const customerCardDraftTouchedRef = useRef(false);
+  const customerCardNameInputRef = useRef<HTMLInputElement | null>(null);
+  const customerCardPhoneInputRef = useRef<HTMLInputElement | null>(null);
   const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
   const [rechargeAmount, setRechargeAmount] = useState<EditableNumber>(300);
   const [rechargeTimes, setRechargeTimes] = useState<EditableNumber>(0);
@@ -6570,6 +6586,18 @@ function Customers({
     setCardCustomerPhone(value);
   };
 
+  const readCardCustomerName = () => (customerCardNameInputRef.current?.value ?? cardCustomerName).trim();
+
+  const readCardCustomerPhone = () => (customerCardPhoneInputRef.current?.value ?? cardCustomerPhone).trim();
+
+  const clearCardCustomerDraft = () => {
+    customerCardDraftTouchedRef.current = false;
+    setCardCustomerName("");
+    setCardCustomerPhone("");
+    if (customerCardNameInputRef.current) customerCardNameInputRef.current.value = "";
+    if (customerCardPhoneInputRef.current) customerCardPhoneInputRef.current.value = "";
+  };
+
   const updateCardServiceIds = (serviceIds: string[]) => {
     const nextServiceIds = Array.from(new Set(serviceIds.filter(Boolean)));
     setCardServiceIds(nextServiceIds);
@@ -6583,8 +6611,10 @@ function Customers({
     setCardFormMessage(undefined);
     void runMutation(async () => {
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
+      const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
+      const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
-      if (cardCustomerMode === "new" && (!cardCustomerName.trim() || !cardCustomerPhone.trim())) throw new Error("请登记客户姓名和手机号");
+      if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) {
         throw new Error("请填写开卡实收金额");
@@ -6603,8 +6633,8 @@ function Customers({
       }
       return actions.openMemberCard({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
-        customerName: cardCustomerMode === "new" ? cardCustomerName.trim() : undefined,
-        customerPhone: cardCustomerMode === "new" ? cardCustomerPhone.trim() : undefined,
+        customerName: cardCustomerMode === "new" ? submittedCustomerName : undefined,
+        customerPhone: cardCustomerMode === "new" ? submittedCustomerPhone : undefined,
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmountValue : 0,
@@ -6619,9 +6649,7 @@ function Customers({
         note: cardNote.trim() || undefined,
       });
     }).then(() => {
-      customerCardDraftTouchedRef.current = false;
-      setCardCustomerName("");
-      setCardCustomerPhone("");
+      clearCardCustomerDraft();
       setCardNote("");
       setCardFormMessage({ type: "success", text: "开卡成功，已写入收银流水。" });
     }).catch((caught) => {
@@ -7210,8 +7238,8 @@ function Customers({
             <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
           ) : (
             <>
-              <label>客户姓名<input value={cardCustomerName} onChange={(event) => updateCardCustomerName(event.target.value)} autoComplete="name" /></label>
-              <label>客户手机号<input type="tel" inputMode="tel" autoComplete="tel" value={cardCustomerPhone} onChange={(event) => updateCardCustomerPhone(event.target.value)} /></label>
+              <label>客户姓名<input ref={customerCardNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
+              <label>客户手机号<input ref={customerCardPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
