@@ -19730,6 +19730,11 @@ textarea,
   gap: clamp(10px, 1.4vw, 18px);
 }
 
+.appointment-room-page .appointment-workbench-controls {
+  grid-template-columns: auto auto;
+  justify-content: end;
+}
+
 .appointment-room-page .appointment-workbench-head > div:first-child {
   gap: 7px;
 }

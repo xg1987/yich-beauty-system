@@ -1495,7 +1495,6 @@ function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { data: A
         <div>
           <span className="eyebrow"><CalendarDays size={15} /> 预约管理</span>
           <h1>预约记录</h1>
-          <p>预约时间、客户项目、服务人员和到店状态汇总。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="预约总数" value={`${data.appointments.length} 条`} hint="预约记录" />
@@ -1670,7 +1669,6 @@ function PlatformOrdersReadOnlyView({ data, setView, showBack }: { data: AppData
         <div>
           <span className="eyebrow"><CreditCard size={15} /> 开单收银</span>
           <h1>订单与收款记录</h1>
-          <p>收银流水、支付方式、实收金额和退款记录。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="实收金额" value={money(totalRevenue)} hint="收款汇总" />
@@ -1920,7 +1918,6 @@ function PlatformCatalogReadOnlyView({ data, setView, showBack }: { data: AppDat
         <div>
           <span className="eyebrow"><PackagePlus size={15} /> 项目商品</span>
           <h1>项目商品资料</h1>
-          <p>服务项目、商品资料和库存数量。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="服务项目" value={`${data.services.length} 项`} hint="门店服务" />
@@ -1976,7 +1973,6 @@ function PlatformStaffReadOnlyView({ data, setView, showBack }: { data: AppData;
         <div>
           <span className="eyebrow"><BadgeCent size={15} /> 员工提成</span>
           <h1>员工、邀请码与提成</h1>
-          <p>员工账号、邀请码状态、底薪配置和提成流水。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="员工数" value={`${staffRows.length} 人`} hint={`${activeStaff} 人启用`} />
@@ -2030,7 +2026,6 @@ function PlatformInventoryReadOnlyView({ data, setView, showBack }: { data: AppD
         <div>
           <span className="eyebrow"><Boxes size={15} /> 库存管理</span>
           <h1>库存预警与流水</h1>
-          <p>库存状态、预警项目、出入库流水和盘点记录。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="商品数" value={`${data.products.length} 项`} hint="库存商品" />
@@ -2085,7 +2080,6 @@ function PlatformApprovalsReadOnlyView({ data, setView, showBack }: { data: AppD
         <div>
           <span className="eyebrow"><ShieldCheck size={15} /> 审批中心</span>
           <h1>关键审批记录</h1>
-          <p>退款、改价、异常操作和关键审批记录。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="待审批" value={`${pending} 单`} hint="待处理" />
@@ -2183,7 +2177,6 @@ function PlatformAccountAdminView({
         <div>
           <span className="eyebrow"><UsersRound size={15} /> {isPlatformAdmin ? "平台账号" : "门店账号"}</span>
           <h1>账号管理</h1>
-          <p>{isPlatformAdmin ? "平台账号、门店账号、员工账号和门店绑定关系。" : "员工审核、账号启停、密码重置和员工删除都在这里处理。"}</p>
         </div>
         <div className="page-hero-stats">
           {isPlatformAdmin && <StatCard title="系统管理员" value={`${adminAccounts.length} 个`} hint="平台管理员" />}
@@ -2309,7 +2302,6 @@ function PlatformPermissionReadOnlyView({
         <div>
           <span className="eyebrow"><ShieldCheck size={15} /> 权限审批</span>
           <h1>权限与授权记录</h1>
-          <p>角色边界、账号授权、邀请码和关键审批状态。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="待审批" value={`${pendingApprovals} 单`} hint="关键审批" />
@@ -2435,7 +2427,6 @@ function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData;
         <div>
           <span className="eyebrow"><ClipboardList size={15} /> 操作日志</span>
           <h1>操作日志</h1>
-          <p>登录记录、关键动作、对象类型和操作摘要。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="日志数" value={`${logs.length} 条`} hint="操作记录" />
@@ -2759,7 +2750,6 @@ function PlatformDataReadOnlyView({ data, setView, showBack }: { data: AppData; 
         <div>
           <span className="eyebrow"><ChartNoAxesColumnIncreasing size={15} /> 报表分析</span>
           <h1>数据总览</h1>
-          <p>经营收入、订单记录、客户资产和库存指标汇总。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="已开通门店" />
@@ -4203,11 +4193,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
       />
       <div className="module-detail-stack">
         <section className="panel appointment-workbench-panel">
-          <div className="appointment-workbench-head">
-            <div>
-              <span><ClipboardList size={18} /> 预约处理台</span>
-              <strong>{selectedAppointmentRange.label}需要处理的预约</strong>
-            </div>
+          <div className="appointment-workbench-head appointment-workbench-controls">
             <div className="appointment-range-tabs" aria-label="预约日期筛选">
               {(["today", "tomorrow", "week"] as AppointmentRange[]).map((range) => (
                 <button
