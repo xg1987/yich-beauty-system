@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import DownloadGuidePage from "./pages/public/DownloadGuidePage";
 import { installAppUpdateChecker } from "./appUpdate";
+import PwaInstallPrompt from "./components/PwaInstallPrompt";
 
 const AuthGate = lazy(() => import("./app/AuthGate"));
 const PublicStoreRoute = lazy(() => import("./pages/public/PublicStoreRoute"));
@@ -48,8 +49,11 @@ export default function App() {
   }
 
   return (
-    <Suspense fallback={<RouteFallback />}>
-      <AuthGate />
-    </Suspense>
+    <>
+      <Suspense fallback={<RouteFallback />}>
+        <AuthGate />
+      </Suspense>
+      <PwaInstallPrompt />
+    </>
   );
 }
