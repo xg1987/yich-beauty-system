@@ -5230,7 +5230,6 @@ function Pos({
     .filter((order) => order.payMethod !== "会员卡")
     .reduce((sum, order) => sum + order.paidAmount, 0)
     + todayMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
-  const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
   const pendingSignatures = data.customerSignatures.filter((signature) => {
     const context = signatureRecordContext(data, signature);
     return signature.status === "待签名"
@@ -5853,7 +5852,6 @@ function Pos({
         stats={[
           { label: "今日收款", value: money(todayPaid), hint: `${todayOrders.length} 笔订单${todayMemberCardIncomeTransactions.length ? ` · 会员${todayMemberCardIncomeTransactions.length} 笔` : ""}`, icon: <ChartNoAxesColumnIncreasing size={18} /> },
           { label: "今日订单", value: `${todayOrders.length} 单`, hint: "当日收银记录", icon: <ClipboardList size={18} /> },
-          { label: "会员卡可用", value: `${activeCards} 张`, hint: "支持卡扣支付", icon: <BadgeCent size={18} /> },
         ]}
       />
       {!fromManagement && (
@@ -5900,7 +5898,7 @@ function Pos({
               onClick={() => setActiveModule("signature")}
             >
               <LockKeyhole size={22} />
-              <strong>服务确认签名</strong>
+              <strong>服务签名</strong>
               <em>{pendingSignatures} 待签</em>
             </button>
             <button

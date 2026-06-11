@@ -16453,10 +16453,10 @@ textarea,
   }
 
   .cashier-orbit {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
     min-height: 0;
-    padding: 8px 0 20px;
+    padding: 10px 0 18px;
   }
 
   .cashier-orbit::before {
@@ -16464,7 +16464,7 @@ textarea,
   }
 
   .cashier-orbit-side {
-    gap: 14px;
+    display: contents;
   }
 
   .cashier-orbit-side.left,
@@ -16472,41 +16472,80 @@ textarea,
     padding: 0;
   }
 
+  .cashier-module-page.module-hub .module-metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .cashier-module-page.module-hub .module-metric-card {
+    min-height: 82px;
+    padding: 12px;
+    gap: 10px;
+    border-radius: 15px;
+  }
+
+  .cashier-module-page.module-hub .module-metric-card .metric-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+  }
+
   .cashier-orbit-center {
-    order: -1;
+    order: 1;
     width: 100%;
-    min-height: 108px;
+    min-height: 96px;
     grid-template-columns: auto minmax(0, 1fr);
     place-items: center start;
     align-content: center;
     justify-content: start;
-    padding: 18px 20px;
+    padding: 14px;
     text-align: left;
   }
 
   .cashier-orbit-center svg {
     grid-row: 1 / span 2;
-    width: 48px;
-    height: 48px;
-    padding: 12px;
+    width: 42px;
+    height: 42px;
+    padding: 10px;
+    border-radius: 14px;
   }
 
   .cashier-orbit-center strong {
-    font-size: 26px;
+    font-size: 24px;
   }
 
   .cashier-orbit-center em {
     justify-self: start;
+    white-space: normal;
   }
 
   .cashier-orbit-card,
   .cashier-orbit-card.left,
   .cashier-orbit-card.right {
-    min-height: 86px;
+    min-height: 96px;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
     border-radius: 18px;
-    padding: 18px 20px;
+    padding: 14px;
     text-align: left;
     transform: none;
+  }
+
+  .cashier-orbit-card.left.top {
+    order: 2;
+  }
+
+  .cashier-orbit-card.right.top {
+    order: 3;
+  }
+
+  .cashier-orbit-card.right.bottom {
+    order: 4;
+  }
+
+  .cashier-orbit-card.left.bottom {
+    order: 5;
+    grid-column: 1 / -1;
   }
 
   .cashier-orbit-card.left {
@@ -16517,6 +16556,26 @@ textarea,
   .cashier-orbit-card.left strong,
   .cashier-orbit-card.left em {
     order: initial;
+  }
+
+  .cashier-orbit-card svg {
+    grid-row: 1 / span 2;
+    width: 42px;
+    height: 42px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .cashier-orbit-card strong {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  .cashier-orbit-card em {
+    justify-self: start;
+    white-space: normal;
+    font-size: 11px;
+    padding: 5px 8px;
   }
 
   .cashier-orbit-card.left:hover,
@@ -20872,7 +20931,8 @@ textarea,
 
   .marketing-form-grid,
   .marketing-form-actions,
-  .marketing-preview-actions {
+  .marketing-preview-actions,
+  .poster-upload-row {
     grid-template-columns: 1fr;
   }
 
