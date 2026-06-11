@@ -1,5 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import DownloadGuidePage from "./pages/public/DownloadGuidePage";
+import { installAppUpdateChecker } from "./appUpdate";
 
 const AuthGate = lazy(() => import("./app/AuthGate"));
 const PublicStoreRoute = lazy(() => import("./pages/public/PublicStoreRoute"));
@@ -21,6 +22,8 @@ function RouteFallback() {
 }
 
 export default function App() {
+  useEffect(() => installAppUpdateChecker(), []);
+
   const pathname = window.location.pathname;
   if (pathname === "/download") {
     return <DownloadGuidePage />;

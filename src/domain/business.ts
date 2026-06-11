@@ -268,6 +268,13 @@ export function defaultSystemConfigs(options: { now?: () => string } = {}): Syst
       description: "角色权限模板",
       updatedAt,
     },
+    {
+      id: "cfg_ai_generation_config",
+      key: "ai_generation_config",
+      value: "",
+      description: "AI 文案、图片和视频模型配置",
+      updatedAt,
+    },
   ];
 }
 
@@ -329,6 +336,16 @@ function validateSystemConfigValue(key: SystemConfigKey, value: string) {
       return serializeRolePermissionTemplates(JSON.parse(trimmedValue));
     } catch {
       throw new Error("角色权限模板格式不正确");
+    }
+  }
+  if (key === "ai_generation_config") {
+    if (!trimmedValue) return "";
+    if (trimmedValue.length > 20000) throw new Error("AI 配置内容过大");
+    try {
+      JSON.parse(trimmedValue);
+      return trimmedValue;
+    } catch {
+      throw new Error("AI 配置格式不正确");
     }
   }
   if (trimmedValue.length > 200) {
@@ -2821,7 +2838,7 @@ export function openMemberCard(
   const createdAt = (options.now ?? nowIso)();
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
 
-  const serviceIds = input.serviceIds?.filter(Boolean) ?? [];
+  const serviceIds = Array.from(new Set([input.serviceId, ...(input.serviceIds ?? [])].map((id) => trimText(id)).filter(Boolean)));
   const remainingTimes = positiveNumber(input.remainingTimes);
   const requestedType = input.type;
   const cardType = requestedType === "套餐卡" || requestedType === "次数卡" || requestedType === "储值卡" || requestedType === "折扣卡"
@@ -2842,8 +2859,7 @@ export function openMemberCard(
   if (paidAmount <= 0) throw new Error("开卡需要填写实收金额");
   if (cardType === "储值卡" && balance <= 0) throw new Error("储值卡需要填写到账余额");
   if ((cardType === "次数卡" || cardType === "套餐卡") && remainingTimes <= 0) throw new Error("次数卡和套餐卡需要填写可用次数");
-  if (cardType === "次数卡" && !input.serviceId) throw new Error("次数卡需要绑定一个服务项目");
-  if (cardType === "套餐卡" && serviceIds.length === 0) throw new Error("套餐卡至少选择一个可用项目");
+  if ((cardType === "次数卡" || cardType === "套餐卡") && serviceIds.length === 0) throw new Error("请选择可用项目");
   if (cardType === "折扣卡" && (!discountRate || discountRate <= 0 || discountRate >= 1)) throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
 
   let customerId = input.customerId;
@@ -2900,8 +2916,8 @@ export function openMemberCard(
         benefitText: trimText(input.benefitText) || (cardType === "折扣卡" ? `${Number(((discountRate ?? 1) * 10).toFixed(1))} 折权益` : undefined),
         expiresAt,
         status: "正常",
-        serviceId: cardType === "次数卡" ? input.serviceId : undefined,
-        serviceIds: cardType === "套餐卡" ? serviceIds : undefined,
+        serviceId: cardType === "次数卡" || cardType === "套餐卡" ? serviceIds[0] : undefined,
+        serviceIds: cardType === "次数卡" || cardType === "套餐卡" ? serviceIds : undefined,
       },
       ...data.memberCards,
     ],
@@ -4498,8 +4514,8 @@ export function signCustomerSignature(
 function memberCardSupportsService(card: MemberCard, serviceId: string) {
   if (card.type === "储值卡") return true;
   if (!serviceId) return false;
+  if (card.serviceIds?.length) return card.serviceIds.includes(serviceId);
   if (card.serviceId && card.serviceId !== serviceId) return false;
-  if (card.serviceIds?.length && !card.serviceIds.includes(serviceId)) return false;
   return true;
 }
 

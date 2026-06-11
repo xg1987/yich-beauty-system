@@ -13,6 +13,7 @@ export type ViewKey =
   | "accounts"
   | "permissions"
   | "platformConfig"
+  | "aiConfig"
   | "usage"
   | "roomSettings"
   | "settings";
@@ -467,7 +468,7 @@ export type OperationLog = {
   createdAt: string;
 };
 
-export type SystemConfigKey = "invite_default_days" | "allow_registration" | "maintenance_mode" | "system_announcement" | "role_permissions";
+export type SystemConfigKey = "invite_default_days" | "allow_registration" | "maintenance_mode" | "system_announcement" | "role_permissions" | "ai_generation_config";
 
 export type SystemConfig = {
   id: string;

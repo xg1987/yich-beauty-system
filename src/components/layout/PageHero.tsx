@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 type PageHeroStat = {
   label: string;
   value: string;
-  hint: string;
+  hint?: string;
   icon: ReactNode;
 };
 
@@ -11,6 +11,7 @@ type PageHeroProps = {
   icon: ReactNode;
   eyebrow: string;
   title: string;
+  desc?: string;
   stats?: PageHeroStat[];
 };
 

@@ -1599,10 +1599,14 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const sessionData = session.user.role === "superadmin"
     ? normalizedData
     : scopeDataToStore(normalizedData, currentStoreId);
+  const scopedSystemConfigs = session.user.role === "superadmin"
+    ? sessionData.systemConfigs
+    : sessionData.systemConfigs.filter((config) => config.key !== "ai_generation_config");
   const sanitizedData = {
     ...sessionData,
     authUsers: sessionData.authUsers.map((user) => ({ ...user, password: "" })),
     storeOwnerApplications: (sessionData.storeOwnerApplications ?? []).map((application) => ({ ...application, password: "" })),
+    systemConfigs: scopedSystemConfigs,
     notifications: (sessionData.notifications ?? []).filter((notification) => notificationVisibleToSession(notification, session)),
     distributors: [],
     referralRelations: [],

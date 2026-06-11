@@ -139,6 +139,9 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
   platformConfig: [
     "storeOwnerApplications",
   ],
+  aiConfig: [
+    "storeOwnerApplications",
+  ],
   usage: [
     "storeOwnerApplications",
   ],

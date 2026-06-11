@@ -1382,6 +1382,38 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   const opened = openMemberCard(
     cloneSeed(),
     {
+      customerName: "多项目次卡客户",
+      customerPhone: "13800008887",
+      name: "多项目护理十次卡",
+      type: "次数卡",
+      remainingTimes: 10,
+      serviceIds: ["v1", "v2"],
+      paidAmount: 2980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.deepEqual(opened.memberCards[0].serviceIds, ["v1", "v2"], "times card should allow multiple available services");
+  const checkedOutWithSecondService = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v2",
+      payMethod: "会员卡",
+      cardId: opened.memberCards[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOutWithSecondService.memberCards[0].remainingTimes, 9, "times card should debit for any selected service");
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
       customerName: "SPA退费客户",
       customerPhone: "13800003980",
       name: "3980元10次SPA",

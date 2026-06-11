@@ -82,6 +82,47 @@ type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
+type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
+type AiVideoResolution = "480p" | "720p" | "1080p";
+type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
+type AiTextModelConfig = {
+  enabled: boolean;
+  provider: Extract<AiProviderKey, "openai" | "deepseek">;
+  model: string;
+  apiKey: string;
+  inputTokenUsdPerMillion: number;
+  outputTokenUsdPerMillion: number;
+};
+type AiImageModelConfig = {
+  enabled: boolean;
+  provider: "openai";
+  model: string;
+  apiKey: string;
+  defaultSize: "1024x1024" | "1024x1536" | "1536x1024";
+  defaultQuality: "standard" | "high";
+  maxImagesPerRequest: number;
+  textInputUsdPerMillion: number;
+  imageInputUsdPerMillion: number;
+  imageOutputUsdPerMillion: number;
+};
+type AiVideoProviderConfig = {
+  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo">;
+  enabled: boolean;
+  model: string;
+  apiKey: string;
+  defaultDurationSeconds: number;
+  defaultResolution: AiVideoResolution;
+  defaultAspectRatio: AiVideoAspectRatio;
+  priceUsdBySpec: Record<string, number>;
+};
+type AiGenerationConfig = {
+  copy: AiTextModelConfig;
+  image: AiImageModelConfig;
+  video: {
+    defaultProvider: AiVideoProviderConfig["provider"];
+    providers: AiVideoProviderConfig[];
+  };
+};
 type SubmitStatusButtonProps = {
   idleText: string;
   busyText?: string;
@@ -106,6 +147,73 @@ const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTM
 const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
 const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
 const DEFAULT_DISCOUNT_CARD_NAME = "会员折扣卡";
+const AI_VIDEO_DURATIONS = [5, 10, 15];
+const AI_VIDEO_RESOLUTIONS: AiVideoResolution[] = ["480p", "720p", "1080p"];
+const AI_VIDEO_ASPECT_RATIOS: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
+const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = {
+  openai: "OpenAI",
+  deepseek: "DeepSeek",
+  seedance: "Seedance",
+  kling: "Kling",
+  hailuo: "海螺",
+};
+const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
+  copy: {
+    enabled: true,
+    provider: "deepseek",
+    model: "deepseek-v4-pro",
+    apiKey: "",
+    inputTokenUsdPerMillion: 0,
+    outputTokenUsdPerMillion: 0,
+  },
+  image: {
+    enabled: true,
+    provider: "openai",
+    model: "gpt-image-2",
+    apiKey: "",
+    defaultSize: "1024x1024",
+    defaultQuality: "high",
+    maxImagesPerRequest: 4,
+    textInputUsdPerMillion: 0,
+    imageInputUsdPerMillion: 0,
+    imageOutputUsdPerMillion: 0,
+  },
+  video: {
+    defaultProvider: "seedance",
+    providers: [
+      {
+        provider: "seedance",
+        enabled: true,
+        model: "seedance-2.0",
+        apiKey: "",
+        defaultDurationSeconds: 5,
+        defaultResolution: "720p",
+        defaultAspectRatio: "9:16",
+        priceUsdBySpec: {},
+      },
+      {
+        provider: "kling",
+        enabled: false,
+        model: "kling",
+        apiKey: "",
+        defaultDurationSeconds: 5,
+        defaultResolution: "720p",
+        defaultAspectRatio: "9:16",
+        priceUsdBySpec: {},
+      },
+      {
+        provider: "hailuo",
+        enabled: false,
+        model: "hailuo",
+        apiKey: "",
+        defaultDurationSeconds: 5,
+        defaultResolution: "720p",
+        defaultAspectRatio: "9:16",
+        priceUsdBySpec: {},
+      },
+    ],
+  },
+};
 const cashPayMethodOptions = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((item) => ({ value: item, label: item }));
 const customerFollowUpTypeOptions = (["服务后回访", "下次护理提醒", "卡项会员提醒", "客户关系维护", "异常处理"] as CustomerFollowUpType[]).map((item) => ({ value: item, label: item }));
 const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
@@ -296,6 +404,7 @@ const viewTitles: Record<ViewKey, string> = {
   accounts: "账号管理",
   permissions: "权限审批",
   platformConfig: "平台配置",
+  aiConfig: "AI 能力配置",
   usage: "服务器用量监控",
   roomSettings: "房间设置",
   settings: "管理中心",
@@ -496,6 +605,91 @@ function isThemeMode(value: string | null): value is ThemeMode {
   return value === "day" || value === "night";
 }
 
+function cloneAiGenerationConfig(config: AiGenerationConfig = DEFAULT_AI_GENERATION_CONFIG): AiGenerationConfig {
+  return JSON.parse(JSON.stringify(config)) as AiGenerationConfig;
+}
+
+function videoSpecKey(durationSeconds: number, resolution: AiVideoResolution) {
+  return `${durationSeconds}s:${resolution}`;
+}
+
+function boundedPrice(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
+}
+
+function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
+  const fallback = cloneAiGenerationConfig();
+  if (!input || typeof input !== "object") return fallback;
+  const record = input as Partial<AiGenerationConfig>;
+  const copy = record.copy && typeof record.copy === "object" ? record.copy as Partial<AiTextModelConfig> : {};
+  const image = record.image && typeof record.image === "object" ? record.image as Partial<AiImageModelConfig> : {};
+  const video = record.video && typeof record.video === "object" ? record.video as Partial<AiGenerationConfig["video"]> : {};
+  const inputProviders = Array.isArray(video.providers) ? video.providers : [];
+  const providers = fallback.video.providers.map((defaultProvider) => {
+    const incoming = inputProviders.find((item) => item && typeof item === "object" && (item as Partial<AiVideoProviderConfig>).provider === defaultProvider.provider) as Partial<AiVideoProviderConfig> | undefined;
+    return {
+      ...defaultProvider,
+      ...incoming,
+      enabled: typeof incoming?.enabled === "boolean" ? incoming.enabled : defaultProvider.enabled,
+      apiKey: typeof incoming?.apiKey === "string" ? incoming.apiKey : defaultProvider.apiKey,
+      model: typeof incoming?.model === "string" ? incoming.model : defaultProvider.model,
+      defaultDurationSeconds: AI_VIDEO_DURATIONS.includes(Number(incoming?.defaultDurationSeconds)) ? Number(incoming?.defaultDurationSeconds) : defaultProvider.defaultDurationSeconds,
+      defaultResolution: AI_VIDEO_RESOLUTIONS.includes(incoming?.defaultResolution as AiVideoResolution) ? incoming?.defaultResolution as AiVideoResolution : defaultProvider.defaultResolution,
+      defaultAspectRatio: AI_VIDEO_ASPECT_RATIOS.includes(incoming?.defaultAspectRatio as AiVideoAspectRatio) ? incoming?.defaultAspectRatio as AiVideoAspectRatio : defaultProvider.defaultAspectRatio,
+      priceUsdBySpec: Object.fromEntries(
+        Object.entries(incoming?.priceUsdBySpec ?? defaultProvider.priceUsdBySpec ?? {}).map(([key, value]) => [key, boundedPrice(value)]),
+      ),
+    };
+  });
+  const defaultProvider = providers.some((provider) => provider.provider === video.defaultProvider)
+    ? video.defaultProvider as AiVideoProviderConfig["provider"]
+    : fallback.video.defaultProvider;
+  return {
+    copy: {
+      ...fallback.copy,
+      ...copy,
+      enabled: typeof copy.enabled === "boolean" ? copy.enabled : fallback.copy.enabled,
+      provider: copy.provider === "openai" || copy.provider === "deepseek" ? copy.provider : fallback.copy.provider,
+      apiKey: typeof copy.apiKey === "string" ? copy.apiKey : fallback.copy.apiKey,
+      model: typeof copy.model === "string" ? copy.model : fallback.copy.model,
+      inputTokenUsdPerMillion: boundedPrice(copy.inputTokenUsdPerMillion),
+      outputTokenUsdPerMillion: boundedPrice(copy.outputTokenUsdPerMillion),
+    },
+    image: {
+      ...fallback.image,
+      ...image,
+      enabled: typeof image.enabled === "boolean" ? image.enabled : fallback.image.enabled,
+      apiKey: typeof image.apiKey === "string" ? image.apiKey : fallback.image.apiKey,
+      model: typeof image.model === "string" ? image.model : fallback.image.model,
+      defaultSize: ["1024x1024", "1024x1536", "1536x1024"].includes(image.defaultSize ?? "") ? image.defaultSize as AiImageModelConfig["defaultSize"] : fallback.image.defaultSize,
+      defaultQuality: image.defaultQuality === "standard" || image.defaultQuality === "high" ? image.defaultQuality : fallback.image.defaultQuality,
+      maxImagesPerRequest: Math.max(1, Math.min(8, Math.trunc(Number(image.maxImagesPerRequest) || fallback.image.maxImagesPerRequest))),
+      textInputUsdPerMillion: boundedPrice(image.textInputUsdPerMillion),
+      imageInputUsdPerMillion: boundedPrice(image.imageInputUsdPerMillion),
+      imageOutputUsdPerMillion: boundedPrice(image.imageOutputUsdPerMillion),
+    },
+    video: {
+      defaultProvider,
+      providers,
+    },
+  };
+}
+
+function aiGenerationConfigFromSystemConfigs(configs?: AppData["systemConfigs"]) {
+  const rawValue = configs?.find((item) => item.key === "ai_generation_config")?.value;
+  if (!rawValue) return cloneAiGenerationConfig();
+  try {
+    return normalizeAiGenerationConfig(JSON.parse(rawValue));
+  } catch {
+    return cloneAiGenerationConfig();
+  }
+}
+
+function serializeAiGenerationConfig(config: AiGenerationConfig) {
+  return JSON.stringify(normalizeAiGenerationConfig(config));
+}
+
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
   { key: "dashboard", label: "今日总览", icon: LayoutDashboard },
   { key: "appointments", label: "预约管理", icon: CalendarDays },
@@ -517,7 +711,7 @@ const workbarItems: WorkbarItem[] = [
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
-const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "logs", "usage", "settings"]);
+const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "logs", "usage", "settings"]);
 
 const employeeWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
@@ -537,7 +731,7 @@ const platformWorkbarItems: WorkbarItem[] = [
 
 function initialViewFromUrl(): ViewKey {
   const requestedView = new URLSearchParams(window.location.search).get("view");
-  return navItems.some((item) => item.key === requestedView) ? (requestedView as ViewKey) : "dashboard";
+  return requestedView && requestedView in viewTitles ? (requestedView as ViewKey) : "dashboard";
 }
 
 function initialInventoryModuleFromUrl(): InventoryModuleKey {
@@ -610,6 +804,7 @@ const MemoPlatformDataReadOnlyView = memo(PlatformDataReadOnlyView);
 const MemoPlatformAccountAdminView = memo(PlatformAccountAdminView);
 const MemoPlatformPermissionReadOnlyView = memo(PlatformPermissionReadOnlyView);
 const MemoPlatformSystemConfigView = memo(PlatformSystemConfigView);
+const MemoPlatformAiConfigView = memo(PlatformAiConfigView);
 const MemoPlatformUsageReadOnlyView = memo(PlatformUsageReadOnlyView);
 const MemoRoomSettings = memo(RoomSettings);
 const LazyReports = lazy(() => import("../pages/shared/Reports"));
@@ -873,6 +1068,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             {activeView === "accounts" && <MemoPlatformAccountAdminView data={data} session={session} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "permissions" && <MemoPlatformPermissionReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} actions={actions} runMutation={runMutation} />}
             {activeView === "platformConfig" && <MemoPlatformSystemConfigView data={data} actions={actions} runMutation={runMutation} />}
+            {activeView === "aiConfig" && <MemoPlatformAiConfigView data={data} setView={navigate} actions={actions} runMutation={runMutation} />}
             {activeView === "usage" && <MemoPlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
             {activeView === "roomSettings" && <MemoRoomSettings data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "settings" && (
@@ -981,6 +1177,7 @@ function ManagementCenter({
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
     { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
+    { title: "AI 能力配置", desc: "文案 / 图片 / 视频模型与成本", icon: Sparkles, tone: "plum", view: "aiConfig" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
   ];
@@ -1270,6 +1467,19 @@ function managementEntryDetails(
       ],
     };
   }
+  if (item.view === "aiConfig") {
+    const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
+    const enabledVideoProviders = aiConfig.video.providers.filter((provider) => provider.enabled).length;
+    return {
+      ...base,
+      value: "3 类能力",
+      items: [
+        { label: "文案模型", value: AI_PROVIDER_LABELS[aiConfig.copy.provider], hint: aiConfig.copy.model },
+        { label: "图片模型", value: AI_PROVIDER_LABELS[aiConfig.image.provider], hint: aiConfig.image.model },
+        { label: "视频模型", value: `${enabledVideoProviders} 个`, hint: "Seedance / Kling / 海螺" },
+      ],
+    };
+  }
   return {
     ...base,
     items: [
@@ -1359,6 +1569,304 @@ function PlatformSystemConfigView({ data, actions, runMutation }: { data: AppDat
   return (
     <div className="admin-center-page platform-admin-page">
       <PlatformSystemConfigPanel data={data} actions={actions} runMutation={runMutation} />
+    </div>
+  );
+}
+
+function PlatformAiConfigView({
+  data,
+  setView,
+  actions,
+  runMutation,
+}: {
+  data: AppData;
+  setView: (view: ViewKey) => void;
+  actions: ApiActions;
+  runMutation: RunMutation;
+}) {
+  const mutationPending = useMutationPending();
+  const [draft, setDraft] = useState(() => aiGenerationConfigFromSystemConfigs(data.systemConfigs));
+  const [saved, setSaved] = useState(false);
+  const enabledVideoProviders = draft.video.providers.filter((provider) => provider.enabled);
+  const configuredPriceRules = draft.video.providers.reduce(
+    (sum, provider) => sum + Object.values(provider.priceUsdBySpec).filter((value) => value > 0).length,
+    0,
+  );
+  const capabilityCards = [
+    {
+      title: "文案",
+      provider: AI_PROVIDER_LABELS[draft.copy.provider],
+      model: draft.copy.model || "未配置模型",
+      status: draft.copy.enabled ? "已启用" : "停用",
+      meta: draft.copy.apiKey ? "Key 已配置" : "等待 API Key",
+      icon: <MessageCircle size={18} />,
+    },
+    {
+      title: "图片",
+      provider: AI_PROVIDER_LABELS[draft.image.provider],
+      model: draft.image.model || "未配置模型",
+      status: draft.image.enabled ? "已启用" : "停用",
+      meta: `${draft.image.defaultSize} · ${draft.image.defaultQuality}`,
+      icon: <Sparkles size={18} />,
+    },
+    {
+      title: "视频",
+      provider: `${enabledVideoProviders.length} 个供应商`,
+      model: AI_PROVIDER_LABELS[draft.video.defaultProvider],
+      status: configuredPriceRules > 0 ? `${configuredPriceRules} 条价格` : "待填价格",
+      meta: "Seedance / Kling / 海螺",
+      icon: <Megaphone size={18} />,
+    },
+  ];
+
+  useEffect(() => {
+    setDraft(aiGenerationConfigFromSystemConfigs(data.systemConfigs));
+  }, [data.systemConfigs]);
+
+  const setCopyConfig = (patch: Partial<AiTextModelConfig>) => {
+    setDraft((current) => ({ ...current, copy: { ...current.copy, ...patch } }));
+  };
+  const setImageConfig = (patch: Partial<AiImageModelConfig>) => {
+    setDraft((current) => ({ ...current, image: { ...current.image, ...patch } }));
+  };
+  const setVideoConfig = (providerKey: AiVideoProviderConfig["provider"], patch: Partial<AiVideoProviderConfig>) => {
+    setDraft((current) => ({
+      ...current,
+      video: {
+        ...current.video,
+        providers: current.video.providers.map((provider) => provider.provider === providerKey ? { ...provider, ...patch } : provider),
+      },
+    }));
+  };
+  const setVideoPrice = (providerKey: AiVideoProviderConfig["provider"], durationSeconds: number, resolution: AiVideoResolution, value: number) => {
+    setDraft((current) => ({
+      ...current,
+      video: {
+        ...current.video,
+        providers: current.video.providers.map((provider) => {
+          if (provider.provider !== providerKey) return provider;
+          return {
+            ...provider,
+            priceUsdBySpec: {
+              ...provider.priceUsdBySpec,
+              [videoSpecKey(durationSeconds, resolution)]: boundedPrice(value),
+            },
+          };
+        }),
+      },
+    }));
+  };
+  const saveAiConfig = () => {
+    void runMutation(() => actions.updateSystemConfig("ai_generation_config", serializeAiGenerationConfig(draft))).then(() => {
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1400);
+    });
+  };
+
+  return (
+    <div className="admin-center-page platform-admin-page ai-config-page">
+      <PlatformPageTitle title="AI 能力配置" onBack={() => setView("settings")} />
+      <section className="page-hero platform-admin-readonly-hero ai-config-hero">
+        <div>
+          <span className="eyebrow"><Sparkles size={15} /> 平台 AI 能力</span>
+          <h1>文案、图片、视频统一配置</h1>
+          <p>Admin 配置模型、API Key、默认参数和成本规则。门店营销页只使用能力，不展示密钥。</p>
+        </div>
+      </section>
+
+      <section className="ai-capability-strip" aria-label="AI 能力状态">
+        {capabilityCards.map((card) => (
+          <article className="ai-capability-card" key={card.title}>
+            <span className="ai-capability-icon">{card.icon}</span>
+            <div>
+              <small>{card.title}</small>
+              <strong>{card.provider}</strong>
+              <em>{card.model}</em>
+            </div>
+            <b>{card.status}</b>
+            <span>{card.meta}</span>
+          </article>
+        ))}
+      </section>
+
+      <section className="ai-config-grid" aria-label="AI 模型配置">
+        <div className="panel dashboard-panel ai-config-card">
+          <PanelTitle icon={<MessageCircle size={18} />} title="文案模型" action={draft.copy.enabled ? "已启用" : "未启用"} />
+          <div className="ai-config-form-grid">
+            <label>
+              <span className="field-label">启用文案</span>
+              <select value={draft.copy.enabled ? "true" : "false"} onChange={(event) => setCopyConfig({ enabled: event.target.value === "true" })}>
+                <option value="true">启用</option>
+                <option value="false">停用</option>
+              </select>
+            </label>
+            <label>
+              <span className="field-label">供应商</span>
+              <select value={draft.copy.provider} onChange={(event) => setCopyConfig({ provider: event.target.value as AiTextModelConfig["provider"] })}>
+                <option value="deepseek">DeepSeek</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            </label>
+            <label>
+              <span className="field-label">模型名称</span>
+              <input value={draft.copy.model} onChange={(event) => setCopyConfig({ model: event.target.value })} placeholder="deepseek-v4-pro" />
+            </label>
+            <label>
+              <span className="field-label">API Key</span>
+              <input type="password" value={draft.copy.apiKey} onChange={(event) => setCopyConfig({ apiKey: event.target.value })} placeholder="sk-..." autoComplete="off" />
+            </label>
+            <label>
+              <span className="field-label">输入单价 / 1M tokens</span>
+              <input type="number" min={0} step="0.0001" value={draft.copy.inputTokenUsdPerMillion} onChange={(event) => setCopyConfig({ inputTokenUsdPerMillion: boundedPrice(event.target.value) })} />
+            </label>
+            <label>
+              <span className="field-label">输出单价 / 1M tokens</span>
+              <input type="number" min={0} step="0.0001" value={draft.copy.outputTokenUsdPerMillion} onChange={(event) => setCopyConfig({ outputTokenUsdPerMillion: boundedPrice(event.target.value) })} />
+            </label>
+          </div>
+        </div>
+
+        <div className="panel dashboard-panel ai-config-card">
+          <PanelTitle icon={<Sparkles size={18} />} title="图片模型" action={draft.image.enabled ? "OpenAI" : "未启用"} />
+          <div className="ai-config-form-grid">
+            <label>
+              <span className="field-label">启用图片</span>
+              <select value={draft.image.enabled ? "true" : "false"} onChange={(event) => setImageConfig({ enabled: event.target.value === "true" })}>
+                <option value="true">启用</option>
+                <option value="false">停用</option>
+              </select>
+            </label>
+            <label>
+              <span className="field-label">模型名称</span>
+              <input value={draft.image.model} onChange={(event) => setImageConfig({ model: event.target.value })} placeholder="gpt-image-2" />
+            </label>
+            <label>
+              <span className="field-label">API Key</span>
+              <input type="password" value={draft.image.apiKey} onChange={(event) => setImageConfig({ apiKey: event.target.value })} placeholder="sk-..." autoComplete="off" />
+            </label>
+            <label>
+              <span className="field-label">默认尺寸</span>
+              <select value={draft.image.defaultSize} onChange={(event) => setImageConfig({ defaultSize: event.target.value as AiImageModelConfig["defaultSize"] })}>
+                <option value="1024x1024">1024 x 1024</option>
+                <option value="1024x1536">1024 x 1536</option>
+                <option value="1536x1024">1536 x 1024</option>
+              </select>
+            </label>
+            <label>
+              <span className="field-label">默认质量</span>
+              <select value={draft.image.defaultQuality} onChange={(event) => setImageConfig({ defaultQuality: event.target.value as AiImageModelConfig["defaultQuality"] })}>
+                <option value="standard">standard</option>
+                <option value="high">high</option>
+              </select>
+            </label>
+            <label>
+              <span className="field-label">单次最多张数</span>
+              <input type="number" min={1} max={8} value={draft.image.maxImagesPerRequest} onChange={(event) => setImageConfig({ maxImagesPerRequest: Math.max(1, Math.min(8, Math.trunc(Number(event.target.value) || 1))) })} />
+            </label>
+            <label>
+              <span className="field-label">文本输入 / 1M tokens</span>
+              <input type="number" min={0} step="0.0001" value={draft.image.textInputUsdPerMillion} onChange={(event) => setImageConfig({ textInputUsdPerMillion: boundedPrice(event.target.value) })} />
+            </label>
+            <label>
+              <span className="field-label">图片输入 / 1M tokens</span>
+              <input type="number" min={0} step="0.0001" value={draft.image.imageInputUsdPerMillion} onChange={(event) => setImageConfig({ imageInputUsdPerMillion: boundedPrice(event.target.value) })} />
+            </label>
+            <label>
+              <span className="field-label">图片输出 / 1M tokens</span>
+              <input type="number" min={0} step="0.0001" value={draft.image.imageOutputUsdPerMillion} onChange={(event) => setImageConfig({ imageOutputUsdPerMillion: boundedPrice(event.target.value) })} />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel dashboard-panel ai-video-panel">
+        <PanelTitle icon={<Megaphone size={18} />} title="视频模型" action="Seedance / Kling / 海螺" />
+        <div className="ai-video-default-row">
+          <label>
+            <span className="field-label">默认视频供应商</span>
+            <select value={draft.video.defaultProvider} onChange={(event) => setDraft((current) => ({ ...current, video: { ...current.video, defaultProvider: event.target.value as AiVideoProviderConfig["provider"] } }))}>
+              {draft.video.providers.map((provider) => (
+                <option key={provider.provider} value={provider.provider}>{AI_PROVIDER_LABELS[provider.provider]}</option>
+              ))}
+            </select>
+          </label>
+          <p>视频成本按供应商、模型、时长、分辨率计算。这里保存的是当次计费规则，后续生成记录会写入价格快照。</p>
+        </div>
+        <div className="ai-video-provider-grid">
+          {draft.video.providers.map((provider) => (
+            <article className="ai-video-provider-card" key={provider.provider}>
+              <div className="ai-video-provider-title">
+                <strong>{AI_PROVIDER_LABELS[provider.provider]}</strong>
+                <select value={provider.enabled ? "true" : "false"} onChange={(event) => setVideoConfig(provider.provider, { enabled: event.target.value === "true" })}>
+                  <option value="true">启用</option>
+                  <option value="false">停用</option>
+                </select>
+              </div>
+              <div className="ai-config-form-grid compact">
+                <label>
+                  <span className="field-label">模型名称</span>
+                  <input value={provider.model} onChange={(event) => setVideoConfig(provider.provider, { model: event.target.value })} />
+                </label>
+                <label>
+                  <span className="field-label">API Key</span>
+                  <input type="password" value={provider.apiKey} onChange={(event) => setVideoConfig(provider.provider, { apiKey: event.target.value })} placeholder="api key" autoComplete="off" />
+                </label>
+                <label>
+                  <span className="field-label">默认时长</span>
+                  <select value={provider.defaultDurationSeconds} onChange={(event) => setVideoConfig(provider.provider, { defaultDurationSeconds: Number(event.target.value) })}>
+                    {AI_VIDEO_DURATIONS.map((duration) => <option key={duration} value={duration}>{duration} 秒</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="field-label">默认分辨率</span>
+                  <select value={provider.defaultResolution} onChange={(event) => setVideoConfig(provider.provider, { defaultResolution: event.target.value as AiVideoResolution })}>
+                    {AI_VIDEO_RESOLUTIONS.map((resolution) => <option key={resolution} value={resolution}>{resolution}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="field-label">默认比例</span>
+                  <select value={provider.defaultAspectRatio} onChange={(event) => setVideoConfig(provider.provider, { defaultAspectRatio: event.target.value as AiVideoAspectRatio })}>
+                    {AI_VIDEO_ASPECT_RATIOS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="ai-price-matrix" aria-label={`${AI_PROVIDER_LABELS[provider.provider]}价格矩阵`}>
+                <div className="ai-price-matrix-head">
+                  <span>时长</span>
+                  {AI_VIDEO_RESOLUTIONS.map((resolution) => <span key={resolution}>{resolution}</span>)}
+                </div>
+                {AI_VIDEO_DURATIONS.map((duration) => (
+                  <div className="ai-price-matrix-row" key={`${provider.provider}-${duration}`}>
+                    <span>{duration} 秒</span>
+                    {AI_VIDEO_RESOLUTIONS.map((resolution) => (
+                      <input
+                        key={`${provider.provider}-${duration}-${resolution}`}
+                        aria-label={`${AI_PROVIDER_LABELS[provider.provider]} ${duration}秒 ${resolution} 单价`}
+                        type="number"
+                        min={0}
+                        step="0.0001"
+                        value={provider.priceUsdBySpec[videoSpecKey(duration, resolution)] ?? 0}
+                        onChange={(event) => setVideoPrice(provider.provider, duration, resolution, Number(event.target.value))}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="ai-config-footer panel dashboard-panel">
+        <div>
+          <strong>成本记录口径</strong>
+          <span>文案按输入/输出 tokens，图片按文本输入/图片输入/图片输出 tokens，视频按供应商 + 时长 + 分辨率的单价规则。</span>
+        </div>
+        <button type="button" disabled={mutationPending} onClick={saveAiConfig}>
+          <Save size={17} />
+          {mutationPending ? "保存中..." : saved ? "已保存" : "保存 AI 配置"}
+        </button>
+      </section>
     </div>
   );
 }
@@ -2806,7 +3314,7 @@ function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = 
   if (view === "reports") return "reports";
   if (view === "accounts") return "accounts";
   if (view === "logs") return "logs";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "usage", "roomSettings"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "usage", "roomSettings"].includes(view)) return "admin";
   return "workbench";
 }
 
@@ -5089,9 +5597,10 @@ function Pos({
     setDiscountAmount(Math.max(0, total - nextPaidAmount));
   };
 
-  const selectCardService = (service: string) => {
-    setCardServiceId(service);
-    if (service && !cardServiceIds.includes(service)) setCardServiceIds((previous) => [...previous, service]);
+  const updateCardServiceIds = (serviceIds: string[]) => {
+    const nextServiceIds = Array.from(new Set(serviceIds.filter(Boolean)));
+    setCardServiceIds(nextServiceIds);
+    setCardServiceId(nextServiceIds[0] ?? "");
   };
 
   const changeCardCustomerMode = (value: CardCustomerMode) => {
@@ -5143,8 +5652,7 @@ function Pos({
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) throw new Error("请填写开卡实收金额");
       if (cardType === "储值卡" && (!Number.isFinite(cardAmountValue) || cardAmountValue <= 0)) throw new Error("请填写储值到账金额");
       if ((cardType === "次数卡" || cardType === "套餐卡") && (!Number.isFinite(cardTimesValue) || cardTimesValue <= 0)) throw new Error("请填写可用次数");
-      if (cardType === "次数卡" && !cardServiceId) throw new Error("请选择绑定项目");
-      if (cardType === "套餐卡" && cardServiceIds.length === 0) throw new Error("请选择套餐可用项目");
+      if ((cardType === "次数卡" || cardType === "套餐卡") && cardServiceIds.length === 0) throw new Error("请选择可用项目");
       if (cardType === "折扣卡" && (!Number.isFinite(cardDiscountRateValue) || cardDiscountRateValue < 1 || cardDiscountRateValue >= 10)) throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
       return actions.openMemberCard({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
@@ -5156,8 +5664,8 @@ function Pos({
         remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? cardTimesValue : 0,
         discountRate: cardType === "折扣卡" ? cardDiscountRateValue / 10 : undefined,
         benefitText: cardType === "折扣卡" ? `${cardDiscountRateValue} 折权益` : undefined,
-        serviceId: cardType === "次数卡" ? cardServiceId : undefined,
-        serviceIds: cardType === "套餐卡" ? cardServiceIds : undefined,
+        serviceId: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds[0] : undefined,
+        serviceIds: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds : undefined,
         paidAmount: cardPaidAmountValue,
         payMethod: cardPayMethod,
         expiresAt: cardExpiresAt,
@@ -5426,8 +5934,9 @@ function Pos({
           {cardType === "折扣卡" && (
             <label>会员折扣<input type="number" min={1} max={9.9} step={0.1} value={cardDiscountRate} onChange={(event) => setCardDiscountRate(parseEditableNumber(event.target.value))} /></label>
           )}
-          {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
-          {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
+          {(cardType === "次数卡" || cardType === "套餐卡") && (
+            <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={updateCardServiceIds} options={data.services.map(optionOf)} />
+          )}
           <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(parseEditableNumber(event.target.value))} /></label>
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
@@ -6061,9 +6570,11 @@ function Customers({
     setCardCustomerPhone(value);
   };
 
-  const selectCardService = (serviceId: string) => {
-    setCardServiceId(serviceId);
-    const service = data.services.find((item) => item.id === serviceId);
+  const updateCardServiceIds = (serviceIds: string[]) => {
+    const nextServiceIds = Array.from(new Set(serviceIds.filter(Boolean)));
+    setCardServiceIds(nextServiceIds);
+    setCardServiceId(nextServiceIds[0] ?? "");
+    const service = data.services.find((item) => item.id === nextServiceIds[0]);
     if (service?.defaultTimes) setCardTimes(service.defaultTimes);
   };
 
@@ -6084,11 +6595,8 @@ function Customers({
       if ((cardType === "次数卡" || cardType === "套餐卡") && (!Number.isFinite(cardTimesValue) || cardTimesValue <= 0)) {
         throw new Error("次数卡和套餐卡需要填写可用次数");
       }
-      if (cardType === "次数卡" && !cardServiceId) {
-        throw new Error("次数卡需要绑定一个服务项目");
-      }
-      if (cardType === "套餐卡" && cardServiceIds.length === 0) {
-        throw new Error("套餐卡至少选择一个可用项目");
+      if ((cardType === "次数卡" || cardType === "套餐卡") && cardServiceIds.length === 0) {
+        throw new Error("请选择可用项目");
       }
       if (cardType === "折扣卡" && (!Number.isFinite(cardDiscountRateValue) || cardDiscountRateValue < 1 || cardDiscountRateValue >= 10)) {
         throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
@@ -6103,8 +6611,8 @@ function Customers({
         remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? cardTimesValue : 0,
         discountRate: cardType === "折扣卡" ? cardDiscountRateValue / 10 : undefined,
         benefitText: cardType === "折扣卡" ? `${cardDiscountRateValue} 折权益` : undefined,
-        serviceId: cardType === "次数卡" ? cardServiceId : undefined,
-        serviceIds: cardType === "套餐卡" ? cardServiceIds : undefined,
+        serviceId: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds[0] : undefined,
+        serviceIds: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds : undefined,
         paidAmount: cardPaidAmountValue,
         payMethod: cardPayMethod,
         expiresAt: cardExpiresAt,
@@ -6719,8 +7227,9 @@ function Customers({
           {cardType === "折扣卡" && (
             <label>会员折扣<input type="number" min={1} max={9.9} step={0.1} value={cardDiscountRate} onChange={(event) => setCardDiscountRate(parseEditableNumber(event.target.value))} /></label>
           )}
-          {cardType === "次数卡" && <Select label="绑定项目" value={cardServiceId} onChange={selectCardService} options={data.services.map(optionOf)} />}
-          {cardType === "套餐卡" && <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={setCardServiceIds} options={data.services.map(optionOf)} />}
+          {(cardType === "次数卡" || cardType === "套餐卡") && (
+            <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={updateCardServiceIds} options={data.services.map(optionOf)} />
+          )}
           <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(parseEditableNumber(event.target.value))} /></label>
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
           <label>有效期至<input type="date" value={cardExpiresAt} onChange={(event) => setCardExpiresAt(event.target.value)} /></label>
