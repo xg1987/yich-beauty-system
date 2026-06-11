@@ -4194,6 +4194,12 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
       <div className="module-detail-stack">
         <section className="panel appointment-workbench-panel">
           <div className="appointment-workbench-head appointment-workbench-controls">
+            <div className="appointment-workbench-summary" aria-label={`${selectedAppointmentRange.label}预约概览`}>
+              <span>{selectedAppointmentRange.label}</span>
+              <em>预约 {visibleRangeAppointments.length}</em>
+              <em>待到店 {arrivalConfirmationAppointments.length}</em>
+              <em>待签名 {pendingServiceSignatureTasks.length}</em>
+            </div>
             <div className="appointment-range-tabs" aria-label="预约日期筛选">
               {(["today", "tomorrow", "week"] as AppointmentRange[]).map((range) => (
                 <button
@@ -4211,24 +4217,6 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <CalendarDays size={18} />
               {hasConfiguredRooms ? "新增预约" : "设置房间"}
             </button>
-          </div>
-          <div className="appointment-workbench-metrics">
-            <div>
-              <span>预约总数</span>
-              <strong>{visibleRangeAppointments.length}</strong>
-            </div>
-            <div>
-              <span>已预约</span>
-              <strong>{bookedAppointments.length}</strong>
-            </div>
-            <div>
-              <span>待确认到店</span>
-              <strong>{arrivalConfirmationAppointments.length}</strong>
-            </div>
-            <div>
-              <span>待服务签名</span>
-              <strong>{pendingServiceSignatureTasks.length}</strong>
-            </div>
           </div>
           <div className="appointment-workflow-grid">
             {appointmentWorkflowGroups.map((group) => (
