@@ -8,6 +8,7 @@ export type Permission =
   | "appointments:manage"
   | "pos:manage"
   | "customers:manage"
+  | "marketing:manage"
   | "catalog:manage"
   | "staff:view"
   | "staff:manage"
@@ -37,6 +38,7 @@ const allPermissions: Permission[] = [
   "appointments:manage",
   "pos:manage",
   "customers:manage",
+  "marketing:manage",
   "catalog:manage",
   "staff:view",
   "staff:manage",
@@ -81,6 +83,7 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "appointments:manage",
     "pos:manage",
     "customers:manage",
+    "marketing:manage",
     "catalog:manage",
     "staff:view",
     "staff:manage",
@@ -96,6 +99,7 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "appointments:manage",
     "pos:manage",
     "customers:manage",
+    "marketing:manage",
     "catalog:manage",
     "staff:view",
     "staff:manage",
@@ -111,6 +115,7 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "appointments:manage",
     "pos:manage",
     "customers:manage",
+    "marketing:manage",
     "catalog:manage",
     "staff:view",
     "staff:manage",
@@ -121,8 +126,8 @@ export const rolePermissions: Record<RoleKey, Permission[]> = {
     "logs:view",
     "settings:view",
   ],
-  frontdesk: ["dashboard:view", "appointments:manage", "customers:manage", "settings:view"],
-  therapist: ["dashboard:view", "appointments:manage", "customers:manage", "staff:view", "settings:view"],
+  frontdesk: ["dashboard:view", "appointments:manage", "pos:manage", "customers:manage", "marketing:manage", "settings:view"],
+  therapist: ["dashboard:view", "appointments:manage", "pos:manage", "customers:manage", "marketing:manage", "staff:view", "settings:view"],
   finance: ["dashboard:view", "pos:manage", "staff:view", "commissions:settle", "reports:view", "approvals:manage", "settings:view"],
 };
 
@@ -156,6 +161,10 @@ export function normalizeRolePermissionTemplates(input: unknown): Record<RoleKey
     nextTemplates[role] = Array.from(new Set(permissions));
   });
   nextTemplates.superadmin = Array.from(new Set([...nextTemplates.superadmin, "dashboard:view", "settings:view"]));
+  nextTemplates.owner = Array.from(new Set([...nextTemplates.owner, "marketing:manage"]));
+  nextTemplates.manager = Array.from(new Set([...nextTemplates.manager, "marketing:manage"]));
+  nextTemplates.frontdesk = Array.from(new Set([...nextTemplates.frontdesk, "pos:manage", "marketing:manage"]));
+  nextTemplates.therapist = Array.from(new Set([...nextTemplates.therapist, "pos:manage", "marketing:manage"]));
   return nextTemplates;
 }
 
@@ -168,6 +177,7 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   appointments: "appointments:manage",
   pos: "pos:manage",
   customers: "customers:manage",
+  marketing: "marketing:manage",
   catalog: "catalog:manage",
   staff: "staff:view",
   inventory: "inventory:manage",

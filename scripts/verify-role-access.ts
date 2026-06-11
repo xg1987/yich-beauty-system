@@ -7,6 +7,7 @@ const allViews: ViewKey[] = [
   "appointments",
   "pos",
   "customers",
+  "marketing",
   "catalog",
   "staff",
   "inventory",
@@ -21,10 +22,10 @@ const allViews: ViewKey[] = [
 
 const expectedViewsByRole: Record<UserRole, ViewKey[]> = {
   superadmin: allViews,
-  owner: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "accounts", "settings"],
-  manager: ["dashboard", "appointments", "pos", "customers", "catalog", "staff", "inventory", "reports", "approvals", "logs", "accounts", "settings"],
-  frontdesk: ["dashboard", "appointments", "customers", "settings"],
-  therapist: ["dashboard", "appointments", "customers", "staff", "settings"],
+  owner: ["dashboard", "appointments", "pos", "customers", "marketing", "catalog", "staff", "inventory", "reports", "approvals", "logs", "accounts", "settings"],
+  manager: ["dashboard", "appointments", "pos", "customers", "marketing", "catalog", "staff", "inventory", "reports", "approvals", "logs", "accounts", "settings"],
+  frontdesk: ["dashboard", "appointments", "pos", "customers", "marketing", "settings"],
+  therapist: ["dashboard", "appointments", "pos", "customers", "marketing", "staff", "settings"],
   finance: ["dashboard", "pos", "staff", "reports", "approvals", "settings"],
 };
 
@@ -61,7 +62,8 @@ for (const role of ["owner", "manager", "frontdesk", "therapist", "finance"] as 
 for (const role of ["frontdesk", "therapist"] as UserRole[]) {
   const session = makeSession(role);
   assert.equal(canAccessView(session, "settings"), true, `${role} should access management center`);
-  assert.equal(canAccessView(session, "pos"), false, `${role} should not access cashier`);
+  assert.equal(canAccessView(session, "pos"), true, `${role} should access card opening cashier`);
+  assert.equal(canAccessView(session, "marketing"), true, `${role} should access marketing center`);
 }
 
 for (const role of ["owner", "manager"] as UserRole[]) {

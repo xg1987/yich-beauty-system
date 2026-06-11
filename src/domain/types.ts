@@ -3,6 +3,7 @@ export type ViewKey =
   | "appointments"
   | "pos"
   | "customers"
+  | "marketing"
   | "catalog"
   | "staff"
   | "inventory"

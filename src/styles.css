@@ -20453,6 +20453,430 @@ textarea,
   }
 }
 
+/* Employee mobile-first surface and AI marketing center. */
+.employee-work-page,
+.marketing-center-page {
+  gap: 16px;
+}
+
+.employee-work-hero {
+  overflow: hidden;
+}
+
+.employee-stat-grid,
+.employee-action-grid,
+.employee-content-grid,
+.marketing-tool-grid,
+.marketing-workspace,
+.marketing-form-grid,
+.marketing-form-actions,
+.marketing-preview-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.employee-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.employee-stat-grid article,
+.employee-action-grid button,
+.employee-appointment-card,
+.employee-follow-card,
+.marketing-tool-grid button,
+.marketing-preview-card {
+  min-width: 0;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(42, 143, 125, 0.09), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(247, 241, 255, 0.84));
+  color: #2f255f;
+  box-shadow: 0 16px 34px rgba(63, 39, 112, 0.08);
+}
+
+.employee-stat-grid article {
+  min-height: 92px;
+  padding: 16px;
+}
+
+.employee-stat-grid span,
+.employee-stat-grid small,
+.employee-appointment-card p,
+.employee-appointment-card small,
+.employee-follow-card span,
+.marketing-tool-grid small,
+.marketing-form-panel label span,
+.marketing-preview-copy p,
+.marketing-preview-visual small {
+  color: rgba(47, 37, 95, 0.64);
+  line-height: 1.45;
+}
+
+.employee-stat-grid strong {
+  display: inline-block;
+  margin: 8px 4px 0 0;
+  color: #2f255f;
+  font-size: 28px;
+  font-weight: 940;
+  line-height: 1;
+}
+
+.employee-action-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.employee-action-grid button,
+.marketing-tool-grid button {
+  cursor: pointer;
+  border-color: rgba(111, 66, 193, 0.18);
+  text-align: left;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.employee-action-grid button {
+  min-height: 108px;
+  padding: 18px;
+}
+
+.employee-action-grid button:hover,
+.employee-action-grid button:focus-visible,
+.marketing-tool-grid button:hover,
+.marketing-tool-grid button:focus-visible,
+.marketing-tool-grid button.active {
+  border-color: rgba(111, 66, 193, 0.42);
+  box-shadow: 0 20px 42px rgba(83, 50, 158, 0.14);
+  transform: translateY(-1px);
+}
+
+.employee-action-grid button span,
+.marketing-tool-grid button span {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6f42c1, #2a8f7d);
+  color: #ffffff;
+}
+
+.employee-action-grid button strong,
+.employee-appointment-card strong,
+.employee-follow-card strong,
+.marketing-tool-grid button strong,
+.marketing-preview-copy strong,
+.marketing-preview-visual strong {
+  display: block;
+  color: #2f255f;
+  font-weight: 920;
+  line-height: 1.25;
+}
+
+.employee-content-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  align-items: start;
+}
+
+.employee-task-panel {
+  min-height: 260px;
+}
+
+.employee-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.employee-appointment-card,
+.employee-follow-card {
+  padding: 14px;
+}
+
+.employee-appointment-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.employee-appointment-card p {
+  margin: 8px 0 4px;
+}
+
+.employee-appointment-card button,
+.employee-follow-card button {
+  min-height: 38px;
+  margin-top: 12px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: #6f42c1;
+  color: #ffffff;
+  font-weight: 880;
+}
+
+.employee-follow-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.employee-follow-card span {
+  grid-column: 1 / -1;
+}
+
+.employee-follow-card button {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  margin-top: 0;
+}
+
+.employee-work-page .empty,
+.marketing-center-page .empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed rgba(111, 66, 193, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(47, 37, 95, 0.62);
+  text-align: center;
+}
+
+.marketing-tool-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.marketing-tool-grid button {
+  min-height: 112px;
+  padding: 16px;
+}
+
+.marketing-tool-grid button.active {
+  background:
+    radial-gradient(circle at 92% 12%, rgba(255, 189, 74, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(240, 252, 248, 0.9));
+}
+
+.marketing-workspace {
+  grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+  align-items: start;
+}
+
+.marketing-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.marketing-form-panel label {
+  display: grid;
+  gap: 8px;
+}
+
+.marketing-form-panel select {
+  min-width: 0;
+}
+
+.marketing-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.marketing-chip-row button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f255f;
+  font-weight: 850;
+}
+
+.marketing-chip-row button.active {
+  border-color: rgba(111, 66, 193, 0.5);
+  background: rgba(111, 66, 193, 0.12);
+}
+
+.marketing-form-actions,
+.marketing-preview-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.marketing-form-actions button,
+.marketing-preview-actions button {
+  min-width: 0;
+  justify-content: center;
+}
+
+.marketing-preview-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.marketing-preview-visual {
+  display: grid;
+  min-height: 220px;
+  align-content: end;
+  gap: 7px;
+  padding: 22px;
+  background:
+    linear-gradient(140deg, rgba(111, 66, 193, 0.96), rgba(42, 143, 125, 0.82)),
+    #6f42c1;
+  color: #ffffff;
+}
+
+.marketing-preview-visual span,
+.marketing-preview-visual strong,
+.marketing-preview-visual small {
+  color: #ffffff;
+}
+
+.marketing-preview-visual span {
+  width: fit-content;
+  min-height: 28px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-weight: 880;
+}
+
+.marketing-preview-visual strong {
+  max-width: 18ch;
+  font-size: clamp(30px, 5vw, 54px);
+}
+
+.marketing-preview-copy {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.marketing-preview-copy p {
+  margin: 0;
+}
+
+.app-shell.theme-night .employee-stat-grid article,
+.app-shell.theme-night .employee-action-grid button,
+.app-shell.theme-night .employee-appointment-card,
+.app-shell.theme-night .employee-follow-card,
+.app-shell.theme-night .marketing-tool-grid button,
+.app-shell.theme-night .marketing-preview-card,
+.app-shell.theme-night .employee-work-page .empty,
+.app-shell.theme-night .marketing-center-page .empty {
+  border-color: var(--night-app-line) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(160, 127, 226, 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.08)) !important;
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .employee-stat-grid strong,
+.app-shell.theme-night .employee-action-grid button strong,
+.app-shell.theme-night .employee-appointment-card strong,
+.app-shell.theme-night .employee-follow-card strong,
+.app-shell.theme-night .marketing-tool-grid button strong,
+.app-shell.theme-night .marketing-preview-copy strong {
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .employee-stat-grid span,
+.app-shell.theme-night .employee-stat-grid small,
+.app-shell.theme-night .employee-appointment-card p,
+.app-shell.theme-night .employee-appointment-card small,
+.app-shell.theme-night .employee-follow-card span,
+.app-shell.theme-night .marketing-tool-grid small,
+.app-shell.theme-night .marketing-form-panel label span,
+.app-shell.theme-night .marketing-preview-copy p {
+  color: var(--night-app-muted) !important;
+}
+
+@media (max-width: 1180px) {
+  .employee-stat-grid,
+  .employee-action-grid,
+  .marketing-tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .employee-content-grid,
+  .marketing-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .employee-work-page,
+  .marketing-center-page {
+    gap: 14px;
+  }
+
+  .employee-work-hero {
+    min-height: 148px;
+  }
+
+  .employee-work-hero h2 {
+    font-size: clamp(27px, 8vw, 36px);
+  }
+
+  .employee-work-hero p {
+    -webkit-line-clamp: 2;
+  }
+
+  .employee-stat-grid {
+    gap: 9px;
+  }
+
+  .employee-stat-grid article {
+    min-height: 82px;
+    padding: 13px;
+    border-radius: 16px;
+  }
+
+  .employee-stat-grid strong {
+    font-size: 24px;
+  }
+
+  .employee-action-grid button,
+  .marketing-tool-grid button {
+    min-height: 92px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .employee-action-grid button span,
+  .marketing-tool-grid button span {
+    width: 38px;
+    height: 38px;
+    margin-bottom: 9px;
+  }
+
+  .employee-appointment-card div,
+  .employee-follow-card {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .employee-follow-card button {
+    grid-row: auto;
+    grid-column: auto;
+    width: 100%;
+  }
+
+  .marketing-form-grid,
+  .marketing-form-actions,
+  .marketing-preview-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .marketing-preview-visual {
+    min-height: 170px;
+    padding: 18px;
+  }
+
+  .marketing-preview-visual strong {
+    font-size: clamp(28px, 10vw, 42px);
+  }
+}
+
 /* Management refund module: keep refund selection and customer card readable in every theme. */
 .theme-day .system-modal .refund-search,
 .theme-night .system-modal .refund-search {

@@ -75,6 +75,15 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "customerSignatures",
     "customerFollowUps",
   ],
+  marketing: [
+    "customers",
+    "services",
+    "products",
+    "memberCards",
+    "orders",
+    "customerFollowUps",
+    "onlineStorefronts",
+  ],
   catalog: [
     "tagDefinitions",
     "services",

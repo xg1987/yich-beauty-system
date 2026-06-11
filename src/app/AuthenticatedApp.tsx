@@ -70,7 +70,8 @@ import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../doma
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import packageJson from "../../package.json";
 
-type WorkbarKey = "workbench" | "appointments" | "cashier" | "customers" | "reports" | "accounts" | "logs" | "admin";
+type WorkbarKey = "workbench" | "appointments" | "cashier" | "card" | "customers" | "marketing" | "reports" | "accounts" | "logs" | "admin";
+type WorkbarItem = { key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey; options?: NavigateOptions };
 type ThemeMode = "day" | "night";
 type CardType = "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
 type CardCustomerMode = "existing" | "new";
@@ -210,6 +211,7 @@ const permissionLabels: Record<Permission, string> = {
   "appointments:manage": "预约管理",
   "pos:manage": "开单收银",
   "customers:manage": "客户档案",
+  "marketing:manage": "营销中心",
   "catalog:manage": "项目商品",
   "staff:view": "查看员工",
   "staff:manage": "员工管理",
@@ -284,6 +286,7 @@ const viewTitles: Record<ViewKey, string> = {
   appointments: "预约管理",
   pos: "开单收银",
   customers: "客户档案",
+  marketing: "营销中心",
   catalog: "项目商品",
   staff: "人员账号",
   inventory: "库存管理",
@@ -497,6 +500,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "appointments", label: "预约管理", icon: CalendarDays },
   { key: "pos", label: "开单收银", icon: CreditCard },
   { key: "customers", label: "客户档案", icon: UsersRound },
+  { key: "marketing", label: "营销中心", icon: Megaphone },
   { key: "inventory", label: "库存管理", icon: Boxes },
   { key: "reports", label: "报表分析", icon: ChartNoAxesColumnIncreasing },
   { key: "approvals", label: "审批中心", icon: ShieldCheck },
@@ -504,7 +508,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboar
   { key: "settings", label: "系统设置", icon: Settings },
 ];
 
-const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey }> = [
+const workbarItems: WorkbarItem[] = [
   { key: "workbench", label: "今日", icon: LayoutDashboard, view: "dashboard" },
   { key: "appointments", label: "预约", icon: CalendarDays, view: "appointments" },
   { key: "cashier", label: "收银", icon: CreditCard, view: "pos" },
@@ -514,7 +518,15 @@ const workbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutD
 
 const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "logs", "usage", "settings"]);
 
-const platformWorkbarItems: Array<{ key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey }> = [
+const employeeWorkbarItems: WorkbarItem[] = [
+  { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
+  { key: "appointments", label: "预约", icon: CalendarDays, view: "appointments" },
+  { key: "card", label: "开卡", icon: CreditCard, view: "pos", options: { posModule: "card" } },
+  { key: "customers", label: "客户", icon: UsersRound, view: "customers" },
+  { key: "marketing", label: "营销", icon: Megaphone, view: "marketing" },
+];
+
+const platformWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "总览", icon: LayoutDashboard, view: "dashboard" },
   { key: "reports", label: "数据", icon: ChartNoAxesColumnIncreasing, view: "reports" },
   { key: "accounts", label: "账号", icon: UsersRound, view: "accounts" },
@@ -730,10 +742,11 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   }
 
   const isPlatformAdmin = session.user.role === "superadmin";
+  const isEmployeeOperator = session.user.role === "therapist" || session.user.role === "frontdesk";
   const visibleNavItems = navItems.filter((item) => canAccessView(session, item.key) && (!isPlatformAdmin || platformAdminAllowedViews.has(item.key)));
   const activeView = canAccessView(session, view) && (!isPlatformAdmin || platformAdminAllowedViews.has(view)) ? view : visibleNavItems[0]?.key ?? "dashboard";
-  const activeWorkbar = workbarForView(activeView);
-  const currentWorkbarItems = isPlatformAdmin ? platformWorkbarItems : workbarItems;
+  const activeWorkbar = workbarForView(activeView, posEntryModule, isEmployeeOperator);
+  const currentWorkbarItems = isPlatformAdmin ? platformWorkbarItems : isEmployeeOperator ? employeeWorkbarItems : workbarItems;
   const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
 
   const showAdminDetailBack = false;
@@ -836,6 +849,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             {activeView === "appointments" && <MemoAppointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "pos" && <MemoPos data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} onReturnManagement={returnToManagement} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
+            {activeView === "marketing" && <MarketingCenter data={data} session={session} setView={navigate} />}
             {activeView === "catalog" && <MemoCatalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={returnToManagement} />}
             {activeView === "staff" && <MemoStaffCommissions data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "inventory" && <MemoInventory data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={inventoryEntryModule} onReturnManagement={returnToManagement} />}
@@ -875,7 +889,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
         {currentWorkbarItems.filter((item) => canAccessView(session, item.view) && (!isPlatformAdmin || platformAdminAllowedViews.has(item.view))).map((item) => {
           const Icon = item.icon;
           return (
-            <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => navigate(item.view)}>
+            <button key={item.key} className={activeWorkbar === item.key ? "active" : ""} onClick={() => navigate(item.view, item.options)}>
               <Icon size={18} />
               <span>{item.label}</span>
             </button>
@@ -2792,10 +2806,11 @@ function PlatformDataReadOnlyView({ data, setView, showBack }: { data: AppData; 
   );
 }
 
-function workbarForView(view: ViewKey): WorkbarKey {
+function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = false): WorkbarKey {
   if (view === "appointments") return "appointments";
-  if (view === "pos") return "cashier";
+  if (view === "pos") return employeeMode && posModule === "card" ? "card" : "cashier";
   if (view === "customers") return "customers";
+  if (view === "marketing") return "marketing";
   if (view === "reports") return "reports";
   if (view === "accounts") return "accounts";
   if (view === "logs") return "logs";
@@ -2803,7 +2818,7 @@ function workbarForView(view: ViewKey): WorkbarKey {
   return "workbench";
 }
 
-function Dashboard({ data, session, setView }: { data: AppData; session: UserSession; setView: (view: ViewKey) => void }) {
+function Dashboard({ data, session, setView }: { data: AppData; session: UserSession; setView: NavigateToView }) {
   const paidRevenue = data.orders
     .filter((order) => order.payMethod !== "会员卡")
     .reduce((sum, order) => sum + order.paidAmount, 0)
@@ -2914,6 +2929,24 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     .sort((a, b) => b.revenue - a.revenue || b.completed - a.completed || b.appointments - a.appointments)
     .slice(0, 5);
 
+  if (isOrdinaryEmployee) {
+    const todayCardOpens = todayMemberCardIncomeTransactions.length;
+    return (
+      <EmployeeWorkDashboard
+        activeCards={activeCards}
+        data={data}
+        pendingFollowUps={pendingFollowUps}
+        pendingSignatureCount={pendingSignatureList.length}
+        roleAppointmentsList={roleAppointmentsList}
+        session={session}
+        setView={setView}
+        todayAppointments={todayAppointments}
+        todayCardOpens={todayCardOpens}
+        waitingArrivalCount={waitingArrivalCount}
+      />
+    );
+  }
+
   return (
     <div className="dashboard-page workbench-visual-page">
       <section className={`workbench-hero role-hero-${session.user.role}`}>
@@ -2967,6 +3000,264 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
             </article>
           ))}
           {staffTodayStats.length === 0 && <p className="empty">今日暂无员工服务或收款记录</p>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function EmployeeWorkDashboard({
+  activeCards,
+  data,
+  pendingFollowUps,
+  pendingSignatureCount,
+  roleAppointmentsList,
+  session,
+  setView,
+  todayAppointments,
+  todayCardOpens,
+  waitingArrivalCount,
+}: {
+  activeCards: number;
+  data: AppData;
+  pendingFollowUps: number;
+  pendingSignatureCount: number;
+  roleAppointmentsList: Appointment[];
+  session: UserSession;
+  setView: NavigateToView;
+  todayAppointments: number;
+  todayCardOpens: number;
+  waitingArrivalCount: number;
+}) {
+  const storeName = primaryStoreName(data);
+  const isTherapist = session.user.role === "therapist";
+  const todayLabel = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+  const pendingAppointments = roleAppointmentsList.filter((item) => item.status !== "已完成" && item.status !== "已取消").slice(0, 4);
+  const followUpRows = data.customerFollowUps
+    .filter((item) => item.status === "待跟进")
+    .filter((item) => !isTherapist || !session.user.staffId || item.staffId === session.user.staffId)
+    .slice(0, 3);
+  const signatureRows = data.customerSignatures.filter((item) => item.status === "待签名").slice(0, 3);
+  const quickStats = [
+    { label: "今日预约", value: `${todayAppointments}`, hint: "单" },
+    { label: "待到店", value: `${waitingArrivalCount}`, hint: "单" },
+    { label: "待签名", value: `${pendingSignatureCount}`, hint: "份" },
+    { label: "今日开卡", value: `${todayCardOpens}`, hint: "张" },
+  ];
+  const quickActions = [
+    { icon: <Search size={20} />, label: "搜客户", onClick: () => setView("customers") },
+    { icon: <CreditCard size={20} />, label: "开卡", onClick: () => setView("pos", { posModule: "card" }) },
+    { icon: <CalendarDays size={20} />, label: "预约", onClick: () => setView("appointments") },
+    { icon: <LockKeyhole size={20} />, label: "签名", onClick: () => setView("pos", { posModule: "signature" }) },
+  ];
+
+  return (
+    <div className="dashboard-page employee-work-page">
+      <section className={`workbench-hero employee-work-hero role-hero-${session.user.role}`}>
+        <span className="workbench-hero-kicker"><Sparkles size={15} /> {isTherapist ? "员工工作" : "前台工作"}</span>
+        <h2>{session.user.name} · {storeName || "门店"}</h2>
+        <p>{todayLabel} · 预约 {todayAppointments} · 待签名 {pendingSignatureCount} · 有效卡 {activeCards}</p>
+      </section>
+
+      <section className="employee-stat-grid" aria-label="今日工作数据">
+        {quickStats.map((item) => (
+          <article key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.hint}</small>
+          </article>
+        ))}
+      </section>
+
+      <section className="employee-action-grid" aria-label="快捷操作">
+        {quickActions.map((item) => (
+          <button type="button" key={item.label} onClick={item.onClick}>
+            <span>{item.icon}</span>
+            <strong>{item.label}</strong>
+          </button>
+        ))}
+      </section>
+
+      <section className="employee-content-grid">
+        <div className="workbench-panel employee-task-panel">
+          <PanelTitle icon={<CalendarDays size={18} />} title={isTherapist ? "我的预约" : "今日预约"} action={`${pendingAppointments.length} 单`} />
+          <div className="employee-card-list">
+            {pendingAppointments.map((appointment) => (
+              <article key={appointment.id} className="employee-appointment-card">
+                <div>
+                  <strong>{appointmentTimeRange(data, appointment)}</strong>
+                  <span>{nameOf(data.customers, appointment.customerId)}</span>
+                </div>
+                <p>{nameOf(data.services, appointment.serviceId)} · {nameOf(data.staff, appointment.staffId)}</p>
+                <small>{appointment.roomName || "未排房"} · {appointment.status}</small>
+                <button type="button" onClick={() => setView("appointments")}>查看预约</button>
+              </article>
+            ))}
+            {pendingAppointments.length === 0 && <p className="empty">今日暂无待处理预约</p>}
+          </div>
+        </div>
+
+        <div className="workbench-panel employee-task-panel">
+          <PanelTitle icon={<HeartHandshake size={18} />} title="客户待办" action={`${pendingFollowUps + pendingSignatureCount} 项`} />
+          <div className="employee-card-list">
+            {signatureRows.map((signature) => (
+              <article key={signature.id} className="employee-follow-card">
+                <strong>服务签名</strong>
+                <span>{nameOf(data.customers, signature.customerId)} · {signature.status}</span>
+                <button type="button" onClick={() => setView("pos", { posModule: "signature" })}>去签名</button>
+              </article>
+            ))}
+            {followUpRows.map((followUp) => (
+              <article key={followUp.id} className="employee-follow-card">
+                <strong>{followUp.method}</strong>
+                <span>{nameOf(data.customers, followUp.customerId)} · {followUp.dueAt ? shortDate(followUp.dueAt) : "待安排"}</span>
+                <button type="button" onClick={() => setView("customers")}>看客户</button>
+              </article>
+            ))}
+            {signatureRows.length === 0 && followUpRows.length === 0 && <p className="empty">暂无客户待办</p>}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type MarketingToolKey = "product" | "copy" | "poster" | "talk";
+
+function MarketingCenter({ data, session, setView }: { data: AppData; session: UserSession; setView: NavigateToView }) {
+  const [tool, setTool] = useState<MarketingToolKey>("product");
+  const [productId, setProductId] = useState(data.products[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
+  const [audience, setAudience] = useState("老客");
+  const [channel, setChannel] = useState("朋友圈");
+  const [draftIndex, setDraftIndex] = useState(0);
+  const product = data.products.find((item) => item.id === productId) ?? data.products[0];
+  const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
+  const storeName = primaryStoreName(data) || "门店";
+  const lowStockProducts = data.products.filter((item) => item.stock <= item.warningStock).length;
+  const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
+  const repeatCustomers = data.customers.filter((customer) => data.orders.some((order) => order.customerId === customer.id)).length;
+  const toolCards: Array<{ key: MarketingToolKey; label: string; icon: ReactNode; metric: string }> = [
+    { key: "product", label: "产品图", icon: <PackagePlus size={20} />, metric: `${data.products.length} 件商品` },
+    { key: "copy", label: "文案", icon: <MessageCircle size={20} />, metric: `${data.services.length} 个项目` },
+    { key: "poster", label: "活动图", icon: <Gift size={20} />, metric: `${activeCards} 张会员卡` },
+    { key: "talk", label: "私聊话术", icon: <HeartHandshake size={20} />, metric: `${repeatCustomers} 位客户` },
+  ];
+  const channels = ["朋友圈", "小红书", "私聊", "社群"];
+  const audiences = ["老客", "新客", "会员卡客户", "沉睡客户"];
+  const subjectName = product?.name || service?.name || "护理项目";
+  const serviceName = service?.name || "护理项目";
+  const productPrice = product ? money(product.price) : "按店内价格";
+  const draftTitle = tool === "product"
+    ? `${subjectName} · ${channel}`
+    : tool === "copy"
+      ? `${serviceName} · ${audience}`
+      : tool === "poster"
+        ? `${storeName} · 活动素材`
+        : `${audience} · 私聊话术`;
+  const draftLines = [
+    `${storeName} ${subjectName}`,
+    `${audience}可重点推荐${serviceName}，搭配${subjectName}提升到店转化。`,
+    product ? `当前库存 ${formatProductStockWithServiceUnits(product, product.stock)} · 到店价 ${productPrice}` : `项目价格 ${service ? money(service.price) : "待定"}`,
+    `${channel}发布时建议配合真实护理场景和门店预约入口。`,
+  ];
+  const copyText = `${draftTitle}\n${draftLines.join("\n")}`;
+
+  const copyDraft = () => {
+    if (navigator.clipboard) {
+      void navigator.clipboard.writeText(copyText);
+    }
+  };
+
+  return (
+    <div className="page-stack marketing-center-page">
+      <PageHero
+        icon={<Megaphone size={18} />}
+        eyebrow="AI智能营销"
+        title="营销中心"
+        desc="产品图 · 文案 · 客群触达"
+        stats={[
+          { label: "商品", value: `${data.products.length}`, hint: "可用于素材", icon: <PackagePlus size={18} /> },
+          { label: "项目", value: `${data.services.length}`, hint: "可用于转化", icon: <Sparkles size={18} /> },
+          { label: "客户", value: `${data.customers.length}`, hint: "门店客户池", icon: <UsersRound size={18} /> },
+          { label: "低库存", value: `${lowStockProducts}`, hint: "谨慎推广", icon: <PackageMinus size={18} /> },
+        ]}
+      />
+
+      <section className="marketing-tool-grid" aria-label="营销工具">
+        {toolCards.map((item) => (
+          <button type="button" key={item.key} className={tool === item.key ? "active" : ""} onClick={() => setTool(item.key)}>
+            <span>{item.icon}</span>
+            <strong>{item.label}</strong>
+            <small>{item.metric}</small>
+          </button>
+        ))}
+      </section>
+
+      <section className="marketing-workspace">
+        <div className="workbench-panel marketing-form-panel">
+          <PanelTitle icon={<Search size={18} />} title="素材选择" action={channel} />
+          <div className="marketing-form-grid">
+            <label>
+              <span>商品</span>
+              <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
+                {data.products.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>项目</span>
+              <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
+                {data.services.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="marketing-chip-row" aria-label="客群">
+            {audiences.map((item) => (
+              <button type="button" key={item} className={audience === item ? "active" : ""} onClick={() => setAudience(item)}>{item}</button>
+            ))}
+          </div>
+          <div className="marketing-chip-row" aria-label="渠道">
+            {channels.map((item) => (
+              <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
+            ))}
+          </div>
+          <div className="marketing-form-actions">
+            <button type="button" className="primary-button" onClick={() => setDraftIndex((value) => value + 1)}>
+              <Sparkles size={16} /> 生成草稿
+            </button>
+            <button type="button" className="secondary-button" onClick={() => setView("pos", { posModule: "card" })}>
+              <CreditCard size={16} /> 开卡转化
+            </button>
+          </div>
+        </div>
+
+        <div className="workbench-panel marketing-preview-panel">
+          <PanelTitle icon={<Eye size={18} />} title="营销预览" action={draftIndex > 0 ? "已生成" : "草稿"} />
+          <article className="marketing-preview-card">
+            <div className="marketing-preview-visual">
+              <span>{product?.subcategory || product?.category || "美业护理"}</span>
+              <strong>{subjectName}</strong>
+              <small>{serviceName}</small>
+            </div>
+            <div className="marketing-preview-copy">
+              <strong>{draftTitle}</strong>
+              {draftLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          </article>
+          <div className="marketing-preview-actions">
+            <button type="button" className="secondary-button" onClick={copyDraft}>
+              <Copy size={16} /> 复制文案
+            </button>
+            <button type="button" className="secondary-button" onClick={() => setView("catalog")}>
+              <PackagePlus size={16} /> 项目商品
+            </button>
+          </div>
         </div>
       </section>
     </div>
