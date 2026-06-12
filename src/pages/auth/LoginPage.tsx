@@ -1,7 +1,7 @@
 import { LockKeyhole } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { BrandIcon } from "../../components/business/BrandIcon";
-import { isPlatformInviteCodeFormat } from "../../domain/business";
+import { isStoreOwnerInviteCodeFormat } from "../../domain/business";
 import type { UserSession } from "../../domain/auth";
 import type { JoinInviteResult } from "../../api/client";
 
@@ -28,7 +28,7 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
   const [joinAddress, setJoinAddress] = useState("");
   const [joinAccount, setJoinAccount] = useState("");
   const [joinNotice, setJoinNotice] = useState<string | undefined>();
-  const isOwnerInvite = isPlatformInviteCodeFormat(inviteCode);
+  const isOwnerInvite = isStoreOwnerInviteCodeFormat(inviteCode);
   const isPendingApprovalLogin = mode === "login" && error?.includes("等待店长审批");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -51,7 +51,7 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
     const submittedPhone = formString("phone", joinPhone).trim();
     const submittedAddress = formString("address", joinAddress).trim();
     const submittedAccount = formString("account", joinAccount).trim();
-    const submittedIsOwnerInvite = isPlatformInviteCodeFormat(submittedInviteCode);
+    const submittedIsOwnerInvite = isStoreOwnerInviteCodeFormat(submittedInviteCode);
 
     if (!submittedName) {
       setJoinNotice("请填写姓名");

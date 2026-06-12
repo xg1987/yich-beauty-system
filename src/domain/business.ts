@@ -492,6 +492,11 @@ export function isPlatformInviteCodeFormat(inviteCode: string) {
   return new RegExp(`^${PLATFORM_INVITE_PREFIX}[${PLATFORM_INVITE_ALPHABET}]{4}$`).test(inviteCode.trim().toUpperCase());
 }
 
+export function isStoreOwnerInviteCodeFormat(inviteCode: string) {
+  const normalizedInviteCode = inviteCode.trim().toUpperCase();
+  return isPlatformInviteCodeFormat(inviteCode) || normalizedInviteCode.startsWith("BOSS_");
+}
+
 export function platformInviteIssuerId(data: AppData, inviteCode: string) {
   const normalizedInviteCode = inviteCode.trim().toUpperCase();
   const issuer = data.authUsers.find((user) => {

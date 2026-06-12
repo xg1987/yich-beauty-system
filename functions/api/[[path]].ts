@@ -168,7 +168,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       const nextData = registerStore(await database.readData(), {
         storeName: requiredString(body, "storeName"),
-        ownerName: requiredString(body, "ownerName"),
+        ownerName: requiredStringAny(body, ["ownerName", "name"]),
         phone: requiredString(body, "phone"),
         address: optionalString(body, "address"),
         account: requiredString(body, "account"),
@@ -190,7 +190,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const isStoreOwnerInvite = isStoreOwnerInviteCode(currentData, inviteCode);
       const nextData = joinInviteByCode(currentData, {
         inviteCode,
-        name: requiredString(body, "name"),
+        name: optionalStringAny(body, ["name", "ownerName"]) ?? "",
         password: hashedPassword,
         storeName: optionalString(body, "storeName"),
         phone: optionalString(body, "phone"),
@@ -2644,9 +2644,25 @@ function requiredString(body: JsonBody, key: string) {
   return value;
 }
 
+function requiredStringAny(body: JsonBody, keys: string[]) {
+  const value = optionalStringAny(body, keys);
+  if (!value) {
+    throw new Error(`缺少字段 ${keys[0]}`);
+  }
+  return value;
+}
+
 function optionalString(body: JsonBody, key: string) {
   const value = body[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function optionalStringAny(body: JsonBody, keys: string[]) {
+  for (const key of keys) {
+    const value = optionalString(body, key);
+    if (value) return value;
+  }
+  return undefined;
 }
 
 function requiredNumber(body: JsonBody, key: string) {
