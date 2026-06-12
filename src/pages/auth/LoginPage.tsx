@@ -114,13 +114,11 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
               <>
                 <label>邀请码<input name="inviteCode" value={inviteCode} onInput={(event) => setInviteCode(event.currentTarget.value)} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" required /></label>
                 <label>姓名<input name="name" value={joinName} onInput={(event) => setJoinName(event.currentTarget.value)} onChange={(event) => setJoinName(event.target.value)} onCompositionEnd={(event) => setJoinName(event.currentTarget.value)} autoComplete="name" placeholder="请输入姓名" required /></label>
-                {isOwnerInvite && (
-                  <>
-                    <label>门店名称<input name="storeName" value={joinStoreName} onInput={(event) => setJoinStoreName(event.currentTarget.value)} onChange={(event) => setJoinStoreName(event.target.value)} placeholder="请输入门店名称" required /></label>
-                    <label>联系电话<input name="phone" type="tel" inputMode="tel" autoComplete="tel" value={joinPhone} onInput={(event) => setJoinPhone(event.currentTarget.value)} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required /></label>
-                    <label>门店地址<input name="address" value={joinAddress} onInput={(event) => setJoinAddress(event.currentTarget.value)} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" /></label>
-                  </>
-                )}
+                <div className="join-owner-fields" hidden={!isOwnerInvite} aria-hidden={!isOwnerInvite}>
+                  <label>门店名称<input name="storeName" value={joinStoreName} onInput={(event) => setJoinStoreName(event.currentTarget.value)} onChange={(event) => setJoinStoreName(event.target.value)} placeholder="请输入门店名称" required={isOwnerInvite} disabled={!isOwnerInvite} /></label>
+                  <label>联系电话<input name="phone" type="tel" inputMode="tel" autoComplete="tel" value={joinPhone} onInput={(event) => setJoinPhone(event.currentTarget.value)} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required={isOwnerInvite} disabled={!isOwnerInvite} /></label>
+                  <label>门店地址<input name="address" value={joinAddress} onInput={(event) => setJoinAddress(event.currentTarget.value)} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" disabled={!isOwnerInvite} /></label>
+                </div>
                 <label>{isOwnerInvite ? "店长登录账号" : "登录账号"}<input name="account" value={joinAccount} onInput={(event) => setJoinAccount(event.currentTarget.value)} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
               </>
             ) : (

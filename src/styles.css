@@ -4977,6 +4977,15 @@ html[data-theme="day"],
   font-weight: 650;
 }
 
+.join-owner-fields {
+  display: grid;
+  gap: 16px;
+}
+
+.join-owner-fields[hidden] {
+  display: none;
+}
+
 .login-card input,
 .login-card select,
 .login-card textarea {
