@@ -1,14 +1,15 @@
-const CACHE_NAME = "yich-beauty-pwa-v2";
+const ICON_VERSION = "0.1.194";
+const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}`;
 const APP_SHELL_ASSETS = [
   "/",
-  "/manifest.webmanifest",
-  "/favicon.ico",
-  "/favicon-16x16.png",
-  "/favicon-32x32.png",
-  "/app-icon-192.png",
-  "/app-icon-512.png",
-  "/maskable-icon-512.png",
-  "/apple-touch-icon.png",
+  `/manifest.webmanifest?v=${ICON_VERSION}`,
+  `/favicon.ico?v=${ICON_VERSION}`,
+  `/favicon-16x16.png?v=${ICON_VERSION}`,
+  `/favicon-32x32.png?v=${ICON_VERSION}`,
+  `/app-icon-192.png?v=${ICON_VERSION}`,
+  `/app-icon-512.png?v=${ICON_VERSION}`,
+  `/maskable-icon-512.png?v=${ICON_VERSION}`,
+  `/apple-touch-icon.png?v=${ICON_VERSION}`,
 ];
 
 self.addEventListener("install", (event) => {

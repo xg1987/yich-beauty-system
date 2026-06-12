@@ -10,3 +10,30 @@
 /zhurongkftech-app.apk
   Content-Type: application/vnd.android.package-archive
   Content-Disposition: attachment; filename="zhurongkftech-app.apk"
+
+/favicon.ico
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/favicon-16x16.png
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/favicon-32x32.png
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/apple-touch-icon.png
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/app-icon-192.png
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/app-icon-512.png
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/maskable-icon-512.png
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/manifest.webmanifest
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/sw.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
