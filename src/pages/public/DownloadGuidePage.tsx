@@ -1,5 +1,6 @@
 import { DoorOpen, Download, Monitor, Share2 } from "lucide-react";
 import { useState } from "react";
+import { BrandIcon } from "../../components/business/BrandIcon";
 import packageJson from "../../../package.json";
 
 const APP_VERSION = packageJson.version;
@@ -36,7 +37,7 @@ export default function DownloadGuidePage() {
     <main className="download-guide-page">
       <section className="download-guide-shell">
         <section className="download-guide-brand">
-          <div className="download-guide-mark">祝</div>
+          <BrandIcon className="download-guide-mark brand-icon-mark" />
           <h1>祝融坤锋美业</h1>
           <p>门店管理系统 · 内部使用</p>
         </section>

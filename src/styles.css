@@ -24015,3 +24015,23 @@ textarea,
     display: grid;
   }
 }
+
+img.brand-icon-mark {
+  display: block;
+  flex: 0 0 auto;
+  object-fit: cover;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  color: transparent;
+  user-select: none;
+  box-shadow: 0 10px 24px rgba(79, 35, 117, 0.16);
+}
+
+.login-brand img.brand-icon-mark,
+.public-store-hero img.brand-icon-mark,
+.download-guide-brand img.brand-icon-mark,
+.rail-admin img.brand-icon-mark,
+.topbar-brand img.brand-icon-mark {
+  object-fit: cover;
+}

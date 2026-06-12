@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { createContext, FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "../components/business/AccountMenu";
+import { BrandIcon } from "../components/business/BrandIcon";
 import { NotificationPanel, visibleNotifications } from "../components/business/NotificationPanel";
 import { UserAvatar } from "../components/business/UserAvatar";
 import { PageHero } from "../components/layout/PageHero";
@@ -1081,7 +1082,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     <div className={`app-shell theme-${themeMode}`} data-mutating={mutationPending ? "true" : undefined}>
       <aside className="sidebar">
         <div className="rail-admin">
-          <div className="brand-mark">祝</div>
+          <BrandIcon className="brand-mark brand-icon-mark" />
           <div>
             <strong>{shellRoleLabel[session.user.role]}</strong>
             <span>{shellDisplayName}</span>
@@ -1092,7 +1093,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
         <GlobalMutationStatus />
         <header className="topbar">
           <div className="topbar-brand">
-            <div className="brand-mark">祝</div>
+            <BrandIcon className="brand-mark brand-icon-mark" />
             <div>
               <strong>{shellRoleLabel[session.user.role]}</strong>
               <span>{shellDisplayName}</span>

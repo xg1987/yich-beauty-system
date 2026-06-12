@@ -1,6 +1,7 @@
 import { ClipboardList, LockKeyhole } from "lucide-react";
 import { type FormEvent, type PointerEvent, useEffect, useRef, useState } from "react";
 import type { PublicCustomerSignaturePayload } from "../../api/client";
+import { BrandIcon } from "../../components/business/BrandIcon";
 import { PanelTitle } from "../../components/layout/PanelTitle";
 import { money, shortDate } from "../../domain/utils";
 
@@ -125,7 +126,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
     <div className="public-store-page signature-page">
       <main className="public-store-shell">
         <section className="public-store-hero signature-hero">
-          <div className="public-store-mark">祝</div>
+          <BrandIcon className="public-store-mark brand-icon-mark" />
           <span>客户确认签名</span>
           <h1>{signature?.title ?? "客户服务确认"}</h1>
           <p>{payload?.customer ? `${payload.customer.name} · ${payload.customer.phone}` : "请核对服务内容后签名确认"}</p>

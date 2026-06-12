@@ -1,5 +1,6 @@
 import { CalendarDays, LockKeyhole, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { BrandIcon } from "../../components/business/BrandIcon";
 import { PanelTitle } from "../../components/layout/PanelTitle";
 import { DateTimeInput } from "../../components/ui/DateTimeInput";
 import { Select } from "../../components/ui/Select";
@@ -92,7 +93,7 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
     <div className="public-store-page">
       <main className="public-store-shell">
         <section className="public-store-hero">
-          <div className="public-store-mark">祝</div>
+          <BrandIcon className="public-store-mark brand-icon-mark" />
           <span>{payload?.store?.name ?? "祝融｜坤锋"}</span>
           <h1>{payload?.storefront.headline ?? "祝融｜坤锋美业门店系统"}</h1>
           <p>{payload?.storefront.description ?? "门店经营管理平台"}</p>
