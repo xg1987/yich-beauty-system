@@ -24,6 +24,7 @@ import {
   Minus,
   PackageMinus,
   PackagePlus,
+  Pencil,
   Plus,
   RefreshCw,
   Save,
@@ -7751,6 +7752,21 @@ function Customers({
   const [selectedCustomerId, setSelectedCustomerId] = useState(data.customers[0]?.id ?? "");
   const [customerDetailTab, setCustomerDetailTab] = useState<"overview" | "cards" | "records" | "signatures" | "followups">("overview");
   const [selectedSignatureId, setSelectedSignatureId] = useState("");
+  const [customerEditOpen, setCustomerEditOpen] = useState(false);
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [editCustomerPhone, setEditCustomerPhone] = useState("");
+  const [editCustomerSource, setEditCustomerSource] = useState("");
+  const [editCustomerLevel, setEditCustomerLevel] = useState("");
+  const [editCustomerBirthday, setEditCustomerBirthday] = useState("");
+  const [editCustomerTags, setEditCustomerTags] = useState("");
+  const [editCustomerNote, setEditCustomerNote] = useState("");
+  const [editCustomerReason, setEditCustomerReason] = useState("");
+  const [editingFollowUpId, setEditingFollowUpId] = useState("");
+  const [editFollowUpStaffId, setEditFollowUpStaffId] = useState("");
+  const [editFollowUpMethod, setEditFollowUpMethod] = useState<"电话" | "微信" | "到店">("微信");
+  const [editFollowUpDueAt, setEditFollowUpDueAt] = useState("");
+  const [editFollowUpNote, setEditFollowUpNote] = useState("");
+  const [editFollowUpReason, setEditFollowUpReason] = useState("");
   const cardAmountValue = editableNumberValue(cardAmount);
   const cardPaidAmountValue = editableNumberValue(cardPaidAmount);
   const cardTimesValue = editableNumberValue(cardTimes);
@@ -7770,6 +7786,64 @@ function Customers({
     void runMutation(() => actions.addCustomer({ name, phone }));
     setName("");
     setPhone("");
+  };
+
+  const parseCustomerTags = (value: string) =>
+    Array.from(new Set(value.split(/[，,、\s]+/).map((item) => item.trim()).filter(Boolean)));
+
+  const openCustomerEdit = (customer: AppData["customers"][number]) => {
+    setEditCustomerName(customer.name);
+    setEditCustomerPhone(customer.phone);
+    setEditCustomerSource(customer.source);
+    setEditCustomerLevel(customer.level);
+    setEditCustomerBirthday((customer.birthday ?? "").slice(0, 10));
+    setEditCustomerTags(customer.tags.join("，"));
+    setEditCustomerNote(customer.note ?? "");
+    setEditCustomerReason("");
+    setCustomerEditOpen(true);
+  };
+
+  const saveCustomerEdit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedCustomer) return;
+    const nextName = editCustomerName.trim();
+    const nextPhone = editCustomerPhone.trim();
+    if (!nextName || !nextPhone) return;
+    void runMutation(() =>
+      actions.updateCustomer(selectedCustomer.id, {
+        name: nextName,
+        phone: nextPhone,
+        level: editCustomerLevel.trim() || "普通会员",
+        source: editCustomerSource.trim() || "门店登记",
+        birthday: editCustomerBirthday,
+        tags: parseCustomerTags(editCustomerTags),
+        note: editCustomerNote.trim(),
+        reason: editCustomerReason.trim(),
+      }),
+    ).then(() => setCustomerEditOpen(false));
+  };
+
+  const openFollowUpEdit = (followUp: AppData["customerFollowUps"][number]) => {
+    setEditingFollowUpId(followUp.id);
+    setEditFollowUpStaffId(followUp.staffId);
+    setEditFollowUpMethod(followUp.method);
+    setEditFollowUpDueAt(toLocalInputValue(followUp.dueAt));
+    setEditFollowUpNote(followUp.note);
+    setEditFollowUpReason("");
+  };
+
+  const saveFollowUpEdit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingFollowUpId || !editFollowUpDueAt || !editFollowUpNote.trim()) return;
+    void runMutation(() =>
+      actions.updateFollowUp(editingFollowUpId, {
+        staffId: editFollowUpStaffId,
+        dueAt: new Date(editFollowUpDueAt).toISOString(),
+        method: editFollowUpMethod,
+        note: editFollowUpNote.trim(),
+        reason: editFollowUpReason.trim(),
+      }),
+    ).then(() => setEditingFollowUpId(""));
   };
 
   const changeCardCustomerMode = (value: CardCustomerMode) => {
@@ -8225,7 +8299,13 @@ function Customers({
                 <span className="customer-profile-avatar">{customerInitial}</span>
                 <div className="customer-profile-copy">
                   <span>{selectedCustomer.level || "普通会员"}</span>
-                  <strong>{selectedCustomer.name}</strong>
+                  <div className="customer-profile-title-row">
+                    <strong>{selectedCustomer.name}</strong>
+                    <button type="button" className="customer-edit-profile-button" onClick={() => openCustomerEdit(selectedCustomer)}>
+                      <Pencil size={15} />
+                      编辑资料
+                    </button>
+                  </div>
                   <small>{selectedCustomer.phone} · 来源 {selectedCustomer.source || "门店建档"} · 最近到店 {shortDate(selectedCustomer.lastVisit)}</small>
                   <div className="customer-profile-tags">
                     {(selectedCustomer.tags.length ? selectedCustomer.tags : ["门店客户"]).slice(0, 4).map((tag) => <i key={tag}>{tag}</i>)}
@@ -8320,9 +8400,9 @@ function Customers({
                   </section>
                   <section className="customer-info-card customer-advice-card">
                     <div className="customer-section-title">
-                      <strong>下次建议</strong>
+                      <strong>{selectedCustomer.note ? "客户备注" : "下次建议"}</strong>
                     </div>
-                    <p>{lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在跟进计划中补充客户状态和下次建议。"}</p>
+                    <p>{selectedCustomer.note || lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在跟进计划中补充客户状态和下次建议。"}</p>
                   </section>
                 </div>
               )}
@@ -8396,11 +8476,14 @@ function Customers({
                       followUp.method,
                       <Badge key={`${followUp.id}-status`} text={followUp.status} tone={followUp.status === "已完成" ? "ok" : "warn"} />,
                       followUp.note,
-                      followUp.status === "待跟进" ? (
-                        <button key={`${followUp.id}-done`} disabled={mutationPending} onClick={() => void runMutation(() => actions.completeFollowUp(followUp.id))}>
-                          {mutationPending ? "处理中..." : "完成"}
-                        </button>
-                      ) : "已完成",
+                      <span className="customer-followup-actions" key={`${followUp.id}-actions`}>
+                        <button type="button" disabled={mutationPending} onClick={() => openFollowUpEdit(followUp)}>编辑</button>
+                        {followUp.status === "待跟进" ? (
+                          <button type="button" disabled={mutationPending} onClick={() => void runMutation(() => actions.completeFollowUp(followUp.id))}>
+                            {mutationPending ? "处理中..." : "完成"}
+                          </button>
+                        ) : <span>已完成</span>}
+                      </span>,
                     ])}
                   />
                   {selectedCustomerFollowUps.length === 0 && <p className="customer-soft-empty">当前客户暂无跟进计划</p>}
@@ -8410,6 +8493,49 @@ function Customers({
           )}
         </section>
       </section>
+      <Modal
+        open={customerEditOpen && Boolean(selectedCustomer)}
+        title="编辑客户资料"
+        subtitle="姓名、手机号、来源、标签、生日和备注"
+        size="large"
+        onClose={() => setCustomerEditOpen(false)}
+      >
+        <form className="form customer-edit-form" onSubmit={saveCustomerEdit}>
+          <label>客户姓名<input value={editCustomerName} onChange={(event) => setEditCustomerName(event.target.value)} autoComplete="name" required /></label>
+          <label>手机号<input type="tel" inputMode="tel" value={editCustomerPhone} onChange={(event) => setEditCustomerPhone(event.target.value)} autoComplete="tel" required /></label>
+          <label>会员等级<input value={editCustomerLevel} onChange={(event) => setEditCustomerLevel(event.target.value)} placeholder="普通会员" /></label>
+          <label>生日<input type="date" value={editCustomerBirthday} onChange={(event) => setEditCustomerBirthday(event.target.value)} /></label>
+          <label>来源<input value={editCustomerSource} onChange={(event) => setEditCustomerSource(event.target.value)} placeholder="门店登记 / 开卡登记 / 老客转介绍" /></label>
+          <label>标签<input value={editCustomerTags} onChange={(event) => setEditCustomerTags(event.target.value)} placeholder="多个标签用逗号分隔" /></label>
+          <label className="span-2">客户备注<textarea value={editCustomerNote} onChange={(event) => setEditCustomerNote(event.target.value)} placeholder="客户皮肤状态、偏好、禁忌、沟通注意事项等" /></label>
+          <label className="span-2">修改说明<textarea value={editCustomerReason} onChange={(event) => setEditCustomerReason(event.target.value)} placeholder="例如：手机号录入错误，已核对客户本人。普通小改可简写。" /></label>
+          <p className="form-note span-2">保存后会记录修改人、时间、改动字段和修改说明。</p>
+          <div className="form-submit-row span-2">
+            <button type="button" onClick={() => setCustomerEditOpen(false)}>取消</button>
+            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editCustomerName.trim() || !editCustomerPhone.trim()} />
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={Boolean(editingFollowUpId)}
+        title="编辑跟进内容"
+        subtitle="只修改当前这条跟进记录"
+        size="medium"
+        onClose={() => setEditingFollowUpId("")}
+      >
+        <form className="form customer-edit-form" onSubmit={saveFollowUpEdit}>
+          <Select label="负责人" value={editFollowUpStaffId} onChange={setEditFollowUpStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增人员" }]} />
+          <Select label="跟进方式" value={editFollowUpMethod} onChange={(value) => setEditFollowUpMethod(value as "电话" | "微信" | "到店")} options={["微信", "电话", "到店"].map((item) => ({ value: item, label: item }))} />
+          <DateTimeInput label="计划跟进时间" value={editFollowUpDueAt} onChange={setEditFollowUpDueAt} />
+          <label>跟进内容<textarea value={editFollowUpNote} onChange={(event) => setEditFollowUpNote(event.target.value)} /></label>
+          <label className="span-2">修改说明<textarea value={editFollowUpReason} onChange={(event) => setEditFollowUpReason(event.target.value)} placeholder="例如：客户改约，跟进时间顺延。" /></label>
+          <p className="form-note span-2">保存后会记录修改人、时间、改动字段和修改说明。</p>
+          <div className="form-submit-row span-2">
+            <button type="button" onClick={() => setEditingFollowUpId("")}>取消</button>
+            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editFollowUpDueAt || !editFollowUpNote.trim()} />
+          </div>
+        </form>
+      </Modal>
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "客户档案"}

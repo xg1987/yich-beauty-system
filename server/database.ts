@@ -229,7 +229,7 @@ export class BeautyDatabase {
 
     for (const customer of data.customers) {
       this.db
-        .prepare("INSERT INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .prepare("INSERT INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, note, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .run(
           customer.id,
           customer.storeId ?? null,
@@ -239,6 +239,7 @@ export class BeautyDatabase {
           customer.points ?? 0,
           customer.birthday ?? null,
           customer.nextFollowUpAt ?? null,
+          customer.note ?? null,
           customer.source,
           JSON.stringify(customer.tags),
           customer.lastVisit,
@@ -862,6 +863,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("customers", "points", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("customers", "birthday", "TEXT");
     this.addColumnIfMissing("customers", "nextFollowUpAt", "TEXT");
+    this.addColumnIfMissing("customers", "note", "TEXT");
     this.addColumnIfMissing("services", "storeId", "TEXT");
     this.addColumnIfMissing("products", "storeId", "TEXT");
     this.addColumnIfMissing("appointments", "storeId", "TEXT");
@@ -917,6 +919,7 @@ function mapCustomer(row: unknown): Customer {
     points: value.points ?? 0,
     birthday: value.birthday ?? undefined,
     nextFollowUpAt: value.nextFollowUpAt ?? undefined,
+    note: value.note ?? undefined,
     tags: JSON.parse(value.tags_json) as string[],
   };
 }

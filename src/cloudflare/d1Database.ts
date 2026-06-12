@@ -463,7 +463,7 @@ export class D1BeautyDatabase {
 
     for (const customer of data.customers) {
       statements.push(
-        this.statement("INSERT INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, note, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           customer.id,
           customer.storeId ?? null,
           customer.name,
@@ -472,6 +472,7 @@ export class D1BeautyDatabase {
           customer.points ?? 0,
           customer.birthday ?? null,
           customer.nextFollowUpAt ?? null,
+          customer.note ?? null,
           customer.source,
           JSON.stringify(customer.tags),
           customer.lastVisit,
@@ -836,6 +837,7 @@ function mapCustomer(row: unknown): Customer {
     points: value.points ?? 0,
     birthday: value.birthday ?? undefined,
     nextFollowUpAt: value.nextFollowUpAt ?? undefined,
+    note: value.note ?? undefined,
     tags: JSON.parse(value.tags_json) as string[],
   };
 }

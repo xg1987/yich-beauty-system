@@ -72,7 +72,7 @@ import { hashPassword } from "../src/lib/password";
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
@@ -907,11 +907,15 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "customers:manage");
         const customerId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const body = await readJson(request);
+        const currentData = database.readData();
+        const currentCustomer = currentData.customers.find((customer) => customer.id === customerId);
+        if (!currentCustomer) throw new Error("客户不存在");
+        const summary = customerUpdateSummary(session.user.name, currentCustomer, body);
         const nextData = updateData(database, session, {
-          action: "更新客户标签",
+          action: "更新客户资料",
           targetType: "customer",
           targetId: customerId,
-          summary: `${session.user.name} 更新客户资料`,
+          summary,
         }, (data) => {
           if (!data.customers.some((customer) => customer.id === customerId)) throw new Error("客户不存在");
           return {
@@ -925,6 +929,8 @@ export function createApiServer(database = new BeautyDatabase()) {
                     level: optionalString(body, "level") ?? customer.level,
                     source: optionalString(body, "source") ?? customer.source,
                     tags: optionalStringArray(body, "tags") ?? customer.tags,
+                    birthday: patchText(body, "birthday", customer.birthday ?? "") || undefined,
+                    note: patchText(body, "note", customer.note ?? "") || undefined,
                   }
                 : customer,
             ),
@@ -1217,7 +1223,27 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "PATCH" && url.pathname.startsWith("/api/follow-ups/")) {
         requirePermission(session, "customers:manage");
         const followUpId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
-        const nextData = completeCustomerFollowUp(database.readData(), { followUpId });
+        const body = await readJson(request);
+        const currentData = database.readData();
+        const currentFollowUp = currentData.customerFollowUps.find((item) => item.id === followUpId);
+        if (!currentFollowUp) throw new Error("跟进记录不存在");
+        const hasEditFields = ["staffId", "dueAt", "method", "note", "reason"].some((key) => hasBodyKey(body, key));
+        const shouldComplete = optionalString(body, "status") === "已完成" || !hasEditFields;
+        const nextData = shouldComplete
+          ? addOperationLog(completeCustomerFollowUp(currentData, { followUpId }), {
+              userId: session.user.id,
+              action: "完成客户跟进",
+              targetType: "customerFollowUp",
+              targetId: followUpId,
+              summary: `${session.user.name} 完成客户跟进`,
+            })
+          : addOperationLog(updateCustomerFollowUpRecord(currentData, followUpId, body), {
+              userId: session.user.id,
+              action: "编辑客户跟进",
+              targetType: "customerFollowUp",
+              targetId: followUpId,
+              summary: followUpUpdateSummary(session.user.name, currentFollowUp, body),
+            });
         database.replaceData(nextData);
         sendScopedData(request, response, 200, nextData, session);
         return;
@@ -1516,6 +1542,62 @@ function updateData(
   const nextData = addOperationLog(updater(database.readData()), { userId: session.user.id, ...log });
   database.replaceData(nextData);
   return nextData;
+}
+
+function hasBodyKey(body: JsonBody, key: string) {
+  return Object.prototype.hasOwnProperty.call(body, key);
+}
+
+function bodyText(body: JsonBody, key: string) {
+  const value = body[key];
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
+function patchText(body: JsonBody, key: string, fallback: string) {
+  return hasBodyKey(body, key) ? bodyText(body, key) ?? fallback : fallback;
+}
+
+function customerUpdateSummary(userName: string, customer: Customer, body: JsonBody) {
+  const nextTags = optionalStringArray(body, "tags") ?? customer.tags;
+  const changed = [
+    patchText(body, "name", customer.name) !== customer.name ? "姓名" : "",
+    patchText(body, "phone", customer.phone) !== customer.phone ? "手机号" : "",
+    patchText(body, "level", customer.level) !== customer.level ? "会员等级" : "",
+    patchText(body, "source", customer.source) !== customer.source ? "来源" : "",
+    patchText(body, "birthday", customer.birthday ?? "") !== (customer.birthday ?? "") ? "生日" : "",
+    patchText(body, "note", customer.note ?? "") !== (customer.note ?? "") ? "备注" : "",
+    nextTags.join("、") !== customer.tags.join("、") ? "标签" : "",
+  ].filter(Boolean);
+  const reason = bodyText(body, "reason");
+  return `${userName} 更新客户资料：${changed.length ? changed.join("、") : "无字段变化"}${reason ? `；原因：${reason}` : ""}`;
+}
+
+function followUpUpdateSummary(userName: string, followUp: CustomerFollowUp, body: JsonBody) {
+  const changed = [
+    patchText(body, "staffId", followUp.staffId) !== followUp.staffId ? "负责人" : "",
+    patchText(body, "dueAt", followUp.dueAt) !== followUp.dueAt ? "计划时间" : "",
+    patchText(body, "method", followUp.method) !== followUp.method ? "跟进方式" : "",
+    patchText(body, "note", followUp.note) !== followUp.note ? "跟进内容" : "",
+  ].filter(Boolean);
+  const reason = bodyText(body, "reason");
+  return `${userName} 编辑客户跟进：${changed.length ? changed.join("、") : "无字段变化"}${reason ? `；原因：${reason}` : ""}`;
+}
+
+function updateCustomerFollowUpRecord(data: AppData, followUpId: string, body: JsonBody): AppData {
+  return {
+    ...data,
+    customerFollowUps: data.customerFollowUps.map((item) =>
+      item.id === followUpId
+        ? {
+            ...item,
+            staffId: patchText(body, "staffId", item.staffId),
+            dueAt: patchText(body, "dueAt", item.dueAt),
+            method: patchText(body, "method", item.method) as CustomerFollowUp["method"],
+            note: patchText(body, "note", item.note),
+          }
+        : item,
+    ),
+  };
 }
 
 function sessionStoreId(data: AppData, session: UserSession) {

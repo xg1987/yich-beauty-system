@@ -8850,11 +8850,35 @@ textarea,
   font-weight: 900;
 }
 
-.customer-profile-copy strong {
+.customer-profile-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.customer-profile-title-row strong {
   color: #2f255f;
   font-size: 34px;
   font-weight: 950;
   line-height: 1.05;
+}
+
+.customer-edit-profile-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #5a2da0;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 10px 22px rgba(79, 45, 130, 0.08);
 }
 
 .customer-profile-copy small {
@@ -8877,6 +8901,52 @@ textarea,
   min-width: 108px;
   padding: 0 13px;
   white-space: nowrap;
+}
+
+.customer-edit-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.customer-edit-form .span-2 {
+  grid-column: 1 / -1;
+}
+
+.customer-edit-form textarea {
+  min-height: 92px;
+}
+
+.customer-edit-form .form-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.customer-edit-form .form-submit-row > button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #4e2c8f;
+  font-weight: 850;
+}
+
+.customer-followup-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.customer-followup-actions button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #4e2c8f;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .customer-asset-grid {
@@ -9098,7 +9168,7 @@ textarea,
 }
 
 .theme-night .customer-directory-head strong,
-.theme-night .customer-profile-copy strong,
+.theme-night .customer-profile-title-row strong,
 .theme-night .customer-asset-grid strong,
 .theme-night .customer-card-stack strong,
 .theme-night .customer-timeline strong,
@@ -9141,6 +9211,8 @@ textarea,
 
 .theme-night .customer-directory-head button,
 .theme-night .customer-profile-actions button,
+.theme-night .customer-edit-profile-button,
+.theme-night .customer-followup-actions button,
 .theme-night .customer-section-title button,
 .theme-night .customer-detail-empty button {
   border-color: var(--night-border);
@@ -9241,8 +9313,20 @@ textarea,
     font-size: 26px;
   }
 
-  .customer-profile-copy strong {
+  .customer-profile-title-row {
+    flex-wrap: wrap;
+  }
+
+  .customer-profile-title-row strong {
     font-size: 28px;
+  }
+
+  .customer-edit-form {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-edit-form .span-2 {
+    grid-column: auto;
   }
 
   .customer-profile-actions button {

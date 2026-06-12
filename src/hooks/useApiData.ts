@@ -232,6 +232,7 @@ export function useApiData() {
     createCustomerSignature: client.createCustomerSignature,
     signCustomerSignature: client.signCustomerSignature,
     addFollowUp: client.addFollowUp,
+    updateFollowUp: client.updateFollowUp,
     completeFollowUp: client.completeFollowUp,
     addService: client.addService,
     updateServiceConsumables: client.updateServiceConsumables,

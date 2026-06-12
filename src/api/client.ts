@@ -263,7 +263,7 @@ export function createApiClient(getToken: () => string | undefined) {
       }),
     addCustomer: (body: { name: string; phone: string }) =>
       request<AppData>("/api/customers", { method: "POST", body, token: getToken() }),
-    updateCustomer: (customerId: string, body: { name?: string; phone?: string; level?: string; source?: string; tags?: string[] }) =>
+    updateCustomer: (customerId: string, body: { name?: string; phone?: string; level?: string; source?: string; tags?: string[]; birthday?: string; note?: string; reason?: string }) =>
       request<AppData>(`/api/customers/${encodeURIComponent(customerId)}`, { method: "PATCH", body, token: getToken() }),
     createTag: (body: { name: string; scope: TagScope; color?: string }) =>
       request<AppData>("/api/tags", { method: "POST", body, token: getToken() }),
@@ -345,8 +345,10 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/customer-signatures/${encodeURIComponent(signatureId)}/sign`, { method: "POST", body, token: getToken() }),
     addFollowUp: (body: { customerId: string; staffId: string; dueAt: string; method: "电话" | "微信" | "到店"; note: string }) =>
       request<AppData>("/api/follow-ups", { method: "POST", body, token: getToken() }),
+    updateFollowUp: (followUpId: string, body: { staffId?: string; dueAt?: string; method?: "电话" | "微信" | "到店"; note?: string; reason?: string }) =>
+      request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", body, token: getToken() }),
     completeFollowUp: (followUpId: string) =>
-      request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", token: getToken() }),
+      request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", body: { status: "已完成" }, token: getToken() }),
     addService: (body: { name: string; price: number; category?: string; duration?: number; defaultTimes?: number; consumables?: ServiceConsumable[]; consumableProductId?: string; consumableQty?: number }) =>
       request<AppData>("/api/services", { method: "POST", body, token: getToken() }),
     updateServiceConsumables: (serviceId: string, consumables: ServiceConsumable[]) =>

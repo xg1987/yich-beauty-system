@@ -547,10 +547,14 @@ try {
   const afterCustomerTags = await request<AppData>(baseUrl, `/api/customers/${afterCustomer.customers[0].id}`, {
     method: "PATCH",
     token: session.token,
-    body: { level: "VIP", source: "转介绍", tags: ["敏感肌", "高消费"] },
+    body: { level: "VIP", source: "转介绍", tags: ["敏感肌", "高消费"], birthday: "1990-05-20", note: "API 客户备注", reason: "API 修正客户资料" },
   });
   assert.equal(afterCustomerTags.customers[0].level, "VIP", "customer API should update member level");
+  assert.equal(afterCustomerTags.customers[0].birthday, "1990-05-20", "customer API should update birthday");
+  assert.equal(afterCustomerTags.customers[0].note, "API 客户备注", "customer API should update profile note");
   assert.deepEqual(afterCustomerTags.customers[0].tags, ["敏感肌", "高消费"], "customer API should update tags");
+  assert.equal(afterCustomerTags.operationLogs[0].action, "更新客户资料", "customer update should write operation log");
+  assert.match(afterCustomerTags.operationLogs[0].summary, /API 修正客户资料/, "customer update log should include edit reason");
   const afterTag = await request<AppData>(baseUrl, "/api/tags", {
     method: "POST",
     token: session.token,
@@ -1053,6 +1057,15 @@ try {
   assert.equal(afterServiceRecord.customerServiceRecords[0].nextCareAdvice, "API 加强保湿防晒", "service record API should persist next care advice");
   assert.match(afterServiceRecord.customerFollowUps[0].note, /API 加强保湿防晒/, "service record API follow-up should use next care advice");
   assert.equal(afterServiceRecord.notifications[0].targetId, afterServiceRecord.customerFollowUps[0].id, "service record should create follow-up notification");
+  const afterFollowUpEdit = await request<AppData>(baseUrl, `/api/follow-ups/${afterServiceRecord.customerFollowUps[0].id}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { method: "电话", note: "API 修改后的跟进内容", reason: "API 修正跟进内容" },
+  });
+  assert.equal(afterFollowUpEdit.customerFollowUps[0].method, "电话", "follow-up API should update method");
+  assert.equal(afterFollowUpEdit.customerFollowUps[0].note, "API 修改后的跟进内容", "follow-up API should update note");
+  assert.equal(afterFollowUpEdit.operationLogs[0].action, "编辑客户跟进", "follow-up update should write operation log");
+  assert.match(afterFollowUpEdit.operationLogs[0].summary, /API 修正跟进内容/, "follow-up update log should include edit reason");
   const afterSignature = await request<AppData>(baseUrl, "/api/customer-signatures", {
     method: "POST",
     token: session.token,

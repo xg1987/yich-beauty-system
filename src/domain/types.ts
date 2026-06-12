@@ -188,6 +188,7 @@ export type Customer = {
   points?: number;
   birthday?: string;
   nextFollowUpAt?: string;
+  note?: string;
   source: string;
   tags: string[];
   lastVisit: string;
