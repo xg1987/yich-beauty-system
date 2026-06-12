@@ -6286,6 +6286,8 @@ function Pos({
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
+  const [cardCustomerBirthday, setCardCustomerBirthday] = useState("");
+  const [cardCustomerNote, setCardCustomerNote] = useState("");
   const [cardName, setCardName] = useState(DEFAULT_PROJECT_CARD_NAME);
   const [cardType, setCardType] = useState<CardType>("储值卡");
   const [cardAmount, setCardAmount] = useState<EditableNumber>(5000);
@@ -6840,6 +6842,8 @@ function Pos({
     cardCustomerDraftTouchedRef.current = false;
     setCardCustomerName("");
     setCardCustomerPhone("");
+    setCardCustomerBirthday("");
+    setCardCustomerNote("");
     if (cardCustomerNameInputRef.current) cardCustomerNameInputRef.current.value = "";
     if (cardCustomerPhoneInputRef.current) cardCustomerPhoneInputRef.current.value = "";
   };
@@ -6874,6 +6878,8 @@ function Pos({
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
       const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
+      const submittedCustomerBirthday = cardCustomerMode === "new" ? cardCustomerBirthday.trim() : "";
+      const submittedCustomerNote = cardCustomerMode === "new" ? cardCustomerNote.trim() : "";
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
@@ -6886,6 +6892,8 @@ function Pos({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? submittedCustomerName : undefined,
         customerPhone: cardCustomerMode === "new" ? submittedCustomerPhone : undefined,
+        customerBirthday: submittedCustomerBirthday || undefined,
+        customerNote: submittedCustomerNote || undefined,
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmountValue : 0,
@@ -7135,6 +7143,8 @@ function Pos({
             <>
               <label>客户姓名<input ref={cardCustomerNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
               <label>客户手机号<input ref={cardCustomerPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
+              <label>客户生日（选填）<input type="date" value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(event.target.value)} /></label>
+              <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
@@ -7700,6 +7710,8 @@ function Customers({
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
+  const [cardCustomerBirthday, setCardCustomerBirthday] = useState("");
+  const [cardCustomerNote, setCardCustomerNote] = useState("");
   const [cardName, setCardName] = useState(DEFAULT_PROJECT_CARD_NAME);
   const [cardType, setCardType] = useState<CardType>("储值卡");
   const [cardAmount, setCardAmount] = useState<EditableNumber>(5000);
@@ -7869,6 +7881,8 @@ function Customers({
     customerCardDraftTouchedRef.current = false;
     setCardCustomerName("");
     setCardCustomerPhone("");
+    setCardCustomerBirthday("");
+    setCardCustomerNote("");
     if (customerCardNameInputRef.current) customerCardNameInputRef.current.value = "";
     if (customerCardPhoneInputRef.current) customerCardPhoneInputRef.current.value = "";
   };
@@ -7888,6 +7902,8 @@ function Customers({
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
       const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
+      const submittedCustomerBirthday = cardCustomerMode === "new" ? cardCustomerBirthday.trim() : "";
+      const submittedCustomerNote = cardCustomerMode === "new" ? cardCustomerNote.trim() : "";
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
@@ -7910,6 +7926,8 @@ function Customers({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? submittedCustomerName : undefined,
         customerPhone: cardCustomerMode === "new" ? submittedCustomerPhone : undefined,
+        customerBirthday: submittedCustomerBirthday || undefined,
+        customerNote: submittedCustomerNote || undefined,
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmountValue : 0,
@@ -8567,6 +8585,8 @@ function Customers({
             <>
               <label>客户姓名<input ref={customerCardNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
               <label>客户手机号<input ref={customerCardPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
+              <label>客户生日（选填）<input type="date" value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(event.target.value)} /></label>
+              <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />

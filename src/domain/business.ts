@@ -745,6 +745,8 @@ export type OpenMemberCardInput = {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerBirthday?: string;
+  customerNote?: string;
   name?: string;
   type?: MemberCard["type"];
   balance?: number;
@@ -2951,6 +2953,8 @@ export function openMemberCard(
   if (!existingCustomer) {
     const customerName = trimText(input.customerName);
     const customerPhone = trimText(input.customerPhone);
+    const customerBirthday = trimText(input.customerBirthday);
+    const customerNote = trimText(input.customerNote);
     if (!customerName || !customerPhone) throw new Error("开卡需要登记客户姓名和手机号");
     const matchedCustomer = data.customers.find((customer) => customer.phone === customerPhone);
     if (matchedCustomer) {
@@ -2965,6 +2969,8 @@ export function openMemberCard(
         level: "普通会员",
         source: "开卡登记",
         tags: ["新客", "会员"],
+        birthday: customerBirthday || undefined,
+        note: customerNote || undefined,
         lastVisit: createdAt,
       };
       customers = [customer, ...customers];

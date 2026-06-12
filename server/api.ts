@@ -990,6 +990,8 @@ export function createApiServer(database = new BeautyDatabase()) {
           customerId: optionalString(body, "customerId"),
           customerName: optionalString(body, "customerName"),
           customerPhone: optionalString(body, "customerPhone"),
+          customerBirthday: optionalString(body, "customerBirthday"),
+          customerNote: optionalString(body, "customerNote"),
           name: optionalString(body, "name"),
           type: optionalString(body, "type") as "储值卡" | "次数卡" | "套餐卡" | "折扣卡" | undefined,
           balance: optionalNumber(body, "balance"),

@@ -935,6 +935,25 @@ try {
   assert.equal(afterOpenCard.memberCardTransactions[0].paidAmount, 500, "open card API should persist paid amount");
   assert.equal(afterOpenCard.memberCardTransactions[0].payMethod, "微信", "open card API should persist payment method");
   assert.equal(afterOpenCard.memberCardTransactions[0].staffId, "s1", "open card API should persist current staff");
+  const afterOpenNewCustomerCard = await request<AppData>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerName: "API 开卡新客",
+      customerPhone: "13600000999",
+      customerBirthday: "1995-09-09",
+      customerNote: "API 开卡登记客户备注",
+      type: "储值卡",
+      balance: 300,
+      remainingTimes: 0,
+      paidAmount: 300,
+      payMethod: "现金",
+      expiresAt: "2027-12-31",
+    },
+  });
+  const openCardCustomer = afterOpenNewCustomerCard.customers.find((customer) => customer.phone === "13600000999");
+  assert.equal(openCardCustomer?.birthday, "1995-09-09", "open card API should persist new customer birthday");
+  assert.equal(openCardCustomer?.note, "API 开卡登记客户备注", "open card API should persist new customer note");
   const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,

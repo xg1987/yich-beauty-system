@@ -273,6 +273,8 @@ export function createApiClient(getToken: () => string | undefined) {
       customerId?: string;
       customerName?: string;
       customerPhone?: string;
+      customerBirthday?: string;
+      customerNote?: string;
       name?: string;
       type?: "储值卡" | "次数卡" | "套餐卡" | "折扣卡";
       balance: number;
