@@ -31,23 +31,43 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
   const isOwnerInvite = isPlatformInviteCodeFormat(inviteCode);
   const isPendingApprovalLogin = mode === "login" && error?.includes("等待店长审批");
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setJoinNotice(undefined);
     if (mode === "login") {
       void onLogin(account.trim(), password);
       return;
     }
+
+    const formData = new FormData(event.currentTarget);
+    const formString = (key: string, fallback: string) => {
+      const value = formData.get(key);
+      return typeof value === "string" ? value : fallback;
+    };
+    const submittedInviteCode = formString("inviteCode", inviteCode).trim();
+    const submittedName = formString("name", joinName).trim();
+    const submittedPassword = formString("password", password);
+    const submittedStoreName = formString("storeName", joinStoreName).trim();
+    const submittedPhone = formString("phone", joinPhone).trim();
+    const submittedAddress = formString("address", joinAddress).trim();
+    const submittedAccount = formString("account", joinAccount).trim();
+    const submittedIsOwnerInvite = isPlatformInviteCodeFormat(submittedInviteCode);
+
+    if (!submittedName) {
+      setJoinNotice("请填写姓名");
+      return;
+    }
+
     let result: JoinInviteResult;
     try {
       result = await onJoin({
-        inviteCode,
-        name: joinName,
-        password,
-        storeName: isOwnerInvite ? joinStoreName : undefined,
-        phone: isOwnerInvite ? joinPhone : undefined,
-        address: isOwnerInvite ? joinAddress : undefined,
-        account: joinAccount,
+        inviteCode: submittedInviteCode,
+        name: submittedName,
+        password: submittedPassword,
+        storeName: submittedIsOwnerInvite ? submittedStoreName : undefined,
+        phone: submittedIsOwnerInvite ? submittedPhone : undefined,
+        address: submittedIsOwnerInvite ? submittedAddress : undefined,
+        account: submittedAccount,
       });
     } catch {
       return;
@@ -92,21 +112,21 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
             )}
             {mode === "join" ? (
               <>
-                <label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" /></label>
-                <label>姓名<input value={joinName} onChange={(event) => setJoinName(event.target.value)} autoComplete="name" placeholder="请输入姓名" /></label>
+                <label>邀请码<input name="inviteCode" value={inviteCode} onInput={(event) => setInviteCode(event.currentTarget.value)} onChange={(event) => setInviteCode(event.target.value)} placeholder="请输入门店发放的邀请码" required /></label>
+                <label>姓名<input name="name" value={joinName} onInput={(event) => setJoinName(event.currentTarget.value)} onChange={(event) => setJoinName(event.target.value)} onCompositionEnd={(event) => setJoinName(event.currentTarget.value)} autoComplete="name" placeholder="请输入姓名" required /></label>
                 {isOwnerInvite && (
                   <>
-                    <label>门店名称<input value={joinStoreName} onChange={(event) => setJoinStoreName(event.target.value)} placeholder="请输入门店名称" required /></label>
-                    <label>联系电话<input type="tel" inputMode="tel" autoComplete="tel" value={joinPhone} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required /></label>
-                    <label>门店地址<input value={joinAddress} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" /></label>
+                    <label>门店名称<input name="storeName" value={joinStoreName} onInput={(event) => setJoinStoreName(event.currentTarget.value)} onChange={(event) => setJoinStoreName(event.target.value)} placeholder="请输入门店名称" required /></label>
+                    <label>联系电话<input name="phone" type="tel" inputMode="tel" autoComplete="tel" value={joinPhone} onInput={(event) => setJoinPhone(event.currentTarget.value)} onChange={(event) => setJoinPhone(event.target.value)} placeholder="请输入门店联系电话" required /></label>
+                    <label>门店地址<input name="address" value={joinAddress} onInput={(event) => setJoinAddress(event.currentTarget.value)} onChange={(event) => setJoinAddress(event.target.value)} placeholder="请输入门店地址" /></label>
                   </>
                 )}
-                <label>{isOwnerInvite ? "店长登录账号" : "登录账号"}<input value={joinAccount} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
+                <label>{isOwnerInvite ? "店长登录账号" : "登录账号"}<input name="account" value={joinAccount} onInput={(event) => setJoinAccount(event.currentTarget.value)} onChange={(event) => setJoinAccount(event.target.value)} placeholder="手机号或邮箱" required /></label>
               </>
             ) : (
               <label>
                 账号
-                <input value={account} onChange={(event) => setAccount(event.target.value)} />
+                <input name="account" value={account} onChange={(event) => setAccount(event.target.value)} />
                 {isPendingApprovalLogin && (
                   <span className="login-field-notice" role="alert" aria-live="assertive">
                     等待店长审批，通过后即可登录
@@ -116,7 +136,7 @@ export default function LoginPage({ onLogin, onJoin, authenticate, loading, erro
             )}
             <label>
               密码
-              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
+              <input name="password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" required />
             </label>
             <button className="primary-button" disabled={loading}>
               <LockKeyhole size={17} />
