@@ -65,6 +65,7 @@ export function buildSession(token: string, user: AuthUser, systemConfigs?: Syst
       avatarUrl: user.avatarUrl,
       role,
       roleName: effectiveRoleNameForUser(user),
+      storeId: role === "superadmin" ? undefined : user.storeId,
       staffId: user.staffId,
       permissions: permissionsForRole(role, systemConfigs),
     },

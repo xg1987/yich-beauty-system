@@ -3,9 +3,9 @@ import { createApiClient, setActiveDataScope, type JoinInviteResult } from "../a
 import { normalizeUserSession, type UserSession } from "../domain/auth";
 import { emptyAppData, isAppDataSlice, isViewKey, type AppDataUpdate } from "../domain/dataSlices";
 import type { AppData, ViewKey } from "../domain/types";
+import { clearCachedStoreName } from "../lib/storeNameCache";
 
 const SESSION_KEY = "yich-system-session";
-const STORE_NAME_KEY = "yich-store-name";
 
 function initialDataView(): ViewKey {
   const requestedView = new URLSearchParams(window.location.search).get("view");
@@ -94,7 +94,7 @@ export function useApiData() {
 
   const logout = () => {
     localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(STORE_NAME_KEY);
+    clearCachedStoreName(session);
     setSession(undefined);
     setData(undefined);
     setError(undefined);
@@ -114,7 +114,7 @@ export function useApiData() {
       const message = caught instanceof Error ? caught.message : "加载数据失败";
       if (message.includes("请先登录")) {
         localStorage.removeItem(SESSION_KEY);
-        localStorage.removeItem(STORE_NAME_KEY);
+        clearCachedStoreName(session);
         setSession(undefined);
         setData(undefined);
         setError(undefined);

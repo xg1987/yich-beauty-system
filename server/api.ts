@@ -1519,7 +1519,15 @@ function updateData(
 }
 
 function sessionStoreId(data: AppData, session: UserSession) {
-  return storeIdForUser(normalizeStoreScopedData(data), session.user);
+  if (session.user.role === "superadmin") return undefined;
+  const storeExists = (storeId: string | undefined) => Boolean(storeId && data.storeProfiles.some((store) => store.id === storeId));
+  if (storeExists(session.user.storeId)) return session.user.storeId;
+  const authUser = data.authUsers.find((user) => user.id === session.user.id);
+  if (storeExists(authUser?.storeId)) return authUser?.storeId;
+  const staffId = session.user.staffId ?? authUser?.staffId;
+  const staff = staffId ? data.staff.find((item) => item.id === staffId) : undefined;
+  if (storeExists(staff?.storeId)) return staff?.storeId;
+  throw new Error("账号未绑定门店，请联系管理员处理");
 }
 
 function assertCanManageAuthUser(data: AppData, session: UserSession, userId: string) {
@@ -1528,7 +1536,7 @@ function assertCanManageAuthUser(data: AppData, session: UserSession, userId: st
   const user = normalizedData.authUsers.find((item) => item.id === userId);
   if (!user) throw new Error("账号不存在");
   if (user.role === "superadmin" || user.role === "owner") throw new Error("店长只能管理员工账号");
-  const currentStoreId = sessionStoreId(normalizedData, session);
+  const currentStoreId = sessionStoreId(data, session);
   const targetStoreId = storeIdForUser(normalizedData, user);
   if (!currentStoreId || !targetStoreId || currentStoreId !== targetStoreId) throw new Error("只能管理本门店员工账号");
 }
@@ -1541,7 +1549,7 @@ function assertCanManageStaff(data: AppData, session: UserSession, staffId: stri
   if (staff.role === "老板") throw new Error("不能删除老板档案");
   const linkedUser = normalizedData.authUsers.find((user) => user.staffId === staff.id || staff.accountId === user.id);
   if (linkedUser?.role === "superadmin" || linkedUser?.role === "owner") throw new Error("店长只能管理员工账号");
-  const currentStoreId = sessionStoreId(normalizedData, session);
+  const currentStoreId = sessionStoreId(data, session);
   const targetStoreId = staff.storeId ?? (linkedUser ? storeIdForUser(normalizedData, linkedUser) : undefined);
   if (!currentStoreId || !targetStoreId || currentStoreId !== targetStoreId) throw new Error("只能管理本门店员工");
 }
@@ -1633,7 +1641,7 @@ function shortTimeText(value: string) {
 
 function scopeDataForSession(data: AppData, session: UserSession): AppData {
   const normalizedData = normalizeStoreScopedData(data);
-  const currentStoreId = storeIdForUser(normalizedData, session.user);
+  const currentStoreId = session.user.role === "superadmin" ? undefined : sessionStoreId(data, session);
   const sessionData = session.user.role === "superadmin"
     ? normalizedData
     : scopeDataToStore(normalizedData, currentStoreId);

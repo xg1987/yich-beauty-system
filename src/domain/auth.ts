@@ -28,6 +28,7 @@ export type UserSession = {
     avatarUrl?: string;
     role: RoleKey;
     roleName: string;
+    storeId?: string;
     staffId?: string;
     permissions: Permission[];
   };

@@ -68,6 +68,7 @@ import {
 import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StoreAiUsagePermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
+import { readCachedStoreName, writeCachedStoreName } from "../lib/storeNameCache";
 import packageJson from "../../package.json";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "card" | "customers" | "marketing" | "reports" | "accounts" | "logs" | "admin";
@@ -138,9 +139,8 @@ const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", 
 const MutationPendingContext = createContext(false);
 
 const THEME_KEY = "yich-system-theme";
-const STORE_NAME_KEY = "yich-store-name";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-11";
+const APP_BUILD_DATE = "2026-06-12";
 const DEFAULT_SYSTEM_TITLE = "祝融｜坤锋美业门店系统";
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES);
@@ -493,10 +493,6 @@ function firstActiveStaffId(data: AppData) {
 
 function primaryStoreName(data: AppData) {
   return data.storeProfiles[0]?.name?.trim() || "";
-}
-
-function cachedStoreName() {
-  return localStorage.getItem(STORE_NAME_KEY)?.trim() || "";
 }
 
 function normalizedAccount(account: string) {
@@ -997,14 +993,10 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   }, [session, data, error]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || !session) return;
     const nextStoreName = primaryStoreName(data);
-    if (nextStoreName) {
-      localStorage.setItem(STORE_NAME_KEY, nextStoreName);
-    } else {
-      localStorage.removeItem(STORE_NAME_KEY);
-    }
-  }, [data]);
+    writeCachedStoreName(session, session.user.role === "superadmin" ? "" : nextStoreName);
+  }, [data, session?.user.id, session?.user.role]);
 
   useEffect(() => {
     if (!session) {
@@ -1050,7 +1042,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   if (!data) {
     return (
       <LoadingGate
-        storeName={cachedStoreName()}
+        storeName={readCachedStoreName(session)}
         stage={loadingGateStage}
         loading={loading}
         error={error}
