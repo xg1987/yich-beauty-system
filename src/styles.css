@@ -18927,12 +18927,41 @@ textarea,
     grid-template-columns: 1fr;
   }
 
+  .catalog-edit-form .form-submit-row {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .catalog-edit-form .form-submit-row > button,
+  .catalog-edit-form .form-submit-row .primary-button {
+    width: 100%;
+    min-height: 46px;
+  }
+
   .inventory-loss-form {
     grid-template-columns: 1fr;
   }
 
   .catalog-product-filter-row {
     grid-template-columns: 1fr;
+  }
+
+  .catalog-product-results {
+    grid-template-columns: 1fr;
+    max-height: 240px;
+  }
+
+  .catalog-product-result {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-product-result span {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .catalog-product-tags .catalog-product-usage-chip {
+    width: 100%;
   }
 
   .module-panel-actions {
