@@ -15,6 +15,7 @@ export type ViewKey =
   | "platformConfig"
   | "aiConfig"
   | "aiTest"
+  | "storeCustomerDetails"
   | "usage"
   | "roomSettings"
   | "settings";

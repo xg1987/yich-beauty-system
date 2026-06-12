@@ -445,6 +445,7 @@ const viewTitles: Record<ViewKey, string> = {
   platformConfig: "平台配置",
   aiConfig: "AI 能力配置",
   aiTest: "AI 智能测试中心",
+  storeCustomerDetails: "分店客户明细",
   usage: "服务器用量监控",
   roomSettings: "房间设置",
   settings: "管理中心",
@@ -829,7 +830,7 @@ const workbarItems: WorkbarItem[] = [
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
-const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "logs", "usage", "settings"]);
+const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "storeCustomerDetails", "logs", "usage", "settings"]);
 
 const employeeWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
@@ -924,6 +925,7 @@ const MemoPlatformPermissionReadOnlyView = memo(PlatformPermissionReadOnlyView);
 const MemoPlatformSystemConfigView = memo(PlatformSystemConfigView);
 const MemoPlatformAiConfigView = memo(PlatformAiConfigView);
 const MemoPlatformAiTestCenterView = memo(PlatformAiTestCenterView);
+const MemoPlatformStoreCustomerDetailsView = memo(PlatformStoreCustomerDetailsView);
 const MemoPlatformUsageReadOnlyView = memo(PlatformUsageReadOnlyView);
 const MemoRoomSettings = memo(RoomSettings);
 const LazyReports = lazy(() => import("../pages/shared/Reports"));
@@ -1189,6 +1191,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             {activeView === "platformConfig" && <MemoPlatformSystemConfigView data={data} actions={actions} runMutation={runMutation} />}
             {activeView === "aiConfig" && <MemoPlatformAiConfigView data={data} setView={navigate} actions={actions} runMutation={runMutation} />}
             {activeView === "aiTest" && <MemoPlatformAiTestCenterView data={data} setView={navigate} actions={actions} />}
+            {activeView === "storeCustomerDetails" && <MemoPlatformStoreCustomerDetailsView data={data} setView={navigate} showBack={showAdminDetailBack} />}
             {activeView === "usage" && <MemoPlatformUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} fetchR2Usage={actions.fetchR2Usage} fetchWorkerUsage={actions.fetchWorkerUsage} />}
             {activeView === "roomSettings" && <MemoRoomSettings data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "settings" && (
@@ -1301,6 +1304,7 @@ function ManagementCenter({
     { title: "AI 能力配置", desc: "文案 / 图片 / 视频模型与成本", icon: Sparkles, tone: "plum", view: "aiConfig" },
     { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "AI 智能测试中心", desc: "聊天 / 图片 / 视频接口试跑", icon: MessageCircle, tone: "plum", view: "aiTest" },
+    { title: "分店客户明细", desc: "客户业务 / 消费明细", icon: UsersRound, tone: "violet", view: "storeCustomerDetails" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
   ];
@@ -4002,6 +4006,228 @@ function PlatformDataReadOnlyView({ data, setView, showBack }: { data: AppData; 
   );
 }
 
+function PlatformStoreCustomerDetailsView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  const [expandedStoreIds, setExpandedStoreIds] = useState<Set<string>>(new Set());
+  const today = new Date();
+  const isToday = (value: string) => new Date(value).toDateString() === today.toDateString();
+  const belongsToStore = (storeId: string, itemStoreId?: string) => itemStoreId === storeId || (!itemStoreId && data.storeProfiles.length === 1);
+  const toggleStore = (storeId: string) => {
+    setExpandedStoreIds((current) => {
+      const next = new Set(current);
+      if (next.has(storeId)) next.delete(storeId);
+      else next.add(storeId);
+      return next;
+    });
+  };
+  const orderProductText = (order: Order) => {
+    const productItems = order.productItems?.map((item) => `${nameOf(data.products, item.productId)} x ${formatStockQuantity(item.quantity)}`) ?? [];
+    const giftItems = order.giftProductItems?.map((item) => `赠 ${nameOf(data.products, item.productId)} x ${formatStockQuantity(item.quantity)}`) ?? [];
+    const legacyProduct = order.productId ? [nameOf(data.products, order.productId)] : [];
+    const legacyGift = order.giftProductId ? [`赠 ${nameOf(data.products, order.giftProductId)}`] : [];
+    return [...productItems, ...giftItems, ...legacyProduct, ...legacyGift].join("、") || "-";
+  };
+  const storeSummaries = data.storeProfiles.map((store) => {
+    const customers = data.customers.filter((customer) => belongsToStore(store.id, customer.storeId));
+    const orders = data.orders.filter((order) => belongsToStore(store.id, order.storeId));
+    const appointments = data.appointments.filter((appointment) => belongsToStore(store.id, appointment.storeId));
+    const memberCards = data.memberCards.filter((card) => belongsToStore(store.id, card.storeId));
+    const serviceRecords = data.customerServiceRecords.filter((record) => belongsToStore(store.id, record.storeId));
+    const refunds = data.refunds.filter((refund) => belongsToStore(store.id, refund.storeId));
+    const revenue = orders.filter((order) => order.status !== "已退款").reduce((sum, order) => sum + order.paidAmount, 0);
+    return { store, customers, orders, appointments, memberCards, serviceRecords, refunds, revenue };
+  });
+  const totalRevenue = storeSummaries.reduce((sum, item) => sum + item.revenue, 0);
+
+  return (
+    <div className="admin-center-page platform-admin-page store-customer-detail-page">
+      {showBack && <PlatformPageTitle title="分店客户明细" onBack={() => setView("settings")} />}
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><UsersRound size={15} /> 分店客户明细</span>
+          <h1>客户业务记录</h1>
+          <p>按门店折叠查看客户做过的业务、消费、预约、会员卡和服务档案。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="门店数" value={`${data.storeProfiles.length} 家`} hint="默认折叠" />
+          <StatCard title="客户数" value={`${data.customers.length} 人`} hint="客户档案" />
+          <StatCard title="实收汇总" value={money(totalRevenue)} hint={`${data.orders.length} 个订单`} />
+        </div>
+      </section>
+
+      <section className="store-customer-list" aria-label="分店客户业务明细">
+        {storeSummaries.map(({ store, customers, orders, appointments, memberCards, serviceRecords, refunds, revenue }) => {
+          const expanded = expandedStoreIds.has(store.id);
+          const todayOrders = orders.filter((order) => isToday(order.createdAt));
+          const todayAppointments = appointments.filter((appointment) => isToday(appointment.startAt));
+          const activeCards = memberCards.filter((card) => card.status === "正常");
+          const customerRows = customers
+            .slice()
+            .sort((a, b) => +new Date(b.lastVisit) - +new Date(a.lastVisit))
+            .map((customer) => {
+              const customerOrders = orders.filter((order) => order.customerId === customer.id).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+              const customerAppointments = appointments.filter((appointment) => appointment.customerId === customer.id).sort((a, b) => +new Date(b.startAt) - +new Date(a.startAt));
+              const customerCards = memberCards.filter((card) => card.customerId === customer.id);
+              const customerCardTransactions = data.memberCardTransactions
+                .filter((transaction) => customerCards.some((card) => card.id === transaction.memberCardId) || customerOrders.some((order) => order.id === transaction.orderId))
+                .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+              const customerServiceRecords = serviceRecords.filter((record) => record.customerId === customer.id).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+              const customerSignatures = data.customerSignatures
+                .filter((signature) => signature.customerId === customer.id)
+                .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+              const customerFollowUps = data.customerFollowUps
+                .filter((followUp) => followUp.customerId === customer.id)
+                .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+              const customerRefunds = refunds.filter((refund) => customerOrders.some((order) => order.id === refund.orderId));
+              const paidAmount = customerOrders.filter((order) => order.status !== "已退款").reduce((sum, order) => sum + order.paidAmount, 0);
+              const latestBusiness = [
+                ...customerOrders.map((order) => ({ at: order.createdAt, text: `订单 ${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}` })),
+                ...customerAppointments.map((appointment) => ({ at: appointment.startAt, text: `预约 ${appointment.status} · ${appointmentServiceNames(data, appointment)} · ${appointment.roomName || "未分配房间"}` })),
+                ...customerServiceRecords.map((record) => ({ at: record.createdAt, text: `服务档案 · ${nameOf(data.services, record.serviceId)} · ${nameOf(data.staff, record.staffId)}` })),
+                ...customerCardTransactions.map((transaction) => ({ at: transaction.createdAt, text: `会员卡${transaction.type} · ${money(transaction.paidAmount ?? 0)} · ${transaction.note || "-"}` })),
+                ...customerFollowUps.map((followUp) => ({ at: followUp.createdAt, text: `跟进${followUp.status} · ${followUp.method} · ${followUp.note}` })),
+              ].sort((a, b) => +new Date(b.at) - +new Date(a.at))[0]?.text ?? "暂无业务记录";
+              return {
+                customer,
+                customerOrders,
+                customerAppointments,
+                customerCards,
+                customerCardTransactions,
+                customerServiceRecords,
+                customerSignatures,
+                customerFollowUps,
+                customerRefunds,
+                paidAmount,
+                latestBusiness,
+              };
+            });
+
+          return (
+            <section key={store.id} className="store-customer-accordion">
+              <button type="button" className="store-customer-toggle" onClick={() => toggleStore(store.id)} aria-expanded={expanded}>
+                <span className="store-customer-toggle-icon">{expanded ? <Minus size={17} /> : <Plus size={17} />}</span>
+                <span className="store-customer-title">
+                  <strong>{store.name}</strong>
+                  <small>{store.address || "未填写地址"} · {store.phone || "未填写电话"}</small>
+                </span>
+                <span className="store-customer-metrics">
+                  <span>{customers.length} 客户</span>
+                  <span>{orders.length} 订单</span>
+                  <span>{todayOrders.length} 今日单</span>
+                  <span>{todayAppointments.length} 今日约</span>
+                  <span>{activeCards.length} 有效卡</span>
+                  <strong>{money(revenue)}</strong>
+                </span>
+              </button>
+
+              {expanded && (
+                <div className="store-customer-panel">
+                  <div className="store-customer-summary-grid">
+                    <StatCard title="客户档案" value={`${customers.length} 人`} hint="当前门店" />
+                    <StatCard title="预约记录" value={`${appointments.length} 条`} hint={`${todayAppointments.length} 条今日预约`} />
+                    <StatCard title="会员卡" value={`${memberCards.length} 张`} hint={`${activeCards.length} 张正常`} />
+                    <StatCard title="服务档案" value={`${serviceRecords.length} 条`} hint={`${refunds.length} 条退款`} />
+                  </div>
+
+                  {customerRows.length === 0 ? (
+                    <div className="empty-state-inline">这家门店暂无客户和业务记录。</div>
+                  ) : (
+                    <div className="store-customer-cards">
+                      {customerRows.map((row) => (
+                        <article key={row.customer.id} className="store-customer-card">
+                          <div className="store-customer-card-head">
+                            <div>
+                              <strong>{row.customer.name}</strong>
+                              <span>{row.customer.phone || "未留电话"} · {row.customer.level || "普通客户"} · 来源 {row.customer.source || "-"}</span>
+                            </div>
+                            <Badge text={row.customerCards.some((card) => card.status === "正常") ? "有会员卡" : "普通客户"} tone={row.customerCards.some((card) => card.status === "正常") ? "ok" : undefined} />
+                          </div>
+                          <div className="store-customer-kpis">
+                            <span>实收 {money(row.paidAmount)}</span>
+                            <span>订单 {row.customerOrders.length}</span>
+                            <span>预约 {row.customerAppointments.length}</span>
+                            <span>服务 {row.customerServiceRecords.length}</span>
+                            <span>签名 {row.customerSignatures.length}</span>
+                            <span>跟进 {row.customerFollowUps.length}</span>
+                          </div>
+                          <div className="store-customer-latest">
+                            <strong>最近业务</strong>
+                            <span>{row.latestBusiness}</span>
+                          </div>
+                          <DataTable
+                            columns={["业务类型", "时间", "详细内容", "金额/状态", "经手人"]}
+                            rows={[
+                              ...row.customerOrders.slice(0, 8).map((order) => [
+                                "订单",
+                                shortDate(order.createdAt),
+                                `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · 商品 ${orderProductText(order)}`,
+                                `${money(order.paidAmount)} · ${order.payMethod} · ${order.status}`,
+                                nameOf(data.staff, order.staffId),
+                              ]),
+                              ...row.customerAppointments.slice(0, 8).map((appointment) => [
+                                "预约",
+                                appointmentTimeRange(data, appointment),
+                                `${appointmentServiceNames(data, appointment)} · ${appointment.roomName || "未分配房间"} · ${appointment.note || "无备注"}`,
+                                appointment.status,
+                                nameOf(data.staff, appointment.staffId),
+                              ]),
+                              ...row.customerCards.map((card) => [
+                                "会员卡",
+                                card.expiresAt ? `到期 ${shortDate(card.expiresAt)}` : "-",
+                                `${card.name} · ${card.type} · ${card.serviceIds?.map((id) => nameOf(data.services, id)).join("、") || (card.serviceId ? nameOf(data.services, card.serviceId) : "-")}`,
+                                `余额 ${money(card.balance)} · 剩 ${card.remainingTimes} 次 · ${card.status}`,
+                                "-",
+                              ]),
+                              ...row.customerCardTransactions.slice(0, 8).map((transaction) => [
+                                "卡流水",
+                                shortDate(transaction.createdAt),
+                                `${transaction.type} · ${transaction.note || "-"} · 卡 ${nameOf(row.customerCards, transaction.memberCardId)}`,
+                                `${money(transaction.paidAmount ?? 0)} · 余额 ${money(transaction.balanceAfter)} · 剩 ${transaction.remainingTimesAfter} 次`,
+                                transaction.staffId ? nameOf(data.staff, transaction.staffId) : "-",
+                              ]),
+                              ...row.customerServiceRecords.slice(0, 6).map((record) => [
+                                "服务档案",
+                                shortDate(record.createdAt),
+                                `${nameOf(data.services, record.serviceId)} · 皮肤 ${record.skinCondition || "-"} · 步骤 ${record.careSteps || "-"} · 产品 ${record.productsUsed || "-"}`,
+                                `反馈 ${record.customerFeedback || "-"} · 建议 ${record.nextCareAdvice || "-"}`,
+                                nameOf(data.staff, record.staffId),
+                              ]),
+                              ...row.customerSignatures.slice(0, 6).map((signature) => [
+                                "签名",
+                                shortDate(signature.createdAt),
+                                `${signature.title} · ${signature.content}`,
+                                signature.signedAt ? `已签 ${shortDate(signature.signedAt)}` : signature.status,
+                                signature.signerName || "-",
+                              ]),
+                              ...row.customerFollowUps.slice(0, 6).map((followUp) => [
+                                "跟进",
+                                shortDate(followUp.createdAt),
+                                `${followUp.method} · ${followUp.note}`,
+                                `${followUp.status} · 应跟进 ${shortDate(followUp.dueAt)}`,
+                                nameOf(data.staff, followUp.staffId),
+                              ]),
+                              ...row.customerRefunds.slice(0, 6).map((refund) => [
+                                "退款",
+                                shortDate(refund.createdAt),
+                                `${refund.reason} · 订单 ${row.customerOrders.find((order) => order.id === refund.orderId)?.orderNo ?? refund.orderId}`,
+                                money(refund.amount),
+                                nameOf(data.authUsers, refund.createdBy),
+                              ]),
+                            ].slice(0, 48)}
+                          />
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </section>
+    </div>
+  );
+}
+
 function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = false): WorkbarKey {
   if (view === "appointments") return "appointments";
   if (view === "pos") return employeeMode && posModule === "card" ? "card" : "cashier";
@@ -4010,7 +4236,7 @@ function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = 
   if (view === "reports") return "reports";
   if (view === "accounts") return "accounts";
   if (view === "logs") return "logs";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "usage", "roomSettings"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "storeCustomerDetails", "usage", "roomSettings"].includes(view)) return "admin";
   return "workbench";
 }
 
