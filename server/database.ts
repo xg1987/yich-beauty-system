@@ -251,25 +251,27 @@ export class BeautyDatabase {
     for (const service of data.services) {
       this.db
         .prepare(
-          "INSERT INTO services (id, storeId, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO services (id, storeId, name, category, subcategory, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           service.id,
           service.storeId ?? null,
           service.name,
           service.category,
+          service.subcategory ?? null,
           service.price,
           service.duration,
           service.defaultTimes ?? 1,
           JSON.stringify(service.consumables ?? []),
           service.consumableProductId ?? null,
           service.consumableQty ?? null,
+          service.status ?? "启用",
         );
     }
 
     for (const product of data.products) {
       this.db
-        .prepare("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .prepare("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .run(
           product.id,
           product.storeId ?? null,
@@ -284,6 +286,7 @@ export class BeautyDatabase {
           product.warningStock,
           product.shelfLifeMonths ?? null,
           product.expiryAt ?? null,
+          product.status ?? "启用",
         );
     }
 
@@ -357,7 +360,7 @@ export class BeautyDatabase {
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -368,6 +371,9 @@ export class BeautyDatabase {
           order.guestPhone ?? null,
           order.staffId,
           order.serviceId,
+          order.serviceName ?? null,
+          order.servicePrice ?? null,
+          order.serviceConsumables?.length ? JSON.stringify(order.serviceConsumables) : null,
           order.productId ?? null,
           order.giftProductId ?? null,
           order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -565,12 +571,14 @@ export class BeautyDatabase {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         category TEXT NOT NULL,
+        subcategory TEXT,
         price REAL NOT NULL,
         duration INTEGER NOT NULL,
         defaultTimes INTEGER NOT NULL DEFAULT 1,
         consumables_json TEXT,
         consumableProductId TEXT,
-        consumableQty REAL
+        consumableQty REAL,
+        status TEXT
       );
 
       CREATE TABLE IF NOT EXISTS products (
@@ -585,7 +593,8 @@ export class BeautyDatabase {
         stock REAL NOT NULL,
         warningStock REAL NOT NULL,
         shelfLifeMonths REAL,
-        expiryAt TEXT
+        expiryAt TEXT,
+        status TEXT
       );
 
       CREATE TABLE IF NOT EXISTS appointments (
@@ -659,6 +668,9 @@ export class BeautyDatabase {
         guestPhone TEXT,
         staffId TEXT NOT NULL,
         serviceId TEXT NOT NULL,
+        serviceName TEXT,
+        servicePrice REAL,
+        serviceConsumables_json TEXT,
         productId TEXT,
         giftProductId TEXT,
         productItems_json TEXT,
@@ -835,10 +847,14 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "giftProductId", "TEXT");
     this.addColumnIfMissing("orders", "productItems_json", "TEXT");
     this.addColumnIfMissing("orders", "giftProductItems_json", "TEXT");
+    this.addColumnIfMissing("orders", "serviceName", "TEXT");
+    this.addColumnIfMissing("orders", "servicePrice", "REAL");
+    this.addColumnIfMissing("orders", "serviceConsumables_json", "TEXT");
     this.addColumnIfMissing("products", "category", "TEXT");
     this.addColumnIfMissing("products", "subcategory", "TEXT");
     this.addColumnIfMissing("products", "shelfLifeMonths", "REAL");
     this.addColumnIfMissing("products", "expiryAt", "TEXT");
+    this.addColumnIfMissing("products", "status", "TEXT");
     this.addColumnIfMissing("inventoryLogs", "expiryAt", "TEXT");
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("commissions", "settledAt", "TEXT");
@@ -857,6 +873,8 @@ export class BeautyDatabase {
     this.addColumnIfMissing("dailyCloses", "reversedBy", "TEXT");
     this.addColumnIfMissing("dailyCloses", "reversedAt", "TEXT");
     this.addColumnIfMissing("services", "defaultTimes", "INTEGER NOT NULL DEFAULT 1");
+    this.addColumnIfMissing("services", "subcategory", "TEXT");
+    this.addColumnIfMissing("services", "status", "TEXT");
     this.addColumnIfMissing("services", "consumables_json", "TEXT");
     this.addColumnIfMissing("staff", "storeId", "TEXT");
     this.addColumnIfMissing("customers", "storeId", "TEXT");
@@ -939,10 +957,12 @@ function mapService(row: unknown): Service {
   return {
     ...value,
     storeId: value.storeId ?? undefined,
+    subcategory: value.subcategory ?? undefined,
     defaultTimes: value.defaultTimes ?? 1,
     consumables: parseJsonArray<ServiceConsumable>(value.consumables_json) ?? value.consumables,
     consumableProductId: value.consumableProductId ?? undefined,
     consumableQty: value.consumableQty ?? undefined,
+    status: value.status ?? "启用",
   };
 }
 
@@ -955,6 +975,7 @@ function mapProduct(row: unknown): Product {
     subcategory: value.subcategory ?? undefined,
     shelfLifeMonths: value.shelfLifeMonths ?? undefined,
     expiryAt: value.expiryAt ?? undefined,
+    status: value.status ?? "启用",
   };
 }
 
@@ -995,12 +1016,15 @@ function mapMemberCard(row: unknown): MemberCard {
 }
 
 function mapOrder(row: unknown): Order {
-  const value = row as Order & { productItems_json?: string | null; giftProductItems_json?: string | null };
+  const value = row as Order & { serviceConsumables_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
     guestName: value.guestName ?? undefined,
     guestPhone: value.guestPhone ?? undefined,
+    serviceName: value.serviceName ?? undefined,
+    servicePrice: value.servicePrice ?? undefined,
+    serviceConsumables: parseJsonArray<ServiceConsumable>(value.serviceConsumables_json) ?? value.serviceConsumables,
     productId: value.productId ?? undefined,
     giftProductId: value.giftProductId ?? undefined,
     productItems: parseJsonArray<OrderProductItem>(value.productItems_json) ?? value.productItems,

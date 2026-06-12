@@ -48,7 +48,7 @@ import type {
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { appointmentEndAt, assignAppointmentRooms } from "./appointments";
-import { normalizeProductServiceFields, productServiceStockDeductible, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
+import { normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 import { makeId, money, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
@@ -981,6 +981,55 @@ export type TagDefinitionUpdateInput = {
   status?: TagDefinition["status"];
 };
 
+export type UpdateServiceCatalogInput = {
+  serviceId: string;
+  name?: string;
+  category?: string;
+  subcategory?: string;
+  price?: number;
+  duration?: number;
+  defaultTimes?: number;
+  consumables?: ServiceConsumable[];
+  status?: Service["status"];
+};
+
+export type UpdateProductCatalogInput = {
+  productId: string;
+  name?: string;
+  category?: string;
+  subcategory?: string;
+  unit?: string;
+  price?: number;
+  cost?: number;
+  warningStock?: number;
+  shelfLifeMonths?: number;
+  serviceStockDeductible?: boolean;
+  serviceUnit?: string;
+  serviceUnitsPerStockUnit?: number;
+  status?: Product["status"];
+};
+
+function freezeOrderCatalogSnapshots(data: AppData): AppData {
+  return {
+    ...data,
+    orders: data.orders.map((order) => {
+      const service = order.serviceId ? data.services.find((item) => item.id === order.serviceId) : undefined;
+      const snapshotProductItems = (items: OrderProductItem[] | undefined) => items?.map((item) => ({
+        ...item,
+        productName: item.productName ?? data.products.find((product) => product.id === item.productId)?.name,
+      }));
+      return {
+        ...order,
+        serviceName: order.serviceName ?? service?.name,
+        servicePrice: order.servicePrice ?? service?.price,
+        serviceConsumables: order.serviceConsumables ?? (service ? serviceInventoryConsumables(data, service) : undefined),
+        productItems: snapshotProductItems(order.productItems),
+        giftProductItems: snapshotProductItems(order.giftProductItems),
+      };
+    }),
+  };
+}
+
 export function calculateOrderTotal(data: AppData, serviceId?: string, productId?: string, productItems?: CheckoutProductItemInput[]) {
   const selectedService = data.services.find((item) => item.id === serviceId);
   const productTotal = productItems?.length
@@ -1017,6 +1066,13 @@ function normalizeCheckoutProductItems(
       amount: unitPrice * quantity,
     };
   });
+}
+
+function withProductNameSnapshots(data: AppData, items: OrderProductItem[]) {
+  return items.map((item) => ({
+    ...item,
+    productName: item.productName ?? data.products.find((product) => product.id === item.productId)?.name,
+  }));
 }
 
 export function createTagDefinition(
@@ -1074,6 +1130,88 @@ export function updateTagDefinition(data: AppData, input: TagDefinitionUpdateInp
             ...customer,
             tags: customer.tags.map((tagName) => (tagName === target.name ? nextName : tagName)),
           })),
+  };
+}
+
+function normalizeCatalogStatus(status: "启用" | "停用" | undefined) {
+  return status === "启用" || status === "停用" ? status : undefined;
+}
+
+export function updateServiceCatalog(data: AppData, input: UpdateServiceCatalogInput): AppData {
+  const target = data.services.find((service) => service.id === input.serviceId);
+  if (!target) throw new Error("服务项目不存在");
+  const consumables = input.consumables === undefined
+    ? target.consumables ?? []
+    : input.consumables.filter((item) => {
+        const product = data.products.find((candidate) => candidate.id === item.productId);
+        if (!product) throw new Error("商品不存在");
+        return productServiceStockDeductible(product);
+      });
+  const nextName = input.name === undefined ? target.name : trimText(input.name);
+  if (!nextName) throw new Error("请填写项目名称");
+  const nextPrice = positiveNumber(input.price, target.price);
+  const nextDuration = Math.max(1, Math.round(positiveNumber(input.duration, target.duration)));
+  const nextDefaultTimes = Math.max(1, Math.round(positiveNumber(input.defaultTimes, target.defaultTimes ?? 1)));
+  const frozenData = freezeOrderCatalogSnapshots(data);
+  return {
+    ...frozenData,
+    services: frozenData.services.map((service) =>
+      service.id === input.serviceId
+        ? {
+            ...service,
+            name: nextName,
+            category: input.category === undefined ? service.category : trimText(input.category) || service.category,
+            subcategory: input.subcategory === undefined ? service.subcategory : trimText(input.subcategory) || undefined,
+            price: nextPrice,
+            duration: nextDuration,
+            defaultTimes: nextDefaultTimes,
+            consumables,
+            consumableProductId: consumables[0]?.productId,
+            consumableQty: consumables[0]?.quantity,
+            status: normalizeCatalogStatus(input.status) ?? service.status ?? "启用",
+          }
+        : service,
+    ),
+  };
+}
+
+export function updateProductCatalog(data: AppData, input: UpdateProductCatalogInput): AppData {
+  const target = data.products.find((product) => product.id === input.productId);
+  if (!target) throw new Error("商品不存在");
+  const nextName = input.name === undefined ? target.name : trimText(input.name);
+  if (!nextName) throw new Error("请填写商品名称");
+  const nextPrice = Math.max(0, positiveNumber(input.price, target.price));
+  const nextCost = Math.max(0, positiveNumber(input.cost, target.cost));
+  const nextWarningStock = Math.max(0, positiveNumber(input.warningStock, target.warningStock));
+  const serviceStockDeductible = input.serviceStockDeductible ?? productServiceStockDeductible(target);
+  const serviceUnitsPerStockUnit = serviceStockDeductible
+    ? normalizeProductServiceUnitsPerStockUnit(input.serviceUnitsPerStockUnit ?? productServiceUnitsPerStockUnit(target))
+    : undefined;
+  const frozenData = freezeOrderCatalogSnapshots(data);
+  return {
+    ...frozenData,
+    products: frozenData.products.map((product) =>
+      product.id === input.productId
+        ? {
+            ...product,
+            name: nextName,
+            category: input.category === undefined ? product.category : trimText(input.category) || undefined,
+            subcategory: input.subcategory === undefined ? product.subcategory : trimText(input.subcategory) || undefined,
+            unit: input.unit === undefined ? product.unit : trimText(input.unit) || product.unit,
+            price: nextPrice,
+            cost: nextCost,
+            warningStock: nextWarningStock,
+            shelfLifeMonths: input.shelfLifeMonths === undefined ? product.shelfLifeMonths : Math.max(0, positiveNumber(input.shelfLifeMonths, 0)) || undefined,
+            serviceStockDeductible,
+            serviceUnit: serviceStockDeductible
+              ? productServiceUnit({ ...product, serviceStockDeductible, serviceUnit: input.serviceUnit ?? product.serviceUnit })
+              : undefined,
+            serviceUnitsPerStockUnit,
+            serviceUsesPerUnit: serviceUnitsPerStockUnit,
+            status: normalizeCatalogStatus(input.status) ?? product.status ?? "启用",
+          }
+        : product,
+    ),
   };
 }
 
@@ -2572,6 +2710,7 @@ export function checkoutOrder(
   ) {
     throw new Error("检测到刚刚已生成相同订单，请勿重复提交");
   }
+  const serviceConsumption = selectedService ? serviceInventoryConsumables(data, selectedService) : [];
   const order: Order = {
     id: orderId,
     storeId,
@@ -2581,10 +2720,13 @@ export function checkoutOrder(
     guestPhone: customerId ? undefined : guestPhone,
     staffId: input.staffId,
     serviceId,
+    serviceName: selectedService?.name,
+    servicePrice: selectedService?.price,
+    serviceConsumables: serviceConsumption.length ? serviceConsumption : undefined,
     productId: productItems[0]?.productId,
     giftProductId: giftProductItems[0]?.productId,
-    productItems: productItems.length ? productItems : undefined,
-    giftProductItems: giftProductItems.length ? giftProductItems : undefined,
+    productItems: productItems.length ? withProductNameSnapshots(data, productItems) : undefined,
+    giftProductItems: giftProductItems.length ? withProductNameSnapshots(data, giftProductItems) : undefined,
     cardId: input.payMethod === "会员卡" ? input.cardId : undefined,
     totalAmount: total,
     paidAmount,
@@ -2597,7 +2739,6 @@ export function checkoutOrder(
     createdAt,
   };
 
-  const serviceConsumption = selectedService ? serviceInventoryConsumables(data, selectedService) : [];
   const serviceConsumptionByProduct = new Map<string, number>();
   const soldProductByProduct = new Map<string, number>();
   const giftProductByProduct = new Map<string, number>();
@@ -2778,6 +2919,7 @@ export function refundOrder(
   }
 
   const service = data.services.find((item) => item.id === order.serviceId);
+  const refundServiceConsumables = order.serviceConsumables ?? (service ? serviceInventoryConsumables(data, service) : []);
   const storeId = scopedStoreId(data, input.storeId ?? order.storeId);
   const refund: Refund = {
     id: idFactory("rf"),
@@ -2823,9 +2965,7 @@ export function refundOrder(
   };
 
   if (isFullRefund) {
-    if (service) {
-      serviceInventoryConsumables(data, service).forEach((item) => restoreProduct(item.productId, item.quantity));
-    }
+    refundServiceConsumables.forEach((item) => restoreProduct(item.productId, item.quantity));
     if (order.productItems?.length) {
       order.productItems.forEach((item) => restoreProduct(item.productId, item.quantity));
     } else {

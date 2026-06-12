@@ -54,6 +54,8 @@ import {
   scopeDataToStore,
   sanitizeSystemConfigsForRole,
   updateTagDefinition,
+  updateServiceCatalog,
+  updateProductCatalog,
   updateStaffMember,
   updateAccountProfile,
   updateAuthUserStatus,
@@ -1325,6 +1327,33 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
 
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/services/")) {
+        requirePermission(session, "catalog:manage");
+        const serviceId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        const body = await readJson(request);
+        const currentData = database.readData();
+        const service = currentData.services.find((item) => item.id === serviceId);
+        if (!service) throw new Error("服务项目不存在");
+        const nextData = updateData(database, session, {
+          action: "编辑服务项目",
+          targetType: "service",
+          targetId: serviceId,
+          summary: catalogEditSummary(session.user.name, service.name, body),
+        }, (data) => updateServiceCatalog(data, {
+          serviceId,
+          name: optionalString(body, "name"),
+          category: optionalString(body, "category"),
+          subcategory: optionalString(body, "subcategory"),
+          price: optionalNumber(body, "price"),
+          duration: optionalNumber(body, "duration"),
+          defaultTimes: optionalNumber(body, "defaultTimes"),
+          consumables: hasBodyKey(body, "consumables") ? optionalConsumables(body) : undefined,
+          status: optionalString(body, "status") as "启用" | "停用" | undefined,
+        }));
+        sendScopedData(request, response, 200, nextData, session);
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/api/products") {
         requireAnyPermission(session, ["catalog:manage", "inventory:manage"]);
         const body = await readJson(request);
@@ -1414,6 +1443,37 @@ export function createApiServer(database = new BeautyDatabase()) {
             : (data.inventoryBatches ?? []),
         }));
         sendScopedData(request, response, 201, nextData, session);
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/products/")) {
+        requireAnyPermission(session, ["catalog:manage", "inventory:manage"]);
+        const productId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        const body = await readJson(request);
+        const currentData = database.readData();
+        const product = currentData.products.find((item) => item.id === productId);
+        if (!product) throw new Error("商品不存在");
+        const nextData = updateData(database, session, {
+          action: "编辑商品资料",
+          targetType: "product",
+          targetId: productId,
+          summary: catalogEditSummary(session.user.name, product.name, body),
+        }, (data) => updateProductCatalog(data, {
+          productId,
+          name: optionalString(body, "name"),
+          category: optionalString(body, "category"),
+          subcategory: optionalString(body, "subcategory"),
+          unit: optionalString(body, "unit"),
+          price: optionalNumber(body, "price"),
+          cost: optionalNumber(body, "cost"),
+          warningStock: optionalNumber(body, "warningStock"),
+          shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
+          serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
+          serviceUnit: optionalString(body, "serviceUnit"),
+          serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit"),
+          status: optionalString(body, "status") as "启用" | "停用" | undefined,
+        }));
+        sendScopedData(request, response, 200, nextData, session);
         return;
       }
 
@@ -1583,6 +1643,26 @@ function followUpUpdateSummary(userName: string, followUp: CustomerFollowUp, bod
   ].filter(Boolean);
   const reason = bodyText(body, "reason");
   return `${userName} 编辑客户跟进：${changed.length ? changed.join("、") : "无字段变化"}${reason ? `；原因：${reason}` : ""}`;
+}
+
+function catalogEditSummary(userName: string, targetName: string, body: JsonBody) {
+  const fieldLabels: Record<string, string> = {
+    name: "名称",
+    category: "分类",
+    subcategory: "小类",
+    unit: "单位",
+    price: "售价/价格",
+    cost: "成本",
+    warningStock: "预警库存",
+    shelfLifeMonths: "保质期",
+    duration: "时长",
+    defaultTimes: "可服务次数",
+    consumables: "耗材配置",
+    status: "状态",
+  };
+  const changed = Object.keys(fieldLabels).filter((key) => hasBodyKey(body, key)).map((key) => fieldLabels[key]);
+  const reason = bodyText(body, "reason");
+  return `${userName} 编辑 ${targetName}：${changed.length ? changed.join("、") : "无字段变化"}${reason ? `；原因：${reason}` : ""}`;
 }
 
 function updateCustomerFollowUpRecord(data: AppData, followUpId: string, body: JsonBody): AppData {

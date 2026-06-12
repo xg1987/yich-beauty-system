@@ -353,6 +353,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/follow-ups/${encodeURIComponent(followUpId)}`, { method: "PATCH", body: { status: "已完成" }, token: getToken() }),
     addService: (body: { name: string; price: number; category?: string; duration?: number; defaultTimes?: number; consumables?: ServiceConsumable[]; consumableProductId?: string; consumableQty?: number }) =>
       request<AppData>("/api/services", { method: "POST", body, token: getToken() }),
+    updateService: (serviceId: string, body: { name?: string; category?: string; subcategory?: string; price?: number; duration?: number; defaultTimes?: number; consumables?: ServiceConsumable[]; status?: "启用" | "停用"; reason?: string }) =>
+      request<AppData>(`/api/services/${encodeURIComponent(serviceId)}`, { method: "PATCH", body, token: getToken() }),
     updateServiceConsumables: (serviceId: string, consumables: ServiceConsumable[]) =>
       request<AppData>(`/api/services/${encodeURIComponent(serviceId)}/consumables`, {
         method: "PATCH",
@@ -361,6 +363,8 @@ export function createApiClient(getToken: () => string | undefined) {
       }),
     addProduct: (body: { name: string; stock: number; type?: "sale" | "consumable"; category?: string; subcategory?: string; unit?: string; warningStock?: number; price?: number; cost?: number; shelfLifeMonths?: number; expiryAt?: string; serviceStockDeductible?: boolean; serviceUnit?: string; serviceUnitsPerStockUnit?: number; serviceUsesPerUnit?: number }) =>
       request<AppData>("/api/products", { method: "POST", body, token: getToken() }),
+    updateProduct: (productId: string, body: { name?: string; category?: string; subcategory?: string; unit?: string; price?: number; cost?: number; warningStock?: number; shelfLifeMonths?: number; serviceStockDeductible?: boolean; serviceUnit?: string; serviceUnitsPerStockUnit?: number; status?: "启用" | "停用"; reason?: string }) =>
+      request<AppData>(`/api/products/${encodeURIComponent(productId)}`, { method: "PATCH", body, token: getToken() }),
     addSupplier: (body: { name: string; phone?: string; contact?: string }) =>
       request<AppData>("/api/suppliers", { method: "POST", body, token: getToken() }),
     receivePurchaseOrder: (body: { supplierId: string; productId: string; quantity: number; unitCost: number; expiryAt?: string }) =>

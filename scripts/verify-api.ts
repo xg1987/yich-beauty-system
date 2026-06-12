@@ -825,6 +825,61 @@ try {
   assert.equal(checkoutCommissions.find((item) => item.type === "销售提成")?.amount, 48, "checkout API should create sales commission");
   assert.equal(checkoutCommissions[0].rate, 0.12, "checkout API should persist staff commission rate");
   assert.equal(afterCheckout.operationLogs[0].action, "开单收银", "checkout API should write operation log");
+  const catalogSnapshotOrderId = afterCheckout.orders[0].id;
+  const productSnapshotName = afterCheckout.products.find((item) => item.id === "p4")?.name;
+  assert.equal(afterCheckout.orders[0].serviceName, "API 耗材绑定护理", "checkout API should snapshot service name");
+  assert.equal(afterCheckout.orders[0].servicePrice, 398, "checkout API should snapshot service price");
+  assert.equal(afterCheckout.orders[0].productItems?.[0]?.productName, productSnapshotName, "checkout API should snapshot sold product name");
+  const afterServiceCatalogEdit = await request<AppData>(baseUrl, `/api/services/${serviceRecipeId}`, {
+    method: "PATCH",
+    token: session.token,
+    body: {
+      name: "API 编辑后项目",
+      category: "身体管理",
+      subcategory: "经络",
+      price: 498,
+      duration: 75,
+      defaultTimes: 6,
+      consumables: [{ productId: "p4", quantity: 1 }],
+      status: "停用",
+      reason: "API 验证项目资料修正",
+    },
+  });
+  const editedService = afterServiceCatalogEdit.services.find((item) => item.id === serviceRecipeId);
+  assert.equal(editedService?.name, "API 编辑后项目", "service catalog edit should update service name");
+  assert.equal(editedService?.subcategory, "经络", "service catalog edit should update subcategory");
+  assert.equal(editedService?.price, 498, "service catalog edit should update future price");
+  assert.equal(editedService?.status, "停用", "service catalog edit should update status");
+  assert.equal(editedService?.consumables?.[0]?.quantity, 1, "service catalog edit should update bound consumables");
+  assert.equal(afterServiceCatalogEdit.operationLogs[0].action, "编辑服务项目", "service catalog edit should write operation log");
+  const snapshotAfterServiceEdit = afterServiceCatalogEdit.orders.find((item) => item.id === catalogSnapshotOrderId);
+  assert.equal(snapshotAfterServiceEdit?.serviceName, "API 耗材绑定护理", "service catalog edit should keep historical order service name");
+  assert.equal(snapshotAfterServiceEdit?.servicePrice, 398, "service catalog edit should keep historical order service price");
+  const afterProductCatalogEdit = await request<AppData>(baseUrl, "/api/products/p4", {
+    method: "PATCH",
+    token: session.token,
+    body: {
+      name: "API 编辑后商品",
+      category: "身体管理",
+      subcategory: "耗材",
+      unit: "瓶",
+      price: 168,
+      cost: 66,
+      warningStock: 12,
+      shelfLifeMonths: 9,
+      status: "停用",
+      reason: "API 验证商品资料修正",
+    },
+  });
+  const editedProduct = afterProductCatalogEdit.products.find((item) => item.id === "p4");
+  assert.equal(editedProduct?.name, "API 编辑后商品", "product catalog edit should update product name");
+  assert.equal(editedProduct?.subcategory, "耗材", "product catalog edit should update product subcategory");
+  assert.equal(editedProduct?.unit, "瓶", "product catalog edit should update product unit");
+  assert.equal(editedProduct?.stock, 21.8, "product catalog edit should not directly change current stock");
+  assert.equal(editedProduct?.status, "停用", "product catalog edit should update product status");
+  assert.equal(afterProductCatalogEdit.operationLogs[0].action, "编辑商品资料", "product catalog edit should write operation log");
+  const snapshotAfterProductEdit = afterProductCatalogEdit.orders.find((item) => item.id === catalogSnapshotOrderId);
+  assert.equal(snapshotAfterProductEdit?.productItems?.[0]?.productName, productSnapshotName, "product catalog edit should keep historical order product name");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, "/api/checkout", {

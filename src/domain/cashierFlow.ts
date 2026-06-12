@@ -49,20 +49,20 @@ function orderCustomerLabel(data: AppData, order: Order) {
 
 function orderProductLineLabels(data: AppData, order: Order) {
   if (order.productItems?.length) {
-    return order.productItems.map((item) => `${nameOf(data.products, item.productId)} x${item.quantity}`);
+    return order.productItems.map((item) => `${item.productName || nameOf(data.products, item.productId)} x${item.quantity}`);
   }
   return order.productId ? [nameOf(data.products, order.productId)] : [];
 }
 
 function orderGiftLineLabels(data: AppData, order: Order) {
   if (order.giftProductItems?.length) {
-    return order.giftProductItems.map((item) => `赠 ${nameOf(data.products, item.productId)} x${item.quantity}`);
+    return order.giftProductItems.map((item) => `赠 ${item.productName || nameOf(data.products, item.productId)} x${item.quantity}`);
   }
   return order.giftProductId ? [`赠 ${nameOf(data.products, order.giftProductId)}`] : [];
 }
 
 function orderItemLabel(data: AppData, order: Order) {
-  const serviceName = order.serviceId ? nameOf(data.services, order.serviceId) : "";
+  const serviceName = order.serviceName || (order.serviceId ? nameOf(data.services, order.serviceId) : "");
   return [
     serviceName !== "-" ? serviceName : "",
     ...orderProductLineLabels(data, order).filter((name) => !name.startsWith("-")),

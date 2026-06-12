@@ -8787,6 +8787,16 @@ function Catalog({
   const [productName, setProductName] = useState("");
   const [productStock, setProductStock] = useState(10);
   const [showServiceCreate, setShowServiceCreate] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState("");
+  const [editServiceName, setEditServiceName] = useState("");
+  const [editServiceCategory, setEditServiceCategory] = useState("");
+  const [editServiceSubcategory, setEditServiceSubcategory] = useState("");
+  const [editServicePrice, setEditServicePrice] = useState<EditableNumber>(0);
+  const [editServiceDuration, setEditServiceDuration] = useState<EditableNumber>(60);
+  const [editServiceDefaultTimes, setEditServiceDefaultTimes] = useState<EditableNumber>(1);
+  const [editServiceStatus, setEditServiceStatus] = useState<"启用" | "停用">("启用");
+  const [editServiceConsumables, setEditServiceConsumables] = useState<ServiceConsumable[]>([]);
+  const [editServiceReason, setEditServiceReason] = useState("");
   const [activeModule, setActiveModule] = useState<CatalogModuleKey | undefined>(fromManagement ? initialModule ?? "serviceList" : undefined);
 
   const resetServiceForm = () => {
@@ -8874,6 +8884,58 @@ function Catalog({
   const removeRecipeConsumable = (productId: string) => {
     const nextConsumables = recipeConsumables.filter((item) => item.productId !== productId);
     void runMutation(() => actions.updateServiceConsumables(recipeServiceId, nextConsumables));
+  };
+
+  const openServiceEdit = (service: Service) => {
+    setEditingServiceId(service.id);
+    setEditServiceName(service.name);
+    setEditServiceCategory(service.category);
+    setEditServiceSubcategory(service.subcategory ?? "");
+    setEditServicePrice(service.price);
+    setEditServiceDuration(service.duration);
+    setEditServiceDefaultTimes(service.defaultTimes ?? 1);
+    setEditServiceStatus(service.status ?? "启用");
+    setEditServiceConsumables(serviceConsumablesOf(service));
+    setEditServiceReason("");
+  };
+
+  const saveServiceEdit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingServiceId) return;
+    void runMutation(() => actions.updateService(editingServiceId, {
+      name: editServiceName,
+      category: editServiceCategory,
+      subcategory: editServiceSubcategory,
+      price: editableNumberValue(editServicePrice),
+      duration: editableNumberValue(editServiceDuration),
+      defaultTimes: editableNumberValue(editServiceDefaultTimes),
+      consumables: mergeUsedProducts(editServiceConsumables, data.products),
+      status: editServiceStatus,
+      reason: editServiceReason.trim() || undefined,
+    })).then(() => setEditingServiceId(""));
+  };
+
+  const addEditServiceConsumable = (productId: string) => {
+    setEditServiceConsumables((items) => mergeUsedProducts([...items, defaultServiceConsumableForProduct(productId)], data.products));
+  };
+
+  const updateEditServiceConsumableQuantity = (productId: string, quantity: number) => {
+    setEditServiceConsumables((items) => mergeUsedProducts(items.map((item) => (item.productId === productId ? { ...item, quantity } : item)), data.products));
+  };
+
+  const removeEditServiceConsumable = (productId: string) => {
+    setEditServiceConsumables((items) => items.filter((item) => item.productId !== productId));
+  };
+
+  const createEditServiceConsumable = ({ name, category, subcategory }: { name: string; category: string; subcategory: string }) => {
+    void runMutation(async () => {
+      const nextData = await actions.addProduct({ name, stock: 0, type: "sale", category, subcategory, unit: "件" });
+      const product = findCreatedProduct(nextData.products, name, category, subcategory);
+      if (product) {
+        setEditServiceConsumables((items) => mergeUsedProducts([...items, defaultServiceConsumableForProduct(product.id, nextData.products)], nextData.products));
+      }
+      return nextData;
+    });
   };
 
   const addProduct = (event: FormEvent) => {
@@ -9011,13 +9073,14 @@ function Catalog({
             columns={["项目", "分类", "价格", "时长", "可用次数", "使用商品", "操作"]}
             rows={data.services.map((item) => [
               item.name,
-              item.category,
+              [item.category, item.subcategory].filter(Boolean).join(" / "),
               money(item.price),
               `${item.duration} 分钟`,
               `${item.defaultTimes ?? 1} 次`,
               serviceFormulaSummary(item, data.products),
-              <button key={`${item.id}-recipe`} type="button" onClick={() => { setRecipeServiceId(item.id); setActiveModule("recipe"); }}>
-                配置商品
+              <button key={`${item.id}-edit`} type="button" className="catalog-edit-button" onClick={() => openServiceEdit(item)}>
+                <Pencil size={14} />
+                编辑项目
               </button>,
             ])}
           />
@@ -9039,6 +9102,47 @@ function Catalog({
         </section>
         )}
       </div>
+      </Modal>
+      <Modal
+        open={Boolean(editingServiceId)}
+        title="编辑项目"
+        subtitle="项目基础资料和绑定耗材"
+        size="large"
+        onClose={() => setEditingServiceId("")}
+      >
+        <form className="form catalog-edit-form" onSubmit={saveServiceEdit}>
+          <div className="catalog-edit-grid">
+            <label>项目名称<input value={editServiceName} onChange={(event) => setEditServiceName(event.target.value)} required /></label>
+            <label>大类<input value={editServiceCategory} onChange={(event) => setEditServiceCategory(event.target.value)} required /></label>
+            <label>小类<input value={editServiceSubcategory} onChange={(event) => setEditServiceSubcategory(event.target.value)} /></label>
+            <label>价格<input type="number" min={0} value={editServicePrice} onChange={(event) => setEditServicePrice(parseEditableNumber(event.target.value))} /></label>
+            <label>时长（分钟）<input type="number" min={1} value={editServiceDuration} onChange={(event) => setEditServiceDuration(parseEditableNumber(event.target.value))} /></label>
+            <label>可服务次数<input type="number" min={1} value={editServiceDefaultTimes} onChange={(event) => setEditServiceDefaultTimes(parseEditableNumber(event.target.value))} /></label>
+            <Select
+              label="状态"
+              value={editServiceStatus}
+              onChange={(value) => setEditServiceStatus(value as "启用" | "停用")}
+              options={[
+                { value: "启用", label: "启用" },
+                { value: "停用", label: "停用" },
+              ]}
+            />
+          </div>
+          <ProductUsagePicker
+            products={data.products}
+            selected={editServiceConsumables}
+            onAdd={addEditServiceConsumable}
+            onCreate={createEditServiceConsumable}
+            onRemove={removeEditServiceConsumable}
+            onQuantityChange={updateEditServiceConsumableQuantity}
+          />
+          <label>修改说明<textarea value={editServiceReason} onChange={(event) => setEditServiceReason(event.target.value)} placeholder="例如：项目价格录错，修正为当前价格" /></label>
+          <p className="catalog-edit-note">保存后只影响以后开单/开卡；历史订单会保留当时的项目名称和金额。</p>
+          <div className="form-submit-row">
+            <button type="button" onClick={() => setEditingServiceId("")}>取消</button>
+            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editServiceName.trim()} />
+          </div>
+        </form>
       </Modal>
     </div>
   );
@@ -9603,6 +9707,17 @@ function Inventory({
   const [inventoryProductSaveMessage, setInventoryProductSaveMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [inventoryCategoryMessage, setInventoryCategoryMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [inventoryExportMessage, setInventoryExportMessage] = useState("");
+  const [editingProductId, setEditingProductId] = useState("");
+  const [editProductName, setEditProductName] = useState("");
+  const [editProductCategory, setEditProductCategory] = useState("");
+  const [editProductSubcategory, setEditProductSubcategory] = useState("");
+  const [editProductUnit, setEditProductUnit] = useState("件");
+  const [editProductPrice, setEditProductPrice] = useState<EditableNumber>(0);
+  const [editProductCost, setEditProductCost] = useState<EditableNumber>(0);
+  const [editProductWarningStock, setEditProductWarningStock] = useState<EditableNumber>(0);
+  const [editProductShelfLifeMonths, setEditProductShelfLifeMonths] = useState<EditableNumber>(0);
+  const [editProductStatus, setEditProductStatus] = useState<"启用" | "停用">("启用");
+  const [editProductReason, setEditProductReason] = useState("");
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [purchaseExpiryAt, setPurchaseExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [activeModule, setActiveModule] = useState<InventoryModuleKey>(initialModule ?? "stockIn");
@@ -9720,6 +9835,48 @@ function Inventory({
         const message = caught instanceof Error ? caught.message : "商品保存失败，请检查后再试。";
         setInventoryProductSaveMessage({ type: "error", text: message });
       });
+  };
+
+  const openProductEdit = (product: Product) => {
+    setEditingProductId(product.id);
+    setEditProductName(product.name);
+    setEditProductCategory(product.category ?? "面护类");
+    setEditProductSubcategory(product.subcategory ?? "");
+    setEditProductUnit(product.unit || "件");
+    setEditProductPrice(product.price);
+    setEditProductCost(product.cost);
+    setEditProductWarningStock(product.warningStock);
+    setEditProductShelfLifeMonths(product.shelfLifeMonths ?? "");
+    setEditProductStatus(product.status ?? "启用");
+    setEditProductReason("");
+  };
+
+  const saveProductEdit = (event: FormEvent) => {
+    event.preventDefault();
+    const product = data.products.find((item) => item.id === editingProductId);
+    if (!product) return;
+    const productDraft = {
+      ...product,
+      name: editProductName,
+      category: editProductCategory,
+      subcategory: editProductSubcategory,
+      unit: editProductUnit,
+    };
+    void runMutation(() => actions.updateProduct(editingProductId, {
+      name: editProductName,
+      category: editProductCategory,
+      subcategory: editProductSubcategory,
+      unit: editProductUnit,
+      price: editableNumberValue(editProductPrice),
+      cost: editableNumberValue(editProductCost),
+      warningStock: editableNumberValue(editProductWarningStock),
+      shelfLifeMonths: editProductShelfLifeMonths === "" ? undefined : editableNumberValue(editProductShelfLifeMonths),
+      serviceStockDeductible: productServiceStockDeductible(product),
+      serviceUnit: productServiceStockDeductible(product) ? productServiceUnit(productDraft) : undefined,
+      serviceUnitsPerStockUnit: productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : undefined,
+      status: editProductStatus,
+      reason: editProductReason.trim() || undefined,
+    })).then(() => setEditingProductId(""));
   };
 
   const addInventoryCategory = () => {
@@ -9861,6 +10018,7 @@ function Inventory({
     { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
   ];
   const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
+  const editingProduct = data.products.find((item) => item.id === editingProductId);
   const closeModule = () => {
     setShowInventoryCategoryManager(false);
     if (onReturnManagement) {
@@ -10140,8 +10298,14 @@ function Inventory({
                           className="inventory-product-card"
                         >
                           <span className="inventory-product-card-head">
-                            <strong>{item.name}</strong>
-                            <small>{[item.category ?? "面护类", item.subcategory].filter(Boolean).join(" / ")}</small>
+                            <span>
+                              <strong>{item.name}</strong>
+                              <small>{[item.category ?? "面护类", item.subcategory].filter(Boolean).join(" / ")}</small>
+                            </span>
+                            <button type="button" className="inventory-product-edit-button" onClick={() => openProductEdit(item)}>
+                              <Pencil size={14} />
+                              编辑商品
+                            </button>
                           </span>
                                   <span className="inventory-product-card-metrics">
                                     <span>
@@ -10275,6 +10439,45 @@ function Inventory({
             </p>
           )}
         </section>
+      </Modal>
+      <Modal
+        open={Boolean(editingProductId)}
+        title="编辑商品"
+        subtitle="商品基础资料"
+        size="large"
+        onClose={() => setEditingProductId("")}
+      >
+        <form className="form catalog-edit-form inventory-product-edit-form" onSubmit={saveProductEdit}>
+          <div className="catalog-edit-grid">
+            <label>商品名称<input value={editProductName} onChange={(event) => setEditProductName(event.target.value)} required /></label>
+            <label>大类<input value={editProductCategory} onChange={(event) => setEditProductCategory(event.target.value)} required /></label>
+            <label>小类<input value={editProductSubcategory} onChange={(event) => setEditProductSubcategory(event.target.value)} /></label>
+            <label>单位<input value={editProductUnit} onChange={(event) => setEditProductUnit(event.target.value)} required /></label>
+            <label>售价<input type="number" min={0} value={editProductPrice} onChange={(event) => setEditProductPrice(parseEditableNumber(event.target.value))} /></label>
+            <label>成本<input type="number" min={0} value={editProductCost} onChange={(event) => setEditProductCost(parseEditableNumber(event.target.value))} /></label>
+            <label>预警库存<input type="number" min={0} value={editProductWarningStock} onChange={(event) => setEditProductWarningStock(parseEditableNumber(event.target.value))} /></label>
+            <label>保质期（月）<input type="number" min={0} value={editProductShelfLifeMonths} onChange={(event) => setEditProductShelfLifeMonths(parseEditableNumber(event.target.value))} /></label>
+            <Select
+              label="状态"
+              value={editProductStatus}
+              onChange={(value) => setEditProductStatus(value as "启用" | "停用")}
+              options={[
+                { value: "启用", label: "启用" },
+                { value: "停用", label: "停用" },
+              ]}
+            />
+          </div>
+          <div className="catalog-edit-readonly">
+            <span>当前库存</span>
+            <strong>{editingProduct ? formatProductStockWithServiceUnits(editingProduct, editingProduct.stock) : "-"}</strong>
+            <small>库存数量不能在这里直接修改，请通过入库、损耗或盘点调整。</small>
+          </div>
+          <label>修改说明<textarea value={editProductReason} onChange={(event) => setEditProductReason(event.target.value)} placeholder="例如：录入时分类选错，修正为当前分类" /></label>
+          <div className="form-submit-row">
+            <button type="button" onClick={() => setEditingProductId("")}>取消</button>
+            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editProductName.trim() || !editProductUnit.trim()} />
+          </div>
+        </form>
       </Modal>
     </div>
   );

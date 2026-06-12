@@ -46,6 +46,18 @@ await requestIfAvailable(baseUrl, "/api/daily-close/reverse", {
 
 const initialData = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
 assert.ok(initialData.authUsers.every((user) => user.password === ""), "D1 API should not expose passwords");
+await request<AppData>(baseUrl, "/api/store-profile", {
+  method: "PATCH",
+  token: ownerSession.token,
+  body: {
+    name: initialData.storeProfiles[0]?.name ?? `Cloudflare 正式验证门店 ${runId}`,
+    phone: initialData.storeProfiles[0]?.phone ?? "13900000000",
+    address: initialData.storeProfiles[0]?.address ?? "Cloudflare 地址",
+    businessHours: initialData.storeProfiles[0]?.businessHours ?? "10:00 - 21:00",
+    roomNames: [roomName],
+    maintenanceRoomNames: [],
+  },
+});
 
 const afterCustomer = await request<AppData>(baseUrl, "/api/customers", {
   method: "POST",
@@ -465,10 +477,26 @@ const afterTransfer = await request<AppData>(baseUrl, `/api/member-cards/${cardI
   body: { toCustomerId: secondCustomerId, reason: "Cloudflare 转卡" },
 });
 assert.equal(afterTransfer.memberCards.find((item) => item.id === cardId)?.customerId, secondCustomerId, "D1 should persist card transfer");
+const refundSignatureData = await request<AppData>(baseUrl, "/api/customer-signatures", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    customerId: secondCustomerId,
+    title: "会员卡退费确认签名",
+    content: "本人确认办理Cloudflare 储值卡退费，实退金额¥100，退款方式银行卡，退费后会员卡关闭。",
+    validDays: 1,
+  },
+});
+const refundSignature = refundSignatureData.customerSignatures[0];
+await request<AppData>(baseUrl, `/api/customer-signatures/${refundSignature.id}/sign`, {
+  method: "POST",
+  token: ownerSession.token,
+  body: { signerName: `验证转卡客户 ${runId}`, signatureText: "data:image/png;base64,cf-refund" },
+});
 const afterCardRefund = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/refund`, {
   method: "POST",
   token: ownerSession.token,
-  body: { reason: "Cloudflare 退卡", refundAmount: 100, payMethod: "银行卡" },
+  body: { reason: "Cloudflare 退卡", refundAmount: 100, payMethod: "银行卡", signatureId: refundSignature.id },
 });
 assert.equal(afterCardRefund.memberCards.find((item) => item.id === cardId)?.status, "已退卡", "D1 should close refunded card");
 assert.equal(afterCardRefund.memberCardTransactions[0].paidAmount, 100, "D1 should persist member card actual refund amount");

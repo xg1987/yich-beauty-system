@@ -352,7 +352,7 @@ export class D1BeautyDatabase {
     for (const order of orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.storeId ?? null,
@@ -362,6 +362,9 @@ export class D1BeautyDatabase {
             order.guestPhone ?? null,
             order.staffId,
             order.serviceId,
+            order.serviceName ?? null,
+            order.servicePrice ?? null,
+            order.serviceConsumables?.length ? JSON.stringify(order.serviceConsumables) : null,
             order.productId ?? null,
             order.giftProductId ?? null,
             order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -485,18 +488,20 @@ export class D1BeautyDatabase {
     for (const service of data.services) {
       statements.push(
         this.statement(
-          "INSERT INTO services (id, storeId, name, category, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO services (id, storeId, name, category, subcategory, price, duration, defaultTimes, consumables_json, consumableProductId, consumableQty, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             service.id,
             service.storeId ?? null,
             service.name,
             service.category,
+            service.subcategory ?? null,
             service.price,
             service.duration,
             service.defaultTimes ?? 1,
             JSON.stringify(service.consumables ?? []),
             service.consumableProductId ?? null,
             service.consumableQty ?? null,
+            service.status ?? "启用",
           ],
         ),
       );
@@ -504,7 +509,7 @@ export class D1BeautyDatabase {
 
     for (const product of data.products) {
       statements.push(
-        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceUsesPerUnit, serviceUnit, serviceUnitsPerStockUnit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceUsesPerUnit, serviceUnit, serviceUnitsPerStockUnit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           product.id,
           product.storeId ?? null,
           product.name,
@@ -522,6 +527,7 @@ export class D1BeautyDatabase {
           productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
           productServiceStockDeductible(product) ? productServiceUnit(product) : null,
           productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
+          product.status ?? "启用",
         ]),
       );
     }
@@ -596,7 +602,7 @@ export class D1BeautyDatabase {
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.storeId ?? null,
@@ -606,6 +612,9 @@ export class D1BeautyDatabase {
             order.guestPhone ?? null,
             order.staffId,
             order.serviceId,
+            order.serviceName ?? null,
+            order.servicePrice ?? null,
+            order.serviceConsumables?.length ? JSON.stringify(order.serviceConsumables) : null,
             order.productId ?? null,
             order.giftProductId ?? null,
             order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -857,10 +866,12 @@ function mapService(row: unknown): Service {
   return {
     ...value,
     storeId: value.storeId ?? undefined,
+    subcategory: value.subcategory ?? undefined,
     defaultTimes: value.defaultTimes ?? 1,
     consumables: parseJsonArray<ServiceConsumable>(value.consumables_json) ?? value.consumables,
     consumableProductId: value.consumableProductId ?? undefined,
     consumableQty: value.consumableQty ?? undefined,
+    status: value.status ?? "启用",
   };
 }
 
@@ -878,6 +889,7 @@ function mapProduct(row: unknown): Product {
     subcategory: value.subcategory ?? undefined,
     shelfLifeMonths: value.shelfLifeMonths ?? undefined,
     expiryAt: value.expiryAt ?? undefined,
+    status: value.status ?? "启用",
     serviceStockDeductible: value.serviceStockDeductible === undefined || value.serviceStockDeductible === null
       ? undefined
       : Boolean(value.serviceStockDeductible),
@@ -924,12 +936,15 @@ function mapMemberCard(row: unknown): MemberCard {
 }
 
 function mapOrder(row: unknown): Order {
-  const value = row as Order & { productItems_json?: string | null; giftProductItems_json?: string | null };
+  const value = row as Order & { serviceConsumables_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
     guestName: value.guestName ?? undefined,
     guestPhone: value.guestPhone ?? undefined,
+    serviceName: value.serviceName ?? undefined,
+    servicePrice: value.servicePrice ?? undefined,
+    serviceConsumables: parseJsonArray<ServiceConsumable>(value.serviceConsumables_json) ?? value.serviceConsumables,
     productId: value.productId ?? undefined,
     giftProductId: value.giftProductId ?? undefined,
     productItems: parseJsonArray<OrderProductItem>(value.productItems_json) ?? value.productItems,

@@ -216,12 +216,14 @@ export type Service = {
   storeId?: string;
   name: string;
   category: string;
+  subcategory?: string;
   price: number;
   duration: number;
   defaultTimes?: number;
   consumables?: ServiceConsumable[];
   consumableProductId?: string;
   consumableQty?: number;
+  status?: "启用" | "停用";
 };
 
 export type Product = {
@@ -242,6 +244,7 @@ export type Product = {
   serviceUnit?: string;
   serviceUnitsPerStockUnit?: number;
   serviceUsesPerUnit?: number;
+  status?: "启用" | "停用";
 };
 
 export type InventoryBatch = {
@@ -364,6 +367,9 @@ export type Order = {
   guestPhone?: string;
   staffId: string;
   serviceId: string;
+  serviceName?: string;
+  servicePrice?: number;
+  serviceConsumables?: ServiceConsumable[];
   productId?: string;
   giftProductId?: string;
   productItems?: OrderProductItem[];
@@ -383,6 +389,7 @@ export type Order = {
 
 export type OrderProductItem = {
   productId: string;
+  productName?: string;
   quantity: number;
   unitPrice: number;
   amount: number;
