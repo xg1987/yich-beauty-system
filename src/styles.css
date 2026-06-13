@@ -24411,3 +24411,69 @@ img.brand-icon-mark {
 .topbar-brand img.brand-icon-mark {
   object-fit: cover;
 }
+
+@media (max-width: 767px) {
+  .modal-backdrop {
+    --modal-header-safe: var(--yich-topbar-h, 72px);
+    --modal-mobile-top: 8px;
+    --modal-mobile-bottom: max(112px, calc(92px + env(safe-area-inset-bottom)));
+    inset: var(--modal-header-safe) 0 0;
+    display: grid;
+    place-items: start center;
+    align-items: start;
+    justify-items: center;
+    padding: var(--modal-mobile-top) 8px var(--modal-mobile-bottom);
+    overflow: hidden;
+  }
+
+  .system-modal,
+  .system-modal.large {
+    width: 100%;
+    max-width: 100%;
+    height: calc(100dvh - var(--modal-header-safe) - var(--modal-mobile-top) - var(--modal-mobile-bottom));
+    max-height: calc(100dvh - var(--modal-header-safe) - var(--modal-mobile-top) - var(--modal-mobile-bottom));
+    min-height: 0;
+    margin: 0;
+    border-radius: 18px;
+  }
+
+  .system-modal-header {
+    gap: 10px;
+    padding: 14px 14px 12px;
+  }
+
+  .system-modal-header strong {
+    font-size: 20px;
+  }
+
+  .system-modal-header span {
+    font-size: 12px;
+  }
+
+  .system-modal-back {
+    min-height: 36px;
+    padding: 0 10px;
+  }
+
+  .system-modal-close {
+    width: 36px;
+    height: 36px;
+  }
+
+  .system-modal-body {
+    padding: 14px 14px max(36px, env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  .system-modal-body > .module-detail-stack {
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  .system-modal-footer {
+    padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+  }
+}
