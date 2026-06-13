@@ -5519,6 +5519,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [appointmentCustomerSearch, setAppointmentCustomerSearch] = useState("");
   const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [serviceIds, setServiceIds] = useState<string[]>(() => data.services[0]?.id ? [data.services[0].id] : []);
@@ -5548,6 +5549,13 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [rescheduleNote, setRescheduleNote] = useState("");
   const [cancelReason, setCancelReason] = useState("客户临时取消");
   const staffOptions = serviceStaff.map(optionOf);
+  const selectedAppointmentCustomer = data.customers.find((item) => item.id === customerId);
+  const normalizedAppointmentCustomerSearch = appointmentCustomerSearch.trim().toLowerCase();
+  const appointmentCustomerSearchResults = normalizedAppointmentCustomerSearch
+    ? data.customers
+        .filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedAppointmentCustomerSearch))
+        .slice(0, 8)
+    : [];
   const serviceStaffIds = new Set(serviceStaff.map((staff) => staff.id));
   const roomNames = roomNamesOf(data);
   const [roomName, setRoomName] = useState(roomNames[0] ?? "");
@@ -6052,7 +6060,36 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
       >
         <div className="module-detail-stack appointment-modal-detail">
           <form className="form appointment-create-form" onSubmit={addAppointment}>
-            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(customerOptionOf)} />
+            <div className="checkout-customer-search">
+              <label>
+                客户
+                <input
+                  value={appointmentCustomerSearch}
+                  onChange={(event) => setAppointmentCustomerSearch(event.target.value)}
+                  placeholder={selectedAppointmentCustomer ? customerOptionOf(selectedAppointmentCustomer).label : "输入客户姓名或手机号搜索"}
+                />
+              </label>
+              {normalizedAppointmentCustomerSearch && (
+                <div className="checkout-customer-result-list">
+                  {appointmentCustomerSearchResults.length ? appointmentCustomerSearchResults.map((customer) => (
+                    <button
+                      type="button"
+                      key={customer.id}
+                      className={customer.id === customerId ? "active" : ""}
+                      onClick={() => {
+                        setCustomerId(customer.id);
+                        setAppointmentCustomerSearch("");
+                      }}
+                    >
+                      <strong>{customer.name}</strong>
+                      <span>{customer.phone || "未留手机号"}</span>
+                    </button>
+                  )) : (
+                    <div className="checkout-customer-empty">没有找到客户，请先到客户档案建档。</div>
+                  )}
+                </div>
+              )}
+            </div>
             <Select label="服务人员" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增人员" }]} />
             <div className="appointment-service-picker">
               <div className="checkout-product-section-head">
