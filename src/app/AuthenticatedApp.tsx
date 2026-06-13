@@ -2905,6 +2905,12 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     event.preventDefault();
     const nextStartAt = new Date(startAt);
     if (!hasConfiguredRooms || !roomNames.includes(roomName) || nextStartAt < new Date()) return;
+    if (selectedTimeConflict) {
+      void runMutation(() => {
+        throw new Error(selectedStaffAppointmentConflictText || selectedStaffUnavailableConflictText || "该人员在此时间段已有安排");
+      });
+      return;
+    }
     void runMutation(() =>
       actions.addAppointment({
         customerId,
@@ -3170,7 +3176,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const rescheduleEndDate = new Date(rescheduleEndAt);
   const rescheduleTimeRangeInvalid = Number.isNaN(rescheduleStartDate.getTime()) || Number.isNaN(rescheduleEndDate.getTime()) || !(rescheduleStartDate < rescheduleEndDate);
   const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
-  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || selectedTimeConflict || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
   const rescheduleSaveDisabled = !rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
     if (appointment.status === "已完成") {
