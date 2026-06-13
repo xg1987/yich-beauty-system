@@ -275,6 +275,27 @@ function editableNumberOrZero(value: EditableNumber) {
   return value === "" || !Number.isFinite(value) ? 0 : value;
 }
 
+function formatBirthdayDraft(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+}
+
+function normalizeBirthdayForSubmit(value: string) {
+  const birthday = formatBirthdayDraft(value).trim();
+  if (!birthday) return "";
+  const match = birthday.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  if (date.getTime() > Date.now()) return "";
+  return birthday;
+}
+
 function inventoryCategoryMap(products: Product[], presets: Record<string, string[]> = INVENTORY_CATEGORY_PRESETS) {
   const map = new Map<string, Set<string>>();
   const addCategory = (category: string) => {
@@ -2925,7 +2946,7 @@ function PlatformCustomersReadOnlyView({ data, setView, showBack }: { data: AppD
     card.name,
     card.type,
     money(card.balance),
-    `${card.remainingTimes} 次`,
+    memberCardTimesText(card, data.services),
     <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "正常" ? "ok" : "warn"} />,
     shortDate(card.expiresAt),
   ]);
@@ -4174,8 +4195,8 @@ function PlatformStoreCustomerDetailsView({ data, setView, showBack }: { data: A
                               ...row.customerCards.map((card) => [
                                 "会员卡",
                                 card.expiresAt ? `到期 ${shortDate(card.expiresAt)}` : "-",
-                                `${card.name} · ${card.type} · ${card.serviceIds?.map((id) => nameOf(data.services, id)).join("、") || (card.serviceId ? nameOf(data.services, card.serviceId) : "-")}`,
-                                `余额 ${money(card.balance)} · 剩 ${card.remainingTimes} 次 · ${card.status}`,
+                                `${card.name} · ${card.type} · ${memberCardProjectScopeText(card, data.services)}`,
+                                `余额 ${money(card.balance)} · ${memberCardTimesText(card, data.services)} · ${card.status}`,
                                 "-",
                               ]),
                               ...row.customerCardTransactions.slice(0, 8).map((transaction) => [
@@ -4757,7 +4778,7 @@ function MarketingCenter({ data, session, actions }: { data: AppData; session: U
                 <label>
                   <span>客户</span>
                   <select value={selectedCustomer?.id ?? ""} disabled>
-                    {selectedCustomer ? <option value={selectedCustomer.id}>{selectedCustomer.name}</option> : <option value="">暂无客户</option>}
+                    {selectedCustomer ? <option value={selectedCustomer.id}>{customerOptionOf(selectedCustomer).label}</option> : <option value="">暂无客户</option>}
                   </select>
                 </label>
                 <label>
@@ -6031,7 +6052,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
       >
         <div className="module-detail-stack appointment-modal-detail">
           <form className="form appointment-create-form" onSubmit={addAppointment}>
-            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
+            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(customerOptionOf)} />
             <Select label="服务人员" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增人员" }]} />
             <div className="appointment-service-picker">
               <div className="checkout-product-section-head">
@@ -6913,12 +6934,13 @@ function Pos({
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (readCardName() || DEFAULT_DISCOUNT_CARD_NAME) : readCardName();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
       const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
-      const submittedCustomerBirthday = cardCustomerMode === "new" ? cardCustomerBirthday.trim() : "";
+      const submittedCustomerBirthday = cardCustomerMode === "new" ? normalizeBirthdayForSubmit(cardCustomerBirthday) : "";
       const submittedCustomerNote = cardCustomerMode === "new" ? cardCustomerNote.trim() : "";
       const submittedServiceEntitlements = cardType === "次数卡" || cardType === "套餐卡" ? buildCardServiceEntitlements() : [];
       const submittedRemainingTimes = submittedServiceEntitlements.reduce((sum, item) => sum + item.totalTimes, 0);
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
+      if (cardCustomerMode === "new" && cardCustomerBirthday.trim() && !submittedCustomerBirthday) throw new Error("客户生日请按 YYYY-MM-DD 填写");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) throw new Error("请填写开卡实收金额");
       if (cardType === "储值卡" && (!Number.isFinite(cardAmountValue) || cardAmountValue <= 0)) throw new Error("请填写储值到账金额");
@@ -7177,12 +7199,12 @@ function Pos({
         <form className="form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
-            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
+            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(customerOptionOf)} />
           ) : (
             <>
               <label>客户姓名<input ref={cardCustomerNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
               <label>客户手机号<input ref={cardCustomerPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
-              <label>客户生日（选填）<input type="date" value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(event.target.value)} /></label>
+              <label>客户生日（选填）<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
               <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
             </>
           )}
@@ -7444,7 +7466,7 @@ function Pos({
               value={cardId}
               onChange={setCardId}
               options={availableCards.length
-                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${item.balance ? money(item.balance) : `${item.remainingTimes} 次`}` }))
+                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, usesService ? serviceId : undefined)}` }))
                 : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "商品购买仅支持储值卡" }]}
             />
           )}
@@ -7880,7 +7902,7 @@ function Customers({
     setEditCustomerPhone(customer.phone);
     setEditCustomerSource(customer.source);
     setEditCustomerLevel(customer.level);
-    setEditCustomerBirthday((customer.birthday ?? "").slice(0, 10));
+    setEditCustomerBirthday(formatBirthdayDraft(customer.birthday ?? ""));
     setEditCustomerTags(customer.tags.join("，"));
     setEditCustomerNote(customer.note ?? "");
     setEditCustomerReason("");
@@ -7892,14 +7914,16 @@ function Customers({
     if (!selectedCustomer) return;
     const nextName = editCustomerName.trim();
     const nextPhone = editCustomerPhone.trim();
+    const nextBirthday = normalizeBirthdayForSubmit(editCustomerBirthday);
     if (!nextName || !nextPhone) return;
+    if (editCustomerBirthday.trim() && !nextBirthday) return;
     void runMutation(() =>
       actions.updateCustomer(selectedCustomer.id, {
         name: nextName,
         phone: nextPhone,
         level: editCustomerLevel.trim() || "普通会员",
         source: editCustomerSource.trim() || "门店登记",
-        birthday: editCustomerBirthday,
+        birthday: nextBirthday,
         tags: parseCustomerTags(editCustomerTags),
         note: editCustomerNote.trim(),
         reason: editCustomerReason.trim(),
@@ -7996,12 +8020,13 @@ function Customers({
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (readCardName() || DEFAULT_DISCOUNT_CARD_NAME) : readCardName();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
       const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
-      const submittedCustomerBirthday = cardCustomerMode === "new" ? cardCustomerBirthday.trim() : "";
+      const submittedCustomerBirthday = cardCustomerMode === "new" ? normalizeBirthdayForSubmit(cardCustomerBirthday) : "";
       const submittedCustomerNote = cardCustomerMode === "new" ? cardCustomerNote.trim() : "";
       const submittedServiceEntitlements = cardType === "次数卡" || cardType === "套餐卡" ? buildCardServiceEntitlements() : [];
       const submittedRemainingTimes = submittedServiceEntitlements.reduce((sum, item) => sum + item.totalTimes, 0);
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
+      if (cardCustomerMode === "new" && cardCustomerBirthday.trim() && !submittedCustomerBirthday) throw new Error("客户生日请按 YYYY-MM-DD 填写");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) {
         throw new Error("请填写开卡实收金额");
@@ -8222,10 +8247,6 @@ function Customers({
   ];
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
-  const projectScope = (serviceId?: string, serviceIds?: string[]) => {
-    if (serviceIds?.length) return serviceIds.map((id) => nameOf(data.services, id)).join(" / ");
-    return serviceId ? nameOf(data.services, serviceId) : "通用";
-  };
   const recentVisits = data.customers.filter((customer) => {
     const days = (Date.now() - +new Date(customer.lastVisit)) / 86400000;
     return days <= 7;
@@ -8279,6 +8300,9 @@ function Customers({
     : [];
   const selectedCardBalance = selectedCustomerActiveCards.reduce((sum, card) => sum + card.balance, 0);
   const selectedRemainingTimes = selectedCustomerActiveCards.reduce((sum, card) => sum + card.remainingTimes, 0);
+  const selectedCardTimesSummary = selectedCustomerActiveCards.length
+    ? memberCardTimesText(selectedCustomerActiveCards[0], data.services)
+    : "-";
   const activeCardCustomerCount = new Set(activeCards.map((card) => card.customerId)).size;
   const lastServiceRecord = selectedCustomerRecords[0];
   const latestOrder = selectedCustomerOrders[0];
@@ -8443,9 +8467,9 @@ function Customers({
 
               <div className="customer-asset-grid">
                 <div>
-                  <span>项目卡次数</span>
-                  <strong>{selectedRemainingTimes} 次</strong>
-                  <small>{selectedCustomerActiveCards.length} 张有效卡</small>
+                  <span>项目次数明细</span>
+                  <strong>{selectedCardTimesSummary}</strong>
+                  <small>{selectedCustomerActiveCards.length} 张有效卡 · 总剩 {selectedRemainingTimes} 次</small>
                 </div>
                 <div>
                   <span>储值余额</span>
@@ -8490,9 +8514,9 @@ function Customers({
                         <article key={card.id}>
                           <div>
                             <strong>{card.name}</strong>
-                            <span>{card.type} · {projectScope(card.serviceId, card.serviceIds)}</span>
+                            <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
                           </div>
-                          <em>{card.remainingTimes > 0 ? `${card.remainingTimes} 次` : money(card.balance)}</em>
+                          <em>{memberCardTimesText(card, data.services)}</em>
                         </article>
                       ))}
                       {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">暂无项目卡</p>}
@@ -8533,8 +8557,8 @@ function Customers({
                       card.name,
                       card.type,
                       money(card.balance),
-                      `${card.remainingTimes} 次`,
-                      projectScope(card.serviceId, card.serviceIds),
+                      memberCardTimesText(card, data.services),
+                      memberCardProjectScopeText(card, data.services),
                       shortDate(card.expiresAt),
                       <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "正常" ? "ok" : "warn"} />,
                     ])}
@@ -8622,7 +8646,7 @@ function Customers({
           <label>客户姓名<input value={editCustomerName} onChange={(event) => setEditCustomerName(event.target.value)} autoComplete="name" required /></label>
           <label>手机号<input type="tel" inputMode="tel" value={editCustomerPhone} onChange={(event) => setEditCustomerPhone(event.target.value)} autoComplete="tel" required /></label>
           <label>会员等级<input value={editCustomerLevel} onChange={(event) => setEditCustomerLevel(event.target.value)} placeholder="普通会员" /></label>
-          <label>生日<input type="date" value={editCustomerBirthday} onChange={(event) => setEditCustomerBirthday(event.target.value)} /></label>
+          <label>生日<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={editCustomerBirthday} onChange={(event) => setEditCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setEditCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
           <label>来源<input value={editCustomerSource} onChange={(event) => setEditCustomerSource(event.target.value)} placeholder="门店登记 / 开卡登记 / 老客转介绍" /></label>
           <label>标签<input value={editCustomerTags} onChange={(event) => setEditCustomerTags(event.target.value)} placeholder="多个标签用逗号分隔" /></label>
           <label className="span-2">客户备注<textarea value={editCustomerNote} onChange={(event) => setEditCustomerNote(event.target.value)} placeholder="客户皮肤状态、偏好、禁忌、沟通注意事项等" /></label>
@@ -8680,12 +8704,12 @@ function Customers({
         <form className="form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
-            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(optionOf)} />
+            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(customerOptionOf)} />
           ) : (
             <>
               <label>客户姓名<input ref={customerCardNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
               <label>客户手机号<input ref={customerCardPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
-              <label>客户生日（选填）<input type="date" value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(event.target.value)} /></label>
+              <label>客户生日（选填）<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
               <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
             </>
           )}
@@ -8764,7 +8788,7 @@ function Customers({
           <button disabled={mutationPending} onClick={() => void runMutation(() => actions.extendMemberCard(operationCardId, extendTo, "客户延期"))}>{mutationPending ? "处理中..." : "延期"}</button>
         </div>
         <div className="inline-form compact">
-          <Select label="转给客户" value={transferToCustomerId} onChange={setTransferToCustomerId} options={data.customers.map(optionOf)} />
+          <Select label="转给客户" value={transferToCustomerId} onChange={setTransferToCustomerId} options={data.customers.map(customerOptionOf)} />
           <button disabled={mutationPending} onClick={() => void runMutation(() => actions.transferMemberCard(operationCardId, transferToCustomerId, "客户转卡"))}>{mutationPending ? "处理中..." : "转卡"}</button>
         </div>
         </>
@@ -8787,7 +8811,7 @@ function Customers({
         <>
         <PanelTitle icon={<LockKeyhole size={18} />} title="服务确认签名" action={`${data.customerSignatures?.length ?? 0} 份`} />
         <form className="form" onSubmit={createSignature}>
-          <Select label="客户" value={signatureCustomerId} onChange={(value) => { setSignatureCustomerId(value); setSignatureRecordId(""); setSignatureOrderId(""); }} options={data.customers.map(optionOf)} />
+          <Select label="客户" value={signatureCustomerId} onChange={(value) => { setSignatureCustomerId(value); setSignatureRecordId(""); setSignatureOrderId(""); }} options={data.customers.map(customerOptionOf)} />
           <Select label="关联档案" value={signatureRecordId} onChange={setSignatureRecordId} options={signatureRecordOptions} />
           <Select label="关联订单" value={signatureOrderId} onChange={setSignatureOrderId} options={signatureOrderOptions} />
           <label>签名标题<input value={signatureTitle} onChange={(event) => setSignatureTitle(event.target.value)} /></label>
@@ -8810,7 +8834,7 @@ function Customers({
             shortDate(customer.lastVisit),
             data.memberCards
               .filter((card) => card.customerId === customer.id)
-              .map((card) => `${card.name}(${projectScope(card.serviceId, card.serviceIds)})`)
+              .map((card) => `${card.name}(${memberCardTimesText(card, data.services)})`)
               .join("，") || "未开卡",
             `${data.customerServiceRecords.filter((record) => record.customerId === customer.id).length} 条`,
             `${data.customerSignatures.filter((signature) => signature.customerId === customer.id).length} 份`,
@@ -8828,9 +8852,9 @@ function Customers({
             card.name,
             card.type,
             money(card.balance),
-            card.remainingTimes,
+            memberCardTimesText(card, data.services),
             card.benefitText ?? (card.discountRate ? `${Number((card.discountRate * 10).toFixed(1))} 折` : "-"),
-            projectScope(card.serviceId, card.serviceIds),
+            memberCardProjectScopeText(card, data.services),
             shortDate(card.expiresAt),
             <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "已退卡" ? "warn" : "ok"} />,
             card.status === "正常" ? "客户退费办理" : "已处理",
@@ -11178,6 +11202,10 @@ function optionOf(item: { id: string; name: string }) {
   return { value: item.id, label: item.name };
 }
 
+function customerOptionOf(customer: AppData["customers"][number]) {
+  return { value: customer.id, label: customer.phone ? `${customer.name} · ${customer.phone}` : customer.name };
+}
+
 function numberFromInput(value: string, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -11187,6 +11215,29 @@ function optionalNumberFromInput(value: string) {
   if (value.trim() === "") return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function memberCardProjectScopeText(card: AppData["memberCards"][number], services: AppData["services"]) {
+  if (card.serviceEntitlements?.length) {
+    return card.serviceEntitlements.map((item) => nameOf(services, item.serviceId)).join(" / ");
+  }
+  if (card.serviceIds?.length) return card.serviceIds.map((id) => nameOf(services, id)).join(" / ");
+  return card.serviceId ? nameOf(services, card.serviceId) : "通用";
+}
+
+function memberCardTimesText(card: AppData["memberCards"][number], services: AppData["services"], focusedServiceId?: string) {
+  if (card.type === "储值卡") return money(card.balance);
+  if (card.serviceEntitlements?.length) {
+    const entitlements = focusedServiceId
+      ? card.serviceEntitlements.filter((item) => item.serviceId === focusedServiceId)
+      : card.serviceEntitlements;
+    if (entitlements.length === 0 && focusedServiceId) return `${nameOf(services, focusedServiceId)} 0次`;
+    return entitlements
+      .map((item) => `${nameOf(services, item.serviceId)} ${item.remainingTimes}/${item.totalTimes}次`)
+      .join("；");
+  }
+  if (focusedServiceId) return `${nameOf(services, focusedServiceId)} ${card.remainingTimes}次`;
+  return `${memberCardProjectScopeText(card, services)} ${card.remainingTimes}次`;
 }
 
 function nameOf(collection: Array<{ id: string; name: string }>, id: string) {

@@ -9077,6 +9077,12 @@ textarea,
   font-size: 24px;
   font-weight: 950;
   line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.customer-asset-grid > div:first-child strong {
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .customer-detail-tabs {
@@ -9164,10 +9170,13 @@ textarea,
 }
 
 .customer-card-stack em {
-  flex: 0 0 auto;
+  flex: 0 1 48%;
   color: #5a2da0;
   font-style: normal;
   font-weight: 950;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .customer-timeline article {
