@@ -2835,7 +2835,7 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View, Cache-Control, Pragma",
   };
 }
 

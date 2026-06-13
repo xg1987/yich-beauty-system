@@ -8767,11 +8767,15 @@ textarea,
 .customer-detail-tabs {
   display: flex;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 5px;
   border: 1px solid rgba(111, 66, 193, 0.13);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.58);
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .customer-filter-tabs {
@@ -8781,6 +8785,7 @@ textarea,
 
 .customer-filter-tabs button,
 .customer-detail-tabs button {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
