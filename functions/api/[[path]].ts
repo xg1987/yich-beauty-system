@@ -2390,7 +2390,7 @@ function assertMarketingAiAllowed(data: AppData, session: UserSession, capabilit
   const capabilityLabel = capability === "copy" ? "文案" : capability === "image" ? "图片" : "视频";
   if (!platformEnabled) throw new Error(`平台未启用 AI ${capabilityLabel}能力`);
   const storeId = sessionStoreId(data, session);
-  const store = storeId ? normalizeStoreScopedData(data).storeProfiles.find((item) => item.id === storeId) : undefined;
+  const store = storeId ? data.storeProfiles.find((item) => item.id === storeId) : undefined;
   const permissions = normalizeStoreAiUsagePermissions(store?.aiUsagePermissions);
   if (!permissions[marketingRoleGroup(session.user.role)][capability]) {
     throw new Error(`当前门店未开放 AI ${capabilityLabel}权限`);

@@ -1354,6 +1354,39 @@ try {
   assert.ok(therapistData.orders.some((item) => item.id === otherStaffCustomerOrderId && item.staffId === "s3"), "therapist should see same-store customer orders handled by other staff");
   assert.ok(therapistData.staffUnavailableSlots.every((item) => item.staffId === "s2"), "therapist should only see own unavailable slots");
   assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
+  await request<AppData>(baseUrl, "/api/ai-usage-permissions", {
+    method: "PATCH",
+    token: session.token,
+    body: {
+      permissions: {
+        owner: { copy: true, image: true, video: true },
+        staff: { copy: false, image: false, video: false },
+      },
+    },
+  });
+  const restrictedTherapistAiData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
+  assert.equal(
+    restrictedTherapistAiData.storeProfiles[0]?.aiUsagePermissions?.staff.copy,
+    false,
+    "therapist should receive updated staff AI copy permission",
+  );
+  await assert.rejects(
+    () =>
+      request(baseUrl, "/api/marketing-ai/generate", {
+        method: "POST",
+        token: therapistSession.token,
+        body: {
+          kind: "copy",
+          storeName: "祝融｜坤锋美学门店",
+          productName: "舒缓精华",
+          serviceName: "舒缓护理",
+          audience: "老客",
+          channel: "朋友圈",
+        },
+      }),
+    /当前门店未开放 AI 文案权限/,
+    "therapist should not generate marketing copy after staff AI copy permission is closed",
+  );
   await request<AppData>(baseUrl, "/api/operational-permissions", {
     method: "PATCH",
     token: session.token,

@@ -61,12 +61,20 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
   const talkScenes = ["复购邀约", "沉睡唤醒", "护理回访", "到店提醒"];
   const activeToolState = toolStateByKey[tool];
+  const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
+  const unavailableMessage = (toolKey: MarketingToolKey) => {
+    const card = toolCards.find((item) => item.key === toolKey);
+    const state = toolStateByKey[toolKey];
+    if (state.label === "未开通") return `当前门店未开放${card?.label ?? "该功能"}权限`;
+    if (state.label === "平台未启用") return `${card?.label ?? "该功能"}平台未启用`;
+    return `${card?.label ?? "该功能"}暂不可用`;
+  };
 
   useEffect(() => {
     if (toolStateByKey[tool]?.enabled) return;
     const firstEnabledTool = toolCards.find((item) => toolStateByKey[item.key].enabled);
     if (firstEnabledTool) setTool(firstEnabledTool.key);
-  }, [data.storeProfiles, data.systemConfigs, session.user.role, tool]);
+  }, [permissionStateKey, tool]);
 
   useEffect(() => {
     setGenerationError("");
@@ -74,7 +82,21 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setCopyResultStatus("idle");
   }, [tool]);
 
+  useEffect(() => {
+    if (activeToolState.enabled) return;
+    setGenerationResult(null);
+    setCopyResultStatus("idle");
+    setGenerationError(unavailableMessage(tool));
+  }, [activeToolState.enabled, activeToolState.label, permissionStateKey, tool]);
+
   const generate = async () => {
+    if (!activeToolState.enabled) {
+      setGenerationBusy(false);
+      setGenerationResult(null);
+      setCopyResultStatus("idle");
+      setGenerationError(unavailableMessage(tool));
+      return;
+    }
     setGenerationBusy(true);
     setGenerationError("");
     setGenerationResult(null);
@@ -340,4 +362,3 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     </div>
   );
 }
-
