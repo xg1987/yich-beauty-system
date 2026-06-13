@@ -4,6 +4,7 @@ import type { PublicCustomerSignaturePayload } from "../../api/client";
 import { BrandIcon } from "../../components/business/BrandIcon";
 import { PanelTitle } from "../../components/layout/PanelTitle";
 import { money, shortDate } from "../../domain/utils";
+import { canvasToSignatureDataUrl } from "../../lib/signatureImage";
 
 type CustomerSignaturePageProps = {
   token: string;
@@ -64,7 +65,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
     }
     submittingRef.current = true;
     setSubmitting(true);
-    void signSignature(token, { signerName, signatureText: canvas.toDataURL("image/png") })
+    void signSignature(token, { signerName, signatureText: canvasToSignatureDataUrl(canvas) })
       .then(setPayload)
       .catch((caught) => setError(caught instanceof Error ? caught.message : "签名提交失败"))
       .finally(() => {

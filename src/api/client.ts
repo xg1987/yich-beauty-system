@@ -4,6 +4,7 @@ import type { AppDataSlice } from "../domain/dataSlices";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const DATA_CACHE_TTL_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 const cacheableGetPaths = ["/api/data"];
 const responseCache = new Map<string, { expiresAt: number; payload: unknown }>();
 const pendingRequests = new Map<string, Promise<unknown>>();
@@ -411,7 +412,7 @@ async function request<T>(
   }
 
   const pending = (async () => {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetchJsonWithTimeout(path, {
       method,
       headers: {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -449,7 +450,7 @@ async function requestForm<T>(
   path: string,
   options: { method?: string; body: FormData; token?: string },
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetchJsonWithTimeout(path, {
     method: options.method ?? "POST",
     headers: {
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
@@ -466,6 +467,21 @@ async function requestForm<T>(
     throw new Error("服务暂时不可用，请稍后重试");
   }
   return payload as T;
+}
+
+async function fetchJsonWithTimeout(path: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, { ...init, signal: controller.signal });
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === "AbortError") {
+      throw new Error("保存超时，请检查网络后重试；如果数据已保存，刷新页面即可看到最新状态");
+    }
+    throw caught;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 function isErrorPayload(value: unknown): value is { error: string } {

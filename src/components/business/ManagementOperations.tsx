@@ -5,6 +5,7 @@ import type { AppData, CashPayMethod, MemberCard, MemberCardTransaction, Order, 
 import { appointmentEndAt, appointmentServiceIds } from "../../domain/appointments";
 import { calculateMemberCardRefundQuote } from "../../domain/business";
 import { money, shortDate } from "../../domain/utils";
+import { canvasToSignatureDataUrl } from "../../lib/signatureImage";
 import { Badge } from "../ui/Badge";
 import { DataTable } from "../ui/DataTable";
 import { Select } from "../ui/Select";
@@ -365,7 +366,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
     void runRefundAction(() =>
       actions.signCustomerSignature(selectedRefundSignature.id, {
         signerName: refundSignerName,
-        signatureText: canvas.toDataURL("image/png"),
+        signatureText: canvasToSignatureDataUrl(canvas),
       }),
     ).then((nextData) => {
       const signedSignature = nextData.customerSignatures.find((signature) => signature.id === selectedRefundSignature.id);
