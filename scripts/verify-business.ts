@@ -1188,7 +1188,15 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
         },
         { idFactory: testId, now: fixedNow },
       ),
-    /已有预约/,
+    (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, /已有预约/);
+      assert.match(message, /小雅/);
+      assert.match(message, /周女士/);
+      assert.match(message, /小气泡深层清洁/);
+      assert.match(message, /护理房 1/);
+      return true;
+    },
     "appointment creation should reject staff schedule conflict",
   );
 
@@ -1234,7 +1242,15 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(rescheduled.appointments[0].rescheduledAt, fixedNow(), "reschedule should keep audit time");
   assert.throws(
     () => rescheduleAppointment(data, { appointmentId: data.appointments[0].id, staffId: "s2", startAt: conflictStartAt }, { now: fixedNow }),
-    /已有预约/,
+    (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, /已有预约/);
+      assert.match(message, /小雅/);
+      assert.match(message, /周女士/);
+      assert.match(message, /小气泡深层清洁/);
+      assert.match(message, /护理房 1/);
+      return true;
+    },
     "reschedule should reject staff schedule conflict",
   );
   assert.throws(

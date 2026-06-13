@@ -634,7 +634,15 @@ try {
           note: "冲突预约",
         },
       }),
-    /已有预约/,
+    (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, /已有预约/);
+      assert.match(message, /小雅/);
+      assert.match(message, /周女士/);
+      assert.match(message, /小气泡深层清洁/);
+      assert.match(message, /护理房 1/);
+      return true;
+    },
     "appointment API should reject staff time conflicts",
   );
 

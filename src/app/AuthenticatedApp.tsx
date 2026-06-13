@@ -67,7 +67,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
-import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StaffUnavailableSlot, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import { canvasToSignatureDataUrl } from "../lib/signatureImage";
@@ -626,6 +626,29 @@ export function appointmentTimeRange(data: AppData, appointment: Appointment) {
 
 export function appointmentServiceNames(data: AppData, appointment: Pick<Appointment, "serviceId" | "serviceIds">) {
   return appointmentServiceIds(appointment).map((serviceId) => nameOf(data.services, serviceId)).join("、") || "未选择项目";
+}
+
+function findStaffAppointmentConflict(data: AppData, staffId: string, startAt: Date, endAt: Date) {
+  return data.appointments.filter(isActiveRoomAppointment).find((appointment) => {
+    if (appointment.staffId !== staffId) return false;
+    return hasTimeOverlap(startAt, endAt, new Date(appointment.startAt), appointmentEndAt(appointment, data.services));
+  });
+}
+
+function findStaffUnavailableConflict(data: AppData, staffId: string, startAt: Date, endAt: Date) {
+  return data.staffUnavailableSlots.find((slot) => slot.staffId === staffId && hasTimeOverlap(startAt, endAt, new Date(slot.startAt), new Date(slot.endAt)));
+}
+
+function staffAppointmentConflictText(data: AppData, appointment?: Appointment) {
+  return appointment
+    ? `${nameOf(data.staff, appointment.staffId)} ${appointmentTimeRange(data, appointment)} 已为 ${nameOf(data.customers, appointment.customerId)} 预约 ${appointmentServiceNames(data, appointment)}，房间：${appointment.roomName || "未分配房间"}。请更换服务人员或调整时间。`
+    : "";
+}
+
+function staffUnavailableConflictText(data: AppData, slot?: StaffUnavailableSlot) {
+  return slot
+    ? `${nameOf(data.staff, slot.staffId)} ${shortDate(slot.startAt)}-${shortTime(slot.endAt)} 不可预约${slot.reason ? `：${slot.reason}` : ""}。请更换服务人员或调整时间。`
+    : "";
 }
 
 function isActiveRoomAppointment(appointment: Appointment) {
@@ -3045,15 +3068,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     );
   };
 
-  // 排班增强：简单冲突检测
-  const checkAvailability = (staffId: string, start: string, end: string) => {
-    const conflicts = data.staffUnavailableSlots.filter(slot =>
-      slot.staffId === staffId &&
-      !(new Date(end) <= new Date(slot.startAt) || new Date(start) >= new Date(slot.endAt))
-    );
-    return conflicts.length > 0;
-  };
-
   const lockedServiceStaff = new Set(data.staffUnavailableSlots.filter((slot) => serviceStaffIds.has(slot.staffId)).map((slot) => slot.staffId));
   const availableStaff = Math.max(0, serviceStaff.filter((staff) => staff.status === "active").length - lockedServiceStaff.size);
   const pendingOnlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理");
@@ -3093,7 +3107,15 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const selectedTimeLabel = selectedTimeRangeInvalid
     ? "时间段无效"
     : `${shortTime(selectedStartAt.toISOString())}-${shortTime(selectedEndAt.toISOString())}`;
-  const selectedTimeConflict = !selectedTimeRangeInvalid && !selectedTimeInPast && checkAvailability(staffId, startAt, selectedEndAt.toISOString());
+  const selectedStaffAppointmentConflict = !staffId || selectedTimeRangeInvalid || selectedTimeInPast
+    ? undefined
+    : findStaffAppointmentConflict(data, staffId, selectedStartAt, selectedEndAt);
+  const selectedStaffUnavailableConflict = !staffId || selectedTimeRangeInvalid || selectedTimeInPast
+    ? undefined
+    : findStaffUnavailableConflict(data, staffId, selectedStartAt, selectedEndAt);
+  const selectedStaffAppointmentConflictText = staffAppointmentConflictText(data, selectedStaffAppointmentConflict);
+  const selectedStaffUnavailableConflictText = staffUnavailableConflictText(data, selectedStaffUnavailableConflict);
+  const selectedTimeConflict = Boolean(selectedStaffAppointmentConflict || selectedStaffUnavailableConflict);
   const overlappingRoomAssignments = selectedTimeRangeInvalid || selectedTimeInPast
     ? []
     : assignAppointmentRooms(
@@ -3148,7 +3170,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const rescheduleEndDate = new Date(rescheduleEndAt);
   const rescheduleTimeRangeInvalid = Number.isNaN(rescheduleStartDate.getTime()) || Number.isNaN(rescheduleEndDate.getTime()) || !(rescheduleStartDate < rescheduleEndDate);
   const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
-  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || selectedTimeConflict || !hasConfiguredRooms || !roomNames.includes(roomName);
   const rescheduleSaveDisabled = !rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
     if (appointment.status === "已完成") {
@@ -3491,7 +3513,8 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
             </label>
             {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
             {selectedTimeInPast && <p className="form-warning">预约时间不能早于当前时间，请重新选择。</p>}
-            {selectedTimeConflict && <p className="form-warning">该人员在此时间段有不可预约安排，建议调整时间</p>}
+            {selectedStaffAppointmentConflictText && <p className="form-warning">{selectedStaffAppointmentConflictText}</p>}
+            {selectedStaffUnavailableConflictText && <p className="form-warning">{selectedStaffUnavailableConflictText}</p>}
             {!hasConfiguredRooms && <p className="form-warning">当前门店还没有可用于预约的房间，请先到房间管理配置。</p>}
             <div className="row-actions">
               <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={appointmentSaveDisabled} />

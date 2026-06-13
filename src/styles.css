@@ -575,6 +575,25 @@ button[aria-busy="true"] {
   color: #a53b2a;
 }
 
+.topbar-actions > .error-chip {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 2600;
+  max-width: min(92vw, 560px);
+  min-height: 40px;
+  padding: 0 16px;
+  transform: translateX(-50%);
+  border-color: rgba(31, 24, 46, 0.08);
+  background: rgba(27, 24, 36, 0.92);
+  color: #fff;
+  text-align: center;
+  line-height: 1.35;
+  white-space: normal;
+  box-shadow: 0 12px 30px rgba(31, 24, 46, 0.24);
+  pointer-events: none;
+}
+
 .page-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

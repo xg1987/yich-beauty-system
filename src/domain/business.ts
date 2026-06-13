@@ -48,7 +48,7 @@ import type {
   ViewKey,
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
-import { appointmentEndAt, assignAppointmentRooms } from "./appointments";
+import { appointmentEndAt, appointmentServiceIds, assignAppointmentRooms } from "./appointments";
 import { normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 import { makeId, money, nowIso } from "./utils";
 
@@ -4011,7 +4011,7 @@ function validateAppointmentSchedule(
   if (!roomNames.includes(selectedRoomName)) throw new Error("预约房间不存在");
   if (maintenanceRoomNames.includes(selectedRoomName)) throw new Error("该房间维护中，不能预约");
 
-  const hasAppointmentConflict = data.appointments.some((appointment) => {
+  const appointmentConflict = data.appointments.find((appointment) => {
     if (appointment.id === input.excludeAppointmentId) return false;
     if (appointment.staffId !== input.staffId) return false;
     if (["已完成", "已取消", "爽约"].includes(appointment.status)) return false;
@@ -4020,8 +4020,8 @@ function validateAppointmentSchedule(
     return hasTimeOverlap(startAt, endAt, appointmentStart, appointmentEnd);
   });
 
-  if (hasAppointmentConflict) {
-    throw new Error("该服务人员在此时间段已有预约");
+  if (appointmentConflict) {
+    throw new Error(`该服务人员在此时间段已有预约：${appointmentConflictSummary(data, appointmentConflict)}`);
   }
 
   const hasUnavailableConflict = data.staffUnavailableSlots.some((slot) => {
@@ -4060,6 +4060,38 @@ function validateAppointmentSchedule(
   if (!insideShift) {
     throw new Error("预约时间不在服务人员班次内");
   }
+}
+
+function appointmentConflictSummary(data: AppData, appointment: Appointment) {
+  const customerName = data.customers.find((customer) => customer.id === appointment.customerId)?.name ?? "该客户";
+  const staffName = data.staff.find((staff) => staff.id === appointment.staffId)?.name ?? "该服务人员";
+  const serviceNames =
+    appointmentServiceIds(appointment)
+      .map((serviceId) => data.services.find((service) => service.id === serviceId)?.name)
+      .filter((name): name is string => Boolean(name))
+      .join("、") || "未选择项目";
+  const roomName = appointment.roomName?.trim() || "未分配房间";
+  return `${staffName} ${appointmentConflictTimeRange(appointment, data.services)} 已为 ${customerName} 预约 ${serviceNames}，房间：${roomName}`;
+}
+
+function appointmentConflictTimeRange(appointment: Appointment, services: Service[]) {
+  const start = new Date(appointment.startAt);
+  const end = appointmentEndAt(appointment, services);
+  const dateTime = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(start);
+  const endTime = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(end);
+  return `${dateTime}-${endTime}`;
 }
 
 export function createStaffShift(
