@@ -54,7 +54,6 @@ import {
   previewFormalDataCleanup,
   scopeDataToStore,
   sanitizeSystemConfigsForRole,
-  storeStaffCanViewAllAppointments,
   updateTagDefinition,
   updateServiceCatalog,
   updateProductCatalog,
@@ -779,10 +778,6 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "appointments:manage");
         const body = await readJson(request);
         const requestedStaffId = requiredString(body, "staffId");
-        const appointmentStaffId = session.user.role === "therapist" ? session.user.staffId ?? "" : requestedStaffId;
-        if (!appointmentStaffId || (session.user.role === "therapist" && requestedStaffId !== appointmentStaffId)) {
-          throw new Error("员工账号只能预约自己的服务");
-        }
         const appointedData = updateData(database, session, {
           action: "新增预约",
           targetType: "appointment",
@@ -792,7 +787,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           createAppointment(data, {
             storeId: sessionStoreId(data, session),
             customerId: requiredString(body, "customerId"),
-            staffId: appointmentStaffId,
+            staffId: requestedStaffId,
             serviceId: requiredString(body, "serviceId"),
             serviceIds: optionalStringArray(body, "serviceIds"),
             startAt: requiredString(body, "startAt"),
@@ -861,15 +856,6 @@ export function createApiServer(database = new BeautyDatabase()) {
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
         const requestedStaffId = optionalString(body, "staffId");
-        const appointmentStaffId = session.user.role === "therapist" ? session.user.staffId : requestedStaffId;
-        const currentData = database.readData();
-        const targetAppointment = currentData.appointments.find((item) => item.id === appointmentId);
-        if (session.user.role === "therapist" && targetAppointment?.staffId !== session.user.staffId) {
-          throw new Error("员工账号只能改约自己的服务");
-        }
-        if (session.user.role === "therapist" && requestedStaffId && requestedStaffId !== session.user.staffId) {
-          throw new Error("员工账号只能改约自己的服务");
-        }
         const nextData = updateData(database, session, {
           action: "改约",
           targetType: "appointment",
@@ -878,7 +864,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         }, (data) =>
           rescheduleAppointment(data, {
             appointmentId,
-            staffId: appointmentStaffId,
+            staffId: requestedStaffId,
             serviceId: optionalString(body, "serviceId"),
             serviceIds: optionalStringArray(body, "serviceIds"),
             startAt: requiredString(body, "startAt"),
@@ -896,11 +882,6 @@ export function createApiServer(database = new BeautyDatabase()) {
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const body = await readJson(request);
         const status = requiredString(body, "status") as Appointment["status"];
-        const currentData = database.readData();
-        const targetAppointment = currentData.appointments.find((item) => item.id === appointmentId);
-        if (session.user.role === "therapist" && targetAppointment?.staffId !== session.user.staffId) {
-          throw new Error("员工账号只能更新自己的预约状态");
-        }
         const nextData = updateData(database, session, {
           action: "更新预约状态",
           targetType: "appointment",
@@ -1882,9 +1863,7 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   }
 
   const staffId = session.user.staffId;
-  const appointments = storeStaffCanViewAllAppointments(normalizedData, currentStoreId)
-    ? sanitizedData.appointments
-    : sanitizedData.appointments.filter((item) => item.staffId === staffId);
+  const appointments = sanitizedData.appointments;
   const orders = sanitizedData.orders.filter((item) => item.staffId === staffId);
   const orderIds = new Set(orders.map((item) => item.id));
   const appointmentIds = new Set(appointments.map((item) => item.id));

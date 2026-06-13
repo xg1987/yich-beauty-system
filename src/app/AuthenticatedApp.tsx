@@ -2493,7 +2493,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
   const isPlatformAdmin = session.user.role === "superadmin";
   const [selectedStoreId, setSelectedStoreId] = useState(() => data.storeProfiles[0]?.id ?? "");
   const selectedStore = data.storeProfiles.find((store) => store.id === selectedStoreId) ?? data.storeProfiles[0];
-  const [draft, setDraft] = useState(() => normalizeStoreOperationalPermissions(selectedStore?.operationalPermissions));
+  const [draft, setDraft] = useState(() => ({ ...normalizeStoreOperationalPermissions(selectedStore?.operationalPermissions), staffCanViewAllAppointments: true }));
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2506,7 +2506,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
     if (nextStore && nextStore.id !== selectedStoreId) {
       setSelectedStoreId(nextStore.id);
     }
-    setDraft(normalizeStoreOperationalPermissions(nextStore?.operationalPermissions));
+    setDraft({ ...normalizeStoreOperationalPermissions(nextStore?.operationalPermissions), staffCanViewAllAppointments: true });
     setSaved(false);
     setError("");
   }, [data.storeProfiles, selectedStoreId]);
@@ -2520,7 +2520,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
     setSaving(true);
     setSaved(false);
     setError("");
-    void runMutation(() => actions.updateOperationalPermissions(draft, isPlatformAdmin ? selectedStore?.id : undefined))
+    void runMutation(() => actions.updateOperationalPermissions({ ...draft, staffCanViewAllAppointments: true }, isPlatformAdmin ? selectedStore?.id : undefined))
       .then(() => {
         setSaved(true);
         window.setTimeout(onClose, 600);
@@ -2545,7 +2545,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
       <div className="ai-permission-status-grid">
         <article>
           <span>当前状态</span>
-          <strong>{draft.staffCanViewAllAppointments ? "全店可见" : "仅看本人"}</strong>
+          <strong>同店共享</strong>
         </article>
         <article>
           <span>门店预约</span>
@@ -2556,25 +2556,18 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
       <div className="ai-permission-matrix" role="table" aria-label="预约可见范围">
         <div className="ai-permission-head" role="row">
           <span>对象</span>
-          <span>预约可见范围</span>
+          <span>查看</span>
+          <span>操作</span>
+          <span>规则</span>
         </div>
         <div className="ai-permission-row" role="row">
           <div>
-            <strong>服务人员</strong>
-            <small>员工账号进入预约页时是否显示全店预约</small>
+            <strong>同店员工</strong>
+            <small>预约、房间、到店确认属于门店共享资源</small>
           </div>
-          <label>
-            <input
-              type="checkbox"
-              checked={draft.staffCanViewAllAppointments}
-              onChange={(event) => {
-                setSaved(false);
-                setError("");
-                setDraft({ staffCanViewAllAppointments: event.target.checked });
-              }}
-            />
-            <span>{draft.staffCanViewAllAppointments ? "开启" : "关闭"}</span>
-          </label>
+          <span className="permission-fixed-pill">全店可见</span>
+          <span className="permission-fixed-pill">可处理</span>
+          <span className="permission-fixed-pill">不可关闭</span>
         </div>
       </div>
 
@@ -2798,9 +2791,7 @@ type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 function Appointments({ data, session, actions, runMutation, setView }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
   const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
-  const isTherapistAppointmentUser = session.user.role === "therapist" && Boolean(session.user.staffId);
-  const currentAppointmentStaffId = isTherapistAppointmentUser ? session.user.staffId ?? "" : "";
-  const canOperateAppointment = (appointment: Appointment) => !isTherapistAppointmentUser || appointment.staffId === currentAppointmentStaffId;
+  const currentAppointmentStaffId = session.user.staffId ?? "";
   const defaultAppointmentStaffId = currentAppointmentStaffId && serviceStaff.some((staff) => staff.id === currentAppointmentStaffId)
     ? currentAppointmentStaffId
     : firstBusinessStaffId(data);
@@ -2835,9 +2826,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const [rescheduleNote, setRescheduleNote] = useState("");
   const [cancelReason, setCancelReason] = useState("客户临时取消");
   const staffOptions = serviceStaff.map(optionOf);
-  const appointmentStaffOptions = isTherapistAppointmentUser
-    ? staffOptions.filter((option) => option.value === currentAppointmentStaffId)
-    : staffOptions;
+  const appointmentStaffOptions = staffOptions;
   const selectedAppointmentCustomer = data.customers.find((item) => item.id === customerId);
   const normalizedAppointmentCustomerSearch = appointmentCustomerSearch.trim().toLowerCase();
   const appointmentCustomerSearchResults = normalizedAppointmentCustomerSearch
@@ -2891,7 +2880,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
-    if (isTherapistAppointmentUser && staffId !== currentAppointmentStaffId) return;
     const nextStartAt = new Date(startAt);
     if (!hasConfiguredRooms || !roomNames.includes(roomName) || nextStartAt < new Date()) return;
     void runMutation(() =>
@@ -2912,13 +2900,10 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   };
 
   const setStatus = (id: string, status: Appointment["status"], reason?: string) => {
-    const appointment = data.appointments.find((item) => item.id === id);
-    if (appointment && !canOperateAppointment(appointment)) return;
     void runMutation(() => actions.updateAppointmentStatus(id, status, reason));
   };
 
   const openReschedule = (appointment: Appointment) => {
-    if (!canOperateAppointment(appointment)) return;
     setActiveAppointmentId(appointment.id);
     setActiveAppointmentAction("reschedule");
     setRescheduleStaffId(appointment.staffId);
@@ -2931,7 +2916,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   };
 
   const openCancel = (appointment: Appointment) => {
-    if (!canOperateAppointment(appointment)) return;
     setActiveAppointmentId(appointment.id);
     setActiveAppointmentAction("cancel");
     setCancelReason(appointment.cancelReason ?? "客户临时取消");
@@ -2944,7 +2928,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
 
   const submitReschedule = (event: FormEvent) => {
     event.preventDefault();
-    if (isTherapistAppointmentUser && rescheduleStaffId !== currentAppointmentStaffId) return;
     const nextStartAt = new Date(rescheduleStartAt);
     if (!hasConfiguredRooms || !roomNames.includes(rescheduleRoomName) || nextStartAt < new Date()) return;
     const appointmentId = activeAppointmentId;
@@ -3193,17 +3176,10 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <span>{appointmentServiceNames(data, appointment)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
-      {canOperateAppointment(appointment) && (
-        <div className="appointment-work-card-actions">
-          <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>
-          <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
-        </div>
-      )}
-      {!canOperateAppointment(appointment) && (
-        <div className="appointment-work-card-actions">
-          <span className="appointment-action-note">仅服务人员本人可操作</span>
-        </div>
-      )}
+      <div className="appointment-work-card-actions">
+        <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>
+        <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
+      </div>
     </article>
   );
   const renderArrivalAppointmentCard = (appointment: Appointment) => (
@@ -3215,19 +3191,12 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <span>{appointmentServiceNames(data, appointment)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
-      {canOperateAppointment(appointment) && (
-        <div className="appointment-work-card-actions">
-          <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
-            确认到店
-          </button>
-          <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>
-        </div>
-      )}
-      {!canOperateAppointment(appointment) && (
-        <div className="appointment-work-card-actions">
-          <span className="appointment-action-note">仅服务人员本人可确认到店</span>
-        </div>
-      )}
+      <div className="appointment-work-card-actions">
+        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
+          确认到店
+        </button>
+        <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>
+      </div>
     </article>
   );
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
@@ -3260,18 +3229,18 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
-        {canOperateAppointment(appointment) && signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
-        {canOperateAppointment(appointment) && !signature && order && (
+        {signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
+        {!signature && order && (
           <button type="button" disabled={mutationPending} onClick={() => createServiceSignature(appointment, order)}>
             生成签名
           </button>
         )}
-        {canOperateAppointment(appointment) && !signature && !order && (
+        {!signature && !order && (
           <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
             进入收银生成签名
           </button>
         )}
-        {canOperateAppointment(appointment) && !order && <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>}
+        {!order && <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>}
         {appointment.status === "已完成" && <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>}
       </div>
     </article>
@@ -3455,7 +3424,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
               label="服务人员"
               value={staffId}
               onChange={setStaffId}
-              disabled={isTherapistAppointmentUser}
               options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先到人员账号新增人员" }]}
             />
             <div className="appointment-service-picker">
@@ -3595,7 +3563,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
             label="服务人员"
             value={rescheduleStaffId}
             onChange={setRescheduleStaffId}
-            disabled={isTherapistAppointmentUser}
             options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先新增人员" }]}
           />
           <div className="appointment-service-picker">

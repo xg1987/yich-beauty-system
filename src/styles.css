@@ -11222,19 +11222,6 @@ textarea,
   box-shadow: 0 10px 20px rgba(95, 55, 170, 0.18);
 }
 
-.appointment-action-note {
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 10px;
-  border: 1px dashed rgba(109, 69, 196, 0.2);
-  border-radius: 9px;
-  background: rgba(109, 69, 196, 0.06);
-  color: rgba(48, 37, 72, 0.64);
-  font-size: 12px;
-  font-weight: 850;
-}
-
 .appointment-work-empty {
   min-height: 58px;
   display: grid;
@@ -21804,7 +21791,8 @@ textarea,
   gap: 4px;
 }
 
-.ai-permission-row label {
+.ai-permission-row label,
+.permission-fixed-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -21817,6 +21805,12 @@ textarea,
   color: #2f255f;
   font-size: 12px;
   font-weight: 880;
+}
+
+.permission-fixed-pill {
+  background: rgba(42, 143, 125, 0.1);
+  border-color: rgba(42, 143, 125, 0.2);
+  color: #247769;
 }
 
 .ai-permission-row label.disabled {
@@ -21875,7 +21869,8 @@ textarea,
 }
 
 .app-shell.theme-night .ai-permission-head,
-.app-shell.theme-night .ai-permission-row label {
+.app-shell.theme-night .ai-permission-row label,
+.app-shell.theme-night .permission-fixed-pill {
   border-color: var(--night-app-line);
   background: rgba(255, 255, 255, 0.08);
   color: var(--night-app-text);
@@ -22996,12 +22991,6 @@ textarea,
   border-color: var(--night-app-line) !important;
   background: rgba(255, 255, 255, 0.11) !important;
   color: var(--night-app-text) !important;
-}
-
-.app-shell.theme-night .main .appointment-action-note {
-  border-color: var(--night-app-line) !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: var(--night-app-muted) !important;
 }
 
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-panel.panel {
