@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const appSource = readFileSync(join(process.cwd(), "src/app/AuthenticatedApp.tsx"), "utf8");
+const settingsSource = readFileSync(join(process.cwd(), "src/app/settingsView.tsx"), "utf8");
 const userAvatarSource = readFileSync(join(process.cwd(), "src/components/business/UserAvatar.tsx"), "utf8");
 const accountMenuSource = readFileSync(join(process.cwd(), "src/components/business/AccountMenu.tsx"), "utf8");
 
@@ -55,7 +56,7 @@ if (!appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} size={78} show
   violations.push("Admin hero avatar must render uploaded account avatars when available.");
 }
 
-if (!appSource.includes("<UserAvatar avatarUrl={avatarUrl} size={52} showImage />")) {
+if (!settingsSource.includes("<UserAvatar avatarUrl={avatarUrl} size={52} showImage />")) {
   violations.push("Settings avatar editor must keep uploaded-image preview enabled.");
 }
 

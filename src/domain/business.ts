@@ -187,10 +187,20 @@ export function scopeDataToStore(data: AppData, storeId: string | undefined): Ap
   if (!storeId) return normalizeStoreScopedData(data);
   const normalized = normalizeStoreScopedData(data);
   const belongsToStore = (item: { storeId?: string }) => item.storeId === storeId;
+  const visibleStaff = normalized.staff.filter(belongsToStore);
+  const visibleStaffIds = new Set(visibleStaff.map((item) => item.id));
+  const visibleCustomers = normalized.customers.filter(belongsToStore);
+  const visibleCustomerIds = new Set(visibleCustomers.map((item) => item.id));
   const visibleOrders = normalized.orders.filter(belongsToStore);
   const visibleOrderIds = new Set(visibleOrders.map((item) => item.id));
   const visibleCards = normalized.memberCards.filter(belongsToStore);
   const visibleCardIds = new Set(visibleCards.map((item) => item.id));
+  const visibleDistributors = normalized.distributors.filter((item) =>
+    (item.customerId && visibleCustomerIds.has(item.customerId)) || (item.staffId && visibleStaffIds.has(item.staffId)),
+  );
+  const visibleDistributorIds = new Set(visibleDistributors.map((item) => item.id));
+  const visibleCommissions = normalized.commissions.filter((item) => visibleStaffIds.has(item.staffId) || visibleOrderIds.has(item.orderId));
+  const visibleCommissionIds = new Set(visibleCommissions.map((item) => item.id));
   return {
     ...normalized,
     storeProfiles: normalized.storeProfiles.filter((item) => item.id === storeId),
@@ -199,8 +209,8 @@ export function scopeDataToStore(data: AppData, storeId: string | undefined): Ap
     storeOwnerInvites: [],
     storeOwnerApplications: normalized.storeOwnerApplications.filter((item) => item.storeId === storeId),
     staffInvites: normalized.staffInvites.filter(belongsToStore),
-    staff: normalized.staff.filter(belongsToStore),
-    customers: normalized.customers.filter(belongsToStore),
+    staff: visibleStaff,
+    customers: visibleCustomers,
     tagDefinitions: normalized.tagDefinitions.filter(belongsToStore),
     services: normalized.services.filter(belongsToStore),
     products: normalized.products.filter(belongsToStore),
@@ -212,6 +222,13 @@ export function scopeDataToStore(data: AppData, storeId: string | undefined): Ap
     memberCards: visibleCards,
     orders: visibleOrders,
     refunds: normalized.refunds.filter((item) => item.storeId === storeId || visibleOrderIds.has(item.orderId)),
+    commissions: visibleCommissions,
+    distributors: visibleDistributors,
+    referralRelations: normalized.referralRelations.filter((item) => visibleDistributorIds.has(item.distributorId) && visibleCustomerIds.has(item.customerId)),
+    distributionCommissions: normalized.distributionCommissions.filter((item) =>
+      visibleDistributorIds.has(item.distributorId) || visibleCustomerIds.has(item.customerId) || visibleOrderIds.has(item.orderId),
+    ),
+    commissionSettlements: normalized.commissionSettlements.filter((item) => item.commissionIds.some((commissionId) => visibleCommissionIds.has(commissionId))),
     inventoryLogs: normalized.inventoryLogs.filter(belongsToStore),
     memberCardTransactions: normalized.memberCardTransactions.filter((item) => item.storeId === storeId || visibleCardIds.has(item.memberCardId)),
     operationLogs: normalized.operationLogs.filter((item) => item.storeId === storeId || item.userId === "system"),
@@ -1875,7 +1892,7 @@ export function createOnlineBookingRequest(
   if (!input.phone.trim()) throw new Error("请输入手机号");
   if (!storefront.enabledServiceIds.includes(input.serviceId)) throw new Error("该项目暂未开放线上预约");
   if (+new Date(input.preferredAt) <= +new Date(createdAt)) throw new Error("预约意向时间必须晚于当前时间");
-  if (availableStaffForOnlineBooking(data, input.serviceId, input.preferredAt).length === 0) {
+  if (availableStaffForOnlineBooking(data, input.serviceId, input.preferredAt, storefront.storeId).length === 0) {
     throw new Error("该时间暂无可预约服务人员，请选择其他时间");
   }
 
@@ -1897,14 +1914,16 @@ export function createOnlineBookingRequest(
   };
 }
 
-export function availableStaffForOnlineBooking(data: AppData, serviceId: string, preferredAt: string) {
+export function availableStaffForOnlineBooking(data: AppData, serviceId: string, preferredAt: string, storeId?: string) {
   const selectedService = data.services.find((item) => item.id === serviceId);
   if (!selectedService) return [];
   const startAt = new Date(preferredAt);
   if (Number.isNaN(startAt.getTime())) return [];
   const endAt = new Date(startAt.getTime() + selectedService.duration * 60 * 1000);
+  const scopedStoreId = storeId ?? selectedService.storeId;
 
   return data.staff.filter((staff) => {
+    if (scopedStoreId && staff.storeId !== scopedStoreId) return false;
     if (!isBusinessStaff(staff)) return false;
     if (staff.status !== "active") return false;
     const hasAppointmentConflict = data.appointments.some((appointment) => {

@@ -1,12 +1,12 @@
 import { Component, lazy, Suspense, useEffect, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import DownloadGuidePage from "./pages/public/DownloadGuidePage";
 import { installAppUpdateChecker } from "./appUpdate";
-import PwaInstallPrompt from "./components/PwaInstallPrompt";
 
 const AuthGate = lazy(() => import("./app/AuthGate"));
+const DownloadGuidePage = lazy(() => import("./pages/public/DownloadGuidePage"));
 const PublicStoreRoute = lazy(() => import("./pages/public/PublicStoreRoute"));
 const PublicSignatureRoute = lazy(() => import("./pages/public/PublicSignatureRoute"));
+const PwaInstallPrompt = lazy(() => import("./components/PwaInstallPrompt"));
 const RECOVERY_RELOAD_KEY = "yich-app-recovery-reload";
 const RECOVERY_RELOAD_COOLDOWN_MS = 20_000;
 
@@ -53,13 +53,7 @@ function StartupRecovery({ message = "正在更新应用" }: { message?: string 
         </div>
         <div className="loading-progress" aria-hidden="true"><i /></div>
         <small>{message}</small>
-        {canRetry && (
-          <div className="loading-actions">
-            <button className="loading-action-primary" type="button" onClick={() => window.location.reload()}>
-              重新进入
-            </button>
-          </div>
-        )}
+        {canRetry && <div className="loading-actions"><button className="loading-action-primary" type="button" onClick={() => window.location.reload()}>重新进入</button></div>}
       </section>
     </div>
   );
@@ -121,17 +115,17 @@ export default function App() {
     };
   }, []);
 
-  return (
-    <AppErrorBoundary>
-      <AppRoutes />
-    </AppErrorBoundary>
-  );
+  return <AppErrorBoundary><AppRoutes /></AppErrorBoundary>;
 }
 
 function AppRoutes() {
   const pathname = window.location.pathname;
   if (pathname === "/download") {
-    return <DownloadGuidePage />;
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <DownloadGuidePage />
+      </Suspense>
+    );
   }
 
   const publicStoreMatch = pathname.match(/^\/store\/([^/]+)/);
@@ -157,7 +151,9 @@ function AppRoutes() {
       <Suspense fallback={<RouteFallback />}>
         <AuthGate />
       </Suspense>
-      <PwaInstallPrompt />
+      <Suspense fallback={null}>
+        <PwaInstallPrompt />
+      </Suspense>
     </>
   );
 }

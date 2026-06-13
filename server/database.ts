@@ -180,6 +180,24 @@ export class BeautyDatabase {
     };
   }
 
+  readDataTables(keys: readonly TableName[]): AppData {
+    const data = emptyData();
+    for (const key of Array.from(new Set(keys))) {
+      data[key] = this.readTable(key) as never;
+    }
+    data.systemConfigs = normalizeSystemConfigs(data.systemConfigs);
+    return data;
+  }
+
+  readDataTablesForStore(keys: readonly TableName[], storeId: string): AppData {
+    const data = emptyData();
+    for (const key of Array.from(new Set(keys))) {
+      data[key] = this.readTableForStore(key, storeId) as never;
+    }
+    data.systemConfigs = normalizeSystemConfigs(data.systemConfigs);
+    return data;
+  }
+
   replaceData(data: AppData) {
     this.db.exec("BEGIN IMMEDIATE;");
     try {
@@ -187,6 +205,18 @@ export class BeautyDatabase {
         this.db.prepare(`DELETE FROM ${tableName}`).run();
       }
       this.writeData(data);
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  replaceStoreData(storeId: string, data: AppData) {
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      this.deleteStoreData(storeId);
+      this.writeData(dataForStoreWrite(data, storeId));
       this.db.exec("COMMIT;");
     } catch (error) {
       this.db.exec("ROLLBACK;");
@@ -504,6 +534,324 @@ export class BeautyDatabase {
     }
   }
 
+  private deleteStoreData(storeId: string) {
+    const deleteJsonStoreRows = (tableName: string) => {
+      this.db.prepare(`DELETE FROM ${tableName} WHERE json_extract(payload_json, '$.storeId') = ?`).run(storeId);
+    };
+    const deleteTableStoreRows = (tableName: string) => {
+      this.db.prepare(`DELETE FROM ${tableName} WHERE storeId = ?`).run(storeId);
+    };
+
+    this.db
+      .prepare(
+        `DELETE FROM commissionSettlements
+         WHERE EXISTS (
+           SELECT 1 FROM json_each(commissionSettlements.payload_json, '$.commissionIds') AS commissionId
+           JOIN commissions ON commissions.id = commissionId.value
+           WHERE commissions.staffId IN (SELECT id FROM staff WHERE storeId = ?)
+              OR commissions.orderId IN (SELECT id FROM orders WHERE storeId = ?)
+         )`,
+      )
+      .run(storeId, storeId);
+    this.db
+      .prepare("DELETE FROM commissions WHERE staffId IN (SELECT id FROM staff WHERE storeId = ?) OR orderId IN (SELECT id FROM orders WHERE storeId = ?)")
+      .run(storeId, storeId);
+    this.db
+      .prepare(
+        `DELETE FROM distributionCommissions
+         WHERE json_extract(payload_json, '$.distributorId') IN (
+           SELECT distributors.id
+           FROM distributors
+           WHERE json_extract(distributors.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(distributors.payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+         )
+            OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+            OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)`,
+      )
+      .run(storeId, storeId, storeId, storeId);
+    this.db
+      .prepare(
+        `DELETE FROM referralRelations
+         WHERE json_extract(payload_json, '$.distributorId') IN (
+           SELECT distributors.id
+           FROM distributors
+           WHERE json_extract(distributors.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(distributors.payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+         )
+            OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)`,
+      )
+      .run(storeId, storeId, storeId);
+    this.db
+      .prepare(
+        `DELETE FROM distributors
+         WHERE json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+            OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)`,
+      )
+      .run(storeId, storeId);
+
+    deleteJsonStoreRows("stocktakes");
+    deleteJsonStoreRows("purchaseOrders");
+    deleteJsonStoreRows("suppliers");
+    deleteJsonStoreRows("customerFollowUps");
+    deleteJsonStoreRows("customerSignatures");
+    deleteJsonStoreRows("customerServiceRecords");
+    deleteJsonStoreRows("approvalRequests");
+    deleteTableStoreRows("dailyCloses");
+    deleteJsonStoreRows("notifications");
+    deleteTableStoreRows("operationLogs");
+    deleteTableStoreRows("memberCardTransactions");
+    deleteTableStoreRows("inventoryLogs");
+    deleteTableStoreRows("refunds");
+    deleteTableStoreRows("orders");
+    deleteTableStoreRows("memberCards");
+    deleteJsonStoreRows("staffShifts");
+    deleteTableStoreRows("staffUnavailableSlots");
+    deleteJsonStoreRows("onlineBookingRequests");
+    deleteTableStoreRows("appointments");
+    deleteJsonStoreRows("inventoryBatches");
+    deleteTableStoreRows("products");
+    deleteTableStoreRows("services");
+    deleteJsonStoreRows("tagDefinitions");
+    deleteTableStoreRows("customers");
+    deleteTableStoreRows("staff");
+    deleteJsonStoreRows("staffInvites");
+    deleteJsonStoreRows("storeOwnerApplications");
+    deleteJsonStoreRows("onlineStorefronts");
+    this.db.prepare("DELETE FROM authUsers WHERE json_extract(payload_json, '$.storeId') = ?").run(storeId);
+    this.db.prepare("DELETE FROM storeProfiles WHERE id = ?").run(storeId);
+  }
+
+  private all<T>(query: string, mapper: (row: unknown) => T, values: Array<string | number | null> = []) {
+    return this.db.prepare(query).all(...values).map(mapper);
+  }
+
+  private readTable(key: TableName) {
+    switch (key) {
+      case "storeProfiles":
+        return this.all("SELECT payload_json FROM storeProfiles ORDER BY rowid ASC", mapJsonPayload<StoreProfile>);
+      case "onlineStorefronts":
+        return this.all("SELECT payload_json FROM onlineStorefronts ORDER BY rowid ASC", mapJsonPayload<OnlineStorefront>);
+      case "authUsers":
+        return this.all("SELECT payload_json FROM authUsers ORDER BY rowid ASC", mapJsonPayload<AuthUser>);
+      case "systemConfigs":
+        return this.all("SELECT payload_json FROM systemConfigs ORDER BY rowid ASC", mapJsonPayload<SystemConfig>);
+      case "staffInvites":
+        return this.all("SELECT payload_json FROM staffInvites ORDER BY rowid DESC", mapJsonPayload<StaffInvite>);
+      case "storeOwnerInvites":
+        return this.all("SELECT payload_json FROM storeOwnerInvites ORDER BY rowid DESC", mapJsonPayload<StoreOwnerInvite>);
+      case "storeOwnerApplications":
+        return this.all("SELECT payload_json FROM storeOwnerApplications ORDER BY rowid DESC", mapJsonPayload<StoreOwnerApplication>);
+      case "staff":
+        return this.all("SELECT * FROM staff ORDER BY rowid ASC", mapStaff);
+      case "customers":
+        return this.all("SELECT * FROM customers ORDER BY rowid ASC", mapCustomer);
+      case "tagDefinitions":
+        return this.all("SELECT payload_json FROM tagDefinitions ORDER BY rowid ASC", mapJsonPayload<TagDefinition>);
+      case "services":
+        return this.all("SELECT * FROM services ORDER BY rowid ASC", mapService);
+      case "products":
+        return this.all("SELECT * FROM products ORDER BY rowid ASC", mapProduct);
+      case "inventoryBatches":
+        return this.all("SELECT payload_json FROM inventoryBatches ORDER BY rowid DESC", mapJsonPayload<InventoryBatch>);
+      case "appointments":
+        return this.all("SELECT * FROM appointments ORDER BY rowid ASC", mapAppointment);
+      case "onlineBookingRequests":
+        return this.all("SELECT payload_json FROM onlineBookingRequests ORDER BY rowid DESC", mapJsonPayload<OnlineBookingRequest>);
+      case "staffUnavailableSlots":
+        return this.all("SELECT * FROM staffUnavailableSlots ORDER BY startAt ASC", mapStaffUnavailableSlot);
+      case "staffShifts":
+        return this.all("SELECT payload_json FROM staffShifts ORDER BY rowid DESC", mapJsonPayload<StaffShift>);
+      case "memberCards":
+        return this.all("SELECT * FROM memberCards ORDER BY rowid ASC", mapMemberCard);
+      case "distributors":
+        return this.all("SELECT payload_json FROM distributors ORDER BY rowid DESC", mapJsonPayload<Distributor>);
+      case "referralRelations":
+        return this.all("SELECT payload_json FROM referralRelations ORDER BY rowid DESC", mapJsonPayload<ReferralRelation>);
+      case "orders":
+        return this.all("SELECT * FROM orders ORDER BY rowid DESC", mapOrder);
+      case "refunds":
+        return this.all("SELECT * FROM refunds ORDER BY rowid DESC", mapRefund);
+      case "commissions":
+        return this.all("SELECT * FROM commissions ORDER BY rowid DESC", mapCommission);
+      case "distributionCommissions":
+        return this.all("SELECT payload_json FROM distributionCommissions ORDER BY rowid DESC", mapJsonPayload<DistributionCommission>);
+      case "commissionSettlements":
+        return this.all("SELECT payload_json FROM commissionSettlements ORDER BY rowid DESC", mapJsonPayload<CommissionSettlement>);
+      case "inventoryLogs":
+        return this.all("SELECT * FROM inventoryLogs ORDER BY rowid DESC", mapInventoryLog);
+      case "memberCardTransactions":
+        return this.all("SELECT * FROM memberCardTransactions ORDER BY rowid DESC", mapMemberCardTransaction);
+      case "operationLogs":
+        return this.all("SELECT * FROM operationLogs ORDER BY rowid DESC", mapOperationLog);
+      case "notifications":
+        return this.all("SELECT payload_json FROM notifications ORDER BY rowid DESC", mapJsonPayload<SystemNotification>);
+      case "dailyCloses":
+        return this.all("SELECT * FROM dailyCloses ORDER BY businessDate DESC", mapDailyClose);
+      case "approvalRequests":
+        return this.all("SELECT payload_json FROM approvalRequests ORDER BY rowid DESC", mapJsonPayload<ApprovalRequest>);
+      case "customerServiceRecords":
+        return this.all("SELECT payload_json FROM customerServiceRecords ORDER BY rowid DESC", mapJsonPayload<CustomerServiceRecord>);
+      case "customerSignatures":
+        return this.all("SELECT payload_json FROM customerSignatures ORDER BY rowid DESC", mapJsonPayload<CustomerSignature>);
+      case "customerFollowUps":
+        return this.all("SELECT payload_json FROM customerFollowUps ORDER BY rowid DESC", mapJsonPayload<CustomerFollowUp>);
+      case "suppliers":
+        return this.all("SELECT payload_json FROM suppliers ORDER BY rowid DESC", mapJsonPayload<Supplier>);
+      case "purchaseOrders":
+        return this.all("SELECT payload_json FROM purchaseOrders ORDER BY rowid DESC", mapJsonPayload<PurchaseOrder>);
+      case "stocktakes":
+        return this.all("SELECT payload_json FROM stocktakes ORDER BY rowid DESC", mapJsonPayload<Stocktake>);
+    }
+  }
+
+  private readTableForStore(key: TableName, storeId: string) {
+    const jsonStoreRows = <T>(tableName: string, mapper: (row: unknown) => T, order = "rowid DESC") =>
+      this.all(`SELECT payload_json FROM ${tableName} WHERE json_extract(payload_json, '$.storeId') = ? ORDER BY ${order}`, mapper, [storeId]);
+    const tableStoreRows = <T>(tableName: string, mapper: (row: unknown) => T, order = "rowid DESC") =>
+      this.all(`SELECT * FROM ${tableName} WHERE storeId = ? ORDER BY ${order}`, mapper, [storeId]);
+
+    switch (key) {
+      case "storeProfiles":
+        return this.all("SELECT payload_json FROM storeProfiles WHERE id = ? ORDER BY rowid ASC", mapJsonPayload<StoreProfile>, [storeId]);
+      case "onlineStorefronts":
+        return jsonStoreRows("onlineStorefronts", mapJsonPayload<OnlineStorefront>, "rowid ASC");
+      case "authUsers":
+        return this.all(
+          "SELECT payload_json FROM authUsers WHERE json_extract(payload_json, '$.role') = 'superadmin' OR json_extract(payload_json, '$.storeId') = ? ORDER BY rowid ASC",
+          mapJsonPayload<AuthUser>,
+          [storeId],
+        );
+      case "systemConfigs":
+        return this.readTable(key);
+      case "staffInvites":
+        return jsonStoreRows("staffInvites", mapJsonPayload<StaffInvite>);
+      case "storeOwnerInvites":
+        return [] as StoreOwnerInvite[];
+      case "storeOwnerApplications":
+        return jsonStoreRows("storeOwnerApplications", mapJsonPayload<StoreOwnerApplication>);
+      case "staff":
+        return tableStoreRows("staff", mapStaff, "rowid ASC");
+      case "customers":
+        return tableStoreRows("customers", mapCustomer, "rowid ASC");
+      case "tagDefinitions":
+        return jsonStoreRows("tagDefinitions", mapJsonPayload<TagDefinition>, "rowid ASC");
+      case "services":
+        return tableStoreRows("services", mapService, "rowid ASC");
+      case "products":
+        return tableStoreRows("products", mapProduct, "rowid ASC");
+      case "inventoryBatches":
+        return jsonStoreRows("inventoryBatches", mapJsonPayload<InventoryBatch>);
+      case "appointments":
+        return tableStoreRows("appointments", mapAppointment, "rowid ASC");
+      case "onlineBookingRequests":
+        return jsonStoreRows("onlineBookingRequests", mapJsonPayload<OnlineBookingRequest>);
+      case "staffUnavailableSlots":
+        return tableStoreRows("staffUnavailableSlots", mapStaffUnavailableSlot, "startAt ASC");
+      case "staffShifts":
+        return jsonStoreRows("staffShifts", mapJsonPayload<StaffShift>);
+      case "memberCards":
+        return tableStoreRows("memberCards", mapMemberCard, "rowid ASC");
+      case "distributors":
+        return this.all(
+          `SELECT payload_json FROM distributors
+           WHERE json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+           ORDER BY rowid DESC`,
+          mapJsonPayload<Distributor>,
+          [storeId, storeId],
+        );
+      case "referralRelations":
+        return this.all(
+          `SELECT payload_json FROM referralRelations
+           WHERE json_extract(payload_json, '$.distributorId') IN (
+             SELECT distributors.id
+             FROM distributors
+             WHERE json_extract(distributors.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                OR json_extract(distributors.payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+           )
+              OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+           ORDER BY rowid DESC`,
+          mapJsonPayload<ReferralRelation>,
+          [storeId, storeId, storeId],
+        );
+      case "orders":
+        return tableStoreRows("orders", mapOrder);
+      case "refunds":
+        return tableStoreRows("refunds", mapRefund);
+      case "commissions":
+        return this.all(
+          "SELECT commissions.* FROM commissions JOIN staff ON staff.id = commissions.staffId WHERE staff.storeId = ? ORDER BY commissions.rowid DESC",
+          mapCommission,
+          [storeId],
+        );
+      case "distributionCommissions":
+        return this.all(
+          `SELECT payload_json FROM distributionCommissions
+           WHERE json_extract(payload_json, '$.distributorId') IN (
+             SELECT distributors.id
+             FROM distributors
+             WHERE json_extract(distributors.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                OR json_extract(distributors.payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+           )
+              OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+           ORDER BY rowid DESC`,
+          mapJsonPayload<DistributionCommission>,
+          [storeId, storeId, storeId, storeId],
+        );
+      case "commissionSettlements":
+        return this.all(
+          `SELECT payload_json FROM commissionSettlements
+           WHERE EXISTS (
+             SELECT 1 FROM json_each(commissionSettlements.payload_json, '$.commissionIds') AS commissionId
+             LEFT JOIN commissions ON commissions.id = commissionId.value
+             LEFT JOIN distributionCommissions ON distributionCommissions.id = commissionId.value
+             WHERE commissions.staffId IN (SELECT id FROM staff WHERE storeId = ?)
+                OR commissions.orderId IN (SELECT id FROM orders WHERE storeId = ?)
+                OR json_extract(distributionCommissions.payload_json, '$.distributorId') IN (
+                  SELECT distributors.id
+                  FROM distributors
+                  WHERE json_extract(distributors.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                     OR json_extract(distributors.payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+                )
+                OR json_extract(distributionCommissions.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                OR json_extract(distributionCommissions.payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+           )
+           ORDER BY rowid DESC`,
+          mapJsonPayload<CommissionSettlement>,
+          [storeId, storeId, storeId, storeId, storeId, storeId],
+        );
+      case "inventoryLogs":
+        return tableStoreRows("inventoryLogs", mapInventoryLog);
+      case "memberCardTransactions":
+        return tableStoreRows("memberCardTransactions", mapMemberCardTransaction);
+      case "operationLogs":
+        return this.all("SELECT * FROM operationLogs WHERE storeId = ? OR userId = 'system' ORDER BY rowid DESC", mapOperationLog, [storeId]);
+      case "notifications":
+        return this.all(
+          "SELECT payload_json FROM notifications WHERE json_extract(payload_json, '$.storeId') IS NULL OR json_extract(payload_json, '$.storeId') = '' OR json_extract(payload_json, '$.storeId') = ? ORDER BY rowid DESC",
+          mapJsonPayload<SystemNotification>,
+          [storeId],
+        );
+      case "dailyCloses":
+        return tableStoreRows("dailyCloses", mapDailyClose, "businessDate DESC");
+      case "approvalRequests":
+        return jsonStoreRows("approvalRequests", mapJsonPayload<ApprovalRequest>);
+      case "customerServiceRecords":
+        return jsonStoreRows("customerServiceRecords", mapJsonPayload<CustomerServiceRecord>);
+      case "customerSignatures":
+        return jsonStoreRows("customerSignatures", mapJsonPayload<CustomerSignature>);
+      case "customerFollowUps":
+        return jsonStoreRows("customerFollowUps", mapJsonPayload<CustomerFollowUp>);
+      case "suppliers":
+        return jsonStoreRows("suppliers", mapJsonPayload<Supplier>);
+      case "purchaseOrders":
+        return jsonStoreRows("purchaseOrders", mapJsonPayload<PurchaseOrder>);
+      case "stocktakes":
+        return jsonStoreRows("stocktakes", mapJsonPayload<Stocktake>);
+    }
+  }
+
   private migrate() {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS staff (
@@ -767,7 +1115,8 @@ export class BeautyDatabase {
 
       CREATE TABLE IF NOT EXISTS dailyCloses (
         id TEXT PRIMARY KEY,
-        businessDate TEXT NOT NULL UNIQUE,
+        storeId TEXT,
+        businessDate TEXT NOT NULL,
         revenue REAL NOT NULL,
         refundAmount REAL NOT NULL,
         orderCount INTEGER NOT NULL,
@@ -781,7 +1130,8 @@ export class BeautyDatabase {
         createdAt TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT '已锁定',
         reversedBy TEXT,
-        reversedAt TEXT
+        reversedAt TEXT,
+        UNIQUE(storeId, businessDate)
       );
 
       CREATE TABLE IF NOT EXISTS approvalRequests (
@@ -826,6 +1176,12 @@ export class BeautyDatabase {
 
       CREATE TABLE IF NOT EXISTS checkoutSubmissionLocks (
         id TEXT PRIMARY KEY,
+        createdAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
         createdAt TEXT NOT NULL
       );
     `);
@@ -899,6 +1255,8 @@ export class BeautyDatabase {
     this.addColumnIfMissing("memberCardTransactions", "storeId", "TEXT");
     this.addColumnIfMissing("operationLogs", "storeId", "TEXT");
     this.addColumnIfMissing("dailyCloses", "storeId", "TEXT");
+    this.ensureDailyClosesStoreDateUnique();
+    this.createIndexes();
   }
 
   private addColumnIfMissing(tableName: string, columnName: string, definition: string) {
@@ -906,6 +1264,79 @@ export class BeautyDatabase {
     if (!columns.some((column) => column.name === columnName)) {
       this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
     }
+  }
+
+  private ensureDailyClosesStoreDateUnique() {
+    const indexes = this.db.prepare("PRAGMA index_list(dailyCloses)").all() as Array<{ name: string; unique: number }>;
+    const hasBusinessDateOnlyUnique = indexes.some((index) => {
+      if (!index.unique) return false;
+      const columns = this.db.prepare(`PRAGMA index_info(${index.name})`).all() as Array<{ name: string }>;
+      return columns.length === 1 && columns[0]?.name === "businessDate";
+    });
+    if (!hasBusinessDateOnlyUnique) return;
+
+    this.db.exec(`
+      CREATE TABLE dailyCloses_store_unique (
+        id TEXT PRIMARY KEY,
+        storeId TEXT,
+        businessDate TEXT NOT NULL,
+        revenue REAL NOT NULL,
+        refundAmount REAL NOT NULL,
+        orderCount INTEGER NOT NULL,
+        cashAmount REAL NOT NULL,
+        wechatAmount REAL NOT NULL,
+        alipayAmount REAL NOT NULL,
+        cardAmount REAL NOT NULL,
+        memberCardAmount REAL NOT NULL,
+        commissionAmount REAL NOT NULL,
+        createdBy TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT '已锁定',
+        reversedBy TEXT,
+        reversedAt TEXT,
+        UNIQUE(storeId, businessDate)
+      );
+      INSERT INTO dailyCloses_store_unique (
+        id, storeId, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount,
+        cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt
+      )
+      SELECT
+        id, storeId, businessDate, revenue, refundAmount, orderCount, cashAmount, wechatAmount, alipayAmount,
+        cardAmount, memberCardAmount, commissionAmount, createdBy, createdAt, status, reversedBy, reversedAt
+      FROM dailyCloses;
+      DROP TABLE dailyCloses;
+      ALTER TABLE dailyCloses_store_unique RENAME TO dailyCloses;
+    `);
+  }
+
+  private createIndexes() {
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_staff_store ON staff(storeId);
+      CREATE INDEX IF NOT EXISTS idx_customers_store_last_visit ON customers(storeId, lastVisit);
+      CREATE INDEX IF NOT EXISTS idx_customers_store_phone ON customers(storeId, phone);
+      CREATE INDEX IF NOT EXISTS idx_services_store_status ON services(storeId, status);
+      CREATE INDEX IF NOT EXISTS idx_products_store_status ON products(storeId, status);
+      CREATE INDEX IF NOT EXISTS idx_products_store_category ON products(storeId, category, subcategory);
+      CREATE INDEX IF NOT EXISTS idx_appointments_store_start ON appointments(storeId, startAt);
+      CREATE INDEX IF NOT EXISTS idx_appointments_store_status ON appointments(storeId, status);
+      CREATE INDEX IF NOT EXISTS idx_appointments_store_staff_start ON appointments(storeId, staffId, startAt);
+      CREATE INDEX IF NOT EXISTS idx_member_cards_store_customer ON memberCards(storeId, customerId);
+      CREATE INDEX IF NOT EXISTS idx_member_cards_store_status ON memberCards(storeId, status);
+      CREATE INDEX IF NOT EXISTS idx_orders_store_created ON orders(storeId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_orders_store_customer_created ON orders(storeId, customerId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_orders_store_staff_created ON orders(storeId, staffId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_refunds_store_created ON refunds(storeId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_inventory_logs_store_created ON inventoryLogs(storeId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_inventory_logs_store_product_created ON inventoryLogs(storeId, productId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_member_card_transactions_store_created ON memberCardTransactions(storeId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_operation_logs_store_created ON operationLogs(storeId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_daily_closes_store_date ON dailyCloses(storeId, businessDate);
+      CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(userId);
+      CREATE INDEX IF NOT EXISTS idx_checkout_locks_created ON checkoutSubmissionLocks(createdAt);
+      CREATE INDEX IF NOT EXISTS idx_auth_users_store_json ON authUsers(json_extract(payload_json, '$.storeId'));
+      CREATE INDEX IF NOT EXISTS idx_auth_users_account_json ON authUsers(json_extract(payload_json, '$.account'));
+      CREATE INDEX IF NOT EXISTS idx_notifications_store_json ON notifications(json_extract(payload_json, '$.storeId'));
+    `);
   }
 
   private ensureDefaultSuperadmin() {
@@ -918,6 +1349,107 @@ export class BeautyDatabase {
       authUsers: [admin, ...data.authUsers],
     });
   }
+}
+
+function emptyData(): AppData {
+  return {
+    storeProfiles: [],
+    onlineStorefronts: [],
+    authUsers: [],
+    staffInvites: [],
+    storeOwnerInvites: [],
+    storeOwnerApplications: [],
+    staff: [],
+    customers: [],
+    tagDefinitions: [],
+    services: [],
+    products: [],
+    inventoryBatches: [],
+    appointments: [],
+    onlineBookingRequests: [],
+    staffUnavailableSlots: [],
+    staffShifts: [],
+    memberCards: [],
+    distributors: [],
+    referralRelations: [],
+    orders: [],
+    refunds: [],
+    commissions: [],
+    distributionCommissions: [],
+    commissionSettlements: [],
+    inventoryLogs: [],
+    memberCardTransactions: [],
+    operationLogs: [],
+    systemConfigs: [],
+    notifications: [],
+    dailyCloses: [],
+    approvalRequests: [],
+    customerServiceRecords: [],
+    customerSignatures: [],
+    customerFollowUps: [],
+    suppliers: [],
+    purchaseOrders: [],
+    stocktakes: [],
+  };
+}
+
+function dataForStoreWrite(data: AppData, storeId: string): AppData {
+  const belongsToStore = (item: { storeId?: string }) => item.storeId === storeId;
+  const staff = data.staff.filter(belongsToStore);
+  const staffIds = new Set(staff.map((item) => item.id));
+  const customers = data.customers.filter(belongsToStore);
+  const customerIds = new Set(customers.map((item) => item.id));
+  const orders = data.orders.filter(belongsToStore);
+  const orderIds = new Set(orders.map((item) => item.id));
+  const cards = data.memberCards.filter(belongsToStore);
+  const cardIds = new Set(cards.map((item) => item.id));
+  const distributors = data.distributors.filter((item) =>
+    (item.customerId && customerIds.has(item.customerId)) || (item.staffId && staffIds.has(item.staffId)),
+  );
+  const distributorIds = new Set(distributors.map((item) => item.id));
+  const commissions = data.commissions.filter((item) => staffIds.has(item.staffId) || orderIds.has(item.orderId));
+  const commissionIds = new Set(commissions.map((item) => item.id));
+
+  return {
+    ...emptyData(),
+    storeProfiles: data.storeProfiles.filter((item) => item.id === storeId),
+    onlineStorefronts: data.onlineStorefronts.filter(belongsToStore),
+    authUsers: data.authUsers.filter((item) => item.storeId === storeId),
+    staffInvites: data.staffInvites.filter(belongsToStore),
+    storeOwnerApplications: data.storeOwnerApplications.filter(belongsToStore),
+    staff,
+    customers,
+    tagDefinitions: data.tagDefinitions.filter(belongsToStore),
+    services: data.services.filter(belongsToStore),
+    products: data.products.filter(belongsToStore),
+    inventoryBatches: data.inventoryBatches.filter(belongsToStore),
+    appointments: data.appointments.filter(belongsToStore),
+    onlineBookingRequests: data.onlineBookingRequests.filter(belongsToStore),
+    staffUnavailableSlots: data.staffUnavailableSlots.filter(belongsToStore),
+    staffShifts: data.staffShifts.filter(belongsToStore),
+    memberCards: cards,
+    distributors,
+    referralRelations: data.referralRelations.filter((item) => distributorIds.has(item.distributorId) && customerIds.has(item.customerId)),
+    orders,
+    refunds: data.refunds.filter((item) => item.storeId === storeId || orderIds.has(item.orderId)),
+    commissions,
+    distributionCommissions: data.distributionCommissions.filter((item) =>
+      distributorIds.has(item.distributorId) || customerIds.has(item.customerId) || orderIds.has(item.orderId),
+    ),
+    commissionSettlements: data.commissionSettlements.filter((item) => item.commissionIds.some((commissionId) => commissionIds.has(commissionId))),
+    inventoryLogs: data.inventoryLogs.filter(belongsToStore),
+    memberCardTransactions: data.memberCardTransactions.filter((item) => item.storeId === storeId || cardIds.has(item.memberCardId)),
+    operationLogs: data.operationLogs.filter(belongsToStore),
+    notifications: data.notifications.filter(belongsToStore),
+    dailyCloses: data.dailyCloses.filter(belongsToStore),
+    approvalRequests: data.approvalRequests.filter(belongsToStore),
+    customerServiceRecords: data.customerServiceRecords.filter(belongsToStore),
+    customerSignatures: data.customerSignatures.filter(belongsToStore),
+    customerFollowUps: data.customerFollowUps.filter(belongsToStore),
+    suppliers: data.suppliers.filter(belongsToStore),
+    purchaseOrders: data.purchaseOrders.filter(belongsToStore),
+    stocktakes: data.stocktakes.filter(belongsToStore),
+  };
 }
 
 function mapStaff(row: unknown): Staff {

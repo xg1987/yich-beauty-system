@@ -246,6 +246,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         view: "appointments",
         targetType: "onlineBookingRequest",
         targetId: bookingRequest.id,
+        storeId: bookingRequest.storeId,
         audienceRoles: ["owner", "manager", "frontdesk"],
       });
       await database.replaceData(nextData);
@@ -297,7 +298,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetId: session.user.id,
         summary: `${requiredString(body, "name")} 更新账号资料`,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       const updatedUser = nextData.authUsers.find((user) => user.id === session.user.id);
       if (!updatedUser) throw new Error("账号不存在");
       const nextSession = buildSession(session.token, updatedUser, nextData.systemConfigs);
@@ -315,7 +316,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         status: requiredString(body, "status") as "active" | "disabled" | "pending",
         operatedBy: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -330,13 +331,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         password: await hashPassword(requiredString(body, "password")),
         operatedBy: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
-      return sendScopedData(context.request, 200, await readDataForRequest(database, context.request), session);
+      return sendScopedData(context.request, 200, await readDataForRequest(database, context.request, session), session);
     }
 
     if (context.request.method === "GET" && pathname === "/api/usage/r2") {
@@ -397,21 +398,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetId: "formal-cleanup",
         summary: `${session.user.name} 清理巡检命中的非正式数据`,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) {
       const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const nextData = markNotificationRead(await database.readData(), { notificationId, userId: session.user.id });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) {
       const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const nextData = archiveNotification(await database.readData(), { notificationId, userId: session.user.id });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -421,7 +422,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         role: session.user.role,
         staffId: session.user.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -442,7 +443,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         },
         (data) => updateSystemConfig(data, { key, value: requiredString(body, "value"), updatedBy: session.user.id }),
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -457,7 +458,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         status: requiredString(body, "status") as "active" | "disabled",
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -479,7 +480,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新门店 AI 使用权限`,
         },
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -506,7 +507,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新门店基础资料`,
         },
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -531,7 +532,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 新增员工 ${requiredString(body, "name")}`,
         },
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -557,7 +558,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新员工资料`,
         },
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -570,7 +571,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId,
         operatedBy: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -584,7 +585,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         createdBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -602,7 +603,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         createdBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -618,7 +619,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         approved: optionalBoolean(body, "approved") ?? true,
         rejectReason: optionalString(body, "rejectReason"),
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -629,7 +630,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         inviteId,
         revokedBy: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -651,7 +652,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           enabledServiceIds: optionalStringArray(body, "enabledServiceIds") ?? [],
         }),
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -694,7 +695,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 完成开单收银`,
         },
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -711,7 +712,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         amount: optionalNumber(body, "amount"),
         approvalId: optionalString(body, "approvalId"),
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -748,7 +749,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             audienceRoles: ["owner", "manager"],
           })
         : adjustedData;
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -789,7 +790,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
         staffId: appointment.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -805,7 +806,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         reason: optionalString(body, "reason") ?? "不可预约",
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -821,7 +822,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         note: optionalString(body, "note") ?? "门店班次",
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -846,7 +847,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           note: optionalString(body, "note"),
         }),
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -861,7 +862,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetId: appointmentId,
         summary: `${session.user.name} 将预约状态改为 ${status}`,
       }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -874,7 +875,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: requiredString(body, "staffId"),
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -902,7 +903,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ...data.customers,
         ],
       }));
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -938,7 +939,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ),
         };
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -958,7 +959,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           color: optionalString(body, "color"),
         }),
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -979,7 +980,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           status: optionalString(body, "status") as "启用" | "停用" | undefined,
         }),
       );
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1010,7 +1011,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1030,7 +1031,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1045,7 +1046,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1060,7 +1061,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1075,7 +1076,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1101,7 +1102,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         storeId: approval.storeId,
         audienceRoles: ["owner", "manager", "finance"],
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1114,7 +1115,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         approved: optionalBoolean(body, "approved") ?? true,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1146,7 +1147,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
         staffId: followUp.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1162,7 +1163,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         requestedBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1178,7 +1179,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         signerName: requiredString(body, "signerName"),
         signatureText: requiredString(body, "signatureText"),
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1192,7 +1193,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         method: requiredString(body, "method") as "电话" | "微信" | "到店",
         note: optionalString(body, "note") ?? "",
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1220,7 +1221,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             targetId: followUpId,
             summary: followUpUpdateSummary(session.user.name, currentFollowUp, body),
           });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1237,7 +1238,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1276,7 +1277,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ],
         };
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1311,7 +1312,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ),
         };
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1338,7 +1339,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         consumables: hasBodyKey(body, "consumables") ? optionalConsumables(body) : undefined,
         status: optionalString(body, "status") as "启用" | "停用" | undefined,
       }));
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1430,7 +1431,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             ]
           : (data.inventoryBatches ?? []),
       }));
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1461,7 +1462,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit"),
         status: optionalString(body, "status") as "启用" | "停用" | undefined,
       }));
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1475,7 +1476,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         phone: optionalString(body, "phone") ?? "",
         contact: optionalString(body, "contact") ?? "",
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1492,7 +1493,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         expiryAt: optionalString(body, "expiryAt"),
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1505,7 +1506,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         supplierId: optionalString(body, "supplierId"),
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1520,7 +1521,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         reason: optionalString(body, "reason") ?? "库存盘点",
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1532,7 +1533,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetId: "all",
         summary: `${session.user.name} 结算全部待结算提成`,
       }, (data) => settleCommissions(data, { userId: session.user.id }));
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1545,7 +1546,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         businessDate: optionalString(body, "businessDate") ?? new Date().toISOString().slice(0, 10),
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1558,7 +1559,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         businessDate: requiredString(body, "businessDate"),
         userId: session.user.id,
       });
-      await database.replaceData(nextData);
+      await persistData(database, session, nextData);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1576,6 +1577,13 @@ function updateData(
   updater: (data: AppData) => AppData,
 ) {
   return addOperationLog(updater(data), { userId: session.user.id, ...log });
+}
+
+function persistData(database: D1BeautyDatabase, session: UserSession, nextData: AppData) {
+  if (session.user.role !== "superadmin" && session.user.storeId) {
+    return database.replaceStoreData(session.user.storeId, nextData);
+  }
+  return database.replaceData(nextData);
 }
 
 function hasBodyKey(body: JsonBody, key: string) {
@@ -2770,9 +2778,12 @@ function isSliceRequest(request: Request) {
   return request.headers.get("X-App-Data-Mode") === "slice";
 }
 
-function readDataForRequest(database: D1BeautyDatabase, request: Request) {
+function readDataForRequest(database: D1BeautyDatabase, request: Request, session: UserSession) {
   const requestedView = requestedDataView(request);
   if (isSliceRequest(request) && requestedView) {
+    if (session.user.role !== "superadmin" && session.user.storeId) {
+      return database.readDataTablesForStore(dataKeysForView(requestedView), session.user.storeId);
+    }
     return database.readDataTables(dataKeysForView(requestedView));
   }
   return database.readData();

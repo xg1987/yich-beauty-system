@@ -1,8 +1,6 @@
 import { lazy, Suspense } from "react";
-import { useApiData } from "../hooks/useApiData";
 
-const AuthenticatedApp = lazy(() => import("./AuthenticatedApp"));
-const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
+const AuthRuntime = lazy(() => import("./AuthRuntime"));
 
 function RouteFallback() {
   return (
@@ -20,23 +18,9 @@ function RouteFallback() {
 }
 
 export default function AuthGate() {
-  const apiState = useApiData();
-  if (!apiState.session) {
-    return (
-      <Suspense fallback={<RouteFallback />}>
-        <LoginPage
-          onLogin={apiState.login}
-          onJoin={apiState.joinInvite}
-          authenticate={apiState.authenticate}
-          loading={apiState.loading}
-          error={apiState.error}
-        />
-      </Suspense>
-    );
-  }
   return (
     <Suspense fallback={<RouteFallback />}>
-      <AuthenticatedApp apiState={apiState} />
+      <AuthRuntime />
     </Suspense>
   );
 }

@@ -53,6 +53,56 @@ try {
     assert.ok(initialData.systemConfigs.some((item) => item.key === config.key), `API data should include normalized system config ${config.key}`);
   }
   assert.ok(initialData.authUsers.every((user) => user.password === ""), "API data should not expose passwords");
+  const crossStoreData = database.readData();
+  database.replaceData({
+    ...crossStoreData,
+    storeProfiles: [{ id: "store2", name: "隔离验证分店", phone: "13900002000", address: "隔离验证地址", businessHours: "10:00-22:00", createdAt: new Date().toISOString() }, ...crossStoreData.storeProfiles],
+    authUsers: [
+      { id: "u_store2_owner", storeId: "store2", name: "隔离店长", account: "store2-owner@test.local", password: "test-password", role: "owner", roleName: "老板", status: "active", createdAt: new Date().toISOString() },
+      ...crossStoreData.authUsers,
+    ],
+    staff: [
+      { id: "s_store2", storeId: "store2", name: "隔离员工", phone: "13900002001", role: "员工", status: "active", accountId: "u_store2_owner", hiredAt: "2026-01-01" },
+      ...crossStoreData.staff,
+    ],
+    customers: [
+      { id: "c_store2", storeId: "store2", name: "隔离客户", phone: "13900002002", level: "普通会员", points: 0, source: "隔离验证", tags: ["隔离"], lastVisit: new Date().toISOString() },
+      ...crossStoreData.customers,
+    ],
+    orders: [
+      { id: "o_store2", storeId: "store2", orderNo: "SO-STORE2", customerId: "c_store2", staffId: "s_store2", serviceId: "v1", totalAmount: 88, paidAmount: 88, discountAmount: 0, payMethod: "微信", status: "已支付", createdAt: new Date().toISOString() },
+      ...crossStoreData.orders,
+    ],
+    operationLogs: [
+      { id: "log_store2", storeId: "store2", userId: "u_store2_owner", action: "隔离验证", targetType: "customer", targetId: "c_store2", summary: "隔离验证日志", createdAt: new Date().toISOString() },
+      ...crossStoreData.operationLogs,
+    ],
+  });
+  const scopedCustomerSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=customers", {
+    token: session.token,
+    headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "customers" },
+  });
+  assert.ok(scopedCustomerSlice.data.customers?.every((customer) => customer.storeId === "store1"), "store-scoped data slice should only return the current store customers");
+  assert.ok(!scopedCustomerSlice.data.customers?.some((customer) => customer.id === "c_store2"), "store-scoped data slice should not leak another store customer");
+  assert.ok(!scopedCustomerSlice.data.orders?.some((order) => order.id === "o_store2"), "store-scoped data slice should not leak another store order");
+  assert.ok(scopedCustomerSlice.data.storeProfiles?.every((store) => store.id === "store1"), "store-scoped data slice should only include current store profile");
+  const storeScopedMutation = await request<AppDataSlice>(baseUrl, "/api/customers", {
+    method: "POST",
+    token: session.token,
+    headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "customers" },
+    body: { name: "门店写入隔离客户", phone: "13900003001" },
+  });
+  assert.ok(
+    storeScopedMutation.data.customers?.some((customer) => customer.name === "门店写入隔离客户" && customer.storeId === "store1"),
+    "store-scoped mutation should return the current store change",
+  );
+  const afterStoreScopedMutation = database.readData();
+  assert.ok(afterStoreScopedMutation.customers.some((customer) => customer.id === "c_store2"), "store-scoped mutation should preserve another store customer");
+  assert.ok(afterStoreScopedMutation.orders.some((order) => order.id === "o_store2"), "store-scoped mutation should preserve another store order");
+  assert.ok(
+    afterStoreScopedMutation.customers.some((customer) => customer.name === "门店写入隔离客户" && customer.storeId === "store1"),
+    "store-scoped mutation should persist the current store customer",
+  );
   const posSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=pos", {
     token: session.token,
     headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "pos" },
