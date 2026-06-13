@@ -334,7 +334,7 @@ export class BeautyDatabase {
     for (const card of data.memberCards) {
       this.db
         .prepare(
-          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json, serviceEntitlements_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           card.id,
@@ -351,6 +351,7 @@ export class BeautyDatabase {
           card.status,
           card.serviceId ?? null,
           JSON.stringify(card.serviceIds ?? []),
+          card.serviceEntitlements?.length ? JSON.stringify(card.serviceEntitlements) : null,
         );
     }
 
@@ -647,7 +648,8 @@ export class BeautyDatabase {
         expiresAt TEXT NOT NULL,
         status TEXT NOT NULL,
         serviceId TEXT,
-        serviceIds_json TEXT
+        serviceIds_json TEXT,
+        serviceEntitlements_json TEXT
       );
 
       CREATE TABLE IF NOT EXISTS distributors (
@@ -837,6 +839,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("staff", "baseSalary", "REAL");
     this.addColumnIfMissing("staff", "commissionRate", "REAL");
     this.addColumnIfMissing("memberCards", "serviceIds_json", "TEXT");
+    this.addColumnIfMissing("memberCards", "serviceEntitlements_json", "TEXT");
     this.addColumnIfMissing("orders", "discountAmount", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("orders", "adjustmentReason", "TEXT");
     this.addColumnIfMissing("orders", "approvalId", "TEXT");
@@ -1003,7 +1006,7 @@ function mapStaffUnavailableSlot(row: unknown): StaffUnavailableSlot {
 }
 
 function mapMemberCard(row: unknown): MemberCard {
-  const value = row as MemberCard & { serviceIds_json?: string };
+  const value = row as MemberCard & { serviceIds_json?: string; serviceEntitlements_json?: string | null };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
@@ -1012,6 +1015,7 @@ function mapMemberCard(row: unknown): MemberCard {
     benefitText: value.benefitText ?? undefined,
     serviceId: value.serviceId ?? undefined,
     serviceIds: value.serviceIds_json ? (JSON.parse(value.serviceIds_json) as string[]) : undefined,
+    serviceEntitlements: value.serviceEntitlements_json ? JSON.parse(value.serviceEntitlements_json) as MemberCard["serviceEntitlements"] : undefined,
   };
 }
 

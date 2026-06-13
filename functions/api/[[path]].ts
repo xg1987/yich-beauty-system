@@ -70,7 +70,7 @@ import { hashPassword } from "../../src/lib/password";
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MemberCard, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
@@ -1002,6 +1002,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         benefitText: optionalString(body, "benefitText"),
         serviceId: optionalString(body, "serviceId"),
         serviceIds: optionalStringArray(body, "serviceIds"),
+        serviceEntitlements: optionalMemberCardServiceEntitlements(body),
         paidAmount: optionalNumber(body, "paidAmount"),
         payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
         expiresAt: optionalString(body, "expiresAt"),
@@ -2850,6 +2851,26 @@ function optionalStringArray(body: JsonBody, key: string) {
   const value = body[key];
   if (!Array.isArray(value)) return undefined;
   return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function optionalMemberCardServiceEntitlements(body: JsonBody): MemberCard["serviceEntitlements"] {
+  const value = body.serviceEntitlements;
+  if (!Array.isArray(value)) return undefined;
+  const entitlements = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return undefined;
+      const serviceId = (item as { serviceId?: unknown }).serviceId;
+      const totalTimes = (item as { totalTimes?: unknown }).totalTimes;
+      const remainingTimes = (item as { remainingTimes?: unknown }).remainingTimes;
+      if (typeof serviceId !== "string" || serviceId.length === 0) return undefined;
+      if (typeof totalTimes !== "number" || !Number.isFinite(totalTimes) || totalTimes <= 0) return undefined;
+      const nextRemainingTimes = typeof remainingTimes === "number" && Number.isFinite(remainingTimes)
+        ? remainingTimes
+        : totalTimes;
+      return { serviceId, totalTimes, remainingTimes: nextRemainingTimes };
+    })
+    .filter((item): item is NonNullable<MemberCard["serviceEntitlements"]>[number] => Boolean(item));
+  return entitlements.length ? entitlements : undefined;
 }
 
 function optionalConsumables(body: JsonBody): ServiceConsumable[] {

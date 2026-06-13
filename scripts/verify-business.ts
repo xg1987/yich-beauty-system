@@ -1418,6 +1418,59 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   const opened = openMemberCard(
     cloneSeed(),
     {
+      customerName: "项目独立次数客户",
+      customerPhone: "13800008889",
+      name: "面护养生组合卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 10, remainingTimes: 10 },
+        { serviceId: "v2", totalTimes: 3, remainingTimes: 3 },
+      ],
+      paidAmount: 3980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(opened.memberCards[0].remainingTimes, 13, "package card should sum per-service entitlement times");
+  const checkedOutV2 = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v2",
+      payMethod: "会员卡",
+      cardId: opened.memberCards[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOutV2.memberCards[0].remainingTimes, 12, "package card should deduct only the used service entitlement");
+  assert.deepEqual(
+    checkedOutV2.memberCards[0].serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 10], ["v2", 2]],
+    "package card should preserve independent service balances",
+  );
+  const refundedV2 = refundOrder(
+    checkedOutV2,
+    {
+      orderId: checkedOutV2.orders[0].id,
+      reason: "项目卡退款",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.deepEqual(
+    refundedV2.memberCards[0].serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 10], ["v2", 3]],
+    "package card refund should restore the used service entitlement",
+  );
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
       customerName: "SPA退费客户",
       customerPhone: "13800003980",
       name: "3980元10次SPA",

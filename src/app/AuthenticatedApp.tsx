@@ -6290,6 +6290,7 @@ function Pos({
   const cardCustomerDraftTouchedRef = useRef(false);
   const cardCustomerNameInputRef = useRef<HTMLInputElement | null>(null);
   const cardCustomerPhoneInputRef = useRef<HTMLInputElement | null>(null);
+  const cardNameInputRef = useRef<HTMLInputElement | null>(null);
   const [cardCustomerMode, setCardCustomerMode] = useState<CardCustomerMode>("new");
   const [cardCustomerName, setCardCustomerName] = useState("");
   const [cardCustomerPhone, setCardCustomerPhone] = useState("");
@@ -6304,6 +6305,9 @@ function Pos({
   const [cardDiscountRate, setCardDiscountRate] = useState<EditableNumber>(9);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
   const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
+  const [cardServiceTimes, setCardServiceTimes] = useState<Record<string, EditableNumber>>(() => (
+    data.services[0]?.id ? { [data.services[0].id]: data.services[0].defaultTimes || 10 } : {}
+  ));
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
   const [cardNote, setCardNote] = useState("");
   const [selectedSignatureId, setSelectedSignatureId] = useState("");
@@ -6824,6 +6828,14 @@ function Pos({
     const nextServiceIds = Array.from(new Set(serviceIds.filter(Boolean)));
     setCardServiceIds(nextServiceIds);
     setCardServiceId(nextServiceIds[0] ?? "");
+    setCardServiceTimes((previous) => {
+      const next: Record<string, EditableNumber> = {};
+      nextServiceIds.forEach((id) => {
+        const service = data.services.find((item) => item.id === id);
+        next[id] = previous[id] ?? service?.defaultTimes ?? (typeof cardTimes === "number" && cardTimes > 0 ? cardTimes : 1);
+      });
+      return next;
+    });
   };
 
   const changeCardCustomerMode = (value: CardCustomerMode) => {
@@ -6844,6 +6856,22 @@ function Pos({
   const readCardCustomerName = () => (cardCustomerNameInputRef.current?.value ?? cardCustomerName).trim();
 
   const readCardCustomerPhone = () => (cardCustomerPhoneInputRef.current?.value ?? cardCustomerPhone).trim();
+
+  const readCardName = () => (cardNameInputRef.current?.value ?? cardName).trim();
+
+  const updateCardName = (value: string) => {
+    setCardName(value);
+  };
+
+  const updateCardServiceTimes = (serviceId: string, value: EditableNumber) => {
+    setCardServiceTimes((previous) => ({ ...previous, [serviceId]: value }));
+  };
+
+  const buildCardServiceEntitlements = () =>
+    cardServiceIds.map((serviceId) => {
+      const totalTimes = editableNumberValue(cardServiceTimes[serviceId]);
+      return { serviceId, totalTimes, remainingTimes: totalTimes };
+    });
 
   const clearCardCustomerDraft = () => {
     cardCustomerDraftTouchedRef.current = false;
@@ -6882,18 +6910,21 @@ function Pos({
     event.preventDefault();
     setCardFormMessage(undefined);
     void runMutation(async () => {
-      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
+      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (readCardName() || DEFAULT_DISCOUNT_CARD_NAME) : readCardName();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
       const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
       const submittedCustomerBirthday = cardCustomerMode === "new" ? cardCustomerBirthday.trim() : "";
       const submittedCustomerNote = cardCustomerMode === "new" ? cardCustomerNote.trim() : "";
+      const submittedServiceEntitlements = cardType === "次数卡" || cardType === "套餐卡" ? buildCardServiceEntitlements() : [];
+      const submittedRemainingTimes = submittedServiceEntitlements.reduce((sum, item) => sum + item.totalTimes, 0);
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) throw new Error("请填写开卡实收金额");
       if (cardType === "储值卡" && (!Number.isFinite(cardAmountValue) || cardAmountValue <= 0)) throw new Error("请填写储值到账金额");
-      if ((cardType === "次数卡" || cardType === "套餐卡") && (!Number.isFinite(cardTimesValue) || cardTimesValue <= 0)) throw new Error("请填写可用次数");
       if ((cardType === "次数卡" || cardType === "套餐卡") && cardServiceIds.length === 0) throw new Error("请选择可用项目");
+      if ((cardType === "次数卡" || cardType === "套餐卡") && submittedServiceEntitlements.some((item) => !Number.isFinite(item.totalTimes) || item.totalTimes <= 0)) throw new Error("请填写每个可用项目的次数");
+      if ((cardType === "次数卡" || cardType === "套餐卡") && submittedRemainingTimes <= 0) throw new Error("请填写可用次数");
       if (cardType === "折扣卡" && (!Number.isFinite(cardDiscountRateValue) || cardDiscountRateValue < 1 || cardDiscountRateValue >= 10)) throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
       return actions.openMemberCard({
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
@@ -6904,11 +6935,12 @@ function Pos({
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmountValue : 0,
-        remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? cardTimesValue : 0,
+        remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? submittedRemainingTimes : 0,
         discountRate: cardType === "折扣卡" ? cardDiscountRateValue / 10 : undefined,
         benefitText: cardType === "折扣卡" ? `${cardDiscountRateValue} 折权益` : undefined,
         serviceId: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds[0] : undefined,
         serviceIds: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds : undefined,
+        serviceEntitlements: cardType === "次数卡" || cardType === "套餐卡" ? submittedServiceEntitlements : undefined,
         paidAmount: cardPaidAmountValue,
         payMethod: cardPayMethod,
         expiresAt: cardExpiresAt,
@@ -7156,19 +7188,48 @@ function Pos({
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
           {cardType !== "储值卡" && (
-            <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="如面部护理十次卡" /></label>
+            <label>卡名称<input ref={cardNameInputRef} defaultValue={cardName} onInput={(event) => updateCardName(event.currentTarget.value)} onBlur={(event) => updateCardName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardName(event.currentTarget.value)} placeholder="如面部护理十次卡" /></label>
           )}
           {cardType === "储值卡" && (
             <label>充值到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(parseEditableNumber(event.target.value))} /></label>
-          )}
-          {(cardType === "次数卡" || cardType === "套餐卡") && (
-            <label>可用次数<input type="number" min={1} value={cardTimes} onChange={(event) => setCardTimes(parseEditableNumber(event.target.value))} /></label>
           )}
           {cardType === "折扣卡" && (
             <label>会员折扣<input type="number" min={1} max={9.9} step={0.1} value={cardDiscountRate} onChange={(event) => setCardDiscountRate(parseEditableNumber(event.target.value))} /></label>
           )}
           {(cardType === "次数卡" || cardType === "套餐卡") && (
-            <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={updateCardServiceIds} options={data.services.map(optionOf)} />
+            <fieldset className="card-entitlement-group">
+              <legend>项目权益明细</legend>
+              {data.services.length === 0 ? (
+                <span>暂无可选项目</span>
+              ) : (
+                data.services.map((service) => {
+                  const selected = cardServiceIds.includes(service.id);
+                  return (
+                    <div key={service.id} className={selected ? "card-entitlement-row selected" : "card-entitlement-row"}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => updateCardServiceIds(selected ? cardServiceIds.filter((id) => id !== service.id) : [...cardServiceIds, service.id])}
+                        />
+                        <span>{service.name}</span>
+                      </label>
+                      {selected && (
+                        <label className="card-entitlement-times">
+                          <span>次数</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={cardServiceTimes[service.id] ?? service.defaultTimes ?? 1}
+                            onChange={(event) => updateCardServiceTimes(service.id, parseEditableNumber(event.target.value))}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </fieldset>
           )}
           <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(parseEditableNumber(event.target.value))} /></label>
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />
@@ -7728,12 +7789,16 @@ function Customers({
   const [cardDiscountRate, setCardDiscountRate] = useState<EditableNumber>(9);
   const [cardServiceId, setCardServiceId] = useState(data.services[0]?.id ?? "");
   const [cardServiceIds, setCardServiceIds] = useState<string[]>(data.services[0]?.id ? [data.services[0].id] : []);
+  const [cardServiceTimes, setCardServiceTimes] = useState<Record<string, EditableNumber>>(() => (
+    data.services[0]?.id ? { [data.services[0].id]: data.services[0].defaultTimes || 10 } : {}
+  ));
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
   const [cardNote, setCardNote] = useState("");
   const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const customerCardDraftTouchedRef = useRef(false);
   const customerCardNameInputRef = useRef<HTMLInputElement | null>(null);
   const customerCardPhoneInputRef = useRef<HTMLInputElement | null>(null);
+  const customerCardCardNameInputRef = useRef<HTMLInputElement | null>(null);
   const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
   const [rechargeAmount, setRechargeAmount] = useState<EditableNumber>(300);
   const [rechargeTimes, setRechargeTimes] = useState<EditableNumber>(0);
@@ -7884,6 +7949,12 @@ function Customers({
 
   const readCardCustomerPhone = () => (customerCardPhoneInputRef.current?.value ?? cardCustomerPhone).trim();
 
+  const readCardName = () => (customerCardCardNameInputRef.current?.value ?? cardName).trim();
+
+  const updateCardName = (value: string) => {
+    setCardName(value);
+  };
+
   const clearCardCustomerDraft = () => {
     customerCardDraftTouchedRef.current = false;
     setCardCustomerName("");
@@ -7898,19 +7969,37 @@ function Customers({
     const nextServiceIds = Array.from(new Set(serviceIds.filter(Boolean)));
     setCardServiceIds(nextServiceIds);
     setCardServiceId(nextServiceIds[0] ?? "");
-    const service = data.services.find((item) => item.id === nextServiceIds[0]);
-    if (service?.defaultTimes) setCardTimes(service.defaultTimes);
+    setCardServiceTimes((previous) => {
+      const next: Record<string, EditableNumber> = {};
+      nextServiceIds.forEach((id) => {
+        const service = data.services.find((item) => item.id === id);
+        next[id] = previous[id] ?? service?.defaultTimes ?? (typeof cardTimes === "number" && cardTimes > 0 ? cardTimes : 1);
+      });
+      return next;
+    });
   };
+
+  const updateCardServiceTimes = (serviceId: string, value: EditableNumber) => {
+    setCardServiceTimes((previous) => ({ ...previous, [serviceId]: value }));
+  };
+
+  const buildCardServiceEntitlements = () =>
+    cardServiceIds.map((serviceId) => {
+      const totalTimes = editableNumberValue(cardServiceTimes[serviceId]);
+      return { serviceId, totalTimes, remainingTimes: totalTimes };
+    });
 
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     setCardFormMessage(undefined);
     void runMutation(async () => {
-      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (cardName.trim() || DEFAULT_DISCOUNT_CARD_NAME) : cardName.trim();
+      const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (readCardName() || DEFAULT_DISCOUNT_CARD_NAME) : readCardName();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
       const submittedCustomerPhone = cardCustomerMode === "new" ? readCardCustomerPhone() : "";
       const submittedCustomerBirthday = cardCustomerMode === "new" ? cardCustomerBirthday.trim() : "";
       const submittedCustomerNote = cardCustomerMode === "new" ? cardCustomerNote.trim() : "";
+      const submittedServiceEntitlements = cardType === "次数卡" || cardType === "套餐卡" ? buildCardServiceEntitlements() : [];
+      const submittedRemainingTimes = submittedServiceEntitlements.reduce((sum, item) => sum + item.totalTimes, 0);
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
       if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
@@ -7920,11 +8009,14 @@ function Customers({
       if (cardType === "储值卡" && (!Number.isFinite(cardAmountValue) || cardAmountValue <= 0)) {
         throw new Error("储值卡需要填写到账余额");
       }
-      if ((cardType === "次数卡" || cardType === "套餐卡") && (!Number.isFinite(cardTimesValue) || cardTimesValue <= 0)) {
-        throw new Error("次数卡和套餐卡需要填写可用次数");
-      }
       if ((cardType === "次数卡" || cardType === "套餐卡") && cardServiceIds.length === 0) {
         throw new Error("请选择可用项目");
+      }
+      if ((cardType === "次数卡" || cardType === "套餐卡") && submittedServiceEntitlements.some((item) => !Number.isFinite(item.totalTimes) || item.totalTimes <= 0)) {
+        throw new Error("请填写每个可用项目的次数");
+      }
+      if ((cardType === "次数卡" || cardType === "套餐卡") && submittedRemainingTimes <= 0) {
+        throw new Error("次数卡和套餐卡需要填写可用次数");
       }
       if (cardType === "折扣卡" && (!Number.isFinite(cardDiscountRateValue) || cardDiscountRateValue < 1 || cardDiscountRateValue >= 10)) {
         throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
@@ -7938,11 +8030,12 @@ function Customers({
         name: submittedCardName,
         type: cardType,
         balance: cardType === "储值卡" ? cardAmountValue : 0,
-        remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? cardTimesValue : 0,
+        remainingTimes: cardType === "次数卡" || cardType === "套餐卡" ? submittedRemainingTimes : 0,
         discountRate: cardType === "折扣卡" ? cardDiscountRateValue / 10 : undefined,
         benefitText: cardType === "折扣卡" ? `${cardDiscountRateValue} 折权益` : undefined,
         serviceId: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds[0] : undefined,
         serviceIds: cardType === "次数卡" || cardType === "套餐卡" ? cardServiceIds : undefined,
+        serviceEntitlements: cardType === "次数卡" || cardType === "套餐卡" ? submittedServiceEntitlements : undefined,
         paidAmount: cardPaidAmountValue,
         payMethod: cardPayMethod,
         expiresAt: cardExpiresAt,
@@ -8598,19 +8691,48 @@ function Customers({
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
           {cardType !== "储值卡" && (
-            <label>卡名称<input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="如面部护理十次卡" /></label>
+            <label>卡名称<input ref={customerCardCardNameInputRef} defaultValue={cardName} onInput={(event) => updateCardName(event.currentTarget.value)} onBlur={(event) => updateCardName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardName(event.currentTarget.value)} placeholder="如面部护理十次卡" /></label>
           )}
           {cardType === "储值卡" && (
             <label>充值到账余额<input type="number" min={0} value={cardAmount} onChange={(event) => setCardAmount(parseEditableNumber(event.target.value))} /></label>
-          )}
-          {(cardType === "次数卡" || cardType === "套餐卡") && (
-            <label>可用次数<input type="number" min={1} value={cardTimes} onChange={(event) => setCardTimes(parseEditableNumber(event.target.value))} /></label>
           )}
           {cardType === "折扣卡" && (
             <label>会员折扣<input type="number" min={1} max={9.9} step={0.1} value={cardDiscountRate} onChange={(event) => setCardDiscountRate(parseEditableNumber(event.target.value))} /></label>
           )}
           {(cardType === "次数卡" || cardType === "套餐卡") && (
-            <CheckboxGroup label="可用项目" values={cardServiceIds} onChange={updateCardServiceIds} options={data.services.map(optionOf)} />
+            <fieldset className="card-entitlement-group">
+              <legend>项目权益明细</legend>
+              {data.services.length === 0 ? (
+                <span>暂无可选项目</span>
+              ) : (
+                data.services.map((service) => {
+                  const selected = cardServiceIds.includes(service.id);
+                  return (
+                    <div key={service.id} className={selected ? "card-entitlement-row selected" : "card-entitlement-row"}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => updateCardServiceIds(selected ? cardServiceIds.filter((id) => id !== service.id) : [...cardServiceIds, service.id])}
+                        />
+                        <span>{service.name}</span>
+                      </label>
+                      {selected && (
+                        <label className="card-entitlement-times">
+                          <span>次数</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={cardServiceTimes[service.id] ?? service.defaultTimes ?? 1}
+                            onChange={(event) => updateCardServiceTimes(service.id, parseEditableNumber(event.target.value))}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </fieldset>
           )}
           <label>实收金额<input type="number" min={0} value={cardPaidAmount} onChange={(event) => setCardPaidAmount(parseEditableNumber(event.target.value))} /></label>
           <Select label="支付方式" value={cardPayMethod} onChange={(value) => setCardPayMethod(value as CashPayMethod)} options={cashPayMethodOptions} />

@@ -283,6 +283,7 @@ export function createApiClient(getToken: () => string | undefined) {
       benefitText?: string;
       serviceId?: string;
       serviceIds?: string[];
+      serviceEntitlements?: AppData["memberCards"][number]["serviceEntitlements"];
       paidAmount?: number;
       payMethod?: CashPayMethod;
       expiresAt?: string;

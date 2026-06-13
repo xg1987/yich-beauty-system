@@ -390,7 +390,7 @@ export class D1BeautyDatabase {
     for (const card of memberCards) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json, serviceEntitlements_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             card.id,
             card.storeId ?? null,
@@ -406,6 +406,7 @@ export class D1BeautyDatabase {
             card.status,
             card.serviceId ?? null,
             JSON.stringify(card.serviceIds ?? []),
+            card.serviceEntitlements?.length ? JSON.stringify(card.serviceEntitlements) : null,
           ],
         ),
       );
@@ -575,7 +576,7 @@ export class D1BeautyDatabase {
     for (const card of data.memberCards) {
       statements.push(
         this.statement(
-          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json, serviceEntitlements_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             card.id,
             card.storeId ?? null,
@@ -591,6 +592,7 @@ export class D1BeautyDatabase {
             card.status,
             card.serviceId ?? null,
             JSON.stringify(card.serviceIds ?? []),
+            card.serviceEntitlements?.length ? JSON.stringify(card.serviceEntitlements) : null,
           ],
         ),
       );
@@ -923,7 +925,7 @@ function mapStaffUnavailableSlot(row: unknown): StaffUnavailableSlot {
 }
 
 function mapMemberCard(row: unknown): MemberCard {
-  const value = row as MemberCard & { serviceIds_json?: string };
+  const value = row as MemberCard & { serviceIds_json?: string; serviceEntitlements_json?: string | null };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
@@ -932,6 +934,7 @@ function mapMemberCard(row: unknown): MemberCard {
     benefitText: value.benefitText ?? undefined,
     serviceId: value.serviceId ?? undefined,
     serviceIds: value.serviceIds_json ? (JSON.parse(value.serviceIds_json) as string[]) : undefined,
+    serviceEntitlements: value.serviceEntitlements_json ? JSON.parse(value.serviceEntitlements_json) as MemberCard["serviceEntitlements"] : undefined,
   };
 }
 

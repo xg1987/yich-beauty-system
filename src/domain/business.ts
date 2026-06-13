@@ -755,6 +755,7 @@ export type OpenMemberCardInput = {
   benefitText?: string;
   serviceId?: string;
   serviceIds?: string[];
+  serviceEntitlements?: MemberCard["serviceEntitlements"];
   paidAmount?: number;
   payMethod?: CashPayMethod;
   expiresAt?: string;
@@ -2668,7 +2669,7 @@ export function checkoutOrder(
     if (selectedCard.type !== "储值卡" && selectedCard.remainingTimes <= 0) {
       throw new Error("会员卡次数不足");
     }
-    if (selectedCard.type !== "储值卡" && !memberCardSupportsService(selectedCard, serviceId)) {
+    if (selectedCard.type !== "储值卡" && !memberCardCanUseForService(selectedCard, serviceId)) {
       throw new Error("该次数卡不可用于当前项目");
     }
   }
@@ -2800,7 +2801,7 @@ export function checkoutOrder(
   const memberCards = data.memberCards.map((card) => {
     if (input.payMethod !== "会员卡" || card.id !== input.cardId) return card;
     if (card.type === "储值卡") return { ...card, balance: Math.max(0, card.balance - paidAmount) };
-    return { ...card, remainingTimes: Math.max(0, card.remainingTimes - 1) };
+    return updateMemberCardServiceTimes(card, serviceId, -1);
   });
 
   const selectedCardAfterCheckout = memberCards.find((card) => card.id === input.cardId);
@@ -2989,7 +2990,7 @@ export function refundOrder(
       const nextCard =
         card.type === "储值卡"
           ? { ...card, balance: card.balance + refundAmount }
-          : { ...card, remainingTimes: card.remainingTimes + 1 };
+          : updateMemberCardServiceTimes(card, order.serviceId, 1);
 
       memberCardTransactions = [
         {
@@ -3062,8 +3063,15 @@ export function openMemberCard(
   const createdAt = (options.now ?? nowIso)();
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
 
-  const serviceIds = Array.from(new Set([input.serviceId, ...(input.serviceIds ?? [])].map((id) => trimText(id)).filter(Boolean)));
-  const remainingTimes = positiveNumber(input.remainingTimes);
+  const serviceEntitlements = normalizeMemberCardServiceEntitlements(input.serviceEntitlements);
+  const serviceIds = Array.from(new Set([
+    input.serviceId,
+    ...(input.serviceIds ?? []),
+    ...serviceEntitlements.map((item) => item.serviceId),
+  ].map((id) => trimText(id)).filter(Boolean)));
+  const remainingTimes = serviceEntitlements.length
+    ? memberCardEntitlementRemainingTimes(serviceEntitlements)
+    : positiveNumber(input.remainingTimes);
   const requestedType = input.type;
   const cardType = requestedType === "套餐卡" || requestedType === "次数卡" || requestedType === "储值卡" || requestedType === "折扣卡"
     ? requestedType
@@ -3146,6 +3154,9 @@ export function openMemberCard(
         status: "正常",
         serviceId: cardType === "次数卡" || cardType === "套餐卡" ? serviceIds[0] : undefined,
         serviceIds: cardType === "次数卡" || cardType === "套餐卡" ? serviceIds : undefined,
+        serviceEntitlements: (cardType === "次数卡" || cardType === "套餐卡") && serviceEntitlements.length
+          ? serviceEntitlements
+          : undefined,
       },
       ...data.memberCards,
     ],
@@ -4698,7 +4709,7 @@ export function signCustomerSignature(
     ? data.memberCards.map((card) => {
         if (card.id !== debitCard.id || !linkedOrder) return card;
         if (card.type === "储值卡") return { ...card, balance: Math.max(0, card.balance - linkedOrder.paidAmount) };
-        return { ...card, remainingTimes: Math.max(0, card.remainingTimes - 1) };
+        return updateMemberCardServiceTimes(card, linkedOrder.serviceId, -1);
       })
     : data.memberCards;
   const debitedCard = debitCard ? memberCards.find((card) => card.id === debitCard.id) : undefined;
@@ -4746,9 +4757,71 @@ export function signCustomerSignature(
   };
 }
 
+function memberCardEntitlementRemainingTimes(entitlements: NonNullable<MemberCard["serviceEntitlements"]>) {
+  return entitlements.reduce((sum, item) => sum + Math.max(0, Math.floor(item.remainingTimes)), 0);
+}
+
+function normalizeMemberCardServiceEntitlements(entitlements: MemberCard["serviceEntitlements"] | undefined) {
+  if (!entitlements?.length) return [];
+  const merged = new Map<string, NonNullable<MemberCard["serviceEntitlements"]>[number]>();
+  for (const item of entitlements) {
+    const serviceId = trimText(item.serviceId);
+    const totalTimes = Math.max(0, Math.floor(positiveNumber(item.totalTimes)));
+    if (!serviceId || totalTimes <= 0) continue;
+    const remainingTimesInput = typeof item.remainingTimes === "number" && Number.isFinite(item.remainingTimes)
+      ? item.remainingTimes
+      : totalTimes;
+    const remainingTimes = Math.min(totalTimes, Math.max(0, Math.floor(remainingTimesInput)));
+    const previous = merged.get(serviceId);
+    merged.set(serviceId, previous
+      ? {
+          serviceId,
+          totalTimes: previous.totalTimes + totalTimes,
+          remainingTimes: previous.remainingTimes + remainingTimes,
+        }
+      : { serviceId, totalTimes, remainingTimes });
+  }
+  return Array.from(merged.values());
+}
+
+function memberCardServiceEntitlement(card: MemberCard, serviceId: string) {
+  return card.serviceEntitlements?.find((item) => item.serviceId === serviceId);
+}
+
+function updateMemberCardServiceTimes(card: MemberCard, serviceId: string, delta: number) {
+  if (!card.serviceEntitlements?.length) {
+    return { ...card, remainingTimes: Math.max(0, card.remainingTimes + delta) };
+  }
+  const serviceEntitlements = card.serviceEntitlements.map((item) =>
+    item.serviceId === serviceId
+      ? {
+          ...item,
+          remainingTimes: Math.min(item.totalTimes, Math.max(0, item.remainingTimes + delta)),
+        }
+      : item,
+  );
+  return {
+    ...card,
+    remainingTimes: memberCardEntitlementRemainingTimes(serviceEntitlements),
+    serviceEntitlements,
+  };
+}
+
+function memberCardCanUseForService(card: MemberCard, serviceId: string) {
+  if (card.type === "储值卡") return true;
+  if (card.type === "折扣卡") return false;
+  if (!serviceId) return false;
+  if (card.serviceEntitlements?.length) {
+    const entitlement = memberCardServiceEntitlement(card, serviceId);
+    return Boolean(entitlement && entitlement.remainingTimes > 0);
+  }
+  return card.remainingTimes > 0 && memberCardSupportsService(card, serviceId);
+}
+
 function memberCardSupportsService(card: MemberCard, serviceId: string) {
   if (card.type === "储值卡") return true;
   if (!serviceId) return false;
+  if (card.serviceEntitlements?.length) return card.serviceEntitlements.some((item) => item.serviceId === serviceId);
   if (card.serviceIds?.length) return card.serviceIds.includes(serviceId);
   if (card.serviceId && card.serviceId !== serviceId) return false;
   return true;
@@ -4768,10 +4841,9 @@ function selectSignatureDebitCard(data: AppData, order: Order) {
 
 function canDebitCardForOrder(card: MemberCard, order: Order) {
   if (card.customerId !== order.customerId || card.status !== "正常") return false;
-  if (!memberCardSupportsService(card, order.serviceId)) return false;
   if (card.type === "储值卡") return card.balance >= order.paidAmount;
   if (card.type === "折扣卡") return false;
-  return card.remainingTimes > 0;
+  return memberCardCanUseForService(card, order.serviceId);
 }
 
 function signatureDebitCardPriority(card: MemberCard, serviceId: string) {

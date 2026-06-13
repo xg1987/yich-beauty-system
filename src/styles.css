@@ -1016,6 +1016,76 @@ label {
   font-size: 13px;
 }
 
+.card-entitlement-group {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.card-entitlement-group legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-entitlement-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 132px);
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid rgba(109, 69, 196, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.card-entitlement-row.selected {
+  border-color: rgba(109, 69, 196, 0.28);
+  background: rgba(109, 69, 196, 0.06);
+}
+
+.card-entitlement-row > label:first-child {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.card-entitlement-row > label:first-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-entitlement-row input[type="checkbox"] {
+  width: 16px;
+  min-height: 16px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.card-entitlement-times {
+  display: grid;
+  grid-template-columns: auto minmax(54px, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.card-entitlement-times input {
+  min-height: 34px;
+  padding: 0 8px;
+  text-align: center;
+}
+
 input,
 select,
 textarea {
@@ -1449,6 +1519,15 @@ td > button {
 @media (max-width: 640px) {
   body {
     background: var(--surface);
+  }
+
+  .card-entitlement-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .card-entitlement-times {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .app-shell {

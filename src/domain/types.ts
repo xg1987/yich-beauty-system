@@ -319,6 +319,12 @@ export type StaffShift = {
   createdAt: string;
 };
 
+export type MemberCardServiceEntitlement = {
+  serviceId: string;
+  totalTimes: number;
+  remainingTimes: number;
+};
+
 export type MemberCard = {
   id: string;
   storeId?: string;
@@ -334,6 +340,7 @@ export type MemberCard = {
   status: "正常" | "冻结" | "过期" | "已退卡";
   serviceId?: string;
   serviceIds?: string[];
+  serviceEntitlements?: MemberCardServiceEntitlement[];
 };
 
 export type Distributor = {
