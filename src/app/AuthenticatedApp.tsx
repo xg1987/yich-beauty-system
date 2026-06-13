@@ -350,8 +350,19 @@ function inventorySubcategoryNames(products: Product[], category: string, preset
 }
 
 function GlobalMutationStatus() {
-  useMutationPending();
-  return null;
+  const pending = useMutationPending();
+  if (!pending) return null;
+  return (
+    <div className="global-mutation-status" role="status" aria-live="assertive" aria-busy="true">
+      <div className="global-mutation-card">
+        <RefreshCw size={22} aria-hidden="true" />
+        <div>
+          <strong>正在保存</strong>
+          <span>系统正在同步数据，请稍候</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function csvCell(value: string | number) {
@@ -1202,7 +1213,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               </Suspense>
             ) : <MemoDashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} />}
-            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} />}
+            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
               <Suspense fallback={<ViewFallback title="营销中心" />}>
@@ -3072,6 +3083,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
           确认到店
         </button>
+        <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>
       </div>
     </article>
   );
@@ -3116,6 +3128,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
             进入收银生成签名
           </button>
         )}
+        {!order && <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>}
         <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>
       </div>
     </article>
@@ -3516,6 +3529,7 @@ function Pos({
   initialCustomerId,
   initialEntryKey = 0,
   onReturnManagement,
+  onReturnAppointments,
 }: {
   data: AppData;
   session: UserSession;
@@ -3527,6 +3541,7 @@ function Pos({
   initialCustomerId?: string;
   initialEntryKey?: number;
   onReturnManagement?: () => void;
+  onReturnAppointments?: () => void;
 }) {
   const mutationPending = useMutationPending();
   const employeePosLimited = session.user.role === "therapist" || session.user.role === "frontdesk";
@@ -3891,6 +3906,10 @@ function Pos({
       const signedSignature = nextData.customerSignatures.find((signature) => signature.id === signatureToSign.id);
       if (signedSignature) setSelectedSignatureId(signedSignature.id);
       setSignatureMessage({ type: "success", text: "服务确认签名已完成。" });
+      const signedOrder = signedSignature?.orderId ? nextData.orders.find((order) => order.id === signedSignature.orderId) : undefined;
+      if (signedOrder?.appointmentId && onReturnAppointments) {
+        window.setTimeout(() => onReturnAppointments(), 450);
+      }
     }).catch((caught) => {
       setSignatureMessage({ type: "error", text: caught instanceof Error ? caught.message : "签名失败" });
     });
@@ -4824,7 +4843,7 @@ function Pos({
           <div className="signature-complete-actions">
             <button type="button" className="signature-complete-button" disabled={mutationPending} onClick={signSelectedSignature}>
               <LockKeyhole size={18} />
-              完成服务签名
+              {mutationPending ? "正在保存签名..." : "完成服务签名"}
             </button>
           </div>
         )}

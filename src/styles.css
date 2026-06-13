@@ -125,22 +125,55 @@ button[aria-busy="true"] {
 
 .global-mutation-status {
   position: fixed;
-  z-index: 1200;
-  top: max(14px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  min-height: 40px;
-  display: inline-flex;
+  inset: 0;
+  z-index: 2200;
+  display: grid;
   align-items: center;
   justify-content: center;
-  padding: 0 16px;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  background: rgba(37, 24, 66, 0.26);
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+
+.global-mutation-card {
+  min-width: min(320px, calc(100vw - 40px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
-  background: rgba(25, 23, 30, 0.94);
+  padding: 16px 18px;
+  background: rgba(25, 23, 30, 0.95);
   color: #fff;
   box-shadow: 0 14px 32px rgba(23, 18, 36, 0.22);
-  font-size: 14px;
+}
+
+.global-mutation-card svg {
+  flex: 0 0 auto;
+  animation: global-mutation-spin 900ms linear infinite;
+}
+
+.global-mutation-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.global-mutation-card strong {
+  font-size: 15px;
   font-weight: 750;
-  pointer-events: none;
+}
+
+.global-mutation-card span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@keyframes global-mutation-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .login-page {
