@@ -1330,6 +1330,18 @@ try {
     body: { businessDate: new Date().toISOString().slice(0, 10) },
   });
   assert.equal(afterReverseClose.dailyCloses[0].status, "已反结", "reverse close API should unlock business day");
+  const afterOtherStaffCustomerOrder = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      checkoutRequestId: "api-therapist-customer-resource",
+      customerId: "c3",
+      staffId: "s3",
+      serviceId: "v1",
+      payMethod: "现金",
+    },
+  });
+  const otherStaffCustomerOrderId = afterOtherStaffCustomerOrder.orders[0].id;
 
   const therapistSession = await request<{ token: string }>(baseUrl, "/api/auth/login", {
     method: "POST",
@@ -1339,7 +1351,7 @@ try {
   assert.ok(therapistData.customers.some((item) => item.id === "c3"), "therapist should see same-store customers handled by other staff");
   assert.ok(therapistData.customerServiceRecords.every((item) => item.storeId === "store1"), "therapist should receive same-store customer service records");
   assert.ok(therapistData.appointments.some((item) => item.staffId !== "s2"), "therapist should see all same-store appointments");
-  assert.ok(therapistData.orders.every((item) => item.staffId === "s2"), "therapist should only see own orders");
+  assert.ok(therapistData.orders.some((item) => item.id === otherStaffCustomerOrderId && item.staffId === "s3"), "therapist should see same-store customer orders handled by other staff");
   assert.ok(therapistData.staffUnavailableSlots.every((item) => item.staffId === "s2"), "therapist should only see own unavailable slots");
   assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
   await request<AppData>(baseUrl, "/api/operational-permissions", {
@@ -1351,7 +1363,7 @@ try {
   assert.ok(restrictedTherapistData.appointments.some((item) => item.staffId !== "s2"), "therapist should still see same-store shared appointments");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 7, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 8, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.equal(persistedData.distributionCommissions.length, 0, "base API should not expose distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");

@@ -9344,14 +9344,20 @@ textarea,
     grid-template-columns: 1fr;
   }
 
-  .customer-directory-panel {
+  .customer-directory-panel,
+  .customer-detail-panel {
     position: static;
-    height: var(--customer-panel-height);
-    max-height: var(--customer-panel-height);
+    height: auto;
+    max-height: none;
+  }
+
+  .customer-detail-panel {
+    overflow: visible;
   }
 
   .customer-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
   }
 }
 

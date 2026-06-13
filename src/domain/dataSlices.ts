@@ -69,6 +69,7 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "products",
     "appointments",
     "orders",
+    "refunds",
     "memberCards",
     "memberCardTransactions",
     "customerServiceRecords",

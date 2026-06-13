@@ -5241,7 +5241,7 @@ function Customers({
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerFilter, setCustomerFilter] = useState<"all" | "follow" | "card" | "recent">("all");
   const [selectedCustomerId, setSelectedCustomerId] = useState(data.customers[0]?.id ?? "");
-  const [customerDetailTab, setCustomerDetailTab] = useState<"overview" | "cards" | "records" | "signatures" | "followups">("overview");
+  const [customerDetailTab, setCustomerDetailTab] = useState<"overview" | "cards" | "orders" | "records" | "signatures" | "followups">("overview");
   const [selectedSignatureId, setSelectedSignatureId] = useState("");
   const [customerEditOpen, setCustomerEditOpen] = useState(false);
   const [editCustomerName, setEditCustomerName] = useState("");
@@ -5671,6 +5671,13 @@ function Customers({
         .slice()
         .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))
     : [];
+  const selectedCustomerOrderIds = new Set(selectedCustomerOrders.map((order) => order.id));
+  const selectedCustomerRefunds = selectedCustomer
+    ? data.refunds
+        .filter((refund) => selectedCustomerOrderIds.has(refund.orderId))
+        .slice()
+        .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))
+    : [];
   const selectedCustomerSignatures = selectedCustomer
     ? data.customerSignatures
         .filter((signature) => signature.customerId === selectedCustomer.id)
@@ -5702,6 +5709,7 @@ function Customers({
   const customerDetailTabs = [
     { key: "overview", label: "客户概览", count: selectedCustomer ? 1 : 0 },
     { key: "cards", label: "项目卡", count: selectedCustomerCards.length },
+    { key: "orders", label: "消费记录", count: selectedCustomerOrders.length },
     { key: "records", label: "服务记录", count: selectedCustomerRecords.length },
     { key: "signatures", label: "签名记录", count: selectedCustomerSignatures.length },
     { key: "followups", label: "跟进计划", count: selectedCustomerFollowUps.length },
@@ -5949,6 +5957,42 @@ function Customers({
                     ])}
                   />
                   {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">当前客户暂无项目卡</p>}
+                </div>
+              )}
+
+              {customerDetailTab === "orders" && (
+                <div className="customer-table-panel">
+                  <DataTable
+                    columns={["时间", "单号", "项目/商品", "服务人员", "原价", "实收", "支付", "卡扣", "状态"]}
+                    rows={selectedCustomerOrders.map((order) => [
+                      shortDate(order.createdAt),
+                      order.orderNo,
+                      serviceProductSummary(order) || nameOf(data.services, order.serviceId) || "未关联项目",
+                      nameOf(data.staff, order.staffId),
+                      money(order.totalAmount),
+                      money(order.paidAmount),
+                      order.payMethod,
+                      cardConsumptionSummary(order) || "-",
+                      <Badge key={`${order.id}-status`} text={order.status} tone={order.status === "已退款" ? "warn" : "ok"} />,
+                    ])}
+                  />
+                  {selectedCustomerOrders.length === 0 && <p className="customer-soft-empty">当前客户暂无消费记录</p>}
+                  {selectedCustomerRefunds.length > 0 && (
+                    <>
+                      <div className="divider" />
+                      <PanelTitle icon={<RefreshCw size={18} />} title="退款记录" action={`${selectedCustomerRefunds.length} 笔`} />
+                      <DataTable
+                        columns={["时间", "订单", "退款金额", "原因", "状态"]}
+                        rows={selectedCustomerRefunds.map((refund) => [
+                          shortDate(refund.createdAt),
+                          selectedCustomerOrders.find((order) => order.id === refund.orderId)?.orderNo ?? refund.orderId,
+                          money(refund.amount),
+                          refund.reason,
+                          "已退款",
+                        ])}
+                      />
+                    </>
+                  )}
                 </div>
               )}
 

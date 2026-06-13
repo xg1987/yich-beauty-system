@@ -1834,7 +1834,7 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
 
   const staffId = session.user.staffId;
   const appointments = sanitizedData.appointments;
-  const orders = sanitizedData.orders.filter((item) => item.staffId === staffId);
+  const orders = sanitizedData.orders;
   const orderIds = new Set(orders.map((item) => item.id));
   const appointmentIds = new Set(appointments.map((item) => item.id));
 
