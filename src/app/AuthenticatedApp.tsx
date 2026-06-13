@@ -4101,7 +4101,6 @@ function Pos({
     clearAppointment();
     if (nextServiceId !== serviceId) resetCheckoutDiscount();
     setServiceId(nextServiceId);
-    setServicePickerOpen(false);
   };
 
   const applyCheckoutDiscountRate = (value: string) => {
@@ -4909,9 +4908,17 @@ function Pos({
       <Modal
         open={servicePickerOpen}
         title="选择项目"
-        subtitle="按项目分类选择服务，选择后回到收银确认"
+        subtitle="点选项目后，再确认返回收银"
         size="large"
         onClose={() => setServicePickerOpen(false)}
+        footer={
+          <div className="modal-actions">
+            <button type="button" onClick={() => setServicePickerOpen(false)}>返回</button>
+            <button type="button" className="primary-button" disabled={!serviceId} onClick={() => setServicePickerOpen(false)}>
+              确认选择
+            </button>
+          </div>
+        }
       >
         <div className="product-picker-modal">
           <div className="product-picker-filters">
