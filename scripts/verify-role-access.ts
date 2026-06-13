@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { canAccessView, normalizeUserSession, platformOnlyViews, rolePermissions, type UserSession } from "../src/domain/auth";
 import type { UserRole, ViewKey } from "../src/domain/types";
 
@@ -62,9 +64,16 @@ for (const role of ["owner", "manager", "frontdesk", "therapist", "finance"] as 
 for (const role of ["frontdesk", "therapist"] as UserRole[]) {
   const session = makeSession(role);
   assert.equal(canAccessView(session, "settings"), true, `${role} should access management center`);
-  assert.equal(canAccessView(session, "pos"), true, `${role} should access card opening cashier`);
+  assert.equal(canAccessView(session, "pos"), true, `${role} should access service cashier`);
   assert.equal(canAccessView(session, "marketing"), true, `${role} should access marketing center`);
 }
+
+const appSource = readFileSync(join(process.cwd(), "src/app/AuthenticatedApp.tsx"), "utf8");
+assert.ok(
+  appSource.includes('{ key: "cashier", label: "收银", icon: CreditCard, view: "pos", options: { posModule: "single" } }'),
+  "employee workbar should open service cashier, not card opening",
+);
+assert.equal(appSource.includes('module === "single" ? "card"'), false, "employee service cashier must not be remapped to card opening");
 
 for (const role of ["owner", "manager"] as UserRole[]) {
   const session = makeSession(role);

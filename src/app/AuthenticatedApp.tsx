@@ -877,7 +877,7 @@ const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "acc
 const employeeWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
   { key: "appointments", label: "预约", icon: CalendarDays, view: "appointments" },
-  { key: "card", label: "开卡", icon: CreditCard, view: "pos", options: { posModule: "card" } },
+  { key: "cashier", label: "收银", icon: CreditCard, view: "pos", options: { posModule: "single" } },
   { key: "customers", label: "客户", icon: UsersRound, view: "customers" },
   { key: "marketing", label: "营销", icon: Megaphone, view: "marketing" },
 ];
@@ -1074,10 +1074,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     setNotificationPanelOpen(false);
     setAccountMenuOpen(false);
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
-    const employeePosLimited = session?.user.role === "therapist" || session?.user.role === "frontdesk";
-    const appointmentCheckoutEntry = Boolean(options?.appointmentId);
-    const nextPosModule = employeePosLimited && options?.posModule === "single" && !appointmentCheckoutEntry ? "card" : options?.posModule;
-    setPosEntryModule(nextView === "pos" ? nextPosModule : undefined);
+    setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
     if (nextView === "pos") setPosEntryKey((key) => key + 1);
@@ -3675,12 +3672,9 @@ function Pos({
   onReturnAppointments?: () => void;
 }) {
   const mutationPending = useMutationPending();
-  const employeePosLimited = session.user.role === "therapist" || session.user.role === "frontdesk";
   const serviceStaff = activeStaffOf(data);
   const initialCheckoutAppointment = initialAppointmentId ? data.appointments.find((appointment) => appointment.id === initialAppointmentId) : undefined;
-  const canUseAppointmentCheckout = Boolean(initialCheckoutAppointment);
-  const normalizePosModule = (module: PosModuleKey | undefined): PosModuleKey | undefined =>
-    employeePosLimited && module === "single" && !canUseAppointmentCheckout ? "card" : module;
+  const normalizePosModule = (module: PosModuleKey | undefined): PosModuleKey | undefined => module;
   const [appointmentId, setAppointmentId] = useState(initialCheckoutAppointment?.id ?? "");
   const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">(initialCheckoutAppointment ? "customer" : "walkin");
   const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product">("service");
@@ -4146,10 +4140,6 @@ function Pos({
   };
 
   useEffect(() => {
-    if (employeePosLimited && activeModule === "single" && !appointmentId) setActiveModule("card");
-  }, [employeePosLimited, activeModule, appointmentId]);
-
-  useEffect(() => {
     if (!initialAppointmentId) {
       appliedInitialAppointmentRef.current = undefined;
       return;
@@ -4159,10 +4149,9 @@ function Pos({
     appliedInitialAppointmentRef.current = entryId;
     setActiveModule("single");
     useAppointmentForCheckout(initialAppointmentId);
-  }, [employeePosLimited, initialAppointmentId, initialEntryKey, data.appointments]);
+  }, [initialAppointmentId, initialEntryKey, data.appointments]);
 
   const openCheckoutModule = (module: "product" | "single") => {
-    if (employeePosLimited && module === "single") return;
     const isProductModule = module === "product";
     checkoutRequestIdRef.current = makeId("checkout");
     setCheckoutContentMode(isProductModule ? "product" : "service");
@@ -4317,7 +4306,7 @@ function Pos({
       return;
     }
     if (fromManagement) setActiveModule(normalizePosModule("single"));
-  }, [employeePosLimited, fromManagement, initialModule, initialEntryKey]);
+  }, [fromManagement, initialModule, initialEntryKey]);
 
   useEffect(() => {
     if (!initialCustomerId) {
@@ -4556,17 +4545,15 @@ function Pos({
               <strong>商品开单</strong>
               <em>库存扣减</em>
             </button>
-            {!employeePosLimited && (
-              <button
-                type="button"
-                className={`cashier-orbit-card left bottom ${activeModule === "single" ? "active" : ""}`}
-                onClick={() => openCheckoutModule("single")}
-              >
-                <BadgeCent size={22} />
-                <strong>项目服务</strong>
-                <em>项目收款</em>
-              </button>
-            )}
+            <button
+              type="button"
+              className={`cashier-orbit-card left bottom ${activeModule === "single" ? "active" : ""}`}
+              onClick={() => openCheckoutModule("single")}
+            >
+              <BadgeCent size={22} />
+              <strong>项目服务</strong>
+              <em>项目收款</em>
+            </button>
           </div>
           <button
             type="button"
