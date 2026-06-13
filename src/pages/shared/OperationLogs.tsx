@@ -1,5 +1,5 @@
 import { ClipboardList } from "lucide-react";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { PageHero } from "../../components/layout/PageHero";
 import { DataTable } from "../../components/ui/DataTable";
 import type { UserSession } from "../../domain/auth";
@@ -36,6 +36,15 @@ function downloadCsvFile(filename: string, columns: Array<string | number>, rows
 
 function nameOf(collection: Array<{ id: string; name: string }>, id: string) {
   return collection.find((item) => item.id === id)?.name ?? "";
+}
+
+function searchInputSync(setValue: (value: string) => void) {
+  const sync = (event: FormEvent<HTMLInputElement>) => setValue(event.currentTarget.value);
+  return {
+    onInput: sync,
+    onChange: sync,
+    onCompositionEnd: sync,
+  };
 }
 
 export default function OperationLogs({ data, session: _session }: OperationLogsProps) {
@@ -86,7 +95,7 @@ export default function OperationLogs({ data, session: _session }: OperationLogs
             type="text"
             placeholder="搜索操作内容或动作..."
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            {...searchInputSync(setSearchTerm)}
             style={{ flex: 1, minWidth: "240px" }}
           />
           <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>

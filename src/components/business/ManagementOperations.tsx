@@ -39,6 +39,15 @@ function customerPhoneOf(data: AppData, customerId: string) {
   return data.customers.find((customer) => customer.id === customerId)?.phone ?? "";
 }
 
+function searchInputSync(setValue: (value: string) => void) {
+  const sync = (event: FormEvent<HTMLInputElement>) => setValue(event.currentTarget.value);
+  return {
+    onInput: sync,
+    onChange: sync,
+    onCompositionEnd: sync,
+  };
+}
+
 function customerNameForTransaction(data: AppData, transaction: MemberCardTransaction) {
   const card = data.memberCards.find((item) => item.id === transaction.memberCardId);
   return card ? nameOf(data.customers, card.customerId) : "-";
@@ -466,7 +475,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
               <span>搜索客户姓名 / 手机号码</span>
               <div>
                 <Search size={16} />
-                <input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="输入姓名或手机号" />
+                <input value={searchText} {...searchInputSync(setSearchText)} placeholder="输入姓名或手机号" />
               </div>
             </label>
             {showRefundChoices && activeTab === "一次性消费" ? (

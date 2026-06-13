@@ -275,6 +275,15 @@ function editableNumberOrZero(value: EditableNumber) {
   return value === "" || !Number.isFinite(value) ? 0 : value;
 }
 
+function searchInputSync(setValue: (value: string) => void) {
+  const sync = (event: FormEvent<HTMLInputElement>) => setValue(event.currentTarget.value);
+  return {
+    onInput: sync,
+    onChange: sync,
+    onCompositionEnd: sync,
+  };
+}
+
 function formatBirthdayDraft(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 4) return digits;
@@ -3384,7 +3393,7 @@ function PlatformAccountAdminView({
           />
           <label className="account-admin-search">
             <Search size={17} />
-            <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} placeholder="搜索姓名 / 手机号 / 登录账号 / 门店名" />
+            <input value={accountSearch} {...searchInputSync(setAccountSearch)} placeholder="搜索姓名 / 手机号 / 登录账号 / 门店名" />
           </label>
           {resetUser && (
             <form className="staff-edit-form" onSubmit={submitPasswordReset}>
@@ -3672,7 +3681,7 @@ function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: AppData;
             type="text"
             placeholder="搜索操作、对象、摘要或账号"
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            {...searchInputSync(setSearchTerm)}
             style={{ flex: 1, minWidth: "220px" }}
           />
           <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
@@ -6065,7 +6074,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 客户
                 <input
                   value={appointmentCustomerSearch}
-                  onChange={(event) => setAppointmentCustomerSearch(event.target.value)}
+                  {...searchInputSync(setAppointmentCustomerSearch)}
                   placeholder={selectedAppointmentCustomer ? customerOptionOf(selectedAppointmentCustomer).label : "输入客户姓名或手机号搜索"}
                 />
               </label>
@@ -6176,7 +6185,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
           <div className="product-picker-filters">
             <label>
               <Search size={15} />
-              <input value={appointmentServicePickerSearch} onChange={(event) => setAppointmentServicePickerSearch(event.target.value)} placeholder="搜索项目名称或分类" />
+              <input value={appointmentServicePickerSearch} {...searchInputSync(setAppointmentServicePickerSearch)} placeholder="搜索项目名称或分类" />
             </label>
             <div className="product-picker-category-list">
               {appointmentServicePickerCategories.map((category) => (
@@ -7439,7 +7448,7 @@ function Pos({
                 客户
                 <input
                   value={customerSearch}
-                  onChange={(event) => setCustomerSearch(event.target.value)}
+                  {...searchInputSync(setCustomerSearch)}
                   placeholder={selectedCustomer ? `${selectedCustomer.name} · ${selectedCustomer.phone}` : "输入客户姓名或手机号搜索"}
                 />
               </label>
@@ -7676,7 +7685,7 @@ function Pos({
           <div className="product-picker-filters">
             <label>
               <Search size={15} />
-              <input value={servicePickerSearch} onChange={(event) => setServicePickerSearch(event.target.value)} placeholder="搜索项目名称或分类" />
+              <input value={servicePickerSearch} {...searchInputSync(setServicePickerSearch)} placeholder="搜索项目名称或分类" />
             </label>
             <div className="product-picker-category-list">
               {servicePickerCategories.map((category) => (
@@ -7726,7 +7735,7 @@ function Pos({
           <div className="product-picker-filters">
             <label>
               <Search size={15} />
-              <input value={productPickerSearch} onChange={(event) => setProductPickerSearch(event.target.value)} placeholder="搜索商品名称或分类" />
+              <input value={productPickerSearch} {...searchInputSync(setProductPickerSearch)} placeholder="搜索商品名称或分类" />
             </label>
             <div className="product-picker-category-list">
               {productPickerCategories.map((category) => (
@@ -8411,7 +8420,7 @@ function Customers({
           </div>
           <label className="customer-search-field">
             <Search size={17} />
-            <input value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="搜索姓名 / 手机号 / 标签" />
+            <input value={customerSearch} {...searchInputSync(setCustomerSearch)} placeholder="搜索姓名 / 手机号 / 标签" />
           </label>
           <div className="customer-filter-tabs" aria-label="客户筛选">
             {customerFilterOptions.map((option) => (
@@ -9433,7 +9442,7 @@ function ProductUsagePicker({
         />
         <label className="catalog-product-search">
           使用商品
-          <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleSearchKeyDown} />
+          <input value={query} {...searchInputSync(setQuery)} onKeyDown={handleSearchKeyDown} />
         </label>
       </div>
       <div className="catalog-product-results">
