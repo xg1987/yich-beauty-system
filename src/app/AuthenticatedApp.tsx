@@ -1169,6 +1169,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
       </aside>
       <main className="main">
         <GlobalMutationStatus />
+        {error && <span className="error-chip app-error-chip">{error}</span>}
         <header className="topbar">
           <div className="topbar-brand">
             <BrandIcon className="brand-mark brand-icon-mark" />
@@ -1181,7 +1182,6 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               <p>{topbarTitle}</p>
           </div>
           <div className="topbar-actions" ref={topbarActionsRef}>
-            {error && <span className="error-chip">{error}</span>}
             <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
               <Bell size={18} />
               {notificationCount > 0 && <span>{notificationCount}</span>}

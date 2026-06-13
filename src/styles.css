@@ -575,22 +575,28 @@ button[aria-busy="true"] {
   color: #a53b2a;
 }
 
-.topbar-actions > .error-chip {
+.app-shell .main > .app-error-chip {
   position: fixed;
-  top: 50%;
-  left: 50%;
+  top: 50dvh;
+  left: 50vw;
   z-index: 2600;
+  width: min(82vw, 420px);
   max-width: min(92vw, 560px);
   min-height: 40px;
   padding: 12px 18px;
+  border-radius: 18px;
   transform: translate(-50%, -50%);
-  border-color: rgba(31, 24, 46, 0.08);
-  background: rgba(27, 24, 36, 0.92);
+  border-color: rgba(255, 255, 255, 0.46);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(255, 234, 243, 0.42), transparent 36%),
+    linear-gradient(135deg, #8b63d9, #c05ca8 58%, #dd5f83);
   color: #fff;
   text-align: center;
   line-height: 1.55;
   white-space: normal;
-  box-shadow: 0 18px 48px rgba(68, 34, 102, 0.24);
+  box-shadow:
+    0 18px 42px rgba(122, 79, 181, 0.24),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   pointer-events: none;
 }
 
