@@ -20622,6 +20622,34 @@ textarea,
   padding-bottom: calc(var(--yich-bottom-nav-h, 88px) + 26px);
 }
 
+/* App-wide scroll lock: the fixed header/workbar shell should not rely on body
+   scrolling, because mobile WebViews can drop body wheel/touch events. */
+.app-shell {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.app-shell .main {
+  height: calc(100dvh - var(--yich-global-header-height, var(--yich-topbar-h, 86px)));
+  min-height: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(var(--yich-bottom-nav-h, 88px) + 34px);
+  scrollbar-gutter: stable;
+}
+
+.app-shell .main > .dashboard-page,
+.app-shell .main > .admin-center-page,
+.app-shell .main > .page-stack,
+.app-shell .main > .content-grid,
+.app-shell .main > .page-grid {
+  min-height: auto;
+}
+
 /* Management identity card refresh. */
 .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
   height: 168px;

@@ -1014,6 +1014,13 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     }
   }, [session?.token, session?.user.role, view]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".app-shell .main")?.scrollTo({ top: 0, left: 0 });
+    });
+  }, [view, accountSettingsOpen]);
+
   const navigate = useCallback<NavigateToView>((nextView, options) => {
     setView(nextView);
     setAccountSettingsOpen(false);
