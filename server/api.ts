@@ -751,6 +751,11 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/appointments") {
         requirePermission(session, "appointments:manage");
         const body = await readJson(request);
+        const requestedStaffId = requiredString(body, "staffId");
+        const appointmentStaffId = session.user.role === "therapist" ? session.user.staffId ?? "" : requestedStaffId;
+        if (!appointmentStaffId || (session.user.role === "therapist" && requestedStaffId !== appointmentStaffId)) {
+          throw new Error("员工账号只能预约自己的服务");
+        }
         const appointedData = updateData(database, session, {
           action: "新增预约",
           targetType: "appointment",
@@ -760,7 +765,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           createAppointment(data, {
             storeId: sessionStoreId(data, session),
             customerId: requiredString(body, "customerId"),
-            staffId: requiredString(body, "staffId"),
+            staffId: appointmentStaffId,
             serviceId: requiredString(body, "serviceId"),
             serviceIds: optionalStringArray(body, "serviceIds"),
             startAt: requiredString(body, "startAt"),
@@ -828,6 +833,11 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "appointments:manage");
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
+        const requestedStaffId = optionalString(body, "staffId");
+        const appointmentStaffId = session.user.role === "therapist" ? session.user.staffId : requestedStaffId;
+        if (session.user.role === "therapist" && requestedStaffId && requestedStaffId !== session.user.staffId) {
+          throw new Error("员工账号只能改约自己的服务");
+        }
         const nextData = updateData(database, session, {
           action: "改约",
           targetType: "appointment",
@@ -836,7 +846,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         }, (data) =>
           rescheduleAppointment(data, {
             appointmentId,
-            staffId: optionalString(body, "staffId"),
+            staffId: appointmentStaffId,
             serviceId: optionalString(body, "serviceId"),
             serviceIds: optionalStringArray(body, "serviceIds"),
             startAt: requiredString(body, "startAt"),

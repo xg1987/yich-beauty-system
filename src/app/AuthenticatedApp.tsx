@@ -276,6 +276,22 @@ export function searchInputSync(setValue: (value: string) => void) {
   };
 }
 
+function nextAppointmentDateTimeRange(durationMinutes = 60) {
+  const start = new Date();
+  start.setSeconds(0, 0);
+  const nextSlotMinute = Math.ceil((start.getMinutes() + 1) / 30) * 30;
+  if (nextSlotMinute >= 60) {
+    start.setHours(start.getHours() + 1, 0, 0, 0);
+  } else {
+    start.setMinutes(nextSlotMinute, 0, 0);
+  }
+  const end = new Date(start.getTime() + durationMinutes * 60_000);
+  return {
+    start: toLocalInputValue(start.toISOString()),
+    end: toLocalInputValue(end.toISOString()),
+  };
+}
+
 function formatBirthdayDraft(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 4) return digits;
@@ -1184,7 +1200,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
                 <LazyPlatformAdminView data={data} />
               </Suspense>
             ) : <MemoDashboard data={data} session={session} setView={navigate} />)}
-            {activeView === "appointments" && <MemoAppointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
+            {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} />}
             {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
@@ -2643,16 +2659,21 @@ function RoomSettingsContent({
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
-function Appointments({ data, actions, runMutation, setView }: { data: AppData; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
+function Appointments({ data, session, actions, runMutation, setView }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
   const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
+  const isTherapistAppointmentUser = session.user.role === "therapist" && Boolean(session.user.staffId);
+  const currentAppointmentStaffId = isTherapistAppointmentUser ? session.user.staffId ?? "" : "";
+  const defaultAppointmentStaffId = currentAppointmentStaffId && serviceStaff.some((staff) => staff.id === currentAppointmentStaffId)
+    ? currentAppointmentStaffId
+    : firstBusinessStaffId(data);
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [appointmentCustomerSearch, setAppointmentCustomerSearch] = useState("");
-  const [staffId, setStaffId] = useState(firstBusinessStaffId(data));
+  const [staffId, setStaffId] = useState(defaultAppointmentStaffId);
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [serviceIds, setServiceIds] = useState<string[]>(() => data.services[0]?.id ? [data.services[0].id] : []);
-  const [startAt, setStartAt] = useState(toLocalInputValue(tomorrowAt(11)));
-  const [endAt, setEndAt] = useState(toLocalInputValue(tomorrowAt(12)));
+  const [startAt, setStartAt] = useState(() => nextAppointmentDateTimeRange().start);
+  const [endAt, setEndAt] = useState(() => nextAppointmentDateTimeRange().end);
   const [note, setNote] = useState("");
   const [appointmentServicePickerOpen, setAppointmentServicePickerOpen] = useState(false);
   const [appointmentServicePickerCategory, setAppointmentServicePickerCategory] = useState("全部");
@@ -2669,14 +2690,17 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [activeAppointmentAction, setActiveAppointmentAction] = useState<"reschedule" | "cancel" | undefined>();
   const [activeAppointmentId, setActiveAppointmentId] = useState("");
   const [selectedAppointmentDetailId, setSelectedAppointmentDetailId] = useState("");
-  const [rescheduleStaffId, setRescheduleStaffId] = useState(firstBusinessStaffId(data));
+  const [rescheduleStaffId, setRescheduleStaffId] = useState(defaultAppointmentStaffId);
   const [rescheduleServiceId, setRescheduleServiceId] = useState(data.services[0]?.id ?? "");
   const [rescheduleServiceIds, setRescheduleServiceIds] = useState<string[]>(() => data.services[0]?.id ? [data.services[0].id] : []);
-  const [rescheduleStartAt, setRescheduleStartAt] = useState(toLocalInputValue(tomorrowAt(12)));
-  const [rescheduleEndAt, setRescheduleEndAt] = useState(toLocalInputValue(tomorrowAt(13)));
+  const [rescheduleStartAt, setRescheduleStartAt] = useState(() => nextAppointmentDateTimeRange().start);
+  const [rescheduleEndAt, setRescheduleEndAt] = useState(() => nextAppointmentDateTimeRange().end);
   const [rescheduleNote, setRescheduleNote] = useState("");
   const [cancelReason, setCancelReason] = useState("客户临时取消");
   const staffOptions = serviceStaff.map(optionOf);
+  const appointmentStaffOptions = isTherapistAppointmentUser
+    ? staffOptions.filter((option) => option.value === currentAppointmentStaffId)
+    : staffOptions;
   const selectedAppointmentCustomer = data.customers.find((item) => item.id === customerId);
   const normalizedAppointmentCustomerSearch = appointmentCustomerSearch.trim().toLowerCase();
   const appointmentCustomerSearchResults = normalizedAppointmentCustomerSearch
@@ -2691,15 +2715,16 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
   const hasConfiguredRooms = roomNames.length > 0;
+  const minAppointmentDateTime = toLocalInputValue(new Date().toISOString());
 
   useEffect(() => {
-    const firstStaffId = serviceStaff[0]?.id ?? "";
+    const firstStaffId = defaultAppointmentStaffId;
     if (!serviceStaff.some((staff) => staff.id === staffId)) setStaffId(firstStaffId);
     if (!serviceStaff.some((staff) => staff.id === blockedStaffId)) setBlockedStaffId(firstStaffId);
     if (!serviceStaff.some((staff) => staff.id === shiftStaffId)) setShiftStaffId(firstStaffId);
     if (!serviceStaff.some((staff) => staff.id === onlineRequestStaffId)) setOnlineRequestStaffId(firstStaffId);
     if (!serviceStaff.some((staff) => staff.id === rescheduleStaffId)) setRescheduleStaffId(firstStaffId);
-  }, [blockedStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
+  }, [blockedStaffId, defaultAppointmentStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
 
   useEffect(() => {
     const validIds = new Set(data.services.map((service) => service.id));
@@ -2729,7 +2754,9 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
-    if (!hasConfiguredRooms || !roomNames.includes(roomName)) return;
+    if (isTherapistAppointmentUser && staffId !== currentAppointmentStaffId) return;
+    const nextStartAt = new Date(startAt);
+    if (!hasConfiguredRooms || !roomNames.includes(roomName) || nextStartAt < new Date()) return;
     void runMutation(() =>
       actions.addAppointment({
         customerId,
@@ -2776,7 +2803,9 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
 
   const submitReschedule = (event: FormEvent) => {
     event.preventDefault();
-    if (!hasConfiguredRooms || !roomNames.includes(rescheduleRoomName)) return;
+    if (isTherapistAppointmentUser && rescheduleStaffId !== currentAppointmentStaffId) return;
+    const nextStartAt = new Date(rescheduleStartAt);
+    if (!hasConfiguredRooms || !roomNames.includes(rescheduleRoomName) || nextStartAt < new Date()) return;
     const appointmentId = activeAppointmentId;
     void runMutation(() =>
       actions.rescheduleAppointment(appointmentId, {
@@ -2820,6 +2849,25 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
     setAppointmentServicePickerCategory("全部");
     setAppointmentServicePickerSearch("");
     setAppointmentServicePickerOpen(true);
+  };
+
+  const openAppointmentForm = () => {
+    if (!hasConfiguredRooms) {
+      setView("roomSettings");
+      return;
+    }
+    const nextRange = nextAppointmentDateTimeRange();
+    const fallbackServiceId = data.services[0]?.id ?? "";
+    setCustomerId((current) => data.customers.some((customer) => customer.id === current) ? current : data.customers[0]?.id ?? "");
+    setAppointmentCustomerSearch("");
+    setStaffId(defaultAppointmentStaffId);
+    setServiceId(fallbackServiceId);
+    setServiceIds(fallbackServiceId ? [fallbackServiceId] : []);
+    setStartAt(nextRange.start);
+    setEndAt(nextRange.end);
+    setRoomName(roomNames[0] ?? "");
+    setNote("");
+    setShowAppointmentForm(true);
   };
 
   const toggleAppointmentService = (nextServiceId: string) => {
@@ -2917,11 +2965,12 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
   const selectedTimeRangeInvalid = Number.isNaN(selectedStartAt.getTime()) || Number.isNaN(selectedEndAt.getTime()) || !(selectedStartAt < selectedEndAt);
+  const selectedTimeInPast = !selectedTimeRangeInvalid && selectedStartAt < new Date();
   const selectedTimeLabel = selectedTimeRangeInvalid
     ? "时间段无效"
     : `${shortTime(selectedStartAt.toISOString())}-${shortTime(selectedEndAt.toISOString())}`;
-  const selectedTimeConflict = !selectedTimeRangeInvalid && checkAvailability(staffId, startAt, selectedEndAt.toISOString());
-  const overlappingRoomAssignments = selectedTimeRangeInvalid
+  const selectedTimeConflict = !selectedTimeRangeInvalid && !selectedTimeInPast && checkAvailability(staffId, startAt, selectedEndAt.toISOString());
+  const overlappingRoomAssignments = selectedTimeRangeInvalid || selectedTimeInPast
     ? []
     : assignAppointmentRooms(
         data.appointments
@@ -2937,9 +2986,11 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   const roomAvailabilityOptions = roomNames.map((name) => {
     const isMaintenance = maintenanceRoomNames.has(name);
     const conflictAppointment = overlappingRoomAssignments.find((assignment) => assignment.roomName === name)?.appointment;
-    const disabled = selectedTimeRangeInvalid || isMaintenance || Boolean(conflictAppointment);
+    const disabled = selectedTimeRangeInvalid || selectedTimeInPast || isMaintenance || Boolean(conflictAppointment);
     const reason = selectedTimeRangeInvalid
       ? "请先填写正确时间段"
+      : selectedTimeInPast
+        ? "不能预约过去时间"
       : isMaintenance
         ? "维护中"
         : conflictAppointment
@@ -2969,8 +3020,12 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   useEffect(() => {
     if (!roomNames.includes(rescheduleRoomName)) setRescheduleRoomName(roomNames[0] ?? "");
   }, [rescheduleRoomName, roomNames]);
-  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || !hasConfiguredRooms || !roomNames.includes(roomName);
-  const rescheduleSaveDisabled = !rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
+  const rescheduleStartDate = new Date(rescheduleStartAt);
+  const rescheduleEndDate = new Date(rescheduleEndAt);
+  const rescheduleTimeRangeInvalid = Number.isNaN(rescheduleStartDate.getTime()) || Number.isNaN(rescheduleEndDate.getTime()) || !(rescheduleStartDate < rescheduleEndDate);
+  const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
+  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const rescheduleSaveDisabled = !rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
     if (appointment.status === "已完成") {
       return (
@@ -3125,7 +3180,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 </button>
               ))}
             </div>
-            <button type="button" className="appointment-room-add-button" onClick={() => hasConfiguredRooms ? setShowAppointmentForm(true) : setView("roomSettings")}>
+            <button type="button" className="appointment-room-add-button" onClick={openAppointmentForm}>
               <CalendarDays size={18} />
               {hasConfiguredRooms ? "新增预约" : "设置房间"}
             </button>
@@ -3239,7 +3294,13 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
                 </div>
               )}
             </div>
-            <Select label="服务人员" value={staffId} onChange={setStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先到人员账号新增人员" }]} />
+            <Select
+              label="服务人员"
+              value={staffId}
+              onChange={setStaffId}
+              disabled={isTherapistAppointmentUser}
+              options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先到人员账号新增人员" }]}
+            />
             <div className="appointment-service-picker">
               <div className="checkout-product-section-head">
                 <span>服务项目</span>
@@ -3265,8 +3326,8 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               )}
             </div>
             <div className="appointment-time-grid">
-              <DateTimeInput label="开始时间" value={startAt} onChange={setStartAt} />
-              <DateTimeInput label="结束时间" value={endAt} onChange={setEndAt} />
+              <DateTimeInput label="开始时间" value={startAt} onChange={setStartAt} minDateTime={minAppointmentDateTime} />
+              <DateTimeInput label="结束时间" value={endAt} onChange={setEndAt} minDateTime={startAt > minAppointmentDateTime ? startAt : minAppointmentDateTime} />
             </div>
             <div className="appointment-room-slot-section">
               <div className="appointment-room-list-head">
@@ -3304,6 +3365,7 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
               <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
             </label>
             {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
+            {selectedTimeInPast && <p className="form-warning">预约时间不能早于当前时间，请重新选择。</p>}
             {selectedTimeConflict && <p className="form-warning">该人员在此时间段有不可预约安排，建议调整时间</p>}
             {!hasConfiguredRooms && <p className="form-warning">当前门店还没有可用于预约的房间，请先到房间管理配置。</p>}
             <div className="row-actions">
@@ -3372,7 +3434,13 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         onClose={closeAppointmentAction}
       >
         <form className="form appointment-action-form" onSubmit={submitReschedule}>
-          <Select label="服务人员" value={rescheduleStaffId} onChange={setRescheduleStaffId} options={staffOptions.length ? staffOptions : [{ value: "", label: "请先新增人员" }]} />
+          <Select
+            label="服务人员"
+            value={rescheduleStaffId}
+            onChange={setRescheduleStaffId}
+            disabled={isTherapistAppointmentUser}
+            options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先新增人员" }]}
+          />
           <div className="appointment-service-picker">
             <div className="checkout-product-section-head">
               <span>服务项目</span>
@@ -3398,14 +3466,16 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
             </div>
           </div>
           <div className="appointment-time-grid">
-            <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={setRescheduleStartAt} />
-            <DateTimeInput label="结束时间" value={rescheduleEndAt} onChange={setRescheduleEndAt} />
+            <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={setRescheduleStartAt} minDateTime={minAppointmentDateTime} />
+            <DateTimeInput label="结束时间" value={rescheduleEndAt} onChange={setRescheduleEndAt} minDateTime={rescheduleStartAt > minAppointmentDateTime ? rescheduleStartAt : minAppointmentDateTime} />
           </div>
           <Select label="房间" value={rescheduleRoomName} onChange={setRescheduleRoomName} options={roomNames.length ? roomNames.map((name) => ({ value: name, label: name })) : [{ value: "", label: "请先到房间管理配置预约房间" }]} />
           <label>
             备注
             <textarea value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="改约原因或客户偏好" />
           </label>
+          {rescheduleTimeRangeInvalid && <p className="form-warning">改约结束时间必须晚于开始时间。</p>}
+          {rescheduleTimeInPast && <p className="form-warning">改约时间不能早于当前时间，请重新选择。</p>}
           <div className="row-actions">
             <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={rescheduleSaveDisabled} />
             {!hasConfiguredRooms && <button type="button" onClick={() => { closeAppointmentAction(); setView("roomSettings"); }}>房间管理</button>}

@@ -334,6 +334,21 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     /服务人员不存在或已停用/,
     "owner should not be selected as service staff for appointment",
   );
+  assert.throws(
+    () =>
+      createAppointment(
+        registered,
+        {
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          startAt: "2026-05-23T11:00:00.000Z",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /不能早于当前时间/,
+    "appointment creation should reject past time",
+  );
   const platformAdmin = cloneSeed().authUsers.find((user) => user.role === "superadmin");
   assert.ok(platformAdmin, "test fixture should include a platform admin");
   const ownerUser = cloneSeed().authUsers.find((user) => user.role === "owner");

@@ -3703,6 +3703,7 @@ export function createAppointment(
   options: { idFactory?: IdFactory; now?: () => string } = {},
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
+  const currentTime = (options.now ?? nowIso)();
   const serviceIds = normalizeAppointmentServiceIds(data, input.serviceId, input.serviceIds);
   if (!data.customers.some((item) => item.id === input.customerId)) {
     throw new Error("客户不存在");
@@ -3720,6 +3721,7 @@ export function createAppointment(
     startAt: input.startAt,
     endAt,
     roomName,
+    minStartAt: currentTime,
   });
 
   return {
@@ -3737,7 +3739,7 @@ export function createAppointment(
         roomName,
         status: "已确认",
         note: input.note ?? "",
-        updatedAt: (options.now ?? nowIso)(),
+        updatedAt: currentTime,
       },
       ...data.appointments,
     ],
@@ -3832,6 +3834,7 @@ export function rescheduleAppointment(
     endAt: nextEndAt,
     roomName: nextRoomName,
     excludeAppointmentId: appointment.id,
+    minStartAt: (options.now ?? nowIso)(),
   });
 
   const currentTime = (options.now ?? nowIso)();
@@ -3952,6 +3955,7 @@ function validateAppointmentSchedule(
     endAt?: string;
     roomName?: string;
     excludeAppointmentId?: string;
+    minStartAt?: string;
   },
 ) {
   if (!data.customers.some((item) => item.id === input.customerId)) {
@@ -3963,6 +3967,8 @@ function validateAppointmentSchedule(
   const startAt = new Date(input.startAt);
   if (Number.isNaN(startAt.getTime())) throw new Error("预约时间不正确");
   const endAt = resolveAppointmentEndAt(data, serviceIds[0], input.startAt, input.endAt, serviceIds);
+  const minStartAt = input.minStartAt ? new Date(input.minStartAt) : new Date();
+  if (!Number.isNaN(minStartAt.getTime()) && startAt < minStartAt) throw new Error("预约时间不能早于当前时间");
   const selectedRoomName = input.roomName?.trim();
   if (!selectedRoomName) throw new Error("请选择预约房间");
   const storeId = scopedStoreId(data, input.storeId ?? storeIdForStaff(data, input.staffId) ?? storeIdForCustomer(data, input.customerId));

@@ -6,11 +6,13 @@ type DateTimeInputProps = {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  minDateTime?: string;
 };
 
-export function DateTimeInput({ label, value, onChange, disabled = false }: DateTimeInputProps) {
+export function DateTimeInput({ label, value, onChange, disabled = false, minDateTime }: DateTimeInputProps) {
   const [isOpen, setIsOpen] = useState(false);
   const selectedDate = useMemo(() => parseLocalDateTime(value), [value]);
+  const minDate = useMemo(() => minDateTime ? parseLocalDateTime(minDateTime) : undefined, [minDateTime]);
   const [viewDate, setViewDate] = useState(() => selectedDate);
   const monthDays = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
   const hours = useMemo(() => Array.from({ length: 24 }, (_, index) => index), []);
@@ -24,10 +26,12 @@ export function DateTimeInput({ label, value, onChange, disabled = false }: Date
 
   const updateDateTime = (nextDate: Date) => {
     if (disabled) return;
-    onChange(toLocalDateTimeValue(nextDate));
+    const clampedDate = minDate && nextDate < minDate ? minDate : nextDate;
+    onChange(toLocalDateTimeValue(clampedDate));
   };
 
   const selectDay = (day: Date) => {
+    if (isBeforeMinDay(day, minDate)) return;
     const nextDate = new Date(selectedDate);
     nextDate.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
     setViewDate(nextDate);
@@ -37,12 +41,14 @@ export function DateTimeInput({ label, value, onChange, disabled = false }: Date
   const selectHour = (hour: number) => {
     const nextDate = new Date(selectedDate);
     nextDate.setHours(hour);
+    if (isBeforeMinDateTime(nextDate, minDate)) return;
     updateDateTime(nextDate);
   };
 
   const selectMinute = (minute: number) => {
     const nextDate = new Date(selectedDate);
     nextDate.setMinutes(minute);
+    if (isBeforeMinDateTime(nextDate, minDate)) return;
     updateDateTime(nextDate);
   };
 
@@ -76,9 +82,11 @@ export function DateTimeInput({ label, value, onChange, disabled = false }: Date
                 {monthDays.map((day) => (
                   <button
                     type="button"
+                    disabled={isBeforeMinDay(day, minDate)}
                     className={[
                       day.getMonth() === viewDate.getMonth() ? "" : "muted",
                       isSameDay(day, selectedDate) ? "selected" : "",
+                      isBeforeMinDay(day, minDate) ? "disabled" : "",
                     ].filter(Boolean).join(" ")}
                     key={day.toISOString()}
                     onClick={() => selectDay(day)}
@@ -92,7 +100,16 @@ export function DateTimeInput({ label, value, onChange, disabled = false }: Date
                   <span>时</span>
                   <div>
                     {hours.map((hour) => (
-                      <button type="button" className={selectedDate.getHours() === hour ? "selected" : ""} key={hour} onClick={() => selectHour(hour)}>
+                      <button
+                        type="button"
+                        disabled={isBeforeMinHour(selectedDate, hour, minDate)}
+                        className={[
+                          selectedDate.getHours() === hour ? "selected" : "",
+                          isBeforeMinHour(selectedDate, hour, minDate) ? "disabled" : "",
+                        ].filter(Boolean).join(" ")}
+                        key={hour}
+                        onClick={() => selectHour(hour)}
+                      >
                         {pad(hour)}
                       </button>
                     ))}
@@ -102,7 +119,16 @@ export function DateTimeInput({ label, value, onChange, disabled = false }: Date
                   <span>分</span>
                   <div>
                     {minutes.map((minute) => (
-                      <button type="button" className={selectedDate.getMinutes() === minute ? "selected" : ""} key={minute} onClick={() => selectMinute(minute)}>
+                      <button
+                        type="button"
+                        disabled={isBeforeMinMinute(selectedDate, minute, minDate)}
+                        className={[
+                          selectedDate.getMinutes() === minute ? "selected" : "",
+                          isBeforeMinMinute(selectedDate, minute, minDate) ? "disabled" : "",
+                        ].filter(Boolean).join(" ")}
+                        key={minute}
+                        onClick={() => selectMinute(minute)}
+                      >
                         {pad(minute)}
                       </button>
                     ))}
@@ -111,7 +137,7 @@ export function DateTimeInput({ label, value, onChange, disabled = false }: Date
               </div>
             </div>
             <div className="datetime-picker-actions">
-              <button type="button" onClick={() => updateDateTime(new Date())}>今天</button>
+              <button type="button" onClick={() => updateDateTime(new Date())}>现在</button>
               <button type="button" className="primary" onClick={() => setIsOpen(false)}>确定</button>
             </div>
           </div>
@@ -151,4 +177,29 @@ function buildMonthGrid(viewDate: Date) {
 
 function isSameDay(left: Date, right: Date) {
   return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+}
+
+function isBeforeMinDay(day: Date, minDate?: Date) {
+  if (!minDate) return false;
+  const dayStart = new Date(day);
+  dayStart.setHours(23, 59, 59, 999);
+  return dayStart < minDate;
+}
+
+function isBeforeMinHour(date: Date, hour: number, minDate?: Date) {
+  if (!minDate) return false;
+  const endOfHour = new Date(date);
+  endOfHour.setHours(hour, 59, 59, 999);
+  return endOfHour < minDate;
+}
+
+function isBeforeMinMinute(date: Date, minute: number, minDate?: Date) {
+  if (!minDate) return false;
+  const nextDate = new Date(date);
+  nextDate.setMinutes(minute, 59, 999);
+  return nextDate < minDate;
+}
+
+function isBeforeMinDateTime(date: Date, minDate?: Date) {
+  return Boolean(minDate && date < minDate);
 }
