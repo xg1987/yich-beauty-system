@@ -961,6 +961,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
   const [posEntryCustomerId, setPosEntryCustomerId] = useState<string | undefined>();
+  const [posEntryKey, setPosEntryKey] = useState(0);
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>(() => initialViewFromUrl() === "inventory" ? initialInventoryModuleFromUrl() : undefined);
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -1042,6 +1043,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     setPosEntryModule(nextView === "pos" ? nextPosModule : undefined);
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
+    if (nextView === "pos") setPosEntryKey((key) => key + 1);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
     setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
   }, [session?.user.role]);
@@ -1183,7 +1185,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               </Suspense>
             ) : <MemoDashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && <MemoAppointments data={data} actions={actions} runMutation={runMutation} setView={navigate} />}
-            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} onReturnManagement={returnToManagement} />}
+            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
               <Suspense fallback={<ViewFallback title="营销中心" />}>
@@ -3019,7 +3021,23 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
   );
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
   const openSignaturePage = (token: string) => {
-    window.open(signatureUrl(token), "_blank", "noopener,noreferrer");
+    window.location.assign(signatureUrl(token));
+  };
+  const createServiceSignature = (appointment: Appointment, order: Order) => {
+    void runMutation(() =>
+      actions.createCustomerSignature({
+        customerId: appointment.customerId,
+        orderId: order.id,
+        title: "服务完成确认签名",
+        content: `${nameOf(data.customers, appointment.customerId)} 确认本次到店服务、消费项目、支付金额和服务结果无误。`,
+        validDays: 7,
+      }),
+    ).then((nextData) => {
+      const nextSignature = nextData.customerSignatures.find(
+        (item) => item.orderId === order.id && item.title === "服务完成确认签名" && item.status === "待签名",
+      );
+      if (nextSignature) openSignaturePage(nextSignature.token);
+    });
   };
   const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature | undefined; order?: Order; appointment: Appointment }) => (
     <article className="appointment-work-card status-待签名" key={signature?.id ?? appointment.id}>
@@ -3031,10 +3049,15 @@ function Appointments({ data, actions, runMutation, setView }: { data: AppData; 
         <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
-        {signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>生成签名</button>}
+        {signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
+        {!signature && order && (
+          <button type="button" disabled={mutationPending} onClick={() => createServiceSignature(appointment, order)}>
+            生成签名
+          </button>
+        )}
         {!signature && !order && (
           <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
-            进入收银
+            进入收银生成签名
           </button>
         )}
         <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>
@@ -3420,6 +3443,7 @@ function Pos({
   initialModule,
   initialAppointmentId,
   initialCustomerId,
+  initialEntryKey = 0,
   onReturnManagement,
 }: {
   data: AppData;
@@ -3430,6 +3454,7 @@ function Pos({
   initialModule?: PosModuleKey;
   initialAppointmentId?: string;
   initialCustomerId?: string;
+  initialEntryKey?: number;
   onReturnManagement?: () => void;
 }) {
   const mutationPending = useMutationPending();
@@ -3906,15 +3931,16 @@ function Pos({
       appliedInitialAppointmentRef.current = undefined;
       return;
     }
-    if (appliedInitialAppointmentRef.current === initialAppointmentId) return;
-    appliedInitialAppointmentRef.current = initialAppointmentId;
+    const entryId = `${initialEntryKey}:${initialAppointmentId}`;
+    if (appliedInitialAppointmentRef.current === entryId) return;
+    appliedInitialAppointmentRef.current = entryId;
     if (employeePosLimited) {
       setActiveModule("card");
       return;
     }
     setActiveModule("single");
     useAppointmentForCheckout(initialAppointmentId);
-  }, [employeePosLimited, initialAppointmentId, data.appointments]);
+  }, [employeePosLimited, initialAppointmentId, initialEntryKey, data.appointments]);
 
   const openCheckoutModule = (module: "product" | "single") => {
     if (employeePosLimited && module === "single") return;
@@ -4073,7 +4099,7 @@ function Pos({
       return;
     }
     if (fromManagement) setActiveModule(normalizePosModule("single"));
-  }, [employeePosLimited, fromManagement, initialModule]);
+  }, [employeePosLimited, fromManagement, initialModule, initialEntryKey]);
 
   useEffect(() => {
     if (!initialCustomerId) {
@@ -4084,11 +4110,12 @@ function Pos({
     if (cardCustomerDraftTouchedRef.current) return;
     if (!data.customers.some((customer) => customer.id === initialCustomerId)) return;
     appliedInitialCustomerRef.current = initialCustomerId;
+    setActiveModule("card");
     setCustomerId(initialCustomerId);
     setCardCustomerMode("existing");
     setCardCustomerName("");
     setCardCustomerPhone("");
-  }, [data.customers, initialCustomerId]);
+  }, [data.customers, initialCustomerId, initialEntryKey]);
 
   const openCard = (event: FormEvent) => {
     event.preventDefault();

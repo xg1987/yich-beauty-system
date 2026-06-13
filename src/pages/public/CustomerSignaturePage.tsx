@@ -1,5 +1,5 @@
 import { ClipboardList, LockKeyhole } from "lucide-react";
-import { type FormEvent, type PointerEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type PointerEvent, type TouchEvent, useEffect, useRef, useState } from "react";
 import type { PublicCustomerSignaturePayload } from "../../api/client";
 import { BrandIcon } from "../../components/business/BrandIcon";
 import { PanelTitle } from "../../components/layout/PanelTitle";
@@ -9,6 +9,11 @@ type CustomerSignaturePageProps = {
   token: string;
   fetchSignature: (token: string) => Promise<PublicCustomerSignaturePayload>;
   signSignature: (token: string, body: { signerName: string; signatureText: string }) => Promise<PublicCustomerSignaturePayload>;
+};
+
+type SignaturePoint = {
+  x: number;
+  y: number;
 };
 
 export default function CustomerSignaturePage({ token, fetchSignature, signSignature }: CustomerSignaturePageProps) {
@@ -68,32 +73,17 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
       });
   };
 
-  const signaturePoint = (event: PointerEvent<HTMLCanvasElement>) => {
-    const canvas = event.currentTarget;
+  const signaturePoint = (canvas: HTMLCanvasElement, clientX: number, clientY: number): SignaturePoint => {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: (event.clientX - rect.left) * (canvas.width / rect.width),
-      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height),
     };
   };
 
-  const startSignature = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (submitting) return;
-    const canvas = event.currentTarget;
+  const drawSignaturePoint = (canvas: HTMLCanvasElement, point: SignaturePoint) => {
     const context = canvas.getContext("2d");
     if (!context) return;
-    drawingRef.current = true;
-    const point = signaturePoint(event);
-    context.beginPath();
-    context.moveTo(point.x, point.y);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const drawSignature = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (submitting || !drawingRef.current) return;
-    const context = event.currentTarget.getContext("2d");
-    if (!context) return;
-    const point = signaturePoint(event);
     context.lineWidth = 4;
     context.lineCap = "round";
     context.lineJoin = "round";
@@ -101,6 +91,56 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
     context.lineTo(point.x, point.y);
     context.stroke();
     setHasSignature(true);
+  };
+
+  const startSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (submitting) return;
+    event.preventDefault();
+    const canvas = event.currentTarget;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    drawingRef.current = true;
+    const point = signaturePoint(canvas, event.clientX, event.clientY);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some mobile WebViews do not allow pointer capture on canvas.
+    }
+  };
+
+  const drawSignature = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (submitting || !drawingRef.current) return;
+    event.preventDefault();
+    const point = signaturePoint(event.currentTarget, event.clientX, event.clientY);
+    drawSignaturePoint(event.currentTarget, point);
+  };
+
+  const startTouchSignature = (event: TouchEvent<HTMLCanvasElement>) => {
+    if (submitting) return;
+    const touch = event.touches[0];
+    const context = event.currentTarget.getContext("2d");
+    if (!touch || !context) return;
+    event.preventDefault();
+    drawingRef.current = true;
+    const point = signaturePoint(event.currentTarget, touch.clientX, touch.clientY);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  };
+
+  const drawTouchSignature = (event: TouchEvent<HTMLCanvasElement>) => {
+    if (submitting || !drawingRef.current) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    event.preventDefault();
+    const point = signaturePoint(event.currentTarget, touch.clientX, touch.clientY);
+    drawSignaturePoint(event.currentTarget, point);
+  };
+
+  const stopTouchSignature = (event: TouchEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
+    stopSignature();
   };
 
   const stopSignature = () => {
@@ -210,6 +250,10 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                           onPointerMove={drawSignature}
                           onPointerUp={stopSignature}
                           onPointerCancel={stopSignature}
+                          onTouchStart={startTouchSignature}
+                          onTouchMove={drawTouchSignature}
+                          onTouchEnd={stopTouchSignature}
+                          onTouchCancel={stopTouchSignature}
                           aria-disabled={submitting}
                         />
                         {!hasSignature && <span>请在此处手写签名</span>}
