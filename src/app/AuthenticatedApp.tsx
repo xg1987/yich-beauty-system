@@ -1055,7 +1055,8 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     setAccountMenuOpen(false);
     setAdminDetailFromCenter(Boolean(options?.fromAdmin && nextView !== "settings"));
     const employeePosLimited = session?.user.role === "therapist" || session?.user.role === "frontdesk";
-    const nextPosModule = employeePosLimited && options?.posModule === "single" ? "card" : options?.posModule;
+    const appointmentCheckoutEntry = Boolean(options?.appointmentId);
+    const nextPosModule = employeePosLimited && options?.posModule === "single" && !appointmentCheckoutEntry ? "card" : options?.posModule;
     setPosEntryModule(nextView === "pos" ? nextPosModule : undefined);
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
@@ -3529,9 +3530,11 @@ function Pos({
 }) {
   const mutationPending = useMutationPending();
   const employeePosLimited = session.user.role === "therapist" || session.user.role === "frontdesk";
-  const normalizePosModule = (module: PosModuleKey | undefined): PosModuleKey | undefined => (employeePosLimited && module === "single" ? "card" : module);
   const serviceStaff = activeStaffOf(data);
   const initialCheckoutAppointment = initialAppointmentId ? data.appointments.find((appointment) => appointment.id === initialAppointmentId) : undefined;
+  const canUseAppointmentCheckout = Boolean(initialCheckoutAppointment);
+  const normalizePosModule = (module: PosModuleKey | undefined): PosModuleKey | undefined =>
+    employeePosLimited && module === "single" && !canUseAppointmentCheckout ? "card" : module;
   const [appointmentId, setAppointmentId] = useState(initialCheckoutAppointment?.id ?? "");
   const [checkoutCustomerMode, setCheckoutCustomerMode] = useState<"customer" | "walkin">(initialCheckoutAppointment ? "customer" : "walkin");
   const [checkoutContentMode, setCheckoutContentMode] = useState<"service" | "product">("service");
@@ -3993,8 +3996,8 @@ function Pos({
   };
 
   useEffect(() => {
-    if (employeePosLimited && activeModule === "single") setActiveModule("card");
-  }, [employeePosLimited, activeModule]);
+    if (employeePosLimited && activeModule === "single" && !appointmentId) setActiveModule("card");
+  }, [employeePosLimited, activeModule, appointmentId]);
 
   useEffect(() => {
     if (!initialAppointmentId) {
@@ -4004,10 +4007,6 @@ function Pos({
     const entryId = `${initialEntryKey}:${initialAppointmentId}`;
     if (appliedInitialAppointmentRef.current === entryId) return;
     appliedInitialAppointmentRef.current = entryId;
-    if (employeePosLimited) {
-      setActiveModule("card");
-      return;
-    }
     setActiveModule("single");
     useAppointmentForCheckout(initialAppointmentId);
   }, [employeePosLimited, initialAppointmentId, initialEntryKey, data.appointments]);
