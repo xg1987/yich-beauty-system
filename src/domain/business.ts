@@ -35,6 +35,7 @@ import type {
   SystemConfig,
   SystemConfigKey,
   StoreAiUsagePermissions,
+  StoreOperationalPermissions,
   StoreProfile,
   StoreOwnerApplication,
   StoreOwnerInvite,
@@ -64,6 +65,9 @@ const CASH_PAY_METHODS = new Set<CashPayMethod>(["现金", "微信", "支付宝"
 export const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = {
   owner: { copy: true, image: true, video: true },
   staff: { copy: true, image: true, video: false },
+};
+export const DEFAULT_STORE_OPERATIONAL_PERMISSIONS: StoreOperationalPermissions = {
+  staffCanViewAllAppointments: true,
 };
 
 function normalizeCashPayMethod(payMethod: CashPayMethod | undefined): CashPayMethod {
@@ -577,6 +581,11 @@ export type StoreProfileInput = {
 };
 
 export type StoreAiUsagePermissionsInput = {
+  storeId?: string;
+  permissions: unknown;
+};
+
+export type StoreOperationalPermissionsInput = {
   storeId?: string;
   permissions: unknown;
 };
@@ -1538,6 +1547,30 @@ export function updateStoreAiUsagePermissions(data: AppData, input: StoreAiUsage
   return {
     ...data,
     storeProfiles: data.storeProfiles.map((store) => store.id === current.id ? { ...store, aiUsagePermissions } : store),
+  };
+}
+
+export function normalizeStoreOperationalPermissions(input: unknown): StoreOperationalPermissions {
+  const source = input && typeof input === "object" ? input as Partial<StoreOperationalPermissions> : {};
+  return {
+    staffCanViewAllAppointments: typeof source.staffCanViewAllAppointments === "boolean"
+      ? source.staffCanViewAllAppointments
+      : DEFAULT_STORE_OPERATIONAL_PERMISSIONS.staffCanViewAllAppointments,
+  };
+}
+
+export function storeStaffCanViewAllAppointments(data: AppData, storeId?: string) {
+  const store = storeId ? data.storeProfiles.find((item) => item.id === storeId) : data.storeProfiles[0];
+  return normalizeStoreOperationalPermissions(store?.operationalPermissions).staffCanViewAllAppointments;
+}
+
+export function updateStoreOperationalPermissions(data: AppData, input: StoreOperationalPermissionsInput): AppData {
+  const current = input.storeId ? data.storeProfiles.find((store) => store.id === input.storeId) : data.storeProfiles[0];
+  if (!current) throw new Error("请先完成门店注册");
+  const operationalPermissions = normalizeStoreOperationalPermissions(input.permissions);
+  return {
+    ...data,
+    storeProfiles: data.storeProfiles.map((store) => store.id === current.id ? { ...store, operationalPermissions } : store),
   };
 }
 

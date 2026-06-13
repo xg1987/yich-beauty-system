@@ -45,11 +45,13 @@ import {
   markAllVisibleNotificationsRead,
   markNotificationRead,
   normalizeStoreAiUsagePermissions,
+  normalizeStoreOperationalPermissions,
   normalizeStoreScopedData,
   openMemberCard,
   previewFormalDataCleanup,
   scopeDataToStore,
   sanitizeSystemConfigsForRole,
+  storeStaffCanViewAllAppointments,
   updateTagDefinition,
   updateServiceCatalog,
   updateProductCatalog,
@@ -58,6 +60,7 @@ import {
   updateAuthUserStatus,
   resetAuthUserPassword,
   updateStoreAiUsagePermissions,
+  updateStoreOperationalPermissions,
   updateStoreProfile,
   updateStoreStatus,
   updateSystemConfig,
@@ -484,6 +487,29 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendScopedData(context.request, 200, nextData, session);
     }
 
+    if (context.request.method === "PATCH" && pathname === "/api/operational-permissions") {
+      requirePermission(session, "settings:view");
+      const body = await readJson(context.request);
+      const currentData = await database.readData();
+      const targetStoreId = session.user.role === "superadmin" ? requiredString(body, "storeId") : sessionStoreId(currentData, session);
+      const permissions = normalizeStoreOperationalPermissions(body.permissions);
+      const nextData = addOperationLog(
+        updateStoreOperationalPermissions(currentData, {
+          storeId: targetStoreId,
+          permissions,
+        }),
+        {
+          userId: session.user.id,
+          action: "更新门店权限",
+          targetType: "store",
+          targetId: targetStoreId ?? "primary",
+          summary: `${session.user.name} 更新预约可见范围`,
+        },
+      );
+      await persistData(database, session, nextData);
+      return sendScopedData(context.request, 200, nextData, session);
+    }
+
     if (context.request.method === "PATCH" && pathname === "/api/store-profile") {
       requirePermission(session, "settings:view");
       const body = await readJson(context.request);
@@ -837,10 +863,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const body = await readJson(context.request);
       const requestedStaffId = optionalString(body, "staffId");
       const appointmentStaffId = session.user.role === "therapist" ? session.user.staffId : requestedStaffId;
+      const currentData = await database.readData();
+      const targetAppointment = currentData.appointments.find((item) => item.id === appointmentId);
+      if (session.user.role === "therapist" && targetAppointment?.staffId !== session.user.staffId) {
+        throw new Error("员工账号只能改约自己的服务");
+      }
       if (session.user.role === "therapist" && requestedStaffId && requestedStaffId !== session.user.staffId) {
         throw new Error("员工账号只能改约自己的服务");
       }
-      const nextData = updateData(await database.readData(), session, {
+      const nextData = updateData(currentData, session, {
         action: "改约",
         targetType: "appointment",
         targetId: appointmentId,
@@ -866,7 +897,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const appointmentId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
       const status = requiredString(body, "status") as Appointment["status"];
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await database.readData();
+      const targetAppointment = currentData.appointments.find((item) => item.id === appointmentId);
+      if (session.user.role === "therapist" && targetAppointment?.staffId !== session.user.staffId) {
+        throw new Error("员工账号只能更新自己的预约状态");
+      }
+      const nextData = updateData(currentData, session, {
         action: "更新预约状态",
         targetType: "appointment",
         targetId: appointmentId,
@@ -1815,7 +1851,9 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   }
 
   const staffId = session.user.staffId;
-  const appointments = sanitizedData.appointments.filter((item) => item.staffId === staffId);
+  const appointments = storeStaffCanViewAllAppointments(normalizedData, currentStoreId)
+    ? sanitizedData.appointments
+    : sanitizedData.appointments.filter((item) => item.staffId === staffId);
   const orders = sanitizedData.orders.filter((item) => item.staffId === staffId);
   const orderIds = new Set(orders.map((item) => item.id));
   const appointmentIds = new Set(appointments.map((item) => item.id));

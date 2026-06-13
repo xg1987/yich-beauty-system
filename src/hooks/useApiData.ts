@@ -200,6 +200,7 @@ export function useApiData() {
     updateAuthUserStatus: client.updateAuthUserStatus,
     resetAuthUserPassword: client.resetAuthUserPassword,
     updateAiUsagePermissions: client.updateAiUsagePermissions,
+    updateOperationalPermissions: client.updateOperationalPermissions,
     updateSystemConfig: client.updateSystemConfig,
     updateStoreStatus: client.updateStoreStatus,
     createStaffInvite: client.createStaffInvite,

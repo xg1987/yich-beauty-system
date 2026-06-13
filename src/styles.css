@@ -131,22 +131,22 @@ button[aria-busy="true"] {
   align-items: center;
   justify-content: center;
   padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
-  background: rgba(37, 24, 66, 0.26);
-  backdrop-filter: blur(6px);
+  background: rgba(61, 38, 92, 0.12);
+  backdrop-filter: blur(3px);
   pointer-events: auto;
 }
 
 .global-mutation-card {
-  min-width: min(320px, calc(100vw - 40px));
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  gap: 8px;
+  border: 1px solid rgba(126, 87, 194, 0.16);
   border-radius: 8px;
-  padding: 16px 18px;
-  background: rgba(25, 23, 30, 0.95);
-  color: #fff;
-  box-shadow: 0 14px 32px rgba(23, 18, 36, 0.22);
+  padding: 10px 14px;
+  background: rgba(255, 252, 255, 0.92);
+  color: #4f2d75;
+  box-shadow: 0 12px 30px rgba(83, 48, 120, 0.14);
 }
 
 .global-mutation-card svg {
@@ -154,20 +154,11 @@ button[aria-busy="true"] {
   animation: global-mutation-spin 900ms linear infinite;
 }
 
-.global-mutation-card div {
-  display: grid;
-  gap: 3px;
-}
-
 .global-mutation-card strong {
-  font-size: 15px;
-  font-weight: 750;
-}
-
-.global-mutation-card span {
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 @keyframes global-mutation-spin {

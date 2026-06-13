@@ -67,7 +67,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
-import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StoreAiUsagePermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import { readCachedStoreName, writeCachedStoreName } from "../lib/storeNameCache";
@@ -159,6 +159,9 @@ const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = {
 const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = {
   owner: { copy: true, image: true, video: true },
   staff: { copy: true, image: true, video: false },
+};
+const DEFAULT_STORE_OPERATIONAL_PERMISSIONS: StoreOperationalPermissions = {
+  staffCanViewAllAppointments: true,
 };
 const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
   copy: {
@@ -355,11 +358,8 @@ function GlobalMutationStatus() {
   return (
     <div className="global-mutation-status" role="status" aria-live="assertive" aria-busy="true">
       <div className="global-mutation-card">
-        <RefreshCw size={22} aria-hidden="true" />
-        <div>
-          <strong>正在保存</strong>
-          <span>系统正在同步数据，请稍候</span>
-        </div>
+        <RefreshCw size={16} aria-hidden="true" />
+        <strong>正在保存</strong>
       </div>
     </div>
   );
@@ -415,7 +415,7 @@ export const roleScopeLabels: Record<UserRole, string> = {
   owner: "门店全部",
   manager: "门店管理",
   frontdesk: "到店业务",
-  therapist: "本人服务",
+  therapist: "预约按门店开关",
   finance: "财务处理",
 };
 
@@ -823,6 +823,15 @@ function normalizeStoreAiUsagePermissions(input: unknown): StoreAiUsagePermissio
 
 export function storeAiUsagePermissions(data: AppData) {
   return normalizeStoreAiUsagePermissions(data.storeProfiles[0]?.aiUsagePermissions);
+}
+
+function normalizeStoreOperationalPermissions(input: unknown): StoreOperationalPermissions {
+  const source = input && typeof input === "object" ? input as Partial<StoreOperationalPermissions> : {};
+  return {
+    staffCanViewAllAppointments: typeof source.staffCanViewAllAppointments === "boolean"
+      ? source.staffCanViewAllAppointments
+      : DEFAULT_STORE_OPERATIONAL_PERMISSIONS.staffCanViewAllAppointments,
+  };
 }
 
 function aiUsagePermissionGroup(role: UserRole): keyof StoreAiUsagePermissions {
@@ -1352,6 +1361,7 @@ function ManagementCenter({
   const [customerRefundOpen, setCustomerRefundOpen] = useState(false);
   const [staffScheduleOpen, setStaffScheduleOpen] = useState(false);
   const [aiUsagePermissionsOpen, setAiUsagePermissionsOpen] = useState(false);
+  const [operationalPermissionsOpen, setOperationalPermissionsOpen] = useState(false);
   const inviteInputRef = useRef<HTMLInputElement>(null);
 
   const copyInviteCode = () => {
@@ -1388,6 +1398,7 @@ function ManagementCenter({
     { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
     { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
+    { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
     { title: "AI 能力配置", desc: "文案 / 图片 / 视频模型与成本", icon: Sparkles, tone: "plum", view: "aiConfig" },
     { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "AI 智能测试中心", desc: "聊天 / 图片 / 视频接口试跑", icon: MessageCircle, tone: "plum", view: "aiTest" },
@@ -1406,6 +1417,7 @@ function ManagementCenter({
     { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
     { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
     { title: "员工排班", desc: "班次查看 / 不可预约时间", icon: CalendarDays, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
+    { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
     { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
     { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
     { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
@@ -1513,6 +1525,15 @@ function ManagementCenter({
         onClose={() => setAiUsagePermissionsOpen(false)}
       >
         <AiUsagePermissionsContent data={data} session={session} actions={actions} runMutation={runMutation} onClose={() => setAiUsagePermissionsOpen(false)} />
+      </Modal>
+      <Modal
+        open={operationalPermissionsOpen}
+        title="预约权限"
+        subtitle="设置服务人员是否可以查看本门店全店预约"
+        size="large"
+        onClose={() => setOperationalPermissionsOpen(false)}
+      >
+        <OperationalPermissionsContent data={data} session={session} actions={actions} runMutation={runMutation} onClose={() => setOperationalPermissionsOpen(false)} />
       </Modal>
       <Modal
         open={customerRefundOpen}
@@ -2466,6 +2487,107 @@ function AiUsagePermissionsContent({ data, session, actions, runMutation, onClos
   );
 }
 
+function OperationalPermissionsContent({ data, session, actions, runMutation, onClose }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; onClose: () => void }) {
+  const isPlatformAdmin = session.user.role === "superadmin";
+  const [selectedStoreId, setSelectedStoreId] = useState(() => data.storeProfiles[0]?.id ?? "");
+  const selectedStore = data.storeProfiles.find((store) => store.id === selectedStoreId) ?? data.storeProfiles[0];
+  const [draft, setDraft] = useState(() => normalizeStoreOperationalPermissions(selectedStore?.operationalPermissions));
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const appointmentCount = selectedStore
+    ? data.appointments.filter((appointment) => appointment.storeId === selectedStore.id || (!appointment.storeId && data.storeProfiles.length === 1)).length
+    : data.appointments.length;
+
+  useEffect(() => {
+    const nextStore = data.storeProfiles.find((store) => store.id === selectedStoreId) ?? data.storeProfiles[0];
+    if (nextStore && nextStore.id !== selectedStoreId) {
+      setSelectedStoreId(nextStore.id);
+    }
+    setDraft(normalizeStoreOperationalPermissions(nextStore?.operationalPermissions));
+    setSaved(false);
+    setError("");
+  }, [data.storeProfiles, selectedStoreId]);
+
+  const savePermissions = (event: FormEvent) => {
+    event.preventDefault();
+    if (isPlatformAdmin && !selectedStore?.id) {
+      setError("请先选择门店");
+      return;
+    }
+    setSaving(true);
+    setSaved(false);
+    setError("");
+    void runMutation(() => actions.updateOperationalPermissions(draft, isPlatformAdmin ? selectedStore?.id : undefined))
+      .then(() => {
+        setSaved(true);
+        window.setTimeout(onClose, 600);
+      })
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "预约权限保存失败"))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <form className="ai-permission-panel" onSubmit={savePermissions}>
+      {isPlatformAdmin && (
+        <label className="ai-permission-store-picker">
+          <span>门店</span>
+          <select value={selectedStore?.id ?? ""} onChange={(event) => setSelectedStoreId(event.target.value)}>
+            {data.storeProfiles.map((store) => (
+              <option key={store.id} value={store.id}>{store.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <div className="ai-permission-status-grid">
+        <article>
+          <span>当前状态</span>
+          <strong>{draft.staffCanViewAllAppointments ? "全店可见" : "仅看本人"}</strong>
+        </article>
+        <article>
+          <span>门店预约</span>
+          <strong>{appointmentCount} 单</strong>
+        </article>
+      </div>
+
+      <div className="ai-permission-matrix" role="table" aria-label="预约可见范围">
+        <div className="ai-permission-head" role="row">
+          <span>对象</span>
+          <span>预约可见范围</span>
+        </div>
+        <div className="ai-permission-row" role="row">
+          <div>
+            <strong>服务人员</strong>
+            <small>员工账号进入预约页时是否显示全店预约</small>
+          </div>
+          <label>
+            <input
+              type="checkbox"
+              checked={draft.staffCanViewAllAppointments}
+              onChange={(event) => {
+                setSaved(false);
+                setError("");
+                setDraft({ staffCanViewAllAppointments: event.target.checked });
+              }}
+            />
+            <span>{draft.staffCanViewAllAppointments ? "开启" : "关闭"}</span>
+          </label>
+        </div>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {saved && <p className="form-success">预约权限已保存。</p>}
+      <div className="modal-actions">
+        <button type="button" onClick={onClose}>取消</button>
+        <button type="submit" className="primary-button" disabled={saving}>
+          {saving ? "保存中..." : saved ? "已保存" : "保存权限"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function RoomSettingsContent({
   data,
   actions,
@@ -2676,6 +2798,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const serviceStaff = businessStaffOf(data);
   const isTherapistAppointmentUser = session.user.role === "therapist" && Boolean(session.user.staffId);
   const currentAppointmentStaffId = isTherapistAppointmentUser ? session.user.staffId ?? "" : "";
+  const canOperateAppointment = (appointment: Appointment) => !isTherapistAppointmentUser || appointment.staffId === currentAppointmentStaffId;
   const defaultAppointmentStaffId = currentAppointmentStaffId && serviceStaff.some((staff) => staff.id === currentAppointmentStaffId)
     ? currentAppointmentStaffId
     : firstBusinessStaffId(data);
@@ -2787,10 +2910,13 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   };
 
   const setStatus = (id: string, status: Appointment["status"], reason?: string) => {
+    const appointment = data.appointments.find((item) => item.id === id);
+    if (appointment && !canOperateAppointment(appointment)) return;
     void runMutation(() => actions.updateAppointmentStatus(id, status, reason));
   };
 
   const openReschedule = (appointment: Appointment) => {
+    if (!canOperateAppointment(appointment)) return;
     setActiveAppointmentId(appointment.id);
     setActiveAppointmentAction("reschedule");
     setRescheduleStaffId(appointment.staffId);
@@ -2803,6 +2929,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   };
 
   const openCancel = (appointment: Appointment) => {
+    if (!canOperateAppointment(appointment)) return;
     setActiveAppointmentId(appointment.id);
     setActiveAppointmentAction("cancel");
     setCancelReason(appointment.cancelReason ?? "客户临时取消");
@@ -3064,10 +3191,12 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <span>{appointmentServiceNames(data, appointment)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
-      <div className="appointment-work-card-actions">
-        <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>
-        <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
-      </div>
+      {canOperateAppointment(appointment) && (
+        <div className="appointment-work-card-actions">
+          <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>
+          <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
+        </div>
+      )}
     </article>
   );
   const renderArrivalAppointmentCard = (appointment: Appointment) => (
@@ -3079,12 +3208,14 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <span>{appointmentServiceNames(data, appointment)} · {nameOf(data.staff, appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
       </div>
-      <div className="appointment-work-card-actions">
-        <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
-          确认到店
-        </button>
-        <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>
-      </div>
+      {canOperateAppointment(appointment) && (
+        <div className="appointment-work-card-actions">
+          <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
+            确认到店
+          </button>
+          <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>
+        </div>
+      )}
     </article>
   );
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
@@ -3117,19 +3248,19 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
-        {signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
-        {!signature && order && (
+        {canOperateAppointment(appointment) && signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
+        {canOperateAppointment(appointment) && !signature && order && (
           <button type="button" disabled={mutationPending} onClick={() => createServiceSignature(appointment, order)}>
             生成签名
           </button>
         )}
-        {!signature && !order && (
+        {canOperateAppointment(appointment) && !signature && !order && (
           <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>
             进入收银生成签名
           </button>
         )}
-        {!order && <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>}
-        <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>
+        {canOperateAppointment(appointment) && !order && <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>}
+        {appointment.status === "已完成" && <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>查看详情</button>}
       </div>
     </article>
   );

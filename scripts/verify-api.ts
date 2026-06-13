@@ -1338,10 +1338,17 @@ try {
   const therapistData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
   assert.ok(therapistData.customers.some((item) => item.id === "c3"), "therapist should see same-store customers handled by other staff");
   assert.ok(therapistData.customerServiceRecords.every((item) => item.storeId === "store1"), "therapist should receive same-store customer service records");
-  assert.ok(therapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments");
+  assert.ok(therapistData.appointments.some((item) => item.staffId !== "s2"), "therapist should see all store appointments by default");
   assert.ok(therapistData.orders.every((item) => item.staffId === "s2"), "therapist should only see own orders");
   assert.ok(therapistData.staffUnavailableSlots.every((item) => item.staffId === "s2"), "therapist should only see own unavailable slots");
   assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
+  await request<AppData>(baseUrl, "/api/operational-permissions", {
+    method: "PATCH",
+    token: session.token,
+    body: { permissions: { staffCanViewAllAppointments: false } },
+  });
+  const restrictedTherapistData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
+  assert.ok(restrictedTherapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments when store permission is off");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(persistedData.orders.length, 7, "API data should persist across requests");

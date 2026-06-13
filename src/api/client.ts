@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import type { AppDataSlice } from "../domain/dataSlices";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -190,6 +190,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>("/api/store-profile", { method: "PATCH", body, token: getToken() }),
     updateAiUsagePermissions: (permissions: StoreAiUsagePermissions, storeId?: string) =>
       request<AppData>("/api/ai-usage-permissions", { method: "PATCH", body: { permissions, storeId }, token: getToken() }),
+    updateOperationalPermissions: (permissions: StoreOperationalPermissions, storeId?: string) =>
+      request<AppData>("/api/operational-permissions", { method: "PATCH", body: { permissions, storeId }, token: getToken() }),
     addStaff: (body: { name: string; phone: string; role: string; baseSalary?: number; commissionRate?: number }) =>
       request<AppData>("/api/staff", { method: "POST", body, token: getToken() }),
     updateStaff: (staffId: string, body: { name?: string; phone?: string; role?: string; status?: "active" | "inactive"; baseSalary?: number; commissionRate?: number }) =>

@@ -26,6 +26,9 @@ export type StoreAiUsagePermissions = {
   owner: Record<AiUsageCapability, boolean>;
   staff: Record<AiUsageCapability, boolean>;
 };
+export type StoreOperationalPermissions = {
+  staffCanViewAllAppointments: boolean;
+};
 
 export type StoreProfile = {
   id: string;
@@ -38,6 +41,7 @@ export type StoreProfile = {
   maintenanceRoomNames?: string[];
   maintenanceRoomCount?: number;
   aiUsagePermissions?: StoreAiUsagePermissions;
+  operationalPermissions?: StoreOperationalPermissions;
   status?: "active" | "disabled" | "pending";
   createdAt: string;
 };
