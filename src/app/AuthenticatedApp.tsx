@@ -2516,7 +2516,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
   const isPlatformAdmin = session.user.role === "superadmin";
   const [selectedStoreId, setSelectedStoreId] = useState(() => data.storeProfiles[0]?.id ?? "");
   const selectedStore = data.storeProfiles.find((store) => store.id === selectedStoreId) ?? data.storeProfiles[0];
-  const [draft, setDraft] = useState(() => ({ ...normalizeStoreOperationalPermissions(selectedStore?.operationalPermissions), staffCanViewAllAppointments: true }));
+  const [draft, setDraft] = useState(() => normalizeStoreOperationalPermissions(selectedStore?.operationalPermissions));
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2529,7 +2529,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
     if (nextStore && nextStore.id !== selectedStoreId) {
       setSelectedStoreId(nextStore.id);
     }
-    setDraft({ ...normalizeStoreOperationalPermissions(nextStore?.operationalPermissions), staffCanViewAllAppointments: true });
+    setDraft(normalizeStoreOperationalPermissions(nextStore?.operationalPermissions));
     setSaved(false);
     setError("");
   }, [data.storeProfiles, selectedStoreId]);
@@ -2543,7 +2543,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
     setSaving(true);
     setSaved(false);
     setError("");
-    void runMutation(() => actions.updateOperationalPermissions({ ...draft, staffCanViewAllAppointments: true }, isPlatformAdmin ? selectedStore?.id : undefined))
+    void runMutation(() => actions.updateOperationalPermissions(draft, isPlatformAdmin ? selectedStore?.id : undefined))
       .then(() => {
         setSaved(true);
         window.setTimeout(onClose, 600);
@@ -2568,7 +2568,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
       <div className="ai-permission-status-grid">
         <article>
           <span>当前状态</span>
-          <strong>同店共享</strong>
+          <strong>{draft.staffCanViewAllAppointments ? "同店共享" : "仅看本人"}</strong>
         </article>
         <article>
           <span>门店预约</span>
@@ -2586,11 +2586,22 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
         <div className="ai-permission-row" role="row">
           <div>
             <strong>同店员工</strong>
-            <small>预约、房间、到店确认属于门店共享资源</small>
+            <small>默认开启资源共享，关闭后员工只看本人预约</small>
           </div>
-          <span className="permission-fixed-pill">全店可见</span>
-          <span className="permission-fixed-pill">可处理</span>
-          <span className="permission-fixed-pill">不可关闭</span>
+          <label>
+            <input
+              type="checkbox"
+              checked={draft.staffCanViewAllAppointments}
+              onChange={(event) => {
+                setSaved(false);
+                setError("");
+                setDraft({ staffCanViewAllAppointments: event.target.checked });
+              }}
+            />
+            <span>{draft.staffCanViewAllAppointments ? "全店可见" : "仅看本人"}</span>
+          </label>
+          <span className="permission-state-pill">{draft.staffCanViewAllAppointments ? "可处理" : "仅本人"}</span>
+          <span className="permission-state-pill">{draft.staffCanViewAllAppointments ? "已开启" : "已关闭"}</span>
         </div>
       </div>
 

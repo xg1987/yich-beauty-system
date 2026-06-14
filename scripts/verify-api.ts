@@ -1401,7 +1401,7 @@ try {
     body: { permissions: { staffCanViewAllAppointments: false } },
   });
   const restrictedTherapistData = await request<AppData>(baseUrl, "/api/data", { token: therapistSession.token });
-  assert.ok(restrictedTherapistData.appointments.some((item) => item.staffId !== "s2"), "therapist should still see same-store shared appointments");
+  assert.ok(restrictedTherapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments after shared appointment permission is closed");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   assert.equal(persistedData.orders.length, 8, "API data should persist across requests");

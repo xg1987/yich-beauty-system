@@ -21828,7 +21828,7 @@ textarea,
 }
 
 .ai-permission-row label,
-.permission-fixed-pill {
+.permission-state-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -21843,7 +21843,7 @@ textarea,
   font-weight: 880;
 }
 
-.permission-fixed-pill {
+.permission-state-pill {
   background: rgba(42, 143, 125, 0.1);
   border-color: rgba(42, 143, 125, 0.2);
   color: #247769;
@@ -21906,7 +21906,7 @@ textarea,
 
 .app-shell.theme-night .ai-permission-head,
 .app-shell.theme-night .ai-permission-row label,
-.app-shell.theme-night .permission-fixed-pill {
+.app-shell.theme-night .permission-state-pill {
   border-color: var(--night-app-line);
   background: rgba(255, 255, 255, 0.08);
   color: var(--night-app-text);

@@ -51,6 +51,7 @@ import {
   previewFormalDataCleanup,
   scopeDataToStore,
   sanitizeSystemConfigsForRole,
+  storeStaffCanViewAllAppointments,
   updateTagDefinition,
   updateServiceCatalog,
   updateProductCatalog,
@@ -1833,7 +1834,9 @@ function scopeDataForSession(data: AppData, session: UserSession): AppData {
   }
 
   const staffId = session.user.staffId;
-  const appointments = sanitizedData.appointments;
+  const appointments = storeStaffCanViewAllAppointments(normalizedData, currentStoreId)
+    ? sanitizedData.appointments
+    : sanitizedData.appointments.filter((item) => item.staffId === staffId);
   const orders = sanitizedData.orders;
   const orderIds = new Set(orders.map((item) => item.id));
   const appointmentIds = new Set(appointments.map((item) => item.id));
