@@ -65,7 +65,7 @@ export default function App() {
     const uninstallChecker = installAppUpdateChecker();
     const handleAppUpdate = (event: Event) => {
       const info = appUpdateInfoFromEvent(event);
-      if (info) setPendingUpdate(info);
+      if (info?.autoPrompt) setPendingUpdate(info);
     };
     const handlePreloadError = (event: Event) => {
       event.preventDefault();

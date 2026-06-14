@@ -1,8 +1,11 @@
-import { type FormEvent, useState } from "react";
-import { ArrowLeft, Bell, Copy, LockKeyhole, MessageCircle, Save, Sparkles, UserRound } from "lucide-react";
+import { type FormEvent, useEffect, useState } from "react";
+import { ArrowLeft, Bell, Copy, Download, LockKeyhole, MessageCircle, RefreshCw, Save, Sparkles, UserRound } from "lucide-react";
 import { UserAvatar } from "../components/business/UserAvatar";
 import type { AppData, UserRole, ViewKey } from "../domain/types";
 import type { UserSession } from "../domain/auth";
+import { checkAppUpdateStatus, reloadForAppUpdate } from "../appUpdate";
+import type { AppUpdateStatus } from "../appUpdate";
+import type { AppUpdateInfo } from "../components/AppUpdatePrompt";
 import packageJson from "../../package.json";
 
 type ThemeMode = "day" | "night";
@@ -127,6 +130,13 @@ function accountAvatarErrorMessage(caught: unknown, fallback: string) {
   return message;
 }
 
+function formatVersionCheckTime(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
 export function SettingsView({
   session,
   setView,
@@ -135,6 +145,7 @@ export function SettingsView({
   uploadAccountAvatar,
   themeMode,
   setThemeMode,
+  initialUpdateInfo,
 }: {
   session: UserSession;
   setView: (view: ViewKey) => void;
@@ -143,10 +154,11 @@ export function SettingsView({
   uploadAccountAvatar: (file: File) => Promise<{ avatarUrl: string; key: string; size: number }>;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  initialUpdateInfo?: AppUpdateInfo | null;
 }) {
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
-  const [activePanel, setActivePanel] = useState<"profile" | "security" | "appearance" | "notice">("profile");
+  const [activePanel, setActivePanel] = useState<"profile" | "security" | "appearance" | "notice" | "version">("profile");
   const [profileName, setProfileName] = useState(displayName);
   const [avatarUrl, setAvatarUrl] = useState(session.user.avatarUrl ?? "");
   const [signature, setSignature] = useState("以诚待人，以礼从商。传递华夏智慧，服务雅士人生。");
@@ -154,6 +166,18 @@ export function SettingsView({
   const [saved, setSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | undefined>();
   const [avatarProcessing, setAvatarProcessing] = useState(false);
+  const [versionStatus, setVersionStatus] = useState<AppUpdateStatus | null>(
+    initialUpdateInfo
+      ? {
+        currentVersion: initialUpdateInfo.currentVersion,
+        serverVersion: initialUpdateInfo.serverVersion,
+        updateAvailable: true,
+        checkedAt: new Date().toISOString(),
+      }
+      : null,
+  );
+  const [versionChecking, setVersionChecking] = useState(false);
+  const [versionRefreshing, setVersionRefreshing] = useState(false);
 
   const uploadAvatar = async (file: File | undefined) => {
     if (!file) return;
@@ -208,11 +232,40 @@ export function SettingsView({
       });
   };
 
+  const checkVersion = () => {
+    setVersionChecking(true);
+    void checkAppUpdateStatus()
+      .then(setVersionStatus)
+      .finally(() => setVersionChecking(false));
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setVersionChecking(true);
+    void checkAppUpdateStatus()
+      .then((status) => {
+        if (!cancelled) setVersionStatus(status);
+      })
+      .finally(() => {
+        if (!cancelled) setVersionChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updateVersion = () => {
+    if (!versionStatus?.serverVersion || !versionStatus.updateAvailable) return;
+    setVersionRefreshing(true);
+    void reloadForAppUpdate(versionStatus.serverVersion);
+  };
+
   const settingTabs = [
     { key: "profile", label: "个人信息", icon: UserRound },
     { key: "security", label: "账户与安全", icon: LockKeyhole },
     { key: "appearance", label: "外观模式", icon: Sparkles },
     { key: "notice", label: "推送通知", icon: Bell },
+    { key: "version", label: "软件版本", icon: RefreshCw },
   ] as const;
 
   return (
@@ -254,7 +307,10 @@ export function SettingsView({
                 onClick={() => setActivePanel(item.key)}
               >
                 <Icon size={20} />
-                <span>{item.label}</span>
+                <span className="settings-tab-label">
+                  {item.label}
+                  {item.key === "version" && versionStatus?.updateAvailable && <i aria-label="有新版本" />}
+                </span>
               </button>
             );
           })}
@@ -316,12 +372,39 @@ export function SettingsView({
             </div>
           )}
 
-          <div className="settings-save-row">
+          {activePanel === "version" && (
+            <div className="settings-static-panel settings-version-panel">
+              <strong>软件版本</strong>
+              <div className="settings-version-grid">
+                <span><small>当前版本</small>v{APP_VERSION}</span>
+                <span><small>最新版本</small>{versionStatus?.serverVersion ? `v${versionStatus.serverVersion}` : "未检测"}</span>
+                <span><small>检测时间</small>{formatVersionCheckTime(versionStatus?.checkedAt) || "未检测"}</span>
+              </div>
+              {versionStatus?.error && <em className="settings-version-message error">{versionStatus.error}</em>}
+              {versionStatus && !versionStatus.error && (
+                <em className={`settings-version-message ${versionStatus.updateAvailable ? "warn" : "ok"}`}>
+                  {versionStatus.updateAvailable ? "发现新版本，可以手动更新。" : "当前已经是最新版本。"}
+                </em>
+              )}
+              <div className="settings-version-actions">
+                <button type="button" className="secondary-button" disabled={versionChecking || versionRefreshing} onClick={checkVersion}>
+                  <RefreshCw size={16} /> {versionChecking ? "检测中..." : "检查更新"}
+                </button>
+                {versionStatus?.updateAvailable && (
+                  <button type="button" className="primary-button" disabled={versionRefreshing} onClick={updateVersion}>
+                    <Download size={16} /> {versionRefreshing ? "更新中..." : "立即更新"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activePanel !== "version" && <div className="settings-save-row">
             <button className="primary-button" type="submit" disabled={avatarProcessing}>
               <Save size={18} />
               {avatarProcessing ? "处理中" : saved ? "已保存" : "保存设置"}
             </button>
-          </div>
+          </div>}
         </form>
       </div>
 
@@ -332,4 +415,3 @@ export function SettingsView({
     </div>
   );
 }
-

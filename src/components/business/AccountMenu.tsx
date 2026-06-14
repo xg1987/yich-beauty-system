@@ -5,6 +5,7 @@ import { UserAvatar } from "./UserAvatar";
 type AccountMenuProps = {
   session: UserSession;
   avatarUrl?: string;
+  updateAvailable?: boolean;
   logout: () => void;
   openSettings: () => void;
 };
@@ -20,7 +21,7 @@ function menuRoleName(session: UserSession) {
   return session.user.roleName === "老板" || session.user.roleName === "主管" ? "店长" : session.user.roleName;
 }
 
-export function AccountMenu({ session, avatarUrl, logout, openSettings }: AccountMenuProps) {
+export function AccountMenu({ session, avatarUrl, updateAvailable = false, logout, openSettings }: AccountMenuProps) {
   return (
     <aside className="account-menu" aria-label="账号菜单">
       <div className="account-menu-user">
@@ -32,7 +33,7 @@ export function AccountMenu({ session, avatarUrl, logout, openSettings }: Accoun
       </div>
       <button type="button" onClick={openSettings}>
         <Settings size={17} />
-        <span>系统设置</span>
+        <span className="account-menu-label">系统设置{updateAvailable && <i aria-label="有新版本" />}</span>
         <ChevronRight className="account-menu-chevron" size={16} />
       </button>
       <button className="danger" type="button" onClick={logout}>

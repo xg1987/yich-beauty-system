@@ -4624,6 +4624,24 @@ html[data-theme="day"],
   color: #6e6471;
 }
 
+.account-menu-label,
+.settings-tab-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-menu-label i,
+.settings-tab-label i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #d92d20;
+  box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.12);
+}
+
 .account-menu-chevron {
   margin-left: auto;
   color: rgba(80, 70, 84, 0.32) !important;
@@ -7239,6 +7257,67 @@ textarea,
   color: #5d5352;
   font-size: 14px;
   font-weight: 750;
+}
+
+.settings-version-panel {
+  gap: 16px;
+}
+
+.settings-version-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-version-grid span {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(122, 86, 180, 0.14);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #3d2f63;
+  overflow-wrap: anywhere;
+}
+
+.settings-version-grid small {
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.settings-version-message {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.settings-version-message.ok {
+  background: rgba(31, 126, 96, 0.1);
+  color: #1f7e60;
+}
+
+.settings-version-message.warn {
+  background: rgba(180, 111, 32, 0.12);
+  color: #9a5b16;
+}
+
+.settings-version-message.error {
+  background: rgba(160, 31, 46, 0.1);
+  color: #a01f2e;
+}
+
+.settings-version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-version-actions button {
+  min-height: 42px;
 }
 
 .refund-quote-grid {

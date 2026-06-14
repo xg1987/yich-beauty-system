@@ -1,13 +1,14 @@
 export type AppUpdateInfo = {
   currentVersion: string;
   serverVersion: string;
+  autoPrompt?: boolean;
 };
 
 export function appUpdateInfoFromEvent(event: Event): AppUpdateInfo | null {
   if (!(event instanceof CustomEvent) || !event.detail || typeof event.detail !== "object") return null;
   const detail = event.detail as Partial<AppUpdateInfo>;
   if (!detail.currentVersion || !detail.serverVersion) return null;
-  return { currentVersion: detail.currentVersion, serverVersion: detail.serverVersion };
+  return { currentVersion: detail.currentVersion, serverVersion: detail.serverVersion, autoPrompt: detail.autoPrompt === true };
 }
 
 export function AppUpdatePrompt({

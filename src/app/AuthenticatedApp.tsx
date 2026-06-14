@@ -39,10 +39,13 @@ import {
   UsersRound,
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { APP_UPDATE_AVAILABLE_EVENT, checkAppUpdateStatus } from "../appUpdate";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { BrandIcon } from "../components/business/BrandIcon";
 import { NotificationPanel, visibleNotifications } from "../components/business/NotificationPanel";
 import { UserAvatar } from "../components/business/UserAvatar";
+import { appUpdateInfoFromEvent } from "../components/AppUpdatePrompt";
+import type { AppUpdateInfo } from "../components/AppUpdatePrompt";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import { StatCard } from "../components/layout/StatCard";
@@ -978,6 +981,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
+  const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
   const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
@@ -1011,6 +1015,25 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     document.addEventListener("pointerdown", closeFloatingPanels);
     return () => document.removeEventListener("pointerdown", closeFloatingPanels);
   }, [accountMenuOpen, notificationPanelOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const handleAppUpdate = (event: Event) => {
+      const info = appUpdateInfoFromEvent(event);
+      if (info) setAppUpdateInfo(info);
+    };
+
+    window.addEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
+    void checkAppUpdateStatus().then((status) => {
+      if (cancelled || !status.updateAvailable || !status.serverVersion) return;
+      setAppUpdateInfo({ currentVersion: status.currentVersion, serverVersion: status.serverVersion });
+    });
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     if (!session || data || error) {
@@ -1167,6 +1190,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               <AccountMenu
                 session={session}
                 avatarUrl={currentAvatarUrl}
+                updateAvailable={Boolean(appUpdateInfo)}
                 logout={logout}
                 openSettings={() => {
                   setAccountSettingsOpen(true);
@@ -1187,6 +1211,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               uploadAccountAvatar={actions.uploadAccountAvatar}
               themeMode={themeMode}
               setThemeMode={setThemeMode}
+              initialUpdateInfo={appUpdateInfo}
             />
           </Suspense>
         ) : (
