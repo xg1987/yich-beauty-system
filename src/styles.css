@@ -21652,6 +21652,18 @@ textarea,
   font-weight: 850;
 }
 
+.marketing-timing-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(42, 143, 125, 0.16);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(42, 143, 125, 0.08), rgba(111, 66, 193, 0.05));
+  color: rgba(47, 37, 95, 0.72);
+  font-size: 12px;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
 .marketing-node-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -21687,10 +21699,10 @@ textarea,
 
 .marketing-node-grid button {
   min-width: 0;
-  min-height: 112px;
+  min-height: 148px;
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 7px;
   padding: 13px;
   border-radius: 16px;
   text-align: left;
@@ -21722,11 +21734,24 @@ textarea,
   line-height: 1.25;
 }
 
+.marketing-node-grid button em {
+  color: rgba(47, 37, 95, 0.74);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 860;
+  line-height: 1.35;
+}
+
 .marketing-node-grid button small {
   color: rgba(47, 37, 95, 0.62);
   font-size: 12px;
   font-weight: 720;
   line-height: 1.45;
+}
+
+.marketing-node-grid button .marketing-node-service {
+  color: rgba(42, 143, 125, 0.78);
+  font-weight: 850;
 }
 
 .marketing-config-stack {
@@ -22414,6 +22439,7 @@ textarea,
 .app-shell.theme-night .marketing-section-head small,
 .app-shell.theme-night .marketing-config-label small,
 .app-shell.theme-night .marketing-node-grid button small,
+.app-shell.theme-night .marketing-node-grid button em,
 .app-shell.theme-night .marketing-style-grid button span,
 .app-shell.theme-night .marketing-context-note {
   color: var(--night-app-muted);
@@ -22423,6 +22449,7 @@ textarea,
 .app-shell.theme-night .marketing-node-grid button,
 .app-shell.theme-night .marketing-config-row,
 .app-shell.theme-night .marketing-primary-block,
+.app-shell.theme-night .marketing-timing-note,
 .app-shell.theme-night .marketing-custom-field,
 .app-shell.theme-night .marketing-mode-tabs button,
 .app-shell.theme-night .marketing-advanced-options,
@@ -22493,6 +22520,7 @@ textarea,
 .app-shell.theme-day .marketing-center-page .marketing-config-label small,
 .app-shell.theme-day .marketing-center-page .marketing-advanced-options summary small,
 .app-shell.theme-day .marketing-center-page .marketing-node-grid button small,
+.app-shell.theme-day .marketing-center-page .marketing-node-grid button em,
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button span,
 .app-shell.theme-day .marketing-center-page .marketing-context-note,
 .app-shell.theme-day .marketing-center-page .marketing-poster-placeholder {

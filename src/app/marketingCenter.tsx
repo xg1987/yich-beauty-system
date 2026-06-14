@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, Eye, Image as ImageIcon, Megaphone, Plus, Search, Sparkles, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
@@ -15,12 +15,60 @@ import {
 } from "./AuthenticatedApp";
 
 type MarketingViewKey = "content" | "records";
-type MarketingNode = { title: string; badge: string; description: string };
+type MarketingNode = { title: string; badge: string; description: string; hint?: string; dateLabel?: string };
+type MarketingCalendarNode = {
+  title: string;
+  date: string;
+  category: "传统节日" | "节气内容" | "养生节点" | "项目周期";
+  description: string;
+  leadDays: number;
+  priority: number;
+  serviceHint: string;
+};
 
-const marketingNodes: MarketingNode[] = [
-  { title: "夏季祛湿", badge: "当前推荐", description: "适合湿重、虚胖、身体沉、出汗少客户。" },
-  { title: "三伏预热", badge: "适合药浴/艾灸", description: "提前做三伏养阳铺垫，适合会员复购。" },
-  { title: "阳气养护", badge: "节气内容", description: "不硬促销，用身体状态带出护理必要性。" },
+const marketingCalendarNodes: MarketingCalendarNode[] = [
+  { title: "小寒暖护", date: "2026-01-05", category: "节气内容", description: "小寒寒湿重，适合手脚凉、肩颈紧和睡眠关怀。", leadDays: 8, priority: 50, serviceHint: "艾灸、足浴、肩颈" },
+  { title: "大寒温养", date: "2026-01-20", category: "节气内容", description: "大寒适合做全年温补收尾和年前身体养护提醒。", leadDays: 10, priority: 54, serviceHint: "药浴、艾灸、暖宫" },
+  { title: "腊八温养", date: "2026-01-26", category: "传统节日", description: "用腊八温补、驱寒、睡眠调理做年前护理铺垫。", leadDays: 10, priority: 62, serviceHint: "艾灸、药浴、足浴、肩颈" },
+  { title: "立春焕新", date: "2026-02-04", category: "节气内容", description: "春季开始，适合焕肤、疏肝和轻养护预热。", leadDays: 8, priority: 52, serviceHint: "面部清洁、肩颈、头疗" },
+  { title: "小年焕新", date: "2026-02-10", category: "传统节日", description: "年前清洁、焕肤、身体放松，适合做预约提醒。", leadDays: 14, priority: 70, serviceHint: "面部清洁、补水、肩颈" },
+  { title: "除夕焕颜", date: "2026-02-16", category: "传统节日", description: "除夕前适合做最后一轮美肤、身体放松和祝福内容。", leadDays: 10, priority: 80, serviceHint: "补水、清洁、肩颈" },
+  { title: "春节焕颜", date: "2026-02-17", category: "传统节日", description: "过年前后形象管理，适合老客复购和礼卡转化。", leadDays: 18, priority: 92, serviceHint: "皮肤管理、礼卡、身体护理" },
+  { title: "雨水润养", date: "2026-02-18", category: "节气内容", description: "雨水后湿气渐起，适合补水、祛湿和肩颈舒缓。", leadDays: 7, priority: 48, serviceHint: "补水、药浴、肩颈" },
+  { title: "元宵团圆护理", date: "2026-03-03", category: "传统节日", description: "春节收尾，用团圆祝福带出轻护理和复工状态恢复。", leadDays: 10, priority: 66, serviceHint: "补水、肩颈、睡眠" },
+  { title: "惊蛰唤醒", date: "2026-03-05", category: "节气内容", description: "惊蛰适合唤醒代谢、改善春困和身体沉重感。", leadDays: 8, priority: 50, serviceHint: "药浴、肩颈、头疗" },
+  { title: "龙抬头焕新", date: "2026-03-20", category: "传统节日", description: "春季焕新、头肩颈放松，适合发轻种草内容。", leadDays: 10, priority: 60, serviceHint: "头疗、肩颈、面部清洁" },
+  { title: "春分平衡", date: "2026-03-20", category: "节气内容", description: "春分昼夜平衡，适合舒肝、睡眠和皮肤稳定护理。", leadDays: 8, priority: 52, serviceHint: "睡眠、肩颈、补水" },
+  { title: "清明节气", date: "2026-04-05", category: "节气内容", description: "清明既是节气也是节日，适合春湿、舒肝和轻养护提醒。", leadDays: 8, priority: 50, serviceHint: "药浴、肩颈、头疗" },
+  { title: "清明舒养", date: "2026-04-05", category: "传统节日", description: "清明前后春湿明显，适合舒肝、祛湿、轻养护提醒。", leadDays: 12, priority: 72, serviceHint: "药浴、艾灸、肩颈" },
+  { title: "谷雨润肤", date: "2026-04-20", category: "节气内容", description: "谷雨湿度上升，适合补水、屏障修护和祛湿内容。", leadDays: 8, priority: 54, serviceHint: "补水、修护、药浴" },
+  { title: "上巳春养", date: "2026-04-19", category: "传统节日", description: "上巳适合踏青、春日焕新和轻护理内容。", leadDays: 8, priority: 46, serviceHint: "补水、清洁、香氛护理" },
+  { title: "端午祛湿", date: "2026-06-19", category: "传统节日", description: "端午艾草、药浴、祛湿心智强，适合提前做预约提醒。", leadDays: 18, priority: 95, serviceHint: "药浴、艾灸、祛湿、肩颈" },
+  { title: "七夕美肤", date: "2026-08-19", category: "传统节日", description: "七夕适合美肤、香氛身体护理和礼赠内容。", leadDays: 18, priority: 82, serviceHint: "补水、美白、香氛护理" },
+  { title: "中元安养", date: "2026-08-27", category: "传统节日", description: "不做强促销，用安神、睡眠、肩颈舒缓表达关怀。", leadDays: 8, priority: 46, serviceHint: "睡眠、头疗、肩颈" },
+  { title: "中秋团圆护理", date: "2026-09-25", category: "传统节日", description: "团圆送礼、妈妈护理和家庭关怀，适合礼卡和套盒。", leadDays: 18, priority: 88, serviceHint: "礼卡、面护、肩颈" },
+  { title: "重阳长辈养护", date: "2026-10-26", category: "传统节日", description: "敬老关怀，适合长辈肩颈、睡眠和温养项目。", leadDays: 16, priority: 78, serviceHint: "艾灸、肩颈、睡眠" },
+  { title: "下元温护", date: "2026-11-23", category: "传统节日", description: "下元适合温和关怀，不强促销，带出冬季调理。", leadDays: 8, priority: 44, serviceHint: "艾灸、足浴、睡眠" },
+  { title: "冬至温补", date: "2026-12-22", category: "传统节日", description: "冬至温补心智明确，适合暖宫、艾灸、足浴提醒。", leadDays: 18, priority: 90, serviceHint: "艾灸、暖宫、足浴" },
+  { title: "立夏养护", date: "2026-05-05", category: "节气内容", description: "夏季开始，提醒防晒、补水和身体代谢管理。", leadDays: 7, priority: 50, serviceHint: "补水、防晒、身体护理" },
+  { title: "小满清湿", date: "2026-05-21", category: "节气内容", description: "小满湿热渐起，适合祛湿、代谢和皮肤清爽护理。", leadDays: 8, priority: 52, serviceHint: "药浴、清洁、肩颈" },
+  { title: "芒种排湿", date: "2026-06-05", category: "节气内容", description: "湿热上来，适合用身体状态带出祛湿必要性。", leadDays: 7, priority: 60, serviceHint: "药浴、艾灸、祛湿" },
+  { title: "夏至养阳", date: "2026-06-21", category: "节气内容", description: "夏至前后适合养阳、祛湿、防空调寒。", leadDays: 10, priority: 74, serviceHint: "艾灸、药浴、肩颈" },
+  { title: "小暑清养", date: "2026-07-07", category: "节气内容", description: "小暑热湿明显，适合清爽补水和身体轻养。", leadDays: 8, priority: 58, serviceHint: "补水、药浴、肩颈" },
+  { title: "大暑排湿", date: "2026-07-23", category: "节气内容", description: "大暑适合排湿、代谢、睡眠调理类内容。", leadDays: 8, priority: 64, serviceHint: "药浴、艾灸、睡眠" },
+  { title: "立秋修护", date: "2026-08-07", category: "节气内容", description: "换季提醒皮肤屏障、干燥和身体疲乏。", leadDays: 9, priority: 58, serviceHint: "补水、修护、肩颈" },
+  { title: "处暑舒缓", date: "2026-08-23", category: "节气内容", description: "处暑适合从暑湿转向修护，提醒睡眠和皮肤稳定。", leadDays: 8, priority: 54, serviceHint: "补水、睡眠、肩颈" },
+  { title: "白露润养", date: "2026-09-07", category: "节气内容", description: "秋燥明显，适合补水、润养和睡眠关怀。", leadDays: 8, priority: 56, serviceHint: "补水、修护、睡眠" },
+  { title: "秋分修护", date: "2026-09-23", category: "节气内容", description: "秋分适合平衡修护，提醒干燥、暗沉和肩颈疲劳。", leadDays: 8, priority: 55, serviceHint: "补水、修护、肩颈" },
+  { title: "寒露暖护", date: "2026-10-08", category: "节气内容", description: "降温前后提醒肩颈、手脚凉和暖养。", leadDays: 8, priority: 55, serviceHint: "艾灸、肩颈、足浴" },
+  { title: "霜降暖养", date: "2026-10-23", category: "节气内容", description: "霜降适合提醒降温、寒湿和冬季项目预热。", leadDays: 8, priority: 58, serviceHint: "艾灸、足浴、肩颈" },
+  { title: "立冬温养", date: "2026-11-07", category: "节气内容", description: "入冬适合温补、艾灸、暖宫和足浴项目。", leadDays: 10, priority: 68, serviceHint: "艾灸、暖宫、足浴" },
+  { title: "小雪暖护", date: "2026-11-22", category: "节气内容", description: "小雪后寒意明显，适合手脚凉、肩颈和睡眠提醒。", leadDays: 8, priority: 56, serviceHint: "足浴、艾灸、睡眠" },
+  { title: "大雪温补", date: "2026-12-07", category: "节气内容", description: "大雪适合冬季温补、暖宫和年末疲劳修复。", leadDays: 10, priority: 62, serviceHint: "艾灸、暖宫、肩颈" },
+  { title: "冬至节气", date: "2026-12-22", category: "节气内容", description: "冬至是一阳来复的节点，适合温补和暖护类内容。", leadDays: 10, priority: 64, serviceHint: "艾灸、足浴、暖宫" },
+  { title: "三伏预热", date: "2026-07-20", category: "养生节点", description: "三伏前先做铺垫，适合会员复购和老客预约。", leadDays: 45, priority: 86, serviceHint: "三伏灸、药浴、艾灸" },
+  { title: "三九温补", date: "2026-12-22", category: "养生节点", description: "三九前后温补需求强，适合寒湿、肩颈和睡眠客群。", leadDays: 18, priority: 80, serviceHint: "三九灸、药浴、足浴" },
+  { title: "项目复购提醒", date: "2026-06-14", category: "项目周期", description: "没有更近节日时，优先结合项目周期提醒老客复购。", leadDays: 365, priority: 12, serviceHint: "按客户最近消费项目推荐" },
 ];
 const customerTypes = ["新客户", "老客户", "沉睡客户"];
 const bodyStates = ["怕冷湿重", "久坐肩颈", "熬夜暗沉", "皮肤干燥", "睡眠不好"];
@@ -34,6 +82,65 @@ const posterStyles = [
 const channels = ["朋友圈", "小红书", "私聊", "社群"];
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
 const USD_TO_CNY_DISPLAY_RATE = 6.77;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function localDateOnly(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function parseCalendarDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatMarketingDate(value: Date) {
+  return value.toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
+}
+
+function marketingNodeTimingLabel(daysUntil: number) {
+  if (daysUntil === 0) return "今天";
+  if (daysUntil > 0) return `还有 ${daysUntil} 天`;
+  return `已过 ${Math.abs(daysUntil)} 天`;
+}
+
+function getMarketingNodes(today = new Date()): MarketingNode[] {
+  const todayDate = localDateOnly(today);
+  const projectNodes = marketingCalendarNodes.filter((node) => node.category === "项目周期");
+  const timedNodes = marketingCalendarNodes
+    .filter((node) => node.category !== "项目周期")
+    .map((node) => {
+      const targetDate = parseCalendarDate(node.date);
+      const daysUntil = Math.round((localDateOnly(targetDate).getTime() - todayDate.getTime()) / MS_PER_DAY);
+      const inWindow = daysUntil >= -2 && daysUntil <= node.leadDays;
+      const nearScore = Math.max(0, node.leadDays - Math.max(daysUntil, 0));
+      return { node, targetDate, daysUntil, inWindow, score: (inWindow ? 1000 : 0) + node.priority + nearScore };
+    })
+    .filter((item) => item.inWindow)
+    .sort((left, right) => right.score - left.score || Math.abs(left.daysUntil) - Math.abs(right.daysUntil));
+
+  const fallbackNodes: MarketingNode[] = [
+    { title: "夏季祛湿", badge: "当前推荐", description: "适合湿重、虚胖、身体沉、出汗少客户。", hint: "药浴、艾灸、祛湿", dateLabel: "季节推荐" },
+    { title: "三伏预热", badge: "养生节点", description: "提前做三伏养阳铺垫，适合会员复购。", hint: "三伏灸、药浴、艾灸", dateLabel: "7月20日" },
+    { title: "阳气养护", badge: "节气内容", description: "不硬促销，用身体状态带出护理必要性。", hint: "艾灸、肩颈、睡眠", dateLabel: "节气推荐" },
+  ];
+
+  const result = timedNodes.slice(0, 3).map(({ node, targetDate, daysUntil }) => ({
+    title: node.title,
+    badge: node.category,
+    description: node.description,
+    hint: node.serviceHint,
+    dateLabel: `${formatMarketingDate(targetDate)} · ${marketingNodeTimingLabel(daysUntil)}`,
+  }));
+  const projectFallback = projectNodes.map((node) => ({
+    title: node.title,
+    badge: node.category,
+    description: node.description,
+    hint: node.serviceHint,
+    dateLabel: "自动兜底",
+  }));
+
+  return result.length >= 3 ? result : [...result, ...fallbackNodes, ...projectFallback].slice(0, 3);
+}
 
 function aiCostAmountUsd(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
   if (!cost) return undefined;
@@ -181,10 +288,11 @@ function downloadMarketingRecord(record: MarketingAiRecord) {
 }
 
 export function MarketingCenter({ data, session, actions }: { data: AppData; session: UserSession; actions: ApiActions }) {
+  const todayMarketingNodes = useMemo(() => getMarketingNodes(), []);
   const [activeView, setActiveView] = useState<MarketingViewKey>("content");
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
-  const [marketingNode, setMarketingNode] = useState(marketingNodes[0].title);
+  const [marketingNode, setMarketingNode] = useState(todayMarketingNodes[0].title);
   const [customerType, setCustomerType] = useState("老客户");
   const [bodyState, setBodyState] = useState("怕冷湿重");
   const [channel, setChannel] = useState("朋友圈");
@@ -207,7 +315,14 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
   const aiPermissions = storeAiUsagePermissions(data);
   const contentState = aiCapabilityUsageState(aiConfig, aiPermissions, session.user.role, "copy");
+  const selectedNode = todayMarketingNodes.find((item) => item.title === marketingNode) ?? todayMarketingNodes[0];
   const audienceSummary = `${customerType}，${bodyState}`;
+  const nodeBrief = [selectedNode.title, selectedNode.dateLabel, selectedNode.hint].filter(Boolean).join(" · ");
+  const generationRequirement = [
+    nodeBrief ? `当前营销时间节点：${nodeBrief}` : "",
+    selectedNode.description ? `节点策略：${selectedNode.description}` : "",
+    customRequirement.trim(),
+  ].filter(Boolean).join("\n");
   const previewSummaryItems = [marketingNode, customerType, bodyState, channel, marketingGoal];
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const selectedMarketingRecord = marketingAiRecords.find((record) => record.id === selectedRecordId);
@@ -280,7 +395,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
         posterOffer: marketingGoal,
         productImageName,
         sceneImageName,
-        customRequirement,
+        customRequirement: generationRequirement,
       }));
       setCopyResultStatus("idle");
     } catch (caught) {
@@ -368,15 +483,18 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               <div className="marketing-section-head">
                 <div>
                   <strong>今天推荐</strong>
-                  <span>按节气、季节和项目周期推荐</span>
+                  <span>自动结合 2026 传统节日、24 节气和项目周期</span>
                 </div>
               </div>
+              <p className="marketing-timing-note">系统会优先推荐临近节日和节气；没有强节点时，自动回到项目复购提醒。</p>
               <div className="marketing-node-grid" aria-label="推荐营销节点">
-                {marketingNodes.map((item) => (
+                {todayMarketingNodes.map((item) => (
                   <button type="button" key={item.title} className={marketingNode === item.title ? "active" : ""} onClick={() => setMarketingNode(item.title)}>
                     <span>{item.badge}</span>
                     <strong>{item.title}</strong>
+                    {item.dateLabel && <em>{item.dateLabel}</em>}
                     <small>{item.description}</small>
+                    {item.hint && <small className="marketing-node-service">适合：{item.hint}</small>}
                   </button>
                 ))}
               </div>
@@ -436,7 +554,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               />
             </label>
 
-            <p className="marketing-context-note">当前将生成一套适合{channel}发布的营销内容，包含配套文案和可下载海报。</p>
+            <p className="marketing-context-note">当前将围绕{nodeBrief || marketingNode}生成一套适合{channel}发布的营销内容，包含配套文案和可下载海报。</p>
 
             <details className="marketing-advanced-options">
               <summary>
