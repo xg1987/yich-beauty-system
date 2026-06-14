@@ -21995,25 +21995,39 @@ textarea,
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 14px;
+  padding: 14px;
   border: 1px solid rgba(111, 66, 193, 0.14);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.78);
 }
 
-.marketing-record-item > div:first-child {
+.marketing-record-main {
   display: grid;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
 }
 
-.marketing-record-item strong {
-  color: #2f255f;
-  font-weight: 920;
+.marketing-record-type {
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #6f42c1;
+  font-size: 11px;
+  font-weight: 900;
 }
 
-.marketing-record-item span {
+.marketing-record-main strong {
+  color: #2f255f;
+  font-size: 15px;
+  font-weight: 920;
+  line-height: 1.35;
+}
+
+.marketing-record-summary,
+.marketing-record-main small {
   overflow: hidden;
   color: rgba(47, 37, 95, 0.62);
   font-size: 12px;
@@ -22022,7 +22036,25 @@ textarea,
   white-space: nowrap;
 }
 
-.marketing-record-item > b {
+.marketing-record-main small {
+  color: rgba(47, 37, 95, 0.48);
+  font-weight: 680;
+}
+
+.marketing-record-cost {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  min-width: 88px;
+}
+
+.marketing-record-cost span {
+  color: rgba(47, 37, 95, 0.48);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.marketing-record-cost b {
   color: #1f6f61;
   font-size: 13px;
   font-weight: 940;
@@ -22855,6 +22887,10 @@ textarea,
 
   .marketing-record-item {
     grid-template-columns: 1fr;
+  }
+
+  .marketing-record-cost {
+    justify-items: start;
   }
 
   .marketing-record-actions {

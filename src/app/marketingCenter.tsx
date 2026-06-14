@@ -35,10 +35,18 @@ const channels = ["朋友圈", "小红书", "私聊", "社群"];
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
 const USD_TO_CNY_DISPLAY_RATE = 6.77;
 
-function formatAiCostRmb(cost?: { amountUsd: number; priceConfigured: boolean }) {
+function aiCostAmountUsd(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
+  if (!cost) return undefined;
+  if (typeof cost === "number") return Number.isFinite(cost) ? cost : undefined;
+  return Number.isFinite(cost.amountUsd) ? cost.amountUsd : undefined;
+}
+
+function formatAiCostRmb(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
   if (!cost) return "费用未返回";
-  if (!cost.priceConfigured) return "费用未配置";
-  const amount = cost.amountUsd * USD_TO_CNY_DISPLAY_RATE;
+  const amountUsd = aiCostAmountUsd(cost);
+  if (amountUsd === undefined) return "费用未返回";
+  if (typeof cost !== "number" && cost.priceConfigured === false) return "费用未配置";
+  const amount = amountUsd * USD_TO_CNY_DISPLAY_RATE;
   if (amount > 0 && amount < 0.01) return `¥${amount.toFixed(6)}`;
   if (amount > 0 && amount < 1) return `¥${amount.toFixed(4)}`;
   return `¥${amount.toFixed(2)}`;
@@ -118,6 +126,14 @@ function marketingRecordSummary(record: MarketingAiRecord) {
     record.serviceName,
     record.productName,
   ].map(compactRecordText).filter(Boolean).join(" · ") || "已生成，可点击查看详情";
+}
+
+function marketingRecordMeta(record: MarketingAiRecord) {
+  return [
+    marketingRecordKindLabel(record.kind),
+    compactRecordText(record.channel) || "未标记渠道",
+    shortRecordTime(record.createdAt),
+  ].filter(Boolean).join(" · ");
 }
 
 function shortRecordTime(value: string) {
@@ -456,11 +472,16 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
           <div className="marketing-record-list">
             {marketingAiRecords.slice(0, 12).map((record) => (
               <article key={record.id} className="marketing-record-item">
-                <div>
+                <div className="marketing-record-main">
+                  <span className="marketing-record-type">{marketingRecordKindLabel(record.kind)}</span>
                   <strong>{marketingRecordTitle(record)}</strong>
-                  <span>{marketingRecordKindLabel(record.kind)} · {record.marketingNode || marketingRecordSummary(record)} · {record.channel || "未标记渠道"} · {shortRecordTime(record.createdAt)}</span>
+                  <span className="marketing-record-summary">{record.marketingNode || marketingRecordSummary(record)}</span>
+                  <small>{marketingRecordMeta(record)}</small>
                 </div>
-                <b>{formatAiCostRmb(record.cost)}</b>
+                <div className="marketing-record-cost">
+                  <span>本次费用</span>
+                  <b>{formatAiCostRmb(record.cost)}</b>
+                </div>
                 <div className="marketing-record-actions">
                   <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
                   <button type="button" aria-label="复制文案" onClick={() => void copyRecord(record)}><Copy size={15} /></button>
