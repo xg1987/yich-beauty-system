@@ -18026,10 +18026,15 @@ textarea,
     gap: 10px;
     min-height: var(--yich-topbar-h);
     margin-bottom: 16px;
+    z-index: 260;
   }
 
   .topbar-brand {
+    position: relative;
+    z-index: 1;
     gap: 9px;
+    min-width: 0;
+    padding-right: 88px;
   }
 
   .topbar-brand .brand-mark {
@@ -18053,10 +18058,14 @@ textarea,
 
   .app-shell .main > .topbar .topbar-actions,
   .app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    right: max(14px, env(safe-area-inset-right, 0px));
     grid-column: 2;
     gap: 6px;
     width: auto;
     flex-wrap: nowrap;
+    z-index: 270;
   }
 
   .topbar-actions .icon-button,
@@ -22819,7 +22828,7 @@ textarea,
 .marketing-result-overlay {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 320;
   display: grid;
   place-items: center;
   padding: 22px;
@@ -23607,14 +23616,22 @@ textarea,
   }
 
   .marketing-result-overlay {
-    align-items: end;
-    padding: 10px;
+    align-items: center;
+    justify-items: center;
+    padding:
+      max(14px, env(safe-area-inset-top, 0px))
+      10px
+      max(14px, env(safe-area-inset-bottom, 0px));
   }
 
   .marketing-result-dialog {
-    max-height: calc(100dvh - 20px);
+    width: min(100%, 560px);
+    max-height: calc(100dvh - max(28px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 28px));
     padding: 14px;
     border-radius: 20px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .marketing-result-body {
