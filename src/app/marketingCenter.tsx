@@ -94,7 +94,7 @@ function parseCalendarDate(value: string) {
 }
 
 function formatMarketingDate(value: Date) {
-  return value.toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
+  return value.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
 }
 
 function marketingNodeTimingLabel(daysUntil: number) {
@@ -253,7 +253,7 @@ function marketingRecordMeta(record: MarketingAiRecord) {
 function shortRecordTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value || "时间未记录";
-  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  return date.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function downloadDataUrl(dataUrl: string, filename: string) {

@@ -1121,7 +1121,7 @@ export function PlatformAppointmentsReadOnlyView({ data, setView, showBack }: { 
           <div className="appointment-timeline-board">
             {rangeAppointments.slice(0, 6).map((item) => (
               <article className="appointment-schedule-card" key={item.id}>
-                <time>{shortDate(item.startAt).split(" ")[1] ?? shortDate(item.startAt)}</time>
+                <time>{shortDate(item.startAt)}</time>
                 <div>
                   <strong>{nameOf(data.customers, item.customerId)}</strong>
                   <span>{nameOf(data.services, item.serviceId)} · {nameOf(data.staff, item.staffId)}</span>

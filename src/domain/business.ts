@@ -2643,11 +2643,11 @@ export function checkoutOrder(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
-  const customerId = input.customerId ?? "";
+  let customerId = input.customerId ?? "";
   const guestName = (input.guestName ?? "").trim();
   const guestPhone = optionalMobilePhone(input.guestPhone, "客户电话必须为 11 位数字");
   const serviceId = input.serviceId ?? "";
-  const selectedCustomer = customerId ? data.customers.find((item) => item.id === customerId) : undefined;
+  let selectedCustomer = customerId ? data.customers.find((item) => item.id === customerId) : undefined;
   const selectedService = serviceId ? data.services.find((item) => item.id === serviceId) : undefined;
   const rawProductItems = input.productItems?.length
     ? input.productItems
@@ -2682,6 +2682,32 @@ export function checkoutOrder(
   if (!selectedService && productItems.length === 0) {
     throw new Error("请选择服务项目或商品");
   }
+  const createdAt = currentTime();
+  let createdCheckoutCustomer: Customer | undefined;
+  if (!customerId) {
+    if (!guestName) throw new Error("请填写客户姓名，收银完成后需要客户签名");
+    const requiredGuestPhone = requireMobilePhone(input.guestPhone, "请填写 11 位客户手机号，收银完成后需要客户签名");
+    const existingGuestCustomer = data.customers.find((customer) =>
+      customer.phone === requiredGuestPhone && (customer.storeId ?? storeId) === storeId,
+    );
+    if (existingGuestCustomer) {
+      customerId = existingGuestCustomer.id;
+      selectedCustomer = existingGuestCustomer;
+    } else {
+      createdCheckoutCustomer = {
+        id: idFactory("c"),
+        storeId,
+        name: guestName,
+        phone: requiredGuestPhone,
+        level: "普通会员",
+        source: "收银新客",
+        tags: ["新客"],
+        lastVisit: createdAt,
+      };
+      customerId = createdCheckoutCustomer.id;
+      selectedCustomer = createdCheckoutCustomer;
+    }
+  }
   const zeroPriceProductNames = productItems
     .filter((item) => item.unitPrice <= 0)
     .map((item) => data.products.find((product) => product.id === item.productId)?.name ?? "未命名商品");
@@ -2689,7 +2715,6 @@ export function checkoutOrder(
     throw new Error(`商品 ${zeroPriceProductNames.join("、")} 的售价为 0，请先到商品资料填写售价`);
   }
 
-  const createdAt = currentTime();
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
   const appointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
   if (input.appointmentId && !appointment) {
@@ -2906,24 +2931,25 @@ export function checkoutOrder(
     staffCommissionRate(data, input.staffId),
   );
   const commissions: Commission[] = salesCommission ? [salesCommission, ...serviceCommissions] : serviceCommissions;
-  const customerSignatures: CustomerSignature[] = selectedService && customerId
-    ? [
-        {
-          id: idFactory("sig"),
-          storeId,
-          token: idFactory("sign"),
-          customerId,
-          orderId,
-          title: "服务完成确认签名",
-          content: `${selectedCustomer?.name ?? "客户"} 确认本次到店服务、消费项目、支付金额和服务结果无误。`,
-          status: "待签名",
-          requestedBy: input.requestedBy ?? input.staffId,
-          createdAt,
-          expiresAt: new Date(+new Date(createdAt) + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        ...(data.customerSignatures ?? []),
-      ]
-    : data.customerSignatures;
+  const signatureItems = [
+    selectedService?.name,
+    ...(order.productItems ?? []).map((item) => `${item.productName ?? "商品"} x${item.quantity}`),
+    ...(order.giftProductItems ?? []).map((item) => `赠品 ${item.productName ?? "商品"} x${item.quantity}`),
+  ].filter(Boolean);
+  const checkoutSignature: CustomerSignature = {
+    id: idFactory("sig"),
+    storeId,
+    token: idFactory("sign"),
+    customerId,
+    orderId,
+    title: selectedService ? "服务完成确认签名" : "收银确认签名",
+    content: `${selectedCustomer?.name ?? "客户"} 确认本次收银内容、支付金额和服务结果无误。内容：${signatureItems.join(" + ") || "收银"}，金额：${money(paidAmount)}，支付方式：${input.payMethod}。`,
+    status: "待签名",
+    requestedBy: input.requestedBy ?? input.staffId,
+    createdAt,
+    expiresAt: new Date(+new Date(createdAt) + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  const checkoutCustomers = createdCheckoutCustomer ? [createdCheckoutCustomer, ...data.customers] : data.customers;
   return {
     ...data,
     products,
@@ -2932,13 +2958,13 @@ export function checkoutOrder(
     inventoryLogs,
     orders: [order, ...data.orders],
     memberCardTransactions,
-    customers: data.customers.map((customer) => (customer.id === customerId ? { ...customer, lastVisit: createdAt, points: Math.max(0, (customer.points ?? 0) + Math.floor(paidAmount / 10)) } : customer)),
+    customers: checkoutCustomers.map((customer) => (customer.id === customerId ? { ...customer, lastVisit: createdAt, points: Math.max(0, (customer.points ?? 0) + Math.floor(paidAmount / 10)) } : customer)),
     appointments: appointment
       ? data.appointments.map((item) =>
           item.id === appointment.id ? { ...item, status: "已完成", completedAt: createdAt, updatedAt: createdAt } : item,
         )
       : data.appointments,
-    customerSignatures,
+    customerSignatures: [checkoutSignature, ...(data.customerSignatures ?? [])],
     commissions: [...commissions, ...data.commissions],
   };
 }
@@ -4082,6 +4108,7 @@ function appointmentConflictTimeRange(appointment: Appointment, services: Servic
   const end = appointmentEndAt(appointment, services);
   const dateTime = new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
+    year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

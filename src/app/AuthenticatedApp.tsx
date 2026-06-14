@@ -1636,7 +1636,7 @@ function managementEntryDetails(
       items: [
         { label: "客户总数", value: `${data.customers.length} 位`, hint: "门店客户档案" },
         { label: "有效项目卡", value: `${activeCards} 张`, hint: "客户资产" },
-        { label: "待签名", value: `${data.customerSignatures.filter((signature) => signature.status === "待签名").length} 份`, hint: "服务完成确认" },
+        { label: "待签名", value: `${data.customerSignatures.filter((signature) => signature.status === "待签名").length} 份`, hint: "客户确认签名" },
       ],
     };
   }
@@ -1840,7 +1840,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     todayAppointments,
     todayRevenue,
   });
-  const todayLabel = today.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+  const todayLabel = today.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
   const waitingArrivalCount = pendingConfirmAppointments.length + pendingArrivalAppointments.length;
   const isOrdinaryEmployee = session.user.role === "therapist" || session.user.role === "frontdesk";
   const heroLine = session.user.role === "therapist" ? "护理有序，客户安心" : session.user.role === "frontdesk" ? "到店有序，客户清晰" : "今日有序，门店有数";
@@ -1852,7 +1852,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   const businessItems = [
     { label: "今日实收", value: money(todayRevenue), hint: `${todayCashPaymentCount} 笔收款` },
     { label: "待确认到店", value: `${arrivedWaitingCheckout.length} 单`, hint: "到店后处理" },
-    { label: "待签名", value: `${pendingSignatureList.length} 份`, hint: "服务完成确认" },
+    { label: "待签名", value: `${pendingSignatureList.length} 份`, hint: "客户确认签名" },
     { label: "有效会员卡", value: `${activeCards} 张`, hint: "客户可用资产" },
   ];
   const cashPaymentBreakdown = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[])
@@ -1992,7 +1992,7 @@ function EmployeeWorkDashboard({
 }) {
   const storeName = primaryStoreName(data);
   const isTherapist = session.user.role === "therapist";
-  const todayLabel = new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" });
+  const todayLabel = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
   const pendingAppointments = roleAppointmentsList.filter((item) => item.status !== "已完成" && item.status !== "已取消").slice(0, 4);
   const followUpRows = data.customerFollowUps
     .filter((item) => item.status === "待跟进")
@@ -3932,17 +3932,17 @@ function Pos({
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
   const selectedSignatureContext = selectedSignature ? signatureRecordContext(data, selectedSignature) : undefined;
   const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
-  const selectedSignatureLinkedToService = selectedSignatureContext ? signatureRecordCanCompleteService(selectedSignatureContext) : false;
+  const selectedSignatureLinkedToOrder = selectedSignatureContext ? signatureRecordCanCompleteCheckout(selectedSignatureContext) : false;
   const selectedSignatureCanComplete = Boolean(
     selectedSignature
     && selectedSignature.status === "待签名"
     && !selectedSignatureExpired
-    && selectedSignatureLinkedToService,
+    && selectedSignatureLinkedToOrder,
   );
   const selectedSignatureBlockMessage = selectedSignature && selectedSignature.status === "待签名" && !selectedSignatureCanComplete
     ? selectedSignatureExpired
       ? "签名链接已过期，请重新生成签名后再让客户确认。"
-      : "这条签名未关联服务订单，不能作为服务完成签名。"
+      : "这条签名未关联收银订单，不能作为收银确认签名。"
     : undefined;
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
@@ -3996,6 +3996,11 @@ function Pos({
   const selectedCashierSignature = selectedCashierOrder
     ? data.customerSignatures.find((signature) => signature.orderId === selectedCashierOrder.id)
     : undefined;
+  const openCashierSignature = () => {
+    if (!selectedCashierSignature) return;
+    setSelectedSignatureId(selectedCashierSignature.id);
+    setActiveModule("signature");
+  };
   useEffect(() => {
     const customerName = selectedSignature ? nameOf(data.customers, selectedSignature.customerId) : "";
     setSignatureSignerName(customerName === "-" ? "" : customerName);
@@ -4075,7 +4080,7 @@ function Pos({
     ).then((nextData) => {
       const signedSignature = nextData.customerSignatures.find((signature) => signature.id === signatureToSign.id);
       if (signedSignature) setSelectedSignatureId(signedSignature.id);
-      setSignatureMessage({ type: "success", text: "服务确认签名已完成。" });
+      setSignatureMessage({ type: "success", text: "客户确认签名已完成。" });
       const signedOrder = signedSignature?.orderId ? nextData.orders.find((order) => order.id === signedSignature.orderId) : undefined;
       if (signedOrder?.appointmentId && onReturnAppointments) {
         window.setTimeout(() => onReturnAppointments(), 450);
@@ -4445,7 +4450,12 @@ function Pos({
       messages.push(`商品 ${zeroPriceNames} 的售价为 0，请先到商品资料填写售价。`);
     }
     if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
-    if (!usesCustomer && guestPhone.trim() && guestPhone.length !== 11) messages.push("客户电话必须为 11 位数字。");
+    if (!usesCustomer && !guestName.trim()) messages.push("请填写客户姓名，收银完成后需要客户签名。");
+    if (!usesCustomer && !guestPhone.trim()) {
+      messages.push("请填写客户手机号，收银完成后需要客户签名。");
+    } else if (!usesCustomer && guestPhone.length !== 11) {
+      messages.push("客户电话必须为 11 位数字。");
+    }
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
@@ -4478,7 +4488,7 @@ function Pos({
     ).then((nextData) => {
       const latestOrder = nextData.orders[0];
       const latestOrderNo = latestOrder?.orderNo;
-      const pendingSignature = usesService && usesCustomer && latestOrder
+      const pendingSignature = latestOrder
         ? nextData.customerSignatures.find((signature) => signature.orderId === latestOrder.id && signature.status === "待签名")
         : undefined;
       if (pendingSignature) {
@@ -4496,7 +4506,7 @@ function Pos({
       setDiscountAmount(0);
       setCheckoutDiscountRateInput("");
       setAdjustmentReason("");
-      const signatureHint = pendingSignature ? "请在当前窗口完成服务确认签名。" : "";
+      const signatureHint = pendingSignature ? "请在当前窗口完成客户签名。" : "";
       setCheckoutSuccessMessage(latestOrderNo ? `下单成功，订单 ${latestOrderNo} 已生成。${signatureHint}` : `下单成功，订单已生成。${signatureHint}`);
       checkoutRequestIdRef.current = makeId("checkout");
       if (pendingSignature) {
@@ -4518,7 +4528,7 @@ function Pos({
   const posModuleTitles: Record<NonNullable<typeof activeModule>, string> = {
     card: "开卡",
     product: "商品",
-    signature: "服务确认签名",
+    signature: "客户确认签名",
     single: "项目服务",
     orders: "收银流水",
   };
@@ -4879,14 +4889,14 @@ function Pos({
           ) : (
             <div className="checkout-guest-fields">
               <div className="checkout-guest-grid">
-                <label>
-                  {usesProduct && !usesService ? "新客姓名（可选）" : "客户姓名（可选）"}
-                  <input value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" placeholder="不留可空" />
-                </label>
-                <label>
-                  {usesProduct && !usesService ? "联系电话（可选）" : "客户电话（可选）"}
-                  <input type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} value={guestPhone} onChange={(event) => setGuestPhone(normalizeMobilePhoneDraft(event.target.value))} placeholder="不留可空" />
-                </label>
+                  <label>
+                    {usesProduct && !usesService ? "新客姓名" : "客户姓名"}
+                    <input value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" placeholder="用于客户签名和流水追溯" />
+                  </label>
+                  <label>
+                    {usesProduct && !usesService ? "联系电话" : "客户电话"}
+                    <input type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} value={guestPhone} onChange={(event) => setGuestPhone(normalizeMobilePhoneDraft(event.target.value))} placeholder="11 位手机号" />
+                  </label>
               </div>
             </div>
           )}
@@ -4950,13 +4960,13 @@ function Pos({
         )}
         {activeModule === "signature" && (
         <section className="panel">
-        <PanelTitle icon={<LockKeyhole size={18} />} title="服务确认签名" action={`${data.customerSignatures?.length ?? 0} 份`} />
-        <DataTable
-          columns={["客户", "服务项目", "状态", "签名人", "签名时间", "关联记录", "操作"]}
+          <PanelTitle icon={<LockKeyhole size={18} />} title="客户确认签名" action={`${data.customerSignatures?.length ?? 0} 份`} />
+          <DataTable
+          columns={["客户", "收银内容", "状态", "签名人", "签名时间", "关联记录", "操作"]}
           rows={(data.customerSignatures ?? []).map((signature) => {
             const context = signatureRecordContext(data, signature);
             const isExpired = customerSignatureIsExpired(signature, signatureNow);
-            const canCompleteService = signature.status === "待签名" && !isExpired && signatureRecordCanCompleteService(context);
+            const canCompleteService = signature.status === "待签名" && !isExpired && signatureRecordCanCompleteCheckout(context);
             return [
               context.customerName,
               context.serviceName,
@@ -4970,7 +4980,7 @@ function Pos({
                     现场签名
                   </button>
                 ) : signature.status === "待签名" ? (
-                  <span className="signature-action-note">{isExpired ? "已过期" : "未关联服务"}</span>
+                  <span className="signature-action-note">{isExpired ? "已过期" : "未关联收银"}</span>
                 ) : null}
                 <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
                   查看详情
@@ -5012,7 +5022,7 @@ function Pos({
           <div className="signature-complete-actions">
             <button type="button" className="signature-complete-button" disabled={mutationPending} onClick={signSelectedSignature}>
               <LockKeyhole size={18} />
-              {mutationPending ? "正在保存签名..." : "完成服务签名"}
+              {mutationPending ? "正在保存签名..." : "完成客户签名"}
             </button>
           </div>
         )}
@@ -5061,7 +5071,27 @@ function Pos({
               <div><dt>流水编号</dt><dd>{selectedCashierRecord.orderNo}</dd></div>
               <div><dt>关联预约</dt><dd>{selectedCashierAppointment ? appointmentTimeRange(data, selectedCashierAppointment) : "-"}</dd></div>
               <div><dt>会员卡</dt><dd>{selectedCashierMemberCard?.name ?? "-"}</dd></div>
-              <div><dt>客户签名</dt><dd>{selectedCashierSignature?.status ?? "-"}</dd></div>
+              <div>
+                <dt>客户签名</dt>
+                <dd>
+                  {selectedCashierSignature ? (
+                    <span className="cashier-record-signature-status">
+                      <Badge
+                        text={customerSignatureIsExpired(selectedCashierSignature, signatureNow) ? "已过期" : selectedCashierSignature.status}
+                        tone={selectedCashierSignature.status === "已签名" ? "ok" : "warn"}
+                      />
+                      {selectedCashierSignature.status === "待签名" && !customerSignatureIsExpired(selectedCashierSignature, signatureNow) && (
+                        <button type="button" onClick={openCashierSignature}>
+                          让客户签名
+                        </button>
+                      )}
+                      {selectedCashierSignature.status === "待签名" && customerSignatureIsExpired(selectedCashierSignature, signatureNow) && (
+                        <small>签名已过期，请重新生成</small>
+                      )}
+                    </span>
+                  ) : "-"}
+                </dd>
+              </div>
             </dl>
             {selectedCashierSignature?.signatureText && (
               <div className="cashier-record-signature">
@@ -5196,7 +5226,9 @@ function Pos({
                         <Minus size={14} />
                       </button>
                     )}
-                    <strong>{quantity > 0 ? quantity : "未选"}</strong>
+                    <strong className="product-picker-selected-count" aria-live="polite">
+                      {quantity > 0 ? `已选 ${quantity} 件` : "未选"}
+                    </strong>
                     <button type="button" aria-label={`添加${product.name}`} disabled={product.stock <= quantity} onClick={() => addCheckoutItem(productPickerMode, product.id)}>
                       <Plus size={14} />
                     </button>
@@ -5839,7 +5871,7 @@ function Customers({
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
           { label: "有效项目卡", value: `${activeCards.length} 张`, hint: `${totalRemainingTimes} 次可核销`, icon: <CreditCard size={18} /> },
           { label: "待跟进", value: `${pendingFollowUps} 位`, hint: "客户关怀任务", icon: <MessageCircle size={18} /> },
-          { label: "待签名", value: `${pendingSignatures} 份`, hint: "服务完成确认", icon: <LockKeyhole size={18} /> },
+          { label: "待签名", value: `${pendingSignatures} 份`, hint: "客户确认签名", icon: <LockKeyhole size={18} /> },
         ]}
       />
       <section className="customer-workspace">
@@ -7630,10 +7662,6 @@ function Inventory({
                               <strong>{item.price > 0 ? money(item.price) : "未设置"}</strong>
                             </span>
                             <span>
-                              <small>项目扣减</small>
-                              <strong>{productServiceStockDeductible(item) ? `${productServicePackageText(item)}` : "不计项目"}</strong>
-                              </span>
-                              <span>
                               <small>使用占比</small>
                               <strong>{usage.usagePercent}%</strong>
                             </span>
@@ -7646,12 +7674,12 @@ function Inventory({
                               <strong>{productShelfLifeText(item)}</strong>
                             </span>
                             <span>
-                              <small>到期</small>
-                              <strong>{productExpiryText(item)}</strong>
-                            </span>
-                            <span>
                               <small>剩余天数</small>
                               <strong>{productExpiryDaysText(item)}</strong>
+                            </span>
+                            <span>
+                              <small>到期</small>
+                              <strong>{productExpiryText(item)}</strong>
                             </span>
                           </span>
                           <span className="inventory-product-card-foot">
@@ -7884,11 +7912,15 @@ export function signatureRecordContext(data: AppData, signature: CustomerSignatu
   const order = orderId ? data.orders.find((item) => item.id === orderId) : undefined;
   const serviceId = serviceRecord?.serviceId ?? order?.serviceId;
   const staffId = serviceRecord?.staffId ?? order?.staffId;
+  const productLines = [
+    ...(order?.productItems ?? []).map((item) => `${item.productName ?? nameOf(data.products, item.productId)} x${item.quantity}`),
+    ...(order?.giftProductItems ?? []).map((item) => `赠品 ${item.productName ?? nameOf(data.products, item.productId)} x${item.quantity}`),
+  ];
   return {
     customerName: nameOf(data.customers, signature.customerId),
     order,
     orderNo: order?.orderNo ?? "-",
-    serviceName: serviceId ? nameOf(data.services, serviceId) : "未关联服务",
+    serviceName: serviceId ? nameOf(data.services, serviceId) : productLines.join(" + ") || "收银",
     serviceRecord,
     staffName: staffId ? nameOf(data.staff, staffId) : "-",
   };
@@ -7900,8 +7932,8 @@ function customerSignatureIsExpired(signature: CustomerSignature, nowMs = Date.n
     && +new Date(signature.expiresAt ?? "") <= nowMs;
 }
 
-function signatureRecordCanCompleteService(context: ReturnType<typeof signatureRecordContext>) {
-  return Boolean(context.order?.serviceId || context.serviceRecord?.serviceId);
+function signatureRecordCanCompleteCheckout(context: ReturnType<typeof signatureRecordContext>) {
+  return Boolean(context.order || context.serviceRecord?.serviceId);
 }
 
 export function SignatureRecordDetail({ data, signature }: { data: AppData; signature: CustomerSignature }) {
@@ -7911,7 +7943,7 @@ export function SignatureRecordDetail({ data, signature }: { data: AppData; sign
     <section className="signature-record-detail">
       <div className="signature-record-meta">
         <span><small>客户</small>{context.customerName}</span>
-        <span><small>服务项目</small>{context.serviceName}</span>
+        <span><small>收银内容</small>{context.serviceName}</span>
         <span><small>服务人员</small>{context.staffName}</span>
         <span><small>订单编号</small>{context.orderNo}</span>
         <span><small>签名状态</small>{signature.status}</span>

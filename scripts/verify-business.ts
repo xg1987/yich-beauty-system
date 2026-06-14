@@ -268,12 +268,14 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     {
       staffId: registered.staff[0].id,
       serviceId: "v1",
+      guestName: "到店新客",
+      guestPhone: "13900000001",
       payMethod: "微信",
     },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(anonymousProjectServiceCheckout.orders[0].guestName, "", "project service checkout should allow optional walk-in name");
-  assert.equal(anonymousProjectServiceCheckout.orders[0].guestPhone, "", "project service checkout should allow optional walk-in phone");
+  assert.ok(anonymousProjectServiceCheckout.orders[0].customerId, "project service checkout should bind walk-in customer for signature");
+  assert.equal(anonymousProjectServiceCheckout.customerSignatures[0].orderId, anonymousProjectServiceCheckout.orders[0].id, "project service checkout should create customer signature");
   assert.throws(
     () =>
       checkoutOrder(
@@ -281,6 +283,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
         {
           staffId: registered.staff[0].id,
           serviceId: "v1",
+          guestName: "手机号错误客",
           guestPhone: "139000000001",
           payMethod: "微信",
         },
@@ -294,18 +297,22 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     {
       staffId: registered.staff[0].id,
       productItems: [{ productId: "p4", quantity: 1 }],
+      guestName: "商品新客",
+      guestPhone: "13900000002",
       payMethod: "微信",
     },
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(ownerProductCheckout.orders[0].staffId, registered.staff[0].id, "owner should be allowed as cashier for product-only checkout");
   assert.equal(ownerProductCheckout.orders[0].paidAmount, 199, "product-only checkout should keep product amount");
-  assert.equal(ownerProductCheckout.orders[0].guestName, "", "product-only checkout should allow anonymous walk-in orders");
+  assert.ok(ownerProductCheckout.orders[0].customerId, "product-only checkout should bind walk-in customer for signature");
+  assert.equal(ownerProductCheckout.customerSignatures[0].orderId, ownerProductCheckout.orders[0].id, "product-only checkout should create customer signature");
   assert.throws(
     () =>
       checkoutOrder(
         ownerProductCheckout,
         {
+          customerId: ownerProductCheckout.orders[0].customerId,
           staffId: registered.staff[0].id,
           productItems: [{ productId: "p4", quantity: 1 }],
           payMethod: "微信",
@@ -318,6 +325,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   const ownerProductCheckoutLater = checkoutOrder(
     ownerProductCheckout,
     {
+      customerId: ownerProductCheckout.orders[0].customerId,
       staffId: registered.staff[0].id,
       productItems: [{ productId: "p4", quantity: 1 }],
       payMethod: "微信",
@@ -335,6 +343,8 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
         {
           staffId: registered.staff[0].id,
           productItems: [{ productId: "p4", quantity: 1 }],
+          guestName: "零价测试客",
+          guestPhone: "13900000003",
           payMethod: "微信",
         },
         { idFactory: testId, now: fixedNow },
@@ -1727,7 +1737,8 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 
   assert.equal(checkedOut.orders[0].totalAmount, 199, "product-only checkout should charge selected product only");
   assert.equal(checkedOut.orders[0].paidAmount, 179, "product-only discount should not require approval");
-  assert.equal(checkedOut.orders[0].guestName, "陈女士", "product-only checkout should support walk-in customer");
+  assert.equal(checkedOut.customers.find((customer) => customer.id === checkedOut.orders[0].customerId)?.name, "陈女士", "product-only checkout should bind walk-in customer for signature");
+  assert.equal(checkedOut.customerSignatures[0].orderId, checkedOut.orders[0].id, "product-only checkout should require customer signature");
   assert.equal(checkedOut.orders[0].giftProductId, "p2", "product-only checkout should persist gift product");
   assert.equal(productStock(checkedOut, "p4"), productStockBefore - 1, "product checkout should reduce sold product stock");
   assert.equal(productStock(checkedOut, "p2"), giftStockBefore - 1, "product checkout should reduce gift product stock");

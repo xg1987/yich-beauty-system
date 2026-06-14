@@ -109,13 +109,13 @@ function timeRange(startAt: string, endAt: string) {
 
 function dateTitle(date: Date) {
   const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][date.getDay()];
-  return `${date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })} ${weekday}`;
+  return `${date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })} ${weekday}`;
 }
 
 function weekRangeLabel(dates: Date[]) {
   const first = dates[0];
   const last = dates.at(-1) ?? first;
-  return `${first.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })} - ${last.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })}`;
+  return `${first.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })} - ${last.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })}`;
 }
 
 function intervalsOverlap(leftStart: string, leftEnd: string, rightStart: string, rightEnd: string) {
