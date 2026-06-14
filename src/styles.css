@@ -22252,6 +22252,33 @@ textarea,
   opacity: 0.56;
 }
 
+.marketing-manual-copy {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.marketing-manual-copy span {
+  color: rgba(47, 37, 95, 0.66);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.marketing-manual-copy textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #2f255f;
+  line-height: 1.55;
+  resize: vertical;
+}
+
 .marketing-preview-summary {
   display: flex;
   flex-wrap: wrap;

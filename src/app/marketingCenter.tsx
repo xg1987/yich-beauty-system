@@ -92,7 +92,14 @@ function marketingCopySections(text: string) {
 }
 
 function marketingRecordContent(record: MarketingAiRecord) {
-  return record.text || record.videoUrl || record.imageDataUrl || "";
+  if (record.text) return record.text;
+  if (record.videoUrl) return record.videoUrl;
+  return [
+    marketingRecordTitle(record),
+    marketingRecordSummary(record),
+    marketingRecordMeta(record),
+    `费用：${formatAiCostRmb(record.cost)}`,
+  ].map(compactRecordText).filter(Boolean).join("\n");
 }
 
 function marketingRecordKindLabel(kind: MarketingAiRecord["kind"]) {
@@ -192,6 +199,8 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const [generationResult, setGenerationResult] = useState<Awaited<ReturnType<ApiActions["generateMarketingAi"]>> | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [copyResultStatus, setCopyResultStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [downloadResultStatus, setDownloadResultStatus] = useState<"idle" | "downloaded" | "failed">("idle");
+  const [manualCopyText, setManualCopyText] = useState("");
   const product = data.products.find((item) => item.id === productId) ?? data.products[0];
   const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
   const storeName = primaryStoreName(data) || "门店";
@@ -225,12 +234,16 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setGenerationResult(null);
     setSelectedRecordId("");
     setCopyResultStatus("idle");
+    setDownloadResultStatus("idle");
+    setManualCopyText("");
   }, [activeView]);
 
   useEffect(() => {
     if (contentState.enabled) return;
     setGenerationResult(null);
     setCopyResultStatus("idle");
+    setDownloadResultStatus("idle");
+    setManualCopyText("");
     setGenerationError(unavailableMessage());
   }, [contentState.enabled, contentState.label, permissionStateKey]);
 
@@ -246,6 +259,8 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setGenerationError("");
     setGenerationResult(null);
     setSelectedRecordId("");
+    setDownloadResultStatus("idle");
+    setManualCopyText("");
     try {
       setGenerationResult(await actions.generateMarketingAi({
         kind: "copy",
@@ -275,8 +290,20 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     }
   };
 
+  const dialogCopyText = () => {
+    if (dialogText) return dialogText;
+    if (dialogRecord) return marketingRecordContent(dialogRecord);
+    return [
+      "AI营销内容",
+      dialogSummaryItems.join(" · "),
+      `费用：${formatAiCostRmb(dialogCost)}`,
+    ].map(compactRecordText).filter(Boolean).join("\n");
+  };
+
   const copyGenerationText = async () => {
-    const copied = await copyTextToClipboard(dialogText || "");
+    const text = dialogCopyText();
+    const copied = await copyTextToClipboard(text);
+    setManualCopyText(copied ? "" : text);
     setCopyResultStatus(copied ? "copied" : "failed");
     window.setTimeout(() => setCopyResultStatus("idle"), 1800);
   };
@@ -288,9 +315,32 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   };
 
   const downloadPoster = () => {
-    if (!dialogImageDataUrl) return;
     const title = dialogRecord ? marketingRecordTitle(dialogRecord) : `AI营销内容-${new Date().toISOString().slice(0, 10)}`;
-    downloadDataUrl(dialogImageDataUrl, `${title}${dialogImageDataUrl.startsWith("data:image/svg+xml") ? ".svg" : ".png"}`);
+    if (dialogImageDataUrl) {
+      downloadDataUrl(dialogImageDataUrl, `${title}${dialogImageDataUrl.startsWith("data:image/svg+xml") ? ".svg" : ".png"}`);
+      setDownloadResultStatus("downloaded");
+      window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
+      return;
+    }
+    if (dialogText) {
+      const blob = new Blob([dialogText], { type: "text/plain;charset=utf-8" });
+      downloadDataUrl(URL.createObjectURL(blob), `${title}.txt`);
+      setDownloadResultStatus("downloaded");
+      window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
+      return;
+    }
+    setDownloadResultStatus("failed");
+    window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
+  };
+
+  const returnToRecords = () => {
+    setGenerationError("");
+    setGenerationResult(null);
+    setSelectedRecordId("");
+    setCopyResultStatus("idle");
+    setDownloadResultStatus("idle");
+    setManualCopyText("");
+    setActiveView("records");
   };
 
   return (
@@ -511,6 +561,8 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                   setGenerationResult(null);
                   setSelectedRecordId("");
                   setCopyResultStatus("idle");
+                  setDownloadResultStatus("idle");
+                  setManualCopyText("");
                 }}
               >
                 <X size={18} />
@@ -563,16 +615,22 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                         </div>
                       )}
                       <div className="marketing-result-actions">
-                        <button type="button" className="secondary-button" onClick={() => void copyGenerationText()} disabled={!dialogText}>
-                          <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "复制失败" : "复制文案"}
+                        <button type="button" className="secondary-button" onClick={() => void copyGenerationText()}>
+                          <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "已显示内容" : "复制内容"}
                         </button>
-                        <button type="button" className="secondary-button" onClick={downloadPoster} disabled={!dialogImageDataUrl}>
-                          <Download size={16} /> 下载图片
+                        <button type="button" className="secondary-button" onClick={downloadPoster}>
+                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogImageDataUrl ? "下载图片" : "下载文案"}
                         </button>
-                        <button type="button" className="secondary-button" disabled>
-                          <Sparkles size={16} /> 已保存记录
+                        <button type="button" className="secondary-button" onClick={returnToRecords}>
+                          <Eye size={16} /> 返回记录
                         </button>
                       </div>
+                      {manualCopyText && (
+                        <label className="marketing-manual-copy">
+                          <span>复制未被浏览器允许，请在这里手动复制</span>
+                          <textarea readOnly value={manualCopyText} onFocus={(event) => event.currentTarget.select()} />
+                        </label>
+                      )}
                     </article>
                   </div>
                 )}
