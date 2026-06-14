@@ -46,9 +46,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
   }
 
   componentDidCatch(error: Error, _errorInfo: ErrorInfo) {
-    if (isRecoverableLoadError(error)) {
-      void recoverFromStaleAssets();
-    }
+    if (isRecoverableLoadError(error)) return;
   }
 
   render() {
@@ -60,6 +58,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 export default function App() {
   const [pendingUpdate, setPendingUpdate] = useState<AppUpdateInfo | null>(null);
   const [updateRefreshing, setUpdateRefreshing] = useState(false);
+  const [assetRecoveryPending, setAssetRecoveryPending] = useState(false);
 
   useEffect(() => {
     const uninstallChecker = installAppUpdateChecker();
@@ -69,12 +68,12 @@ export default function App() {
     };
     const handlePreloadError = (event: Event) => {
       event.preventDefault();
-      void recoverFromStaleAssets();
+      setAssetRecoveryPending(true);
     };
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       if (!isRecoverableLoadError(event.reason)) return;
       event.preventDefault();
-      void recoverFromStaleAssets();
+      setAssetRecoveryPending(true);
     };
 
     window.addEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
@@ -101,7 +100,7 @@ export default function App() {
 
   return (
     <AppErrorBoundary>
-      <AppRoutes />
+      {assetRecoveryPending ? <StartupRecovery message="系统有新版本，点击后重新进入" onRecover={() => void recoverFromStaleAssets()} /> : <AppRoutes />}
       {pendingUpdate && (
         <AppUpdatePrompt
           info={pendingUpdate}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-function LoadingMinimal({ message, canRetry = false }: { message: string; canRetry?: boolean }) {
+function LoadingMinimal({ message, canRetry = false, onRetry }: { message: string; canRetry?: boolean; onRetry?: () => void }) {
   return (
     <div className="loading-page">
       <section className="loading-minimal">
@@ -10,7 +10,7 @@ function LoadingMinimal({ message, canRetry = false }: { message: string; canRet
         </div>
         <div className="loading-progress" aria-hidden="true"><i /></div>
         <small>{message}</small>
-        {canRetry && <div className="loading-actions"><button className="loading-action-primary" type="button" onClick={() => window.location.reload()}>重新进入</button></div>}
+        {canRetry && <div className="loading-actions"><button className="loading-action-primary" type="button" onClick={onRetry ?? (() => window.location.reload())}>重新进入</button></div>}
       </section>
     </div>
   );
@@ -21,11 +21,10 @@ export function StartupRecovery({ message = "正在更新应用", onRecover }: {
 
   useEffect(() => {
     const timer = window.setTimeout(() => setCanRetry(true), 1800);
-    onRecover();
     return () => window.clearTimeout(timer);
   }, [onRecover]);
 
-  return <LoadingMinimal message={message} canRetry={canRetry} />;
+  return <LoadingMinimal message={message} canRetry={canRetry} onRetry={onRecover} />;
 }
 
 export function RouteFallback() {

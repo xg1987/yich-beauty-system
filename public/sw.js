@@ -1,4 +1,4 @@
-const ICON_VERSION = "0.1.236";
+const ICON_VERSION = "0.1.237";
 const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}`;
 const APP_SHELL_ASSETS = [
   "/",
@@ -13,7 +13,6 @@ const APP_SHELL_ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL_ASSETS))
@@ -29,7 +28,7 @@ self.addEventListener("activate", (event) => {
           .filter((cacheName) => cacheName.startsWith("yich-beauty-pwa-") && cacheName !== CACHE_NAME)
           .map((cacheName) => caches.delete(cacheName)),
       ))
-      .then(() => self.clients.claim()),
+      .then(() => undefined),
   );
 });
 

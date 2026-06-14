@@ -63,6 +63,7 @@ import { buildCashierFlowRecords } from "../src/domain/cashierFlow";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData } from "../src/domain/types";
 import { money } from "../src/domain/utils";
+import { isVersionGreater } from "../src/appUpdate";
 
 const cloneSeed = (): AppData => structuredClone(testFixtureData);
 const fixedNow = () => "2026-05-24T01:00:00.000Z";
@@ -79,6 +80,13 @@ function card(data: AppData, cardId: string) {
   const result = data.memberCards.find((item) => item.id === cardId);
   assert.ok(result, `missing card ${cardId}`);
   return result;
+}
+
+{
+  assert.equal(isVersionGreater("0.1.237", "0.1.236"), true, "higher patch version should be updateable");
+  assert.equal(isVersionGreater("0.1.236", "0.1.237"), false, "lower server version should not be updateable");
+  assert.equal(isVersionGreater("0.1.237", "0.1.237"), false, "same version should not be updateable");
+  assert.equal(isVersionGreater("0.2.0", "0.1.237"), true, "higher minor version should be updateable");
 }
 
 function signedRefundSignature(data: AppData, customerId: string, cardName = "尊享储值卡", refundAmount = 500, payMethod = "微信") {
