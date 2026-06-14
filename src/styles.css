@@ -21803,6 +21803,62 @@ textarea,
   font-size: 12px;
 }
 
+.marketing-type-panel {
+  display: grid;
+  gap: 12px;
+  border-left: 6px solid #6f42c1;
+}
+
+.marketing-type-panel .marketing-section-head {
+  margin-bottom: 0;
+}
+
+.marketing-type-panel .marketing-output-mode-grid button {
+  background:
+    radial-gradient(circle at 92% 10%, rgba(111, 66, 193, 0.07), transparent 38%),
+    rgba(248, 244, 255, 0.92);
+}
+
+.marketing-type-panel .marketing-output-mode-grid button:disabled {
+  cursor: not-allowed;
+  border-color: rgba(111, 66, 193, 0.12);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(148, 163, 184, 0.08), transparent 38%),
+    rgba(244, 241, 249, 0.76);
+  box-shadow: none;
+  opacity: 0.72;
+}
+
+.theme-day .marketing-type-panel .marketing-output-mode-grid button strong,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button strong {
+  color: #25134f;
+}
+
+.theme-day .marketing-type-panel .marketing-output-mode-grid button span,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button span {
+  color: rgba(37, 19, 79, 0.76);
+}
+
+.theme-day .marketing-type-panel .marketing-output-mode-grid button.active strong,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button.active strong {
+  color: #2d1768;
+}
+
+.theme-day .marketing-type-panel .marketing-output-mode-grid button.active span,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button.active span {
+  color: rgba(45, 23, 104, 0.82);
+}
+
+.theme-day .marketing-type-panel .marketing-output-mode-grid button:disabled strong,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button:disabled strong {
+  color: rgba(47, 37, 95, 0.58);
+}
+
+.theme-day .marketing-type-panel .marketing-output-mode-grid button:disabled span,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button:disabled span {
+  color: rgba(47, 37, 95, 0.48);
+}
+
 .marketing-workspace {
   grid-template-columns: 1fr;
   align-items: start;
@@ -21962,6 +22018,7 @@ textarea,
 
 .marketing-node-tabs button,
 .marketing-node-grid button,
+.marketing-output-mode-grid button,
 .marketing-style-grid button {
   border: 1px solid rgba(111, 66, 193, 0.16);
   background: rgba(255, 255, 255, 0.9);
@@ -22077,6 +22134,54 @@ textarea,
   gap: 10px;
 }
 
+.marketing-output-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marketing-output-mode-grid button {
+  min-width: 0;
+  min-height: 74px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 16px;
+  text-align: left;
+  color: #25134f;
+}
+
+.marketing-output-mode-grid button strong {
+  color: #25134f;
+  font-size: 16px;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.marketing-output-mode-grid button span {
+  color: rgba(37, 19, 79, 0.76);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
+.marketing-output-mode-grid button.active {
+  border-color: rgba(111, 66, 193, 0.48);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(42, 143, 125, 0.12), transparent 38%),
+    rgba(111, 66, 193, 0.1);
+  box-shadow: inset 4px 0 0 rgba(111, 66, 193, 0.58);
+}
+
+.marketing-output-mode-grid button.active strong {
+  color: #2d1768;
+}
+
+.marketing-output-mode-grid button.active span {
+  color: rgba(45, 23, 104, 0.82);
+}
+
 .marketing-style-grid button {
   min-width: 0;
   min-height: 58px;
@@ -22188,6 +22293,15 @@ textarea,
   padding: 14px;
 }
 
+.marketing-video-options {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
 .marketing-result-panel {
   display: grid;
   gap: 12px;
@@ -22199,6 +22313,7 @@ textarea,
 
 .marketing-result-status,
 .marketing-result-error,
+.marketing-result-note,
 .marketing-result-copy p {
   margin: 0;
   color: rgba(47, 37, 95, 0.68);
@@ -22396,6 +22511,45 @@ textarea,
   border-radius: 14px;
   border: 1px solid rgba(111, 66, 193, 0.14);
   box-shadow: 0 16px 34px rgba(63, 39, 112, 0.12);
+}
+
+.marketing-result-video {
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 9 / 16;
+  justify-self: center;
+  border-radius: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  background: #120f1d;
+  box-shadow: 0 16px 34px rgba(63, 39, 112, 0.14);
+}
+
+.marketing-video-result-card {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1px dashed rgba(111, 66, 193, 0.22);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(111, 66, 193, 0.13), transparent 42%),
+    rgba(255, 255, 255, 0.68);
+  color: #2f255f;
+  text-align: center;
+}
+
+.marketing-video-result-card strong {
+  font-size: 16px;
+  font-weight: 920;
+}
+
+.marketing-video-result-card span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+  font-weight: 760;
+  overflow-wrap: anywhere;
 }
 
 .marketing-chip-row {
@@ -23211,6 +23365,7 @@ textarea,
   .marketing-form-actions,
   .marketing-preview-actions,
   .marketing-node-grid,
+  .marketing-output-mode-grid,
   .marketing-style-grid,
   .poster-upload-row,
   .ai-permission-status-grid,
@@ -23222,6 +23377,10 @@ textarea,
   .marketing-config-row {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .marketing-type-panel .marketing-output-mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .marketing-result-overlay {

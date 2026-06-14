@@ -15,6 +15,7 @@ import {
 } from "./AuthenticatedApp";
 
 type MarketingViewKey = "content" | "records";
+type MarketingGenerationKind = "copy" | "image" | "video" | "talk";
 type MarketingNode = { title: string; badge: string; description: string; hint?: string; dateLabel?: string };
 type MarketingCalendarNode = {
   title: string;
@@ -73,6 +74,12 @@ const marketingCalendarNodes: MarketingCalendarNode[] = [
 const customerTypes = ["新客户", "老客户", "沉睡客户"];
 const bodyStates = ["怕冷湿重", "久坐肩颈", "熬夜暗沉", "皮肤干燥", "睡眠不好"];
 const marketingGoals = ["复购提醒", "项目转化", "沉睡唤醒", "护理建议"];
+const generationModes: Array<{ kind: MarketingGenerationKind; title: string; description: string; locked?: boolean }> = [
+  { kind: "copy", title: "文案", description: "输出配套话术，适合直接发布" },
+  { kind: "image", title: "海报", description: "调用图片模型生成正式海报" },
+  { kind: "video", title: "视频", description: "调试中，暂不开放", locked: true },
+  { kind: "talk", title: "口播", description: "调试中，暂不开放", locked: true },
+];
 const posterStyles = [
   { title: "中医养生风", description: "宣纸、草药、药灸、温和调理" },
   { title: "节气海报", description: "三伏、三九、换季、时令提醒" },
@@ -81,6 +88,9 @@ const posterStyles = [
 ];
 const channels = ["朋友圈", "小红书", "私聊", "社群"];
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
+const videoRatios = ["9:16", "1:1", "16:9"];
+const videoDurations = [5, 10, 15];
+const MAX_MARKETING_ASSET_BYTES = 8 * 1024 * 1024;
 const USD_TO_CNY_DISPLAY_RATE = 6.77;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -95,6 +105,20 @@ function parseCalendarDate(value: string) {
 
 function formatMarketingDate(value: Date) {
   return value.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function readMarketingImageFile(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) return Promise.reject(new Error("请上传图片文件"));
+  if (file.size > MAX_MARKETING_ASSET_BYTES) return Promise.reject(new Error("单张图片不能超过 8MB"));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("图片读取失败"));
+    };
+    reader.onerror = () => reject(new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function marketingNodeTimingLabel(daysUntil: number) {
@@ -210,7 +234,7 @@ function marketingRecordContent(record: MarketingAiRecord) {
 }
 
 function marketingRecordKindLabel(kind: MarketingAiRecord["kind"]) {
-  return kind === "image" ? "海报" : kind === "video" ? "视频" : kind === "talk" ? "话术" : "营销内容";
+  return kind === "image" ? "海报" : kind === "video" ? "视频" : kind === "talk" ? "口播" : "文案";
 }
 
 function compactRecordText(value?: string) {
@@ -297,11 +321,19 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const [bodyState, setBodyState] = useState("怕冷湿重");
   const [channel, setChannel] = useState("朋友圈");
   const [marketingGoal, setMarketingGoal] = useState("复购提醒");
+  const [generationKind, setGenerationKind] = useState<MarketingGenerationKind>("copy");
   const [posterStyle, setPosterStyle] = useState("中医养生风");
   const [posterSize, setPosterSize] = useState("朋友圈 1:1");
+  const [videoRatio, setVideoRatio] = useState("9:16");
+  const [videoDuration, setVideoDuration] = useState(5);
+  const [videoScript, setVideoScript] = useState("门店护理环境、产品陈列、护理手法和预约引导。");
   const [customRequirement, setCustomRequirement] = useState("");
   const [productImageName, setProductImageName] = useState("");
+  const [productImageDataUrl, setProductImageDataUrl] = useState("");
+  const [modelImageName, setModelImageName] = useState("");
+  const [modelImageDataUrl, setModelImageDataUrl] = useState("");
   const [sceneImageName, setSceneImageName] = useState("");
+  const [sceneImageDataUrl, setSceneImageDataUrl] = useState("");
   const [generationBusy, setGenerationBusy] = useState(false);
   const [generationError, setGenerationError] = useState("");
   const [generationResult, setGenerationResult] = useState<Awaited<ReturnType<ApiActions["generateMarketingAi"]>> | null>(null);
@@ -314,7 +346,10 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const storeName = primaryStoreName(data) || "门店";
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
   const aiPermissions = storeAiUsagePermissions(data);
-  const contentState = aiCapabilityUsageState(aiConfig, aiPermissions, session.user.role, "copy");
+  const selectedCapability = generationKind === "image" ? "image" : generationKind === "video" ? "video" : "copy";
+  const contentState = aiCapabilityUsageState(aiConfig, aiPermissions, session.user.role, selectedCapability);
+  const selectedGenerationMode = generationModes.find((item) => item.kind === generationKind) ?? generationModes[0];
+  const selectedModeLocked = Boolean(selectedGenerationMode.locked);
   const selectedNode = todayMarketingNodes.find((item) => item.title === marketingNode) ?? todayMarketingNodes[0];
   const audienceSummary = `${customerType}，${bodyState}`;
   const nodeBrief = [selectedNode.title, selectedNode.dateLabel, selectedNode.hint].filter(Boolean).join(" · ");
@@ -325,10 +360,16 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   ].filter(Boolean).join("\n");
   const previewSummaryItems = [marketingNode, customerType, bodyState, channel, marketingGoal];
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
+  const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
   const selectedMarketingRecord = marketingAiRecords.find((record) => record.id === selectedRecordId);
   const dialogRecord = selectedMarketingRecord ?? generationResult?.record;
   const dialogText = dialogRecord?.text ?? generationResult?.text;
   const dialogImageDataUrl = dialogRecord?.imageDataUrl ?? generationResult?.imageDataUrl;
+  const dialogVideoUrl = dialogRecord?.videoUrl ?? generationResult?.videoUrl;
+  const dialogVideoTaskId = dialogRecord?.taskId ?? generationResult?.taskId;
+  const dialogVideoStatus = dialogRecord?.status ?? generationResult?.status;
+  const dialogKind = dialogRecord?.kind ?? generationResult?.kind ?? generationKind;
+  const dialogKindTitle = dialogKind === "image" ? "AI海报" : dialogKind === "video" ? "AI短视频" : dialogKind === "talk" ? "AI口播" : "AI营销文案";
   const dialogCost = dialogRecord?.cost ?? generationResult?.cost;
   const dialogProvider = dialogRecord?.provider ?? generationResult?.provider;
   const dialogModel = dialogRecord?.model ?? generationResult?.model;
@@ -339,10 +380,36 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const showAiTechnicalDetails = session.user.role === "superadmin";
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = () => {
-    if (contentState.label === "未开通") return "当前门店未开放 AI 营销内容权限";
-    if (contentState.label === "平台未启用") return "AI 营销内容平台未启用";
-    return "AI 营销内容暂不可用";
+    const label = selectedGenerationMode.title;
+    if (contentState.label === "未开通") return `当前门店未开放 ${label} 权限`;
+    if (contentState.label === "平台未启用") return `${label} 平台未启用`;
+    return `${label} 暂不可用`;
   };
+
+  const handleMarketingImageChange = async (
+    file: File | undefined,
+    setName: (value: string) => void,
+    setDataUrl: (value: string) => void,
+  ) => {
+    if (!file) {
+      setName("");
+      setDataUrl("");
+      return;
+    }
+    try {
+      setGenerationError("");
+      setName(file.name);
+      setDataUrl(await readMarketingImageFile(file));
+    } catch (caught) {
+      setName("");
+      setDataUrl("");
+      setGenerationError(caught instanceof Error ? caught.message : "图片读取失败");
+    }
+  };
+
+  useEffect(() => {
+    if (selectedModeLocked) setGenerationKind("copy");
+  }, [selectedModeLocked]);
 
   useEffect(() => {
     setGenerationError("");
@@ -351,7 +418,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setCopyResultStatus("idle");
     setDownloadResultStatus("idle");
     setManualCopyText("");
-  }, [activeView]);
+  }, [activeView, generationKind]);
 
   useEffect(() => {
     if (contentState.enabled) return;
@@ -370,6 +437,19 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
       setGenerationError(unavailableMessage());
       return;
     }
+    if (selectedModeLocked) {
+      setGenerationBusy(false);
+      setGenerationResult(null);
+      setGenerationError("视频和口播正在调试中，请先使用文案或海报");
+      return;
+    }
+    if ((generationKind === "image" || generationKind === "video") && !productImageDataUrl && !modelImageDataUrl && !sceneImageDataUrl) {
+      setGenerationBusy(false);
+      setGenerationResult(null);
+      setCopyResultStatus("idle");
+      setGenerationError("请先上传产品图、模特图或门店图，再生成海报/视频");
+      return;
+    }
     setGenerationBusy(true);
     setGenerationError("");
     setGenerationResult(null);
@@ -378,7 +458,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setManualCopyText("");
     try {
       setGenerationResult(await actions.generateMarketingAi({
-        kind: "copy",
+        kind: generationKind,
         storeName,
         productName: product?.name,
         serviceName: service?.name,
@@ -394,8 +474,16 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
         posterTitle: marketingNode,
         posterOffer: marketingGoal,
         productImageName,
+        productImageDataUrl,
+        modelImageName,
+        modelImageDataUrl,
         sceneImageName,
+        sceneImageDataUrl,
         customRequirement: generationRequirement,
+        videoRatio,
+        videoDuration,
+        videoScript,
+        talkScene: `${marketingNode} · ${marketingGoal} · ${channel}`,
       }));
       setCopyResultStatus("idle");
     } catch (caught) {
@@ -407,6 +495,8 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
 
   const dialogCopyText = () => {
     if (dialogText) return dialogText;
+    if (dialogVideoUrl) return dialogVideoUrl;
+    if (dialogVideoTaskId) return `视频任务：${dialogVideoTaskId}${dialogVideoStatus ? `\n状态：${dialogVideoStatus}` : ""}`;
     if (dialogRecord) return marketingRecordContent(dialogRecord);
     return [
       "AI营销内容",
@@ -444,6 +534,17 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
       window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
       return;
     }
+    if (dialogVideoUrl) {
+      const link = document.createElement("a");
+      link.href = dialogVideoUrl;
+      link.download = `${title}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setDownloadResultStatus("downloaded");
+      window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
+      return;
+    }
     setDownloadResultStatus("failed");
     window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
   };
@@ -466,12 +567,37 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
         title="营销中心"
       />
 
+      <section className="workbench-panel marketing-type-panel" aria-label="生成类型">
+        <div className="marketing-section-head">
+          <div>
+            <strong>生成类型</strong>
+          </div>
+          <small>{selectedGenerationMode.title}</small>
+        </div>
+        <div className="marketing-output-mode-grid" aria-label="生成内容类型">
+          {generationModes.map((item) => (
+            <button
+              type="button"
+              key={item.kind}
+              className={generationKind === item.kind ? "active" : ""}
+              disabled={item.locked}
+              onClick={() => {
+                if (!item.locked) setGenerationKind(item.kind);
+              }}
+            >
+              <strong>{item.title}</strong>
+              <span>{item.description}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="marketing-mode-tabs" aria-label="营销中心视图">
         <button type="button" className={activeView === "content" ? "active" : ""} onClick={() => setActiveView("content")}>
           <Sparkles size={16} /> 营销内容
         </button>
         <button type="button" className={activeView === "records" ? "active" : ""} onClick={() => setActiveView("records")}>
-          <Eye size={16} /> 生成记录 <span>{marketingAiRecords.length}</span>
+          <Eye size={16} /> 生成记录 <span>{typedMarketingAiRecords.length}</span>
         </button>
       </section>
 
@@ -551,10 +677,54 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               />
             </label>
 
+            {(generationKind === "image" || generationKind === "video") && (
+              <div className="marketing-context-block marketing-primary-block">
+                <div className="marketing-section-head">
+                  <div>
+                    <strong>素材图片</strong>
+                    <span>{generationKind === "video" ? "上传产品/模特/门店图生成视频素材" : "上传产品/模特/门店图生成正式海报"}</span>
+                  </div>
+                  <small>至少 1 张</small>
+                </div>
+                <div className="marketing-upload-grid marketing-material-grid">
+                  <label className="marketing-upload-box">
+                    <Plus size={18} />
+                    <strong>产品图</strong>
+                    <span>{productImageName || "上传产品图片"}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) => void handleMarketingImageChange(event.target.files?.[0], setProductImageName, setProductImageDataUrl)}
+                    />
+                  </label>
+                  <label className="marketing-upload-box">
+                    <Plus size={18} />
+                    <strong>模特图</strong>
+                    <span>{modelImageName || "上传模特图片"}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) => void handleMarketingImageChange(event.target.files?.[0], setModelImageName, setModelImageDataUrl)}
+                    />
+                  </label>
+                  <label className="marketing-upload-box">
+                    <Plus size={18} />
+                    <strong>门店图</strong>
+                    <span>{sceneImageName || "上传门店图片"}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) => void handleMarketingImageChange(event.target.files?.[0], setSceneImageName, setSceneImageDataUrl)}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
             <details className="marketing-advanced-options">
               <summary>
                 <span>更多条件</span>
-                <small>商品、项目、身体状态、图片素材</small>
+                <small>商品、项目、身体状态和生成设置</small>
               </summary>
               <div className="marketing-advanced-body">
                 <div className="marketing-form-grid">
@@ -600,40 +770,59 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                     </button>
                   ))}
                 </div>
-                <div className="marketing-upload-grid">
-                  <label className="marketing-upload-box">
-                    <Plus size={18} />
-                    <strong>产品图</strong>
-                    <span>{productImageName || "上传图片"}</span>
-                    <input type="file" accept="image/*" onChange={(event) => setProductImageName(event.target.files?.[0]?.name ?? "")} />
-                  </label>
-                  <label className="marketing-upload-box">
-                    <Plus size={18} />
-                    <strong>门店素材</strong>
-                    <span>{sceneImageName || "上传图片"}</span>
-                    <input type="file" accept="image/*" onChange={(event) => setSceneImageName(event.target.files?.[0]?.name ?? "")} />
-                  </label>
-                </div>
                 <label>
                   <span>海报尺寸</span>
                   <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
                     {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
                 </label>
+                {generationKind === "video" && (
+                  <div className="marketing-video-options">
+                    <div className="marketing-section-head compact">
+                      <div>
+                        <strong>视频设置</strong>
+                        <span>比例、时长和画面重点</span>
+                      </div>
+                    </div>
+                    <div className="marketing-form-grid">
+                      <label>
+                        <span>视频比例</span>
+                        <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value)}>
+                          {videoRatios.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        <span>视频时长</span>
+                        <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
+                          {videoDurations.map((item) => <option key={item} value={item}>{item} 秒</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <label>
+                      <span>视频脚本重点</span>
+                      <textarea
+                        value={videoScript}
+                        onChange={(event) => setVideoScript(event.target.value)}
+                        rows={3}
+                        placeholder="例如：先展示门店环境，再展示药浴材料、护理手法和预约引导。"
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
             </details>
             <div className="marketing-form-actions single">
               <button type="button" className="primary-button" disabled={!contentState.enabled || generationBusy} onClick={generate}>
-                <Sparkles size={16} /> {generationBusy ? "生成中..." : "生成营销内容"}
+                <Sparkles size={16} /> {generationBusy ? "生成中..." : `生成${selectedGenerationMode.title}`}
               </button>
             </div>
           </div>
         </section>
       ) : (
         <section className="workbench-panel marketing-record-panel">
-          <PanelTitle icon={<Sparkles size={18} />} title="生成记录" action={`${marketingAiRecords.length} 条`} />
+          <PanelTitle icon={<Sparkles size={18} />} title="生成记录" action={`${selectedGenerationMode.title} · ${typedMarketingAiRecords.length} 条`} />
           <div className="marketing-record-list">
-            {marketingAiRecords.slice(0, 12).map((record) => (
+            {typedMarketingAiRecords.slice(0, 12).map((record) => (
               <article key={record.id} className="marketing-record-item">
                 <div className="marketing-record-main">
                   <span className="marketing-record-type">{marketingRecordKindLabel(record.kind)}</span>
@@ -652,7 +841,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                 </div>
               </article>
             ))}
-            {marketingAiRecords.length === 0 && <p className="empty">暂无生成记录</p>}
+            {typedMarketingAiRecords.length === 0 && <p className="empty">暂无{selectedGenerationMode.title}生成记录</p>}
           </div>
         </section>
       )}
@@ -663,7 +852,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
             <div className="marketing-result-dialog-head">
               <div>
                 <span>生成结果</span>
-                <h2 id="marketing-result-title">AI营销内容</h2>
+                <h2 id="marketing-result-title">{dialogKindTitle}</h2>
               </div>
               <button
                 type="button"
@@ -686,18 +875,32 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
             </div>
             <div className="marketing-result-body">
               <div className="marketing-result-panel">
-                {generationBusy && <p className="marketing-result-status">AI 正在生成营销内容，请稍候。</p>}
+                {generationBusy && <p className="marketing-result-status">AI 正在生成{selectedGenerationMode.title}，请稍候。</p>}
                 {generationError && <p className="marketing-result-error">{generationError}</p>}
-                {(dialogText || dialogImageDataUrl) && (
+                {(dialogText || dialogImageDataUrl || dialogVideoUrl || dialogVideoTaskId) && (
                   <div className="marketing-content-result-grid">
                     <article className="marketing-poster-card">
                       <div className="marketing-result-head">
                         <div>
-                          <strong>海报预览</strong>
-                          <span>和文案同一条记录</span>
+                          <strong>{dialogKind === "video" ? "视频结果" : dialogKind === "talk" ? "口播内容" : "海报预览"}</strong>
+                          <span>{dialogKind === "image" ? "由图片模型生成" : dialogKind === "video" ? "视频任务状态" : dialogKind === "talk" ? "适合视频号/直播口播" : "和文案同一条记录"}</span>
                         </div>
                       </div>
-                      {dialogImageDataUrl ? (
+                      {dialogVideoUrl ? (
+                        <video className="marketing-result-video" src={dialogVideoUrl} controls playsInline />
+                      ) : dialogKind === "video" ? (
+                        <div className="marketing-video-result-card">
+                          <Megaphone size={28} />
+                          <strong>{dialogVideoStatus || "视频任务已创建"}</strong>
+                          {dialogVideoTaskId && <span>任务 ID：{dialogVideoTaskId}</span>}
+                        </div>
+                      ) : dialogKind === "talk" ? (
+                        <div className="marketing-video-result-card">
+                          <Megaphone size={28} />
+                          <strong>口播脚本已生成</strong>
+                          <span>右侧可复制内容</span>
+                        </div>
+                      ) : dialogImageDataUrl ? (
                         <img className="marketing-result-image" src={dialogImageDataUrl} alt="AI 营销海报" />
                       ) : (
                         <div className="marketing-poster-placeholder">
@@ -709,7 +912,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                     <article className="marketing-result-copy">
                       <div className="marketing-result-head">
                         <div>
-                          <strong>配套文案</strong>
+                          <strong>{dialogText ? "配套文案" : "生成信息"}</strong>
                           <span>{showAiTechnicalDetails && dialogProvider && dialogModel ? `${AI_PROVIDER_LABELS[dialogProvider as keyof typeof AI_PROVIDER_LABELS] ?? dialogProvider} · ${dialogModel}` : "本次生成"}</span>
                         </div>
                         <div className="marketing-cost-pill">
@@ -726,6 +929,12 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                             </article>
                           ))}
                         </div>
+                      )}
+                      {!dialogText && dialogKind === "image" && (
+                        <p className="marketing-result-note">这张海报由图片模型生成，可直接下载用于发布。</p>
+                      )}
+                      {!dialogText && dialogKind === "video" && (
+                        <p className="marketing-result-note">{dialogVideoUrl ? "视频已返回，可在线播放或下载。" : "视频任务已提交，稍后可在生成记录里查看状态。"}</p>
                       )}
                       <div className="marketing-result-actions">
                         <button type="button" className="secondary-button" onClick={() => void copyGenerationText()}>

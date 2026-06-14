@@ -166,7 +166,11 @@ export function createApiClient(getToken: () => string | undefined) {
       posterTitle?: string;
       posterOffer?: string;
       productImageName?: string;
+      productImageDataUrl?: string;
+      modelImageName?: string;
+      modelImageDataUrl?: string;
       sceneImageName?: string;
+      sceneImageDataUrl?: string;
       customRequirement?: string;
       videoRatio?: string;
       videoDuration?: number;

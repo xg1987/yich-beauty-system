@@ -2431,6 +2431,44 @@ function marketingImageSize(posterSize: string | undefined) {
   return "1024x1024";
 }
 
+type MarketingImageAsset = {
+  key: "product" | "model" | "scene";
+  label: string;
+  name: string;
+  dataUrl: string;
+  mimeType: string;
+};
+
+function marketingImageAssets(body: JsonBody): MarketingImageAsset[] {
+  return [
+    marketingImageAsset(body, "product", "产品图"),
+    marketingImageAsset(body, "model", "模特图"),
+    marketingImageAsset(body, "scene", "门店图"),
+  ].filter(Boolean) as MarketingImageAsset[];
+}
+
+function marketingImageAsset(body: JsonBody, key: MarketingImageAsset["key"], label: string): MarketingImageAsset | undefined {
+  const dataUrl = optionalString(body, `${key}ImageDataUrl`);
+  if (!dataUrl) return undefined;
+  const match = dataUrl.match(/^data:(image\/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error(`${label}格式不正确，请上传 PNG、JPG 或 WebP 图片`);
+  const base64Bytes = Math.floor(match[2].length * 0.75);
+  if (base64Bytes > 8 * 1024 * 1024) throw new Error(`${label}不能超过 8MB`);
+  return {
+    key,
+    label,
+    name: marketingText(body[`${key}ImageName`], `${label}.${match[1].includes("png") ? "png" : match[1].includes("webp") ? "webp" : "jpg"}`),
+    dataUrl,
+    mimeType: match[1] === "image/jpg" ? "image/jpeg" : match[1],
+  };
+}
+
+async function marketingImageBlob(asset: MarketingImageAsset) {
+  const response = await fetch(asset.dataUrl);
+  if (!response.ok) throw new Error(`${asset.label}读取失败`);
+  return response.blob();
+}
+
 function aiUsageRecord(usage: unknown) {
   return usage && typeof usage === "object" ? usage as Record<string, unknown> : {};
 }
@@ -2526,22 +2564,23 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
     return `请为美业门店生成一套${channel}营销内容。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement || "无"}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，也要能配合海报标题使用；围绕时间节点和客户当前状态来写，不要把客户身份、身体状态、营销目的混为一类；不要虚假承诺，不要夸大医疗效果。`;
   }
   if (kind === "talk") {
-    const customerName = marketingText(body.customerName, audience);
-    const talkScene = marketingText(body.talkScene, "复购邀约");
-    return `请生成一段美业门店私聊话术。客户：${customerName}。场景：${talkScene}。商品：${productName}。项目：${serviceName}。${nodeContext}要求：自然、短句、像真人微信沟通，包含问候、推荐理由和预约引导；先基于客户消费节点和身体状态给出关怀，再自然推荐项目，不要夸大效果。`;
+    const talkScene = marketingText(body.talkScene, `${channel}口播`);
+    return `请生成一段美业门店口播脚本。使用场景：${talkScene}。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement || "无"}。要求：中文，适合短视频、视频号或直播开场口播；节奏自然，短句，像店长或美容师真人介绍；包含开场钩子、客户痛点、项目推荐理由、到店预约引导；不要虚假承诺，不要夸大医疗效果。`;
   }
   if (kind === "image") {
     const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
     const posterTitle = marketingText(body.posterTitle, "到店护理礼遇");
     const posterOffer = marketingText(body.posterOffer, "限时体验价");
-    const productImageName = marketingText(body.productImageName, "未上传产品图");
-    const sceneImageName = marketingText(body.sceneImageName, "未上传场景图");
-    return `生成一张高端美业门店营销海报，中文标题：${posterTitle}，活动信息：${posterOffer}，商品：${productName}，项目：${serviceName}，门店：${storeName}，尺寸用途：${posterSize}。${nodeContext}参考素材名称：产品图 ${productImageName}，场景图 ${sceneImageName}。画面要干净、专业，适合手机端传播；如果是中医养生或节气海报风格，可使用宣纸、草药、药灸、温和调理等视觉元素；避免医疗承诺。`;
+    const assets = marketingImageAssets(body);
+    const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
+    return `基于用户上传的产品图、模特图或门店图，生成一张可直接用于美业门店发布的高端中文营销海报。主题：${posterTitle}。行动信息：${posterOffer}。门店：${storeName}。项目：${serviceName}。商品：${productName}。尺寸用途：${posterSize}。${nodeContext}参考素材：${assetSummary}。素材使用要求：保留上传产品的外观、包装、颜色和关键卖点；如果有模特图，保持人物自然真实，不改变身份特征；如果有门店图，延续门店环境质感。视觉要求：真实高级美业/中式养生商业海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面要有真实质感的护理环境、草药/艾灸/药浴/护肤产品或干净门店场景，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；避免医疗承诺。`;
   }
   const videoRatio = marketingText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
   const videoScript = marketingText(body.videoScript, "门店护理环境、产品陈列、护理手法和预约引导。");
-  return `生成美业门店宣传短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，适合短视频发布，避免医疗承诺。`;
+  const assets = marketingImageAssets(body);
+  const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
+  return `基于用户上传素材生成美业门店产品展示短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}参考素材：${assetSummary}。比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，优先展示上传产品、模特或门店场景，保持产品外观和包装识别度；适合短视频发布，避免医疗承诺。`;
 }
 
 function escapeSvgText(value: string) {
@@ -2577,9 +2616,8 @@ function marketingPosterDataUrl(body: JsonBody, text: string) {
   const bodyState = marketingText(body.bodyState, "身体状态");
   const posterStyle = marketingText(body.posterStyle, "中医养生风");
   const customRequirement = optionalString(body, "customRequirement");
-  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
   const title = compactMarketingLine(marketingNode, "夏季祛湿", 18);
-  const headlineLines = marketingPosterLines(lines[0] ?? `${marketingNode} · ${marketingGoal}`, "把寒湿慢慢排出去", 18, 9, 2);
+  const headlineLines = marketingPosterLines(`${marketingNode} · ${marketingGoal}`, "把寒湿慢慢排出去", 18, 9, 2);
   const subtitleLines = marketingPosterLines(customRequirement || `${serviceName} · ${bodyState}`, "适合门店朋友圈发布", 24, 16, 2);
   const footer = compactMarketingLine(`${storeName}｜${marketingGoal}`, "门店护理提醒", 26);
   const wellness = posterStyle.includes("中医") || posterStyle.includes("节气");
@@ -2648,7 +2686,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
 }): MarketingAiRecord {
   const title = {
     copy: "AI营销内容",
-    talk: "私聊话术",
+    talk: "AI口播",
     image: "AI海报",
     video: "AI视频",
   }[result.kind];
@@ -2686,20 +2724,25 @@ async function runAiImageTest(data: AppData, body: JsonBody) {
   const size = optionalAiString(body, "size", 20) ?? config.defaultSize;
   const qualityInput = optionalAiString(body, "quality", 20) ?? config.defaultQuality;
   const quality = qualityInput === "standard" ? "medium" : qualityInput;
-  const { payload, elapsedMs } = await fetchProviderJson("OpenAI", "https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: config.model,
-      prompt,
-      size,
-      quality,
-      n: 1,
-    }),
-  });
+  const assets = marketingImageAssets(body);
+  const request = assets.length ? await openAiImageEditRequest(config, prompt, size, quality, assets) : {
+    url: "https://api.openai.com/v1/images/generations",
+    init: {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: config.model,
+        prompt,
+        size,
+        quality,
+        n: 1,
+      }),
+    } satisfies RequestInit,
+  };
+  const { payload, elapsedMs } = await fetchProviderJson("OpenAI", request.url, request.init);
   const output = Array.isArray(payload.data) ? payload.data[0] as { b64_json?: unknown; url?: unknown; revised_prompt?: unknown } | undefined : undefined;
   const b64 = typeof output?.b64_json === "string" ? output.b64_json : undefined;
   const imageUrl = typeof output?.url === "string" ? output.url : undefined;
@@ -2715,6 +2758,28 @@ async function runAiImageTest(data: AppData, body: JsonBody) {
   };
 }
 
+async function openAiImageEditRequest(config: AiImageModelConfig, prompt: string, size: string, quality: string, assets: MarketingImageAsset[]) {
+  const form = new FormData();
+  form.append("model", config.model);
+  form.append("prompt", prompt);
+  form.append("size", size);
+  form.append("quality", quality);
+  form.append("n", "1");
+  form.append("output_format", "png");
+  form.append("input_fidelity", "high");
+  for (const asset of assets.slice(0, 16)) {
+    form.append("image[]", await marketingImageBlob(asset), asset.name);
+  }
+  return {
+    url: "https://api.openai.com/v1/images/edits",
+    init: {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+      body: form,
+    } satisfies RequestInit,
+  };
+}
+
 async function runAiVideoTest(data: AppData, body: JsonBody) {
   const config = aiGenerationConfigFromData(data);
   const providerKey = optionalAiString(body, "provider", 20) as AiVideoProviderConfig["provider"] | undefined;
@@ -2725,13 +2790,14 @@ async function runAiVideoTest(data: AppData, body: JsonBody) {
   const durationSeconds = aiVideoDurations.includes(Number(body.durationSeconds)) ? Number(body.durationSeconds) : activeProvider.defaultDurationSeconds;
   const resolution = aiVideoResolutions.includes(body.resolution as AiVideoResolution) ? body.resolution as AiVideoResolution : activeProvider.defaultResolution;
   const aspectRatio = aiVideoAspectRatios.includes(body.aspectRatio as AiVideoAspectRatio) ? body.aspectRatio as AiVideoAspectRatio : activeProvider.defaultAspectRatio;
+  const assets = marketingImageAssets(body);
   if (activeProvider.provider === "hailuo") {
-    return createHailuoVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio);
+    return createHailuoVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
   }
   if (activeProvider.provider === "kling") {
-    return createKlingVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio);
+    return createKlingVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
   }
-  return createSeedanceVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio);
+  return createSeedanceVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
 }
 
 async function runAiVideoStatusTest(data: AppData, body: JsonBody) {
@@ -2746,8 +2812,8 @@ async function runAiVideoStatusTest(data: AppData, body: JsonBody) {
   return querySeedanceVideoTask(activeProvider, taskId);
 }
 
-async function createSeedanceVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio) {
-  const normalizedRequest = { duration: durationSeconds, resolution, ratio: aspectRatio };
+async function createSeedanceVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio, assets: MarketingImageAsset[] = []) {
+  const normalizedRequest = { duration: durationSeconds, resolution, ratio: aspectRatio, referenceImages: assets.map((asset) => asset.label) };
   const { payload, elapsedMs } = await fetchProviderJson("Seedance", "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks", {
     method: "POST",
     headers: {
@@ -2756,7 +2822,10 @@ async function createSeedanceVideoTask(config: AiVideoProviderConfig, prompt: st
     },
     body: JSON.stringify({
       model: config.model,
-      content: [{ type: "text", text: prompt }],
+      content: [
+        { type: "text", text: prompt },
+        ...assets.map((asset) => ({ type: "image_url", image_url: { url: asset.dataUrl } })),
+      ],
       ratio: aspectRatio,
       duration: durationSeconds,
       resolution,
@@ -2782,13 +2851,15 @@ async function querySeedanceVideoTask(config: AiVideoProviderConfig, taskId: str
   });
 }
 
-async function createKlingVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio) {
+async function createKlingVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio, assets: MarketingImageAsset[] = []) {
   const normalizedRequest = {
     duration: durationSeconds === 10 ? "10" : "5",
     aspect_ratio: aspectRatio,
     mode: resolution === "1080p" ? "pro" : "std",
+    referenceImages: assets.map((asset) => asset.label),
   };
-  const { payload, elapsedMs } = await fetchProviderJson("Kling", "https://api-singapore.klingai.com/v1/videos/text2video", {
+  const firstAsset = assets[0];
+  const { payload, elapsedMs } = await fetchProviderJson("Kling", `https://api-singapore.klingai.com/v1/videos/${firstAsset ? "image2video" : "text2video"}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
@@ -2797,6 +2868,7 @@ async function createKlingVideoTask(config: AiVideoProviderConfig, prompt: strin
     body: JSON.stringify({
       model_name: config.model,
       prompt,
+      ...(firstAsset ? { image: firstAsset.dataUrl } : {}),
       duration: normalizedRequest.duration,
       aspect_ratio: normalizedRequest.aspect_ratio,
       mode: normalizedRequest.mode,
@@ -2821,10 +2893,11 @@ async function queryKlingVideoTask(config: AiVideoProviderConfig, taskId: string
   });
 }
 
-async function createHailuoVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio) {
+async function createHailuoVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio, assets: MarketingImageAsset[] = []) {
   const normalizedDuration = durationSeconds >= 10 ? 10 : 6;
   const normalizedResolution = resolution === "1080p" && normalizedDuration === 6 ? "1080P" : "768P";
-  const normalizedRequest = { duration: normalizedDuration, resolution: normalizedResolution, aspectRatio };
+  const firstAsset = assets[0];
+  const normalizedRequest = { duration: normalizedDuration, resolution: normalizedResolution, aspectRatio, referenceImages: assets.map((asset) => asset.label) };
   const { payload, elapsedMs } = await fetchProviderJson("MiniMax", "https://api.minimax.io/v1/video_generation", {
     method: "POST",
     headers: {
@@ -2836,6 +2909,7 @@ async function createHailuoVideoTask(config: AiVideoProviderConfig, prompt: stri
       prompt,
       duration: normalizedDuration,
       resolution: normalizedResolution,
+      ...(firstAsset ? { first_frame_image: firstAsset.dataUrl } : {}),
     }),
   });
   return videoResult(config, elapsedMs, payload, {
