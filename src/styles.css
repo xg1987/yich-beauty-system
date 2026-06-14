@@ -21911,7 +21911,7 @@ textarea,
 }
 
 .marketing-result-dialog {
-  width: min(1080px, 100%);
+  width: min(760px, 100%);
   max-height: min(820px, calc(100dvh - 44px));
   overflow: auto;
   display: grid;
@@ -21970,11 +21970,9 @@ textarea,
   opacity: 0.45;
 }
 
-.marketing-result-dialog-grid {
+.marketing-result-body {
   display: grid;
-  grid-template-columns: minmax(300px, 0.86fr) minmax(0, 1.14fr);
   gap: 14px;
-  align-items: start;
 }
 
 .marketing-preview-summary {
@@ -22547,7 +22545,7 @@ textarea,
     border-radius: 20px;
   }
 
-  .marketing-result-dialog-grid {
+  .marketing-result-body {
     grid-template-columns: 1fr;
   }
 

@@ -38,7 +38,18 @@ const posterStyles = [
   { title: "小红书种草", description: "痛点标题、体验感、收藏转化" },
 ];
 
-function formatAiCost(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
+const USD_TO_CNY_DISPLAY_RATE = 6.77;
+
+function formatAiCostRmb(cost?: { amountUsd: number; priceConfigured: boolean }) {
+  if (!cost) return "费用未返回";
+  if (!cost.priceConfigured) return "费用未配置";
+  const amount = cost.amountUsd * USD_TO_CNY_DISPLAY_RATE;
+  if (amount > 0 && amount < 0.01) return `约 ¥${amount.toFixed(4)}`;
+  if (amount > 0 && amount < 1) return `约 ¥${amount.toFixed(3)}`;
+  return `约 ¥${amount.toFixed(2)}`;
+}
+
+function formatAiCostUsd(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
   if (!cost) return "费用未返回";
   if (!cost.priceConfigured) return "未配置单价";
   const amount = cost.amountUsd;
@@ -120,16 +131,10 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
   const talkScenes = ["复购邀约", "沉睡唤醒", "护理回访", "到店提醒"];
   const activeToolState = toolStateByKey[tool];
-  const selectedMarketingNode = marketingNodes.find((item) => item.title === marketingNode) ?? marketingNodes[0];
   const audienceSummary = `${customerType}，${lifecycleNode}，${bodyState}`;
-  const previewTitle = marketingNode === "三伏预热"
-    ? "夏天不是单纯出汗，是把寒湿往外赶的好时机"
-    : marketingNode === "阳气养护"
-      ? "趁身体阳气往外走，把调理做在合适的时候"
-      : "这个夏天，把寒湿慢慢排出去";
-  const previewChannelTitle = `${storeName}${marketingNode === "三伏预热" ? "三伏" : marketingNode}护理提醒`;
   const previewSummaryItems = [marketingNode, customerType, lifecycleNode, bodyState, channel];
   const showGenerationDialog = generationBusy || generationError || generationResult;
+  const showAiTechnicalDetails = session.user.role === "superadmin";
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = (toolKey: MarketingToolKey) => {
     const card = toolCards.find((item) => item.key === toolKey);
@@ -481,28 +486,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
             <div className="marketing-preview-summary" aria-label="当前生成条件">
               {previewSummaryItems.map((item) => <span key={item}>{item}</span>)}
             </div>
-            <div className="marketing-result-dialog-grid">
-              <div className="marketing-preview-card">
-                <div className={`marketing-preview-visual seasonal ${posterStyle === "中医养生风" || posterStyle === "节气海报" ? "wellness" : ""}`}>
-                  <span>{selectedMarketingNode.title} · {marketingGoal}</span>
-                  <strong>{previewTitle}</strong>
-                  <small>{service?.name ?? "护理项目"} · 适合{bodyState}、{customerType}</small>
-                </div>
-                <div className="marketing-preview-copy">
-                  <article>
-                    <span>{channel}标题</span>
-                    <p>{previewChannelTitle}：这个时间点，把护理安排在合适的时候。</p>
-                  </article>
-                  <article>
-                    <span>正文方向</span>
-                    <p>围绕{selectedMarketingNode.description.replace("。", "")}，结合{lifecycleNode}做{marketingGoal}，避免夸大医疗效果。</p>
-                  </article>
-                  <article>
-                    <span>私聊提醒</span>
-                    <p>你上次护理反馈不错，这几天适合安排一次{service?.name ?? "护理"}，把{marketingNode}做起来。</p>
-                  </article>
-                </div>
-              </div>
+            <div className="marketing-result-body">
               <div className="marketing-result-panel">
                 {generationBusy && <p className="marketing-result-status">AI 正在生成，请稍候。</p>}
                 {generationError && <p className="marketing-result-error">{generationError}</p>}
@@ -511,11 +495,11 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                     <div className="marketing-result-head">
                       <div>
                         <strong>{tool === "talk" ? "话术结果" : "文案结果"}</strong>
-                        <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                        <span>{showAiTechnicalDetails ? `${AI_PROVIDER_LABELS[generationResult.provider]} · ${generationResult.model}` : "本次生成"}</span>
                       </div>
                       <div className="marketing-cost-pill">
-                        <b>{formatAiCost(generationResult.cost)}</b>
-                        <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                        <b>{formatAiCostRmb(generationResult.cost)}</b>
+                        {showAiTechnicalDetails && <small>{formatAiCostUsd(generationResult.cost)} · {formatAiUsageCostDetail(generationResult.cost)}</small>}
                       </div>
                     </div>
                     <div className="marketing-copy-sections">
@@ -536,15 +520,15 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                     <div className="marketing-result-head">
                       <div>
                         <strong>海报结果</strong>
-                        <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                        <span>{showAiTechnicalDetails ? `${AI_PROVIDER_LABELS[generationResult.provider]} · ${generationResult.model}` : "本次生成"}</span>
                       </div>
                       <div className="marketing-cost-pill">
-                        <b>{formatAiCost(generationResult.cost)}</b>
-                        <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                        <b>{formatAiCostRmb(generationResult.cost)}</b>
+                        {showAiTechnicalDetails && <small>{formatAiCostUsd(generationResult.cost)} · {formatAiUsageCostDetail(generationResult.cost)}</small>}
                       </div>
                     </div>
                     <img className="marketing-result-image" src={generationResult.imageDataUrl} alt="AI 生成海报" />
-                    {generationResult.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
+                    {showAiTechnicalDetails && generationResult.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
                   </div>
                 )}
                 {generationResult && tool === "video" && (
@@ -552,15 +536,15 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                     <div className="marketing-result-head">
                       <div>
                         <strong>视频任务</strong>
-                        <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                        <span>{showAiTechnicalDetails ? `${AI_PROVIDER_LABELS[generationResult.provider]} · ${generationResult.model}` : "本次生成"}</span>
                       </div>
                       <div className="marketing-cost-pill">
-                        <b>{formatAiCost(generationResult.cost)}</b>
-                        <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                        <b>{formatAiCostRmb(generationResult.cost)}</b>
+                        {showAiTechnicalDetails && <small>{formatAiCostUsd(generationResult.cost)} · {formatAiUsageCostDetail(generationResult.cost)}</small>}
                       </div>
                     </div>
                     <p>状态：{generationResult.status ?? "已提交"}</p>
-                    {generationResult.taskId && <p>任务 ID：{generationResult.taskId}</p>}
+                    {showAiTechnicalDetails && generationResult.taskId && <p>任务 ID：{generationResult.taskId}</p>}
                     {generationResult.videoUrl && <a href={generationResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
                   </div>
                 )}
