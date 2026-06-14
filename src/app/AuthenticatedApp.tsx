@@ -3091,12 +3091,19 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const maintenanceRoomNames = new Set(maintenanceRoomNamesOf(data, roomNames));
   const appointmentRanges = appointmentRangeMap();
   const selectedAppointmentRange = appointmentRanges[appointmentRange];
+  const appointmentNow = new Date();
   const rangeAppointments = filterAppointmentsByRange(data.appointments, appointmentRange)
     .slice()
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
-  const bookedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
-  const arrivalConfirmationAppointments = bookedAppointments;
+  const confirmationPendingAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
+  const overdueAppointments = confirmationPendingAppointments.filter((appointment) => appointmentEndAt(appointment, data.services) < appointmentNow);
+  const arrivalConfirmationAppointments = confirmationPendingAppointments.filter((appointment) => {
+    const startAt = new Date(appointment.startAt);
+    const endAt = appointmentEndAt(appointment, data.services);
+    return startAt <= appointmentNow && appointmentNow <= endAt;
+  });
+  const bookedAppointments = confirmationPendingAppointments.filter((appointment) => new Date(appointment.startAt) > appointmentNow);
   const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
   const arrivedServiceSignatureTasks = arrivedAppointments.map((appointment) => {
@@ -3221,20 +3228,27 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
       </div>
     </article>
   );
-  const renderArrivalAppointmentCard = (appointment: Appointment) => (
-    <article className={`appointment-work-card status-${appointment.status}`} key={appointment.id}>
+  const renderCheckInAppointmentCard = (appointment: Appointment, isOverdue = false) => (
+    <article className={`appointment-work-card ${isOverdue ? "status-overdue " : ""}status-${appointment.status}`} key={appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
-        <Badge text="待确认到店" tone="ok" />
+        <Badge text={isOverdue ? "已过期" : "待确认到店"} tone={isOverdue ? "warn" : "ok"} />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
         <span>{appointmentServiceNames(data, appointment)} · {nameOf(data.staff, appointment.staffId)}</span>
-        <small>{appointment.roomName ?? "未分配房间"}{appointment.note ? ` · ${appointment.note}` : ""}</small>
+        <small>
+          {appointment.roomName ?? "未分配房间"}
+          {isOverdue ? " · 已超过预约结束时间" : appointment.note ? ` · ${appointment.note}` : ""}
+        </small>
       </div>
       <div className="appointment-work-card-actions">
         <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "已到店")}>
           确认到店
         </button>
-        <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>删除/取消</button>
+        {isOverdue && <button type="button" disabled={mutationPending} onClick={() => setStatus(appointment.id, "爽约")}>
+          标记爽约
+        </button>}
+        {isOverdue && <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>}
+        <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>{isOverdue ? "取消" : "删除/取消"}</button>
       </div>
     </article>
   );
@@ -3296,8 +3310,15 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
       key: "arrival",
       title: "待确认到店",
       value: arrivalConfirmationAppointments.length,
-      renderItems: () => arrivalConfirmationAppointments.slice(0, 6).map(renderArrivalAppointmentCard),
+      renderItems: () => arrivalConfirmationAppointments.slice(0, 6).map((appointment) => renderCheckInAppointmentCard(appointment)),
       empty: "暂无待确认到店",
+    },
+    {
+      key: "overdue",
+      title: "过期待处理",
+      value: overdueAppointments.length,
+      renderItems: () => overdueAppointments.slice(0, 6).map((appointment) => renderCheckInAppointmentCard(appointment, true)),
+      empty: "暂无过期预约",
     },
     {
       key: "signature",
@@ -3330,6 +3351,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
               <span>{selectedAppointmentRange.label}</span>
               <em>预约 {visibleRangeAppointments.length}</em>
               <em>待到店 {arrivalConfirmationAppointments.length}</em>
+              <em>过期 {overdueAppointments.length}</em>
               <em>待签名 {pendingServiceSignatureTasks.length}</em>
             </div>
             <div className="appointment-range-tabs" aria-label="预约日期筛选">

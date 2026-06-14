@@ -11124,7 +11124,7 @@ textarea,
 
 .appointment-workflow-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -11145,6 +11145,10 @@ textarea,
 
 .appointment-workflow-column.arrival {
   box-shadow: inset 4px 0 0 rgba(201, 74, 109, 0.64);
+}
+
+.appointment-workflow-column.overdue {
+  box-shadow: inset 4px 0 0 rgba(190, 73, 145, 0.64);
 }
 
 .appointment-workflow-column.signature {
@@ -11256,6 +11260,13 @@ textarea,
   background: #5f37aa;
   color: #fff;
   box-shadow: 0 10px 20px rgba(95, 55, 170, 0.18);
+}
+
+.appointment-work-card.status-overdue {
+  border-color: rgba(190, 73, 145, 0.2);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(190, 73, 145, 0.09), transparent 34%),
+    #fff;
 }
 
 .appointment-work-empty {
@@ -20586,6 +20597,14 @@ textarea,
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.64);
 }
 
+.app-shell .main > .page-stack.appointment-room-page .appointment-workflow-column.overdue,
+.theme-day .appointment-room-page .appointment-workflow-column.overdue,
+.theme-night .appointment-room-page .appointment-workflow-column.overdue {
+  border-left: 5px solid #be4991;
+  background: linear-gradient(135deg, rgba(255, 244, 252, 0.92), rgba(255, 255, 255, 0.76)) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.64);
+}
+
 .app-shell .main > .page-stack.appointment-room-page .appointment-workflow-column.signature,
 .theme-day .appointment-room-page .appointment-workflow-column.signature,
 .theme-night .appointment-room-page .appointment-workflow-column.signature {
@@ -20623,6 +20642,15 @@ textarea,
   background: rgba(255, 255, 255, 0.9) !important;
   color: #2f255f !important;
   box-shadow: 0 12px 28px rgba(47, 27, 99, 0.08);
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-work-card.status-overdue,
+.theme-day .appointment-room-page .appointment-work-card.status-overdue,
+.theme-night .appointment-room-page .appointment-work-card.status-overdue {
+  border-color: rgba(190, 73, 145, 0.2);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(190, 73, 145, 0.1), transparent 34%),
+    rgba(255, 255, 255, 0.92) !important;
 }
 
 .app-shell .main > .page-stack.appointment-room-page .appointment-work-card time,
@@ -23056,6 +23084,7 @@ textarea,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.booked,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.arrival,
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.overdue,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.signature,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-work-card,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-range-list,
@@ -23081,6 +23110,10 @@ textarea,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.arrival,
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workbench-metrics > div:nth-child(2) {
   border-left-color: #d86d95 !important;
+}
+
+.app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.overdue {
+  border-left-color: #d07ab9 !important;
 }
 
 .app-shell.theme-night .main > .page-stack.appointment-room-page .appointment-workflow-column.signature,
