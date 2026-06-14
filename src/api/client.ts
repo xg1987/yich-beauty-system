@@ -155,6 +155,12 @@ export function createApiClient(getToken: () => string | undefined) {
       serviceName?: string;
       audience?: string;
       channel?: string;
+      marketingNode?: string;
+      customerType?: string;
+      lifecycleNode?: string;
+      bodyState?: string;
+      marketingGoal?: string;
+      posterStyle?: string;
       posterSize?: string;
       posterTitle?: string;
       posterOffer?: string;

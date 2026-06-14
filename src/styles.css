@@ -11124,7 +11124,7 @@ textarea,
 
 .appointment-workflow-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -11267,6 +11267,69 @@ textarea,
   background:
     radial-gradient(circle at 92% 8%, rgba(190, 73, 145, 0.09), transparent 34%),
     #fff;
+}
+
+.appointment-overdue-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(190, 73, 145, 0.16);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 4%, rgba(190, 73, 145, 0.08), transparent 35%),
+    linear-gradient(135deg, rgba(255, 251, 253, 0.94), rgba(249, 246, 255, 0.84));
+  box-shadow: inset 4px 0 0 rgba(190, 73, 145, 0.54);
+}
+
+.appointment-overdue-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.appointment-overdue-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.appointment-overdue-head strong {
+  color: #3a245d;
+  font-size: 17px;
+  font-weight: 930;
+}
+
+.appointment-overdue-head span {
+  color: rgba(62, 40, 92, 0.62);
+  font-size: 12px;
+  font-weight: 740;
+  line-height: 1.4;
+}
+
+.appointment-overdue-head em {
+  min-width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(190, 73, 145, 0.1);
+  color: #7f2e67;
+  font-style: normal;
+  font-weight: 930;
+}
+
+.appointment-overdue-list {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 1px 2px 6px;
+  scrollbar-width: thin;
+}
+
+.appointment-overdue-list .appointment-work-card {
+  flex: 0 0 min(316px, 86vw);
 }
 
 .appointment-work-empty {
@@ -20653,6 +20716,27 @@ textarea,
     rgba(255, 255, 255, 0.92) !important;
 }
 
+.app-shell .main > .page-stack.appointment-room-page .appointment-overdue-section,
+.theme-day .appointment-room-page .appointment-overdue-section,
+.theme-night .appointment-room-page .appointment-overdue-section {
+  border-color: rgba(190, 73, 145, 0.16);
+  background:
+    radial-gradient(circle at 92% 4%, rgba(190, 73, 145, 0.08), transparent 35%),
+    linear-gradient(135deg, rgba(255, 251, 253, 0.94), rgba(249, 246, 255, 0.84)) !important;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-overdue-head strong,
+.theme-day .appointment-room-page .appointment-overdue-head strong,
+.theme-night .appointment-room-page .appointment-overdue-head strong {
+  color: #3a245d !important;
+}
+
+.app-shell .main > .page-stack.appointment-room-page .appointment-overdue-head span,
+.theme-day .appointment-room-page .appointment-overdue-head span,
+.theme-night .appointment-room-page .appointment-overdue-head span {
+  color: rgba(62, 40, 92, 0.62) !important;
+}
+
 .app-shell .main > .page-stack.appointment-room-page .appointment-work-card time,
 .theme-day .appointment-room-page .appointment-work-card time,
 .theme-night .appointment-room-page .appointment-work-card time {
@@ -20746,9 +20830,12 @@ textarea,
     justify-self: start;
   }
 
-  .appointment-room-page .appointment-workbench-metrics,
-  .appointment-room-page .appointment-workflow-grid {
+  .appointment-room-page .appointment-workbench-metrics {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .appointment-room-page .appointment-workflow-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -20767,6 +20854,14 @@ textarea,
   .appointment-room-page .appointment-workbench-metrics,
   .appointment-room-page .appointment-workflow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .appointment-room-page .appointment-overdue-section {
+    padding: 12px;
+  }
+
+  .appointment-room-page .appointment-overdue-list .appointment-work-card {
+    flex-basis: min(292px, 84vw);
   }
 
   .appointment-room-page .appointment-range-list {
@@ -21455,6 +21550,192 @@ textarea,
   cursor: pointer;
 }
 
+.marketing-context-block {
+  display: grid;
+  gap: 12px;
+}
+
+.marketing-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.marketing-section-head.compact {
+  margin-top: 2px;
+}
+
+.marketing-section-head > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.marketing-section-head strong {
+  color: #2f255f;
+  font-size: 15px;
+  font-weight: 920;
+  line-height: 1.25;
+}
+
+.marketing-section-head span,
+.marketing-section-head small,
+.marketing-config-label small,
+.marketing-context-note {
+  color: rgba(47, 37, 95, 0.64);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.marketing-section-head > small {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 5px 11px;
+  border: 1px solid rgba(42, 143, 125, 0.2);
+  border-radius: 999px;
+  background: rgba(42, 143, 125, 0.1);
+  color: #1f6f61;
+  font-weight: 850;
+}
+
+.marketing-node-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.marketing-node-tabs button,
+.marketing-node-grid button,
+.marketing-style-grid button {
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f255f;
+  cursor: pointer;
+}
+
+.marketing-node-tabs button {
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  font-weight: 850;
+}
+
+.marketing-node-tabs button.active {
+  border-color: rgba(111, 66, 193, 0.5);
+  background: rgba(111, 66, 193, 0.12);
+}
+
+.marketing-node-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marketing-node-grid button {
+  min-width: 0;
+  min-height: 112px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 13px;
+  border-radius: 16px;
+  text-align: left;
+}
+
+.marketing-node-grid button.active {
+  border-color: rgba(185, 133, 44, 0.38);
+  background:
+    radial-gradient(circle at 92% 10%, rgba(185, 133, 44, 0.15), transparent 36%),
+    rgba(255, 255, 255, 0.86);
+}
+
+.marketing-node-grid button span {
+  width: fit-content;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(185, 133, 44, 0.13);
+  color: #875f17;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.marketing-node-grid button strong,
+.marketing-config-label strong,
+.marketing-style-grid button strong {
+  color: #2f255f;
+  font-weight: 920;
+  line-height: 1.25;
+}
+
+.marketing-node-grid button small {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.marketing-config-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.marketing-config-row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  min-height: 56px;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.marketing-config-label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.marketing-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marketing-style-grid button {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 15px;
+  text-align: left;
+}
+
+.marketing-style-grid button span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.marketing-style-grid button.active {
+  border-color: rgba(111, 66, 193, 0.42);
+  background: rgba(111, 66, 193, 0.1);
+}
+
+.marketing-context-note {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(42, 143, 125, 0.14);
+  border-radius: 14px;
+  background: rgba(42, 143, 125, 0.08);
+}
+
 .marketing-result-panel {
   display: grid;
   gap: 12px;
@@ -21611,6 +21892,26 @@ textarea,
   padding: 0;
 }
 
+.marketing-preview-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid rgba(42, 143, 125, 0.16);
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(42, 143, 125, 0.08), rgba(111, 66, 193, 0.06));
+}
+
+.marketing-preview-summary span {
+  min-height: 26px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #2f255f;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .marketing-preview-video,
 .marketing-preview-talk {
   padding: 18px;
@@ -21626,6 +21927,19 @@ textarea,
     linear-gradient(140deg, rgba(111, 66, 193, 0.96), rgba(42, 143, 125, 0.82)),
     #6f42c1;
   color: #ffffff;
+}
+
+.marketing-preview-visual.seasonal.wellness {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.52)),
+    radial-gradient(circle at 88% 14%, rgba(42, 143, 125, 0.2), transparent 28%),
+    linear-gradient(145deg, #efe4cc, #fbf6ea 46%, #f6edda);
+}
+
+.marketing-preview-visual.seasonal.wellness span,
+.marketing-preview-visual.seasonal.wellness strong,
+.marketing-preview-visual.seasonal.wellness small {
+  color: #3a2d22;
 }
 
 .marketing-preview-visual span,
@@ -21650,12 +21964,27 @@ textarea,
 
 .marketing-preview-copy {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   padding: 18px;
 }
 
 .marketing-preview-copy p {
   margin: 0;
+}
+
+.marketing-preview-copy article {
+  display: grid;
+  gap: 5px;
+  padding: 11px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.marketing-preview-copy article span {
+  color: #6f42c1;
+  font-size: 12px;
+  font-weight: 920;
 }
 
 .app-shell.theme-night .marketing-result-head span,
@@ -21685,6 +22014,35 @@ textarea,
   color: #f7f1ff;
 }
 
+.app-shell.theme-night .marketing-section-head strong,
+.app-shell.theme-night .marketing-node-grid button strong,
+.app-shell.theme-night .marketing-config-label strong,
+.app-shell.theme-night .marketing-style-grid button strong,
+.app-shell.theme-night .marketing-preview-summary span,
+.app-shell.theme-night .marketing-preview-copy article p {
+  color: var(--night-app-text);
+}
+
+.app-shell.theme-night .marketing-section-head span,
+.app-shell.theme-night .marketing-section-head small,
+.app-shell.theme-night .marketing-config-label small,
+.app-shell.theme-night .marketing-node-grid button small,
+.app-shell.theme-night .marketing-style-grid button span,
+.app-shell.theme-night .marketing-context-note {
+  color: var(--night-app-muted);
+}
+
+.app-shell.theme-night .marketing-node-tabs button,
+.app-shell.theme-night .marketing-node-grid button,
+.app-shell.theme-night .marketing-config-row,
+.app-shell.theme-night .marketing-style-grid button,
+.app-shell.theme-night .marketing-context-note,
+.app-shell.theme-night .marketing-preview-summary,
+.app-shell.theme-night .marketing-preview-copy article {
+  border-color: var(--night-app-line);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 @media (min-width: 1181px) {
   .marketing-center-page {
     gap: 14px;
@@ -21712,7 +22070,7 @@ textarea,
   }
 
   .marketing-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1.18fr) minmax(360px, 0.82fr);
     align-items: stretch;
     gap: 14px;
   }
@@ -22014,11 +22372,30 @@ textarea,
   .marketing-form-grid,
   .marketing-form-actions,
   .marketing-preview-actions,
+  .marketing-node-grid,
+  .marketing-style-grid,
   .poster-upload-row,
   .ai-permission-status-grid,
   .ai-permission-head,
   .ai-permission-row {
     grid-template-columns: 1fr;
+  }
+
+  .marketing-config-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .marketing-node-tabs,
+  .marketing-chip-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .marketing-node-tabs button,
+  .marketing-chip-row button {
+    flex: 0 0 auto;
   }
 
   .ai-permission-head span:not(:first-child) {

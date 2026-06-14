@@ -12,9 +12,6 @@ import {
   aiGenerationConfigFromSystemConfigs,
   copyTextToClipboard,
   customerOptionOf,
-  formatAiCost,
-  formatAiUsageCostDetail,
-  marketingCopySections,
   primaryStoreName,
   storeAiUsagePermissions,
 } from "./AuthenticatedApp";
@@ -22,13 +19,76 @@ import {
 type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
 
 type MarketingToolKey = "copy" | "image" | "video" | "talk";
+type MarketingNode = { title: string; badge: string; description: string };
+
+const marketingNodeTabs = ["智能推荐", "今日节气", "未来7天", "项目周期", "客户生日", "沉睡唤醒"];
+const marketingNodes: MarketingNode[] = [
+  { title: "夏季祛湿", badge: "当前推荐", description: "适合湿重、虚胖、身体沉、出汗少客户。" },
+  { title: "三伏预热", badge: "适合药浴/艾灸", description: "提前做三伏养阳铺垫，适合会员复购。" },
+  { title: "阳气养护", badge: "节气内容", description: "不硬促销，用身体状态带出护理必要性。" },
+];
+const customerTypes = ["新客", "非会员老客", "会员客户", "沉睡客户", "高意向客户"];
+const lifecycleNodes = ["项目周期到了", "卡项快用完", "余额不足", "生日关怀", "久未到店"];
+const bodyStates = ["怕冷湿重", "久坐肩颈", "熬夜暗沉", "皮肤干燥", "睡眠不好"];
+const marketingGoals = ["复购提醒", "项目转化", "沉睡唤醒", "护理建议"];
+const posterStyles = [
+  { title: "中医养生风", description: "宣纸、草药、药灸、温和调理" },
+  { title: "节气海报", description: "三伏、三九、换季、时令提醒" },
+  { title: "轻奢护理风", description: "适合皮肤管理和高客单护理" },
+  { title: "小红书种草", description: "痛点标题、体验感、收藏转化" },
+];
+
+function formatAiCost(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
+  if (!cost) return "费用未返回";
+  if (!cost.priceConfigured) return "未配置单价";
+  const amount = cost.amountUsd;
+  return `$${amount.toFixed(amount > 0 && amount < 0.01 ? 6 : 4)} ${cost.currency}`;
+}
+
+function formatAiUsageCostDetail(cost?: { basis: string; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimated: boolean }) {
+  if (!cost) return "请检查后台模型价格配置";
+  return [
+    cost.basis,
+    cost.inputTokens ? `输入 ${cost.inputTokens}` : "",
+    cost.outputTokens ? `输出 ${cost.outputTokens}` : "",
+    cost.totalTokens ? `合计 ${cost.totalTokens}` : "",
+    cost.estimated ? "预估" : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function marketingCopySections(text: string) {
+  const trimmed = text.trim();
+  const matches = [...trimmed.matchAll(/【([^】]{1,16})】/g)];
+  if (matches.length > 0) {
+    return matches.map((match, index) => {
+      const start = (match.index ?? 0) + match[0].length;
+      const end = matches[index + 1]?.index ?? trimmed.length;
+      return {
+        title: match[1].trim(),
+        body: trimmed.slice(start, end).trim(),
+      };
+    }).filter((section) => section.body);
+  }
+
+  const lines = trimmed.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    return lines.map((line, index) => ({ title: index === 0 ? "标题" : `内容 ${index}`, body: line }));
+  }
+  return [{ title: "生成内容", body: trimmed }];
+}
 
 export function MarketingCenter({ data, session, actions }: { data: AppData; session: UserSession; actions: ApiActions }) {
   const [tool, setTool] = useState<MarketingToolKey>("copy");
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
-  const [audience, setAudience] = useState("老客");
+  const [marketingNodeTab, setMarketingNodeTab] = useState(marketingNodeTabs[0]);
+  const [marketingNode, setMarketingNode] = useState(marketingNodes[0].title);
+  const [customerType, setCustomerType] = useState("会员客户");
+  const [lifecycleNode, setLifecycleNode] = useState("项目周期到了");
+  const [bodyState, setBodyState] = useState("怕冷湿重");
   const [channel, setChannel] = useState("朋友圈");
+  const [marketingGoal, setMarketingGoal] = useState("复购提醒");
+  const [posterStyle, setPosterStyle] = useState("中医养生风");
   const [posterSize, setPosterSize] = useState("朋友圈 1:1");
   const [posterTitle, setPosterTitle] = useState("到店护理礼遇");
   const [posterOffer, setPosterOffer] = useState("限时体验价");
@@ -57,10 +117,18 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   ];
   const toolStateByKey = Object.fromEntries(toolCards.map((item) => [item.key, aiCapabilityUsageState(aiConfig, aiPermissions, session.user.role, item.capability)])) as Record<MarketingToolKey, { enabled: boolean; label: string }>;
   const channels = ["朋友圈", "小红书", "私聊", "社群"];
-  const audiences = ["老客", "新客", "会员卡客户", "沉睡客户"];
   const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
   const talkScenes = ["复购邀约", "沉睡唤醒", "护理回访", "到店提醒"];
   const activeToolState = toolStateByKey[tool];
+  const selectedMarketingNode = marketingNodes.find((item) => item.title === marketingNode) ?? marketingNodes[0];
+  const audienceSummary = `${customerType}，${lifecycleNode}，${bodyState}`;
+  const previewTitle = marketingNode === "三伏预热"
+    ? "夏天不是单纯出汗，是把寒湿往外赶的好时机"
+    : marketingNode === "阳气养护"
+      ? "趁身体阳气往外走，把调理做在合适的时候"
+      : "这个夏天，把寒湿慢慢排出去";
+  const previewChannelTitle = `${storeName}${marketingNode === "三伏预热" ? "三伏" : marketingNode}护理提醒`;
+  const previewSummaryItems = [marketingNode, customerType, lifecycleNode, bodyState, channel];
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = (toolKey: MarketingToolKey) => {
     const card = toolCards.find((item) => item.key === toolKey);
@@ -106,8 +174,14 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
         storeName,
         productName: product?.name,
         serviceName: service?.name,
-        audience,
+        audience: audienceSummary,
         channel,
+        marketingNode,
+        customerType,
+        lifecycleNode,
+        bodyState,
+        marketingGoal,
+        posterStyle,
         posterSize,
         posterTitle,
         posterOffer,
@@ -181,19 +255,110 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               </label>
             </div>
           )}
+          <div className="marketing-context-block">
+            <div className="marketing-section-head">
+              <div>
+                <strong>营销节点</strong>
+                <span>系统按今天、节气、项目周期主动推荐</span>
+              </div>
+              <small>智能推荐</small>
+            </div>
+            <div className="marketing-node-tabs" aria-label="营销节点类型">
+              {marketingNodeTabs.map((item) => (
+                <button type="button" key={item} className={marketingNodeTab === item ? "active" : ""} onClick={() => setMarketingNodeTab(item)}>{item}</button>
+              ))}
+            </div>
+            <div className="marketing-node-grid" aria-label="推荐营销节点">
+              {marketingNodes.map((item) => (
+                <button type="button" key={item.title} className={marketingNode === item.title ? "active" : ""} onClick={() => setMarketingNode(item.title)}>
+                  <span>{item.badge}</span>
+                  <strong>{item.title}</strong>
+                  <small>{item.description}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="marketing-context-block">
+            <div className="marketing-section-head">
+              <div>
+                <strong>生成条件</strong>
+                <span>分组设置，避免客户身份、身体状态、营销目的混在一起</span>
+              </div>
+            </div>
+            <div className="marketing-config-stack">
+              <div className="marketing-config-row">
+                <div className="marketing-config-label">
+                  <strong>客户类型</strong>
+                  <small>身份单选</small>
+                </div>
+                <div className="marketing-chip-row" aria-label="客户类型">
+                  {customerTypes.map((item) => (
+                    <button type="button" key={item} className={customerType === item ? "active" : ""} onClick={() => setCustomerType(item)}>{item}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="marketing-config-row">
+                <div className="marketing-config-label">
+                  <strong>消费节点</strong>
+                  <small>来自客户记录</small>
+                </div>
+                <div className="marketing-chip-row" aria-label="消费节点">
+                  {lifecycleNodes.map((item) => (
+                    <button type="button" key={item} className={lifecycleNode === item ? "active" : ""} onClick={() => setLifecycleNode(item)}>{item}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="marketing-config-row">
+                <div className="marketing-config-label">
+                  <strong>身体状态</strong>
+                  <small>文案痛点</small>
+                </div>
+                <div className="marketing-chip-row" aria-label="身体状态">
+                  {bodyStates.map((item) => (
+                    <button type="button" key={item} className={bodyState === item ? "active" : ""} onClick={() => setBodyState(item)}>{item}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="marketing-config-row">
+                <div className="marketing-config-label">
+                  <strong>发送渠道</strong>
+                  <small>格式语气</small>
+                </div>
+                <div className="marketing-chip-row" aria-label="渠道">
+                  {channels.map((item) => (
+                    <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="marketing-config-row">
+                <div className="marketing-config-label">
+                  <strong>营销目的</strong>
+                  <small>行动引导</small>
+                </div>
+                <div className="marketing-chip-row" aria-label="营销目的">
+                  {marketingGoals.map((item) => (
+                    <button type="button" key={item} className={marketingGoal === item ? "active" : ""} onClick={() => setMarketingGoal(item)}>{item}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="marketing-section-head compact">
+              <div>
+                <strong>海报风格</strong>
+                <span>文案和图片一起变</span>
+              </div>
+            </div>
+            <div className="marketing-style-grid" aria-label="海报风格">
+              {posterStyles.map((item) => (
+                <button type="button" key={item.title} className={posterStyle === item.title ? "active" : ""} onClick={() => setPosterStyle(item.title)}>
+                  <strong>{item.title}</strong>
+                  <span>{item.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           {tool === "copy" && (
-            <>
-              <div className="marketing-chip-row" aria-label="客群">
-                {audiences.map((item) => (
-                  <button type="button" key={item} className={audience === item ? "active" : ""} onClick={() => setAudience(item)}>{item}</button>
-                ))}
-              </div>
-              <div className="marketing-chip-row" aria-label="渠道">
-                {channels.map((item) => (
-                  <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
-                ))}
-              </div>
-            </>
+            <p className="marketing-context-note">当前将生成适合{channel}发布的{marketingGoal}文案。</p>
           )}
           {tool === "image" && (
             <>
@@ -281,11 +446,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                   </select>
                 </label>
               </div>
-              <div className="marketing-chip-row" aria-label="客群">
-                {audiences.map((item) => (
-                  <button type="button" key={item} className={audience === item ? "active" : ""} onClick={() => setAudience(item)}>{item}</button>
-                ))}
-              </div>
+              <p className="marketing-context-note">当前将生成面向{customerType}的{talkScene}私聊话术。</p>
             </>
           )}
           <div className="marketing-form-actions single">
@@ -358,6 +519,33 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
             </div>
           )}
         </div>
+        <aside className="workbench-panel marketing-preview-panel">
+          <PanelTitle icon={<Sparkles size={18} />} title="生成预览" action={posterStyle} />
+          <div className="marketing-preview-summary" aria-label="当前生成条件">
+            {previewSummaryItems.map((item) => <span key={item}>{item}</span>)}
+          </div>
+          <div className="marketing-preview-card">
+            <div className={`marketing-preview-visual seasonal ${posterStyle === "中医养生风" || posterStyle === "节气海报" ? "wellness" : ""}`}>
+              <span>{selectedMarketingNode.title} · {marketingGoal}</span>
+              <strong>{previewTitle}</strong>
+              <small>{service?.name ?? "护理项目"} · 适合{bodyState}、{customerType}</small>
+            </div>
+            <div className="marketing-preview-copy">
+              <article>
+                <span>{channel}标题</span>
+                <p>{previewChannelTitle}：这个时间点，把护理安排在合适的时候。</p>
+              </article>
+              <article>
+                <span>正文方向</span>
+                <p>围绕{selectedMarketingNode.description.replace("。", "")}，结合{lifecycleNode}做{marketingGoal}，避免夸大医疗效果。</p>
+              </article>
+              <article>
+                <span>私聊提醒</span>
+                <p>你上次护理反馈不错，这几天适合安排一次{service?.name ?? "护理"}，把{marketingNode}做起来。</p>
+              </article>
+            </div>
+          </div>
+        </aside>
       </section>
     </div>
   );

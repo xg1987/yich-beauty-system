@@ -2493,13 +2493,20 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   const serviceName = marketingText(body.serviceName, "护理项目");
   const audience = marketingText(body.audience, "目标客户");
   const channel = marketingText(body.channel, "朋友圈");
+  const marketingNode = marketingText(body.marketingNode, "日常护理节点");
+  const customerType = marketingText(body.customerType, audience);
+  const lifecycleNode = marketingText(body.lifecycleNode, "无明确消费节点");
+  const bodyState = marketingText(body.bodyState, "常规护理需求");
+  const marketingGoal = marketingText(body.marketingGoal, "到店转化");
+  const posterStyle = marketingText(body.posterStyle, "门店品牌风格");
+  const nodeContext = `营销节点：${marketingNode}。客户类型：${customerType}。消费节点：${lifecycleNode}。身体状态/文案痛点：${bodyState}。营销目的：${marketingGoal}。海报/内容风格：${posterStyle}。`;
   if (kind === "copy") {
-    return `请为美业门店生成一条${channel}营销文案。门店：${storeName}。商品：${productName}。项目：${serviceName}。客群：${audience}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，不要虚假承诺，不要夸大医疗效果。`;
+    return `请为美业门店生成一条${channel}营销文案。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约；围绕时间节点和客户当前状态来写，不要把客户身份、身体状态、营销目的混为一类；不要虚假承诺，不要夸大医疗效果。`;
   }
   if (kind === "talk") {
     const customerName = marketingText(body.customerName, audience);
     const talkScene = marketingText(body.talkScene, "复购邀约");
-    return `请生成一段美业门店私聊话术。客户：${customerName}。场景：${talkScene}。商品：${productName}。项目：${serviceName}。要求：自然、短句、像真人微信沟通，包含问候、推荐理由和预约引导，不要夸大效果。`;
+    return `请生成一段美业门店私聊话术。客户：${customerName}。场景：${talkScene}。商品：${productName}。项目：${serviceName}。${nodeContext}要求：自然、短句、像真人微信沟通，包含问候、推荐理由和预约引导；先基于客户消费节点和身体状态给出关怀，再自然推荐项目，不要夸大效果。`;
   }
   if (kind === "image") {
     const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
@@ -2507,12 +2514,12 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
     const posterOffer = marketingText(body.posterOffer, "限时体验价");
     const productImageName = marketingText(body.productImageName, "未上传产品图");
     const sceneImageName = marketingText(body.sceneImageName, "未上传场景图");
-    return `生成一张高端美业门店营销海报，中文标题：${posterTitle}，活动信息：${posterOffer}，商品：${productName}，项目：${serviceName}，门店：${storeName}，尺寸用途：${posterSize}。参考素材名称：产品图 ${productImageName}，场景图 ${sceneImageName}。画面要干净、专业、紫色品牌感，适合手机端传播，避免医疗承诺。`;
+    return `生成一张高端美业门店营销海报，中文标题：${posterTitle}，活动信息：${posterOffer}，商品：${productName}，项目：${serviceName}，门店：${storeName}，尺寸用途：${posterSize}。${nodeContext}参考素材名称：产品图 ${productImageName}，场景图 ${sceneImageName}。画面要干净、专业，适合手机端传播；如果是中医养生或节气海报风格，可使用宣纸、草药、药灸、温和调理等视觉元素；避免医疗承诺。`;
   }
   const videoRatio = marketingText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
   const videoScript = marketingText(body.videoScript, "门店护理环境、产品陈列、护理手法和预约引导。");
-  return `生成美业门店宣传短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，适合短视频发布，避免医疗承诺。`;
+  return `生成美业门店宣传短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，适合短视频发布，避免医疗承诺。`;
 }
 
 async function runMarketingAiGenerate(data: AppData, session: UserSession, body: JsonBody) {

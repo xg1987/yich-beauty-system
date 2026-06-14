@@ -711,45 +711,6 @@ export function videoSpecKey(durationSeconds: number, resolution: AiVideoResolut
   return `${durationSeconds}s:${resolution}`;
 }
 
-export function formatAiCost(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
-  if (!cost) return "费用未返回";
-  if (!cost.priceConfigured) return "未配置单价";
-  const amount = cost.amountUsd;
-  const digits = amount > 0 && amount < 0.01 ? 6 : 4;
-  return `$${amount.toFixed(digits)} ${cost.currency}`;
-}
-
-export function formatAiUsageCostDetail(cost?: { basis: string; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimated: boolean }) {
-  if (!cost) return "请检查后台模型价格配置";
-  const tokens = [
-    cost.inputTokens ? `输入 ${cost.inputTokens}` : "",
-    cost.outputTokens ? `输出 ${cost.outputTokens}` : "",
-    cost.totalTokens ? `合计 ${cost.totalTokens}` : "",
-  ].filter(Boolean).join(" · ");
-  return [cost.basis, tokens, cost.estimated ? "预估" : ""].filter(Boolean).join(" · ");
-}
-
-export function marketingCopySections(text: string) {
-  const trimmed = text.trim();
-  const matches = [...trimmed.matchAll(/【([^】]{1,16})】/g)];
-  if (matches.length > 0) {
-    return matches.map((match, index) => {
-      const start = (match.index ?? 0) + match[0].length;
-      const end = matches[index + 1]?.index ?? trimmed.length;
-      return {
-        title: match[1].trim(),
-        body: trimmed.slice(start, end).trim(),
-      };
-    }).filter((section) => section.body);
-  }
-
-  const lines = trimmed.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  if (lines.length > 1) {
-    return lines.map((line, index) => ({ title: index === 0 ? "标题" : `内容 ${index}`, body: line }));
-  }
-  return [{ title: "生成内容", body: trimmed }];
-}
-
 export function boundedPrice(value: unknown) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
@@ -3314,13 +3275,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
       empty: "暂无待确认到店",
     },
     {
-      key: "overdue",
-      title: "过期待处理",
-      value: overdueAppointments.length,
-      renderItems: () => overdueAppointments.slice(0, 6).map((appointment) => renderCheckInAppointmentCard(appointment, true)),
-      empty: "暂无过期预约",
-    },
-    {
       key: "signature",
       title: "待服务签名",
       value: pendingServiceSignatureTasks.length,
@@ -3351,7 +3305,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
               <span>{selectedAppointmentRange.label}</span>
               <em>预约 {visibleRangeAppointments.length}</em>
               <em>待到店 {arrivalConfirmationAppointments.length}</em>
-              <em>过期 {overdueAppointments.length}</em>
               <em>待签名 {pendingServiceSignatureTasks.length}</em>
             </div>
             <div className="appointment-range-tabs" aria-label="预约日期筛选">
@@ -3390,6 +3343,20 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
               </section>
             ))}
           </div>
+          {overdueAppointments.length > 0 && (
+            <section className="appointment-overdue-section" aria-label="过期待处理">
+              <div className="appointment-overdue-head">
+                <div>
+                  <strong>过期待处理</strong>
+                  <span>超过预约结束时间仍未确认到店，需要尽快处理</span>
+                </div>
+                <em>{overdueAppointments.length}</em>
+              </div>
+              <div className="appointment-overdue-list">
+                {overdueAppointments.slice(0, 8).map((appointment) => renderCheckInAppointmentCard(appointment, true))}
+              </div>
+            </section>
+          )}
           <div className="appointment-range-list">
             <div className="appointment-room-list-head">
               <strong>{selectedAppointmentRange.label}预约明细</strong>
