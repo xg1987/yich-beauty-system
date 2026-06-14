@@ -27,7 +27,7 @@ const marketingNodes: MarketingNode[] = [
   { title: "三伏预热", badge: "适合药浴/艾灸", description: "提前做三伏养阳铺垫，适合会员复购。" },
   { title: "阳气养护", badge: "节气内容", description: "不硬促销，用身体状态带出护理必要性。" },
 ];
-const customerTypes = ["新客", "非会员老客", "会员客户", "沉睡客户", "高意向客户"];
+const customerTypes = ["新客户", "老客户", "沉睡客户"];
 const lifecycleNodes = ["项目周期到了", "卡项快用完", "余额不足", "生日关怀", "久未到店"];
 const bodyStates = ["怕冷湿重", "久坐肩颈", "熬夜暗沉", "皮肤干燥", "睡眠不好"];
 const marketingGoals = ["复购提醒", "项目转化", "沉睡唤醒", "护理建议"];
@@ -96,14 +96,43 @@ function marketingRecordKindLabel(kind: MarketingAiRecord["kind"]) {
   return kind === "image" ? "海报" : kind === "video" ? "视频" : kind === "talk" ? "话术" : "文案";
 }
 
+function compactRecordText(value?: string) {
+  return value?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function marketingRecordPreviewText(record: MarketingAiRecord) {
+  return compactRecordText(record.text || record.videoUrl);
+}
+
+function marketingRecordTitle(record: MarketingAiRecord) {
+  const title = compactRecordText(record.title);
+  if (title) return title;
+  const contentTitle = marketingRecordPreviewText(record).slice(0, 22);
+  if (contentTitle) return contentTitle;
+  return `AI${marketingRecordKindLabel(record.kind)}记录`;
+}
+
+function marketingRecordSummary(record: MarketingAiRecord) {
+  const content = marketingRecordPreviewText(record);
+  if (content) return content.slice(0, 48);
+  return [
+    record.marketingNode,
+    record.customerType,
+    record.marketingGoal,
+    record.channel,
+    record.serviceName,
+    record.productName,
+  ].map(compactRecordText).filter(Boolean).join(" · ") || "已生成，可点击查看详情";
+}
+
 function shortRecordTime(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  if (Number.isNaN(date.getTime())) return value || "时间未记录";
   return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function downloadMarketingRecord(record: MarketingAiRecord) {
-  const filename = `${record.title}-${record.createdAt.slice(0, 10)}`;
+  const filename = `${marketingRecordTitle(record)}-${(record.createdAt || new Date().toISOString()).slice(0, 10)}`;
   const link = document.createElement("a");
   if (record.imageDataUrl) {
     link.href = record.imageDataUrl;
@@ -129,7 +158,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [marketingNodeTab, setMarketingNodeTab] = useState(marketingNodeTabs[0]);
   const [marketingNode, setMarketingNode] = useState(marketingNodes[0].title);
-  const [customerType, setCustomerType] = useState("会员客户");
+  const [customerType, setCustomerType] = useState("老客户");
   const [lifecycleNode, setLifecycleNode] = useState("项目周期到了");
   const [bodyState, setBodyState] = useState("怕冷湿重");
   const [channel, setChannel] = useState("朋友圈");
@@ -299,38 +328,12 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
       <section className="marketing-workspace">
         <div className="workbench-panel marketing-form-panel">
           <PanelTitle icon={<Search size={18} />} title={toolCards.find((item) => item.key === tool)?.label ?? "AI营销"} action={toolStateByKey[tool].label} />
-          {(tool === "copy" || tool === "image" || tool === "video") && (
-            <div className="marketing-form-grid">
-              <label>
-                <span>商品</span>
-                <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
-                  {data.products.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>项目</span>
-                <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
-                  {data.services.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
-          <div className="marketing-context-block">
+          <div className="marketing-context-block marketing-primary-block">
             <div className="marketing-section-head">
               <div>
-                <strong>营销节点</strong>
-                <span>系统按今天、节气、项目周期主动推荐</span>
+                <strong>今天推荐</strong>
+                <span>按节气、季节和项目周期推荐</span>
               </div>
-              <small>智能推荐</small>
-            </div>
-            <div className="marketing-node-tabs" aria-label="营销节点类型">
-              {marketingNodeTabs.map((item) => (
-                <button type="button" key={item} className={marketingNodeTab === item ? "active" : ""} onClick={() => setMarketingNodeTab(item)}>{item}</button>
-              ))}
             </div>
             <div className="marketing-node-grid" aria-label="推荐营销节点">
               {marketingNodes.map((item) => (
@@ -342,11 +345,12 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               ))}
             </div>
           </div>
-          <div className="marketing-context-block">
+
+          <div className="marketing-context-block marketing-primary-block">
             <div className="marketing-section-head">
               <div>
-                <strong>生成条件</strong>
-                <span>分组设置，避免客户身份、身体状态、营销目的混在一起</span>
+                <strong>基础条件</strong>
+                <span>只选最影响文案语气的三件事</span>
               </div>
             </div>
             <div className="marketing-config-stack">
@@ -363,29 +367,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               </div>
               <div className="marketing-config-row">
                 <div className="marketing-config-label">
-                  <strong>消费节点</strong>
-                  <small>来自客户记录</small>
-                </div>
-                <div className="marketing-chip-row" aria-label="消费节点">
-                  {lifecycleNodes.map((item) => (
-                    <button type="button" key={item} className={lifecycleNode === item ? "active" : ""} onClick={() => setLifecycleNode(item)}>{item}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="marketing-config-row">
-                <div className="marketing-config-label">
-                  <strong>身体状态</strong>
-                  <small>文案痛点</small>
-                </div>
-                <div className="marketing-chip-row" aria-label="身体状态">
-                  {bodyStates.map((item) => (
-                    <button type="button" key={item} className={bodyState === item ? "active" : ""} onClick={() => setBodyState(item)}>{item}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="marketing-config-row">
-                <div className="marketing-config-label">
-                  <strong>发送渠道</strong>
+                  <strong>发到哪里</strong>
                   <small>格式语气</small>
                 </div>
                 <div className="marketing-chip-row" aria-label="渠道">
@@ -396,7 +378,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               </div>
               <div className="marketing-config-row">
                 <div className="marketing-config-label">
-                  <strong>营销目的</strong>
+                  <strong>想达到什么目的</strong>
                   <small>行动引导</small>
                 </div>
                 <div className="marketing-chip-row" aria-label="营销目的">
@@ -406,113 +388,183 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                 </div>
               </div>
             </div>
-            <div className="marketing-section-head compact">
-              <div>
-                <strong>海报风格</strong>
-                <span>文案和图片一起变</span>
-              </div>
-            </div>
-            <div className="marketing-style-grid" aria-label="海报风格">
-              {posterStyles.map((item) => (
-                <button type="button" key={item.title} className={posterStyle === item.title ? "active" : ""} onClick={() => setPosterStyle(item.title)}>
-                  <strong>{item.title}</strong>
-                  <span>{item.description}</span>
-                </button>
-              ))}
-            </div>
           </div>
+
           {tool === "copy" && (
             <p className="marketing-context-note">当前将生成适合{channel}发布的{marketingGoal}文案。</p>
           )}
-          {tool === "image" && (
-            <>
-              <div className="marketing-upload-grid">
-                <label className="marketing-upload-box">
-                  <Plus size={18} />
-                  <strong>产品图</strong>
-                  <span>{productImageName || "上传图片"}</span>
-                  <input type="file" accept="image/*" onChange={(event) => setProductImageName(event.target.files?.[0]?.name ?? "")} />
-                </label>
-                <label className="marketing-upload-box">
-                  <Plus size={18} />
-                  <strong>场景图</strong>
-                  <span>{sceneImageName || "上传图片"}</span>
-                  <input type="file" accept="image/*" onChange={(event) => setSceneImageName(event.target.files?.[0]?.name ?? "")} />
-                </label>
+
+          <details className="marketing-advanced-options">
+            <summary>
+              <span>更多条件</span>
+              <small>项目、商品、身体状态和素材</small>
+            </summary>
+            <div className="marketing-advanced-body">
+              {(tool === "copy" || tool === "image" || tool === "video") && (
+                <div className="marketing-form-grid">
+                  <label>
+                    <span>商品</span>
+                    <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
+                      {data.products.map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>项目</span>
+                    <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
+                      {data.services.map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              <div className="marketing-config-stack compact">
+                <div className="marketing-config-row">
+                  <div className="marketing-config-label">
+                    <strong>推荐来源</strong>
+                    <small>系统分类</small>
+                  </div>
+                  <div className="marketing-node-tabs" aria-label="营销节点类型">
+                    {marketingNodeTabs.map((item) => (
+                      <button type="button" key={item} className={marketingNodeTab === item ? "active" : ""} onClick={() => setMarketingNodeTab(item)}>{item}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="marketing-config-row">
+                  <div className="marketing-config-label">
+                    <strong>消费节点</strong>
+                    <small>来自客户记录</small>
+                  </div>
+                  <div className="marketing-chip-row" aria-label="消费节点">
+                    {lifecycleNodes.map((item) => (
+                      <button type="button" key={item} className={lifecycleNode === item ? "active" : ""} onClick={() => setLifecycleNode(item)}>{item}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="marketing-config-row">
+                  <div className="marketing-config-label">
+                    <strong>身体状态</strong>
+                    <small>文案痛点</small>
+                  </div>
+                  <div className="marketing-chip-row" aria-label="身体状态">
+                    {bodyStates.map((item) => (
+                      <button type="button" key={item} className={bodyState === item ? "active" : ""} onClick={() => setBodyState(item)}>{item}</button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="marketing-form-grid">
-                <label>
-                  <span>海报尺寸</span>
-                  <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
-                    {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span>活动信息</span>
-                  <input value={posterOffer} onChange={(event) => setPosterOffer(event.target.value)} />
-                </label>
+
+              <div className="marketing-section-head compact">
+                <div>
+                  <strong>海报风格</strong>
+                  <span>文案和图片一起变</span>
+                </div>
               </div>
-              <label className="marketing-text-field">
-                <span>海报标题</span>
-                <input value={posterTitle} onChange={(event) => setPosterTitle(event.target.value)} />
-              </label>
-            </>
-          )}
-          {tool === "video" && (
-            <>
-              <div className="marketing-upload-grid">
-                <label className="marketing-upload-box">
-                  <Plus size={18} />
-                  <strong>产品图</strong>
-                  <span>{productImageName || "上传图片"}</span>
-                  <input type="file" accept="image/*" onChange={(event) => setProductImageName(event.target.files?.[0]?.name ?? "")} />
-                </label>
-                <label className="marketing-upload-box">
-                  <Plus size={18} />
-                  <strong>门店素材</strong>
-                  <span>{sceneImageName || "上传图片"}</span>
-                  <input type="file" accept="image/*" onChange={(event) => setSceneImageName(event.target.files?.[0]?.name ?? "")} />
-                </label>
+              <div className="marketing-style-grid" aria-label="海报风格">
+                {posterStyles.map((item) => (
+                  <button type="button" key={item.title} className={posterStyle === item.title ? "active" : ""} onClick={() => setPosterStyle(item.title)}>
+                    <strong>{item.title}</strong>
+                    <span>{item.description}</span>
+                  </button>
+                ))}
               </div>
-              <div className="marketing-form-grid">
-                <label>
-                  <span>视频比例</span>
-                  <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value as AiVideoAspectRatio)}>
-                    {AI_VIDEO_ASPECT_RATIOS.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span>视频时长</span>
-                  <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
-                    {[5, 10, 15].map((item) => <option key={item} value={item}>{item} 秒</option>)}
-                  </select>
-                </label>
-              </div>
-              <label className="marketing-text-field">
-                <span>视频脚本</span>
-                <textarea value={videoScript} onChange={(event) => setVideoScript(event.target.value)} rows={4} />
-              </label>
-            </>
-          )}
-          {tool === "talk" && (
-            <>
-              <div className="marketing-form-grid">
-                <label>
-                  <span>客户</span>
-                  <select value={selectedCustomer?.id ?? ""} disabled>
-                    {selectedCustomer ? <option value={selectedCustomer.id}>{customerOptionOf(selectedCustomer).label}</option> : <option value="">暂无客户</option>}
-                  </select>
-                </label>
-                <label>
-                  <span>场景</span>
-                  <select value={talkScene} onChange={(event) => setTalkScene(event.target.value)}>
-                    {talkScenes.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                </label>
-              </div>
-              <p className="marketing-context-note">当前将生成面向{customerType}的{talkScene}私聊话术。</p>
-            </>
-          )}
+
+              {tool === "image" && (
+                <>
+                  <div className="marketing-upload-grid">
+                    <label className="marketing-upload-box">
+                      <Plus size={18} />
+                      <strong>产品图</strong>
+                      <span>{productImageName || "上传图片"}</span>
+                      <input type="file" accept="image/*" onChange={(event) => setProductImageName(event.target.files?.[0]?.name ?? "")} />
+                    </label>
+                    <label className="marketing-upload-box">
+                      <Plus size={18} />
+                      <strong>场景图</strong>
+                      <span>{sceneImageName || "上传图片"}</span>
+                      <input type="file" accept="image/*" onChange={(event) => setSceneImageName(event.target.files?.[0]?.name ?? "")} />
+                    </label>
+                  </div>
+                  <div className="marketing-form-grid">
+                    <label>
+                      <span>海报尺寸</span>
+                      <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
+                        {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>活动信息</span>
+                      <input value={posterOffer} onChange={(event) => setPosterOffer(event.target.value)} />
+                    </label>
+                  </div>
+                  <label className="marketing-text-field">
+                    <span>海报标题</span>
+                    <input value={posterTitle} onChange={(event) => setPosterTitle(event.target.value)} />
+                  </label>
+                </>
+              )}
+
+              {tool === "video" && (
+                <>
+                  <div className="marketing-upload-grid">
+                    <label className="marketing-upload-box">
+                      <Plus size={18} />
+                      <strong>产品图</strong>
+                      <span>{productImageName || "上传图片"}</span>
+                      <input type="file" accept="image/*" onChange={(event) => setProductImageName(event.target.files?.[0]?.name ?? "")} />
+                    </label>
+                    <label className="marketing-upload-box">
+                      <Plus size={18} />
+                      <strong>门店素材</strong>
+                      <span>{sceneImageName || "上传图片"}</span>
+                      <input type="file" accept="image/*" onChange={(event) => setSceneImageName(event.target.files?.[0]?.name ?? "")} />
+                    </label>
+                  </div>
+                  <div className="marketing-form-grid">
+                    <label>
+                      <span>视频比例</span>
+                      <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value as AiVideoAspectRatio)}>
+                        {AI_VIDEO_ASPECT_RATIOS.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>视频时长</span>
+                      <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
+                        {[5, 10, 15].map((item) => <option key={item} value={item}>{item} 秒</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="marketing-text-field">
+                    <span>视频脚本</span>
+                    <textarea value={videoScript} onChange={(event) => setVideoScript(event.target.value)} rows={4} />
+                  </label>
+                </>
+              )}
+
+              {tool === "talk" && (
+                <>
+                  <div className="marketing-form-grid">
+                    <label>
+                      <span>客户</span>
+                      <select value={selectedCustomer?.id ?? ""} disabled>
+                        {selectedCustomer ? <option value={selectedCustomer.id}>{customerOptionOf(selectedCustomer).label}</option> : <option value="">暂无客户</option>}
+                      </select>
+                    </label>
+                    <label>
+                      <span>场景</span>
+                      <select value={talkScene} onChange={(event) => setTalkScene(event.target.value)}>
+                        {talkScenes.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <p className="marketing-context-note">当前将生成面向{customerType}的{talkScene}私聊话术。</p>
+                </>
+              )}
+            </div>
+          </details>
           <div className="marketing-form-actions single">
             <button type="button" className="primary-button" disabled={!activeToolState.enabled || generationBusy} onClick={generate}>
               <Sparkles size={16} /> {generationBusy ? "生成中..." : tool === "image" ? "AI生成海报" : tool === "video" ? "创建视频任务" : tool === "talk" ? "AI生成话术" : "AI生成文案"}
@@ -526,8 +578,8 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
           {marketingAiRecords.slice(0, 8).map((record) => (
             <article key={record.id} className="marketing-record-item">
               <div>
-                <strong>{record.title}</strong>
-                <span>{marketingRecordKindLabel(record.kind)} · {record.marketingNode ?? "未标记节点"} · {record.channel ?? "未标记渠道"} · {shortRecordTime(record.createdAt)}</span>
+                <strong>{marketingRecordTitle(record)}</strong>
+                <span>{marketingRecordKindLabel(record.kind)} · {record.marketingNode || marketingRecordSummary(record)} · {record.channel || "未标记渠道"} · {shortRecordTime(record.createdAt)}</span>
               </div>
               <b>{formatAiCostRmb(record.cost)}</b>
               <div className="marketing-record-actions">

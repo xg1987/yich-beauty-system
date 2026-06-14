@@ -21555,6 +21555,13 @@ textarea,
   gap: 12px;
 }
 
+.marketing-primary-block {
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .marketing-center-page .marketing-form-panel {
   background:
     radial-gradient(circle at 86% 0%, rgba(111, 66, 193, 0.08), transparent 32%),
@@ -21688,6 +21695,10 @@ textarea,
   gap: 10px;
 }
 
+.marketing-config-stack.compact {
+  gap: 8px;
+}
+
 .marketing-config-row {
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
@@ -21740,6 +21751,67 @@ textarea,
   border: 1px solid rgba(42, 143, 125, 0.14);
   border-radius: 14px;
   background: rgba(42, 143, 125, 0.08);
+}
+
+.marketing-advanced-options {
+  overflow: hidden;
+  border: 1px solid rgba(111, 66, 193, 0.13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.marketing-advanced-options summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 14px;
+  color: #2f255f;
+  cursor: pointer;
+  list-style: none;
+}
+
+.marketing-advanced-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.marketing-advanced-options summary span {
+  font-size: 15px;
+  font-weight: 920;
+}
+
+.marketing-advanced-options summary small {
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.marketing-advanced-options summary::after {
+  content: "展开";
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #6f42c1;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.marketing-advanced-options[open] summary {
+  border-bottom: 1px solid rgba(111, 66, 193, 0.12);
+}
+
+.marketing-advanced-options[open] summary::after {
+  content: "收起";
+}
+
+.marketing-advanced-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
 }
 
 .marketing-result-panel {
@@ -22181,6 +22253,8 @@ textarea,
 .app-shell.theme-night .marketing-node-tabs button,
 .app-shell.theme-night .marketing-node-grid button,
 .app-shell.theme-night .marketing-config-row,
+.app-shell.theme-night .marketing-primary-block,
+.app-shell.theme-night .marketing-advanced-options,
 .app-shell.theme-night .marketing-style-grid button,
 .app-shell.theme-night .marketing-context-note,
 .app-shell.theme-night .marketing-preview-summary,
@@ -22211,10 +22285,19 @@ textarea,
   color: var(--night-app-text);
 }
 
+.app-shell.theme-night .marketing-advanced-options summary {
+  color: var(--night-app-text);
+}
+
+.app-shell.theme-night .marketing-advanced-options summary small {
+  color: var(--night-app-muted);
+}
+
 .app-shell.theme-day .marketing-center-page .marketing-section-head strong,
 .app-shell.theme-day .marketing-center-page .panel-title h2,
 .app-shell.theme-day .marketing-center-page .marketing-node-grid button strong,
 .app-shell.theme-day .marketing-center-page .marketing-config-label strong,
+.app-shell.theme-day .marketing-center-page .marketing-advanced-options summary span,
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button strong,
 .app-shell.theme-day .marketing-center-page .marketing-preview-summary span,
 .app-shell.theme-day .marketing-center-page .marketing-preview-copy article p {
@@ -22230,6 +22313,7 @@ textarea,
 .app-shell.theme-day .marketing-center-page .marketing-section-head span,
 .app-shell.theme-day .marketing-center-page .marketing-section-head small,
 .app-shell.theme-day .marketing-center-page .marketing-config-label small,
+.app-shell.theme-day .marketing-center-page .marketing-advanced-options summary small,
 .app-shell.theme-day .marketing-center-page .marketing-node-grid button small,
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button span,
 .app-shell.theme-day .marketing-center-page .marketing-context-note {
