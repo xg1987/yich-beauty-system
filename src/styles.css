@@ -22745,6 +22745,52 @@ textarea,
   color: var(--night-app-text);
 }
 
+.theme-day .marketing-center-page .marketing-record-item,
+.theme-night .marketing-center-page .marketing-record-item {
+  border-color: rgba(111, 66, 193, 0.18) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+.theme-day .marketing-center-page .marketing-record-type,
+.theme-night .marketing-center-page .marketing-record-type {
+  border-color: rgba(111, 66, 193, 0.18) !important;
+  background: rgba(111, 66, 193, 0.08) !important;
+  color: #6f42c1 !important;
+}
+
+.theme-day .marketing-center-page .marketing-record-main strong,
+.theme-night .marketing-center-page .marketing-record-main strong {
+  color: #2f255f !important;
+}
+
+.theme-day .marketing-center-page .marketing-record-summary,
+.theme-night .marketing-center-page .marketing-record-summary {
+  color: rgba(47, 37, 95, 0.64) !important;
+}
+
+.theme-day .marketing-center-page .marketing-record-main small,
+.theme-night .marketing-center-page .marketing-record-main small,
+.theme-day .marketing-center-page .marketing-record-cost span,
+.theme-night .marketing-center-page .marketing-record-cost span {
+  color: rgba(47, 37, 95, 0.5) !important;
+}
+
+.theme-day .marketing-center-page .marketing-record-cost b,
+.theme-night .marketing-center-page .marketing-record-cost b {
+  color: #1f6f61 !important;
+}
+
+.theme-day .marketing-center-page .marketing-record-actions button,
+.theme-night .marketing-center-page .marketing-record-actions button {
+  color: #2f255f !important;
+}
+
+.theme-day .marketing-center-page .marketing-record-actions button svg,
+.theme-night .marketing-center-page .marketing-record-actions button svg {
+  color: #2f255f !important;
+  stroke: currentColor !important;
+}
+
 @media (max-width: 1180px) {
   .employee-stat-grid,
   .employee-action-grid,

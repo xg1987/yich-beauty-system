@@ -47,9 +47,9 @@ function formatAiCostRmb(cost?: MarketingAiRecord["cost"] | { amountUsd: number;
   if (amountUsd === undefined) return "费用未返回";
   if (typeof cost !== "number" && cost.priceConfigured === false) return "费用未配置";
   const amount = amountUsd * USD_TO_CNY_DISPLAY_RATE;
-  if (amount > 0 && amount < 0.01) return `¥${amount.toFixed(6)}`;
-  if (amount > 0 && amount < 1) return `¥${amount.toFixed(4)}`;
-  return `¥${amount.toFixed(2)}`;
+  if (amount > 0 && amount < 0.01) return `人民币 ${amount.toFixed(6)} 元`;
+  if (amount > 0 && amount < 1) return `人民币 ${amount.toFixed(4)} 元`;
+  return `人民币 ${amount.toFixed(2)} 元`;
 }
 
 function formatAiCostUsd(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
