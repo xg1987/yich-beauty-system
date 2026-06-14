@@ -483,10 +483,8 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               <div className="marketing-section-head">
                 <div>
                   <strong>今天推荐</strong>
-                  <span>自动结合 2026 传统节日、24 节气和项目周期</span>
                 </div>
               </div>
-              <p className="marketing-timing-note">系统会优先推荐临近节日和节气；没有强节点时，自动回到项目复购提醒。</p>
               <div className="marketing-node-grid" aria-label="推荐营销节点">
                 {todayMarketingNodes.map((item) => (
                   <button type="button" key={item.title} className={marketingNode === item.title ? "active" : ""} onClick={() => setMarketingNode(item.title)}>
@@ -504,7 +502,6 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               <div className="marketing-section-head">
                 <div>
                   <strong>基础条件</strong>
-                  <span>先确定发给谁、发哪里、想达到什么目的</span>
                 </div>
               </div>
               <div className="marketing-config-stack">
@@ -553,8 +550,6 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                 placeholder="例如：重点推三伏药浴，语气温和，不要太像广告。"
               />
             </label>
-
-            <p className="marketing-context-note">当前将围绕{nodeBrief || marketingNode}生成一套适合{channel}发布的营销内容，包含配套文案和可下载海报。</p>
 
             <details className="marketing-advanced-options">
               <summary>

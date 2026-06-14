@@ -1,6 +1,9 @@
 import { Component, lazy, Suspense, useEffect, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import { installAppUpdateChecker } from "./appUpdate";
+import { APP_UPDATE_AVAILABLE_EVENT, dismissAppUpdatePrompt, installAppUpdateChecker, reloadForAppUpdate } from "./appUpdate";
+import { RouteFallback, StartupRecovery } from "./components/AppLoadingViews";
+import { AppUpdatePrompt, appUpdateInfoFromEvent } from "./components/AppUpdatePrompt";
+import type { AppUpdateInfo } from "./components/AppUpdatePrompt";
 
 const AuthGate = lazy(() => import("./app/AuthGate"));
 const DownloadGuidePage = lazy(() => import("./pages/public/DownloadGuidePage"));
@@ -35,30 +38,6 @@ async function recoverFromStaleAssets() {
   window.location.replace(nextUrl.toString());
 }
 
-function StartupRecovery({ message = "正在更新应用" }: { message?: string }) {
-  const [canRetry, setCanRetry] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setCanRetry(true), 1800);
-    void recoverFromStaleAssets();
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  return (
-    <div className="loading-page">
-      <section className="loading-minimal">
-        <div className="loading-brand">
-          <strong>祝融坤锋美业</strong>
-          <small>美业门店管理系统</small>
-        </div>
-        <div className="loading-progress" aria-hidden="true"><i /></div>
-        <small>{message}</small>
-        {canRetry && <div className="loading-actions"><button className="loading-action-primary" type="button" onClick={() => window.location.reload()}>重新进入</button></div>}
-      </section>
-    </div>
-  );
-}
-
 class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
 
@@ -73,29 +52,21 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
   }
 
   render() {
-    if (this.state.hasError) return <StartupRecovery />;
+    if (this.state.hasError) return <StartupRecovery onRecover={() => void recoverFromStaleAssets()} />;
     return this.props.children;
   }
 }
 
-function RouteFallback() {
-  return (
-    <div className="loading-page">
-      <section className="loading-minimal">
-        <div className="loading-brand">
-          <strong>祝融坤锋美业</strong>
-          <small>美业门店管理系统</small>
-        </div>
-        <div className="loading-progress" aria-hidden="true"><i /></div>
-        <small>请稍候</small>
-      </section>
-    </div>
-  );
-}
-
 export default function App() {
+  const [pendingUpdate, setPendingUpdate] = useState<AppUpdateInfo | null>(null);
+  const [updateRefreshing, setUpdateRefreshing] = useState(false);
+
   useEffect(() => {
     const uninstallChecker = installAppUpdateChecker();
+    const handleAppUpdate = (event: Event) => {
+      const info = appUpdateInfoFromEvent(event);
+      if (info) setPendingUpdate(info);
+    };
     const handlePreloadError = (event: Event) => {
       event.preventDefault();
       void recoverFromStaleAssets();
@@ -106,16 +77,41 @@ export default function App() {
       void recoverFromStaleAssets();
     };
 
+    window.addEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
     window.addEventListener("vite:preloadError", handlePreloadError);
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
     return () => {
       uninstallChecker();
+      window.removeEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
       window.removeEventListener("vite:preloadError", handlePreloadError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     };
   }, []);
 
-  return <AppErrorBoundary><AppRoutes /></AppErrorBoundary>;
+  const dismissUpdate = () => {
+    if (pendingUpdate) dismissAppUpdatePrompt(pendingUpdate.serverVersion);
+    setPendingUpdate(null);
+  };
+
+  const updateNow = () => {
+    if (!pendingUpdate) return;
+    setUpdateRefreshing(true);
+    void reloadForAppUpdate(pendingUpdate.serverVersion);
+  };
+
+  return (
+    <AppErrorBoundary>
+      <AppRoutes />
+      {pendingUpdate && (
+        <AppUpdatePrompt
+          info={pendingUpdate}
+          updating={updateRefreshing}
+          onDismiss={dismissUpdate}
+          onUpdate={updateNow}
+        />
+      )}
+    </AppErrorBoundary>
+  );
 }
 
 function AppRoutes() {

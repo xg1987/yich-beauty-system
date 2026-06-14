@@ -9,11 +9,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const CURRENT_VERSION = packageJson.version;
 const CHECK_INTERVAL_MS = 60_000;
 const STARTUP_CHECK_DELAY_MS = 3_000;
-const DEFER_RELOAD_MS = 15_000;
-const LAST_RELOAD_KEY = "yich-last-version-reload";
-const RELOAD_COOLDOWN_MS = 30_000;
+const DISMISSED_UPDATE_KEY = "yich-dismissed-update-version";
+export const APP_UPDATE_AVAILABLE_EVENT = "yich-app-update-available";
 
-let reloadScheduled = false;
+let promptedVersion = "";
 
 export function installAppUpdateChecker() {
   if (typeof window === "undefined") return () => undefined;
@@ -41,8 +40,6 @@ export function installAppUpdateChecker() {
 }
 
 async function checkForAppUpdate() {
-  if (reloadScheduled) return;
-
   try {
     const response = await fetch(`${API_BASE_URL}/api/health?clientVersion=${encodeURIComponent(CURRENT_VERSION)}&t=${Date.now()}`, {
       cache: "no-store",
@@ -56,52 +53,28 @@ async function checkForAppUpdate() {
     const payload = (await response.json()) as HealthPayload;
     const serverVersion = payload.version?.trim();
     if (!serverVersion || serverVersion === CURRENT_VERSION) return;
+    if (serverVersion === promptedVersion || serverVersion === window.sessionStorage.getItem(DISMISSED_UPDATE_KEY)) return;
 
-    scheduleReload(serverVersion);
+    promptedVersion = serverVersion;
+    window.dispatchEvent(new CustomEvent(APP_UPDATE_AVAILABLE_EVENT, {
+      detail: { currentVersion: CURRENT_VERSION, serverVersion },
+    }));
   } catch {
     // Network failures should not interrupt daily store operations.
   }
 }
 
-function scheduleReload(serverVersion: string) {
-  if (reloadScheduled || recentlyReloadedForVersion(serverVersion)) return;
-  reloadScheduled = true;
-
-  const reload = async () => {
-    markReloadForVersion(serverVersion);
-    await clearBrowserCaches();
-
-    const nextUrl = new URL(window.location.href);
-    nextUrl.searchParams.set("__yich_update", serverVersion);
-    nextUrl.searchParams.set("__yich_t", `${Date.now()}`);
-    window.location.replace(nextUrl.toString());
-  };
-
-  if (hasActiveEditingTarget()) {
-    window.setTimeout(() => void reload(), DEFER_RELOAD_MS);
-    return;
-  }
-
-  void reload();
+export function dismissAppUpdatePrompt(serverVersion: string) {
+  window.sessionStorage.setItem(DISMISSED_UPDATE_KEY, serverVersion);
 }
 
-function recentlyReloadedForVersion(serverVersion: string) {
-  const raw = window.sessionStorage.getItem(LAST_RELOAD_KEY);
-  if (!raw) return false;
+export async function reloadForAppUpdate(serverVersion: string) {
+  await clearBrowserCaches();
 
-  const [version, timestampText] = raw.split(":");
-  const timestamp = Number(timestampText);
-  return version === serverVersion && Number.isFinite(timestamp) && Date.now() - timestamp < RELOAD_COOLDOWN_MS;
-}
-
-function markReloadForVersion(serverVersion: string) {
-  window.sessionStorage.setItem(LAST_RELOAD_KEY, `${serverVersion}:${Date.now()}`);
-}
-
-function hasActiveEditingTarget() {
-  const activeElement = document.activeElement;
-  if (!(activeElement instanceof HTMLElement)) return false;
-  return Boolean(activeElement.closest("input, textarea, select, [contenteditable='true']"));
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set("__yich_update", serverVersion);
+  nextUrl.searchParams.set("__yich_t", `${Date.now()}`);
+  window.location.replace(nextUrl.toString());
 }
 
 async function clearBrowserCaches() {

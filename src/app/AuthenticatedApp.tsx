@@ -1107,10 +1107,12 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     owner: "门店老板",
     manager: "门店主管",
     frontdesk: "前台营业",
-    therapist: "服务页面",
+    therapist: "",
     finance: "财务后台",
   };
   const shellDisplayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
+  const shellPrimaryLabel = shellRoleLabel[session.user.role] || shellDisplayName;
+  const shellSecondaryLabel = shellRoleLabel[session.user.role] ? shellDisplayName : "";
   const topbarStoreName = primaryStoreName(data);
   const topbarTitle = session.user.role === "superadmin" ? DEFAULT_SYSTEM_TITLE : topbarStoreName || DEFAULT_SYSTEM_TITLE;
   const currentAuthUser = data.authUsers.find((user) => user.id === session.user.id);
@@ -1123,8 +1125,8 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
         <div className="rail-admin">
           <BrandIcon className="brand-mark brand-icon-mark" />
           <div>
-            <strong>{shellRoleLabel[session.user.role]}</strong>
-            <span>{shellDisplayName}</span>
+            <strong>{shellPrimaryLabel}</strong>
+            {shellSecondaryLabel && <span>{shellSecondaryLabel}</span>}
           </div>
         </div>
       </aside>
@@ -1135,8 +1137,8 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
           <div className="topbar-brand">
             <BrandIcon className="brand-mark brand-icon-mark" />
             <div>
-              <strong>{shellRoleLabel[session.user.role]}</strong>
-              <span>{shellDisplayName}</span>
+              <strong>{shellPrimaryLabel}</strong>
+              {shellSecondaryLabel && <span>{shellSecondaryLabel}</span>}
             </div>
           </div>
           <div className="topbar-title">

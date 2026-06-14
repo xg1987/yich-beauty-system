@@ -161,9 +161,117 @@ button[aria-busy="true"] {
   white-space: nowrap;
 }
 
+.app-update-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  background: rgba(36, 24, 66, 0.24);
+  backdrop-filter: blur(10px);
+}
+
+.app-update-card {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.22);
+  border-radius: 20px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 90% 4%, rgba(168, 226, 214, 0.2), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(247, 241, 255, 0.98));
+  color: #2f255f;
+  box-shadow: 0 24px 70px rgba(47, 27, 99, 0.24);
+}
+
+.app-update-eyebrow {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.app-update-card h2 {
+  margin: 0;
+  color: #2f255f;
+  font-size: 26px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.app-update-card p {
+  margin: 0;
+  color: rgba(47, 37, 95, 0.72);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.app-update-version {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.app-update-version span {
+  min-width: 0;
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #4f2d75;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.app-update-version b {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.app-update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.app-update-actions button {
+  min-height: 42px;
+}
+
 @keyframes global-mutation-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .app-update-card {
+    border-radius: 18px;
+    padding: 20px;
+  }
+
+  .app-update-version {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .app-update-version b {
+    text-align: center;
+  }
+
+  .app-update-actions {
+    flex-direction: column-reverse;
+  }
+
+  .app-update-actions button {
+    width: 100%;
   }
 }
 
@@ -25505,4 +25613,13 @@ img.brand-icon-mark {
   .system-modal-footer {
     padding: 12px 14px max(14px, env(safe-area-inset-bottom));
   }
+}
+
+/* Shell navigation remains reachable while a business dialog is open; blocking save states still sit above it. */
+.app-shell .workbar {
+  z-index: 240;
+}
+
+.app-shell[data-mutating="true"] .workbar {
+  pointer-events: none;
 }
