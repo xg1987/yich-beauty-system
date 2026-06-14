@@ -492,6 +492,7 @@ const viewTitles: Record<ViewKey, string> = {
   permissions: "权限审批",
   platformConfig: "平台配置",
   aiConfig: "AI 能力配置",
+  aiCredits: "AI积分充值",
   aiTest: "AI 智能测试中心",
   storeCustomerDetails: "分店客户明细",
   usage: "服务器用量监控",
@@ -867,7 +868,7 @@ const workbarItems: WorkbarItem[] = [
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
-const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "storeCustomerDetails", "logs", "usage", "settings"]);
+const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "storeCustomerDetails", "logs", "usage", "settings"]);
 
 const employeeWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
@@ -962,6 +963,7 @@ const LazyPlatformAccountAdminView = lazy(() => import("./platformViews").then((
 const LazyPlatformPermissionReadOnlyView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformPermissionReadOnlyView })));
 const LazyPlatformSystemConfigView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformSystemConfigView })));
 const LazyPlatformAiConfigView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAiConfigView })));
+const LazyPlatformAiCreditsView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAiCreditsView })));
 const LazyPlatformAiTestCenterView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAiTestCenterView })));
 const LazyPlatformStoreCustomerDetailsView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformStoreCustomerDetailsView })));
 const LazyPlatformUsageReadOnlyView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformUsageReadOnlyView })));
@@ -1294,6 +1296,11 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
                 <LazyPlatformAiConfigView data={data} setView={navigate} actions={actions} runMutation={runMutation} />
               </Suspense>
             )}
+            {activeView === "aiCredits" && (
+              <Suspense fallback={<ViewFallback title="AI 积分充值" />}>
+                <LazyPlatformAiCreditsView data={data} session={session} setView={navigate} actions={actions} runMutation={runMutation} />
+              </Suspense>
+            )}
             {activeView === "aiTest" && (
               <Suspense fallback={<ViewFallback title="AI 测试中心" />}>
                 <LazyPlatformAiTestCenterView data={data} setView={navigate} actions={actions} />
@@ -1420,6 +1427,7 @@ function ManagementCenter({
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
     { title: "AI 能力配置", desc: "文案 / 图片 / 视频模型与成本", icon: Sparkles, tone: "plum", view: "aiConfig" },
+    { title: "AI积分充值", desc: "给账号充值生成次数", icon: BadgeCent, tone: "plum", view: "aiCredits" },
     { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "AI 智能测试中心", desc: "聊天 / 图片 / 视频接口试跑", icon: MessageCircle, tone: "plum", view: "aiTest" },
     { title: "分店客户明细", desc: "客户业务 / 消费明细", icon: UsersRound, tone: "violet", view: "storeCustomerDetails" },
@@ -1775,7 +1783,7 @@ function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = 
   if (view === "reports") return "reports";
   if (view === "accounts") return "accounts";
   if (view === "logs") return "logs";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "aiTest", "storeCustomerDetails", "usage", "roomSettings"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "storeCustomerDetails", "usage", "roomSettings"].includes(view)) return "admin";
   return "workbench";
 }
 

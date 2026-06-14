@@ -14,6 +14,7 @@ export type ViewKey =
   | "permissions"
   | "platformConfig"
   | "aiConfig"
+  | "aiCredits"
   | "aiTest"
   | "storeCustomerDetails"
   | "usage"
@@ -57,6 +58,10 @@ export type MarketingAiRecord = {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+  };
+  billing?: {
+    source: "credit" | "free";
+    creditsCharged?: number;
   };
   provider?: string;
   model?: string;
@@ -113,6 +118,7 @@ export type AuthUser = {
   account: string;
   password: string;
   avatarUrl?: string;
+  aiCredits?: number;
   role: UserRole;
   roleName: string;
   staffId?: string;
@@ -531,7 +537,7 @@ export type OperationLog = {
   createdAt: string;
 };
 
-export type SystemConfigKey = "invite_default_days" | "allow_registration" | "maintenance_mode" | "system_announcement" | "role_permissions" | "ai_generation_config";
+export type SystemConfigKey = "invite_default_days" | "allow_registration" | "maintenance_mode" | "system_announcement" | "role_permissions" | "ai_generation_config" | "ai_billing_config";
 
 export type SystemConfig = {
   id: string;

@@ -201,6 +201,11 @@ export function useApiData() {
         setData((current) => current
           ? {
               ...current,
+              authUsers: current.authUsers.map((user) => {
+                if (user.id !== result.record!.createdBy) return user;
+                const credits = typeof user.aiCredits === "number" && Number.isFinite(user.aiCredits) ? Math.max(0, Math.floor(user.aiCredits)) : 0;
+                return credits > 0 ? { ...user, aiCredits: credits - 1 } : user;
+              }),
               marketingAiRecords: [
                 result.record!,
                 ...(current.marketingAiRecords ?? []).filter((record) => record.id !== result.record!.id),
@@ -213,6 +218,7 @@ export function useApiData() {
     uploadAccountAvatar: client.uploadAccountAvatar,
     updateAuthUserStatus: client.updateAuthUserStatus,
     resetAuthUserPassword: client.resetAuthUserPassword,
+    updateAuthUserAiCredits: client.updateAuthUserAiCredits,
     updateAiUsagePermissions: client.updateAiUsagePermissions,
     updateOperationalPermissions: client.updateOperationalPermissions,
     updateSystemConfig: client.updateSystemConfig,

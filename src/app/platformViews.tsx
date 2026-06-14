@@ -35,6 +35,7 @@ import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
 import { platformInviteCodeForPlatformAdmin, reportSummary } from "../domain/business";
 import { appointmentRangeMap, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "../domain/appointments";
+import { accountAiCredits, aiFreeQuotaState } from "../domain/aiBilling";
 import { buildCashierFlowRecords } from "../domain/cashierFlow";
 import { canAccessView, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import { formatStockQuantity } from "../domain/products";
@@ -1723,6 +1724,8 @@ export function PlatformAccountAdminView({
   const mutationPending = useMutationPending();
   const [resetUserId, setResetUserId] = useState("");
   const [resetPassword, setResetPassword] = useState("123456");
+  const [creditUserId, setCreditUserId] = useState("");
+  const [creditAmount, setCreditAmount] = useState(30);
   const [accountSearch, setAccountSearch] = useState("");
   const [expandedStoreIds, setExpandedStoreIds] = useState<Set<string>>(() => new Set());
   const visibleAuthUsers = data.authUsers.filter(isVisibleAccount);
@@ -1732,6 +1735,7 @@ export function PlatformAccountAdminView({
   const staffAccounts = visibleAuthUsers.filter((user) => ["manager", "frontdesk", "therapist", "finance"].includes(user.role));
   const accountRows = isPlatformAdmin ? visibleAuthUsers : staffAccounts;
   const resetUser = accountRows.find((user) => user.id === resetUserId);
+  const creditUser = visibleAuthUsers.find((user) => user.id === creditUserId);
   const normalizedAccountSearch = accountSearch.trim().toLowerCase();
   const staffById = new Map(data.staff.map((staff) => [staff.id, staff]));
   const storeIdForAccount = (user: AuthUser) => user.storeId ?? (user.staffId ? staffById.get(user.staffId)?.storeId : undefined);
@@ -1760,6 +1764,14 @@ export function PlatformAccountAdminView({
       setResetPassword("123456");
     });
   };
+  const submitAiCredits = (event: FormEvent) => {
+    event.preventDefault();
+    if (!creditUserId) return;
+    void runMutation(() => actions.updateAuthUserAiCredits(creditUserId, creditAmount)).then(() => {
+      setCreditUserId("");
+      setCreditAmount(30);
+    });
+  };
   const deleteLinkedStaff = (user: AuthUser) => {
     const staffId = user.staffId;
     if (!staffId) return;
@@ -1782,6 +1794,7 @@ export function PlatformAccountAdminView({
           </button>
         )}
         <button type="button" disabled={mutationPending} onClick={() => setResetUserId(user.id)}>重置密码</button>
+        {isPlatformAdmin && <button type="button" disabled={mutationPending} onClick={() => { setCreditUserId(user.id); setCreditAmount(Math.max(0, user.aiCredits ?? 0)); }}>AI充值</button>}
         {user.staffId && user.role !== "owner" && <button type="button" disabled={mutationPending} onClick={() => deleteLinkedStaff(user)}>删除员工</button>}
       </div>
     )
@@ -1841,17 +1854,31 @@ export function PlatformAccountAdminView({
               </div>
             </form>
           )}
+          {isPlatformAdmin && creditUser && (
+            <form className="staff-edit-form" onSubmit={submitAiCredits}>
+              <div className="staff-edit-head">
+                <strong>AI积分充值</strong>
+                <span>{creditUser.name} · {creditUser.account}</span>
+              </div>
+              <label>积分数<input type="number" min={0} max={99999} step={1} value={creditAmount} onChange={(event) => setCreditAmount(Number(event.target.value))} required /></label>
+              <div className="staff-edit-actions">
+                <SubmitStatusButton idleText="保存积分" busyText="保存中..." />
+                <button type="button" onClick={() => setCreditUserId("")}>取消</button>
+              </div>
+            </form>
+          )}
           {isPlatformAdmin ? (
             <div className="store-account-admin">
               {visibleAdminAccounts.length > 0 && (
                 <div className="platform-account-block">
                   <div className="store-account-block-title"><strong>平台账号</strong><span>{visibleAdminAccounts.length} 个</span></div>
                   <DataTable
-                    columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
+                    columns={["姓名", "账号", "角色", "AI积分", "状态", "创建时间", "操作"]}
                     rows={visibleAdminAccounts.map((user) => [
                       user.name,
                       user.account,
                       displayRoleName(user),
+                      `${Math.max(0, user.aiCredits ?? 0)} 次`,
                       <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
                       shortDate(user.createdAt),
                       renderAccountActions(user),
@@ -1882,11 +1909,12 @@ export function PlatformAccountAdminView({
                       {isExpanded && (
                         <div className="store-account-detail">
                           <DataTable
-                            columns={["姓名", "手机号 / 账号", "角色", "状态", "创建时间", "操作"]}
+                            columns={["姓名", "手机号 / 账号", "角色", "AI积分", "状态", "创建时间", "操作"]}
                             rows={rows.map((user) => [
                               user.name,
                               accountPhone(user),
                               displayRoleName(user),
+                              `${Math.max(0, user.aiCredits ?? 0)} 次`,
                               <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
                               shortDate(user.createdAt),
                               renderAccountActions(user),
@@ -1904,19 +1932,213 @@ export function PlatformAccountAdminView({
             </div>
           ) : (
             <DataTable
-              columns={["姓名", "账号", "角色", "状态", "创建时间", "操作"]}
+              columns={["姓名", "账号", "角色", "AI积分", "状态", "创建时间", "操作"]}
               rows={staffAccounts
                 .filter((user) => !normalizedAccountSearch || accountSearchTarget(user).includes(normalizedAccountSearch))
                 .map((user) => [
                   user.name,
                   user.account,
                   displayRoleName(user),
+                  `${Math.max(0, user.aiCredits ?? 0)} 次`,
                   <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
                   shortDate(user.createdAt),
                   renderAccountActions(user),
                 ])}
             />
           )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function PlatformAiCreditsView({
+  data,
+  session,
+  setView,
+  actions,
+  runMutation,
+}: {
+  data: AppData;
+  session: UserSession;
+  setView: (view: ViewKey) => void;
+  actions: ApiActions;
+  runMutation: RunMutation;
+}) {
+  const mutationPending = useMutationPending();
+  const [accountSearch, setAccountSearch] = useState("");
+  const [creditFilter, setCreditFilter] = useState<"all" | "credited" | "empty" | "low">("all");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [topUpAmount, setTopUpAmount] = useState(10);
+  const isPlatformAdmin = session.user.role === "superadmin";
+  const visibleAuthUsers = data.authUsers.filter(isVisibleAccount);
+  const staffById = new Map(data.staff.map((staff) => [staff.id, staff]));
+  const storeById = new Map(data.storeProfiles.map((store) => [store.id, store]));
+  const normalizedSearch = accountSearch.trim().toLowerCase();
+  const storeIdForAccount = (user: AuthUser) => user.storeId ?? (user.staffId ? staffById.get(user.staffId)?.storeId : undefined);
+  const accountPhone = (user: AuthUser) => (user.staffId ? staffById.get(user.staffId)?.phone : undefined) || user.account;
+  const latestRecordAt = (userId: string) => {
+    const timestamp = (data.marketingAiRecords ?? [])
+      .filter((record) => record.createdBy === userId)
+      .map((record) => new Date(record.createdAt).getTime())
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => b - a)[0];
+    return timestamp ? shortDate(new Date(timestamp).toISOString()) : "-";
+  };
+  const accountRows = visibleAuthUsers
+    .map((user) => {
+      const storeId = storeIdForAccount(user);
+      const storeName = storeId ? storeById.get(storeId)?.name ?? "未绑定门店" : isVisiblePlatformAdmin(user) ? "平台账号" : "未绑定门店";
+      const credits = accountAiCredits(user.aiCredits);
+      const quota = aiFreeQuotaState(data, user.id);
+      const searchText = `${user.name} ${user.account} ${accountPhone(user)} ${displayRoleName(user)} ${storeName}`.toLowerCase();
+      return { user, storeName, credits, quota, searchText, lastRecordAt: latestRecordAt(user.id) };
+    })
+    .filter((row) => !normalizedSearch || row.searchText.includes(normalizedSearch))
+    .filter((row) => {
+      if (creditFilter === "credited") return row.credits > 0;
+      if (creditFilter === "empty") return row.credits <= 0;
+      if (creditFilter === "low") return row.credits > 0 && row.credits <= 3;
+      return true;
+    });
+  const selectedRow = accountRows.find((row) => row.user.id === selectedUserId)
+    ?? visibleAuthUsers
+      .map((user) => {
+        const storeId = storeIdForAccount(user);
+        const storeName = storeId ? storeById.get(storeId)?.name ?? "未绑定门店" : isVisiblePlatformAdmin(user) ? "平台账号" : "未绑定门店";
+        return { user, storeName, credits: accountAiCredits(user.aiCredits), quota: aiFreeQuotaState(data, user.id), searchText: "", lastRecordAt: latestRecordAt(user.id) };
+      })
+      .find((row) => row.user.id === selectedUserId);
+  const creditedAccounts = visibleAuthUsers.filter((user) => accountAiCredits(user.aiCredits) > 0).length;
+  const emptyAccounts = visibleAuthUsers.length - creditedAccounts;
+  const lowCreditAccounts = visibleAuthUsers.filter((user) => {
+    const credits = accountAiCredits(user.aiCredits);
+    return credits > 0 && credits <= 3;
+  }).length;
+  const totalCredits = visibleAuthUsers.reduce((sum, user) => sum + accountAiCredits(user.aiCredits), 0);
+  const submitTopUp = (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedRow) return;
+    const amount = Math.max(0, Math.floor(Number(topUpAmount) || 0));
+    if (amount <= 0) return;
+    const nextCredits = selectedRow.credits + amount;
+    void runMutation(() => actions.updateAuthUserAiCredits(selectedRow.user.id, nextCredits)).then(() => {
+      setTopUpAmount(10);
+    });
+  };
+  const selectForTopUp = (userId: string) => {
+    setSelectedUserId(userId);
+    setTopUpAmount(10);
+  };
+
+  if (!isPlatformAdmin) {
+    return (
+      <div className="admin-center-page platform-admin-page">
+        <PlatformPageTitle title="AI积分充值" onBack={() => setView("settings")} />
+        <section className="panel dashboard-panel">
+          <p className="empty">当前账号没有 AI 积分充值权限。</p>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-center-page platform-admin-page">
+      <PlatformPageTitle title="AI积分充值" onBack={() => setView("settings")} />
+      <section className="page-hero platform-admin-readonly-hero">
+        <div>
+          <span className="eyebrow"><BadgeCent size={15} /> 平台充值</span>
+          <h1>AI积分充值</h1>
+          <p>给门店老板、店长、员工账号充值 AI 生成次数。</p>
+        </div>
+        <div className="page-hero-stats">
+          <StatCard title="账号总数" value={`${visibleAuthUsers.length} 个`} hint="可充值账号" />
+          <StatCard title="已充值账号" value={`${creditedAccounts} 个`} hint="积分大于 0" />
+          <StatCard title="低积分账号" value={`${lowCreditAccounts} 个`} hint="剩余 1-3 次" />
+          <StatCard title="当前总积分" value={`${totalCredits} 次`} hint="全系统余额" />
+        </div>
+      </section>
+
+      <section className="ai-credit-layout">
+        <div className="panel dashboard-panel ai-credit-recharge-panel">
+          <PanelTitle icon={<BadgeCent size={18} />} title="充值操作" action={selectedRow ? "已选择账号" : "先选择账号"} />
+          {selectedRow ? (
+            <form className="ai-credit-form" onSubmit={submitTopUp}>
+              <div className="ai-credit-selected-card">
+                <div>
+                  <strong>{selectedRow.user.name}</strong>
+                  <span>{selectedRow.storeName} · {displayRoleName(selectedRow.user)} · {accountPhone(selectedRow.user)}</span>
+                </div>
+                <b>{selectedRow.credits} 次</b>
+              </div>
+              <label>
+                充值次数
+                <input type="number" min={1} max={99999} step={1} value={topUpAmount} onChange={(event) => setTopUpAmount(Number(event.target.value))} required />
+              </label>
+              <div className="ai-credit-quick-row" aria-label="快捷充值">
+                {[10, 30, 100, 300].map((amount) => (
+                  <button type="button" key={amount} onClick={() => setTopUpAmount(amount)}>
+                    +{amount}
+                  </button>
+                ))}
+              </div>
+              <div className="ai-credit-after">
+                充值后：<strong>{selectedRow.credits + Math.max(0, Math.floor(Number(topUpAmount) || 0))} 次</strong>
+              </div>
+              <div className="staff-edit-actions">
+                <SubmitStatusButton idleText="确认充值" busyText="充值中..." disabled={mutationPending || !selectedRow || topUpAmount <= 0} />
+                <button type="button" onClick={() => setSelectedUserId("")}>取消</button>
+              </div>
+            </form>
+          ) : (
+            <div className="ai-credit-empty-state">
+              <BadgeCent size={28} />
+              <strong>选择一个账号开始充值</strong>
+              <span>右侧账号列表里点“充值”，这里会显示当前积分和充值后次数。</span>
+            </div>
+          )}
+        </div>
+
+        <div className="panel dashboard-panel ai-credit-accounts-panel">
+          <PanelTitle icon={<UsersRound size={18} />} title="账号积分" action={`${accountRows.length} 个账号`} />
+          <div className="ai-credit-toolbar">
+            <label className="account-admin-search">
+              <Search size={17} />
+              <input value={accountSearch} {...searchInputSync(setAccountSearch)} placeholder="搜索姓名 / 手机号 / 登录账号 / 门店名" />
+            </label>
+            <div className="ai-credit-filter-row" aria-label="积分筛选">
+              {[
+                { key: "all" as const, label: "全部" },
+                { key: "credited" as const, label: "有积分" },
+                { key: "empty" as const, label: `未充值 ${emptyAccounts}` },
+                { key: "low" as const, label: `低积分 ${lowCreditAccounts}` },
+              ].map((item) => (
+                <button type="button" key={item.key} className={creditFilter === item.key ? "active" : ""} onClick={() => setCreditFilter(item.key)}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DataTable
+            columns={["账号", "门店", "角色", "AI积分", "今日免费", "最近生成", "操作"]}
+            rows={accountRows.map((row) => [
+              <div className="ai-credit-account-cell" key={`${row.user.id}-account`}>
+                <strong>{row.user.name}</strong>
+                <span>{accountPhone(row.user)}</span>
+              </div>,
+              row.storeName,
+              displayRoleName(row.user),
+              <Badge key={`${row.user.id}-credits`} text={`${row.credits} 次`} tone={row.credits > 3 ? "ok" : row.credits > 0 ? "warn" : undefined} />,
+              row.credits > 0 ? "积分账号" : `${row.quota.used}/${row.quota.limit}`,
+              row.lastRecordAt,
+              <div className="row-actions" key={`${row.user.id}-actions`}>
+                <button type="button" disabled={mutationPending} onClick={() => selectForTopUp(row.user.id)}>
+                  充值
+                </button>
+              </div>,
+            ])}
+          />
+          {accountRows.length === 0 && <p className="empty">没有找到匹配账号</p>}
         </div>
       </section>
     </div>

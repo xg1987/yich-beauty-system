@@ -3,6 +3,7 @@ import { Copy, Download, Eye, Image as ImageIcon, Megaphone, Plus, Search, Spark
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
+import { aiFreeQuotaState } from "../domain/aiBilling";
 import type { AppData, MarketingAiRecord } from "../domain/types";
 import type { ApiActions } from "../hooks/useApiData";
 import {
@@ -350,6 +351,8 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const contentState = aiCapabilityUsageState(aiConfig, aiPermissions, session.user.role, selectedCapability);
   const selectedGenerationMode = generationModes.find((item) => item.kind === generationKind) ?? generationModes[0];
   const selectedModeLocked = Boolean(selectedGenerationMode.locked);
+  const isPosterMode = generationKind === "image";
+  const quotaState = aiFreeQuotaState(data, session.user.id);
   const selectedNode = todayMarketingNodes.find((item) => item.title === marketingNode) ?? todayMarketingNodes[0];
   const audienceSummary = `${customerType}，${bodyState}`;
   const nodeBrief = [selectedNode.title, selectedNode.dateLabel, selectedNode.hint].filter(Boolean).join(" · ");
@@ -443,11 +446,11 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
       setGenerationError("视频和口播正在调试中，请先使用文案或海报");
       return;
     }
-    if ((generationKind === "image" || generationKind === "video") && !productImageDataUrl && !modelImageDataUrl && !sceneImageDataUrl) {
+    if (generationKind === "image" && !productImageDataUrl && !modelImageDataUrl) {
       setGenerationBusy(false);
       setGenerationResult(null);
       setCopyResultStatus("idle");
-      setGenerationError("请先上传产品图、模特图或门店图，再生成海报/视频");
+      setGenerationError("请先上传产品图或模特图，再生成海报");
       return;
     }
     setGenerationBusy(true);
@@ -604,89 +607,90 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
       {activeView === "content" ? (
         <section className="marketing-workspace">
           <div className="workbench-panel marketing-form-panel">
-            <PanelTitle icon={<Search size={18} />} title="AI营销内容" action={contentState.label} />
-            <div className="marketing-context-block marketing-primary-block">
-              <div className="marketing-section-head">
-                <div>
-                  <strong>今天推荐</strong>
-                </div>
-              </div>
-              <div className="marketing-node-grid" aria-label="推荐营销节点">
-                {todayMarketingNodes.map((item) => (
-                  <button type="button" key={item.title} className={marketingNode === item.title ? "active" : ""} onClick={() => setMarketingNode(item.title)}>
-                    <span>{item.badge}</span>
-                    <strong>{item.title}</strong>
-                    {item.dateLabel && <em>{item.dateLabel}</em>}
-                    <small>{item.description}</small>
-                    {item.hint && <small className="marketing-node-service">适合：{item.hint}</small>}
-                  </button>
-                ))}
-              </div>
+            <PanelTitle icon={<Search size={18} />} title={isPosterMode ? "AI海报" : "AI营销内容"} action={contentState.label} />
+            <div className={`marketing-quota-note ${quotaState.credits > 0 ? "paid" : ""} ${quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}>
+              {quotaState.credits > 0
+                ? `当前账号 AI 积分 ${quotaState.credits} 次，生成成功后扣 1 次。`
+                : quotaState.enforced
+                  ? `当前账号未充值，今日免费剩余 ${quotaState.remaining}/${quotaState.limit} 次。`
+                  : `${quotaState.startsAt} 起，未充值账号每天可免费生成 ${quotaState.limit} 次。`}
             </div>
-
-            <div className="marketing-context-block marketing-primary-block">
-              <div className="marketing-section-head">
-                <div>
-                  <strong>基础条件</strong>
-                </div>
-              </div>
-              <div className="marketing-config-stack">
-                <div className="marketing-config-row">
-                  <div className="marketing-config-label">
-                    <strong>发给谁</strong>
-                    <small>客户状态</small>
+            {!isPosterMode && (
+              <>
+                <div className="marketing-context-block marketing-primary-block">
+                  <div className="marketing-section-head">
+                    <div>
+                      <strong>今天推荐</strong>
+                    </div>
                   </div>
-                  <div className="marketing-chip-row" aria-label="客户类型">
-                    {customerTypes.map((item) => (
-                      <button type="button" key={item} className={customerType === item ? "active" : ""} onClick={() => setCustomerType(item)}>{item}</button>
+                  <div className="marketing-node-grid" aria-label="推荐营销节点">
+                    {todayMarketingNodes.map((item) => (
+                      <button type="button" key={item.title} className={marketingNode === item.title ? "active" : ""} onClick={() => setMarketingNode(item.title)}>
+                        <span>{item.badge}</span>
+                        <strong>{item.title}</strong>
+                        {item.dateLabel && <em>{item.dateLabel}</em>}
+                        <small>{item.description}</small>
+                        {item.hint && <small className="marketing-node-service">适合：{item.hint}</small>}
+                      </button>
                     ))}
                   </div>
                 </div>
-                <div className="marketing-config-row">
-                  <div className="marketing-config-label">
-                    <strong>发到哪里</strong>
-                    <small>格式语气</small>
+
+                <div className="marketing-context-block marketing-primary-block">
+                  <div className="marketing-section-head">
+                    <div>
+                      <strong>基础条件</strong>
+                    </div>
                   </div>
-                  <div className="marketing-chip-row" aria-label="渠道">
-                    {channels.map((item) => (
-                      <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
-                    ))}
+                  <div className="marketing-config-stack">
+                    <div className="marketing-config-row">
+                      <div className="marketing-config-label">
+                        <strong>发给谁</strong>
+                        <small>客户状态</small>
+                      </div>
+                      <div className="marketing-chip-row" aria-label="客户类型">
+                        {customerTypes.map((item) => (
+                          <button type="button" key={item} className={customerType === item ? "active" : ""} onClick={() => setCustomerType(item)}>{item}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="marketing-config-row">
+                      <div className="marketing-config-label">
+                        <strong>发到哪里</strong>
+                        <small>格式语气</small>
+                      </div>
+                      <div className="marketing-chip-row" aria-label="渠道">
+                        {channels.map((item) => (
+                          <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="marketing-config-row">
+                      <div className="marketing-config-label">
+                        <strong>想达到什么目的</strong>
+                        <small>行动引导</small>
+                      </div>
+                      <div className="marketing-chip-row" aria-label="营销目的">
+                        {marketingGoals.map((item) => (
+                          <button type="button" key={item} className={marketingGoal === item ? "active" : ""} onClick={() => setMarketingGoal(item)}>{item}</button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="marketing-config-row">
-                  <div className="marketing-config-label">
-                    <strong>想达到什么目的</strong>
-                    <small>行动引导</small>
-                  </div>
-                  <div className="marketing-chip-row" aria-label="营销目的">
-                    {marketingGoals.map((item) => (
-                      <button type="button" key={item} className={marketingGoal === item ? "active" : ""} onClick={() => setMarketingGoal(item)}>{item}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+              </>
+            )}
 
-            <label className="marketing-custom-field">
-              <span>我想自己写要求</span>
-              <textarea
-                value={customRequirement}
-                onChange={(event) => setCustomRequirement(event.target.value)}
-                rows={3}
-                placeholder="例如：重点推三伏药浴，语气温和，不要太像广告。"
-              />
-            </label>
-
-            {(generationKind === "image" || generationKind === "video") && (
+            {isPosterMode ? (
               <div className="marketing-context-block marketing-primary-block">
                 <div className="marketing-section-head">
                   <div>
-                    <strong>素材图片</strong>
-                    <span>{generationKind === "video" ? "上传产品/模特/门店图生成视频素材" : "上传产品/模特/门店图生成正式海报"}</span>
+                    <strong>上传图片</strong>
+                    <span>产品图或模特图，至少上传 1 张</span>
                   </div>
                   <small>至少 1 张</small>
                 </div>
-                <div className="marketing-upload-grid marketing-material-grid">
+                <div className="marketing-upload-grid marketing-material-grid compact">
                   <label className="marketing-upload-box">
                     <Plus size={18} />
                     <strong>产品图</strong>
@@ -707,110 +711,90 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                       onChange={(event) => void handleMarketingImageChange(event.target.files?.[0], setModelImageName, setModelImageDataUrl)}
                     />
                   </label>
-                  <label className="marketing-upload-box">
-                    <Plus size={18} />
-                    <strong>门店图</strong>
-                    <span>{sceneImageName || "上传门店图片"}</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(event) => void handleMarketingImageChange(event.target.files?.[0], setSceneImageName, setSceneImageDataUrl)}
+                </div>
+
+                <div className="marketing-poster-options">
+                  <div className="marketing-section-head compact">
+                    <div>
+                      <strong>图片风格</strong>
+                    </div>
+                  </div>
+                  <div className="marketing-style-grid" aria-label="图片风格">
+                    {posterStyles.map((item) => (
+                      <button type="button" key={item.title} className={posterStyle === item.title ? "active" : ""} onClick={() => setPosterStyle(item.title)}>
+                        <strong>{item.title}</strong>
+                        <span>{item.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <label className="marketing-size-select">
+                    <span>尺寸大小</span>
+                    <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
+                      {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  </label>
+                  <label className="marketing-custom-field">
+                    <span>我想自己写要求</span>
+                    <textarea
+                      value={customRequirement}
+                      onChange={(event) => setCustomRequirement(event.target.value)}
+                      rows={3}
+                      placeholder="例如：背景干净、高级，突出产品或模特，不要太多文字。"
                     />
                   </label>
                 </div>
               </div>
-            )}
-
-            <details className="marketing-advanced-options">
-              <summary>
-                <span>更多条件</span>
-                <small>商品、项目、身体状态和生成设置</small>
-              </summary>
-              <div className="marketing-advanced-body">
-                <div className="marketing-form-grid">
-                  <label>
-                    <span>商品</span>
-                    <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
-                      {data.products.map((item) => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>项目</span>
-                    <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
-                      {data.services.map((item) => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <div className="marketing-config-row">
-                  <div className="marketing-config-label">
-                    <strong>身体状态</strong>
-                    <small>文案痛点</small>
-                  </div>
-                  <div className="marketing-chip-row" aria-label="身体状态">
-                    {bodyStates.map((item) => (
-                      <button type="button" key={item} className={bodyState === item ? "active" : ""} onClick={() => setBodyState(item)}>{item}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="marketing-section-head compact">
-                  <div>
-                    <strong>海报风格</strong>
-                    <span>文案和图片一起变</span>
-                  </div>
-                </div>
-                <div className="marketing-style-grid" aria-label="海报风格">
-                  {posterStyles.map((item) => (
-                    <button type="button" key={item.title} className={posterStyle === item.title ? "active" : ""} onClick={() => setPosterStyle(item.title)}>
-                      <strong>{item.title}</strong>
-                      <span>{item.description}</span>
-                    </button>
-                  ))}
-                </div>
-                <label>
-                  <span>海报尺寸</span>
-                  <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
-                    {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
+            ) : (
+              <>
+                <label className="marketing-custom-field">
+                  <span>我想自己写要求</span>
+                  <textarea
+                    value={customRequirement}
+                    onChange={(event) => setCustomRequirement(event.target.value)}
+                    rows={3}
+                    placeholder="例如：重点推三伏药浴，语气温和，不要太像广告。"
+                  />
                 </label>
-                {generationKind === "video" && (
-                  <div className="marketing-video-options">
-                    <div className="marketing-section-head compact">
-                      <div>
-                        <strong>视频设置</strong>
-                        <span>比例、时长和画面重点</span>
-                      </div>
-                    </div>
+
+                <details className="marketing-advanced-options">
+                  <summary>
+                    <span>更多条件</span>
+                    <small>商品、项目和身体状态</small>
+                  </summary>
+                  <div className="marketing-advanced-body">
                     <div className="marketing-form-grid">
                       <label>
-                        <span>视频比例</span>
-                        <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value)}>
-                          {videoRatios.map((item) => <option key={item} value={item}>{item}</option>)}
+                        <span>商品</span>
+                        <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
+                          {data.products.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
                         </select>
                       </label>
                       <label>
-                        <span>视频时长</span>
-                        <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
-                          {videoDurations.map((item) => <option key={item} value={item}>{item} 秒</option>)}
+                        <span>项目</span>
+                        <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
+                          {data.services.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
                         </select>
                       </label>
                     </div>
-                    <label>
-                      <span>视频脚本重点</span>
-                      <textarea
-                        value={videoScript}
-                        onChange={(event) => setVideoScript(event.target.value)}
-                        rows={3}
-                        placeholder="例如：先展示门店环境，再展示药浴材料、护理手法和预约引导。"
-                      />
-                    </label>
+                    <div className="marketing-config-row">
+                      <div className="marketing-config-label">
+                        <strong>身体状态</strong>
+                        <small>文案痛点</small>
+                      </div>
+                      <div className="marketing-chip-row" aria-label="身体状态">
+                        {bodyStates.map((item) => (
+                          <button type="button" key={item} className={bodyState === item ? "active" : ""} onClick={() => setBodyState(item)}>{item}</button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            </details>
+                </details>
+              </>
+            )}
             <div className="marketing-form-actions single">
               <button type="button" className="primary-button" disabled={!contentState.enabled || generationBusy} onClick={generate}>
                 <Sparkles size={16} /> {generationBusy ? "生成中..." : `生成${selectedGenerationMode.title}`}

@@ -189,6 +189,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/auth-users/${encodeURIComponent(userId)}/status`, { method: "PATCH", body: { status }, token: getToken() }),
     resetAuthUserPassword: (userId: string, password: string) =>
       request<AppData>(`/api/auth-users/${encodeURIComponent(userId)}/password`, { method: "PATCH", body: { password }, token: getToken() }),
+    updateAuthUserAiCredits: (userId: string, credits: number) =>
+      request<AppData>(`/api/auth-users/${encodeURIComponent(userId)}/ai-credits`, { method: "PATCH", body: { credits }, token: getToken() }),
     markNotificationRead: (notificationId: string) =>
       request<AppData>(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: "PATCH", token: getToken() }),
     archiveNotification: (notificationId: string) =>

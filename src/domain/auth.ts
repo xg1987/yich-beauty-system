@@ -189,6 +189,7 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   permissions: "settings:view",
   platformConfig: "settings:view",
   aiConfig: "settings:view",
+  aiCredits: "settings:view",
   aiTest: "settings:view",
   storeCustomerDetails: "settings:view",
   usage: "settings:view",
@@ -196,7 +197,7 @@ export const viewPermissions: Record<ViewKey, Permission> = {
   settings: "settings:view",
 };
 
-export const platformOnlyViews = new Set<ViewKey>(["permissions", "platformConfig", "aiConfig", "aiTest", "storeCustomerDetails", "usage"]);
+export const platformOnlyViews = new Set<ViewKey>(["permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "storeCustomerDetails", "usage"]);
 
 export function canAccessView(session: UserSession, view: ViewKey) {
   if (platformOnlyViews.has(view) && effectiveRoleForUser(session.user) !== "superadmin") return false;

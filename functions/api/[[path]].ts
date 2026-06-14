@@ -37,7 +37,9 @@ import {
   restockLowInventory,
   rescheduleAppointment,
   settleCommissions,
+  consumeAuthUserAiCredit,
   updateAppointmentStatus,
+  updateAuthUserAiCredits,
   transferMemberCard,
   upsertOnlineStorefront,
   joinInviteByCode,
@@ -70,6 +72,7 @@ import {
 } from "../../src/domain/business";
 import { hashPassword } from "../../src/lib/password";
 import { requireMobilePhone } from "../../src/domain/phone";
+import { assertAiFreeQuotaAvailable } from "../../src/domain/aiBilling";
 
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
@@ -339,6 +342,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendScopedData(context.request, 200, nextData, session);
     }
 
+    if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/ai-credits")) {
+      if (session.user.role !== "superadmin") throw new Error("只有系统管理员可以调整 AI 积分");
+      const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      const currentData = await database.readData();
+      const nextData = updateAuthUserAiCredits(currentData, {
+        userId,
+        credits: optionalNumber(body, "credits") ?? 0,
+        operatedBy: session.user.id,
+      });
+      await persistData(database, session, nextData);
+      return sendScopedData(context.request, 200, nextData, session);
+    }
+
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
       return sendScopedData(context.request, 200, await readDataForRequest(database, context.request, session), session);
@@ -385,11 +402,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const body = await readJson(context.request);
       const result = await runMarketingAiGenerate(currentData, session, body);
       const record = marketingAiRecord(currentData, session, body, result);
-      const nextData = addOperationLog(
-        {
+        const dataWithRecordAndCredit = consumeAuthUserAiCredit({
           ...currentData,
           marketingAiRecords: [record, ...(currentData.marketingAiRecords ?? [])],
-        },
+        }, session.user.id);
+        const nextData = addOperationLog(
+          dataWithRecordAndCredit,
         {
           userId: session.user.id,
           action: "生成AI营销内容",
@@ -2647,18 +2665,20 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
+  const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
+  const billing = quotaState.credits > 0 ? { source: "credit" as const, creditsCharged: 1 } : { source: "free" as const };
   const prompt = marketingPrompt(body, kind);
   if (kind === "copy" || kind === "talk") {
     const config = aiGenerationConfigFromData(data).copy;
     const result = await runAiTextCompletion(data, prompt, {
       systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
     });
-    return { kind, provider: result.provider, model: result.model, text: result.text, imageDataUrl: kind === "copy" ? marketingPosterDataUrl(body, result.text) : undefined, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs };
+    return { kind, provider: result.provider, model: result.model, text: result.text, imageDataUrl: kind === "copy" ? marketingPosterDataUrl(body, result.text) : undefined, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
   }
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
     const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
-    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageGenerationCost(config, result.usage), elapsedMs: result.elapsedMs };
+    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
   }
   const config = aiGenerationConfigFromData(data);
   const provider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
@@ -2670,7 +2690,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     durationSeconds,
     aspectRatio: optionalString(body, "videoRatio"),
   });
-  return { kind, ...result, cost: provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined };
+  return { kind, ...result, cost: provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined, billing };
 }
 
 function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, result: {
@@ -2683,6 +2703,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   taskId?: string;
   status?: string;
   cost?: MarketingAiRecord["cost"];
+  billing?: MarketingAiRecord["billing"];
 }): MarketingAiRecord {
   const title = {
     copy: "AI营销内容",
@@ -2709,6 +2730,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     taskId: result.taskId,
     status: result.status,
     cost: result.cost,
+    billing: result.billing,
     provider: result.provider,
     model: result.model,
     createdBy: session.user.id,

@@ -144,6 +144,10 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
   aiConfig: [
     "storeOwnerApplications",
   ],
+  aiCredits: [
+    "marketingAiRecords",
+    "operationLogs",
+  ],
   aiTest: [
     "storeOwnerApplications",
   ],
