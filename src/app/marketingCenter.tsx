@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Copy, Gift, HeartHandshake, Megaphone, MessageCircle, Plus, Search, Sparkles } from "lucide-react";
+import { Copy, Gift, HeartHandshake, Megaphone, MessageCircle, Plus, Search, Sparkles, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -129,6 +129,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
       : "这个夏天，把寒湿慢慢排出去";
   const previewChannelTitle = `${storeName}${marketingNode === "三伏预热" ? "三伏" : marketingNode}护理提醒`;
   const previewSummaryItems = [marketingNode, customerType, lifecycleNode, bodyState, channel];
+  const showGenerationDialog = generationBusy || generationError || generationResult;
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = (toolKey: MarketingToolKey) => {
     const card = toolCards.find((item) => item.key === toolKey);
@@ -454,99 +455,120 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               <Sparkles size={16} /> {generationBusy ? "生成中..." : tool === "image" ? "AI生成海报" : tool === "video" ? "创建视频任务" : tool === "talk" ? "AI生成话术" : "AI生成文案"}
             </button>
           </div>
-          {(generationBusy || generationError || generationResult) && (
-            <div className="marketing-result-panel">
-              {generationBusy && <p className="marketing-result-status">AI 正在生成，请稍候。</p>}
-              {generationError && <p className="marketing-result-error">{generationError}</p>}
-              {generationResult?.text && (
-                <div className="marketing-result-copy">
-                  <div className="marketing-result-head">
-                    <div>
-                      <strong>{tool === "talk" ? "话术结果" : "文案结果"}</strong>
-                      <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
-                    </div>
-                    <div className="marketing-cost-pill">
-                      <b>{formatAiCost(generationResult.cost)}</b>
-                      <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
-                    </div>
-                  </div>
-                  <div className="marketing-copy-sections">
-                    {marketingCopySections(generationResult.text).map((section) => (
-                      <article key={section.title}>
-                        <span>{section.title}</span>
-                        <p>{section.body}</p>
-                      </article>
-                    ))}
-                  </div>
-                  <button type="button" className="secondary-button" onClick={() => void copyGenerationText()}>
-                    <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "复制失败" : "复制结果"}
-                  </button>
-                </div>
-              )}
-              {generationResult?.imageDataUrl && (
-                <div className="marketing-result-copy">
-                  <div className="marketing-result-head">
-                    <div>
-                      <strong>海报结果</strong>
-                      <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
-                    </div>
-                    <div className="marketing-cost-pill">
-                      <b>{formatAiCost(generationResult.cost)}</b>
-                      <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
-                    </div>
-                  </div>
-                  <img className="marketing-result-image" src={generationResult.imageDataUrl} alt="AI 生成海报" />
-                  {generationResult.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
-                </div>
-              )}
-              {generationResult && tool === "video" && (
-                <div className="marketing-result-copy">
-                  <div className="marketing-result-head">
-                    <div>
-                      <strong>视频任务</strong>
-                      <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
-                    </div>
-                    <div className="marketing-cost-pill">
-                      <b>{formatAiCost(generationResult.cost)}</b>
-                      <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
-                    </div>
-                  </div>
-                  <p>状态：{generationResult.status ?? "已提交"}</p>
-                  {generationResult.taskId && <p>任务 ID：{generationResult.taskId}</p>}
-                  {generationResult.videoUrl && <a href={generationResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
-                </div>
-              )}
-            </div>
-          )}
         </div>
-        <aside className="workbench-panel marketing-preview-panel">
-          <PanelTitle icon={<Sparkles size={18} />} title="生成预览" action={posterStyle} />
-          <div className="marketing-preview-summary" aria-label="当前生成条件">
-            {previewSummaryItems.map((item) => <span key={item}>{item}</span>)}
-          </div>
-          <div className="marketing-preview-card">
-            <div className={`marketing-preview-visual seasonal ${posterStyle === "中医养生风" || posterStyle === "节气海报" ? "wellness" : ""}`}>
-              <span>{selectedMarketingNode.title} · {marketingGoal}</span>
-              <strong>{previewTitle}</strong>
-              <small>{service?.name ?? "护理项目"} · 适合{bodyState}、{customerType}</small>
-            </div>
-            <div className="marketing-preview-copy">
-              <article>
-                <span>{channel}标题</span>
-                <p>{previewChannelTitle}：这个时间点，把护理安排在合适的时候。</p>
-              </article>
-              <article>
-                <span>正文方向</span>
-                <p>围绕{selectedMarketingNode.description.replace("。", "")}，结合{lifecycleNode}做{marketingGoal}，避免夸大医疗效果。</p>
-              </article>
-              <article>
-                <span>私聊提醒</span>
-                <p>你上次护理反馈不错，这几天适合安排一次{service?.name ?? "护理"}，把{marketingNode}做起来。</p>
-              </article>
-            </div>
-          </div>
-        </aside>
       </section>
+      {showGenerationDialog && (
+        <div className="marketing-result-overlay" role="presentation">
+          <section className="marketing-result-dialog" role="dialog" aria-modal="true" aria-labelledby="marketing-result-title">
+            <div className="marketing-result-dialog-head">
+              <div>
+                <span>生成结果</span>
+                <h2 id="marketing-result-title">{tool === "image" ? "AI海报方案" : tool === "video" ? "AI视频任务" : tool === "talk" ? "私聊话术" : "AI营销文案"}</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭生成结果"
+                disabled={generationBusy}
+                onClick={() => {
+                  setGenerationError("");
+                  setGenerationResult(null);
+                  setCopyResultStatus("idle");
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="marketing-preview-summary" aria-label="当前生成条件">
+              {previewSummaryItems.map((item) => <span key={item}>{item}</span>)}
+            </div>
+            <div className="marketing-result-dialog-grid">
+              <div className="marketing-preview-card">
+                <div className={`marketing-preview-visual seasonal ${posterStyle === "中医养生风" || posterStyle === "节气海报" ? "wellness" : ""}`}>
+                  <span>{selectedMarketingNode.title} · {marketingGoal}</span>
+                  <strong>{previewTitle}</strong>
+                  <small>{service?.name ?? "护理项目"} · 适合{bodyState}、{customerType}</small>
+                </div>
+                <div className="marketing-preview-copy">
+                  <article>
+                    <span>{channel}标题</span>
+                    <p>{previewChannelTitle}：这个时间点，把护理安排在合适的时候。</p>
+                  </article>
+                  <article>
+                    <span>正文方向</span>
+                    <p>围绕{selectedMarketingNode.description.replace("。", "")}，结合{lifecycleNode}做{marketingGoal}，避免夸大医疗效果。</p>
+                  </article>
+                  <article>
+                    <span>私聊提醒</span>
+                    <p>你上次护理反馈不错，这几天适合安排一次{service?.name ?? "护理"}，把{marketingNode}做起来。</p>
+                  </article>
+                </div>
+              </div>
+              <div className="marketing-result-panel">
+                {generationBusy && <p className="marketing-result-status">AI 正在生成，请稍候。</p>}
+                {generationError && <p className="marketing-result-error">{generationError}</p>}
+                {generationResult?.text && (
+                  <div className="marketing-result-copy">
+                    <div className="marketing-result-head">
+                      <div>
+                        <strong>{tool === "talk" ? "话术结果" : "文案结果"}</strong>
+                        <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                      </div>
+                      <div className="marketing-cost-pill">
+                        <b>{formatAiCost(generationResult.cost)}</b>
+                        <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                      </div>
+                    </div>
+                    <div className="marketing-copy-sections">
+                      {marketingCopySections(generationResult.text).map((section) => (
+                        <article key={section.title}>
+                          <span>{section.title}</span>
+                          <p>{section.body}</p>
+                        </article>
+                      ))}
+                    </div>
+                    <button type="button" className="secondary-button" onClick={() => void copyGenerationText()}>
+                      <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "复制失败" : "复制结果"}
+                    </button>
+                  </div>
+                )}
+                {generationResult?.imageDataUrl && (
+                  <div className="marketing-result-copy">
+                    <div className="marketing-result-head">
+                      <div>
+                        <strong>海报结果</strong>
+                        <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                      </div>
+                      <div className="marketing-cost-pill">
+                        <b>{formatAiCost(generationResult.cost)}</b>
+                        <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                      </div>
+                    </div>
+                    <img className="marketing-result-image" src={generationResult.imageDataUrl} alt="AI 生成海报" />
+                    {generationResult.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
+                  </div>
+                )}
+                {generationResult && tool === "video" && (
+                  <div className="marketing-result-copy">
+                    <div className="marketing-result-head">
+                      <div>
+                        <strong>视频任务</strong>
+                        <span>{AI_PROVIDER_LABELS[generationResult.provider]} · {generationResult.model}</span>
+                      </div>
+                      <div className="marketing-cost-pill">
+                        <b>{formatAiCost(generationResult.cost)}</b>
+                        <small>{formatAiUsageCostDetail(generationResult.cost)}</small>
+                      </div>
+                    </div>
+                    <p>状态：{generationResult.status ?? "已提交"}</p>
+                    {generationResult.taskId && <p>任务 ID：{generationResult.taskId}</p>}
+                    {generationResult.videoUrl && <a href={generationResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
