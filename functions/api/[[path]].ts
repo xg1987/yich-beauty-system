@@ -731,6 +731,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: requiredString(body, "staffId"),
         collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
         serviceId: optionalString(body, "serviceId"),
+        serviceIds: optionalStringArray(body, "serviceIds"),
         productId: optionalString(body, "productId"),
         giftProductId: optionalString(body, "giftProductId"),
         productItems: optionalProductItems(body, "productItems"),

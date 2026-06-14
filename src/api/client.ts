@@ -241,6 +241,7 @@ export function createApiClient(getToken: () => string | undefined) {
       staffId: string;
       collaboratorStaffIds?: string[];
       serviceId?: string;
+      serviceIds?: string[];
       productId?: string;
       giftProductId?: string;
       productItems?: { productId: string; quantity: number }[];

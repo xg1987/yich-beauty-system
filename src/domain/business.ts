@@ -729,6 +729,7 @@ export type CheckoutInput = {
   staffId: string;
   collaboratorStaffIds?: string[];
   serviceId?: string;
+  serviceIds?: string[];
   productId?: string;
   giftProductId?: string;
   productItems?: CheckoutProductItemInput[];
@@ -1081,8 +1082,9 @@ function freezeOrderCatalogSnapshots(data: AppData): AppData {
   };
 }
 
-export function calculateOrderTotal(data: AppData, serviceId?: string, productId?: string, productItems?: CheckoutProductItemInput[]) {
-  const selectedService = data.services.find((item) => item.id === serviceId);
+export function calculateOrderTotal(data: AppData, serviceId?: string, productId?: string, productItems?: CheckoutProductItemInput[], serviceIds?: string[]) {
+  const selectedServiceIds = Array.from(new Set([...(serviceIds ?? []), serviceId ?? ""].map((id) => id.trim()).filter(Boolean)));
+  const serviceTotal = selectedServiceIds.reduce((sum, id) => sum + (data.services.find((item) => item.id === id)?.price ?? 0), 0);
   const productTotal = productItems?.length
     ? productItems.reduce((sum, item) => {
         const product = data.products.find((candidate) => candidate.id === item.productId);
@@ -1090,7 +1092,7 @@ export function calculateOrderTotal(data: AppData, serviceId?: string, productId
         return sum + (product?.price ?? 0) * quantity;
       }, 0)
     : (data.products.find((item) => item.id === productId)?.price ?? 0);
-  return (selectedService?.price ?? 0) + productTotal;
+  return serviceTotal + productTotal;
 }
 
 function normalizeCheckoutProductItems(
@@ -2702,9 +2704,15 @@ export function checkoutOrder(
   let customerId = input.customerId ?? "";
   const guestName = (input.guestName ?? "").trim();
   const guestPhone = optionalMobilePhone(input.guestPhone, "客户电话必须为 11 位数字");
-  const serviceId = input.serviceId ?? "";
+  const selectedServiceIds = Array.from(new Set([...(input.serviceIds ?? []), input.serviceId ?? ""].map((id) => id.trim()).filter(Boolean)));
+  const missingServiceId = selectedServiceIds.find((id) => !data.services.some((item) => item.id === id));
+  if (missingServiceId) throw new Error("服务项目不存在");
+  const selectedServices = selectedServiceIds
+    .map((id) => data.services.find((item) => item.id === id))
+    .filter((service): service is Service => Boolean(service));
+  const selectedService = selectedServices[0];
+  const serviceId = selectedService?.id ?? "";
   let selectedCustomer = customerId ? data.customers.find((item) => item.id === customerId) : undefined;
-  const selectedService = serviceId ? data.services.find((item) => item.id === serviceId) : undefined;
   const rawProductItems = input.productItems?.length
     ? input.productItems
     : input.productId
@@ -2718,7 +2726,7 @@ export function checkoutOrder(
   const productItems = normalizeCheckoutProductItems(data, rawProductItems);
   const giftProductItems = normalizeCheckoutProductItems(data, rawGiftProductItems, { gift: true });
   const selectedStaff = data.staff.find((item) => item.id === input.staffId);
-  const productOnlyCheckout = Boolean(productItems.length > 0 && !selectedService);
+  const productOnlyCheckout = Boolean(productItems.length > 0 && selectedServices.length === 0);
   assertActiveStaff(selectedStaff, productOnlyCheckout ? "收银人员不存在或已停用" : "服务人员不存在或已停用");
   const storeId = scopedStoreId(data, input.storeId ?? selectedStaff?.storeId ?? selectedCustomer?.storeId ?? selectedService?.storeId);
   (input.collaboratorStaffIds ?? []).forEach((staffId) => {
@@ -2729,13 +2737,10 @@ export function checkoutOrder(
   if (customerId && !selectedCustomer) {
     throw new Error("客户不存在");
   }
-  if (serviceId && !selectedService) {
-    throw new Error("服务项目不存在");
-  }
   if (giftProductItems.length > 0 && productItems.length === 0) {
     throw new Error("赠品只能随商品开单");
   }
-  if (!selectedService && productItems.length === 0) {
+  if (selectedServices.length === 0 && productItems.length === 0) {
     throw new Error("请选择服务项目或商品");
   }
   const createdAt = currentTime();
@@ -2780,7 +2785,7 @@ export function checkoutOrder(
     if (appointment.status !== "已到店") {
       throw new Error("只有已到店预约可以直接收银");
     }
-    if (appointment.customerId !== customerId || appointment.staffId !== input.staffId || !appointmentAllowsService(appointment, serviceId)) {
+    if (appointment.customerId !== customerId || appointment.staffId !== input.staffId || !selectedServiceIds.every((id) => appointmentAllowsService(appointment, id))) {
       throw new Error("收银信息与预约不一致");
     }
     if (data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款")) {
@@ -2798,19 +2803,20 @@ export function checkoutOrder(
     if (!selectedCard || selectedCard.status !== "正常") {
       throw new Error("请选择有效会员卡");
     }
-    if (!selectedService && selectedCard.type !== "储值卡") {
+    if (selectedServices.length === 0 && selectedCard.type !== "储值卡") {
       throw new Error("次数卡或套餐卡只能用于服务项目");
     }
-    if (selectedCard.type !== "储值卡" && selectedCard.remainingTimes <= 0) {
+    if (selectedCard.type !== "储值卡" && selectedCard.remainingTimes < selectedServiceIds.length) {
       throw new Error("会员卡次数不足");
     }
-    if (selectedCard.type !== "储值卡" && !memberCardCanUseForService(selectedCard, serviceId)) {
+    if (selectedCard.type !== "储值卡" && selectedServiceIds.some((id) => !memberCardCanUseForService(selectedCard, id))) {
       throw new Error("该次数卡不可用于当前项目");
     }
   }
 
   const productSubtotal = productItems.reduce((sum, item) => sum + item.amount, 0);
-  const total = (selectedService?.price ?? 0) + productSubtotal;
+  const serviceSubtotal = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const total = serviceSubtotal + productSubtotal;
   const discountAmount = input.discountAmount ?? 0;
   if (discountAmount < 0) {
     throw new Error("折扣金额无效");
@@ -2846,7 +2852,8 @@ export function checkoutOrder(
   ) {
     throw new Error("检测到刚刚已生成相同订单，请勿重复提交");
   }
-  const serviceConsumption = selectedService ? serviceInventoryConsumables(data, selectedService) : [];
+  const serviceConsumption = selectedServices.flatMap((service) => serviceInventoryConsumables(data, service));
+  const serviceNameSnapshot = selectedServices.map((service) => service.name).join("、") || undefined;
   const order: Order = {
     id: orderId,
     storeId,
@@ -2856,8 +2863,8 @@ export function checkoutOrder(
     guestPhone: customerId ? undefined : guestPhone,
     staffId: input.staffId,
     serviceId,
-    serviceName: selectedService?.name,
-    servicePrice: selectedService?.price,
+    serviceName: serviceNameSnapshot,
+    servicePrice: selectedServices.length ? serviceSubtotal : undefined,
     serviceConsumables: serviceConsumption.length ? serviceConsumption : undefined,
     productId: productItems[0]?.productId,
     giftProductId: giftProductItems[0]?.productId,
@@ -2936,7 +2943,7 @@ export function checkoutOrder(
   const memberCards = data.memberCards.map((card) => {
     if (input.payMethod !== "会员卡" || card.id !== input.cardId) return card;
     if (card.type === "储值卡") return { ...card, balance: Math.max(0, card.balance - paidAmount) };
-    return updateMemberCardServiceTimes(card, serviceId, -1);
+    return selectedServiceIds.reduce((nextCard, id) => updateMemberCardServiceTimes(nextCard, id, -1), card);
   });
 
   const selectedCardAfterCheckout = memberCards.find((card) => card.id === input.cardId);
@@ -2951,7 +2958,7 @@ export function checkoutOrder(
             staffId: input.staffId,
             type: "消费",
             amountDelta: selectedCardAfterCheckout.type === "储值卡" ? -paidAmount : 0,
-            timesDelta: selectedCardAfterCheckout.type === "储值卡" ? 0 : -1,
+            timesDelta: selectedCardAfterCheckout.type === "储值卡" ? 0 : -selectedServiceIds.length,
             balanceAfter: selectedCardAfterCheckout.balance,
             remainingTimesAfter: selectedCardAfterCheckout.remainingTimes,
             note: order.orderNo,
@@ -2988,7 +2995,7 @@ export function checkoutOrder(
   );
   const commissions: Commission[] = salesCommission ? [salesCommission, ...serviceCommissions] : serviceCommissions;
   const signatureItems = [
-    selectedService?.name,
+    ...selectedServices.map((service) => service.name),
     ...(order.productItems ?? []).map((item) => `${item.productName ?? "商品"} x${item.quantity}`),
     ...(order.giftProductItems ?? []).map((item) => `赠品 ${item.productName ?? "商品"} x${item.quantity}`),
   ].filter(Boolean);

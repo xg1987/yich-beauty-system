@@ -1,5 +1,4 @@
 import {
-  BadgeCent,
   Bell,
   Boxes,
   Building2,
@@ -56,7 +55,7 @@ import { DataTable } from "../components/ui/DataTable";
 import { DateTimeInput } from "../components/ui/DateTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
-import { calculateOrderTotal, memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
+import { memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
 import { buildCashierFlowRecords } from "../domain/cashierFlow";
 import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
@@ -1427,7 +1426,7 @@ function ManagementCenter({
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
     { title: "AI 能力配置", desc: "文案 / 图片 / 视频模型与成本", icon: Sparkles, tone: "plum", view: "aiConfig" },
-    { title: "AI积分充值", desc: "给账号充值生成次数", icon: BadgeCent, tone: "plum", view: "aiCredits" },
+    { title: "AI积分充值", desc: "给账号充值生成次数", icon: CreditCard, tone: "plum", view: "aiCredits" },
     { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "AI 智能测试中心", desc: "聊天 / 图片 / 视频接口试跑", icon: MessageCircle, tone: "plum", view: "aiTest" },
     { title: "分店客户明细", desc: "客户业务 / 消费明细", icon: UsersRound, tone: "violet", view: "storeCustomerDetails" },
@@ -1446,7 +1445,7 @@ function ManagementCenter({
     { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
     { title: "员工排班", desc: "班次查看 / 不可预约时间", icon: CalendarDays, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
     { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
-    { title: "员工提成", desc: "员工提成 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "员工提成", desc: "员工提成 / 结算记录", icon: CreditCard, tone: "amber", view: "staff" },
     { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
     { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
     { title: "供应商采购", desc: "供应商 / 采购入库", icon: Building2, tone: "amber", view: "inventory", inventoryModule: "purchase" },
@@ -1455,12 +1454,12 @@ function ManagementCenter({
   ];
   const staffManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "我的提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "我的提成", desc: "提成明细 / 结算记录", icon: CreditCard, tone: "amber", view: "staff" },
     { title: "外观通知", desc: "日间 / 夜间 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
   const financeManagementCards: ManagementCard[] = [
     { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "员工提成", desc: "提成明细 / 结算记录", icon: BadgeCent, tone: "amber", view: "staff" },
+    { title: "员工提成", desc: "提成明细 / 结算记录", icon: CreditCard, tone: "amber", view: "staff" },
     { title: "销售业绩", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "外观通知", desc: "日间 / 夜间 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
@@ -2143,7 +2142,7 @@ function workbenchQuickTaskDetails(view: ViewKey, input: WorkbenchQuickDetailInp
   if (view === "staff") {
     return {
       tone: "amber",
-      icon: <BadgeCent size={24} />,
+      icon: <CreditCard size={24} />,
       label: "提成结算",
       description: "查看个人提成、团队提成和结算记录。",
       items: [
@@ -2244,12 +2243,12 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       metrics: [
         { icon: <CalendarDays size={18} />, label: "我的预约", value: `${input.todayAppointments} 单`, hint: `已完成 ${input.completedAppointments} 单` },
         { icon: <HeartHandshake size={18} />, label: "我的回访", value: `${input.pendingFollowUps} 位`, hint: "护理后跟进任务" },
-        { icon: <BadgeCent size={18} />, label: "个人提成", value: money(input.myCommission), hint: "服务提成累计" },
+        { icon: <CreditCard size={18} />, label: "个人提成", value: money(input.myCommission), hint: "服务提成累计" },
       ],
       healthMetrics: [
         { icon: <CalendarDays size={18} />, label: "今日服务", value: `${input.todayAppointments} 单`, hint: `完成 ${input.completedAppointments} 单` },
         { icon: <HeartHandshake size={18} />, label: "客户回访", value: `${input.pendingFollowUps} 位`, hint: "待跟进" },
-        { icon: <BadgeCent size={18} />, label: "累计提成", value: money(input.myCommission), hint: "个人业绩" },
+        { icon: <CreditCard size={18} />, label: "累计提成", value: money(input.myCommission), hint: "个人业绩" },
         { icon: <UsersRound size={18} />, label: "服务客户", value: `${input.pendingFollowUps + input.completedAppointments} 位`, hint: "今日相关客户" },
       ],
       actions: [
@@ -2294,13 +2293,13 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
       healthTitle: "资金结算概览",
       metrics: [
         { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "当天收银汇总" },
-        { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "待财务结算" },
+        { icon: <CreditCard size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "待财务结算" },
         { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals} 单`, hint: "退款和改价风险" },
       ],
       healthMetrics: [
         { icon: <CreditCard size={18} />, label: "今日实收", value: money(input.todayRevenue), hint: "收银流水" },
         { icon: <ChartNoAxesColumnIncreasing size={18} />, label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
-        { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "提成结算" },
+        { icon: <CreditCard size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "提成结算" },
         { icon: <ShieldCheck size={18} />, label: "待审批", value: `${input.pendingApprovals} 单`, hint: "风险控制" },
       ],
       actions: [
@@ -2325,7 +2324,7 @@ function roleDashboardContent(input: RoleDashboardInput): RoleDashboardContent {
     ],
     healthMetrics: [
       { icon: <CreditCard size={18} />, label: "累计实收", value: money(input.paidRevenue), hint: "全部订单" },
-      { icon: <BadgeCent size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "待财务结算" },
+      { icon: <CreditCard size={18} />, label: "待结提成", value: money(input.pendingCommissions), hint: "待财务结算" },
       { icon: <UsersRound size={18} />, label: "有效项目卡", value: `${input.activeCards} 张`, hint: "客户档案" },
       { icon: <PackagePlus size={18} />, label: "库存预警", value: `${input.lowStockCount} 项`, hint: "低于预警值" },
     ],
@@ -3735,7 +3734,8 @@ function Pos({
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [customerId, setCustomerId] = useState(initialCheckoutAppointment?.customerId ?? data.customers[0]?.id ?? "");
-  const [serviceId, setServiceId] = useState(initialCheckoutAppointment?.serviceId ?? "");
+  const initialCheckoutServiceIds = initialCheckoutAppointment ? appointmentServiceIds(initialCheckoutAppointment) : [];
+  const [checkoutServiceIds, setCheckoutServiceIds] = useState<string[]>(initialCheckoutServiceIds);
   const [staffId, setStaffId] = useState(initialCheckoutAppointment?.staffId ?? firstActiveStaffId(data));
   const [collaboratorStaffIds, setCollaboratorStaffIds] = useState<string[]>([]);
   const [checkoutProductItems, setCheckoutProductItems] = useState<CheckoutCartItem[]>([]);
@@ -3848,6 +3848,7 @@ function Pos({
       setAppointmentId("");
       setCollaboratorStaffIds([]);
       setCardId("");
+      setCheckoutServiceIds((ids) => (ids.length ? [] : ids));
       setServicePickerOpen(false);
     }
     if (!usesProduct) {
@@ -3882,8 +3883,9 @@ function Pos({
     })
     .filter((item): item is CheckoutCartItem & { product: Product } => Boolean(item));
   const productSubtotal = checkoutProductRows.reduce((sum, item) => sum + item.amount, 0);
-  const total = calculateOrderTotal(data, usesService ? serviceId : undefined, undefined, usesProduct ? checkoutProductItems : undefined);
-  const selectedService = data.services.find((service) => service.id === serviceId);
+  const selectedServices = data.services.filter((service) => checkoutServiceIds.includes(service.id));
+  const serviceSubtotal = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const total = (usesService ? serviceSubtotal : 0) + (usesProduct ? productSubtotal : 0);
   const checkoutDiscountedPrice = Math.max(0, total - discountAmount);
   const checkoutSavedAmount = Math.max(0, discountAmount);
   const serviceCategoryName = (service: Service) => service.category?.trim() || "未分类";
@@ -3960,33 +3962,6 @@ function Pos({
     setAppointmentId("");
   };
 
-  const orderCustomerName = (order: Order) => {
-    if (order.customerId) return nameOf(data.customers, order.customerId);
-    const name = order.guestName?.trim();
-    const phone = order.guestPhone?.trim();
-    if (!name && !phone) return "新客";
-    return [name || "新客", phone].filter(Boolean).join(" · ");
-  };
-  const orderProductLineNames = (order: Order) => {
-    if (order.productItems?.length) {
-      return order.productItems.map((item) => `${nameOf(data.products, item.productId)} x${item.quantity}`);
-    }
-    return order.productId ? [nameOf(data.products, order.productId)] : [];
-  };
-  const orderGiftLineNames = (order: Order) => {
-    if (order.giftProductItems?.length) {
-      return order.giftProductItems.map((item) => `赠 ${nameOf(data.products, item.productId)} x${item.quantity}`);
-    }
-    return order.giftProductId ? [`赠 ${nameOf(data.products, order.giftProductId)}`] : [];
-  };
-  const orderItemName = (order: Order) => {
-    const serviceName = order.serviceId ? nameOf(data.services, order.serviceId) : "";
-    return [
-      serviceName !== "-" ? serviceName : "",
-      ...orderProductLineNames(order).filter((name) => !name.startsWith("-")),
-      ...orderGiftLineNames(order).filter((name) => !name.startsWith("赠 -")),
-    ].filter(Boolean).join(" + ") || "商品";
-  };
   const cashierFlowRecords = buildCashierFlowRecords(data);
   const selectedCashierRecord = cashierFlowRecords.find((record) => record.id === selectedCashierRecordId);
   const selectedCashierOrder = selectedCashierRecord?.kind === "order" ? selectedCashierRecord.order : undefined;
@@ -4102,88 +4077,12 @@ function Pos({
     return record.payMethod;
   };
 
-  // 打印小票功能
-  const printReceipt = (order: Order) => {
-    const customer = data.customers.find((c) => c.id === order.customerId);
-    const service = data.services.find((s) => s.id === order.serviceId);
-    const staff = data.staff.find((s) => s.id === order.staffId);
-    const productLines = orderProductLineNames(order);
-    const giftProductLines = orderGiftLineNames(order);
-    const receiptCustomer = customer
-      ? `${customer.name}${customer.phone ? ` (${customer.phone})` : ""}`
-      : `${order.guestName || "新客"}${order.guestPhone ? ` (${order.guestPhone})` : ""}`;
-
-    const buildReceiptElement = () => {
-      const container = document.createElement("div");
-      Object.assign(container.style, {
-        fontFamily: "monospace",
-        margin: "0 auto",
-        maxWidth: "300px",
-        padding: "20px",
-      });
-      const appendText = (tagName: "h2" | "p", text: string, styles?: Partial<CSSStyleDeclaration>) => {
-        const element = document.createElement(tagName);
-        element.textContent = text;
-        if (styles) Object.assign(element.style, styles);
-        container.appendChild(element);
-        return element;
-      };
-      const appendRule = () => container.appendChild(document.createElement("hr"));
-
-      appendText("h2", data.storeProfiles[0]?.name || "祝融｜坤锋美业", { margin: "0", textAlign: "center" });
-      appendText("p", data.storeProfiles[0]?.phone || "", { fontSize: "12px", margin: "4px 0", textAlign: "center" });
-      appendRule();
-      appendText("p", `订单号: ${order.orderNo}`);
-      appendText("p", `时间: ${new Date(order.createdAt).toLocaleString("zh-CN")}`);
-      appendText("p", `客户: ${receiptCustomer}`);
-      appendText("p", `服务: ${service?.name || "无服务项目"}`);
-      productLines.forEach((line) => appendText("p", `商品: ${line}`));
-      giftProductLines.forEach((line) => appendText("p", line));
-      appendText("p", `服务人员: ${staff?.name || ""}`);
-      appendRule();
-      appendText("p", `原价: ¥${order.totalAmount}`);
-      if (order.discountAmount) appendText("p", `折扣: -¥${order.discountAmount}`);
-      appendText("p", `实付: ¥${order.paidAmount}`).style.fontWeight = "700";
-      appendText("p", `支付方式: ${order.payMethod}`);
-      appendRule();
-      appendText("p", "感谢您的光临！", { fontSize: "12px", textAlign: "center" });
-      appendText("p", new Date().toLocaleDateString(), { fontSize: "11px", textAlign: "center" });
-      return container;
-    };
-
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (printWindow) {
-      printWindow.opener = null;
-      printWindow.document.write(`
-        <html>
-          <head><title>收银小票</title></head>
-          <body></body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.document.body.appendChild(buildReceiptElement());
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 300);
-    } else {
-      // Fallback: use a hidden div
-      const printDiv = document.createElement('div');
-      printDiv.appendChild(buildReceiptElement());
-      printDiv.style.position = 'absolute';
-      printDiv.style.left = '-9999px';
-      document.body.appendChild(printDiv);
-      window.print();
-      document.body.removeChild(printDiv);
-    }
-  };
-
   const useAppointmentForCheckout = (id: string) => {
     setAppointmentId(id);
     if (!id) return;
     const appointment = data.appointments.find((item) => item.id === id);
     if (!appointment) return;
+    const nextServiceIds = appointmentServiceIds(appointment);
     setCheckoutCustomerMode("customer");
     setCheckoutContentMode("service");
     setCustomerId(appointment.customerId);
@@ -4191,7 +4090,7 @@ function Pos({
     setGuestName("");
     setGuestPhone("");
     setStaffId(appointment.staffId);
-    setServiceId(appointment.serviceId);
+    setCheckoutServiceIds(nextServiceIds);
     setCollaboratorStaffIds([]);
     setCardId("");
     setServicePickerOpen(false);
@@ -4214,7 +4113,7 @@ function Pos({
     checkoutRequestIdRef.current = makeId("checkout");
     setCheckoutContentMode(isProductModule ? "product" : "service");
     setCheckoutCustomerMode("walkin");
-    setServiceId("");
+    setCheckoutServiceIds([]);
     setAppointmentId("");
     setCustomerSearch("");
     setCardId("");
@@ -4277,8 +4176,12 @@ function Pos({
 
   const selectCheckoutService = (nextServiceId: string) => {
     clearAppointment();
-    if (nextServiceId !== serviceId) resetCheckoutDiscount();
-    setServiceId(nextServiceId);
+    resetCheckoutDiscount();
+    setCheckoutServiceIds((previous) => {
+      return previous.includes(nextServiceId)
+        ? previous.filter((id) => id !== nextServiceId)
+        : [...previous, nextServiceId];
+    });
   };
 
   const applyCheckoutDiscountRate = (value: string) => {
@@ -4451,7 +4354,7 @@ function Pos({
     if (!staffId) {
       messages.push(usesProduct && !usesService ? "请选择收银人员。商品开单可以选择店长/老板或服务人员。" : "请选择服务人员。");
     }
-    if (usesService && !serviceId) messages.push("请选择服务项目。");
+    if (usesService && selectedServices.length === 0) messages.push("请选择服务项目。");
     if (usesProduct && checkoutProductItems.length === 0) messages.push("请选择销售商品。");
     if (usesProduct && checkoutProductRows.some((item) => item.product.price <= 0)) {
       const zeroPriceNames = checkoutProductRows.filter((item) => item.product.price <= 0).map((item) => item.product.name).join("、");
@@ -4484,7 +4387,8 @@ function Pos({
         guestPhone: usesCustomer ? undefined : guestPhone,
         staffId,
         collaboratorStaffIds: usesService ? collaboratorStaffIds : [],
-        serviceId: usesService ? serviceId : undefined,
+        serviceId: usesService ? selectedServices[0]?.id : undefined,
+        serviceIds: usesService ? selectedServices.map((service) => service.id) : undefined,
         productItems: usesProduct ? checkoutProductItems : undefined,
         giftProductItems: usesProduct ? checkoutGiftItems : undefined,
         discountAmount: discountAmount || undefined,
@@ -4506,6 +4410,7 @@ function Pos({
       setAppointmentId("");
       setGuestName("");
       setGuestPhone("");
+      setCheckoutServiceIds([]);
       if (usesProduct) {
         setCheckoutProductItems([]);
         setCheckoutGiftItems([]);
@@ -4620,7 +4525,7 @@ function Pos({
               className={`cashier-orbit-card left bottom ${activeModule === "single" ? "active" : ""}`}
               onClick={() => openCheckoutModule("single")}
             >
-              <BadgeCent size={22} />
+              <CreditCard size={22} />
               <strong>项目服务</strong>
               <em>项目收款</em>
             </button>
@@ -4750,16 +4655,17 @@ function Pos({
               <div className="checkout-product-section">
                 <div className="checkout-product-section-head">
                   <span>服务项目</span>
-                  <strong>{selectedService ? money(selectedService.price) : "未选择"}</strong>
+                  <strong>{money(serviceSubtotal)}</strong>
                 </div>
-                {selectedService ? (
-                  <div className="checkout-service-line">
-                    <div>
-                      <strong>{selectedService.name}</strong>
-                      <span>{selectedService.category || "未分类"} · {selectedService.duration} 分钟</span>
+                {selectedServices.length ? (
+                  selectedServices.map((service) => (
+                    <div className="checkout-service-line" key={service.id}>
+                      <div>
+                        <strong>{service.name}</strong>
+                      </div>
+                      <span>{money(service.price)}</span>
                     </div>
-                    <span>{money(selectedService.price)}</span>
-                  </div>
+                  ))
                 ) : (
                   <div className="checkout-product-empty">还没有选择项目</div>
                 )}
@@ -4931,7 +4837,7 @@ function Pos({
               value={cardId}
               onChange={setCardId}
               options={availableCards.length
-                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, usesService ? serviceId : undefined)}` }))
+                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, usesService ? selectedServices[0]?.id : undefined)}` }))
                 : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "商品购买仅支持储值卡" }]}
             />
           )}
@@ -5116,13 +5022,12 @@ function Pos({
       <Modal
         open={servicePickerOpen}
         title="选择项目"
-        subtitle="点选项目后，再确认返回收银"
         size="large"
         onClose={() => setServicePickerOpen(false)}
         footer={
           <div className="modal-actions">
             <button type="button" onClick={() => setServicePickerOpen(false)}>返回</button>
-            <button type="button" className="primary-button" disabled={!serviceId} onClick={() => setServicePickerOpen(false)}>
+            <button type="button" className="primary-button" disabled={selectedServices.length === 0} onClick={() => setServicePickerOpen(false)}>
               确认选择
             </button>
           </div>
@@ -5152,7 +5057,7 @@ function Pos({
             {servicePickerServices.length ? servicePickerServices.map((service) => (
               <button
                 type="button"
-                className={`product-picker-card service-picker-card ${service.id === serviceId ? "selected" : ""}`}
+                className={`product-picker-card service-picker-card ${checkoutServiceIds.includes(service.id) ? "selected" : ""}`}
                 key={service.id}
                 onClick={() => selectCheckoutService(service.id)}
               >
