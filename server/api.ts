@@ -76,6 +76,7 @@ import { hashPassword } from "../src/lib/password";
 // Read version from package.json (Node.js ESM)
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
+import { requireMobilePhone } from "../src/domain/phone";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
@@ -928,6 +929,7 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/customers") {
         requirePermission(session, "customers:manage");
         const body = await readJson(request);
+        const customerPhone = requireMobilePhone(requiredString(body, "phone"));
         const nextData = updateData(database, session, {
           action: "新增客户",
           targetType: "customer",
@@ -940,7 +942,7 @@ export function createApiServer(database = new BeautyDatabase()) {
               id: makeId("c"),
               storeId: sessionStoreId(data, session),
               name: requiredString(body, "name"),
-              phone: requiredString(body, "phone"),
+              phone: customerPhone,
               level: optionalString(body, "level") ?? "普通会员",
               source: optionalString(body, "source") ?? "门店登记",
               tags: ["新客"],
@@ -960,6 +962,8 @@ export function createApiServer(database = new BeautyDatabase()) {
         const currentData = database.readData();
         const currentCustomer = currentData.customers.find((customer) => customer.id === customerId);
         if (!currentCustomer) throw new Error("客户不存在");
+        const rawPhone = optionalString(body, "phone");
+        const nextPhone = rawPhone === undefined ? undefined : requireMobilePhone(rawPhone);
         const summary = customerUpdateSummary(session.user.name, currentCustomer, body);
         const nextData = updateData(database, session, {
           action: "更新客户资料",
@@ -975,7 +979,7 @@ export function createApiServer(database = new BeautyDatabase()) {
                 ? {
                     ...customer,
                     name: optionalString(body, "name") ?? customer.name,
-                    phone: optionalString(body, "phone") ?? customer.phone,
+                    phone: nextPhone ?? customer.phone,
                     level: optionalString(body, "level") ?? customer.level,
                     source: optionalString(body, "source") ?? customer.source,
                     tags: optionalStringArray(body, "tags") ?? customer.tags,

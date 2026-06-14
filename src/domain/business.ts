@@ -49,6 +49,7 @@ import type {
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { appointmentEndAt, appointmentServiceIds, assignAppointmentRooms } from "./appointments";
+import { optionalMobilePhone, requireMobilePhone } from "./phone";
 import { normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 import { makeId, money, nowIso } from "./utils";
 
@@ -1923,6 +1924,7 @@ export function createOnlineBookingRequest(
   if (!storefront) throw new Error("线上店铺不存在或已停用");
   if (!input.customerName.trim()) throw new Error("请输入姓名");
   if (!input.phone.trim()) throw new Error("请输入手机号");
+  const phone = requireMobilePhone(input.phone);
   if (!storefront.enabledServiceIds.includes(input.serviceId)) throw new Error("该项目暂未开放线上预约");
   if (+new Date(input.preferredAt) <= +new Date(createdAt)) throw new Error("预约意向时间必须晚于当前时间");
   if (availableStaffForOnlineBooking(data, input.serviceId, input.preferredAt, storefront.storeId).length === 0) {
@@ -1934,7 +1936,7 @@ export function createOnlineBookingRequest(
     storeId: storefront.storeId,
     storefrontId: storefront.id,
     customerName: input.customerName.trim(),
-    phone: input.phone.trim(),
+    phone,
     serviceId: input.serviceId,
     preferredAt: input.preferredAt,
     note: input.note ?? "",
@@ -2050,10 +2052,10 @@ export function addStaffMember(
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
   const name = input.name.trim();
-  const phone = input.phone.trim();
+  if (!input.phone.trim()) throw new Error("请输入员工手机号");
+  const phone = requireMobilePhone(input.phone, "员工手机号必须为 11 位数字");
   const role = input.role.trim();
   if (!name) throw new Error("请输入员工姓名");
-  if (!phone) throw new Error("请输入员工手机号");
   if (!role) throw new Error("请选择员工岗位");
   if (!STAFF_BUSINESS_ROLES.has(role)) throw new Error("员工岗位只能选择店长、员工或前台");
   if ((input.baseSalary ?? 0) < 0) throw new Error("底薪不能小于 0");
@@ -2075,10 +2077,10 @@ export function addStaffMember(
 export function updateStaffMember(data: AppData, input: StaffUpdateInput): AppData {
   if (!data.staff.some((staff) => staff.id === input.staffId)) throw new Error("员工不存在");
   const name = input.name?.trim();
-  const phone = input.phone?.trim();
+  if (input.phone !== undefined && !input.phone.trim()) throw new Error("请输入员工手机号");
+  const phone = input.phone === undefined ? undefined : requireMobilePhone(input.phone, "员工手机号必须为 11 位数字");
   const role = input.role?.trim();
   if (input.name !== undefined && !name) throw new Error("请输入员工姓名");
-  if (input.phone !== undefined && !phone) throw new Error("请输入员工手机号");
   if (input.role !== undefined && !role) throw new Error("请选择员工岗位");
   if (role && !STAFF_BUSINESS_ROLES.has(role)) throw new Error("员工岗位只能选择店长、员工或前台");
   if (input.baseSalary !== undefined && input.baseSalary < 0) throw new Error("底薪不能小于 0");
@@ -2643,7 +2645,7 @@ export function checkoutOrder(
   const currentTime = options.now ?? nowIso;
   const customerId = input.customerId ?? "";
   const guestName = (input.guestName ?? "").trim();
-  const guestPhone = (input.guestPhone ?? "").trim();
+  const guestPhone = optionalMobilePhone(input.guestPhone, "客户电话必须为 11 位数字");
   const serviceId = input.serviceId ?? "";
   const selectedCustomer = customerId ? data.customers.find((item) => item.id === customerId) : undefined;
   const selectedService = serviceId ? data.services.find((item) => item.id === serviceId) : undefined;
@@ -3152,10 +3154,11 @@ export function openMemberCard(
   const storeId = scopedStoreId(data, input.storeId ?? existingCustomer?.storeId);
   if (!existingCustomer) {
     const customerName = trimText(input.customerName);
-    const customerPhone = trimText(input.customerPhone);
+    const rawCustomerPhone = trimText(input.customerPhone);
+    if (!customerName || !rawCustomerPhone) throw new Error("开卡需要登记客户姓名和手机号");
+    const customerPhone = requireMobilePhone(input.customerPhone, "客户手机号必须为 11 位数字");
     const customerBirthday = trimText(input.customerBirthday);
     const customerNote = trimText(input.customerNote);
-    if (!customerName || !customerPhone) throw new Error("开卡需要登记客户姓名和手机号");
     const matchedCustomer = data.customers.find((customer) => customer.phone === customerPhone);
     if (matchedCustomer) {
       customerId = matchedCustomer.id;

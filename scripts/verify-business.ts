@@ -266,6 +266,21 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   );
   assert.equal(anonymousProjectServiceCheckout.orders[0].guestName, "", "project service checkout should allow optional walk-in name");
   assert.equal(anonymousProjectServiceCheckout.orders[0].guestPhone, "", "project service checkout should allow optional walk-in phone");
+  assert.throws(
+    () =>
+      checkoutOrder(
+        registered,
+        {
+          staffId: registered.staff[0].id,
+          serviceId: "v1",
+          guestPhone: "139000000001",
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /客户电话必须为 11 位数字/,
+    "checkout should reject overlong walk-in phone",
+  );
   const ownerProductCheckout = checkoutOrder(
     registered,
     {
@@ -639,6 +654,11 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     /请输入员工手机号/,
     "staff management should reject empty phone",
   );
+  assert.throws(
+    () => updateStaffMember(editedStaff, { staffId: editedStaff.staff[0].id, phone: "139000000001" }),
+    /员工手机号必须为 11 位数字/,
+    "staff management should reject overlong phone",
+  );
 
   const invited = createStaffInvite(
     withStaff,
@@ -994,6 +1014,22 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
       ),
     /暂无可预约服务人员/,
     "online booking should reject a time with no available staff",
+  );
+  assert.throws(
+    () =>
+      createOnlineBookingRequest(
+        configured,
+        {
+          shareCode: "yich-online",
+          customerName: "线上客户",
+          phone: "137000000091",
+          serviceId: "v1",
+          preferredAt: "2026-05-30T02:00:00.000Z",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /手机号必须为 11 位数字/,
+    "online booking should reject overlong customer phone",
   );
 
   const requested = createOnlineBookingRequest(
@@ -1390,6 +1426,25 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(opened.memberCardTransactions[0].paidAmount, 2980, "open card should record paid amount");
   assert.equal(opened.memberCardTransactions[0].payMethod, "微信", "open card should record payment method");
   assert.equal(opened.memberCardTransactions[0].staffId, "s2", "open card should record the handling staff");
+  assert.throws(
+    () =>
+      openMemberCard(
+        cloneSeed(),
+        {
+          customerName: "开卡新客",
+          customerPhone: "138000088881",
+          type: "储值卡",
+          balance: 300,
+          paidAmount: 300,
+          payMethod: "微信",
+          expiresAt: "2027-12-31",
+          userId: "u_manager",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /客户手机号必须为 11 位数字/,
+    "open card should reject overlong customer phone",
+  );
   assert.equal(buildCashierFlowRecords(opened)[0].staffName, "小雅", "member-card cashier flow should display handling staff");
   assert.equal(memberCardCashIn(opened.memberCardTransactions[0]), 2980, "open card should count as cashier flow income");
   const closed = createDailyClose(

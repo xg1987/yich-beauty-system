@@ -685,7 +685,7 @@ button[aria-busy="true"] {
 
 .app-shell .main > .app-error-chip {
   position: fixed;
-  top: 50dvh;
+  top: calc(var(--yich-global-header-height, var(--yich-topbar-h, 72px)) + 10px);
   left: 50vw;
   z-index: 2600;
   width: min(82vw, 420px);
@@ -693,7 +693,7 @@ button[aria-busy="true"] {
   min-height: 40px;
   padding: 12px 18px;
   border-radius: 18px;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   border-color: rgba(255, 255, 255, 0.46);
   background:
     radial-gradient(circle at 92% 10%, rgba(255, 234, 243, 0.42), transparent 36%),
@@ -706,6 +706,19 @@ button[aria-busy="true"] {
     0 18px 42px rgba(122, 79, 181, 0.24),
     inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .app-shell .main > .app-error-chip {
+    top: calc(var(--yich-topbar-h, 72px) + env(safe-area-inset-top, 0px) + 8px);
+    width: calc(100vw - 28px);
+    max-width: calc(100vw - 28px);
+    min-height: 34px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.35;
+  }
 }
 
 .page-grid {
@@ -18940,7 +18953,7 @@ textarea,
 
 .inventory-intake-record {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(68px, 0.36fr) minmax(68px, 0.36fr) auto;
+  grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(74px, 0.42fr)) auto auto auto;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -18986,6 +18999,27 @@ textarea,
 .inventory-intake-record .badge {
   justify-self: end;
   white-space: nowrap;
+}
+
+.inventory-intake-edit-button {
+  justify-self: end;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 9px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #4f2f93;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.inventory-intake-edit-button:hover,
+.inventory-intake-edit-button:focus-visible {
+  border-color: rgba(111, 66, 193, 0.34);
+  background: rgba(111, 66, 193, 0.14);
+  outline: none;
 }
 
 .inventory-inline-control {
@@ -19199,7 +19233,7 @@ textarea,
 
 .inventory-product-card-metrics {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -19285,7 +19319,16 @@ textarea,
   }
 
   .inventory-intake-record {
-    grid-template-columns: minmax(0, 1fr) minmax(64px, 0.36fr) minmax(64px, 0.36fr) auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-intake-record-main {
+    grid-column: 1 / -1;
+  }
+
+  .inventory-intake-record .badge,
+  .inventory-intake-edit-button {
+    justify-self: start;
   }
 
   .inventory-product-card-grid {

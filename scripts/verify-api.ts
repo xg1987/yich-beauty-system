@@ -594,6 +594,26 @@ try {
     body: { name: "李女士", phone: "13600000004" },
   });
   assert.equal(afterCustomer.customers[0].name, "李女士", "customer API should create a customer");
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/customers", {
+        method: "POST",
+        token: session.token,
+        body: { name: "超长手机号客户", phone: "136000000041" },
+      }),
+    /手机号必须为 11 位数字/,
+    "customer API should reject overlong phone on create",
+  );
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, `/api/customers/${afterCustomer.customers[0].id}`, {
+        method: "PATCH",
+        token: session.token,
+        body: { phone: "136000000041", reason: "API 校验超长手机号" },
+      }),
+    /手机号必须为 11 位数字/,
+    "customer API should reject overlong phone on update",
+  );
   const afterCustomerTags = await request<AppData>(baseUrl, `/api/customers/${afterCustomer.customers[0].id}`, {
     method: "PATCH",
     token: session.token,

@@ -93,6 +93,12 @@ type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
 type AiVideoResolution = "480p" | "720p" | "1080p";
 type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
+
+function cardCustomerDraftError(mode: CardCustomerMode, name: string, phone: string) {
+  if (mode !== "new") return "";
+  if (!name || !phone) return "请登记客户姓名和手机号";
+  return phone.length === 11 ? "" : "客户手机号必须为 11 位数字";
+}
 type AiTextModelConfig = {
   enabled: boolean;
   provider: Extract<AiProviderKey, "openai" | "deepseek">;
@@ -145,6 +151,7 @@ const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTM
 const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
 const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
 const DEFAULT_DISCOUNT_CARD_NAME = "会员折扣卡";
+const normalizeMobilePhoneDraft = (value: string) => value.replace(/\D/g, "").slice(0, 11);
 const AI_VIDEO_DURATIONS = [5, 10, 15];
 const AI_VIDEO_RESOLUTIONS: AiVideoResolution[] = ["480p", "720p", "1080p"];
 export const AI_VIDEO_ASPECT_RATIOS: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
@@ -4303,14 +4310,16 @@ function Pos({
     setCardCustomerName(value);
   };
 
-  const updateCardCustomerPhone = (value: string) => {
+  const updateCardCustomerPhone = (value: string, input?: HTMLInputElement | null) => {
+    const nextPhone = normalizeMobilePhoneDraft(value);
     cardCustomerDraftTouchedRef.current = true;
-    setCardCustomerPhone(value);
+    setCardCustomerPhone(nextPhone);
+    if (input && input.value !== nextPhone) input.value = nextPhone;
   };
 
   const readCardCustomerName = () => (cardCustomerNameInputRef.current?.value ?? cardCustomerName).trim();
 
-  const readCardCustomerPhone = () => (cardCustomerPhoneInputRef.current?.value ?? cardCustomerPhone).trim();
+  const readCardCustomerPhone = () => normalizeMobilePhoneDraft(cardCustomerPhoneInputRef.current?.value ?? cardCustomerPhone);
 
   const readCardName = () => (cardNameInputRef.current?.value ?? cardName).trim();
 
@@ -4365,6 +4374,11 @@ function Pos({
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     setCardFormMessage(undefined);
+    const draftError = cardCustomerDraftError(cardCustomerMode, readCardCustomerName(), readCardCustomerPhone());
+    if (draftError) {
+      setCardFormMessage({ type: "error", text: draftError });
+      return;
+    }
     void runMutation(async () => {
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (readCardName() || DEFAULT_DISCOUNT_CARD_NAME) : readCardName();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
@@ -4374,7 +4388,6 @@ function Pos({
       const submittedServiceEntitlements = cardType === "次数卡" || cardType === "套餐卡" ? buildCardServiceEntitlements() : [];
       const submittedRemainingTimes = submittedServiceEntitlements.reduce((sum, item) => sum + item.totalTimes, 0);
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
-      if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardCustomerMode === "new" && cardCustomerBirthday.trim() && !submittedCustomerBirthday) throw new Error("客户生日请按 YYYY-MM-DD 填写");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) throw new Error("请填写开卡实收金额");
@@ -4432,6 +4445,7 @@ function Pos({
       messages.push(`商品 ${zeroPriceNames} 的售价为 0，请先到商品资料填写售价。`);
     }
     if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
+    if (!usesCustomer && guestPhone.trim() && guestPhone.length !== 11) messages.push("客户电话必须为 11 位数字。");
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
@@ -4449,7 +4463,7 @@ function Pos({
         checkoutRequestId: checkoutRequestIdRef.current,
         customerId: usesCustomer ? customerId : undefined,
         guestName: usesCustomer ? undefined : guestName.trim(),
-        guestPhone: usesCustomer ? undefined : guestPhone.trim(),
+        guestPhone: usesCustomer ? undefined : guestPhone,
         staffId,
         collaboratorStaffIds: usesService ? collaboratorStaffIds : [],
         serviceId: usesService ? serviceId : undefined,
@@ -4636,7 +4650,7 @@ function Pos({
           ) : (
             <>
               <label>客户姓名<input ref={cardCustomerNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
-              <label>客户手机号<input ref={cardCustomerPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
+              <label>客户手机号<input ref={cardCustomerPhoneInputRef} type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} /></label>
               <label>客户生日（选填）<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
               <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
             </>
@@ -4871,7 +4885,7 @@ function Pos({
                 </label>
                 <label>
                   {usesProduct && !usesService ? "联系电话（可选）" : "客户电话（可选）"}
-                  <input type="tel" inputMode="tel" autoComplete="tel" value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} placeholder="不留可空" />
+                  <input type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} value={guestPhone} onChange={(event) => setGuestPhone(normalizeMobilePhoneDraft(event.target.value))} placeholder="不留可空" />
                 </label>
               </div>
             </div>
@@ -5330,9 +5344,16 @@ function Customers({
 
   const addCustomer = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.addCustomer({ name, phone }));
-    setName("");
-    setPhone("");
+    const submittedName = name.trim();
+    const submittedPhone = normalizeMobilePhoneDraft(phone);
+    void runMutation(async () => {
+      if (!submittedName) throw new Error("请输入客户姓名");
+      if (submittedPhone.length !== 11) throw new Error("手机号必须为 11 位数字");
+      return actions.addCustomer({ name: submittedName, phone: submittedPhone });
+    }).then(() => {
+      setName("");
+      setPhone("");
+    });
   };
 
   const parseCustomerTags = (value: string) =>
@@ -5340,7 +5361,7 @@ function Customers({
 
   const openCustomerEdit = (customer: AppData["customers"][number]) => {
     setEditCustomerName(customer.name);
-    setEditCustomerPhone(customer.phone);
+    setEditCustomerPhone(normalizeMobilePhoneDraft(customer.phone));
     setEditCustomerSource(customer.source);
     setEditCustomerLevel(customer.level);
     setEditCustomerBirthday(formatBirthdayDraft(customer.birthday ?? ""));
@@ -5354,9 +5375,10 @@ function Customers({
     event.preventDefault();
     if (!selectedCustomer) return;
     const nextName = editCustomerName.trim();
-    const nextPhone = editCustomerPhone.trim();
+    const nextPhone = normalizeMobilePhoneDraft(editCustomerPhone);
     const nextBirthday = normalizeBirthdayForSubmit(editCustomerBirthday);
     if (!nextName || !nextPhone) return;
+    if (nextPhone.length !== 11) return;
     if (editCustomerBirthday.trim() && !nextBirthday) return;
     void runMutation(() =>
       actions.updateCustomer(selectedCustomer.id, {
@@ -5405,14 +5427,16 @@ function Customers({
     setCardCustomerName(value);
   };
 
-  const updateCardCustomerPhone = (value: string) => {
+  const updateCardCustomerPhone = (value: string, input?: HTMLInputElement | null) => {
+    const nextPhone = normalizeMobilePhoneDraft(value);
     customerCardDraftTouchedRef.current = true;
-    setCardCustomerPhone(value);
+    setCardCustomerPhone(nextPhone);
+    if (input && input.value !== nextPhone) input.value = nextPhone;
   };
 
   const readCardCustomerName = () => (customerCardNameInputRef.current?.value ?? cardCustomerName).trim();
 
-  const readCardCustomerPhone = () => (customerCardPhoneInputRef.current?.value ?? cardCustomerPhone).trim();
+  const readCardCustomerPhone = () => normalizeMobilePhoneDraft(customerCardPhoneInputRef.current?.value ?? cardCustomerPhone);
 
   const readCardName = () => (customerCardCardNameInputRef.current?.value ?? cardName).trim();
 
@@ -5457,6 +5481,11 @@ function Customers({
   const openCard = (event: FormEvent) => {
     event.preventDefault();
     setCardFormMessage(undefined);
+    const draftError = cardCustomerDraftError(cardCustomerMode, readCardCustomerName(), readCardCustomerPhone());
+    if (draftError) {
+      setCardFormMessage({ type: "error", text: draftError });
+      return;
+    }
     void runMutation(async () => {
       const submittedCardName = cardType === "储值卡" ? DEFAULT_STORED_VALUE_CARD_NAME : cardType === "折扣卡" ? (readCardName() || DEFAULT_DISCOUNT_CARD_NAME) : readCardName();
       const submittedCustomerName = cardCustomerMode === "new" ? readCardCustomerName() : "";
@@ -5466,7 +5495,6 @@ function Customers({
       const submittedServiceEntitlements = cardType === "次数卡" || cardType === "套餐卡" ? buildCardServiceEntitlements() : [];
       const submittedRemainingTimes = submittedServiceEntitlements.reduce((sum, item) => sum + item.totalTimes, 0);
       if (cardCustomerMode === "existing" && !customerId) throw new Error("请选择开卡客户");
-      if (cardCustomerMode === "new" && (!submittedCustomerName || !submittedCustomerPhone)) throw new Error("请登记客户姓名和手机号");
       if (cardCustomerMode === "new" && cardCustomerBirthday.trim() && !submittedCustomerBirthday) throw new Error("客户生日请按 YYYY-MM-DD 填写");
       if (cardType !== "储值卡" && !submittedCardName) throw new Error("请填写卡名称");
       if (!Number.isFinite(cardPaidAmountValue) || cardPaidAmountValue <= 0) {
@@ -6129,7 +6157,7 @@ function Customers({
       >
         <form className="form customer-edit-form" onSubmit={saveCustomerEdit}>
           <label>客户姓名<input value={editCustomerName} onChange={(event) => setEditCustomerName(event.target.value)} autoComplete="name" required /></label>
-          <label>手机号<input type="tel" inputMode="tel" value={editCustomerPhone} onChange={(event) => setEditCustomerPhone(event.target.value)} autoComplete="tel" required /></label>
+          <label>手机号<input type="tel" inputMode="numeric" maxLength={11} value={editCustomerPhone} onChange={(event) => setEditCustomerPhone(normalizeMobilePhoneDraft(event.target.value))} autoComplete="tel" required /></label>
           <label>会员等级<input value={editCustomerLevel} onChange={(event) => setEditCustomerLevel(event.target.value)} placeholder="普通会员" /></label>
           <label>生日<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={editCustomerBirthday} onChange={(event) => setEditCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setEditCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
           <label>来源<input value={editCustomerSource} onChange={(event) => setEditCustomerSource(event.target.value)} placeholder="门店登记 / 开卡登记 / 老客转介绍" /></label>
@@ -6139,7 +6167,7 @@ function Customers({
           <p className="form-note span-2">保存后会记录修改人、时间、改动字段和修改说明。</p>
           <div className="form-submit-row span-2">
             <button type="button" onClick={() => setCustomerEditOpen(false)}>取消</button>
-            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editCustomerName.trim() || !editCustomerPhone.trim()} />
+            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editCustomerName.trim() || editCustomerPhone.length !== 11} />
           </div>
         </form>
       </Modal>
@@ -6178,7 +6206,7 @@ function Customers({
         <PanelTitle icon={<UsersRound size={18} />} title="新增客户" action="客户档案沉淀" />
         <form className="form" onSubmit={addCustomer}>
           <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required /></label>
-          <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+          <label>手机号<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} value={phone} onChange={(event) => setPhone(normalizeMobilePhoneDraft(event.target.value))} required /></label>
           <SubmitStatusButton idleText="保存客户" busyText="保存中..." />
         </form>
         </>
@@ -6193,7 +6221,7 @@ function Customers({
           ) : (
             <>
               <label>客户姓名<input ref={customerCardNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
-              <label>客户手机号<input ref={customerCardPhoneInputRef} type="tel" inputMode="tel" autoComplete="tel" defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value)} /></label>
+              <label>客户手机号<input ref={customerCardPhoneInputRef} type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} /></label>
               <label>客户生日（选填）<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
               <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
             </>
@@ -6971,6 +6999,7 @@ function Inventory({
   const newInventoryProductUnit = "件";
   const initialInventoryServiceDraft = { name: "", category: "面护类", subcategory: "膏霜", unit: "件" };
   const [newInventoryServiceUnitsPerStockUnit, setNewInventoryServiceUnitsPerStockUnit] = useState(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
+  const [newInventoryProductPrice, setNewInventoryProductPrice] = useState("");
   const [newInventoryProductStock, setNewInventoryProductStock] = useState("");
   const [newInventoryWarningStock, setNewInventoryWarningStock] = useState("5");
   const [newInventoryShelfLifeMonths, setNewInventoryShelfLifeMonths] = useState("3");
@@ -6984,7 +7013,6 @@ function Inventory({
   const [editProductSubcategory, setEditProductSubcategory] = useState("");
   const [editProductUnit, setEditProductUnit] = useState("件");
   const [editProductPrice, setEditProductPrice] = useState<EditableNumber>(0);
-  const [editProductCost, setEditProductCost] = useState<EditableNumber>(0);
   const [editProductWarningStock, setEditProductWarningStock] = useState<EditableNumber>(0);
   const [editProductShelfLifeMonths, setEditProductShelfLifeMonths] = useState<EditableNumber>(0);
   const [editProductStatus, setEditProductStatus] = useState<"启用" | "停用">("启用");
@@ -7066,6 +7094,7 @@ function Inventory({
 
   const addInventoryProduct = (event: FormEvent) => {
     event.preventDefault();
+    const price = numberFromInput(newInventoryProductPrice, 0);
     const stock = numberFromInput(newInventoryProductStock, 0);
     const warningStock = numberFromInput(newInventoryWarningStock, 0);
     const shelfLifeMonths = optionalNumberFromInput(newInventoryShelfLifeMonths);
@@ -7083,6 +7112,7 @@ function Inventory({
         category: newInventoryProductCategory.trim() || "面护类",
         subcategory: newInventoryProductSubcategory.trim(),
         unit: newInventoryProductUnit,
+        price,
         warningStock,
         shelfLifeMonths,
         expiryAt: newInventoryExpiryAt || undefined,
@@ -7096,6 +7126,7 @@ function Inventory({
         setNewInventoryProductCategory("面护类");
         setNewInventoryProductSubcategory("膏霜");
         setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
+        setNewInventoryProductPrice("");
         setNewInventoryProductStock("");
         setNewInventoryWarningStock("5");
         setNewInventoryShelfLifeMonths("3");
@@ -7115,7 +7146,6 @@ function Inventory({
     setEditProductSubcategory(product.subcategory ?? "");
     setEditProductUnit(product.unit || "件");
     setEditProductPrice(product.price);
-    setEditProductCost(product.cost);
     setEditProductWarningStock(product.warningStock);
     setEditProductShelfLifeMonths(product.shelfLifeMonths ?? "");
     setEditProductStatus(product.status ?? "启用");
@@ -7139,7 +7169,6 @@ function Inventory({
       subcategory: editProductSubcategory,
       unit: editProductUnit,
       price: editableNumberValue(editProductPrice),
-      cost: editableNumberValue(editProductCost),
       warningStock: editableNumberValue(editProductWarningStock),
       shelfLifeMonths: editProductShelfLifeMonths === "" ? undefined : editableNumberValue(editProductShelfLifeMonths),
       serviceStockDeductible: productServiceStockDeductible(product),
@@ -7442,6 +7471,7 @@ function Inventory({
                       />
                     </div>
                     <div className="inventory-product-form-row inventory-product-form-stock">
+                      <label>销售价格<input type="number" min={0} step="0.01" value={newInventoryProductPrice} onChange={(event) => setNewInventoryProductPrice(event.target.value)} placeholder="卖给客户的价格" /></label>
                       <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
                       <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
                       <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
@@ -7475,10 +7505,14 @@ function Inventory({
                               <strong>{product.name}</strong>
                               <span>{`${product.category ?? "面护类"}${product.subcategory ? ` / ${product.subcategory}` : ""}`}</span>
                             </div>
+                              <span><small>售价</small>{product.price > 0 ? money(product.price) : "未设置"}</span>
                               <span><small>首批</small>{formatProductStockWithServiceUnits(product, log ? log.delta : product.stock)}</span>
                               <span><small>当前</small>{formatProductStockWithServiceUnits(product, product.stock)}</span>
                               <Badge text={productServiceStockDeductible(product) ? "扣库存" : "不计项目"} tone={productServiceStockDeductible(product) ? "ok" : undefined} />
                               <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
+                              <button type="button" className="inventory-intake-edit-button" onClick={() => openProductEdit(product)}>
+                                编辑
+                              </button>
                           </div>
                         ))}
                       </div>
@@ -7591,9 +7625,13 @@ function Inventory({
                                         <small>剩余</small>
                                         <strong>{formatProductStockWithServiceUnits(item, item.stock)}</strong>
                                       </span>
-                              <span>
-                                <small>项目扣减</small>
-                                <strong>{productServiceStockDeductible(item) ? `${productServicePackageText(item)}` : "不计项目"}</strong>
+                            <span>
+                              <small>售价</small>
+                              <strong>{item.price > 0 ? money(item.price) : "未设置"}</strong>
+                            </span>
+                            <span>
+                              <small>项目扣减</small>
+                              <strong>{productServiceStockDeductible(item) ? `${productServicePackageText(item)}` : "不计项目"}</strong>
                               </span>
                               <span>
                               <small>使用占比</small>
@@ -7724,8 +7762,7 @@ function Inventory({
             <label>大类<input value={editProductCategory} onChange={(event) => setEditProductCategory(event.target.value)} required /></label>
             <label>小类<input value={editProductSubcategory} onChange={(event) => setEditProductSubcategory(event.target.value)} /></label>
             <label>单位<input value={editProductUnit} onChange={(event) => setEditProductUnit(event.target.value)} required /></label>
-            <label>售价<input type="number" min={0} value={editProductPrice} onChange={(event) => setEditProductPrice(parseEditableNumber(event.target.value))} /></label>
-            <label>成本<input type="number" min={0} value={editProductCost} onChange={(event) => setEditProductCost(parseEditableNumber(event.target.value))} /></label>
+            <label>销售价格<input type="number" min={0} step="0.01" value={editProductPrice} onChange={(event) => setEditProductPrice(parseEditableNumber(event.target.value))} placeholder="卖给客户的价格" /></label>
             <label>预警库存<input type="number" min={0} value={editProductWarningStock} onChange={(event) => setEditProductWarningStock(parseEditableNumber(event.target.value))} /></label>
             <label>保质期（月）<input type="number" min={0} value={editProductShelfLifeMonths} onChange={(event) => setEditProductShelfLifeMonths(parseEditableNumber(event.target.value))} /></label>
             <Select

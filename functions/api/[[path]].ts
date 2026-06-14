@@ -69,6 +69,7 @@ import {
   storeIdForUser,
 } from "../../src/domain/business";
 import { hashPassword } from "../../src/lib/password";
+import { requireMobilePhone } from "../../src/domain/phone";
 
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
@@ -928,6 +929,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/customers") {
       requirePermission(session, "customers:manage");
       const body = await readJson(context.request);
+      const customerPhone = requireMobilePhone(requiredString(body, "phone"));
       const nextData = updateData(await database.readData(), session, {
         action: "新增客户",
         targetType: "customer",
@@ -940,7 +942,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             id: makeId("c"),
             storeId: sessionStoreId(data, session),
             name: requiredString(body, "name"),
-            phone: requiredString(body, "phone"),
+            phone: customerPhone,
             level: optionalString(body, "level") ?? "普通会员",
             source: optionalString(body, "source") ?? "门店登记",
             tags: ["新客"],
@@ -960,6 +962,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const currentData = await database.readData();
       const currentCustomer = currentData.customers.find((customer) => customer.id === customerId);
       if (!currentCustomer) throw new Error("客户不存在");
+      const rawPhone = optionalString(body, "phone");
+      const nextPhone = rawPhone === undefined ? undefined : requireMobilePhone(rawPhone);
       const nextData = updateData(currentData, session, {
         action: "更新客户资料",
         targetType: "customer",
@@ -974,7 +978,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               ? {
                   ...customer,
                   name: optionalString(body, "name") ?? customer.name,
-                  phone: optionalString(body, "phone") ?? customer.phone,
+                  phone: nextPhone ?? customer.phone,
                   level: optionalString(body, "level") ?? customer.level,
                   source: optionalString(body, "source") ?? customer.source,
                   tags: optionalStringArray(body, "tags") ?? customer.tags,

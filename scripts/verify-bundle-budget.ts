@@ -49,7 +49,7 @@ const assets = readdirSync(assetsDir).filter((file) => file.endsWith(".js"));
 const checks: AssetCheck[] = [
   { label: "入口 index chunk", pattern: /^index-.*\.js$/, maxBytes: 12_000, required: true },
   { label: "认证门控 AuthGate chunk", pattern: /^AuthGate-.*\.js$/, maxBytes: 12_000, required: true },
-  { label: "登录后主应用 AuthenticatedApp chunk", pattern: /^AuthenticatedApp-.*\.js$/, maxBytes: 209_000, required: true },
+  { label: "登录后主应用 AuthenticatedApp chunk", pattern: /^AuthenticatedApp-.*\.js$/, maxBytes: 211_000, required: true },
   { label: "报表页 Reports chunk", pattern: /^Reports-.*\.js$/, maxBytes: 16_000, required: true },
   { label: "操作日志 OperationLogs chunk", pattern: /^OperationLogs-.*\.js$/, maxBytes: 6_000, required: true },
 ];

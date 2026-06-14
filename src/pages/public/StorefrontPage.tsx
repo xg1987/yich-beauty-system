@@ -4,6 +4,7 @@ import { BrandIcon } from "../../components/business/BrandIcon";
 import { PanelTitle } from "../../components/layout/PanelTitle";
 import { DateTimeInput } from "../../components/ui/DateTimeInput";
 import { Select } from "../../components/ui/Select";
+import { isCompleteMobilePhone, MOBILE_PHONE_MAX_LENGTH, normalizeMobilePhoneDraft } from "../../domain/phone";
 import type { OnlineStorefront, Service, StoreProfile } from "../../domain/types";
 import { money, toLocalInputValue, tomorrowAt } from "../../domain/utils";
 
@@ -63,12 +64,17 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
     if (submittingRef.current) return;
     setError(undefined);
     setSubmitted(false);
+    const submittedPhone = normalizeMobilePhoneDraft(phone);
+    if (!isCompleteMobilePhone(submittedPhone)) {
+      setError("手机号必须为 11 位数字");
+      return;
+    }
     setSubmitting(true);
     submittingRef.current = true;
     void createPublicBookingRequest({
       shareCode,
       customerName,
-      phone,
+      phone: submittedPhone,
       serviceId,
       preferredAt: new Date(preferredAt).toISOString(),
       note,
@@ -125,7 +131,7 @@ export default function StorefrontPage({ shareCode, fetchPublicStore, createPubl
                 <PanelTitle icon={<CalendarDays size={18} />} title="到店预约意向" action={selectedService ? money(selectedService.price) : undefined} />
                 {submitted && <p className="public-status ok">预约意向已提交，门店会尽快联系确认到店时间。</p>}
                 <label>姓名<input value={customerName} disabled={submitting} onChange={(event) => setCustomerName(event.target.value)} autoComplete="name" placeholder="请输入到店人姓名" /></label>
-                <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={phone} disabled={submitting} onChange={(event) => setPhone(event.target.value)} placeholder="用于门店联系确认" /></label>
+                <label>手机号<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={MOBILE_PHONE_MAX_LENGTH} value={phone} disabled={submitting} onChange={(event) => setPhone(normalizeMobilePhoneDraft(event.target.value))} placeholder="用于门店联系确认" /></label>
                 <Select label="预约项目" value={serviceId} onChange={setServiceId} options={services.map(optionOf)} disabled={submitting} />
                 <DateTimeInput label="期望到店时间" value={preferredAt} onChange={setPreferredAt} disabled={submitting} />
                 <label>备注<textarea value={note} disabled={submitting} onChange={(event) => setNote(event.target.value)} placeholder="例如皮肤状态、想咨询的问题" /></label>

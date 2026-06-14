@@ -8,6 +8,7 @@ import { DataTable } from "../components/ui/DataTable";
 import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
 import { hasPermission, type UserSession } from "../domain/auth";
+import { isCompleteMobilePhone, MOBILE_PHONE_MAX_LENGTH, normalizeMobilePhoneDraft } from "../domain/phone";
 import type { AppData, Staff, UserRole } from "../domain/types";
 import { money, shortDate } from "../domain/utils";
 import type { ApiActions } from "../hooks/useApiData";
@@ -71,15 +72,22 @@ export function StaffCommissions({
 
   const addStaff = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.addStaff({ name, phone, role, baseSalary, commissionRate }));
-    setName("");
-    setPhone("");
+    const submittedName = name.trim();
+    const submittedPhone = normalizeMobilePhoneDraft(phone);
+    void runMutation(async () => {
+      if (!submittedName) throw new Error("请输入员工姓名");
+      if (!isCompleteMobilePhone(submittedPhone)) throw new Error("员工手机号必须为 11 位数字");
+      return actions.addStaff({ name: submittedName, phone: submittedPhone, role, baseSalary, commissionRate });
+    }).then(() => {
+      setName("");
+      setPhone("");
+    });
   };
 
   const startEditStaff = (staff: Staff) => {
     setEditingStaffId(staff.id);
     setEditingName(staff.name);
-    setEditingPhone(staff.phone);
+    setEditingPhone(normalizeMobilePhoneDraft(staff.phone));
     setEditingRole(staff.role);
     setEditingBaseSalary(staff.baseSalary ?? 0);
     setEditingCommissionRate(staff.commissionRate ?? 0);
@@ -99,16 +107,20 @@ export function StaffCommissions({
   const saveStaffEdit = (event: FormEvent) => {
     event.preventDefault();
     if (!editingStaffId) return;
-    void runMutation(() =>
-      actions.updateStaff(editingStaffId, {
-        name: editingName,
-        phone: editingPhone,
+    const submittedName = editingName.trim();
+    const submittedPhone = normalizeMobilePhoneDraft(editingPhone);
+    void runMutation(async () => {
+      if (!submittedName) throw new Error("请输入员工姓名");
+      if (!isCompleteMobilePhone(submittedPhone)) throw new Error("员工手机号必须为 11 位数字");
+      return actions.updateStaff(editingStaffId, {
+        name: submittedName,
+        phone: submittedPhone,
         role: editingRole,
         baseSalary: editingBaseSalary,
         commissionRate: editingCommissionRate,
         status: editingStatus,
-      }),
-    ).then(cancelEditStaff);
+      });
+    }).then(cancelEditStaff);
   };
 
   const createInvite = (event: FormEvent) => {
@@ -207,7 +219,7 @@ export function StaffCommissions({
           <>
             <form className="form" onSubmit={addStaff}>
               <label>姓名<input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required /></label>
-              <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required /></label>
+              <label>手机号<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={MOBILE_PHONE_MAX_LENGTH} value={phone} onChange={(event) => setPhone(normalizeMobilePhoneDraft(event.target.value))} required /></label>
               <Select label="岗位" value={role} onChange={setRole} options={staffRoleOptions} />
               <label>底薪<input type="number" value={baseSalary} onChange={(event) => setBaseSalary(Number(event.target.value))} /></label>
               <label>提成比例<input type="number" step="0.01" value={commissionRate} onChange={(event) => setCommissionRate(Number(event.target.value))} /></label>
@@ -260,7 +272,7 @@ export function StaffCommissions({
               <span>{editingStaff.name} · {data.authUsers.find((user) => user.staffId === editingStaff.id)?.account ?? "未开通账号"}</span>
             </div>
             <label>姓名<input value={editingName} onChange={(event) => setEditingName(event.target.value)} autoComplete="name" required /></label>
-            <label>手机号<input type="tel" inputMode="tel" autoComplete="tel" value={editingPhone} onChange={(event) => setEditingPhone(event.target.value)} required /></label>
+            <label>手机号<input type="tel" inputMode="numeric" autoComplete="tel" maxLength={MOBILE_PHONE_MAX_LENGTH} value={editingPhone} onChange={(event) => setEditingPhone(normalizeMobilePhoneDraft(event.target.value))} required /></label>
             <Select label="岗位" value={editingRole} onChange={setEditingRole} options={staffRoleOptions} />
             <label>底薪<input type="number" min={0} value={editingBaseSalary} onChange={(event) => setEditingBaseSalary(Number(event.target.value))} /></label>
             <label>提成比例<input type="number" min={0} step="0.01" value={editingCommissionRate} onChange={(event) => setEditingCommissionRate(Number(event.target.value))} /></label>
@@ -390,4 +402,3 @@ export function StaffCommissions({
     </div>
   );
 }
-
