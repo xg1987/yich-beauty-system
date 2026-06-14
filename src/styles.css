@@ -25797,9 +25797,13 @@ img.brand-icon-mark {
   }
 }
 
-/* Shell navigation remains reachable while a business dialog is open; blocking save states still sit above it. */
+/* Business dialogs must sit above the fixed workbar so footer actions stay clickable on short laptop screens. */
 .app-shell .workbar {
   z-index: 240;
+}
+
+.app-shell:has(.modal-backdrop) .workbar {
+  z-index: 70;
 }
 
 .app-shell[data-mutating="true"] .workbar {
