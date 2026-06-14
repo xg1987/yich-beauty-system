@@ -21474,6 +21474,45 @@ textarea,
   background: linear-gradient(135deg, #9ca3af, #cbd5e1);
 }
 
+.marketing-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.marketing-mode-tabs button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #2f255f;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.marketing-mode-tabs button.active {
+  border-color: rgba(111, 66, 193, 0.48);
+  background: rgba(111, 66, 193, 0.12);
+  color: #3f247d;
+}
+
+.marketing-mode-tabs button span {
+  min-width: 22px;
+  min-height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.12);
+  color: #6f42c1;
+  font-size: 12px;
+}
+
 .marketing-workspace {
   grid-template-columns: 1fr;
   align-items: start;
@@ -21751,6 +21790,26 @@ textarea,
   border: 1px solid rgba(42, 143, 125, 0.14);
   border-radius: 14px;
   background: rgba(42, 143, 125, 0.08);
+}
+
+.marketing-custom-field {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.marketing-custom-field > span {
+  color: #2f255f !important;
+  font-size: 15px;
+  font-weight: 920;
+}
+
+.marketing-custom-field textarea {
+  min-height: 92px;
+  resize: vertical;
 }
 
 .marketing-advanced-options {
@@ -22061,6 +22120,10 @@ textarea,
   box-shadow: 0 28px 70px rgba(47, 37, 95, 0.22);
 }
 
+.marketing-content-dialog {
+  width: min(1080px, 100%);
+}
+
 .marketing-result-dialog-head {
   display: flex;
   align-items: flex-start;
@@ -22108,6 +22171,53 @@ textarea,
 .marketing-result-body {
   display: grid;
   gap: 14px;
+}
+
+.marketing-content-result-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.88fr) minmax(0, 1.12fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.marketing-poster-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.marketing-poster-card .marketing-result-image {
+  width: 100%;
+  max-width: 360px;
+  justify-self: center;
+}
+
+.marketing-poster-placeholder {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  border: 1px dashed rgba(111, 66, 193, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(47, 37, 95, 0.6);
+  font-weight: 850;
+}
+
+.marketing-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.marketing-result-actions .secondary-button {
+  width: auto;
+  min-width: 132px;
+}
+
+.marketing-result-actions .secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .marketing-preview-summary {
@@ -22254,11 +22364,14 @@ textarea,
 .app-shell.theme-night .marketing-node-grid button,
 .app-shell.theme-night .marketing-config-row,
 .app-shell.theme-night .marketing-primary-block,
+.app-shell.theme-night .marketing-custom-field,
+.app-shell.theme-night .marketing-mode-tabs button,
 .app-shell.theme-night .marketing-advanced-options,
 .app-shell.theme-night .marketing-style-grid button,
 .app-shell.theme-night .marketing-context-note,
 .app-shell.theme-night .marketing-preview-summary,
-.app-shell.theme-night .marketing-preview-copy article {
+.app-shell.theme-night .marketing-preview-copy article,
+.app-shell.theme-night .marketing-poster-placeholder {
   border-color: var(--night-app-line);
   background: rgba(255, 255, 255, 0.08);
 }
@@ -22289,6 +22402,11 @@ textarea,
   color: var(--night-app-text);
 }
 
+.app-shell.theme-night .marketing-custom-field > span,
+.app-shell.theme-night .marketing-mode-tabs button {
+  color: var(--night-app-text) !important;
+}
+
 .app-shell.theme-night .marketing-advanced-options summary small {
   color: var(--night-app-muted);
 }
@@ -22298,6 +22416,7 @@ textarea,
 .app-shell.theme-day .marketing-center-page .marketing-node-grid button strong,
 .app-shell.theme-day .marketing-center-page .marketing-config-label strong,
 .app-shell.theme-day .marketing-center-page .marketing-advanced-options summary span,
+.app-shell.theme-day .marketing-center-page .marketing-custom-field > span,
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button strong,
 .app-shell.theme-day .marketing-center-page .marketing-preview-summary span,
 .app-shell.theme-day .marketing-center-page .marketing-preview-copy article p {
@@ -22316,7 +22435,8 @@ textarea,
 .app-shell.theme-day .marketing-center-page .marketing-advanced-options summary small,
 .app-shell.theme-day .marketing-center-page .marketing-node-grid button small,
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button span,
-.app-shell.theme-day .marketing-center-page .marketing-context-note {
+.app-shell.theme-day .marketing-center-page .marketing-context-note,
+.app-shell.theme-day .marketing-center-page .marketing-poster-placeholder {
   color: rgba(47, 37, 95, 0.64) !important;
 }
 
@@ -22694,6 +22814,14 @@ textarea,
 
   .marketing-result-body {
     grid-template-columns: 1fr;
+  }
+
+  .marketing-content-result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .marketing-poster-card .marketing-result-image {
+    max-width: 300px;
   }
 
   .marketing-node-tabs,

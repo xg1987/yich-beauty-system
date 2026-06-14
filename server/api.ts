@@ -2462,9 +2462,10 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   const bodyState = marketingText(body.bodyState, "常规护理需求");
   const marketingGoal = marketingText(body.marketingGoal, "到店转化");
   const posterStyle = marketingText(body.posterStyle, "门店品牌风格");
+  const customRequirement = optionalString(body, "customRequirement");
   const nodeContext = `营销节点：${marketingNode}。客户类型：${customerType}。消费节点：${lifecycleNode}。身体状态/文案痛点：${bodyState}。营销目的：${marketingGoal}。海报/内容风格：${posterStyle}。`;
   if (kind === "copy") {
-    return `请为美业门店生成一条${channel}营销文案。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约；围绕时间节点和客户当前状态来写，不要把客户身份、身体状态、营销目的混为一类；不要虚假承诺，不要夸大医疗效果。`;
+    return `请为美业门店生成一套${channel}营销内容。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement || "无"}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，也要能配合海报标题使用；围绕时间节点和客户当前状态来写，不要把客户身份、身体状态、营销目的混为一类；不要虚假承诺，不要夸大医疗效果。`;
   }
   if (kind === "talk") {
     const customerName = marketingText(body.customerName, audience);
@@ -2485,6 +2486,66 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   return `生成美业门店宣传短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，适合短视频发布，避免医疗承诺。`;
 }
 
+function escapeSvgText(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&apos;",
+  }[char] ?? char));
+}
+
+function compactMarketingLine(value: string, fallback: string, maxLength: number) {
+  const compact = value.replace(/[【】#*_`]/g, "").replace(/\s+/g, " ").trim();
+  return escapeSvgText((compact || fallback).slice(0, maxLength));
+}
+
+function marketingPosterLines(value: string, fallback: string, maxLength: number, lineLength: number, maxLines: number) {
+  const compact = value.replace(/[【】#*_`]/g, "").replace(/\s+/g, " ").trim();
+  const truncated = (compact || fallback).slice(0, maxLength);
+  const lines: string[] = [];
+  for (let index = 0; index < truncated.length && lines.length < maxLines; index += lineLength) {
+    lines.push(escapeSvgText(truncated.slice(index, index + lineLength)));
+  }
+  return lines.length ? lines : [escapeSvgText(fallback)];
+}
+
+function marketingPosterDataUrl(body: JsonBody, text: string) {
+  const marketingNode = marketingText(body.marketingNode, "夏季祛湿");
+  const storeName = marketingText(body.storeName, "美业门店");
+  const serviceName = marketingText(body.serviceName, "护理项目");
+  const marketingGoal = marketingText(body.marketingGoal, "护理提醒");
+  const bodyState = marketingText(body.bodyState, "身体状态");
+  const posterStyle = marketingText(body.posterStyle, "中医养生风");
+  const customRequirement = optionalString(body, "customRequirement");
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const title = compactMarketingLine(marketingNode, "夏季祛湿", 18);
+  const headlineLines = marketingPosterLines(lines[0] ?? `${marketingNode} · ${marketingGoal}`, "把寒湿慢慢排出去", 18, 9, 2);
+  const subtitleLines = marketingPosterLines(customRequirement || `${serviceName} · ${bodyState}`, "适合门店朋友圈发布", 24, 16, 2);
+  const footer = compactMarketingLine(`${storeName}｜${marketingGoal}`, "门店护理提醒", 26);
+  const wellness = posterStyle.includes("中医") || posterStyle.includes("节气");
+  const background = wellness
+    ? `<rect width="900" height="1200" fill="#f7f1e4"/><circle cx="720" cy="210" r="180" fill="#e4d3b4" opacity=".42"/><path d="M70 920 C260 810 380 1010 610 880 C725 815 805 830 865 872" fill="none" stroke="#b89155" stroke-width="6" opacity=".35"/>`
+    : `<rect width="900" height="1200" fill="#f7f3ff"/><circle cx="735" cy="210" r="190" fill="#d7c7ff" opacity=".44"/><circle cx="154" cy="960" r="230" fill="#bfe7df" opacity=".34"/>`;
+  const accent = wellness ? "#7a5a2b" : "#5c3ab0";
+  const headlineSvg = headlineLines.map((line, index) => `<text x="120" y="${350 + index * 88}" fill="#342821" font-size="78" font-weight="900" font-family="PingFang SC, Microsoft YaHei, sans-serif">${line}</text>`).join("");
+  const subtitleSvg = subtitleLines.map((line, index) => `<text x="152" y="${612 + index * 40}" fill="#5c5270" font-size="30" font-weight="700" font-family="PingFang SC, Microsoft YaHei, sans-serif">${line}</text>`).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  ${background}
+  <rect x="72" y="72" width="756" height="1056" rx="34" fill="rgba(255,255,255,.62)" stroke="${accent}" stroke-opacity=".24" stroke-width="3"/>
+  <text x="120" y="190" fill="${accent}" font-size="42" font-weight="800" font-family="PingFang SC, Microsoft YaHei, sans-serif">${title}</text>
+  ${headlineSvg}
+  <rect x="120" y="548" width="660" height="190" rx="24" fill="rgba(255,255,255,.72)" stroke="${accent}" stroke-opacity=".18"/>
+  ${subtitleSvg}
+  <text x="152" y="706" fill="#5c5270" font-size="26" font-weight="600" font-family="PingFang SC, Microsoft YaHei, sans-serif">结合节气、项目和客户状态生成</text>
+  <rect x="120" y="854" width="660" height="1" fill="${accent}" opacity=".24"/>
+  <text x="120" y="940" fill="${accent}" font-size="34" font-weight="800" font-family="PingFang SC, Microsoft YaHei, sans-serif">${footer}</text>
+  <text x="120" y="1002" fill="#756b84" font-size="24" font-weight="600" font-family="PingFang SC, Microsoft YaHei, sans-serif">到店护理建议 · 合规营销素材</text>
+</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 async function runMarketingAiGenerate(data: AppData, session: UserSession, body: JsonBody) {
   const kind = requiredString(body, "kind") as MarketingAiKind;
   if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
@@ -2496,7 +2557,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     const result = await runAiTextCompletion(data, prompt, {
       systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
     });
-    return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs };
+    return { kind, provider: result.provider, model: result.model, text: result.text, imageDataUrl: kind === "copy" ? marketingPosterDataUrl(body, result.text) : undefined, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs };
   }
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
@@ -2528,7 +2589,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   cost?: MarketingAiRecord["cost"];
 }): MarketingAiRecord {
   const title = {
-    copy: "AI营销文案",
+    copy: "AI营销内容",
     talk: "私聊话术",
     image: "AI海报",
     video: "AI视频",
