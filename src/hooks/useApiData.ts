@@ -195,7 +195,21 @@ export function useApiData() {
     testAiImage: client.testAiImage,
     testAiVideo: client.testAiVideo,
     queryAiVideo: client.queryAiVideo,
-    generateMarketingAi: client.generateMarketingAi,
+    generateMarketingAi: async (...args: Parameters<typeof client.generateMarketingAi>) => {
+      const result = await client.generateMarketingAi(...args);
+      if (result.record) {
+        setData((current) => current
+          ? {
+              ...current,
+              marketingAiRecords: [
+                result.record!,
+                ...(current.marketingAiRecords ?? []).filter((record) => record.id !== result.record!.id),
+              ],
+            }
+          : current);
+      }
+      return result;
+    },
     uploadAccountAvatar: client.uploadAccountAvatar,
     updateAuthUserStatus: client.updateAuthUserStatus,
     resetAuthUserPassword: client.resetAuthUserPassword,

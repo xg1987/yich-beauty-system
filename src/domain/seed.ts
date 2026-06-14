@@ -40,6 +40,7 @@ export const seedData: AppData = {
   inventoryLogs: [],
   memberCardTransactions: [],
   operationLogs: [],
+  marketingAiRecords: [],
   systemConfigs: defaultSystemConfigs({ now: () => "2026-05-30T00:00:00.000Z" }),
   notifications: [],
   dailyCloses: [],

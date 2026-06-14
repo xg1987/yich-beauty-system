@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import type { AppDataSlice } from "../domain/dataSlices";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -102,6 +102,7 @@ export type MarketingAiGenerateResult = {
   fileId?: string;
   normalizedRequest?: Record<string, unknown>;
   elapsedMs: number;
+  record?: MarketingAiRecord;
 };
 
 export type ApiClient = ReturnType<typeof createApiClient>;

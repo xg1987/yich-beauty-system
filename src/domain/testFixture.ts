@@ -187,6 +187,7 @@ export const testFixtureData: AppData = {
   inventoryLogs: [],
   memberCardTransactions: [],
   operationLogs: [],
+  marketingAiRecords: [],
   systemConfigs: defaultSystemConfigs(),
   notifications: [],
   dailyCloses: [],

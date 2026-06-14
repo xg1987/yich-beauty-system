@@ -77,7 +77,7 @@ import { hashPassword } from "../src/lib/password";
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MemberCard, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
@@ -357,7 +357,25 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "POST" && url.pathname === "/api/marketing-ai/generate") {
         requirePermission(session, "marketing:manage");
-        sendJson(response, 200, await runMarketingAiGenerate(database.readData(), session, await readJson(request)));
+        const currentData = database.readData();
+        const body = await readJson(request);
+        const result = await runMarketingAiGenerate(currentData, session, body);
+        const record = marketingAiRecord(currentData, session, body, result);
+        const nextData = addOperationLog(
+          {
+            ...currentData,
+            marketingAiRecords: [record, ...(currentData.marketingAiRecords ?? [])],
+          },
+          {
+            userId: session.user.id,
+            action: "生成AI营销内容",
+            targetType: "marketingAiRecord",
+            targetId: record.id,
+            summary: `${session.user.name} 生成${record.title}`,
+          },
+        );
+        persistData(database, session, nextData);
+        sendJson(response, 200, { ...result, record });
         return;
       }
 
@@ -2496,6 +2514,50 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     aspectRatio: optionalString(body, "videoRatio"),
   });
   return { kind, ...result, cost: provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined };
+}
+
+function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, result: {
+  kind: MarketingAiRecord["kind"];
+  provider?: string;
+  model?: string;
+  text?: string;
+  imageDataUrl?: string;
+  videoUrl?: string;
+  taskId?: string;
+  status?: string;
+  cost?: MarketingAiRecord["cost"];
+}): MarketingAiRecord {
+  const title = {
+    copy: "AI营销文案",
+    talk: "私聊话术",
+    image: "AI海报",
+    video: "AI视频",
+  }[result.kind];
+  return {
+    id: makeId("mar"),
+    storeId: sessionStoreId(data, session),
+    kind: result.kind,
+    title,
+    channel: optionalString(body, "channel"),
+    marketingNode: optionalString(body, "marketingNode"),
+    customerType: optionalString(body, "customerType"),
+    lifecycleNode: optionalString(body, "lifecycleNode"),
+    bodyState: optionalString(body, "bodyState"),
+    marketingGoal: optionalString(body, "marketingGoal"),
+    serviceName: optionalString(body, "serviceName"),
+    productName: optionalString(body, "productName"),
+    text: result.text,
+    imageDataUrl: result.imageDataUrl,
+    videoUrl: result.videoUrl,
+    taskId: result.taskId,
+    status: result.status,
+    cost: result.cost,
+    provider: result.provider,
+    model: result.model,
+    createdBy: session.user.id,
+    createdByName: session.user.name,
+    createdAt: nowIso(),
+  };
 }
 
 async function runAiImageTest(data: AppData, body: JsonBody) {

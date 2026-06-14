@@ -21,6 +21,7 @@ import type {
   InventoryLog,
   MemberCard,
   MemberCardTransaction,
+  MarketingAiRecord,
   OnlineBookingRequest,
   OnlineStorefront,
   OperationLog,
@@ -79,6 +80,7 @@ const tableNames: TableName[] = [
   "inventoryLogs",
   "memberCardTransactions",
   "operationLogs",
+  "marketingAiRecords",
   "notifications",
   "dailyCloses",
   "approvalRequests",
@@ -165,6 +167,7 @@ export class BeautyDatabase {
         .all()
         .map(mapMemberCardTransaction),
       operationLogs: this.db.prepare("SELECT * FROM operationLogs ORDER BY rowid DESC").all().map(mapOperationLog),
+      marketingAiRecords: this.db.prepare("SELECT payload_json FROM marketingAiRecords ORDER BY rowid DESC").all().map(mapJsonPayload<MarketingAiRecord>),
       notifications: this.db.prepare("SELECT payload_json FROM notifications ORDER BY rowid DESC").all().map(mapJsonPayload<SystemNotification>),
       dailyCloses: this.db.prepare("SELECT * FROM dailyCloses ORDER BY businessDate DESC").all().map(mapDailyClose),
       approvalRequests: this.db.prepare("SELECT payload_json FROM approvalRequests ORDER BY rowid DESC").all().map(mapJsonPayload<ApprovalRequest>),
@@ -523,6 +526,7 @@ export class BeautyDatabase {
     this.writeJsonTable("customerServiceRecords", data.customerServiceRecords);
     this.writeJsonTable("customerSignatures", data.customerSignatures ?? []);
     this.writeJsonTable("customerFollowUps", data.customerFollowUps);
+    this.writeJsonTable("marketingAiRecords", data.marketingAiRecords ?? []);
     this.writeJsonTable("suppliers", data.suppliers);
     this.writeJsonTable("purchaseOrders", data.purchaseOrders);
     this.writeJsonTable("stocktakes", data.stocktakes);
@@ -593,6 +597,7 @@ export class BeautyDatabase {
     deleteJsonStoreRows("purchaseOrders");
     deleteJsonStoreRows("suppliers");
     deleteJsonStoreRows("customerFollowUps");
+    deleteJsonStoreRows("marketingAiRecords");
     deleteJsonStoreRows("customerSignatures");
     deleteJsonStoreRows("customerServiceRecords");
     deleteJsonStoreRows("approvalRequests");
@@ -683,6 +688,8 @@ export class BeautyDatabase {
         return this.all("SELECT * FROM memberCardTransactions ORDER BY rowid DESC", mapMemberCardTransaction);
       case "operationLogs":
         return this.all("SELECT * FROM operationLogs ORDER BY rowid DESC", mapOperationLog);
+      case "marketingAiRecords":
+        return this.all("SELECT payload_json FROM marketingAiRecords ORDER BY rowid DESC", mapJsonPayload<MarketingAiRecord>);
       case "notifications":
         return this.all("SELECT payload_json FROM notifications ORDER BY rowid DESC", mapJsonPayload<SystemNotification>);
       case "dailyCloses":
@@ -827,6 +834,8 @@ export class BeautyDatabase {
         return tableStoreRows("memberCardTransactions", mapMemberCardTransaction);
       case "operationLogs":
         return this.all("SELECT * FROM operationLogs WHERE storeId = ? OR userId = 'system' ORDER BY rowid DESC", mapOperationLog, [storeId]);
+      case "marketingAiRecords":
+        return jsonStoreRows("marketingAiRecords", mapJsonPayload<MarketingAiRecord>);
       case "notifications":
         return this.all(
           "SELECT payload_json FROM notifications WHERE json_extract(payload_json, '$.storeId') IS NULL OR json_extract(payload_json, '$.storeId') = '' OR json_extract(payload_json, '$.storeId') = ? ORDER BY rowid DESC",
@@ -1108,6 +1117,11 @@ export class BeautyDatabase {
         createdAt TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS marketingAiRecords (
+        id TEXT PRIMARY KEY,
+        payload_json TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS notifications (
         id TEXT PRIMARY KEY,
         payload_json TEXT NOT NULL
@@ -1380,6 +1394,7 @@ function emptyData(): AppData {
     inventoryLogs: [],
     memberCardTransactions: [],
     operationLogs: [],
+    marketingAiRecords: [],
     systemConfigs: [],
     notifications: [],
     dailyCloses: [],
@@ -1440,6 +1455,7 @@ function dataForStoreWrite(data: AppData, storeId: string): AppData {
     inventoryLogs: data.inventoryLogs.filter(belongsToStore),
     memberCardTransactions: data.memberCardTransactions.filter((item) => item.storeId === storeId || cardIds.has(item.memberCardId)),
     operationLogs: data.operationLogs.filter(belongsToStore),
+    marketingAiRecords: (data.marketingAiRecords ?? []).filter(belongsToStore),
     notifications: data.notifications.filter(belongsToStore),
     dailyCloses: data.dailyCloses.filter(belongsToStore),
     approvalRequests: data.approvalRequests.filter(belongsToStore),

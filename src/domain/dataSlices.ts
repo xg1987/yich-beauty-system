@@ -84,6 +84,7 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "orders",
     "customerFollowUps",
     "onlineStorefronts",
+    "marketingAiRecords",
   ],
   catalog: [
     "tagDefinitions",
@@ -230,6 +231,7 @@ export function emptyAppData(): AppData {
     inventoryLogs: [],
     memberCardTransactions: [],
     operationLogs: [],
+    marketingAiRecords: [],
     systemConfigs: [],
     notifications: [],
     dailyCloses: [],

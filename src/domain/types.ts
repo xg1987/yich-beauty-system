@@ -30,6 +30,41 @@ export type StoreOperationalPermissions = {
   staffCanViewAllAppointments: boolean;
 };
 
+export type MarketingAiRecord = {
+  id: string;
+  storeId?: string;
+  kind: "copy" | "image" | "video" | "talk";
+  title: string;
+  channel?: string;
+  marketingNode?: string;
+  customerType?: string;
+  lifecycleNode?: string;
+  bodyState?: string;
+  marketingGoal?: string;
+  serviceName?: string;
+  productName?: string;
+  text?: string;
+  imageDataUrl?: string;
+  videoUrl?: string;
+  taskId?: string;
+  status?: string;
+  cost?: {
+    amountUsd: number;
+    currency: "USD";
+    basis: string;
+    priceConfigured: boolean;
+    estimated: boolean;
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  provider?: string;
+  model?: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+};
+
 export type StoreProfile = {
   id: string;
   name: string;
@@ -688,6 +723,7 @@ export type AppData = {
   inventoryLogs: InventoryLog[];
   memberCardTransactions: MemberCardTransaction[];
   operationLogs: OperationLog[];
+  marketingAiRecords: MarketingAiRecord[];
   systemConfigs: SystemConfig[];
   notifications: SystemNotification[];
   dailyCloses: DailyClose[];

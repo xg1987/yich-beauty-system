@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Copy, Gift, HeartHandshake, Megaphone, MessageCircle, Plus, Search, Sparkles, X } from "lucide-react";
+import { Copy, Download, Eye, Gift, HeartHandshake, Megaphone, MessageCircle, Plus, Search, Sparkles, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
-import type { AiUsageCapability, AppData } from "../domain/types";
+import type { AiUsageCapability, AppData, MarketingAiRecord } from "../domain/types";
 import type { ApiActions } from "../hooks/useApiData";
 import {
   AI_PROVIDER_LABELS,
@@ -44,9 +44,9 @@ function formatAiCostRmb(cost?: { amountUsd: number; priceConfigured: boolean })
   if (!cost) return "费用未返回";
   if (!cost.priceConfigured) return "费用未配置";
   const amount = cost.amountUsd * USD_TO_CNY_DISPLAY_RATE;
-  if (amount > 0 && amount < 0.01) return `约 ¥${amount.toFixed(4)}`;
-  if (amount > 0 && amount < 1) return `约 ¥${amount.toFixed(3)}`;
-  return `约 ¥${amount.toFixed(2)}`;
+  if (amount > 0 && amount < 0.01) return `¥${amount.toFixed(6)}`;
+  if (amount > 0 && amount < 1) return `¥${amount.toFixed(4)}`;
+  return `¥${amount.toFixed(2)}`;
 }
 
 function formatAiCostUsd(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
@@ -88,6 +88,41 @@ function marketingCopySections(text: string) {
   return [{ title: "生成内容", body: trimmed }];
 }
 
+function marketingRecordContent(record: MarketingAiRecord) {
+  return record.text || record.videoUrl || record.imageDataUrl || "";
+}
+
+function marketingRecordKindLabel(kind: MarketingAiRecord["kind"]) {
+  return kind === "image" ? "海报" : kind === "video" ? "视频" : kind === "talk" ? "话术" : "文案";
+}
+
+function shortRecordTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function downloadMarketingRecord(record: MarketingAiRecord) {
+  const filename = `${record.title}-${record.createdAt.slice(0, 10)}`;
+  const link = document.createElement("a");
+  if (record.imageDataUrl) {
+    link.href = record.imageDataUrl;
+    link.download = `${filename}.png`;
+  } else if (record.videoUrl) {
+    link.href = record.videoUrl;
+    link.download = `${filename}.mp4`;
+    link.target = "_blank";
+  } else {
+    const blob = new Blob([record.text ?? ""], { type: "text/plain;charset=utf-8" });
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}.txt`;
+  }
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  if (link.href.startsWith("blob:")) URL.revokeObjectURL(link.href);
+}
+
 export function MarketingCenter({ data, session, actions }: { data: AppData; session: UserSession; actions: ApiActions }) {
   const [tool, setTool] = useState<MarketingToolKey>("copy");
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
@@ -112,6 +147,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const [generationBusy, setGenerationBusy] = useState(false);
   const [generationError, setGenerationError] = useState("");
   const [generationResult, setGenerationResult] = useState<Awaited<ReturnType<ApiActions["generateMarketingAi"]>> | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState("");
   const [copyResultStatus, setCopyResultStatus] = useState<"idle" | "copied" | "failed">("idle");
   const product = data.products.find((item) => item.id === productId) ?? data.products[0];
   const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
@@ -133,7 +169,21 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const activeToolState = toolStateByKey[tool];
   const audienceSummary = `${customerType}，${lifecycleNode}，${bodyState}`;
   const previewSummaryItems = [marketingNode, customerType, lifecycleNode, bodyState, channel];
-  const showGenerationDialog = generationBusy || generationError || generationResult;
+  const marketingAiRecords = [...(data.marketingAiRecords ?? [])].sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
+  const selectedMarketingRecord = marketingAiRecords.find((record) => record.id === selectedRecordId);
+  const dialogRecord = selectedMarketingRecord ?? generationResult?.record;
+  const dialogKind = dialogRecord?.kind ?? tool;
+  const dialogText = dialogRecord?.text ?? generationResult?.text;
+  const dialogImageDataUrl = dialogRecord?.imageDataUrl ?? generationResult?.imageDataUrl;
+  const dialogVideoUrl = dialogRecord?.videoUrl ?? generationResult?.videoUrl;
+  const dialogStatus = dialogRecord?.status ?? generationResult?.status;
+  const dialogCost = dialogRecord?.cost ?? generationResult?.cost;
+  const dialogProvider = dialogRecord?.provider ?? generationResult?.provider;
+  const dialogModel = dialogRecord?.model ?? generationResult?.model;
+  const dialogSummaryItems = dialogRecord
+    ? [dialogRecord.marketingNode, dialogRecord.customerType, dialogRecord.lifecycleNode, dialogRecord.bodyState, dialogRecord.channel].filter(Boolean)
+    : previewSummaryItems;
+  const showGenerationDialog = Boolean(generationBusy || generationError || generationResult || selectedMarketingRecord);
   const showAiTechnicalDetails = session.user.role === "superadmin";
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = (toolKey: MarketingToolKey) => {
@@ -153,6 +203,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   useEffect(() => {
     setGenerationError("");
     setGenerationResult(null);
+    setSelectedRecordId("");
     setCopyResultStatus("idle");
   }, [tool]);
 
@@ -174,6 +225,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setGenerationBusy(true);
     setGenerationError("");
     setGenerationResult(null);
+    setSelectedRecordId("");
     try {
       setGenerationResult(await actions.generateMarketingAi({
         kind: tool,
@@ -208,8 +260,14 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   };
 
   const copyGenerationText = async () => {
-    const text = generationResult?.text ?? "";
+    const text = dialogText || dialogVideoUrl || dialogImageDataUrl || "";
     const copied = await copyTextToClipboard(text);
+    setCopyResultStatus(copied ? "copied" : "failed");
+    window.setTimeout(() => setCopyResultStatus("idle"), 1800);
+  };
+
+  const copyRecord = async (record: MarketingAiRecord) => {
+    const copied = await copyTextToClipboard(marketingRecordContent(record));
     setCopyResultStatus(copied ? "copied" : "failed");
     window.setTimeout(() => setCopyResultStatus("idle"), 1800);
   };
@@ -462,13 +520,33 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
           </div>
         </div>
       </section>
+      <section className="workbench-panel marketing-record-panel">
+        <PanelTitle icon={<Sparkles size={18} />} title="生成记录" action={`${marketingAiRecords.length} 条`} />
+        <div className="marketing-record-list">
+          {marketingAiRecords.slice(0, 8).map((record) => (
+            <article key={record.id} className="marketing-record-item">
+              <div>
+                <strong>{record.title}</strong>
+                <span>{marketingRecordKindLabel(record.kind)} · {record.marketingNode ?? "未标记节点"} · {record.channel ?? "未标记渠道"} · {shortRecordTime(record.createdAt)}</span>
+              </div>
+              <b>{formatAiCostRmb(record.cost)}</b>
+              <div className="marketing-record-actions">
+                <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
+                <button type="button" aria-label="复制记录" onClick={() => void copyRecord(record)}><Copy size={15} /></button>
+                <button type="button" aria-label="下载记录" onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
+              </div>
+            </article>
+          ))}
+          {marketingAiRecords.length === 0 && <p className="empty">暂无生成记录</p>}
+        </div>
+      </section>
       {showGenerationDialog && (
         <div className="marketing-result-overlay" role="presentation">
           <section className="marketing-result-dialog" role="dialog" aria-modal="true" aria-labelledby="marketing-result-title">
             <div className="marketing-result-dialog-head">
               <div>
                 <span>生成结果</span>
-                <h2 id="marketing-result-title">{tool === "image" ? "AI海报方案" : tool === "video" ? "AI视频任务" : tool === "talk" ? "私聊话术" : "AI营销文案"}</h2>
+                <h2 id="marketing-result-title">{dialogKind === "image" ? "AI海报方案" : dialogKind === "video" ? "AI视频任务" : dialogKind === "talk" ? "私聊话术" : "AI营销文案"}</h2>
               </div>
               <button
                 type="button"
@@ -477,6 +555,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                 onClick={() => {
                   setGenerationError("");
                   setGenerationResult(null);
+                  setSelectedRecordId("");
                   setCopyResultStatus("idle");
                 }}
               >
@@ -484,26 +563,26 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
               </button>
             </div>
             <div className="marketing-preview-summary" aria-label="当前生成条件">
-              {previewSummaryItems.map((item) => <span key={item}>{item}</span>)}
+              {dialogSummaryItems.map((item) => <span key={item}>{item}</span>)}
             </div>
             <div className="marketing-result-body">
               <div className="marketing-result-panel">
                 {generationBusy && <p className="marketing-result-status">AI 正在生成，请稍候。</p>}
                 {generationError && <p className="marketing-result-error">{generationError}</p>}
-                {generationResult?.text && (
+                {dialogText && (
                   <div className="marketing-result-copy">
                     <div className="marketing-result-head">
                       <div>
-                        <strong>{tool === "talk" ? "话术结果" : "文案结果"}</strong>
-                        <span>{showAiTechnicalDetails ? `${AI_PROVIDER_LABELS[generationResult.provider]} · ${generationResult.model}` : "本次生成"}</span>
+                        <strong>{dialogKind === "talk" ? "话术结果" : "文案结果"}</strong>
+                        <span>{showAiTechnicalDetails && dialogProvider && dialogModel ? `${AI_PROVIDER_LABELS[dialogProvider as keyof typeof AI_PROVIDER_LABELS] ?? dialogProvider} · ${dialogModel}` : "本次生成"}</span>
                       </div>
                       <div className="marketing-cost-pill">
-                        <b>{formatAiCostRmb(generationResult.cost)}</b>
-                        {showAiTechnicalDetails && <small>{formatAiCostUsd(generationResult.cost)} · {formatAiUsageCostDetail(generationResult.cost)}</small>}
+                        <b>{formatAiCostRmb(dialogCost)}</b>
+                        {showAiTechnicalDetails && <small>{formatAiCostUsd(dialogCost)} · {formatAiUsageCostDetail(dialogCost)}</small>}
                       </div>
                     </div>
                     <div className="marketing-copy-sections">
-                      {marketingCopySections(generationResult.text).map((section) => (
+                      {marketingCopySections(dialogText).map((section) => (
                         <article key={section.title}>
                           <span>{section.title}</span>
                           <p>{section.body}</p>
@@ -513,39 +592,54 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
                     <button type="button" className="secondary-button" onClick={() => void copyGenerationText()}>
                       <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "复制失败" : "复制结果"}
                     </button>
+                    {dialogRecord && (
+                      <button type="button" className="secondary-button" onClick={() => downloadMarketingRecord(dialogRecord)}>
+                        <Download size={16} /> 下载结果
+                      </button>
+                    )}
                   </div>
                 )}
-                {generationResult?.imageDataUrl && (
+                {dialogImageDataUrl && (
                   <div className="marketing-result-copy">
                     <div className="marketing-result-head">
                       <div>
                         <strong>海报结果</strong>
-                        <span>{showAiTechnicalDetails ? `${AI_PROVIDER_LABELS[generationResult.provider]} · ${generationResult.model}` : "本次生成"}</span>
+                        <span>{showAiTechnicalDetails && dialogProvider && dialogModel ? `${AI_PROVIDER_LABELS[dialogProvider as keyof typeof AI_PROVIDER_LABELS] ?? dialogProvider} · ${dialogModel}` : "本次生成"}</span>
                       </div>
                       <div className="marketing-cost-pill">
-                        <b>{formatAiCostRmb(generationResult.cost)}</b>
-                        {showAiTechnicalDetails && <small>{formatAiCostUsd(generationResult.cost)} · {formatAiUsageCostDetail(generationResult.cost)}</small>}
+                        <b>{formatAiCostRmb(dialogCost)}</b>
+                        {showAiTechnicalDetails && <small>{formatAiCostUsd(dialogCost)} · {formatAiUsageCostDetail(dialogCost)}</small>}
                       </div>
                     </div>
-                    <img className="marketing-result-image" src={generationResult.imageDataUrl} alt="AI 生成海报" />
-                    {showAiTechnicalDetails && generationResult.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
+                    <img className="marketing-result-image" src={dialogImageDataUrl} alt="AI 生成海报" />
+                    {showAiTechnicalDetails && generationResult?.revisedPrompt && <p>{generationResult.revisedPrompt}</p>}
+                    {dialogRecord && (
+                      <button type="button" className="secondary-button" onClick={() => downloadMarketingRecord(dialogRecord)}>
+                        <Download size={16} /> 下载结果
+                      </button>
+                    )}
                   </div>
                 )}
-                {generationResult && tool === "video" && (
+                {(dialogKind === "video" && (generationResult || dialogRecord)) && (
                   <div className="marketing-result-copy">
                     <div className="marketing-result-head">
                       <div>
                         <strong>视频任务</strong>
-                        <span>{showAiTechnicalDetails ? `${AI_PROVIDER_LABELS[generationResult.provider]} · ${generationResult.model}` : "本次生成"}</span>
+                        <span>{showAiTechnicalDetails && dialogProvider && dialogModel ? `${AI_PROVIDER_LABELS[dialogProvider as keyof typeof AI_PROVIDER_LABELS] ?? dialogProvider} · ${dialogModel}` : "本次生成"}</span>
                       </div>
                       <div className="marketing-cost-pill">
-                        <b>{formatAiCostRmb(generationResult.cost)}</b>
-                        {showAiTechnicalDetails && <small>{formatAiCostUsd(generationResult.cost)} · {formatAiUsageCostDetail(generationResult.cost)}</small>}
+                        <b>{formatAiCostRmb(dialogCost)}</b>
+                        {showAiTechnicalDetails && <small>{formatAiCostUsd(dialogCost)} · {formatAiUsageCostDetail(dialogCost)}</small>}
                       </div>
                     </div>
-                    <p>状态：{generationResult.status ?? "已提交"}</p>
-                    {showAiTechnicalDetails && generationResult.taskId && <p>任务 ID：{generationResult.taskId}</p>}
-                    {generationResult.videoUrl && <a href={generationResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
+                    <p>状态：{dialogStatus ?? "已提交"}</p>
+                    {showAiTechnicalDetails && generationResult?.taskId && <p>任务 ID：{generationResult.taskId}</p>}
+                    {dialogVideoUrl && <a href={dialogVideoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
+                    {dialogRecord && (
+                      <button type="button" className="secondary-button" onClick={() => downloadMarketingRecord(dialogRecord)}>
+                        <Download size={16} /> 下载结果
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
