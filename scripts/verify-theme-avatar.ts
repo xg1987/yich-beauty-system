@@ -52,8 +52,12 @@ if (!appSource.includes("const currentAvatarUrl = currentAuthUser?.avatarUrl ?? 
   violations.push("Shell must resolve the current account avatar from fresh auth user data.");
 }
 
-if (!appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} showImage />")) {
-  violations.push("Topbar account button must render uploaded account avatars when available.");
+if (!appSource.includes("<UserAvatar />")) {
+  violations.push("Topbar account button must stay in generic icon mode.");
+}
+
+if (appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} showImage />")) {
+  violations.push("Topbar account button must not render uploaded account images.");
 }
 
 if (!appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} size={78} showImage />")) {
@@ -86,6 +90,14 @@ if (!stylesSource.includes("transform: none;")) {
 
 if (!stylesSource.includes("left: auto;")) {
   violations.push("Mobile account menu must clear the full-width left constraint so it stays inside the viewport.");
+}
+
+if (!stylesSource.includes("Mobile topbar visibility lock")) {
+  violations.push("Mobile topbar visibility lock must keep notification and account buttons visible.");
+}
+
+if (!stylesSource.includes(".app-shell .main > .topbar .topbar-actions .account-avatar-button img {\n    display: none;")) {
+  violations.push("Mobile topbar account button must hide uploaded avatar images.");
 }
 
 if (violations.length > 0) {

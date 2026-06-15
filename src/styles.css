@@ -26306,3 +26306,72 @@ img.brand-icon-mark {
 .app-shell[data-mutating="true"] .workbar {
   pointer-events: none;
 }
+
+/* Mobile topbar visibility lock: keep account tools visible above page content and menus. */
+@media (max-width: 767px) {
+  .app-shell .main > .topbar .topbar-actions,
+  .app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    right: max(12px, env(safe-area-inset-right, 0px));
+    z-index: 3600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    width: auto;
+    min-width: 0;
+    height: 48px;
+    margin: 0;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .icon-button.notification-button,
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button,
+  .theme-day .app-shell .main > .topbar .topbar-actions .icon-button.notification-button,
+  .theme-day .app-shell .main > .topbar .topbar-actions .account-avatar-button,
+  .theme-night .app-shell .main > .topbar .topbar-actions .icon-button.notification-button,
+  .theme-night .app-shell .main > .topbar .topbar-actions .account-avatar-button {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    min-height: 46px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--yich-purple-deep);
+    box-shadow: none;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button .user-avatar-image {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .icon-button.notification-button svg,
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button svg,
+  .theme-day .app-shell .main > .topbar .topbar-actions .icon-button.notification-button svg,
+  .theme-day .app-shell .main > .topbar .topbar-actions .account-avatar-button svg {
+    width: 27px;
+    height: 27px;
+    color: var(--yich-purple-deep);
+    stroke-width: 2.45;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button img {
+    display: none;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-menu {
+    z-index: 3700;
+  }
+}
