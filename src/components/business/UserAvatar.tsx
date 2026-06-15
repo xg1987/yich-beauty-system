@@ -3,11 +3,11 @@ import { UserRound } from "lucide-react";
 
 type UserAvatarProps = {
   avatarUrl?: string;
-  size: number;
+  size?: number;
   showImage?: boolean;
 };
 
-export function UserAvatar({ avatarUrl, size, showImage = false }: UserAvatarProps) {
+export function UserAvatar({ avatarUrl, size = 22, showImage = false }: UserAvatarProps) {
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | undefined>();
   const canShowImage = showImage && avatarUrl && failedAvatarUrl !== avatarUrl;
   if (canShowImage) {

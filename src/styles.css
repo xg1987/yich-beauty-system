@@ -21517,6 +21517,8 @@ textarea,
   height: 100%;
   display: grid;
   place-items: center;
+  overflow: hidden;
+  border-radius: inherit;
   color: currentColor;
 }
 
@@ -21532,6 +21534,47 @@ textarea,
   position: relative;
   z-index: 0;
   opacity: 0.9;
+}
+
+@media (max-width: 767px) {
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button,
+  .theme-day .app-shell .main > .topbar .topbar-actions .account-avatar-button {
+    width: 46px;
+    min-width: 46px;
+    grid-auto-flow: initial;
+    grid-auto-columns: initial;
+    gap: 0;
+    padding: 0;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button::after {
+    content: none;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button .user-avatar-image {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-menu {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 72px);
+    right: 14px;
+    width: min(268px, calc(100vw - 28px));
+  }
+
+  .account-menu-user {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .account-menu-user strong,
+  .account-menu-user span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .app-shell .main > .admin-center-page:not(.platform-admin-page) .admin-avatar img {

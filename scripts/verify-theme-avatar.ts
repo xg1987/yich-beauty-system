@@ -44,12 +44,8 @@ if (!appSource.includes("const currentAvatarUrl = currentAuthUser?.avatarUrl ?? 
   violations.push("Shell must resolve the current account avatar from fresh auth user data.");
 }
 
-if (!appSource.includes("<UserAvatar size={22} />")) {
-  violations.push("Topbar account button must stay in generic icon mode.");
-}
-
-if (appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} size={22} showImage />")) {
-  violations.push("Topbar account button must not render uploaded account images.");
+if (!appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} showImage />")) {
+  violations.push("Topbar account button must render uploaded account avatars when available.");
 }
 
 if (!appSource.includes("<UserAvatar avatarUrl={currentAvatarUrl} size={78} showImage />")) {

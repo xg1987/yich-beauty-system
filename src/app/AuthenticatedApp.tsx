@@ -1096,7 +1096,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     if (nextView === "pos") setPosEntryKey((key) => key + 1);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
     setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
-  }, [session?.user.role]);
+  }, []);
   const returnFromAccountSettings = useCallback((nextView: ViewKey) => {
     setView(nextView);
     setAccountSettingsOpen(false);
@@ -1181,7 +1181,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               {notificationCount > 0 && <span>{notificationCount}</span>}
             </button>
             <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserAvatar size={22} />
+              <UserAvatar avatarUrl={currentAvatarUrl} showImage />
             </button>
             {notificationPanelOpen && (
               <NotificationPanel
