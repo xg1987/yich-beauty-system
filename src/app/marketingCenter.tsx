@@ -75,7 +75,7 @@ const marketingCalendarNodes: MarketingCalendarNode[] = [
 ];
 const marketingGoals = ["复购提醒", "项目转化", "沉睡唤醒", "护理建议"];
 const generationModes: Array<{ kind: MarketingGenerationKind; title: string; description: string; locked?: boolean }> = [
-  { kind: "copy", title: "文案", description: "输出配套话术，适合直接发布" },
+  { kind: "copy", title: "文案+海报", description: "输出配套话术和发布海报" },
   { kind: "image", title: "海报", description: "调用图片模型生成正式海报" },
   { kind: "video", title: "视频", description: "调试中，暂不开放", locked: true },
   { kind: "talk", title: "口播", description: "调试中，暂不开放", locked: true },
@@ -306,7 +306,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 
 function downloadMarketingRecord(record: MarketingAiRecord) {
   const filename = `${marketingRecordTitle(record)}-${(record.createdAt || new Date().toISOString()).slice(0, 10)}`;
-  if (record.kind !== "copy" && record.imageDataUrl) {
+  if (record.imageDataUrl) {
     downloadDataUrl(record.imageDataUrl, `${filename}${record.imageDataUrl.startsWith("data:image/svg+xml") ? ".svg" : ".png"}`);
     return;
   }
@@ -400,7 +400,7 @@ export function MarketingCenter({
   const dialogErrorMessage = dialogRecord?.errorMessage ?? generationResult?.errorMessage;
   const dialogPending = dialogVideoStatus === "生成中";
   const dialogKind = dialogRecord?.kind ?? generationResult?.kind ?? generationKind;
-  const dialogKindTitle = dialogKind === "image" ? "AI海报" : dialogKind === "video" ? "AI短视频" : dialogKind === "talk" ? "AI口播" : "AI营销文案";
+  const dialogKindTitle = dialogKind === "image" ? "AI海报" : dialogKind === "video" ? "AI短视频" : dialogKind === "talk" ? "AI口播" : "AI营销文案和海报";
   const dialogCost = dialogRecord?.cost ?? generationResult?.cost;
   const dialogProvider = dialogRecord?.provider ?? generationResult?.provider;
   const dialogModel = dialogRecord?.model ?? generationResult?.model;
@@ -565,7 +565,7 @@ export function MarketingCenter({
 
   const downloadPoster = () => {
     const title = dialogRecord ? marketingRecordTitle(dialogRecord) : `AI营销内容-${new Date().toISOString().slice(0, 10)}`;
-    if (dialogKind !== "copy" && dialogImageDataUrl) {
+    if (dialogImageDataUrl) {
       downloadDataUrl(dialogImageDataUrl, `${title}${dialogImageDataUrl.startsWith("data:image/svg+xml") ? ".svg" : ".png"}`);
       setDownloadResultStatus("downloaded");
       window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
@@ -831,7 +831,7 @@ export function MarketingCenter({
                   <div className="marketing-record-actions">
                     <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
                     <button type="button" aria-label="复制文案" disabled={recordPending} onClick={() => void copyRecord(record)}><Copy size={15} /></button>
-                    <button type="button" aria-label={record.kind === "copy" ? "下载文案" : "下载图片"} disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
+                    <button type="button" aria-label={record.imageDataUrl ? "下载图片" : record.kind === "copy" ? "下载文案" : "下载图片"} disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
                   </div>
                 </article>
               );
@@ -885,12 +885,12 @@ export function MarketingCenter({
                   </div>
                 )}
                 {!dialogPending && (dialogText || dialogImageDataUrl || dialogVideoUrl || dialogVideoTaskId) && (
-                  <div className={`marketing-content-result-grid ${dialogKind === "copy" ? "copy-only" : ""}`}>
-                    {dialogKind !== "copy" && <article className="marketing-poster-card">
+                  <div className="marketing-content-result-grid">
+                    <article className="marketing-poster-card">
                       <div className="marketing-result-head">
                         <div>
                           <strong>{dialogKind === "video" ? "视频结果" : dialogKind === "talk" ? "口播内容" : "海报预览"}</strong>
-                          <span>{dialogKind === "image" ? "由图片模型生成" : dialogKind === "video" ? "视频任务状态" : "适合视频号/直播口播"}</span>
+                          <span>{dialogKind === "image" ? "由图片模型生成" : dialogKind === "video" ? "视频任务状态" : dialogKind === "talk" ? "适合视频号/直播口播" : "和文案同一条记录"}</span>
                         </div>
                       </div>
                       {dialogVideoUrl ? (
@@ -915,7 +915,7 @@ export function MarketingCenter({
                           <span>{dialogErrorMessage ? "海报未生成" : "暂无海报"}</span>
                         </div>
                       )}
-                    </article>}
+                    </article>
                     <article className="marketing-result-copy">
                       <div className="marketing-result-head">
                         <div>
@@ -940,7 +940,7 @@ export function MarketingCenter({
                       {!dialogText && dialogKind === "image" && (
                         <p className="marketing-result-note">这张海报由图片模型生成，可直接下载用于发布。</p>
                       )}
-                      {dialogKind !== "copy" && dialogText && dialogErrorMessage && (
+                      {dialogText && dialogErrorMessage && (
                         <p className="marketing-result-note">{dialogErrorMessage}</p>
                       )}
                       {!dialogText && dialogKind === "video" && (
@@ -951,7 +951,7 @@ export function MarketingCenter({
                           <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "已显示内容" : "复制内容"}
                         </button>
                         <button type="button" className="secondary-button" onClick={downloadPoster}>
-                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogKind !== "copy" && dialogImageDataUrl ? "下载图片" : "下载文案"}
+                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogImageDataUrl ? "下载图片" : "下载文案"}
                         </button>
                         <button type="button" className="secondary-button" onClick={returnToRecords}>
                           <Eye size={16} /> 返回记录

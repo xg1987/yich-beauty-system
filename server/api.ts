@@ -2462,6 +2462,15 @@ function marketingText(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : fallback;
 }
 
+function marketingPosterSafeText(value: unknown, fallback = "") {
+  return marketingText(value, fallback)
+    .replace(/祛湿|排湿|湿气|湿重|寒湿/g, "清爽轻养")
+    .replace(/药浴|艾灸|灸|温补/g, "草本护理")
+    .replace(/中医|养生|经络|气血|出汗|疲惫|肩颈|体内|身体/g, "东方草本护理")
+    .replace(/治疗|疗效|改善疾病|调理疾病|失眠|虚胖|疼痛|炎症/g, "日常护理")
+    .replace(/身体状态|痛点/g, "护理需求");
+}
+
 function marketingImageSize(posterSize: string | undefined) {
   if (posterSize?.includes("16:9")) return "1536x1024";
   if (posterSize?.includes("9:16") || posterSize?.includes("3:4")) return "1024x1536";
@@ -2675,20 +2684,14 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
 }
 
 function marketingCopyPosterPrompt(body: JsonBody, copyText: string) {
+  void copyText;
   const storeName = marketingText(body.storeName, "美业门店");
-  const productName = marketingText(body.productName, "护理产品");
-  const serviceName = marketingText(body.serviceName, "护理项目");
   const channel = marketingText(body.channel, "朋友圈");
-  const marketingNode = marketingText(body.marketingNode, "日常护理节点");
-  const customerType = marketingText(body.customerType, "目标客户");
-  const bodyState = marketingText(body.bodyState, "常规护理需求");
-  const marketingGoal = marketingText(body.marketingGoal, "到店转化");
-  const posterStyle = marketingText(body.posterStyle, "高端美业风");
+  const posterStyle = marketingPosterSafeText(body.posterStyle, "高端美业风");
   const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
-  const copyBrief = copyText.replace(/\s+/g, " ").slice(0, 900);
   const assets = marketingImageAssets(body);
   const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-  return `根据这条已经生成的门店营销文案，继续生成一张可直接配套发布的中文美业海报。文案摘要：${copyBrief}。门店：${storeName}。发布渠道：${channel}。营销节点：${marketingNode}。客户类型：${customerType}。身体状态/痛点：${bodyState}。营销目的：${marketingGoal}。项目：${serviceName}。商品：${productName}。海报风格：${posterStyle}。尺寸用途：${posterSize}。参考素材：${assetSummary}。要求：使用 GPT 图片生成能力创作正式商业海报，不要做网页截图、不要生成模板占位图、不要只排版文字；画面要有真实高级美业/养生/护理场景，配合文案主题，适合手机端朋友圈或小红书发布；中文文字只保留一个 4 到 8 字主标题和一行短副标题，不要长段小字，不要水印，不要医疗夸大承诺。`;
+  return `Create a premium beauty salon promotional poster for social media. Brand/store name: ${storeName}. Channel: ${channel}. Style: ${posterStyle}. Target format: ${posterSize}. Reference assets: ${assetSummary}. Visual direction: elegant beauty salon interior, soft natural light, clean skincare product display, plants, fragrance diffuser, refined commercial photography, warm modern composition, plenty of negative space, phone-friendly poster layout. Include only short Chinese poster text: main title “节令护理” and subtitle “预约到店体验”. Keep it tasteful, realistic, polished, and uncluttered.`;
 }
 
 function escapeSvgText(value: string) {
@@ -2813,7 +2816,26 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     if (kind === "talk") {
       return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
     }
-    return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
+    const imageConfig = aiGenerationConfigFromData(data).image;
+    const imageResult = await runAiImageTest(data, {
+      prompt: marketingCopyPosterPrompt(body, result.text),
+      size: marketingImageSize(optionalString(body, "posterSize")),
+      quality: "medium",
+    });
+    const textCost = textGenerationCost(config, result.usage);
+    const posterCost = imageResult.cost ?? imageGenerationCost(imageConfig, imageResult.usage);
+    return {
+      kind,
+      provider: `${result.provider}+${imageResult.provider}`,
+      model: `${result.model}+${imageResult.model}`,
+      text: result.text,
+      imageDataUrl: imageResult.imageDataUrl,
+      revisedPrompt: imageResult.revisedPrompt,
+      usage: { text: result.usage, image: imageResult.usage },
+      cost: combinedAiGenerationCost("文案生成 + GPT Image 2 海报生成", textCost, posterCost),
+      elapsedMs: result.elapsedMs + imageResult.elapsedMs,
+      billing,
+    };
   }
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
@@ -2836,7 +2858,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
 function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind) {
   const config = aiGenerationConfigFromData(data);
   if (kind === "image") return { provider: "openai", model: config.image.model };
-  if (kind === "copy") return { provider: config.copy.provider, model: config.copy.model };
+  if (kind === "copy") return { provider: `${config.copy.provider}+openai`, model: `${config.copy.model}+${config.image.model}` };
   if (kind === "talk") return { provider: config.copy.provider, model: config.copy.model };
   const videoProvider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
   return { provider: videoProvider?.provider, model: videoProvider?.model };
@@ -2979,7 +3001,6 @@ async function openAiImageEditRequest(config: AiImageModelConfig, prompt: string
   form.append("quality", quality);
   form.append("n", "1");
   form.append("output_format", "png");
-  form.append("input_fidelity", "high");
   for (const asset of assets.slice(0, 16)) {
     form.append("image[]", await marketingImageBlob(asset), asset.name);
   }

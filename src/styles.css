@@ -23507,10 +23507,6 @@ textarea,
   align-items: start;
 }
 
-.marketing-content-result-grid.copy-only {
-  grid-template-columns: 1fr;
-}
-
 .marketing-poster-card {
   display: grid;
   gap: 12px;
