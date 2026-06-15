@@ -174,9 +174,9 @@ function aiCostAmountUsd(cost?: MarketingAiRecord["cost"] | { amountUsd: number;
 }
 
 function formatAiCostRmb(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
-  if (!cost) return "费用未返回";
+  if (!cost) return "生成完成后显示";
   const amountUsd = aiCostAmountUsd(cost);
-  if (amountUsd === undefined) return "费用未返回";
+  if (amountUsd === undefined) return "暂无费用记录";
   if (typeof cost !== "number" && cost.priceConfigured === false) return "费用未配置";
   const amount = amountUsd * USD_TO_CNY_DISPLAY_RATE;
   if (amount > 0 && amount < 0.01) return `人民币 ${amount.toFixed(6)} 元`;
@@ -185,7 +185,7 @@ function formatAiCostRmb(cost?: MarketingAiRecord["cost"] | { amountUsd: number;
 }
 
 function formatAiCostUsd(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
-  if (!cost) return "费用未返回";
+  if (!cost) return "暂无费用记录";
   if (!cost.priceConfigured) return "未配置单价";
   const amount = cost.amountUsd;
   return `$${amount.toFixed(amount > 0 && amount < 0.01 ? 6 : 4)} ${cost.currency}`;
@@ -385,6 +385,7 @@ export function MarketingCenter({
   const dialogVideoUrl = dialogRecord?.videoUrl ?? generationResult?.videoUrl;
   const dialogVideoTaskId = dialogRecord?.taskId ?? generationResult?.taskId;
   const dialogVideoStatus = dialogRecord?.status ?? generationResult?.status;
+  const dialogPending = dialogVideoStatus === "生成中";
   const dialogKind = dialogRecord?.kind ?? generationResult?.kind ?? generationKind;
   const dialogKindTitle = dialogKind === "image" ? "AI海报" : dialogKind === "video" ? "AI短视频" : dialogKind === "talk" ? "AI口播" : "AI营销文案";
   const dialogCost = dialogRecord?.cost ?? generationResult?.cost;
@@ -833,40 +834,43 @@ export function MarketingCenter({
         <section className="workbench-panel marketing-record-panel">
           <PanelTitle icon={<Sparkles size={18} />} title="生成记录" action={`${selectedGenerationMode.title} · ${typedMarketingAiRecords.length} 条`} />
           <div className="marketing-record-list">
-            {typedMarketingAiRecords.slice(0, 12).map((record) => (
-              <article
-                key={record.id}
-                className="marketing-record-item"
-                role="button"
-                tabIndex={0}
-                onClick={(event) => {
-                  if ((event.target as HTMLElement).closest("button")) return;
-                  setSelectedRecordId(record.id);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  if ((event.target as HTMLElement).closest("button")) return;
-                  event.preventDefault();
-                  setSelectedRecordId(record.id);
-                }}
-              >
-                <div className="marketing-record-main">
-                  <span className="marketing-record-type">{marketingRecordKindLabel(record.kind)}</span>
-                  <strong>{marketingRecordTitle(record)}</strong>
-                  <span className="marketing-record-summary">{record.marketingNode || marketingRecordSummary(record)}</span>
-                  <small>{marketingRecordMeta(record)}</small>
-                </div>
-                <div className="marketing-record-cost">
-                  <span>本次费用</span>
-                  <b>{formatAiCostRmb(record.cost)}</b>
-                </div>
-                <div className="marketing-record-actions">
-                  <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
-                  <button type="button" aria-label="复制文案" onClick={() => void copyRecord(record)}><Copy size={15} /></button>
-                  <button type="button" aria-label="下载图片" onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
-                </div>
-              </article>
-            ))}
+            {typedMarketingAiRecords.slice(0, 12).map((record) => {
+              const recordPending = record.status === "生成中";
+              return (
+                <article
+                  key={record.id}
+                  className="marketing-record-item"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("button")) return;
+                    setSelectedRecordId(record.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    if ((event.target as HTMLElement).closest("button")) return;
+                    event.preventDefault();
+                    setSelectedRecordId(record.id);
+                  }}
+                >
+                  <div className="marketing-record-main">
+                    <span className="marketing-record-type">{marketingRecordKindLabel(record.kind)}</span>
+                    <strong>{marketingRecordTitle(record)}</strong>
+                    <span className="marketing-record-summary">{recordPending ? "后台生成中，完成后自动更新" : record.marketingNode || marketingRecordSummary(record)}</span>
+                    <small>{marketingRecordMeta(record)}</small>
+                  </div>
+                  <div className="marketing-record-cost">
+                    <span>{recordPending ? "费用状态" : "本次费用"}</span>
+                    <b>{recordPending ? "完成后显示" : formatAiCostRmb(record.cost)}</b>
+                  </div>
+                  <div className="marketing-record-actions">
+                    <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
+                    <button type="button" aria-label="复制文案" disabled={recordPending} onClick={() => void copyRecord(record)}><Copy size={15} /></button>
+                    <button type="button" aria-label="下载图片" disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
+                  </div>
+                </article>
+              );
+            })}
             {typedMarketingAiRecords.length === 0 && <p className="empty">暂无{selectedGenerationMode.title}生成记录</p>}
           </div>
         </section>
@@ -877,7 +881,7 @@ export function MarketingCenter({
           <section className="marketing-result-dialog marketing-content-dialog" role="dialog" aria-modal="true" aria-labelledby="marketing-result-title">
             <div className="marketing-result-dialog-head">
               <div>
-                <span>生成结果</span>
+                <span>{dialogPending ? "已提交后台任务" : "生成结果"}</span>
                 <h2 id="marketing-result-title">{dialogKindTitle}</h2>
               </div>
               <button
@@ -903,7 +907,19 @@ export function MarketingCenter({
               <div className="marketing-result-panel">
                 {generationBusy && <p className="marketing-result-status">AI 正在生成{selectedGenerationMode.title}，请稍候。</p>}
                 {generationError && <p className="marketing-result-error">{generationError}</p>}
-                {(dialogText || dialogImageDataUrl || dialogVideoUrl || dialogVideoTaskId) && (
+                {dialogPending && (
+                  <div className="marketing-background-status">
+                    <Sparkles size={30} />
+                    <strong>后台正在生成，完成后会自动更新</strong>
+                    <p>你可以关闭这个窗口、切换页面或继续操作系统。生成完成后，请到“生成记录”查看海报和文案。</p>
+                    <div className="marketing-result-actions">
+                      <button type="button" className="secondary-button" onClick={returnToRecords}>
+                        <Eye size={16} /> 查看生成记录
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!dialogPending && (dialogText || dialogImageDataUrl || dialogVideoUrl || dialogVideoTaskId) && (
                   <div className="marketing-content-result-grid">
                     <article className="marketing-poster-card">
                       <div className="marketing-result-head">
@@ -931,7 +947,7 @@ export function MarketingCenter({
                       ) : (
                         <div className="marketing-poster-placeholder">
                           <ImageIcon size={26} />
-                          <span>生成后显示海报</span>
+                          <span>完成后显示海报</span>
                         </div>
                       )}
                     </article>

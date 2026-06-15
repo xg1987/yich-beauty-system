@@ -425,7 +425,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           kind,
           ...marketingAiPendingProvider(currentData, kind),
           status: "生成中",
-          text: "已提交后台生成，可继续使用系统，稍后在生成记录查看结果。",
+          text: "任务已提交，后台正在生成。你可以继续使用系统，完成后会在生成记录里显示结果。",
           elapsedMs: 0,
         });
         await database.upsertMarketingAiRecord(pendingRecord);

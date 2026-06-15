@@ -832,7 +832,7 @@ function formatAiTestJson(value: unknown) {
 }
 
 function formatAiTestCost(cost?: { amountUsd: number; currency: "USD"; estimated: boolean }) {
-  if (!cost) return "费用未返回";
+  if (!cost) return "暂无费用记录";
   const amount = cost.amountUsd;
   return `${cost.estimated ? "预估" : "实际"} $${amount.toFixed(amount > 0 && amount < 0.01 ? 6 : 4)} ${cost.currency}`;
 }
