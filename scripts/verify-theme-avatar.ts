@@ -44,6 +44,10 @@ if (!userAvatarSource.includes("const canShowImage = showImage && avatarUrl && f
   violations.push("UserAvatar must render uploaded images only when showImage is explicitly enabled.");
 }
 
+if (userAvatarSource.includes("return <UserRound")) {
+  violations.push("UserAvatar must keep a stable avatar container instead of swapping to a bare icon fallback.");
+}
+
 if (!appSource.includes("const currentAvatarUrl = currentAuthUser?.avatarUrl ?? session.user.avatarUrl;")) {
   violations.push("Shell must resolve the current account avatar from fresh auth user data.");
 }
