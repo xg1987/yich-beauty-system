@@ -18060,13 +18060,14 @@ textarea,
   .app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
     position: fixed;
     top: calc(env(safe-area-inset-top, 0px) + 12px);
-    right: max(12px, env(safe-area-inset-right, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
     grid-column: 2;
-    gap: 10px;
+    gap: 8px;
     width: auto;
     flex-wrap: nowrap;
-    z-index: 1200;
+    z-index: 2800;
     isolation: isolate;
+    transform: translateZ(0);
   }
 
   .app-shell .main > .topbar .topbar-actions .icon-button,
@@ -18090,6 +18091,16 @@ textarea,
     backdrop-filter: blur(12px);
   }
 
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button,
+  .theme-day .app-shell .main > .topbar .topbar-actions .account-avatar-button {
+    width: 74px;
+    min-width: 74px;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: 5px;
+    padding: 0 10px 0 9px;
+  }
+
   .app-shell .main > .topbar .topbar-actions .icon-button svg,
   .app-shell .main > .topbar .topbar-actions .icon-button.notification-button svg,
   .app-shell .main > .topbar .topbar-actions .account-avatar-button svg {
@@ -18103,18 +18114,17 @@ textarea,
     margin-left: 0;
   }
 
-  .app-shell .main > .topbar .topbar-actions .account-avatar-button::after {
-    content: "";
-    position: absolute;
-    inset: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.42);
-    border-radius: 999px;
-    pointer-events: none;
-  }
-
   .app-shell .main > .topbar .topbar-actions .account-avatar-button img {
     width: 34px;
     height: 34px;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button::after {
+    content: "账号";
+    color: #fff;
+    font-size: 12px;
+    font-weight: 920;
+    line-height: 1;
   }
 
   .app-shell .main > .topbar .topbar-actions .notification-button span {
