@@ -384,35 +384,15 @@ export function createApiServer(database = new BeautyDatabase()) {
         const startedAt = Date.now();
         const currentData = database.readData();
         assertMarketingAiGeneratePreflight(currentData, session, kind);
-        if (kind === "image" || kind === "copy") {
-          const locks = database.acquireAiGenerationLocks({
-            ownerId: session.user.id,
-            kind,
-            createdAt: nowIso(),
-            expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
-            maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
-          });
-          const pendingRecord = marketingAiRecord(currentData, session, body, {
-            kind,
-            ...marketingAiPendingProvider(currentData, kind),
-            status: "生成中",
-            text: "任务已提交，后台正在生成。你可以继续使用系统，完成后会在生成记录里显示结果。",
-            elapsedMs: 0,
-          });
-          database.upsertMarketingAiRecord(pendingRecord);
-          void runMarketingAiBackgroundTask(database, session, body, kind, pendingRecord, locks, startedAt);
-          sendJson(response, 202, {
-            kind,
-            provider: pendingRecord.provider,
-            model: pendingRecord.model,
-            text: pendingRecord.text,
-            status: pendingRecord.status,
-            elapsedMs: 0,
-            record: pendingRecord,
-          });
-          return;
-        }
-        const locks = undefined;
+        const locks = kind === "image"
+          ? database.acquireAiGenerationLocks({
+              ownerId: session.user.id,
+              kind,
+              createdAt: nowIso(),
+              expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
+              maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
+            })
+          : undefined;
         let pendingRecord: MarketingAiRecord | undefined;
         try {
           pendingRecord = marketingAiRecord(currentData, session, body, {
@@ -2475,7 +2455,6 @@ function assertMarketingAiGeneratePreflight(data: AppData, session: UserSession,
   if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
-  if (kind === "copy") assertMarketingAiAllowed(data, session, "image");
   assertAiFreeQuotaAvailable(data, session.user.id);
 }
 
@@ -2828,7 +2807,6 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
-  if (kind === "copy") assertMarketingAiAllowed(data, session, "image");
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
   const billing = quotaState.credits > 0 ? { source: "credit" as const, creditsCharged: 1 } : { source: "free" as const };
   const prompt = marketingPrompt(body, kind);
@@ -2840,25 +2818,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     if (kind === "talk") {
       return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
     }
-    const imageConfig = aiGenerationConfigFromData(data).image;
-    const imageResult = await runAiImageTest(data, {
-      prompt: marketingCopyPosterPrompt(body, result.text),
-      size: marketingImageSize(optionalString(body, "posterSize")),
-    });
-    const textCost = textGenerationCost(config, result.usage);
-    const posterCost = imageResult.cost ?? imageGenerationCost(imageConfig, imageResult.usage);
-    return {
-      kind,
-      provider: `${result.provider}+${imageResult.provider}`,
-      model: `${result.model}+${imageResult.model}`,
-      text: result.text,
-      imageDataUrl: imageResult.imageDataUrl,
-      revisedPrompt: imageResult.revisedPrompt,
-      usage: { text: result.usage, image: imageResult.usage },
-      cost: combinedAiGenerationCost("文案生成 + GPT Image 2 海报生成", textCost, posterCost),
-      elapsedMs: result.elapsedMs + imageResult.elapsedMs,
-      billing,
-    };
+    return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
   }
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;

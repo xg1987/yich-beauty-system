@@ -55,7 +55,7 @@ const marketingCalendarNodes: MarketingCalendarNode[] = [
   { title: "冬至温补", date: "2026-12-22", category: "传统节日", description: "冬至温补心智明确，适合暖宫、艾灸、足浴提醒。", leadDays: 18, priority: 90, serviceHint: "艾灸、暖宫、足浴" },
   { title: "立夏养护", date: "2026-05-05", category: "节气内容", description: "夏季开始，提醒防晒、补水和身体代谢管理。", leadDays: 7, priority: 50, serviceHint: "补水、防晒、身体护理" },
   { title: "小满清湿", date: "2026-05-21", category: "节气内容", description: "小满湿热渐起，适合祛湿、代谢和皮肤清爽护理。", leadDays: 8, priority: 52, serviceHint: "药浴、清洁、肩颈" },
-  { title: "芒种排湿", date: "2026-06-05", category: "节气内容", description: "湿热上来，适合用身体状态带出祛湿必要性。", leadDays: 7, priority: 60, serviceHint: "药浴、艾灸、祛湿" },
+  { title: "芒种排湿", date: "2026-06-05", category: "节气内容", description: "湿热上来，适合用护理需求带出祛湿必要性。", leadDays: 7, priority: 60, serviceHint: "药浴、艾灸、祛湿" },
   { title: "夏至养阳", date: "2026-06-21", category: "节气内容", description: "夏至前后适合养阳、祛湿、防空调寒。", leadDays: 10, priority: 74, serviceHint: "艾灸、药浴、肩颈" },
   { title: "小暑清养", date: "2026-07-07", category: "节气内容", description: "小暑热湿明显，适合清爽补水和身体轻养。", leadDays: 8, priority: 58, serviceHint: "补水、药浴、肩颈" },
   { title: "大暑排湿", date: "2026-07-23", category: "节气内容", description: "大暑适合排湿、代谢、睡眠调理类内容。", leadDays: 8, priority: 64, serviceHint: "药浴、艾灸、睡眠" },
@@ -73,8 +73,6 @@ const marketingCalendarNodes: MarketingCalendarNode[] = [
   { title: "三九温补", date: "2026-12-22", category: "养生节点", description: "三九前后温补需求强，适合寒湿、肩颈和睡眠客群。", leadDays: 18, priority: 80, serviceHint: "三九灸、药浴、足浴" },
   { title: "项目复购提醒", date: "2026-06-14", category: "项目周期", description: "没有更近节日时，优先结合项目周期提醒老客复购。", leadDays: 365, priority: 12, serviceHint: "按客户最近消费项目推荐" },
 ];
-const customerTypes = ["新客户", "老客户", "沉睡客户"];
-const bodyStates = ["怕冷湿重", "久坐肩颈", "熬夜暗沉", "皮肤干燥", "睡眠不好"];
 const marketingGoals = ["复购提醒", "项目转化", "沉睡唤醒", "护理建议"];
 const generationModes: Array<{ kind: MarketingGenerationKind; title: string; description: string; locked?: boolean }> = [
   { kind: "copy", title: "文案", description: "输出配套话术，适合直接发布" },
@@ -148,7 +146,7 @@ function getMarketingNodes(today = new Date()): MarketingNode[] {
   const fallbackNodes: MarketingNode[] = [
     { title: "夏季祛湿", badge: "当前推荐", description: "适合湿重、虚胖、身体沉、出汗少客户。", hint: "药浴、艾灸、祛湿", dateLabel: "季节推荐" },
     { title: "三伏预热", badge: "养生节点", description: "提前做三伏养阳铺垫，适合会员复购。", hint: "三伏灸、药浴、艾灸", dateLabel: "7月20日" },
-    { title: "阳气养护", badge: "节气内容", description: "不硬促销，用身体状态带出护理必要性。", hint: "艾灸、肩颈、睡眠", dateLabel: "节气推荐" },
+    { title: "阳气养护", badge: "节气内容", description: "不硬促销，用护理需求带出护理必要性。", hint: "艾灸、肩颈、睡眠", dateLabel: "节气推荐" },
   ];
 
   const result = timedNodes.slice(0, 3).map(({ node, targetDate, daysUntil }) => ({
@@ -308,7 +306,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 
 function downloadMarketingRecord(record: MarketingAiRecord) {
   const filename = `${marketingRecordTitle(record)}-${(record.createdAt || new Date().toISOString()).slice(0, 10)}`;
-  if (record.imageDataUrl) {
+  if (record.kind !== "copy" && record.imageDataUrl) {
     downloadDataUrl(record.imageDataUrl, `${filename}${record.imageDataUrl.startsWith("data:image/svg+xml") ? ".svg" : ".png"}`);
     return;
   }
@@ -341,11 +339,9 @@ export function MarketingCenter({
 }) {
   const todayMarketingNodes = useMemo(() => getMarketingNodes(), []);
   const [activeView, setActiveView] = useState<MarketingViewKey>("content");
-  const [productId, setProductId] = useState(data.products[0]?.id ?? "");
-  const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
   const [marketingNode, setMarketingNode] = useState(todayMarketingNodes[0].title);
-  const [customerType, setCustomerType] = useState("老客户");
-  const [bodyState, setBodyState] = useState("怕冷湿重");
+  const customerType = "老客户";
+  const bodyState = "常规护理需求";
   const [channel, setChannel] = useState("朋友圈");
   const [marketingGoal, setMarketingGoal] = useState("复购提醒");
   const [generationKind, setGenerationKind] = useState<MarketingGenerationKind>("copy");
@@ -368,8 +364,8 @@ export function MarketingCenter({
   const [copyResultStatus, setCopyResultStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [downloadResultStatus, setDownloadResultStatus] = useState<"idle" | "downloaded" | "failed">("idle");
   const [manualCopyText, setManualCopyText] = useState("");
-  const product = data.products.find((item) => item.id === productId) ?? data.products[0];
-  const service = data.services.find((item) => item.id === serviceId) ?? data.services[0];
+  const product = data.products[0];
+  const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
   const aiPermissions = storeAiUsagePermissions(data);
@@ -387,7 +383,7 @@ export function MarketingCenter({
     selectedNode.description ? `节点策略：${selectedNode.description}` : "",
     customRequirement.trim(),
   ].filter(Boolean).join("\n");
-  const previewSummaryItems = [marketingNode, customerType, bodyState, channel, marketingGoal];
+  const previewSummaryItems = [marketingNode, channel, marketingGoal];
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
   const latestGenerationResultRecord = generationResult?.record?.id ? marketingAiRecords.find((record) => record.id === generationResult.record?.id) : undefined;
@@ -401,6 +397,7 @@ export function MarketingCenter({
   const dialogVideoUrl = dialogRecord?.videoUrl ?? generationResult?.videoUrl;
   const dialogVideoTaskId = dialogRecord?.taskId ?? generationResult?.taskId;
   const dialogVideoStatus = dialogRecord?.status ?? generationResult?.status;
+  const dialogErrorMessage = dialogRecord?.errorMessage ?? generationResult?.errorMessage;
   const dialogPending = dialogVideoStatus === "生成中";
   const dialogKind = dialogRecord?.kind ?? generationResult?.kind ?? generationKind;
   const dialogKindTitle = dialogKind === "image" ? "AI海报" : dialogKind === "video" ? "AI短视频" : dialogKind === "talk" ? "AI口播" : "AI营销文案";
@@ -408,7 +405,7 @@ export function MarketingCenter({
   const dialogProvider = dialogRecord?.provider ?? generationResult?.provider;
   const dialogModel = dialogRecord?.model ?? generationResult?.model;
   const dialogSummaryItems = dialogRecord
-    ? [dialogRecord.marketingNode, dialogRecord.customerType, dialogRecord.bodyState, dialogRecord.channel, dialogRecord.marketingGoal].filter(Boolean)
+    ? [dialogRecord.marketingNode, dialogRecord.channel, dialogRecord.marketingGoal].filter(Boolean)
     : previewSummaryItems;
   const showGenerationDialog = Boolean(generationBusy || generationError || generationResult || selectedMarketingRecord);
   const showAiTechnicalDetails = session.user.role === "superadmin";
@@ -568,7 +565,7 @@ export function MarketingCenter({
 
   const downloadPoster = () => {
     const title = dialogRecord ? marketingRecordTitle(dialogRecord) : `AI营销内容-${new Date().toISOString().slice(0, 10)}`;
-    if (dialogImageDataUrl) {
+    if (dialogKind !== "copy" && dialogImageDataUrl) {
       downloadDataUrl(dialogImageDataUrl, `${title}${dialogImageDataUrl.startsWith("data:image/svg+xml") ? ".svg" : ".png"}`);
       setDownloadResultStatus("downloaded");
       window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
@@ -689,17 +686,6 @@ export function MarketingCenter({
                   <div className="marketing-config-stack">
                     <div className="marketing-config-row">
                       <div className="marketing-config-label">
-                        <strong>发给谁</strong>
-                        <small>客户状态</small>
-                      </div>
-                      <div className="marketing-chip-row" aria-label="客户类型">
-                        {customerTypes.map((item) => (
-                          <button type="button" key={item} className={customerType === item ? "active" : ""} onClick={() => setCustomerType(item)}>{item}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="marketing-config-row">
-                      <div className="marketing-config-label">
                         <strong>发到哪里</strong>
                         <small>格式语气</small>
                       </div>
@@ -800,43 +786,6 @@ export function MarketingCenter({
                   />
                 </label>
 
-                <details className="marketing-advanced-options">
-                  <summary>
-                    <span>更多条件</span>
-                    <small>商品、项目和身体状态</small>
-                  </summary>
-                  <div className="marketing-advanced-body">
-                    <div className="marketing-form-grid">
-                      <label>
-                        <span>商品</span>
-                        <select value={product?.id ?? ""} onChange={(event) => setProductId(event.target.value)}>
-                          {data.products.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span>项目</span>
-                        <select value={service?.id ?? ""} onChange={(event) => setServiceId(event.target.value)}>
-                          {data.services.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                    <div className="marketing-config-row">
-                      <div className="marketing-config-label">
-                        <strong>身体状态</strong>
-                        <small>文案痛点</small>
-                      </div>
-                      <div className="marketing-chip-row" aria-label="身体状态">
-                        {bodyStates.map((item) => (
-                          <button type="button" key={item} className={bodyState === item ? "active" : ""} onClick={() => setBodyState(item)}>{item}</button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </details>
               </>
             )}
             <div className="marketing-form-actions single">
@@ -882,7 +831,7 @@ export function MarketingCenter({
                   <div className="marketing-record-actions">
                     <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
                     <button type="button" aria-label="复制文案" disabled={recordPending} onClick={() => void copyRecord(record)}><Copy size={15} /></button>
-                    <button type="button" aria-label="下载图片" disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
+                    <button type="button" aria-label={record.kind === "copy" ? "下载文案" : "下载图片"} disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
                   </div>
                 </article>
               );
@@ -936,12 +885,12 @@ export function MarketingCenter({
                   </div>
                 )}
                 {!dialogPending && (dialogText || dialogImageDataUrl || dialogVideoUrl || dialogVideoTaskId) && (
-                  <div className="marketing-content-result-grid">
-                    <article className="marketing-poster-card">
+                  <div className={`marketing-content-result-grid ${dialogKind === "copy" ? "copy-only" : ""}`}>
+                    {dialogKind !== "copy" && <article className="marketing-poster-card">
                       <div className="marketing-result-head">
                         <div>
                           <strong>{dialogKind === "video" ? "视频结果" : dialogKind === "talk" ? "口播内容" : "海报预览"}</strong>
-                          <span>{dialogKind === "image" ? "由图片模型生成" : dialogKind === "video" ? "视频任务状态" : dialogKind === "talk" ? "适合视频号/直播口播" : "和文案同一条记录"}</span>
+                          <span>{dialogKind === "image" ? "由图片模型生成" : dialogKind === "video" ? "视频任务状态" : "适合视频号/直播口播"}</span>
                         </div>
                       </div>
                       {dialogVideoUrl ? (
@@ -963,10 +912,10 @@ export function MarketingCenter({
                       ) : (
                         <div className="marketing-poster-placeholder">
                           <ImageIcon size={26} />
-                          <span>完成后显示海报</span>
+                          <span>{dialogErrorMessage ? "海报未生成" : "暂无海报"}</span>
                         </div>
                       )}
-                    </article>
+                    </article>}
                     <article className="marketing-result-copy">
                       <div className="marketing-result-head">
                         <div>
@@ -991,6 +940,9 @@ export function MarketingCenter({
                       {!dialogText && dialogKind === "image" && (
                         <p className="marketing-result-note">这张海报由图片模型生成，可直接下载用于发布。</p>
                       )}
+                      {dialogKind !== "copy" && dialogText && dialogErrorMessage && (
+                        <p className="marketing-result-note">{dialogErrorMessage}</p>
+                      )}
                       {!dialogText && dialogKind === "video" && (
                         <p className="marketing-result-note">{dialogVideoUrl ? "视频已返回，可在线播放或下载。" : "视频任务已提交，稍后可在生成记录里查看状态。"}</p>
                       )}
@@ -999,7 +951,7 @@ export function MarketingCenter({
                           <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "已显示内容" : "复制内容"}
                         </button>
                         <button type="button" className="secondary-button" onClick={downloadPoster}>
-                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogImageDataUrl ? "下载图片" : "下载文案"}
+                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogKind !== "copy" && dialogImageDataUrl ? "下载图片" : "下载文案"}
                         </button>
                         <button type="button" className="secondary-button" onClick={returnToRecords}>
                           <Eye size={16} /> 返回记录
