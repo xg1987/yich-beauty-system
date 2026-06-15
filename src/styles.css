@@ -17372,20 +17372,20 @@ textarea,
 
 .checkout-customer-card-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
-  align-items: center;
+  grid-template-columns: minmax(170px, 0.62fr) minmax(0, 1.38fr);
+  align-items: stretch;
   gap: 12px;
-  min-height: 54px;
   border: 1px solid rgba(111, 66, 193, 0.1);
   border-radius: 8px;
-  padding: 9px 10px;
+  padding: 11px 12px;
   background: rgba(255, 255, 255, 0.72);
 }
 
-.checkout-customer-card-row > div {
+.checkout-customer-card-title {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  align-content: center;
+  gap: 5px;
 }
 
 .checkout-customer-card-row strong {
@@ -17399,9 +17399,60 @@ textarea,
   font-style: normal;
 }
 
-.checkout-customer-card-row em {
-  justify-self: end;
+.checkout-customer-card-usage {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.checkout-customer-card-usage > div {
+  display: grid;
+  grid-template-columns: minmax(86px, 1fr) auto auto auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background:
+    linear-gradient(135deg, rgba(249, 246, 255, 0.86), rgba(255, 255, 255, 0.78));
+}
+
+.checkout-customer-card-usage > div.blocked {
+  border-color: rgba(207, 65, 104, 0.18);
+  background: rgba(255, 244, 248, 0.76);
+}
+
+.checkout-customer-card-usage small,
+.checkout-customer-card-usage b,
+.checkout-customer-card-usage i {
+  white-space: nowrap;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.checkout-customer-card-usage small {
+  color: rgba(47, 37, 95, 0.52);
+}
+
+.checkout-customer-card-usage em,
+.checkout-customer-card-usage b {
+  color: #3d2279;
+  font-weight: 800;
   text-align: right;
+}
+
+.checkout-customer-card-usage i {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(237, 249, 243, 0.9);
+  color: #237766;
+  font-weight: 800;
+}
+
+.checkout-customer-card-usage .blocked i {
+  background: rgba(255, 232, 240, 0.92);
+  color: #a83251;
 }
 
 @media (max-width: 720px) {
@@ -17418,9 +17469,21 @@ textarea,
     grid-template-columns: 1fr;
   }
 
-  .checkout-customer-card-row em {
+  .checkout-customer-card-usage > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .checkout-customer-card-usage small,
+  .checkout-customer-card-usage em,
+  .checkout-customer-card-usage b,
+  .checkout-customer-card-usage i {
     justify-self: start;
     text-align: left;
+  }
+
+  .checkout-customer-card-usage small,
+  .checkout-customer-card-usage b {
+    grid-column: 1 / -1;
   }
 }
 

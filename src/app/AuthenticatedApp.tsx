@@ -3746,6 +3746,67 @@ function Pos({
       .map(({ service, quantity }) => `${service.name} 需${quantity}份 / ${memberCardTimesText(card, data.services, service.id)}`)
       .join("；");
   };
+  const checkoutCardServiceUsageRows = (card: AppData["memberCards"][number]) => {
+    if (card.type === "储值卡") {
+      return [{
+        key: `${card.id}:balance`,
+        name: "储值余额",
+        scopeText: "全店可用",
+        remainingText: money(card.balance),
+        requiredText: selectedServiceRows.length ? `本单 ${money(checkoutDiscountedPrice)}` : "未选择项目",
+        statusText: checkoutDiscountedPrice > 0 && card.balance < checkoutDiscountedPrice ? "余额不足" : "可用",
+        blocked: checkoutDiscountedPrice > 0 && card.balance < checkoutDiscountedPrice,
+      }];
+    }
+    const entitlementMap = new Map((card.serviceEntitlements ?? []).map((item) => [item.serviceId, item]));
+    const scopedServiceIds = card.serviceEntitlements?.length
+      ? card.serviceEntitlements.map((item) => item.serviceId)
+      : card.serviceIds?.length
+        ? card.serviceIds
+        : card.serviceId
+          ? [card.serviceId]
+          : [];
+    const rows = selectedServiceRows.length
+      ? selectedServiceRows.map(({ service, quantity }) => {
+          const entitlement = entitlementMap.get(service.id);
+          const supports = card.serviceEntitlements?.length
+            ? Boolean(entitlement)
+            : scopedServiceIds.length
+              ? scopedServiceIds.includes(service.id)
+              : true;
+          const remainingTimes = entitlement?.remainingTimes ?? (supports ? card.remainingTimes : 0);
+          return {
+            key: `${card.id}:${service.id}`,
+            name: service.name,
+            scopeText: supports ? "本单可用" : "不可用于本项目",
+            remainingText: entitlement ? `${entitlement.remainingTimes}/${entitlement.totalTimes}次` : `${remainingTimes}次`,
+            requiredText: `本单需 ${quantity} 次`,
+            statusText: supports && remainingTimes >= quantity ? "够扣" : "不足",
+            blocked: !supports || remainingTimes < quantity,
+          };
+        })
+      : scopedServiceIds.map((serviceId) => {
+          const entitlement = entitlementMap.get(serviceId);
+          return {
+            key: `${card.id}:${serviceId}`,
+            name: nameOf(data.services, serviceId),
+            scopeText: "可用项目",
+            remainingText: entitlement ? `${entitlement.remainingTimes}/${entitlement.totalTimes}次` : `${card.remainingTimes}次`,
+            requiredText: "待选择",
+            statusText: "可用",
+            blocked: false,
+          };
+        });
+    return rows.length ? rows : [{
+      key: `${card.id}:general`,
+      name: "通用项目",
+      scopeText: "全店可用",
+      remainingText: `${card.remainingTimes}次`,
+      requiredText: selectedServiceRows.length ? `本单 ${selectedServiceRows.reduce((sum, row) => sum + row.quantity, 0)} 次` : "待选择",
+      statusText: card.remainingTimes > 0 ? "可用" : "不足",
+      blocked: card.remainingTimes <= 0,
+    }];
+  };
   const total = (usesService ? serviceSubtotal : 0) + (usesProduct ? productSubtotal : 0);
   const checkoutDiscountedPrice = Math.max(0, total - discountAmount);
   const checkoutSavedAmount = Math.max(0, discountAmount);
@@ -4040,9 +4101,21 @@ function Pos({
     clearAppointment();
     resetCheckoutDiscount();
     setCheckoutServiceIds((previous) => {
-      const otherServiceIds = previous.filter((id) => id !== nextServiceId);
-      if (nextQuantity <= 0) return otherServiceIds;
-      return [...otherServiceIds, ...Array.from({ length: nextQuantity }, () => nextServiceId)];
+      let inserted = false;
+      const replacement = nextQuantity > 0 ? Array.from({ length: nextQuantity }, () => nextServiceId) : [];
+      const next: string[] = [];
+      previous.forEach((id) => {
+        if (id !== nextServiceId) {
+          next.push(id);
+          return;
+        }
+        if (!inserted) {
+          next.push(...replacement);
+          inserted = true;
+        }
+      });
+      if (!inserted) next.push(...replacement);
+      return next;
     });
   };
 
@@ -4326,6 +4399,111 @@ function Pos({
     setActiveModule(undefined);
   };
 
+  const renderCheckoutCustomerControls = () => (
+    <>
+      <Select
+        label="开单对象"
+        value={checkoutCustomerMode}
+        onChange={(value) => {
+          const nextMode = value as "customer" | "walkin";
+          setCheckoutCustomerMode(nextMode);
+          clearAppointment();
+          if (nextMode === "customer") {
+            setGuestName("");
+            setGuestPhone("");
+            return;
+          }
+          setCardId("");
+          if (payMethod === "会员卡") setPayMethod("微信");
+        }}
+        options={[
+          { value: "walkin", label: "新客" },
+          { value: "customer", label: "会员" },
+        ]}
+      />
+      {usesCustomer ? (
+        <div className="checkout-customer-search">
+          <label>
+            客户
+            <input
+              value={customerSearch}
+              {...searchInputSync(setCustomerSearch)}
+              placeholder={selectedCustomer ? `${selectedCustomer.name} · ${selectedCustomer.phone}` : "输入客户姓名或手机号搜索"}
+            />
+          </label>
+          {normalizedCustomerSearch && (
+            <div className="checkout-customer-result-list">
+              {customerSearchResults.length ? customerSearchResults.map((customer) => (
+                <button
+                  type="button"
+                  key={customer.id}
+                  className={customer.id === customerId ? "active" : ""}
+                  onClick={() => {
+                    clearAppointment();
+                    setCustomerId(customer.id);
+                    setCustomerSearch("");
+                    setCardId("");
+                  }}
+                >
+                  <strong>{customer.name}</strong>
+                  <span>{customer.phone}</span>
+                </button>
+              )) : (
+                <div className="checkout-customer-empty">没有找到客户，可切换为新客开单。</div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="checkout-guest-fields">
+          <div className="checkout-guest-grid">
+            <label>
+              {usesProduct && !usesService ? "新客姓名" : "客户姓名"}
+              <input value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" placeholder="用于客户签名和流水追溯" />
+            </label>
+            <label>
+              {usesProduct && !usesService ? "联系电话" : "客户电话"}
+              <input type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} value={guestPhone} onChange={(event) => setGuestPhone(normalizeMobilePhoneDraft(event.target.value))} placeholder="11 位手机号" />
+            </label>
+          </div>
+        </div>
+      )}
+      {usesCustomer && usesService && (
+        <div className="checkout-customer-card-summary">
+          <div className="checkout-product-section-head">
+            <span>客户可用服务</span>
+            <strong>{selectedCustomerCheckoutCards.length ? `${selectedCustomerCheckoutCards.length} 张有效卡` : "暂无有效卡"}</strong>
+          </div>
+          {selectedCustomerCheckoutCards.length ? (
+            <div className="checkout-customer-card-list">
+              {selectedCustomerCheckoutCards.map((card) => (
+                <div className="checkout-customer-card-row" key={card.id}>
+                  <div className="checkout-customer-card-title">
+                    <strong>{card.name}</strong>
+                    <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
+                  </div>
+                  <div className="checkout-customer-card-usage">
+                    {checkoutCardServiceUsageRows(card).map((row) => (
+                      <div className={row.blocked ? "blocked" : ""} key={row.key}>
+                        <span>{row.name}</span>
+                        <small>{row.scopeText}</small>
+                        <em>{row.remainingText}</em>
+                        <b>{row.requiredText}</b>
+                        <i>{row.statusText}</i>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="checkout-product-empty">当前客户暂无可用卡，可现金、微信等方式购买服务。</div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
   const renderCheckoutCart = (mode: "sale" | "gift") => {
     const rows = mode === "sale" ? checkoutProductRows : checkoutGiftRows;
     if (!rows.length) {
@@ -4516,6 +4694,7 @@ function Pos({
           action={activeModule === "product" ? "商品收银" : "项目收银"}
         />
         <form className="form" onSubmit={checkout}>
+          {renderCheckoutCustomerControls()}
           {usesService && (
             <div className="checkout-product-picker">
               <div className="checkout-product-toolbar single">
@@ -4636,96 +4815,6 @@ function Pos({
             onChange={(value) => setPayMethod(value as Order["payMethod"])}
             options={(usesCustomer ? ["微信", "支付宝", "现金", "银行卡", "会员卡"] : ["微信", "支付宝", "现金", "银行卡"]).map((item) => ({ value: item, label: item }))}
           />
-          <Select
-            label="开单对象"
-            value={checkoutCustomerMode}
-            onChange={(value) => {
-              const nextMode = value as "customer" | "walkin";
-              setCheckoutCustomerMode(nextMode);
-              clearAppointment();
-              if (nextMode === "customer") {
-                setGuestName("");
-                setGuestPhone("");
-                return;
-              }
-              setCardId("");
-              if (payMethod === "会员卡") setPayMethod("微信");
-            }}
-            options={[
-              { value: "walkin", label: "新客" },
-              { value: "customer", label: "会员" },
-            ]}
-          />
-          {usesCustomer ? (
-            <div className="checkout-customer-search">
-              <label>
-                客户
-                <input
-                  value={customerSearch}
-                  {...searchInputSync(setCustomerSearch)}
-                  placeholder={selectedCustomer ? `${selectedCustomer.name} · ${selectedCustomer.phone}` : "输入客户姓名或手机号搜索"}
-                />
-              </label>
-              {normalizedCustomerSearch && (
-                <div className="checkout-customer-result-list">
-                  {customerSearchResults.length ? customerSearchResults.map((customer) => (
-                    <button
-                      type="button"
-                      key={customer.id}
-                      className={customer.id === customerId ? "active" : ""}
-                      onClick={() => {
-                        clearAppointment();
-                        setCustomerId(customer.id);
-                        setCustomerSearch("");
-                        setCardId("");
-                      }}
-                    >
-                      <strong>{customer.name}</strong>
-                      <span>{customer.phone}</span>
-                    </button>
-                  )) : (
-                    <div className="checkout-customer-empty">没有找到客户，可切换为新客开单。</div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="checkout-guest-fields">
-              <div className="checkout-guest-grid">
-                  <label>
-                    {usesProduct && !usesService ? "新客姓名" : "客户姓名"}
-                    <input value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" placeholder="用于客户签名和流水追溯" />
-                  </label>
-                  <label>
-                    {usesProduct && !usesService ? "联系电话" : "客户电话"}
-                    <input type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} value={guestPhone} onChange={(event) => setGuestPhone(normalizeMobilePhoneDraft(event.target.value))} placeholder="11 位手机号" />
-                  </label>
-              </div>
-            </div>
-          )}
-          {usesCustomer && usesService && (
-            <div className="checkout-customer-card-summary">
-              <div className="checkout-product-section-head">
-                <span>客户可用服务</span>
-                <strong>{selectedCustomerCheckoutCards.length ? `${selectedCustomerCheckoutCards.length} 张有效卡` : "暂无有效卡"}</strong>
-              </div>
-              {selectedCustomerCheckoutCards.length ? (
-                <div className="checkout-customer-card-list">
-                  {selectedCustomerCheckoutCards.map((card) => (
-                    <div className="checkout-customer-card-row" key={card.id}>
-                      <div>
-                        <strong>{card.name}</strong>
-                        <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
-                      </div>
-                      <em>{checkoutCardSelectedServiceText(card)}</em>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="checkout-product-empty">当前客户暂无可用卡，可现金、微信等方式购买服务。</div>
-              )}
-            </div>
-          )}
           {usesCustomer && usesService && (
             <>
               <Select
