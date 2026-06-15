@@ -76,8 +76,12 @@ if (!indexSource.includes('class="startup-loading"')) {
   violations.push("Index HTML must render a static startup loading view before JavaScript loads.");
 }
 
-if (!appEntrySource.includes('const AuthGate = lazy(() => import("./app/AuthGate"))')) {
-  violations.push("AuthGate must stay route-level lazy so the initial entry keeps the startup bundle budget.");
+if (appEntrySource.includes('const AuthGate = lazy(() => import("./app/AuthGate"))')) {
+  violations.push("AuthGate must stay in the initial entry path to avoid a blank startup gap.");
+}
+
+if (!appEntrySource.includes('import AuthGate from "./app/AuthGate";')) {
+  violations.push("App entry must statically import AuthGate so mobile startup keeps the auth shell ready.");
 }
 
 if (authGateSource.includes("lazy(() => import(\"./AuthRuntime\"))")) {
@@ -94,6 +98,18 @@ if (!stylesSource.includes("left: auto;")) {
 
 if (!stylesSource.includes("Mobile topbar visibility lock")) {
   violations.push("Mobile topbar visibility lock must keep notification and account buttons visible.");
+}
+
+if (!stylesSource.includes("Mobile shell topbar visibility lock")) {
+  violations.push("Mobile shell topbar visibility lock must keep logo, store name, notification, and account buttons visible.");
+}
+
+if (!stylesSource.includes(".app-shell .main > .topbar {\n    position: fixed;")) {
+  violations.push("Mobile shell topbar must stay fixed above loaded page content.");
+}
+
+if (!stylesSource.includes(".app-shell .main > .topbar .topbar-brand,\n  .app-shell .main > .topbar .topbar-brand > div")) {
+  violations.push("Mobile shell topbar brand must remain visible after lazy page content loads.");
 }
 
 if (!stylesSource.includes(".app-shell .main > .topbar .topbar-actions .account-avatar-button img {\n    display: none;")) {

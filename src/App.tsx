@@ -1,11 +1,11 @@
 import { Component, lazy, Suspense, useEffect, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { APP_UPDATE_AVAILABLE_EVENT, dismissAppUpdatePrompt, installAppUpdateChecker, reloadForAppUpdate } from "./appUpdate";
+import AuthGate from "./app/AuthGate";
 import { RouteFallback, StartupRecovery } from "./components/AppLoadingViews";
 import { AppUpdatePrompt, appUpdateInfoFromEvent } from "./components/AppUpdatePrompt";
 import type { AppUpdateInfo } from "./components/AppUpdatePrompt";
 
-const AuthGate = lazy(() => import("./app/AuthGate"));
 const DownloadGuidePage = lazy(() => import("./pages/public/DownloadGuidePage"));
 const PublicStoreRoute = lazy(() => import("./pages/public/PublicStoreRoute"));
 const PublicSignatureRoute = lazy(() => import("./pages/public/PublicSignatureRoute"));
@@ -143,9 +143,7 @@ function AppRoutes() {
 
   return (
     <>
-      <Suspense fallback={<RouteFallback />}>
-        <AuthGate />
-      </Suspense>
+      <AuthGate />
       <Suspense fallback={null}>
         <PwaInstallPrompt />
       </Suspense>
