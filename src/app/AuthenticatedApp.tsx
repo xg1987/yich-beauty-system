@@ -3094,14 +3094,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
   const findAppointmentOrder = (appointment: Appointment) =>
-    data.orders.find((order) => order.status !== "已退款" && order.appointmentId === appointment.id) ??
-    data.orders.find((order) =>
-      order.status !== "已退款" &&
-      !order.appointmentId &&
-      order.customerId === appointment.customerId &&
-      order.staffId === appointment.staffId &&
-      order.createdAt.slice(0, 10) === appointment.startAt.slice(0, 10),
-    );
+    data.orders.find((order) => order.status !== "已退款" && order.appointmentId === appointment.id);
   const findAppointmentSignature = (order: Order | undefined) => {
     if (!order) return undefined;
     const signatures = data.customerSignatures.filter((item) => item.orderId === order.id);
@@ -3126,8 +3119,10 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     );
   const pendingServiceSignatureTasks = [...arrivedServiceSignatureTasks, ...completedServiceSignatureTasks]
     .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
+  const appointmentHasLinkedSignedOrder = (appointment: Appointment) =>
+    findAppointmentSignature(findAppointmentOrder(appointment))?.status === "已签名";
   const effectivelyCompletedRangeAppointments = visibleRangeAppointments
-    .filter((appointment) => appointment.status === "已完成" || findAppointmentSignature(findAppointmentOrder(appointment))?.status === "已签名")
+    .filter((appointment) => appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment))
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
@@ -3202,7 +3197,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const appointmentSaveDisabled = !customerId || appointmentCustomerSearchUnresolved || !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
   const rescheduleSaveDisabled = !rescheduleStaffId || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
-    if (appointment.status === "已完成" || findAppointmentSignature(findAppointmentOrder(appointment))?.status === "已签名") {
+    if (appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment)) {
       return (
         <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>
           查看详情

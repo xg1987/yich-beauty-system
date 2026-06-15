@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { APP_UPDATE_AVAILABLE_EVENT, dismissAppUpdatePrompt, installAppUpdateChecker, reloadForAppUpdate } from "./appUpdate";
+import { cleanUpdateRecoveryQuery, isRecoverableLoadError, recoverFromStaleAssets } from "./appRecovery";
 import AuthGate from "./app/AuthGate";
 import { RouteFallback, StartupRecovery } from "./components/AppLoadingViews";
 import { AppUpdatePrompt, appUpdateInfoFromEvent } from "./components/AppUpdatePrompt";
@@ -10,46 +11,23 @@ const DownloadGuidePage = lazy(() => import("./pages/public/DownloadGuidePage"))
 const PublicStoreRoute = lazy(() => import("./pages/public/PublicStoreRoute"));
 const PublicSignatureRoute = lazy(() => import("./pages/public/PublicSignatureRoute"));
 const PwaInstallPrompt = lazy(() => import("./components/PwaInstallPrompt"));
-const RECOVERY_RELOAD_KEY = "yich-app-recovery-reload";
-const RECOVERY_RELOAD_COOLDOWN_MS = 20_000;
 
-function isRecoverableLoadError(reason: unknown) {
-  const message = reason instanceof Error ? reason.message : String(reason ?? "");
-  return /Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload|Loading chunk|ChunkLoadError|dynamically imported module/i.test(message);
-}
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; recovering: boolean }> {
+  state = { hasError: false, recovering: false };
 
-function recentlyRecovered() {
-  const timestamp = Number(window.sessionStorage.getItem(RECOVERY_RELOAD_KEY));
-  return Number.isFinite(timestamp) && Date.now() - timestamp < RECOVERY_RELOAD_COOLDOWN_MS;
-}
-
-async function clearAppCaches() {
-  if (!("caches" in window)) return;
-  const cacheNames = await window.caches.keys();
-  await Promise.all(cacheNames.map((cacheName) => window.caches.delete(cacheName)));
-}
-
-async function recoverFromStaleAssets() {
-  if (recentlyRecovered()) return;
-  window.sessionStorage.setItem(RECOVERY_RELOAD_KEY, `${Date.now()}`);
-  await clearAppCaches();
-  const nextUrl = new URL(window.location.href);
-  nextUrl.searchParams.set("__yich_recover", `${Date.now()}`);
-  window.location.replace(nextUrl.toString());
-}
-
-class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: unknown) {
+    if (isRecoverableLoadError(error)) return { hasError: false, recovering: true };
+    return { hasError: true, recovering: false };
   }
 
   componentDidCatch(error: Error, _errorInfo: ErrorInfo) {
-    if (isRecoverableLoadError(error)) return;
+    if (isRecoverableLoadError(error)) {
+      void recoverFromStaleAssets();
+    }
   }
 
   render() {
+    if (this.state.recovering) return <RouteFallback />;
     if (this.state.hasError) return <StartupRecovery onRecover={() => void recoverFromStaleAssets()} />;
     return this.props.children;
   }
@@ -58,9 +36,9 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 export default function App() {
   const [pendingUpdate, setPendingUpdate] = useState<AppUpdateInfo | null>(null);
   const [updateRefreshing, setUpdateRefreshing] = useState(false);
-  const [assetRecoveryPending, setAssetRecoveryPending] = useState(false);
 
   useEffect(() => {
+    cleanUpdateRecoveryQuery();
     const uninstallChecker = installAppUpdateChecker();
     const handleAppUpdate = (event: Event) => {
       const info = appUpdateInfoFromEvent(event);
@@ -68,12 +46,12 @@ export default function App() {
     };
     const handlePreloadError = (event: Event) => {
       event.preventDefault();
-      setAssetRecoveryPending(true);
+      void recoverFromStaleAssets();
     };
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       if (!isRecoverableLoadError(event.reason)) return;
       event.preventDefault();
-      setAssetRecoveryPending(true);
+      void recoverFromStaleAssets();
     };
 
     window.addEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
@@ -100,7 +78,7 @@ export default function App() {
 
   return (
     <AppErrorBoundary>
-      {assetRecoveryPending ? <StartupRecovery message="系统有新版本，点击后重新进入" onRecover={() => void recoverFromStaleAssets()} /> : <AppRoutes />}
+      <AppRoutes />
       {pendingUpdate && (
         <AppUpdatePrompt
           info={pendingUpdate}

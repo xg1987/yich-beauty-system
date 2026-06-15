@@ -18,6 +18,8 @@ export const CURRENT_APP_VERSION = packageJson.version;
 const CHECK_INTERVAL_MS = 60_000;
 const STARTUP_CHECK_DELAY_MS = 3_000;
 const DISMISSED_UPDATE_KEY = "yich-dismissed-update-version";
+const DISMISSED_UPDATE_DATE_KEY = "yich-dismissed-update-date";
+const PROMPTED_UPDATE_DATE_KEY = "yich-prompted-update-date";
 export const APP_UPDATE_AVAILABLE_EVENT = "yich-app-update-available";
 
 let promptedVersion = "";
@@ -56,11 +58,17 @@ async function checkForAppUpdate({ allowAutoPrompt }: { allowAutoPrompt: boolean
     const serverVersion = status.serverVersion;
     if (!status.updateAvailable || !serverVersion) return;
 
+    const today = currentDateKey();
+    const dismissedVersion = readLocalValue(DISMISSED_UPDATE_KEY);
+    const dismissedDate = readLocalValue(DISMISSED_UPDATE_DATE_KEY);
+    const promptedDate = readLocalValue(PROMPTED_UPDATE_DATE_KEY);
     const autoPrompt = allowAutoPrompt
       && serverVersion !== promptedVersion
-      && serverVersion !== readSessionValue(DISMISSED_UPDATE_KEY);
+      && !(serverVersion === dismissedVersion && dismissedDate === today)
+      && promptedDate !== today;
     if (autoPrompt) {
       promptedVersion = serverVersion;
+      writeLocalValue(PROMPTED_UPDATE_DATE_KEY, today);
     }
 
     window.dispatchEvent(new CustomEvent(APP_UPDATE_AVAILABLE_EVENT, {
@@ -101,7 +109,8 @@ export async function checkAppUpdateStatus(): Promise<AppUpdateStatus> {
 }
 
 export function dismissAppUpdatePrompt(serverVersion: string) {
-  writeSessionValue(DISMISSED_UPDATE_KEY, serverVersion);
+  writeLocalValue(DISMISSED_UPDATE_KEY, serverVersion);
+  writeLocalValue(DISMISSED_UPDATE_DATE_KEY, currentDateKey());
 }
 
 export async function reloadForAppUpdate(serverVersion: string) {
@@ -154,4 +163,29 @@ function writeSessionValue(key: string, value: string) {
   } catch {
     // Storage can be unavailable in restricted browser contexts.
   }
+}
+
+function readLocalValue(key: string) {
+  try {
+    return window.localStorage?.getItem(key) ?? readSessionValue(key);
+  } catch {
+    return readSessionValue(key);
+  }
+}
+
+function writeLocalValue(key: string, value: string) {
+  try {
+    window.localStorage?.setItem(key, value);
+    return;
+  } catch {
+    // Fall back to session storage below.
+  }
+  writeSessionValue(key, value);
+}
+
+function currentDateKey() {
+  const now = new Date();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }
