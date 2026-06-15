@@ -11,11 +11,11 @@ const violations: string[] = [];
 
 for (const file of files) {
   const source = readFileSync(join(process.cwd(), file), "utf8");
-  if (source.includes('model: "gpt-image-2"')) {
-    violations.push(`${file} still uses gpt-image-2 as a default model`);
+  if (source.includes('model: "gpt-image-1.5"')) {
+    violations.push(`${file} still uses gpt-image-1.5 as a default image model`);
   }
-  if (source.includes('placeholder="gpt-image-2"')) {
-    violations.push(`${file} still suggests gpt-image-2 in the UI`);
+  if (source.includes('"gpt-image-2": "gpt-image-1.5"')) {
+    violations.push(`${file} still remaps gpt-image-2 to gpt-image-1.5`);
   }
 }
 
@@ -23,16 +23,16 @@ const backendSource = readFileSync(join(process.cwd(), "functions/api/[[path]].t
 const appSource = readFileSync(join(process.cwd(), "src/app/AuthenticatedApp.tsx"), "utf8");
 const platformSource = readFileSync(join(process.cwd(), "src/app/platformViews.tsx"), "utf8");
 
-if (!backendSource.includes('"gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"')) {
-  violations.push("Backend must restrict OpenAI image models to supported GPT image models.");
+if (!backendSource.includes('"gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"')) {
+  violations.push("Backend must allow gpt-image-2 as the first supported OpenAI image model.");
 }
 
-if (!backendSource.includes('"gpt-image-2": "gpt-image-1.5"')) {
-  violations.push("Backend must remap the legacy gpt-image-2 value to a supported model.");
+if (!backendSource.includes('model: "gpt-image-2"')) {
+  violations.push("Backend default image model must be gpt-image-2.");
 }
 
-if (!appSource.includes('"gpt-image-2": "gpt-image-1.5"')) {
-  violations.push("Frontend config normalization must remap the legacy gpt-image-2 value.");
+if (!appSource.includes('model: "gpt-image-2"')) {
+  violations.push("Frontend default image model must be gpt-image-2.");
 }
 
 if (!platformSource.includes("OPENAI_IMAGE_MODEL_OPTIONS.map")) {

@@ -2165,11 +2165,8 @@ type AiTextModelConfig = {
   inputTokenUsdPerMillion: number;
   outputTokenUsdPerMillion: number;
 };
-const openAiImageModels = ["gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
+const openAiImageModels = ["gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
 type OpenAiImageModel = typeof openAiImageModels[number];
-const legacyOpenAiImageModelAliases: Record<string, OpenAiImageModel> = {
-  "gpt-image-2": "gpt-image-1.5",
-};
 type AiImageModelConfig = {
   enabled: boolean;
   provider: "openai";
@@ -2219,7 +2216,7 @@ const defaultAiGenerationConfig: AiGenerationConfig = {
   image: {
     enabled: true,
     provider: "openai",
-    model: "gpt-image-1.5",
+    model: "gpt-image-2",
     apiKey: "",
     defaultSize: "1024x1024",
     defaultQuality: "high",
@@ -2256,7 +2253,6 @@ function normalizeAiPrice(value: unknown) {
 function normalizeOpenAiImageModel(value: unknown, fallback: OpenAiImageModel): OpenAiImageModel {
   if (typeof value !== "string") return fallback;
   const model = value.trim();
-  if (model in legacyOpenAiImageModelAliases) return legacyOpenAiImageModelAliases[model];
   return openAiImageModels.includes(model as OpenAiImageModel) ? model as OpenAiImageModel : fallback;
 }
 

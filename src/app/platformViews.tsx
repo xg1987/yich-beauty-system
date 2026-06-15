@@ -80,7 +80,7 @@ type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
 type AiVideoResolution = "480p" | "720p" | "1080p";
 type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
 type AiTextModelConfig = { enabled: boolean; provider: Extract<AiProviderKey, "openai" | "deepseek">; model: string; apiKey: string; inputTokenUsdPerMillion: number; outputTokenUsdPerMillion: number };
-const OPENAI_IMAGE_MODEL_OPTIONS = ["gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
+const OPENAI_IMAGE_MODEL_OPTIONS = ["gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
 type OpenAiImageModel = typeof OPENAI_IMAGE_MODEL_OPTIONS[number];
 type AiImageModelConfig = { enabled: boolean; provider: "openai"; model: OpenAiImageModel; apiKey: string; defaultSize: "1024x1024" | "1024x1536" | "1536x1024"; defaultQuality: "standard" | "high"; maxImagesPerRequest: number; textInputUsdPerMillion: number; imageInputUsdPerMillion: number; imageOutputUsdPerMillion: number };
 type AiVideoProviderConfig = { provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo">; enabled: boolean; model: string; apiKey: string; defaultDurationSeconds: number; defaultResolution: AiVideoResolution; defaultAspectRatio: AiVideoAspectRatio; priceUsdBySpec: Record<string, number> };
@@ -94,7 +94,7 @@ const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = { copy: "A
 const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = { owner: { copy: true, image: true, video: true }, staff: { copy: true, image: true, video: false } };
 const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
   copy: { enabled: true, provider: "deepseek", model: "deepseek-v4-pro", apiKey: "", inputTokenUsdPerMillion: 0.435, outputTokenUsdPerMillion: 0.87 },
-  image: { enabled: true, provider: "openai", model: "gpt-image-1.5", apiKey: "", defaultSize: "1024x1024", defaultQuality: "high", maxImagesPerRequest: 4, textInputUsdPerMillion: 5, imageInputUsdPerMillion: 8, imageOutputUsdPerMillion: 30 },
+  image: { enabled: true, provider: "openai", model: "gpt-image-2", apiKey: "", defaultSize: "1024x1024", defaultQuality: "high", maxImagesPerRequest: 4, textInputUsdPerMillion: 5, imageInputUsdPerMillion: 8, imageOutputUsdPerMillion: 30 },
   video: { defaultProvider: "seedance", providers: [
     { provider: "seedance", enabled: true, model: "seedance-2.0", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.3408, "5s:720p": 0.7332, "5s:1080p": 1.8279, "10s:480p": 0.6816, "10s:720p": 1.4665, "10s:1080p": 3.6558, "15s:480p": 1.0224, "15s:720p": 2.1997, "15s:1080p": 5.4837 } },
     { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0, "5s:720p": 0.42, "5s:1080p": 0.56, "10s:480p": 0, "10s:720p": 0.84, "10s:1080p": 1.12, "15s:480p": 0, "15s:720p": 1.26, "15s:1080p": 1.68 } },
