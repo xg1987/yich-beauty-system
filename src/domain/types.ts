@@ -421,6 +421,7 @@ export type Order = {
   guestPhone?: string;
   staffId: string;
   serviceId: string;
+  serviceIds?: string[];
   serviceName?: string;
   servicePrice?: number;
   serviceConsumables?: ServiceConsumable[];

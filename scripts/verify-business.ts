@@ -57,11 +57,14 @@ import {
   updateTagDefinition,
   updateMemberCardStatus,
   upsertOnlineStorefront,
+  expireStaleMarketingAiRecords,
+  isStaleMarketingAiRecord,
+  MARKETING_AI_PENDING_TIMEOUT_MS,
   inviteDefaultDays,
 } from "../src/domain/business";
 import { buildCashierFlowRecords } from "../src/domain/cashierFlow";
 import { testFixtureData } from "../src/domain/testFixture";
-import type { AppData } from "../src/domain/types";
+import type { AppData, MarketingAiRecord } from "../src/domain/types";
 import { money } from "../src/domain/utils";
 import { isVersionGreater } from "../src/appUpdate";
 
@@ -87,6 +90,32 @@ function card(data: AppData, cardId: string) {
   assert.equal(isVersionGreater("0.1.236", "0.1.237"), false, "lower server version should not be updateable");
   assert.equal(isVersionGreater("0.1.237", "0.1.237"), false, "same version should not be updateable");
   assert.equal(isVersionGreater("0.2.0", "0.1.237"), true, "higher minor version should be updateable");
+}
+
+{
+  const now = new Date("2026-05-24T01:00:00.000Z");
+  const stalePendingRecord: MarketingAiRecord = {
+    id: "ai_stale_pending",
+    storeId: "store_test",
+    kind: "copy",
+    title: "AI营销内容",
+    status: "生成中",
+    text: "任务已提交，后台正在生成。",
+    createdBy: "u_manager",
+    createdByName: "店长",
+    createdAt: "2026-05-24T00:48:00.000Z",
+  };
+  const freshPendingRecord: MarketingAiRecord = {
+    ...stalePendingRecord,
+    id: "ai_fresh_pending",
+    createdAt: new Date(now.getTime() - MARKETING_AI_PENDING_TIMEOUT_MS + 60_000).toISOString(),
+  };
+  assert.equal(isStaleMarketingAiRecord(stalePendingRecord, now), true, "old pending AI marketing record should be stale");
+  assert.equal(isStaleMarketingAiRecord(freshPendingRecord, now), false, "recent pending AI marketing record should keep waiting");
+  const reconciled = expireStaleMarketingAiRecords({ ...cloneSeed(), marketingAiRecords: [stalePendingRecord, freshPendingRecord] }, now);
+  assert.equal(reconciled.marketingAiRecords[0].status, "生成失败", "stale pending AI marketing record should fail instead of waiting forever");
+  assert.match(reconciled.marketingAiRecords[0].errorMessage ?? "", /超过10分钟/, "stale pending AI marketing record should explain timeout");
+  assert.equal(reconciled.marketingAiRecords[1].status, "生成中", "fresh pending AI marketing record should remain pending");
 }
 
 function signedRefundSignature(data: AppData, customerId: string, cardName = "尊享储值卡", refundAmount = 500, payMethod = "微信") {
@@ -1366,6 +1395,33 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     /收银信息与预约不一致/,
     "appointment checkout should reject mismatched service",
   );
+
+  const noServiceAppointmentData = createAppointment(
+    cloneSeed(),
+    {
+      customerId: "c1",
+      staffId: "s3",
+      startAt: "2026-05-26T02:00:00.000Z",
+      endAt: "2026-05-26T03:00:00.000Z",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(noServiceAppointmentData.appointments[0].serviceId, "", "appointment should allow service to be confirmed at checkout");
+  assert.deepEqual(noServiceAppointmentData.appointments[0].serviceIds, [], "appointment should persist an empty service list when service is checkout-confirmed");
+  const arrivedNoServiceAppointment = updateAppointmentStatus(noServiceAppointmentData, { appointmentId: noServiceAppointmentData.appointments[0].id, status: "已到店" }, { now: fixedNow });
+  const noServiceAppointmentCheckout = checkoutOrder(
+    arrivedNoServiceAppointment,
+    {
+      customerId: noServiceAppointmentData.appointments[0].customerId,
+      staffId: noServiceAppointmentData.appointments[0].staffId,
+      serviceId: "v2",
+      appointmentId: noServiceAppointmentData.appointments[0].id,
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(noServiceAppointmentCheckout.orders[0].serviceId, "v2", "checkout should choose the actual service for a service-empty appointment");
+  assert.equal(noServiceAppointmentCheckout.appointments[0].status, "已完成", "checkout should complete a service-empty appointment");
 }
 
 {
@@ -1516,6 +1572,31 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(checkedOutWithSecondService.memberCards[0].remainingTimes, 9, "times card should debit for any selected service");
+  const checkedOutWithTwoServices = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceIds: ["v2", "v2"],
+      payMethod: "会员卡",
+      cardId: opened.memberCards[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOutWithTwoServices.memberCards[0].remainingTimes, 8, "times card should debit one use per selected service quantity");
+  assert.deepEqual(checkedOutWithTwoServices.orders[0].serviceIds, ["v2", "v2"], "order should preserve service quantities as repeated service ids");
+  assert.match(checkedOutWithTwoServices.orders[0].serviceName ?? "", /x2/, "order service snapshot should include service quantity");
+  assert.equal(checkedOutWithTwoServices.memberCardTransactions[0].timesDelta, -2, "member-card transaction should record service quantity debit");
+  const refundedTwoServices = refundOrder(
+    checkedOutWithTwoServices,
+    {
+      orderId: checkedOutWithTwoServices.orders[0].id,
+      reason: "多份服务退款",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(refundedTwoServices.memberCards[0].remainingTimes, 10, "refund should restore every debited service quantity");
 }
 
 {

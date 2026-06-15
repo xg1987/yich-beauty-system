@@ -45,6 +45,7 @@ import {
   isStoreStaffInviteCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  expireStaleMarketingAiRecords,
   normalizeStoreAiUsagePermissions,
   normalizeStoreOperationalPermissions,
   normalizeStoreScopedData,
@@ -917,7 +918,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           storeId: sessionStoreId(data, session),
           customerId: requiredString(body, "customerId"),
           staffId: requestedStaffId,
-          serviceId: requiredString(body, "serviceId"),
+          serviceId: optionalString(body, "serviceId"),
           serviceIds: optionalStringArray(body, "serviceIds"),
           startAt: requiredString(body, "startAt"),
           endAt: optionalString(body, "endAt"),
@@ -931,7 +932,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const serviceNames = (appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId])
         .map((serviceId) => appointedData.services.find((item) => item.id === serviceId)?.name)
         .filter(Boolean)
-        .join("、");
+        .join("、") || "到店确认项目";
       const nextData = addSystemNotification(appointedData, {
         title: "新的到店预约",
         desc: `${customer?.name ?? "客户"} · ${serviceNames || service?.name || "项目"} · ${shortTimeText(appointment.startAt)}`,
@@ -3439,15 +3440,19 @@ function isSliceRequest(request: Request) {
   return request.headers.get("X-App-Data-Mode") === "slice";
 }
 
-function readDataForRequest(database: D1BeautyDatabase, request: Request, session: UserSession) {
+async function readDataForRequest(database: D1BeautyDatabase, request: Request, session: UserSession) {
   const requestedView = requestedDataView(request);
+  let data: AppData;
   if (isSliceRequest(request) && requestedView) {
     if (session.user.role !== "superadmin" && session.user.storeId) {
-      return database.readDataTablesForStore(dataKeysForView(requestedView), session.user.storeId);
+      data = await database.readDataTablesForStore(dataKeysForView(requestedView), session.user.storeId);
+    } else {
+      data = await database.readDataTables(dataKeysForView(requestedView));
     }
-    return database.readDataTables(dataKeysForView(requestedView));
+  } else {
+    data = await database.readData();
   }
-  return database.readData();
+  return expireStaleMarketingAiRecords(data);
 }
 
 function sendScopedData(request: Request, statusCode: number, data: AppData, session: UserSession) {

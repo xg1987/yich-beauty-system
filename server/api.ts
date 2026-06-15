@@ -48,6 +48,7 @@ import {
   joinInviteByCode,
   markAllVisibleNotificationsRead,
   markNotificationRead,
+  expireStaleMarketingAiRecords,
   normalizeStoreAiUsagePermissions,
   normalizeStoreOperationalPermissions,
   normalizeStoreScopedData,
@@ -900,7 +901,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             storeId: sessionStoreId(data, session),
             customerId: requiredString(body, "customerId"),
             staffId: requestedStaffId,
-            serviceId: requiredString(body, "serviceId"),
+            serviceId: optionalString(body, "serviceId"),
             serviceIds: optionalStringArray(body, "serviceIds"),
             startAt: requiredString(body, "startAt"),
             endAt: optionalString(body, "endAt"),
@@ -914,7 +915,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const serviceNames = (appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId])
           .map((serviceId) => appointedData.services.find((item) => item.id === serviceId)?.name)
           .filter(Boolean)
-          .join("、");
+          .join("、") || "到店确认项目";
         const nextData = addSystemNotification(appointedData, {
           title: "新的到店预约",
           desc: `${customer?.name ?? "客户"} · ${serviceNames || service?.name || "项目"} · ${shortTimeText(appointment.startAt)}`,
@@ -3270,13 +3271,13 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
 }
 
 function readDataForRequest(database: BeautyDatabase, request: IncomingMessage, session: UserSession) {
-  if (!isSliceRequest(request)) return database.readData();
+  if (!isSliceRequest(request)) return expireStaleMarketingAiRecords(database.readData());
   const requestedView = requestedDataView(request);
-  if (!requestedView) return database.readData();
-  if (session.user.role !== "superadmin" && session.user.storeId) {
-    return database.readDataTablesForStore(dataKeysForView(requestedView), session.user.storeId);
-  }
-  return database.readDataTables(dataKeysForView(requestedView));
+  if (!requestedView) return expireStaleMarketingAiRecords(database.readData());
+  const data = session.user.role !== "superadmin" && session.user.storeId
+    ? database.readDataTablesForStore(dataKeysForView(requestedView), session.user.storeId)
+    : database.readDataTables(dataKeysForView(requestedView));
+  return expireStaleMarketingAiRecords(data);
 }
 
 function sendScopedData(request: IncomingMessage, response: ServerResponse, statusCode: number, data: AppData, session: UserSession) {

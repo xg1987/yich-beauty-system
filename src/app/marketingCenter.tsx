@@ -4,6 +4,7 @@ import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
 import { aiFreeQuotaState } from "../domain/aiBilling";
+import { isMarketingAiRecordPending, isStaleMarketingAiRecord } from "../domain/business";
 import type { AppData, MarketingAiRecord } from "../domain/types";
 import type { ApiActions } from "../hooks/useApiData";
 import {
@@ -94,6 +95,7 @@ const videoDurations = [5, 10, 15];
 const MAX_MARKETING_ASSET_BYTES = 8 * 1024 * 1024;
 const USD_TO_CNY_DISPLAY_RATE = 6.77;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MARKETING_PENDING_LOST_MESSAGE = "后台生成任务超过10分钟仍未返回结果，可能已被服务重启、供应商超时或网络中断终止。请重新生成。";
 
 function localDateOnly(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
@@ -256,7 +258,7 @@ function marketingRecordTitle(record: MarketingAiRecord) {
 
 function marketingRecordSummary(record: MarketingAiRecord) {
   if (record.status === "生成失败") return compactRecordText(record.errorMessage || record.text || "生成失败").slice(0, 48);
-  if (record.status === "生成中") return "正在生成，请稍后查看结果";
+  if (isMarketingAiRecordPending(record)) return "正在生成，请稍后查看结果";
   const content = marketingRecordPreviewText(record);
   if (content) return content.slice(0, 48);
   return [
@@ -276,6 +278,17 @@ function marketingRecordMeta(record: MarketingAiRecord) {
     compactRecordText(record.channel) || "未标记渠道",
     shortRecordTime(record.createdAt),
   ].filter(Boolean).join(" · ");
+}
+
+function staleMarketingAiRecord(record: MarketingAiRecord): MarketingAiRecord {
+  if (!isStaleMarketingAiRecord(record)) return record;
+  return {
+    ...record,
+    status: "生成失败",
+    text: MARKETING_PENDING_LOST_MESSAGE,
+    errorMessage: MARKETING_PENDING_LOST_MESSAGE,
+    elapsedMs: Math.max(0, Date.now() - new Date(record.createdAt).getTime()),
+  };
 }
 
 function shortRecordTime(value: string) {
@@ -375,11 +388,14 @@ export function MarketingCenter({
     customRequirement.trim(),
   ].filter(Boolean).join("\n");
   const previewSummaryItems = [marketingNode, customerType, bodyState, channel, marketingGoal];
-  const marketingAiRecords = [...(data.marketingAiRecords ?? [])].sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
+  const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
-  const hasPendingMarketingAiRecords = marketingAiRecords.some((record) => record.status === "生成中");
+  const latestGenerationResultRecord = generationResult?.record?.id ? marketingAiRecords.find((record) => record.id === generationResult.record?.id) : undefined;
+  const generationResultRecord = generationResult?.record ? staleMarketingAiRecord(latestGenerationResultRecord ?? generationResult.record) : undefined;
+  const hasPendingMarketingAiRecords = marketingAiRecords.some((record) => isMarketingAiRecordPending(record) && !isStaleMarketingAiRecord(record));
+  const hasPendingGenerationResult = Boolean(generationResultRecord && isMarketingAiRecordPending(generationResultRecord) && !isStaleMarketingAiRecord(generationResultRecord));
   const selectedMarketingRecord = marketingAiRecords.find((record) => record.id === selectedRecordId);
-  const dialogRecord = selectedMarketingRecord ?? generationResult?.record;
+  const dialogRecord = selectedMarketingRecord ?? generationResultRecord;
   const dialogText = dialogRecord?.text ?? generationResult?.text;
   const dialogImageDataUrl = dialogRecord?.imageDataUrl ?? generationResult?.imageDataUrl;
   const dialogVideoUrl = dialogRecord?.videoUrl ?? generationResult?.videoUrl;
@@ -448,12 +464,12 @@ export function MarketingCenter({
   }, [contentState.enabled, contentState.label, permissionStateKey]);
 
   useEffect(() => {
-    if (!hasPendingMarketingAiRecords || !refreshMarketingData) return undefined;
+    if ((!hasPendingMarketingAiRecords && !hasPendingGenerationResult) || !refreshMarketingData) return undefined;
     const intervalId = window.setInterval(() => {
       void refreshMarketingData();
     }, 5000);
     return () => window.clearInterval(intervalId);
-  }, [hasPendingMarketingAiRecords, refreshMarketingData]);
+  }, [hasPendingGenerationResult, hasPendingMarketingAiRecords, refreshMarketingData]);
 
   const generate = async () => {
     if (!contentState.enabled) {
@@ -835,7 +851,7 @@ export function MarketingCenter({
           <PanelTitle icon={<Sparkles size={18} />} title="生成记录" action={`${selectedGenerationMode.title} · ${typedMarketingAiRecords.length} 条`} />
           <div className="marketing-record-list">
             {typedMarketingAiRecords.slice(0, 12).map((record) => {
-              const recordPending = record.status === "生成中";
+              const recordPending = isMarketingAiRecordPending(record);
               return (
                 <article
                   key={record.id}

@@ -637,7 +637,7 @@ export function appointmentTimeRange(data: AppData, appointment: Appointment) {
 }
 
 export function appointmentServiceNames(data: AppData, appointment: Pick<Appointment, "serviceId" | "serviceIds">) {
-  return appointmentServiceIds(appointment).map((serviceId) => nameOf(data.services, serviceId)).join("、") || "未选择项目";
+  return appointmentServiceIds(appointment).map((serviceId) => nameOf(data.services, serviceId)).join("、") || "到店确认项目";
 }
 
 function findStaffAppointmentConflict(data: AppData, staffId: string, startAt: Date, endAt: Date) {
@@ -2842,14 +2842,9 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
   const [appointmentCustomerSearch, setAppointmentCustomerSearch] = useState("");
   const [staffId, setStaffId] = useState(defaultAppointmentStaffId);
-  const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
-  const [serviceIds, setServiceIds] = useState<string[]>(() => data.services[0]?.id ? [data.services[0].id] : []);
   const [startAt, setStartAt] = useState(() => nextAppointmentDateTimeRange().start);
   const [endAt, setEndAt] = useState(() => nextAppointmentDateTimeRange().end);
   const [note, setNote] = useState("");
-  const [appointmentServicePickerOpen, setAppointmentServicePickerOpen] = useState(false);
-  const [appointmentServicePickerCategory, setAppointmentServicePickerCategory] = useState("全部");
-  const [appointmentServicePickerSearch, setAppointmentServicePickerSearch] = useState("");
   const [blockedStaffId, setBlockedStaffId] = useState(serviceStaff[1]?.id ?? serviceStaff[0]?.id ?? "");
   const [blockedStartAt, setBlockedStartAt] = useState(toLocalInputValue(tomorrowAt(16)));
   const [blockedEndAt, setBlockedEndAt] = useState(toLocalInputValue(tomorrowAt(17)));
@@ -2897,23 +2892,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   }, [blockedStaffId, defaultAppointmentStaffId, onlineRequestStaffId, rescheduleStaffId, serviceStaff, shiftStaffId, staffId]);
 
   useEffect(() => {
-    const validIds = new Set(data.services.map((service) => service.id));
-    const fallbackServiceId = data.services[0]?.id ?? "";
-    setServiceIds((current) => {
-      const nextIds = current.filter((id) => validIds.has(id));
-      if (nextIds.length) return nextIds;
-      return fallbackServiceId ? [fallbackServiceId] : [];
-    });
-    setServiceId((current) => validIds.has(current) ? current : fallbackServiceId);
-    setRescheduleServiceIds((current) => {
-      const nextIds = current.filter((id) => validIds.has(id));
-      if (nextIds.length) return nextIds;
-      return fallbackServiceId ? [fallbackServiceId] : [];
-    });
-    setRescheduleServiceId((current) => validIds.has(current) ? current : fallbackServiceId);
-  }, [data.services]);
-
-  useEffect(() => {
     const currentStartAt = new Date(startAt);
     const currentEndAt = new Date(endAt);
     if (Number.isNaN(currentStartAt.getTime())) return;
@@ -2936,8 +2914,8 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
       actions.addAppointment({
         customerId,
         staffId,
-        serviceId,
-        serviceIds,
+        serviceId: "",
+        serviceIds: [],
         startAt: new Date(startAt).toISOString(),
         endAt: new Date(endAt).toISOString(),
         roomName,
@@ -3005,70 +2983,20 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     });
   };
 
-  const appointmentServiceCategoryName = (service: Service) => service.category?.trim() || "未分类";
-  const appointmentServicePickerCategories = [
-    "全部",
-    ...Array.from(new Set(data.services.map(appointmentServiceCategoryName))),
-  ];
-  const appointmentServicesInCategory = (category: string) =>
-    category === "全部" ? data.services : data.services.filter((service) => appointmentServiceCategoryName(service) === category);
-  const appointmentServicePickerCategoryCount = (category: string) => appointmentServicesInCategory(category).length;
-  const normalizedAppointmentServiceSearch = appointmentServicePickerSearch.trim().toLowerCase();
-  const appointmentServicePickerServices = appointmentServicesInCategory(appointmentServicePickerCategory).filter((service) => {
-    const searchTarget = `${service.name} ${service.category}`.toLowerCase();
-    return !normalizedAppointmentServiceSearch || searchTarget.includes(normalizedAppointmentServiceSearch);
-  });
-
-  const openAppointmentServicePicker = () => {
-    setAppointmentServicePickerCategory("全部");
-    setAppointmentServicePickerSearch("");
-    setAppointmentServicePickerOpen(true);
-  };
-
   const openAppointmentForm = () => {
     if (!hasConfiguredRooms) {
       setView("roomSettings");
       return;
     }
     const nextRange = nextAppointmentDateTimeRange();
-    const fallbackServiceId = data.services[0]?.id ?? "";
     setCustomerId((current) => data.customers.some((customer) => customer.id === current) ? current : data.customers[0]?.id ?? "");
     setAppointmentCustomerSearch("");
     setStaffId(defaultAppointmentStaffId);
-    setServiceId(fallbackServiceId);
-    setServiceIds(fallbackServiceId ? [fallbackServiceId] : []);
     setStartAt(nextRange.start);
     setEndAt(nextRange.end);
     setRoomName(roomNames[0] ?? "");
     setNote("");
     setShowAppointmentForm(true);
-  };
-
-  const toggleAppointmentService = (nextServiceId: string) => {
-    setServiceIds((current) => {
-      const nextIds = current.includes(nextServiceId)
-        ? current.filter((id) => id !== nextServiceId)
-        : [...current, nextServiceId];
-      const normalizedIds = nextIds.length ? nextIds : [nextServiceId];
-      setServiceId(normalizedIds[0]);
-      return normalizedIds;
-    });
-    const currentStartAt = new Date(startAt);
-    const currentEndAt = new Date(endAt);
-    if (!Number.isNaN(currentStartAt.getTime()) && (!Number.isFinite(currentEndAt.getTime()) || !(currentStartAt < currentEndAt))) {
-      setEndAt(toLocalInputValue(new Date(currentStartAt.getTime() + 60 * 60 * 1000).toISOString()));
-    }
-  };
-
-  const toggleRescheduleService = (nextServiceId: string) => {
-    setRescheduleServiceIds((current) => {
-      const nextIds = current.includes(nextServiceId)
-        ? current.filter((id) => id !== nextServiceId)
-        : [...current, nextServiceId];
-      const normalizedIds = nextIds.length ? nextIds : [nextServiceId];
-      setRescheduleServiceId(normalizedIds[0]);
-      return normalizedIds;
-    });
   };
 
   const addBlockedSlot = (event: FormEvent) => {
@@ -3132,8 +3060,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     );
   const pendingServiceSignatureTasks = [...arrivedServiceSignatureTasks, ...completedServiceSignatureTasks]
     .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
-  const selectedServices = serviceIds.map((id) => data.services.find((item) => item.id === id)).filter((service): service is Service => Boolean(service));
-  const selectedService = selectedServices[0] ?? data.services.find((item) => item.id === serviceId);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
   const selectedTimeRangeInvalid = Number.isNaN(selectedStartAt.getTime()) || Number.isNaN(selectedEndAt.getTime()) || !(selectedStartAt < selectedEndAt);
@@ -3204,8 +3130,8 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const rescheduleEndDate = new Date(rescheduleEndAt);
   const rescheduleTimeRangeInvalid = Number.isNaN(rescheduleStartDate.getTime()) || Number.isNaN(rescheduleEndDate.getTime()) || !(rescheduleStartDate < rescheduleEndDate);
   const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
-  const appointmentSaveDisabled = !staffId || serviceIds.length === 0 || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
-  const rescheduleSaveDisabled = !rescheduleStaffId || rescheduleServiceIds.length === 0 || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
+  const appointmentSaveDisabled = !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const rescheduleSaveDisabled = !rescheduleStaffId || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
     if (appointment.status === "已完成") {
       return (
@@ -3288,7 +3214,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         <time>{appointmentTimeRange(data, appointment)}</time>
         <Badge text={signature ? "待服务签名" : order ? "待生成签名" : "已到店待服务"} tone="warn" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
-        <span>{order ? nameOf(data.services, order.serviceId) : appointmentServiceNames(data, appointment)} · {nameOf(data.staff, order?.staffId ?? appointment.staffId)}</span>
+        <span>{order ? order.serviceName ?? nameOf(data.services, order.serviceId) : appointmentServiceNames(data, appointment)} · {nameOf(data.staff, order?.staffId ?? appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
@@ -3503,30 +3429,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
               onChange={setStaffId}
               options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先到人员账号新增人员" }]}
             />
-            <div className="appointment-service-picker">
-              <div className="checkout-product-section-head">
-                <span>服务项目</span>
-                <button type="button" onClick={openAppointmentServicePicker}>
-                  <Sparkles size={15} />
-                  选择项目
-                </button>
-              </div>
-              {selectedServices.length ? (
-                <div className="checkout-service-stack">
-                  {selectedServices.map((service) => (
-                    <div className="checkout-service-line" key={service.id}>
-                      <div>
-                        <strong>{service.name}</strong>
-                        <span>{service.category || "未分类"} · {service.duration} 分钟</span>
-                      </div>
-                      <span>{money(service.price)}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="checkout-product-empty">还没有选择项目</div>
-              )}
-            </div>
             <div className="appointment-time-grid">
               <DateTimeInput label="开始时间" value={startAt} onChange={setStartAt} minDateTime={minAppointmentDateTime} />
               <DateTimeInput label="结束时间" value={endAt} onChange={setEndAt} minDateTime={startAt > minAppointmentDateTime ? startAt : minAppointmentDateTime} />
@@ -3580,56 +3482,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         </div>
       </Modal>
       <Modal
-        open={appointmentServicePickerOpen}
-        title="选择项目"
-        subtitle="按项目分类选择服务"
-        size="large"
-        onClose={() => setAppointmentServicePickerOpen(false)}
-      >
-        <div className="product-picker-modal">
-          <div className="product-picker-filters">
-            <label>
-              <Search size={15} />
-              <input value={appointmentServicePickerSearch} {...searchInputSync(setAppointmentServicePickerSearch)} placeholder="搜索项目名称或分类" />
-            </label>
-            <div className="product-picker-category-list">
-              {appointmentServicePickerCategories.map((category) => (
-                <button
-                  type="button"
-                  key={category}
-                  className={category === appointmentServicePickerCategory ? "active" : ""}
-                  onClick={() => setAppointmentServicePickerCategory(category)}
-                >
-                  <span>{category}</span>
-                  <em>{appointmentServicePickerCategoryCount(category)}</em>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="product-picker-grid">
-            {appointmentServicePickerServices.length ? appointmentServicePickerServices.map((service) => (
-              <button
-                type="button"
-                className={`product-picker-card service-picker-card ${serviceIds.includes(service.id) ? "selected" : ""}`}
-                key={service.id}
-                onClick={() => toggleAppointmentService(service.id)}
-              >
-                <div>
-                  <strong>{service.name}</strong>
-                  <span>{service.category || "未分类"} · {service.duration} 分钟</span>
-                </div>
-                <div className="product-picker-card-meta">
-                  <span>{money(service.price)}</span>
-                  <small>{service.defaultTimes ?? 1} 次默认</small>
-                </div>
-              </button>
-            )) : (
-              <div className="product-picker-empty">没有匹配的项目</div>
-            )}
-          </div>
-        </div>
-      </Modal>
-      <Modal
         open={activeAppointmentAction === "reschedule"}
         title="改约"
         subtitle={activeAppointment ? `${nameOf(data.customers, activeAppointment.customerId)} · ${appointmentTimeRange(data, activeAppointment)}` : "调整预约时间和房间"}
@@ -3643,30 +3495,6 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
             onChange={setRescheduleStaffId}
             options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先新增人员" }]}
           />
-          <div className="appointment-service-picker">
-            <div className="checkout-product-section-head">
-              <span>服务项目</span>
-              <strong>{rescheduleServiceIds.map((id) => nameOf(data.services, id)).join("、") || "未选择"}</strong>
-            </div>
-            <div className="product-picker-grid compact-service-grid">
-              {data.services.map((service) => (
-                <button
-                  type="button"
-                  className={`product-picker-card service-picker-card ${rescheduleServiceIds.includes(service.id) ? "selected" : ""}`}
-                  key={service.id}
-                  onClick={() => toggleRescheduleService(service.id)}
-                >
-                  <div>
-                    <strong>{service.name}</strong>
-                    <span>{service.category || "未分类"} · {service.duration} 分钟</span>
-                  </div>
-                  <div className="product-picker-card-meta">
-                    <span>{money(service.price)}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
           <div className="appointment-time-grid">
             <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={setRescheduleStartAt} minDateTime={minAppointmentDateTime} />
             <DateTimeInput label="结束时间" value={rescheduleEndAt} onChange={setRescheduleEndAt} minDateTime={rescheduleStartAt > minAppointmentDateTime ? rescheduleStartAt : minAppointmentDateTime} />
@@ -3891,8 +3719,30 @@ function Pos({
     })
     .filter((item): item is CheckoutCartItem & { product: Product } => Boolean(item));
   const productSubtotal = checkoutProductRows.reduce((sum, item) => sum + item.amount, 0);
-  const selectedServices = data.services.filter((service) => checkoutServiceIds.includes(service.id));
+  const selectedServices = checkoutServiceIds
+    .map((serviceId) => data.services.find((service) => service.id === serviceId))
+    .filter((service): service is Service => Boolean(service));
+  const selectedServiceRows = Array.from(
+    selectedServices.reduce((rows, service) => {
+      const current = rows.get(service.id);
+      rows.set(service.id, {
+        service,
+        quantity: (current?.quantity ?? 0) + 1,
+      });
+      return rows;
+    }, new Map<string, { service: Service; quantity: number }>()).values(),
+  );
   const serviceSubtotal = selectedServices.reduce((sum, service) => sum + service.price, 0);
+  const focusedCheckoutServiceId = usesService ? selectedServiceRows[0]?.service.id : undefined;
+  const selectedCustomerCheckoutCards = usesCustomer
+    ? data.memberCards.filter((card) => card.customerId === customerId && card.status === "正常")
+    : [];
+  const checkoutCardSelectedServiceText = (card: AppData["memberCards"][number]) => {
+    if (!usesService || selectedServiceRows.length === 0) return memberCardTimesText(card, data.services);
+    return selectedServiceRows
+      .map(({ service, quantity }) => `${service.name} 需${quantity}份 / ${memberCardTimesText(card, data.services, service.id)}`)
+      .join("；");
+  };
   const total = (usesService ? serviceSubtotal : 0) + (usesProduct ? productSubtotal : 0);
   const checkoutDiscountedPrice = Math.max(0, total - discountAmount);
   const checkoutSavedAmount = Math.max(0, discountAmount);
@@ -4182,6 +4032,17 @@ function Pos({
     setServicePickerOpen(true);
   };
 
+  const setCheckoutServiceQuantity = (nextServiceId: string, quantity: number) => {
+    const nextQuantity = Math.max(0, Math.floor(quantity));
+    clearAppointment();
+    resetCheckoutDiscount();
+    setCheckoutServiceIds((previous) => {
+      const otherServiceIds = previous.filter((id) => id !== nextServiceId);
+      if (nextQuantity <= 0) return otherServiceIds;
+      return [...otherServiceIds, ...Array.from({ length: nextQuantity }, () => nextServiceId)];
+    });
+  };
+
   const selectCheckoutService = (nextServiceId: string) => {
     clearAppointment();
     resetCheckoutDiscount();
@@ -4396,7 +4257,7 @@ function Pos({
         staffId,
         collaboratorStaffIds: usesService ? collaboratorStaffIds : [],
         serviceId: usesService ? selectedServices[0]?.id : undefined,
-        serviceIds: usesService ? selectedServices.map((service) => service.id) : undefined,
+        serviceIds: usesService ? checkoutServiceIds : undefined,
         productItems: usesProduct ? checkoutProductItems : undefined,
         giftProductItems: usesProduct ? checkoutGiftItems : undefined,
         discountAmount: discountAmount || undefined,
@@ -4665,13 +4526,30 @@ function Pos({
                   <span>服务项目</span>
                   <strong>{money(serviceSubtotal)}</strong>
                 </div>
-                {selectedServices.length ? (
-                  selectedServices.map((service) => (
+                {selectedServiceRows.length ? (
+                  selectedServiceRows.map(({ service, quantity }) => (
                     <div className="checkout-service-line" key={service.id}>
                       <div>
                         <strong>{service.name}</strong>
+                        <span>{service.category || "未分类"} · 单价 {money(service.price)}</span>
                       </div>
-                      <span>{money(service.price)}</span>
+                      <div className="checkout-product-qty" aria-label={`${service.name} 份数`}>
+                        <button type="button" aria-label={`减少${service.name}`} onClick={() => setCheckoutServiceQuantity(service.id, quantity - 1)}>
+                          <Minus size={14} />
+                        </button>
+                        <input
+                          inputMode="numeric"
+                          value={quantity}
+                          onChange={(event) => setCheckoutServiceQuantity(service.id, Number(event.target.value))}
+                        />
+                        <button type="button" aria-label={`添加${service.name}`} onClick={() => setCheckoutServiceQuantity(service.id, quantity + 1)}>
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                      <span>{money(service.price * quantity)}</span>
+                      <button type="button" className="checkout-product-remove" onClick={() => setCheckoutServiceQuantity(service.id, 0)} aria-label={`移除${service.name}`}>
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   ))
                 ) : (
@@ -4823,6 +4701,29 @@ function Pos({
             </div>
           )}
           {usesCustomer && usesService && (
+            <div className="checkout-customer-card-summary">
+              <div className="checkout-product-section-head">
+                <span>客户可用服务</span>
+                <strong>{selectedCustomerCheckoutCards.length ? `${selectedCustomerCheckoutCards.length} 张有效卡` : "暂无有效卡"}</strong>
+              </div>
+              {selectedCustomerCheckoutCards.length ? (
+                <div className="checkout-customer-card-list">
+                  {selectedCustomerCheckoutCards.map((card) => (
+                    <div className="checkout-customer-card-row" key={card.id}>
+                      <div>
+                        <strong>{card.name}</strong>
+                        <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
+                      </div>
+                      <em>{checkoutCardSelectedServiceText(card)}</em>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="checkout-product-empty">当前客户暂无可用卡，可现金、微信等方式购买服务。</div>
+              )}
+            </div>
+          )}
+          {usesCustomer && usesService && (
             <>
               <Select
                 label="关联到店预约（可选）"
@@ -4845,7 +4746,7 @@ function Pos({
               value={cardId}
               onChange={setCardId}
               options={availableCards.length
-                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, usesService ? selectedServices[0]?.id : undefined)}` }))
+                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, focusedCheckoutServiceId)}` }))
                 : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "商品购买仅支持储值卡" }]}
             />
           )}
@@ -5062,10 +4963,12 @@ function Pos({
             </div>
           </div>
           <div className="product-picker-grid">
-            {servicePickerServices.length ? servicePickerServices.map((service) => (
+            {servicePickerServices.length ? servicePickerServices.map((service) => {
+              const quantity = checkoutServiceIds.filter((id) => id === service.id).length;
+              return (
               <button
                 type="button"
-                className={`product-picker-card service-picker-card ${checkoutServiceIds.includes(service.id) ? "selected" : ""}`}
+                className={`product-picker-card service-picker-card ${quantity > 0 ? "selected" : ""}`}
                 key={service.id}
                 onClick={() => selectCheckoutService(service.id)}
               >
@@ -5075,10 +4978,11 @@ function Pos({
                 </div>
                 <div className="product-picker-card-meta">
                   <span>{money(service.price)}</span>
-                  <small>{service.defaultTimes ?? 1} 次默认</small>
+                  <small>{quantity > 0 ? `已选 ${quantity} 份` : "默认 1 份"}</small>
                 </div>
               </button>
-            )) : (
+              );
+            }) : (
               <div className="product-picker-empty">没有匹配的项目</div>
             )}
           </div>
@@ -5586,7 +5490,9 @@ function Customers({
   const serviceProductSummary = (order: Order) => {
     const service = data.services.find((item) => item.id === order.serviceId);
     const consumables =
-      service?.consumables?.length
+      order.serviceConsumables?.length
+        ? order.serviceConsumables
+        : service?.consumables?.length
         ? service.consumables
         : service?.consumableProductId && service.consumableQty
           ? [{ productId: service.consumableProductId, quantity: service.consumableQty }]
@@ -5626,7 +5532,7 @@ function Customers({
     if (!orderId) return;
     const order = data.orders.find((item) => item.id === orderId);
     if (!order) return;
-    const serviceName = nameOf(data.services, order.serviceId);
+    const serviceName = order.serviceName || nameOf(data.services, order.serviceId);
     const cardText = cardConsumptionSummary(order);
     setRecordCustomerId(order.customerId);
     setRecordStaffId(order.staffId);
@@ -5646,7 +5552,7 @@ function Customers({
       .filter((order) => order.customerId === recordCustomerId && order.serviceId && !recordLinkedOrderIds.has(order.id) && order.status !== "已退款")
       .map((order) => ({
         value: order.id,
-        label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}${cardConsumptionSummary(order) ? ` · ${cardConsumptionSummary(order)}` : ""}`,
+        label: `${order.orderNo} · ${order.serviceName || nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}${cardConsumptionSummary(order) ? ` · ${cardConsumptionSummary(order)}` : ""}`,
       })),
   ];
   const signatureRecordOptions = [
@@ -5664,7 +5570,7 @@ function Customers({
       .filter((order) => order.customerId === signatureCustomerId && order.serviceId && order.status !== "已退款")
       .map((order) => ({
         value: order.id,
-        label: `${order.orderNo} · ${nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}`,
+        label: `${order.orderNo} · ${order.serviceName || nameOf(data.services, order.serviceId)} · ${money(order.paidAmount)}`,
       })),
   ];
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
@@ -6004,7 +5910,7 @@ function Customers({
                     rows={selectedCustomerOrders.map((order) => [
                       shortDate(order.createdAt),
                       order.orderNo,
-                      serviceProductSummary(order) || nameOf(data.services, order.serviceId) || "未关联项目",
+                      order.serviceName || serviceProductSummary(order) || nameOf(data.services, order.serviceId) || "未关联项目",
                       nameOf(data.staff, order.staffId),
                       money(order.totalAmount),
                       money(order.paidAmount),
@@ -7841,7 +7747,9 @@ export function signatureRecordContext(data: AppData, signature: CustomerSignatu
     customerName: nameOf(data.customers, signature.customerId),
     order,
     orderNo: order?.orderNo ?? "-",
-    serviceName: serviceId ? nameOf(data.services, serviceId) : productLines.join(" + ") || "收银",
+    serviceName: serviceRecord?.serviceId
+      ? nameOf(data.services, serviceRecord.serviceId)
+      : order?.serviceName || (serviceId ? nameOf(data.services, serviceId) : productLines.join(" + ") || "收银"),
     serviceRecord,
     staffName: staffId ? nameOf(data.staff, staffId) : "-",
   };
