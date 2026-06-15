@@ -24,6 +24,8 @@ export type AppointmentRoomUsage = {
   roomCapacity: number;
 };
 
+export const ARRIVAL_CONFIRMATION_LEAD_TIME_MS = 30 * 60 * 1000;
+
 export function appointmentServiceIds(appointment: Pick<Appointment, "serviceId" | "serviceIds">) {
   const ids = appointment.serviceIds?.filter(Boolean) ?? [];
   return ids.length ? Array.from(new Set(ids)) : [appointment.serviceId].filter(Boolean);
@@ -42,6 +44,30 @@ export function appointmentEndAt(appointment: Pick<Appointment, "serviceId" | "s
     ? selectedServices.reduce((sum, service) => sum + (service.duration && service.duration > 0 ? service.duration : 60), 0)
     : 60;
   return new Date(startAt.getTime() + minutes * 60 * 1000);
+}
+
+export function appointmentArrivalConfirmationWindow(
+  appointment: Pick<Appointment, "serviceId" | "serviceIds" | "startAt" | "endAt">,
+  services: Service[] = [],
+  leadTimeMs = ARRIVAL_CONFIRMATION_LEAD_TIME_MS,
+) {
+  const startAt = new Date(appointment.startAt);
+  const endAt = appointmentEndAt(appointment, services);
+  return {
+    opensAt: new Date(startAt.getTime() - leadTimeMs),
+    startAt,
+    endAt,
+  };
+}
+
+export function isAppointmentInArrivalConfirmationWindow(
+  appointment: Pick<Appointment, "serviceId" | "serviceIds" | "startAt" | "endAt">,
+  services: Service[] = [],
+  now = new Date(),
+  leadTimeMs = ARRIVAL_CONFIRMATION_LEAD_TIME_MS,
+) {
+  const { opensAt, endAt } = appointmentArrivalConfirmationWindow(appointment, services, leadTimeMs);
+  return opensAt <= now && now <= endAt;
 }
 
 const startOfDay = (date: Date) => {

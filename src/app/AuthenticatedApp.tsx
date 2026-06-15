@@ -57,7 +57,7 @@ import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
 import { memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
 import { buildCashierFlowRecords } from "../domain/cashierFlow";
-import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, type AppointmentRange } from "../domain/appointments";
+import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, isAppointmentInArrivalConfirmationWindow, appointmentArrivalConfirmationWindow, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import {
   formatProductStockWithServiceUnits,
@@ -283,11 +283,18 @@ function editableNumberOrZero(value: EditableNumber) {
 }
 
 export function searchInputSync(setValue: (value: string) => void) {
-  const sync = (event: FormEvent<HTMLInputElement>) => setValue(event.currentTarget.value);
+  const sync = (event: FormEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const pushValue = () => setValue(input.value);
+    pushValue();
+    queueMicrotask(pushValue);
+    window.requestAnimationFrame(pushValue);
+  };
   return {
     onInput: sync,
     onChange: sync,
     onCompositionEnd: sync,
+    onBlur: sync,
   };
 }
 
@@ -3036,12 +3043,8 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
   const confirmationPendingAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
   const overdueAppointments = confirmationPendingAppointments.filter((appointment) => appointmentEndAt(appointment, data.services) < appointmentNow);
-  const arrivalConfirmationAppointments = confirmationPendingAppointments.filter((appointment) => {
-    const startAt = new Date(appointment.startAt);
-    const endAt = appointmentEndAt(appointment, data.services);
-    return startAt <= appointmentNow && appointmentNow <= endAt;
-  });
-  const bookedAppointments = confirmationPendingAppointments.filter((appointment) => new Date(appointment.startAt) > appointmentNow);
+  const arrivalConfirmationAppointments = confirmationPendingAppointments.filter((appointment) => isAppointmentInArrivalConfirmationWindow(appointment, data.services, appointmentNow));
+  const bookedAppointments = confirmationPendingAppointments.filter((appointment) => appointmentArrivalConfirmationWindow(appointment, data.services).opensAt > appointmentNow);
   const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
   const arrivedServiceSignatureTasks = arrivedAppointments.map((appointment) => {
