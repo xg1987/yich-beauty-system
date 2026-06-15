@@ -24,6 +24,12 @@ if (!appSource.includes('className={`app-shell theme-${themeMode}`}')) {
   violations.push("Root theme class must use the stored day/night preference.");
 }
 
+const shellTopbarIndex = appSource.indexOf('<header className="topbar">');
+const shellMainIndex = appSource.indexOf('<main className="main">');
+if (shellTopbarIndex < 0 || shellMainIndex < 0 || shellTopbarIndex > shellMainIndex) {
+  violations.push("Shell topbar must be a direct app-shell child before the scrollable main.");
+}
+
 if (appSource.includes('"auto"') || appSource.includes("setThemeMode(\"auto\")") || appSource.includes(">自动</button>")) {
   violations.push("Appearance settings must not include auto mode.");
 }
@@ -104,15 +110,23 @@ if (!stylesSource.includes("Mobile shell topbar visibility lock")) {
   violations.push("Mobile shell topbar visibility lock must keep logo, store name, notification, and account buttons visible.");
 }
 
-if (!stylesSource.includes(".app-shell .main > .topbar {\n    position: fixed;")) {
-  violations.push("Mobile shell topbar must stay fixed above loaded page content.");
+if (!stylesSource.includes("Shell topbar structure lock")) {
+  violations.push("Shell topbar must document the iOS scroll-container clipping guard.");
 }
 
-if (!stylesSource.includes(".app-shell .main > .topbar .topbar-brand,\n  .app-shell .main > .topbar .topbar-brand > div")) {
-  violations.push("Mobile shell topbar brand must remain visible after lazy page content loads.");
+if (!stylesSource.includes(".app-shell > .topbar {\n  position: fixed;")) {
+  violations.push("Shell topbar must stay fixed as a sibling of the scrollable main.");
 }
 
-if (!stylesSource.includes(".app-shell .main > .topbar .topbar-actions .account-avatar-button img {\n    display: none;")) {
+if (!stylesSource.includes(".app-shell > .topbar .topbar-brand {")) {
+  violations.push("Shell topbar brand must be styled on the app-shell direct child header.");
+}
+
+if (!stylesSource.includes(".app-shell > .topbar .topbar-actions {")) {
+  violations.push("Shell topbar actions must be styled on the app-shell direct child header.");
+}
+
+if (!stylesSource.includes(".app-shell > .topbar .topbar-actions .account-avatar-button img {\n  display: none;")) {
   violations.push("Mobile topbar account button must hide uploaded avatar images.");
 }
 
