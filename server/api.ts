@@ -89,7 +89,8 @@ import { BeautyDatabase } from "./database";
 
 type JsonBody = Record<string, unknown>;
 const aiImageGenerationMaxGlobalSlots = 4;
-const aiImageGenerationLockTtlMs = 2 * 60 * 1000;
+const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
+const providerFetchTimeoutMs = 260_000;
 type LocalAvatarUpload = {
   buffer: Buffer;
   contentType: string;
@@ -386,16 +387,62 @@ export function createApiServer(database = new BeautyDatabase()) {
           expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
           maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
         }) : undefined;
+        const startedAt = Date.now();
+        let pendingRecord: MarketingAiRecord | undefined;
         try {
           const currentData = database.readData();
+          assertMarketingAiGeneratePreflight(currentData, session, kind);
+          pendingRecord = marketingAiRecord(currentData, session, body, {
+            kind,
+            ...marketingAiPendingProvider(currentData, kind),
+            status: "生成中",
+          });
+          database.upsertMarketingAiRecord(pendingRecord);
           const result = await runMarketingAiGenerate(currentData, session, body);
-          const record = marketingAiRecord(currentData, session, body, result);
+          const record = {
+            ...marketingAiRecord(currentData, session, body, { ...result, status: "已完成" }),
+            id: pendingRecord.id,
+            createdAt: pendingRecord.createdAt,
+          };
           database.appendMarketingAiResult({
             record,
             log: marketingAiOperationLog(session, record),
             consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
           });
           sendJson(response, 200, { ...result, record });
+          return;
+        } catch (error) {
+          if (!pendingRecord || !isPersistableMarketingAiFailure(error)) throw error;
+          const currentData = database.readData();
+          const message = error instanceof Error ? error.message : "AI 生成失败";
+          const failureRecord = marketingAiRecord(currentData, session, body, {
+            kind,
+            ...marketingAiPendingProvider(currentData, kind),
+            text: message,
+            status: "生成失败",
+            errorMessage: message,
+            elapsedMs: Date.now() - startedAt,
+            cost: marketingAiFailureCost(currentData, body, kind, error),
+          });
+          if (pendingRecord) {
+            failureRecord.id = pendingRecord.id;
+            failureRecord.createdAt = pendingRecord.createdAt;
+          }
+          database.appendMarketingAiResult({
+            record: failureRecord,
+            log: marketingAiOperationLog(session, failureRecord),
+          });
+          sendJson(response, 200, {
+            kind,
+            provider: failureRecord.provider,
+            model: failureRecord.model,
+            text: message,
+            status: "生成失败",
+            errorMessage: message,
+            cost: failureRecord.cost,
+            elapsedMs: failureRecord.elapsedMs,
+            record: failureRecord,
+          });
           return;
         } finally {
           if (locks) database.releaseAiGenerationLocks(locks);
@@ -2320,12 +2367,23 @@ function providerErrorMessage(provider: string, status: number, payload: Record<
 
 async function fetchProviderJson(provider: string, url: string, init: RequestInit) {
   const startedAt = Date.now();
-  const response = await fetch(url, init);
-  const payload = await readProviderJson(response);
-  if (!response.ok) {
-    throw new Error(providerErrorMessage(provider, response.status, payload));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), providerFetchTimeoutMs);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const payload = await readProviderJson(response);
+    if (!response.ok) {
+      throw new Error(providerErrorMessage(provider, response.status, payload));
+    }
+    return { payload, elapsedMs: Date.now() - startedAt };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`${provider}调用超时：${Math.round(providerFetchTimeoutMs / 1000)}秒内未返回，请稍后重试或检查供应商状态`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return { payload, elapsedMs: Date.now() - startedAt };
 }
 
 async function runAiTextCompletion(data: AppData, prompt: string, options: { history?: AiChatMessage[]; systemPrompt: string }) {
@@ -2388,6 +2446,19 @@ function assertMarketingAiAllowed(data: AppData, session: UserSession, capabilit
   if (!permissions[marketingRoleGroup(session.user.role)][capability]) {
     throw new Error(`当前门店未开放 AI ${capabilityLabel}权限`);
   }
+}
+
+function assertMarketingAiGeneratePreflight(data: AppData, session: UserSession, kind: MarketingAiKind) {
+  if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
+  const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
+  assertMarketingAiAllowed(data, session, capability);
+  if (kind === "copy") assertMarketingAiAllowed(data, session, "image");
+  assertAiFreeQuotaAvailable(data, session.user.id);
+}
+
+function isPersistableMarketingAiFailure(error: unknown) {
+  if (!(error instanceof Error)) return true;
+  return /OpenAI|DeepSeek|Seedance|Kling|MiniMax|视频供应商|未返回可读内容|未返回图片数据|调用超时/.test(error.message);
 }
 
 function marketingText(value: unknown, fallback = "") {
@@ -2480,12 +2551,49 @@ function textGenerationCost(config: AiTextModelConfig, usage: unknown) {
   };
 }
 
-function imageGenerationCost(config: AiImageModelConfig, usage: unknown) {
+type ImageCostEstimateInput = {
+  prompt?: string;
+  size?: string;
+  quality?: string;
+  assetCount?: number;
+  reason?: string;
+};
+
+function estimatedImageGenerationCost(config: AiImageModelConfig, input: ImageCostEstimateInput): MarketingAiRecord["cost"] {
+  const prompt = input.prompt ?? "";
+  const textInputTokens = Math.max(1, Math.ceil(prompt.length / 2));
+  const imageInputTokens = Math.max(0, input.assetCount ?? 0) * 1600;
+  const size = input.size ?? config.defaultSize;
+  const baseOutputTokens = size === "1024x1536" || size === "1536x1024" ? 10500 : 7000;
+  const quality = input.quality ?? config.defaultQuality;
+  const qualityMultiplier = quality === "high" ? 1 : quality === "medium" || quality === "standard" ? 0.7 : 0.8;
+  const outputTokens = Math.max(1, Math.ceil(baseOutputTokens * qualityMultiplier));
+  const amountUsd = roundAiUsd(
+    textInputTokens / 1_000_000 * config.textInputUsdPerMillion
+    + imageInputTokens / 1_000_000 * config.imageInputUsdPerMillion
+    + outputTokens / 1_000_000 * config.imageOutputUsdPerMillion,
+  );
+  return {
+    amountUsd,
+    currency: "USD",
+    basis: input.reason ?? `供应商未返回 token 用量，按 ${size} · ${quality} · ${input.assetCount ?? 0} 张参考图预估`,
+    priceConfigured: config.textInputUsdPerMillion > 0 || config.imageInputUsdPerMillion > 0 || config.imageOutputUsdPerMillion > 0,
+    estimated: true,
+    inputTokens: textInputTokens + imageInputTokens,
+    outputTokens,
+    totalTokens: textInputTokens + imageInputTokens + outputTokens,
+  };
+}
+
+function imageGenerationCost(config: AiImageModelConfig, usage: unknown, estimate?: ImageCostEstimateInput) {
   const record = aiUsageRecord(usage);
   const textInputTokens = nestedUsageNumber(record, [["text_input_tokens"], ["input_tokens"], ["prompt_tokens"]]);
   const imageInputTokens = nestedUsageNumber(record, [["image_input_tokens"], ["input_tokens_details", "image_tokens"]]);
   const outputTokens = nestedUsageNumber(record, [["image_output_tokens"], ["output_tokens"], ["completion_tokens"]]);
   const totalTokens = nestedUsageNumber(record, [["total_tokens"]]);
+  if (!textInputTokens && !imageInputTokens && !outputTokens && estimate) {
+    return estimatedImageGenerationCost(config, estimate);
+  }
   const amountUsd = roundAiUsd(
     textInputTokens / 1_000_000 * config.textInputUsdPerMillion
     + imageInputTokens / 1_000_000 * config.imageInputUsdPerMillion
@@ -2668,7 +2776,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
       size: marketingImageSize(optionalString(body, "posterSize")),
     });
     const textCost = textGenerationCost(config, result.usage);
-    const posterCost = imageGenerationCost(imageConfig, imageResult.usage);
+    const posterCost = imageResult.cost ?? imageGenerationCost(imageConfig, imageResult.usage);
     return {
       kind,
       provider: `${result.provider}+${imageResult.provider}`,
@@ -2685,7 +2793,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
     const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
-    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
+    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: result.cost ?? imageGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
   }
   const config = aiGenerationConfigFromData(data);
   const provider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
@@ -2700,6 +2808,38 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   return { kind, ...result, cost: provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined, billing };
 }
 
+function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind) {
+  const config = aiGenerationConfigFromData(data);
+  if (kind === "image") return { provider: "openai", model: config.image.model };
+  if (kind === "copy") return { provider: `${config.copy.provider}+openai`, model: `${config.copy.model}+${config.image.model}` };
+  if (kind === "talk") return { provider: config.copy.provider, model: config.copy.model };
+  const videoProvider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
+  return { provider: videoProvider?.provider, model: videoProvider?.model };
+}
+
+function marketingAiFailureCost(data: AppData, body: JsonBody, kind: MarketingAiKind, error: unknown): MarketingAiRecord["cost"] | undefined {
+  const message = error instanceof Error ? error.message : "";
+  if (kind !== "image" && !(kind === "copy" && message.includes("OpenAI"))) return undefined;
+  const config = aiGenerationConfigFromData(data).image;
+  const prompt = kind === "image"
+    ? marketingPrompt(body, "image")
+    : marketingCopyPosterPrompt(body, marketingPrompt(body, "copy"));
+  const assetCount = (() => {
+    try {
+      return marketingImageAssets(body).length;
+    } catch {
+      return 0;
+    }
+  })();
+  return estimatedImageGenerationCost(config, {
+    prompt,
+    size: marketingImageSize(optionalString(body, "posterSize")),
+    quality: config.defaultQuality,
+    assetCount,
+    reason: `${message || "图片生成未返回结果"}，供应商未返回 token 用量，按请求规格预估成本`,
+  });
+}
+
 function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, result: {
   kind: MarketingAiRecord["kind"];
   provider?: string;
@@ -2709,6 +2849,8 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   videoUrl?: string;
   taskId?: string;
   status?: string;
+  errorMessage?: string;
+  elapsedMs?: number;
   cost?: MarketingAiRecord["cost"];
   billing?: MarketingAiRecord["billing"];
 }): MarketingAiRecord {
@@ -2736,6 +2878,8 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     videoUrl: result.videoUrl,
     taskId: result.taskId,
     status: result.status,
+    errorMessage: result.errorMessage,
+    elapsedMs: result.elapsedMs,
     cost: result.cost,
     billing: result.billing,
     provider: result.provider,
@@ -2747,6 +2891,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
 }
 
 function marketingAiOperationLog(session: UserSession, record: MarketingAiRecord): OperationLog {
+  const statusText = record.status === "生成失败" ? "失败" : record.status === "生成中" ? "开始生成" : "生成";
   return {
     id: makeId("op"),
     storeId: record.storeId,
@@ -2754,7 +2899,7 @@ function marketingAiOperationLog(session: UserSession, record: MarketingAiRecord
     action: "生成AI营销内容",
     targetType: "marketingAiRecord",
     targetId: record.id,
-    summary: `${session.user.name} 生成${record.title}`,
+    summary: `${session.user.name} ${statusText}${record.title}`,
     createdAt: nowIso(),
   };
 }
@@ -2795,6 +2940,7 @@ async function runAiImageTest(data: AppData, body: JsonBody) {
     imageDataUrl: b64 ? `data:image/png;base64,${b64}` : imageUrl,
     revisedPrompt: typeof output?.revised_prompt === "string" ? output.revised_prompt : undefined,
     usage: payload.usage,
+    cost: imageGenerationCost(config, payload.usage, { prompt, size, quality, assetCount: assets.length }),
     raw: compactAiRawPayload(payload),
     elapsedMs,
   };

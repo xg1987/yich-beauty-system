@@ -831,6 +831,12 @@ function formatAiTestJson(value: unknown) {
   }
 }
 
+function formatAiTestCost(cost?: { amountUsd: number; currency: "USD"; estimated: boolean }) {
+  if (!cost) return "费用未返回";
+  const amount = cost.amountUsd;
+  return `${cost.estimated ? "预估" : "实际"} $${amount.toFixed(amount > 0 && amount < 0.01 ? 6 : 4)} ${cost.currency}`;
+}
+
 export function PlatformAiTestCenterView({ data, setView, actions }: { data: AppData; setView: (view: ViewKey) => void; actions: ApiActions }) {
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
   const [activeTab, setActiveTab] = useState<AiTestTab>("chat");
@@ -981,9 +987,11 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
               <article className="ai-test-image-output">
                 {imageResult.imageDataUrl && <img src={imageResult.imageDataUrl} alt="AI 生成测试结果" />}
                 <small>{imageResult.provider} · {imageResult.model} · {imageResult.elapsedMs}ms</small>
+                {imageResult.status === "生成失败" && <p className="form-error">{imageResult.errorMessage || "图片生成失败"}</p>}
+                <p>{formatAiTestCost(imageResult.cost)}</p>
                 {imageResult.revisedPrompt && <p>{imageResult.revisedPrompt}</p>}
               </article>
-              <pre>{formatAiTestJson(imageResult.raw)}</pre>
+              <pre>{formatAiTestJson({ usage: imageResult.usage, cost: imageResult.cost, raw: imageResult.raw })}</pre>
             </div>
           )}
         </section>

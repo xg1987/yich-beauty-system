@@ -49,6 +49,8 @@ export type MarketingAiRecord = {
   videoUrl?: string;
   taskId?: string;
   status?: string;
+  errorMessage?: string;
+  elapsedMs?: number;
   cost?: {
     amountUsd: number;
     currency: "USD";

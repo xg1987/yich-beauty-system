@@ -339,6 +339,13 @@ export class D1BeautyDatabase {
     await this.db.batch(statements);
   }
 
+  async upsertMarketingAiRecord(record: MarketingAiRecord) {
+    await this.db
+      .prepare("INSERT OR REPLACE INTO marketingAiRecords (id, payload_json) VALUES (?, ?)")
+      .bind(record.id, JSON.stringify(record))
+      .run();
+  }
+
   private async all<T>(query: string, mapper: (row: unknown) => T, values: D1Value[] = []) {
     const statement = values.length ? this.db.prepare(query).bind(...values) : this.db.prepare(query);
     const result = await statement.all();

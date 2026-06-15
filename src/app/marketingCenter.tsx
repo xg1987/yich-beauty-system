@@ -255,6 +255,8 @@ function marketingRecordTitle(record: MarketingAiRecord) {
 }
 
 function marketingRecordSummary(record: MarketingAiRecord) {
+  if (record.status === "生成失败") return compactRecordText(record.errorMessage || record.text || "生成失败").slice(0, 48);
+  if (record.status === "生成中") return "正在生成，请稍后查看结果";
   const content = marketingRecordPreviewText(record);
   if (content) return content.slice(0, 48);
   return [
@@ -269,6 +271,7 @@ function marketingRecordSummary(record: MarketingAiRecord) {
 
 function marketingRecordMeta(record: MarketingAiRecord) {
   return [
+    compactRecordText(record.status),
     marketingRecordKindLabel(record.kind),
     compactRecordText(record.channel) || "未标记渠道",
     shortRecordTime(record.createdAt),
@@ -460,7 +463,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setDownloadResultStatus("idle");
     setManualCopyText("");
     try {
-      setGenerationResult(await actions.generateMarketingAi({
+      const result = await actions.generateMarketingAi({
         kind: generationKind,
         storeName,
         productName: product?.name,
@@ -487,7 +490,11 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
         videoDuration,
         videoScript,
         talkScene: `${marketingNode} · ${marketingGoal} · ${channel}`,
-      }));
+      });
+      setGenerationResult(result);
+      if (result.status === "生成失败" || result.record?.status === "生成失败") {
+        setGenerationError(result.errorMessage || result.record?.errorMessage || result.text || "AI 生成失败");
+      }
       setCopyResultStatus("idle");
     } catch (caught) {
       setGenerationError(caught instanceof Error ? caught.message : "AI 生成失败");

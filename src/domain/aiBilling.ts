@@ -79,7 +79,13 @@ export function aiFreeQuotaState(data: AppData, accountId?: string, now = new Da
   const credits = accountAiCredits(account?.aiCredits);
   const enforced = Boolean(accountId && credits <= 0 && dateKey >= config.freeStartsAt);
   const used = enforced
-    ? (data.marketingAiRecords ?? []).filter((record) => record.createdBy === accountId && recordDateKey(record) === dateKey && record.billing?.source !== "credit").length
+    ? (data.marketingAiRecords ?? []).filter((record) =>
+      record.createdBy === accountId
+      && recordDateKey(record) === dateKey
+      && record.status !== "生成中"
+      && record.status !== "生成失败"
+      && record.billing?.source !== "credit"
+    ).length
     : 0;
   const remaining = enforced ? Math.max(0, config.freeDailyLimit - used) : config.freeDailyLimit;
   return {

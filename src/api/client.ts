@@ -5,10 +5,10 @@ import type { AppDataSlice } from "../domain/dataSlices";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const DATA_CACHE_TTL_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 30_000;
-const AI_GENERATION_TIMEOUT_MS = 120_000;
+const AI_GENERATION_TIMEOUT_MS = 300_000;
 const DEFAULT_TIMEOUT_MESSAGE = "保存超时，请检查网络后重试；如果数据已保存，刷新页面即可看到最新状态";
-const AI_GENERATION_TIMEOUT_MESSAGE = "AI生成时间较长，请检查网络后重试；如果内容已生成，刷新页面后可在生成记录中查看";
-const AI_IMAGE_TEST_TIMEOUT_MESSAGE = "AI图片生成时间较长，请检查网络后重试；如果仍失败，请查看供应商返回的错误信息";
+const AI_GENERATION_TIMEOUT_MESSAGE = "AI生成时间较长，请稍后查看生成记录；如果供应商已接收请求，记录里会保留成功或失败状态";
+const AI_IMAGE_TEST_TIMEOUT_MESSAGE = "AI图片生成时间较长，请稍后重试；如果供应商已接收请求，页面会显示失败信息和预估成本";
 const cacheableGetPaths = ["/api/data"];
 const responseCache = new Map<string, { expiresAt: number; payload: unknown }>();
 const pendingRequests = new Map<string, Promise<unknown>>();
@@ -64,8 +64,12 @@ export type AiTestChatResult = {
 export type AiTestImageResult = {
   provider: "openai";
   model: string;
+  status?: string;
+  errorMessage?: string;
   imageDataUrl?: string;
   revisedPrompt?: string;
+  usage?: unknown;
+  cost?: MarketingAiCost;
   raw?: unknown;
   elapsedMs: number;
 };
@@ -74,6 +78,7 @@ export type AiTestVideoResult = {
   model: string;
   taskId?: string;
   status?: string;
+  errorMessage?: string;
   videoUrl?: string;
   fileId?: string;
   normalizedRequest?: Record<string, unknown>;
@@ -102,6 +107,7 @@ export type MarketingAiGenerateResult = {
   revisedPrompt?: string;
   taskId?: string;
   status?: string;
+  errorMessage?: string;
   videoUrl?: string;
   fileId?: string;
   normalizedRequest?: Record<string, unknown>;

@@ -286,6 +286,10 @@ export class BeautyDatabase {
     }
   }
 
+  upsertMarketingAiRecord(record: MarketingAiRecord) {
+    this.db.prepare("INSERT OR REPLACE INTO marketingAiRecords (id, payload_json) VALUES (?, ?)").run(record.id, JSON.stringify(record));
+  }
+
   private writeData(data: AppData) {
     this.writeJsonTable("storeProfiles", data.storeProfiles);
     this.writeJsonTable("onlineStorefronts", data.onlineStorefronts);
