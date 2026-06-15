@@ -187,13 +187,16 @@ export function useApiData() {
     generateMarketingAi: async (...args: Parameters<typeof client.generateMarketingAi>) => {
       const result = await client.generateMarketingAi(...args);
       if (result.record) {
+        const shouldConsumeCredit = result.record.billing?.source === "credit"
+          && result.record.status !== "生成中"
+          && result.record.status !== "生成失败";
         setData((current) => current
           ? {
               ...current,
               authUsers: current.authUsers.map((user) => {
                 if (user.id !== result.record!.createdBy) return user;
                 const credits = typeof user.aiCredits === "number" && Number.isFinite(user.aiCredits) ? Math.max(0, Math.floor(user.aiCredits)) : 0;
-                return credits > 0 ? { ...user, aiCredits: credits - 1 } : user;
+                return shouldConsumeCredit && credits > 0 ? { ...user, aiCredits: credits - 1 } : user;
               }),
               marketingAiRecords: [
                 result.record!,

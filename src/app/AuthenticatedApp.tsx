@@ -1251,7 +1251,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
               <Suspense fallback={<ViewFallback title="营销中心" />}>
-                <LazyMarketingCenter data={data} session={session} actions={actions} />
+                <LazyMarketingCenter data={data} session={session} actions={actions} refreshMarketingData={() => refreshDataView("marketing")} />
               </Suspense>
             )}
             {activeView === "catalog" && <MemoCatalog data={data} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={catalogEntryModule} onReturnManagement={returnToManagement} />}

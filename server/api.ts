@@ -380,18 +380,40 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "marketing:manage");
         const body = await readJson(request);
         const kind = requiredString(body, "kind") as MarketingAiKind;
-        const locks = kind === "image" || kind === "copy" ? database.acquireAiGenerationLocks({
-          ownerId: session.user.id,
-          kind,
-          createdAt: nowIso(),
-          expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
-          maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
-        }) : undefined;
         const startedAt = Date.now();
+        const currentData = database.readData();
+        assertMarketingAiGeneratePreflight(currentData, session, kind);
+        if (kind === "image" || kind === "copy") {
+          const locks = database.acquireAiGenerationLocks({
+            ownerId: session.user.id,
+            kind,
+            createdAt: nowIso(),
+            expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
+            maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
+          });
+          const pendingRecord = marketingAiRecord(currentData, session, body, {
+            kind,
+            ...marketingAiPendingProvider(currentData, kind),
+            status: "生成中",
+            text: "已提交后台生成，可继续使用系统，稍后在生成记录查看结果。",
+            elapsedMs: 0,
+          });
+          database.upsertMarketingAiRecord(pendingRecord);
+          void runMarketingAiBackgroundTask(database, session, body, kind, pendingRecord, locks, startedAt);
+          sendJson(response, 202, {
+            kind,
+            provider: pendingRecord.provider,
+            model: pendingRecord.model,
+            text: pendingRecord.text,
+            status: pendingRecord.status,
+            elapsedMs: 0,
+            record: pendingRecord,
+          });
+          return;
+        }
+        const locks = undefined;
         let pendingRecord: MarketingAiRecord | undefined;
         try {
-          const currentData = database.readData();
-          assertMarketingAiGeneratePreflight(currentData, session, kind);
           pendingRecord = marketingAiRecord(currentData, session, body, {
             kind,
             ...marketingAiPendingProvider(currentData, kind),
@@ -2751,6 +2773,53 @@ function marketingPosterDataUrl(body: JsonBody, text: string) {
   <text x="120" y="1002" fill="#756b84" font-size="24" font-weight="600" font-family="PingFang SC, Microsoft YaHei, sans-serif">到店护理建议 · 合规营销素材</text>
 </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+async function runMarketingAiBackgroundTask(
+  database: BeautyDatabase,
+  session: UserSession,
+  body: JsonBody,
+  kind: MarketingAiKind,
+  pendingRecord: MarketingAiRecord,
+  locks: { accountLockId?: string; globalLockId?: string },
+  startedAt: number,
+) {
+  try {
+    const currentData = database.readData();
+    const result = await runMarketingAiGenerate(currentData, session, body);
+    const record = {
+      ...marketingAiRecord(currentData, session, body, { ...result, status: "已完成" }),
+      id: pendingRecord.id,
+      createdAt: pendingRecord.createdAt,
+    };
+    database.appendMarketingAiResult({
+      record,
+      log: marketingAiOperationLog(session, record),
+      consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
+    });
+  } catch (error) {
+    const currentData = database.readData();
+    const message = error instanceof Error ? error.message : "AI 生成失败";
+    const failureRecord = {
+      ...marketingAiRecord(currentData, session, body, {
+        kind,
+        ...marketingAiPendingProvider(currentData, kind),
+        text: message,
+        status: "生成失败",
+        errorMessage: message,
+        elapsedMs: Date.now() - startedAt,
+        cost: marketingAiFailureCost(currentData, body, kind, error),
+      }),
+      id: pendingRecord.id,
+      createdAt: pendingRecord.createdAt,
+    };
+    database.appendMarketingAiResult({
+      record: failureRecord,
+      log: marketingAiOperationLog(session, failureRecord),
+    });
+  } finally {
+    database.releaseAiGenerationLocks(locks);
+  }
 }
 
 async function runMarketingAiGenerate(data: AppData, session: UserSession, body: JsonBody) {

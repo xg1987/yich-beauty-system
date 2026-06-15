@@ -315,7 +315,17 @@ function downloadMarketingRecord(record: MarketingAiRecord) {
   if (link.href.startsWith("blob:")) URL.revokeObjectURL(link.href);
 }
 
-export function MarketingCenter({ data, session, actions }: { data: AppData; session: UserSession; actions: ApiActions }) {
+export function MarketingCenter({
+  data,
+  session,
+  actions,
+  refreshMarketingData,
+}: {
+  data: AppData;
+  session: UserSession;
+  actions: ApiActions;
+  refreshMarketingData?: () => Promise<void>;
+}) {
   const todayMarketingNodes = useMemo(() => getMarketingNodes(), []);
   const [activeView, setActiveView] = useState<MarketingViewKey>("content");
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
@@ -367,6 +377,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
   const previewSummaryItems = [marketingNode, customerType, bodyState, channel, marketingGoal];
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
+  const hasPendingMarketingAiRecords = marketingAiRecords.some((record) => record.status === "生成中");
   const selectedMarketingRecord = marketingAiRecords.find((record) => record.id === selectedRecordId);
   const dialogRecord = selectedMarketingRecord ?? generationResult?.record;
   const dialogText = dialogRecord?.text ?? generationResult?.text;
@@ -435,6 +446,14 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
     setGenerationError(unavailableMessage());
   }, [contentState.enabled, contentState.label, permissionStateKey]);
 
+  useEffect(() => {
+    if (!hasPendingMarketingAiRecords || !refreshMarketingData) return undefined;
+    const intervalId = window.setInterval(() => {
+      void refreshMarketingData();
+    }, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [hasPendingMarketingAiRecords, refreshMarketingData]);
+
   const generate = async () => {
     if (!contentState.enabled) {
       setGenerationBusy(false);
@@ -492,6 +511,7 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
         talkScene: `${marketingNode} · ${marketingGoal} · ${channel}`,
       });
       setGenerationResult(result);
+      if (result.record?.id) setSelectedRecordId(result.record.id);
       if (result.status === "生成失败" || result.record?.status === "生成失败") {
         setGenerationError(result.errorMessage || result.record?.errorMessage || result.text || "AI 生成失败");
       }
