@@ -5,6 +5,10 @@ const appSource = readFileSync(join(process.cwd(), "src/app/AuthenticatedApp.tsx
 const settingsSource = readFileSync(join(process.cwd(), "src/app/settingsView.tsx"), "utf8");
 const userAvatarSource = readFileSync(join(process.cwd(), "src/components/business/UserAvatar.tsx"), "utf8");
 const accountMenuSource = readFileSync(join(process.cwd(), "src/components/business/AccountMenu.tsx"), "utf8");
+const appEntrySource = readFileSync(join(process.cwd(), "src/App.tsx"), "utf8");
+const authGateSource = readFileSync(join(process.cwd(), "src/app/AuthGate.tsx"), "utf8");
+const indexSource = readFileSync(join(process.cwd(), "index.html"), "utf8");
+const stylesSource = readFileSync(join(process.cwd(), "src/styles.css"), "utf8");
 
 const violations: string[] = [];
 
@@ -58,6 +62,26 @@ if (!settingsSource.includes("<UserAvatar avatarUrl={avatarUrl} size={52} showIm
 
 if (!accountMenuSource.includes("<UserAvatar avatarUrl={avatarUrl} size={34} showImage />")) {
   violations.push("Account menu must render the uploaded account avatar when available.");
+}
+
+if (!indexSource.includes('class="startup-loading"')) {
+  violations.push("Index HTML must render a static startup loading view before JavaScript loads.");
+}
+
+if (appEntrySource.includes('const AuthGate = lazy(() => import("./app/AuthGate"))')) {
+  violations.push("AuthGate must stay in the initial entry path to avoid a blank startup gap.");
+}
+
+if (authGateSource.includes("lazy(() => import(\"./AuthRuntime\"))")) {
+  violations.push("AuthRuntime must stay in the initial auth path to avoid a blank startup gap.");
+}
+
+if (!stylesSource.includes("transform: none;")) {
+  violations.push("Mobile topbar actions must not create a transformed containing block for fixed account menus.");
+}
+
+if (!stylesSource.includes("left: auto;")) {
+  violations.push("Mobile account menu must clear the full-width left constraint so it stays inside the viewport.");
 }
 
 if (violations.length > 0) {

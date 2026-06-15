@@ -18067,7 +18067,7 @@ textarea,
     flex-wrap: nowrap;
     z-index: 2800;
     isolation: isolate;
-    transform: translateZ(0);
+    transform: none;
   }
 
   .app-shell .main > .topbar .topbar-actions .icon-button,
@@ -18093,12 +18093,12 @@ textarea,
 
   .app-shell .main > .topbar .topbar-actions .account-avatar-button,
   .theme-day .app-shell .main > .topbar .topbar-actions .account-avatar-button {
-    width: 74px;
-    min-width: 74px;
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
-    gap: 5px;
-    padding: 0 10px 0 9px;
+    width: 46px;
+    min-width: 46px;
+    grid-auto-flow: initial;
+    grid-auto-columns: initial;
+    gap: 0;
+    padding: 0;
   }
 
   .app-shell .main > .topbar .topbar-actions .icon-button svg,
@@ -18120,11 +18120,7 @@ textarea,
   }
 
   .app-shell .main > .topbar .topbar-actions .account-avatar-button::after {
-    content: "账号";
-    color: #fff;
-    font-size: 12px;
-    font-weight: 920;
-    line-height: 1;
+    content: none;
   }
 
   .app-shell .main > .topbar .topbar-actions .notification-button span {
@@ -21560,8 +21556,11 @@ textarea,
   .app-shell .main > .topbar .topbar-actions .account-menu {
     position: fixed;
     top: calc(env(safe-area-inset-top, 0px) + 72px);
-    right: 14px;
+    right: max(10px, env(safe-area-inset-right, 0px));
+    left: auto;
     width: min(268px, calc(100vw - 28px));
+    max-width: calc(100vw - 20px);
+    z-index: 3200;
   }
 
   .account-menu-user {
