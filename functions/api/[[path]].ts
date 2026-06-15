@@ -448,8 +448,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
         });
         return sendJson(200, { ...result, ...(responseImageDataUrl ? { imageDataUrl: responseImageDataUrl } : {}), record });
-      } catch (error) {
-        if (!pendingRecord || !isPersistableMarketingAiFailure(error)) throw error;
+        } catch (error) {
+          if (!pendingRecord) throw error;
         const currentData = await database.readData();
         const message = error instanceof Error ? error.message : "AI 生成失败";
         const failureRecord = marketingAiRecord(currentData, session, body, {
@@ -2532,11 +2532,6 @@ function assertMarketingAiGeneratePreflight(data: AppData, session: UserSession,
   assertAiFreeQuotaAvailable(data, session.user.id);
 }
 
-function isPersistableMarketingAiFailure(error: unknown) {
-  if (!(error instanceof Error)) return true;
-  return /OpenAI|DeepSeek|Seedance|Kling|MiniMax|视频供应商|未返回可读内容|未返回图片数据|调用超时/.test(error.message);
-}
-
 function marketingText(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : fallback;
 }
@@ -2920,7 +2915,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
 function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind) {
   const config = aiGenerationConfigFromData(data);
   if (kind === "image") return { provider: "openai", model: config.image.model };
-  if (kind === "copy") return { provider: `${config.copy.provider}+openai`, model: `${config.copy.model}+${config.image.model}` };
+  if (kind === "copy") return { provider: config.copy.provider, model: config.copy.model };
   if (kind === "talk") return { provider: config.copy.provider, model: config.copy.model };
   const videoProvider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
   return { provider: videoProvider?.provider, model: videoProvider?.model };
