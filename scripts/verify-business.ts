@@ -1443,10 +1443,21 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   );
   assert.equal(appointmentCheckout.orders[0].appointmentId, data.appointments[0].id, "checkout should link source appointment");
   assert.equal(appointmentCheckout.orders[0].serviceId, "v2", "appointment checkout should allow any selected appointment service");
-  assert.equal(appointmentCheckout.appointments[0].status, "已完成", "checkout should complete source appointment");
-  assert.equal(appointmentCheckout.appointments[0].completedAt, fixedNow(), "checkout should stamp appointment completion");
+  assert.equal(appointmentCheckout.appointments[0].status, "已到店", "checkout should keep source appointment waiting for customer signature");
+  assert.equal(appointmentCheckout.appointments[0].completedAt, undefined, "checkout should not stamp appointment completion before signature");
   assert.equal(appointmentCheckout.customerSignatures[0].orderId, appointmentCheckout.orders[0].id, "appointment checkout should create a pending customer signature");
   assert.equal(appointmentCheckout.customerSignatures[0].status, "待签名", "appointment checkout signature should start pending");
+  const signedAppointmentCheckout = signCustomerSignature(
+    appointmentCheckout,
+    {
+      token: appointmentCheckout.customerSignatures[0].token,
+      signerName: "周女士",
+      signatureText: "data:image/png;base64,appointment-checkout",
+    },
+    { now: fixedNow },
+  );
+  assert.equal(signedAppointmentCheckout.appointments[0].status, "已完成", "service signature should complete source appointment");
+  assert.equal(signedAppointmentCheckout.appointments[0].completedAt, fixedNow(), "service signature should stamp appointment completion");
   const implicitAppointmentId = "a_implicit_checkout_verify";
   const implicitAppointmentCheckout = checkoutOrder(
     {
@@ -1476,7 +1487,17 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(implicitAppointmentCheckout.orders[0].appointmentId, implicitAppointmentId, "checkout should infer matching arrived appointment when appointmentId is missing");
-  assert.equal(implicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已完成", "inferred appointment checkout should complete the appointment");
+  assert.equal(implicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已到店", "inferred appointment checkout should keep appointment waiting for signature");
+  const signedImplicitAppointmentCheckout = signCustomerSignature(
+    implicitAppointmentCheckout,
+    {
+      token: implicitAppointmentCheckout.customerSignatures[0].token,
+      signerName: "周女士",
+      signatureText: "data:image/png;base64,implicit-appointment-checkout",
+    },
+    { now: fixedNow },
+  );
+  assert.equal(signedImplicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已完成", "inferred appointment signature should complete the appointment");
   assert.throws(
     () =>
       checkoutOrder(
@@ -1519,7 +1540,17 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(noServiceAppointmentCheckout.orders[0].serviceId, "v2", "checkout should choose the actual service for a service-empty appointment");
-  assert.equal(noServiceAppointmentCheckout.appointments[0].status, "已完成", "checkout should complete a service-empty appointment");
+  assert.equal(noServiceAppointmentCheckout.appointments[0].status, "已到店", "checkout should keep a service-empty appointment waiting for signature");
+  const signedNoServiceAppointmentCheckout = signCustomerSignature(
+    noServiceAppointmentCheckout,
+    {
+      token: noServiceAppointmentCheckout.customerSignatures[0].token,
+      signerName: "周女士",
+      signatureText: "data:image/png;base64,no-service-appointment-checkout",
+    },
+    { now: fixedNow },
+  );
+  assert.equal(signedNoServiceAppointmentCheckout.appointments[0].status, "已完成", "service-empty appointment signature should complete the appointment");
 }
 
 {

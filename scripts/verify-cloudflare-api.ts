@@ -408,7 +408,14 @@ const orderId = afterCheckout.orders[0].id;
 assert.equal(afterCheckout.orders[0].paidAmount, 746, "approved checkout should persist multi-product total in D1");
 assert.deepEqual(afterCheckout.orders[0].productItems?.map((item) => [item.productId, item.quantity]), [[productId, 2]], "D1 checkout should persist sale item lines");
 assert.deepEqual(afterCheckout.orders[0].giftProductItems?.map((item) => [item.productId, item.quantity]), [[consumableProductId, 1]], "D1 checkout should persist gift item lines");
-assert.equal(afterCheckout.appointments.find((item) => item.id === appointmentId)?.status, "已完成", "D1 appointment checkout should complete appointment");
+assert.equal(afterCheckout.appointments.find((item) => item.id === appointmentId)?.status, "已到店", "D1 appointment checkout should keep appointment waiting for service signature");
+assert.equal(afterCheckout.customerSignatures[0].orderId, orderId, "D1 checkout should create pending service signature");
+const afterCheckoutSignature = await request<AppData>(baseUrl, `/api/customer-signatures/${afterCheckout.customerSignatures[0].id}/sign`, {
+  method: "POST",
+  token: ownerSession.token,
+  body: { signerName: "Cloudflare 验证客户", signatureText: "data:image/png;base64,cf-service-signature" },
+});
+assert.equal(afterCheckoutSignature.appointments.find((item) => item.id === appointmentId)?.status, "已完成", "D1 service signature should complete appointment");
 assert.equal(afterCheckout.products.find((item) => item.id === productId)?.stock, 22, "D1 checkout should consume retail stock");
 assert.equal(afterCheckout.products.find((item) => item.id === consumableProductId)?.stock, 10, "D1 checkout should consume service recipe stock and direct gift stock");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "checkout should create commission in D1");

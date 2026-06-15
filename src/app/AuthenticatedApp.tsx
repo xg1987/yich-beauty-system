@@ -4933,7 +4933,7 @@ function Pos({
                   })),
                 ]}
               />
-              {appointmentId && <p className="form-note">已带入预约信息，收银完成后预约会自动标记为已完成。</p>}
+              {appointmentId && <p className="form-note">已带入预约信息，收银后将生成客户签名，客户签名后预约才会标记为已完成。</p>}
             </>
           )}
           {payMethod === "会员卡" && (

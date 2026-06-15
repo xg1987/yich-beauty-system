@@ -1463,8 +1463,9 @@ try {
   });
   assert.equal(afterAppointmentCheckout.orders[0].appointmentId, checkoutAppointmentId, "checkout API should link arrived appointment");
   assert.equal(afterAppointmentCheckout.orders[0].serviceId, "v2", "checkout API should allow one of appointment services");
-  assert.equal(afterAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已完成", "checkout API should complete appointment");
+  assert.equal(afterAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已到店", "checkout API should keep appointment waiting for service signature");
   assert.equal(afterAppointmentCheckout.customerSignatures[0].orderId, afterAppointmentCheckout.orders[0].id, "checkout API should create pending signature after service checkout");
+  assert.equal(afterAppointmentCheckout.customerSignatures[0].status, "待签名", "checkout API signature should start pending");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, "/api/checkout", {
@@ -1481,6 +1482,12 @@ try {
     /只有已到店预约可以直接收银|收银信息与预约不一致/,
     "checkout API should reject invalid appointment checkout",
   );
+  const signedAppointmentCheckout = await request<AppData>(baseUrl, `/api/customer-signatures/${afterAppointmentCheckout.customerSignatures[0].id}/sign`, {
+    method: "POST",
+    token: session.token,
+    body: { signerName: "周女士", signatureText: "data:image/png;base64,appointment-api" },
+  });
+  assert.equal(signedAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已完成", "service signature API should complete appointment");
 
   await assert.rejects(
     () => request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token }),

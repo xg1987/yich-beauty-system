@@ -2886,7 +2886,7 @@ export function checkoutOrder(
       throw new Error("收银信息与预约不一致");
     }
     if (data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款")) {
-      throw new Error("该预约已完成收银");
+      throw new Error("该预约已生成收银单，请完成客户签名");
     }
   }
 
@@ -3119,7 +3119,7 @@ export function checkoutOrder(
     customers: checkoutCustomers.map((customer) => (customer.id === customerId ? { ...customer, lastVisit: createdAt, points: Math.max(0, (customer.points ?? 0) + Math.floor(paidAmount / 10)) } : customer)),
     appointments: appointment
       ? data.appointments.map((item) =>
-          item.id === appointment.id ? { ...item, status: "已完成", completedAt: createdAt, updatedAt: createdAt } : item,
+          item.id === appointment.id ? { ...item, updatedAt: createdAt } : item,
         )
       : data.appointments,
     customerSignatures: [checkoutSignature, ...(data.customerSignatures ?? [])],
