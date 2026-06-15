@@ -76,8 +76,8 @@ if (!indexSource.includes('class="startup-loading"')) {
   violations.push("Index HTML must render a static startup loading view before JavaScript loads.");
 }
 
-if (appEntrySource.includes('const AuthGate = lazy(() => import("./app/AuthGate"))')) {
-  violations.push("AuthGate must stay in the initial entry path to avoid a blank startup gap.");
+if (!appEntrySource.includes('const AuthGate = lazy(() => import("./app/AuthGate"))')) {
+  violations.push("AuthGate must stay route-level lazy so the initial entry keeps the startup bundle budget.");
 }
 
 if (authGateSource.includes("lazy(() => import(\"./AuthRuntime\"))")) {

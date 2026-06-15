@@ -5,6 +5,9 @@ import type { AppDataSlice } from "../domain/dataSlices";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const DATA_CACHE_TTL_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 30_000;
+const AI_GENERATION_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MESSAGE = "保存超时，请检查网络后重试；如果数据已保存，刷新页面即可看到最新状态";
+const AI_GENERATION_TIMEOUT_MESSAGE = "AI生成时间较长，请检查网络后重试；如果内容已生成，刷新页面后可在生成记录中查看";
 const cacheableGetPaths = ["/api/data"];
 const responseCache = new Map<string, { expiresAt: number; payload: unknown }>();
 const pendingRequests = new Map<string, Promise<unknown>>();
@@ -177,7 +180,13 @@ export function createApiClient(getToken: () => string | undefined) {
       videoScript?: string;
       talkScene?: string;
       customerName?: string;
-    }) => request<MarketingAiGenerateResult>("/api/marketing-ai/generate", { method: "POST", body, token: getToken() }),
+    }) => request<MarketingAiGenerateResult>("/api/marketing-ai/generate", {
+      method: "POST",
+      body,
+      token: getToken(),
+      timeoutMs: AI_GENERATION_TIMEOUT_MS,
+      timeoutMessage: AI_GENERATION_TIMEOUT_MESSAGE,
+    }),
     uploadAccountAvatar: (file: File) => {
       const body = new FormData();
       body.append("avatar", file);
@@ -410,7 +419,7 @@ export function createApiClient(getToken: () => string | undefined) {
 
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; token?: string; dataMode?: "slice"; dataScope?: ViewKey } = {},
+  options: { method?: string; body?: unknown; token?: string; dataMode?: "slice"; dataScope?: ViewKey; timeoutMs?: number; timeoutMessage?: string } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
   const cacheKey = requestCacheKey(path, options.token);
@@ -427,16 +436,20 @@ async function request<T>(
   }
 
   const pending = (async () => {
-    const response = await fetchJsonWithTimeout(path, {
-      method,
-      headers: {
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-        ...(dataMode ? { "X-App-Data-Mode": dataMode } : {}),
-        ...(dataScope ? { "X-App-Data-View": dataScope } : {}),
+    const response = await fetchJsonWithTimeout(
+      path,
+      {
+        method,
+        headers: {
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          ...(dataMode ? { "X-App-Data-Mode": dataMode } : {}),
+          ...(dataScope ? { "X-App-Data-View": dataScope } : {}),
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
+      { timeoutMs: options.timeoutMs, timeoutMessage: options.timeoutMessage },
+    );
 
     const text = await response.text();
     const payload = text ? parseJson<T | { error: string }>(text) : undefined;
@@ -484,14 +497,18 @@ async function requestForm<T>(
   return payload as T;
 }
 
-async function fetchJsonWithTimeout(path: string, init: RequestInit) {
+async function fetchJsonWithTimeout(
+  path: string,
+  init: RequestInit,
+  options: { timeoutMs?: number; timeoutMessage?: string } = {},
+) {
   const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = globalThis.setTimeout(() => controller.abort(), options.timeoutMs ?? REQUEST_TIMEOUT_MS);
   try {
     return await fetch(`${API_BASE_URL}${path}`, { ...init, signal: controller.signal });
   } catch (caught) {
     if (caught instanceof DOMException && caught.name === "AbortError") {
-      throw new Error("保存超时，请检查网络后重试；如果数据已保存，刷新页面即可看到最新状态");
+      throw new Error(options.timeoutMessage ?? DEFAULT_TIMEOUT_MESSAGE);
     }
     throw caught;
   } finally {

@@ -1924,7 +1924,7 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         <small>{todayLabel}</small>
       </section>
 
-      <section className="workbench-metric-row" aria-label="今日关键数据">
+      <section className="workbench-metric-row" aria-label="今日">
         {dashboardContent.metrics.map((item) => (
           <DashboardMetric key={item.label} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
         ))}
@@ -2588,7 +2588,7 @@ function OperationalPermissionsContent({ data, session, actions, runMutation, on
         <div className="ai-permission-row" role="row">
           <div>
             <strong>同店员工</strong>
-            <small>默认开启资源共享，关闭后员工只看本人预约</small>
+            <small>默认开启资源共享，关闭后员工仅查看本人预约</small>
           </div>
           <label>
             <input
