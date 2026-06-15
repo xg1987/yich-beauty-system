@@ -1161,54 +1161,54 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
           </div>
         </div>
       </aside>
+      <header className="topbar">
+        <div className="topbar-brand">
+          <BrandIcon className="brand-mark brand-icon-mark" />
+          <div>
+            <strong>{shellPrimaryLabel}</strong>
+            {shellSecondaryLabel && <span>{shellSecondaryLabel}</span>}
+          </div>
+        </div>
+        <div className="topbar-title">
+            <p>{topbarTitle}</p>
+        </div>
+        <div className="topbar-actions" ref={topbarActionsRef}>
+          <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
+            <Bell size={18} />
+            {notificationCount > 0 && <span>{notificationCount}</span>}
+          </button>
+          <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
+            <UserAvatar />
+          </button>
+          {notificationPanelOpen && (
+            <NotificationPanel
+              data={data}
+              session={session}
+              actions={actions}
+              runMutation={runMutation}
+              mutationPending={mutationPending}
+              setView={navigate}
+              onClose={() => setNotificationPanelOpen(false)}
+            />
+          )}
+          {accountMenuOpen && (
+            <AccountMenu
+              session={session}
+              avatarUrl={currentAvatarUrl}
+              updateAvailable={Boolean(appUpdateInfo)}
+              logout={logout}
+              openSettings={() => {
+                setAccountSettingsOpen(true);
+                setAccountMenuOpen(false);
+                setNotificationPanelOpen(false);
+              }}
+            />
+          )}
+        </div>
+      </header>
       <main className="main">
         <GlobalMutationStatus />
         {error && <span className="error-chip app-error-chip">{error}</span>}
-        <header className="topbar">
-          <div className="topbar-brand">
-            <BrandIcon className="brand-mark brand-icon-mark" />
-            <div>
-              <strong>{shellPrimaryLabel}</strong>
-              {shellSecondaryLabel && <span>{shellSecondaryLabel}</span>}
-            </div>
-          </div>
-          <div className="topbar-title">
-              <p>{topbarTitle}</p>
-          </div>
-          <div className="topbar-actions" ref={topbarActionsRef}>
-            <button className="icon-button notification-button" aria-label="通知" onClick={() => { setNotificationPanelOpen((open) => !open); setAccountMenuOpen(false); }}>
-              <Bell size={18} />
-              {notificationCount > 0 && <span>{notificationCount}</span>}
-            </button>
-            <button className="account-avatar-button" aria-label="账号中心" aria-expanded={accountMenuOpen} onClick={() => { setAccountMenuOpen((open) => !open); setNotificationPanelOpen(false); }}>
-              <UserAvatar />
-            </button>
-            {notificationPanelOpen && (
-              <NotificationPanel
-                data={data}
-                session={session}
-                actions={actions}
-                runMutation={runMutation}
-                mutationPending={mutationPending}
-                setView={navigate}
-                onClose={() => setNotificationPanelOpen(false)}
-              />
-            )}
-            {accountMenuOpen && (
-              <AccountMenu
-                session={session}
-                avatarUrl={currentAvatarUrl}
-                updateAvailable={Boolean(appUpdateInfo)}
-                logout={logout}
-                openSettings={() => {
-                  setAccountSettingsOpen(true);
-                  setAccountMenuOpen(false);
-                  setNotificationPanelOpen(false);
-                }}
-              />
-            )}
-          </div>
-        </header>
         {accountSettingsOpen ? (
           <Suspense fallback={<ViewFallback title="系统设置" />}>
             <LazySettingsView

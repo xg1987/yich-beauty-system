@@ -8,6 +8,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const AI_GENERATION_TIMEOUT_MS = 120_000;
 const DEFAULT_TIMEOUT_MESSAGE = "保存超时，请检查网络后重试；如果数据已保存，刷新页面即可看到最新状态";
 const AI_GENERATION_TIMEOUT_MESSAGE = "AI生成时间较长，请检查网络后重试；如果内容已生成，刷新页面后可在生成记录中查看";
+const AI_IMAGE_TEST_TIMEOUT_MESSAGE = "AI图片生成时间较长，请检查网络后重试；如果仍失败，请查看供应商返回的错误信息";
 const cacheableGetPaths = ["/api/data"];
 const responseCache = new Map<string, { expiresAt: number; payload: unknown }>();
 const pendingRequests = new Map<string, Promise<unknown>>();
@@ -147,7 +148,13 @@ export function createApiClient(getToken: () => string | undefined) {
     testAiChat: (body: { prompt: string; history?: AiTestChatMessage[] }) =>
       request<AiTestChatResult>("/api/ai-test/chat", { method: "POST", body, token: getToken() }),
     testAiImage: (body: { prompt: string; size?: string; quality?: string }) =>
-      request<AiTestImageResult>("/api/ai-test/image", { method: "POST", body, token: getToken() }),
+      request<AiTestImageResult>("/api/ai-test/image", {
+        method: "POST",
+        body,
+        token: getToken(),
+        timeoutMs: AI_GENERATION_TIMEOUT_MS,
+        timeoutMessage: AI_IMAGE_TEST_TIMEOUT_MESSAGE,
+      }),
     testAiVideo: (body: { prompt: string; provider?: AiVideoProviderKey; durationSeconds?: number; resolution?: string; aspectRatio?: string }) =>
       request<AiTestVideoResult>("/api/ai-test/video", { method: "POST", body, token: getToken() }),
     queryAiVideo: (body: { provider: AiVideoProviderKey; taskId: string }) =>
