@@ -285,6 +285,60 @@ export class D1BeautyDatabase {
     return (result.meta?.changes ?? 0) > 0;
   }
 
+  async acquireAiGenerationLocks(input: { ownerId: string; kind: string; createdAt: string; expiresAt: string; maxGlobalSlots: number }) {
+    await this.ensureAiGenerationLocks();
+    await this.db.prepare("DELETE FROM aiGenerationLocks WHERE expiresAt < ?").bind(input.createdAt).run();
+
+    const accountLockId = `account:${input.kind}:${input.ownerId}`;
+    const accountResult = await this.db
+      .prepare("INSERT OR IGNORE INTO aiGenerationLocks (id, scope, ownerId, kind, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(accountLockId, "account", input.ownerId, input.kind, input.createdAt, input.expiresAt)
+      .run();
+    if ((accountResult.meta?.changes ?? 0) <= 0) {
+      throw new Error("当前账号已有图片生成正在进行，请等待完成后再试。");
+    }
+
+    for (let slot = 0; slot < input.maxGlobalSlots; slot += 1) {
+      const globalLockId = `global:${input.kind}:${slot}`;
+      const globalResult = await this.db
+        .prepare("INSERT OR IGNORE INTO aiGenerationLocks (id, scope, ownerId, kind, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(globalLockId, "global", input.ownerId, input.kind, input.createdAt, input.expiresAt)
+        .run();
+      if ((globalResult.meta?.changes ?? 0) > 0) {
+        return { accountLockId, globalLockId };
+      }
+    }
+
+    await this.db.prepare("DELETE FROM aiGenerationLocks WHERE id = ?").bind(accountLockId).run();
+    throw new Error("当前图片生成请求较多，请稍后再试。");
+  }
+
+  async releaseAiGenerationLocks(lockIds: { accountLockId?: string; globalLockId?: string }) {
+    const ids = [lockIds.accountLockId, lockIds.globalLockId].filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+    await this.ensureAiGenerationLocks();
+    await this.db.batch(ids.map((id) => this.db.prepare("DELETE FROM aiGenerationLocks WHERE id = ?").bind(id)));
+  }
+
+  async appendMarketingAiResult(input: { record: MarketingAiRecord; log: OperationLog; consumeCreditUserId?: string }) {
+    const statements: D1PreparedStatement[] = [
+      this.statement("INSERT OR REPLACE INTO marketingAiRecords (id, payload_json) VALUES (?, ?)", [input.record.id, JSON.stringify(input.record)]),
+      this.statement(
+        "INSERT OR REPLACE INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [input.log.id, input.log.storeId ?? null, input.log.userId, input.log.action, input.log.targetType, input.log.targetId, input.log.summary, input.log.createdAt],
+      ),
+    ];
+    if (input.consumeCreditUserId) {
+      statements.push(
+        this.statement(
+          "UPDATE authUsers SET payload_json = json_set(payload_json, '$.aiCredits', MAX(0, COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS INTEGER), 0) - 1)) WHERE id = ? AND COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS INTEGER), 0) > 0",
+          [input.consumeCreditUserId],
+        ),
+      );
+    }
+    await this.db.batch(statements);
+  }
+
   private async all<T>(query: string, mapper: (row: unknown) => T, values: D1Value[] = []) {
     const statement = values.length ? this.db.prepare(query).bind(...values) : this.db.prepare(query);
     const result = await statement.all();
@@ -1053,6 +1107,21 @@ export class D1BeautyDatabase {
 
   private statement(query: string, values: D1Value[]) {
     return this.db.prepare(query).bind(...values);
+  }
+
+  private async ensureAiGenerationLocks() {
+    await this.db.prepare(`
+      CREATE TABLE IF NOT EXISTS aiGenerationLocks (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL,
+        ownerId TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        expiresAt TEXT NOT NULL
+      )
+    `).run();
+    await this.db.prepare("CREATE INDEX IF NOT EXISTS idx_ai_generation_locks_scope_expires ON aiGenerationLocks(scope, expiresAt)").run();
+    await this.db.prepare("CREATE INDEX IF NOT EXISTS idx_ai_generation_locks_owner_kind ON aiGenerationLocks(ownerId, kind)").run();
   }
 }
 

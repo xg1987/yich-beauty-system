@@ -41,7 +41,6 @@ import {
   rescheduleAppointment,
   resetAuthUserPassword,
   settleCommissions,
-  consumeAuthUserAiCredit,
   updateAppointmentStatus,
   updateAuthUserAiCredits,
   transferMemberCard,
@@ -81,7 +80,7 @@ import { normalizeUserSession, type Permission, type UserSession } from "../src/
 import { assertAiFreeQuotaAvailable } from "../src/domain/aiBilling";
 import { requireMobilePhone } from "../src/domain/phone";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
@@ -89,6 +88,8 @@ import { getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase } from "./database";
 
 type JsonBody = Record<string, unknown>;
+const aiImageGenerationMaxGlobalSlots = 4;
+const aiImageGenerationLockTtlMs = 2 * 60 * 1000;
 type LocalAvatarUpload = {
   buffer: Buffer;
   contentType: string;
@@ -376,27 +377,29 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "POST" && url.pathname === "/api/marketing-ai/generate") {
         requirePermission(session, "marketing:manage");
-        const currentData = database.readData();
         const body = await readJson(request);
-        const result = await runMarketingAiGenerate(currentData, session, body);
-        const record = marketingAiRecord(currentData, session, body, result);
-        const dataWithRecordAndCredit = consumeAuthUserAiCredit({
-          ...currentData,
-          marketingAiRecords: [record, ...(currentData.marketingAiRecords ?? [])],
-        }, session.user.id);
-        const nextData = addOperationLog(
-          dataWithRecordAndCredit,
-          {
-            userId: session.user.id,
-            action: "生成AI营销内容",
-            targetType: "marketingAiRecord",
-            targetId: record.id,
-            summary: `${session.user.name} 生成${record.title}`,
-          },
-        );
-        persistData(database, session, nextData);
-        sendJson(response, 200, { ...result, record });
-        return;
+        const kind = requiredString(body, "kind") as MarketingAiKind;
+        const locks = kind === "image" ? database.acquireAiGenerationLocks({
+          ownerId: session.user.id,
+          kind,
+          createdAt: nowIso(),
+          expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
+          maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
+        }) : undefined;
+        try {
+          const currentData = database.readData();
+          const result = await runMarketingAiGenerate(currentData, session, body);
+          const record = marketingAiRecord(currentData, session, body, result);
+          database.appendMarketingAiResult({
+            record,
+            log: marketingAiOperationLog(session, record),
+            consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
+          });
+          sendJson(response, 200, { ...result, record });
+          return;
+        } finally {
+          if (locks) database.releaseAiGenerationLocks(locks);
+        }
       }
 
       if (request.method === "POST" && url.pathname === "/api/data-quality/cleanup") {
@@ -2683,6 +2686,19 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     model: result.model,
     createdBy: session.user.id,
     createdByName: session.user.name,
+    createdAt: nowIso(),
+  };
+}
+
+function marketingAiOperationLog(session: UserSession, record: MarketingAiRecord): OperationLog {
+  return {
+    id: makeId("op"),
+    storeId: record.storeId,
+    userId: session.user.id,
+    action: "生成AI营销内容",
+    targetType: "marketingAiRecord",
+    targetId: record.id,
+    summary: `${session.user.name} 生成${record.title}`,
     createdAt: nowIso(),
   };
 }

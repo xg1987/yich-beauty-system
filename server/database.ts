@@ -234,6 +234,58 @@ export class BeautyDatabase {
     return (result.changes ?? 0) > 0;
   }
 
+  acquireAiGenerationLocks(input: { ownerId: string; kind: string; createdAt: string; expiresAt: string; maxGlobalSlots: number }) {
+    this.ensureAiGenerationLocks();
+    this.db.prepare("DELETE FROM aiGenerationLocks WHERE expiresAt < ?").run(input.createdAt);
+
+    const accountLockId = `account:${input.kind}:${input.ownerId}`;
+    const accountResult = this.db
+      .prepare("INSERT OR IGNORE INTO aiGenerationLocks (id, scope, ownerId, kind, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(accountLockId, "account", input.ownerId, input.kind, input.createdAt, input.expiresAt) as { changes?: number };
+    if ((accountResult.changes ?? 0) <= 0) {
+      throw new Error("当前账号已有图片生成正在进行，请等待完成后再试。");
+    }
+
+    for (let slot = 0; slot < input.maxGlobalSlots; slot += 1) {
+      const globalLockId = `global:${input.kind}:${slot}`;
+      const globalResult = this.db
+        .prepare("INSERT OR IGNORE INTO aiGenerationLocks (id, scope, ownerId, kind, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(globalLockId, "global", input.ownerId, input.kind, input.createdAt, input.expiresAt) as { changes?: number };
+      if ((globalResult.changes ?? 0) > 0) {
+        return { accountLockId, globalLockId };
+      }
+    }
+
+    this.db.prepare("DELETE FROM aiGenerationLocks WHERE id = ?").run(accountLockId);
+    throw new Error("当前图片生成请求较多，请稍后再试。");
+  }
+
+  releaseAiGenerationLocks(lockIds: { accountLockId?: string; globalLockId?: string }) {
+    this.ensureAiGenerationLocks();
+    [lockIds.accountLockId, lockIds.globalLockId].filter((id): id is string => Boolean(id)).forEach((id) => {
+      this.db.prepare("DELETE FROM aiGenerationLocks WHERE id = ?").run(id);
+    });
+  }
+
+  appendMarketingAiResult(input: { record: MarketingAiRecord; log: OperationLog; consumeCreditUserId?: string }) {
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      this.db.prepare("INSERT OR REPLACE INTO marketingAiRecords (id, payload_json) VALUES (?, ?)").run(input.record.id, JSON.stringify(input.record));
+      this.db
+        .prepare("INSERT OR REPLACE INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(input.log.id, input.log.storeId ?? null, input.log.userId, input.log.action, input.log.targetType, input.log.targetId, input.log.summary, input.log.createdAt);
+      if (input.consumeCreditUserId) {
+        this.db
+          .prepare("UPDATE authUsers SET payload_json = json_set(payload_json, '$.aiCredits', MAX(0, COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS INTEGER), 0) - 1)) WHERE id = ? AND COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS INTEGER), 0) > 0")
+          .run(input.consumeCreditUserId);
+      }
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
   private writeData(data: AppData) {
     this.writeJsonTable("storeProfiles", data.storeProfiles);
     this.writeJsonTable("onlineStorefronts", data.onlineStorefronts);
@@ -1193,6 +1245,15 @@ export class BeautyDatabase {
         createdAt TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS aiGenerationLocks (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL,
+        ownerId TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        expiresAt TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
         userId TEXT NOT NULL,
@@ -1271,6 +1332,21 @@ export class BeautyDatabase {
     this.addColumnIfMissing("dailyCloses", "storeId", "TEXT");
     this.ensureDailyClosesStoreDateUnique();
     this.createIndexes();
+  }
+
+  private ensureAiGenerationLocks() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS aiGenerationLocks (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL,
+        ownerId TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        expiresAt TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_generation_locks_scope_expires ON aiGenerationLocks(scope, expiresAt);
+      CREATE INDEX IF NOT EXISTS idx_ai_generation_locks_owner_kind ON aiGenerationLocks(ownerId, kind);
+    `);
   }
 
   private addColumnIfMissing(tableName: string, columnName: string, definition: string) {

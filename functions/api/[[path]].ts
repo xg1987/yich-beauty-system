@@ -37,7 +37,6 @@ import {
   restockLowInventory,
   rescheduleAppointment,
   settleCommissions,
-  consumeAuthUserAiCredit,
   updateAppointmentStatus,
   updateAuthUserAiCredits,
   transferMemberCard,
@@ -77,7 +76,7 @@ import { assertAiFreeQuotaAvailable } from "../../src/domain/aiBilling";
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
@@ -113,6 +112,9 @@ type R2BucketLike = {
   ) => Promise<unknown>;
 };
 type PagesFunction<Bindings> = (context: { request: Request; env: Bindings }) => Response | Promise<Response>;
+
+const aiImageGenerationMaxGlobalSlots = 4;
+const aiImageGenerationLockTtlMs = 2 * 60 * 1000;
 
 const publicSignatureDataKeys = [
   "customers",
@@ -398,26 +400,29 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/marketing-ai/generate") {
       requirePermission(session, "marketing:manage");
-      const currentData = await database.readData();
       const body = await readJson(context.request);
-      const result = await runMarketingAiGenerate(currentData, session, body);
-      const record = marketingAiRecord(currentData, session, body, result);
-        const dataWithRecordAndCredit = consumeAuthUserAiCredit({
-          ...currentData,
-          marketingAiRecords: [record, ...(currentData.marketingAiRecords ?? [])],
-        }, session.user.id);
-        const nextData = addOperationLog(
-          dataWithRecordAndCredit,
-        {
-          userId: session.user.id,
-          action: "生成AI营销内容",
-          targetType: "marketingAiRecord",
-          targetId: record.id,
-          summary: `${session.user.name} 生成${record.title}`,
-        },
-      );
-      await persistData(database, session, nextData);
-      return sendJson(200, { ...result, record });
+      const kind = requiredString(body, "kind") as MarketingAiKind;
+      const locks = kind === "image" ? await acquireAiGenerationLocks(database, session, kind) : undefined;
+      try {
+        const currentData = await database.readData();
+        const result = await runMarketingAiGenerate(currentData, session, body);
+        let record = marketingAiRecord(currentData, session, body, result);
+        let responseImageDataUrl: string | undefined;
+        if (kind === "image" && record.imageDataUrl) {
+          const storedImageUrl = await storeMarketingAiImage(context.env, record, record.imageDataUrl);
+          record = { ...record, imageDataUrl: storedImageUrl };
+          responseImageDataUrl = storedImageUrl;
+        }
+        const log = marketingAiOperationLog(session, record);
+        await database.appendMarketingAiResult({
+          record,
+          log,
+          consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
+        });
+        return sendJson(200, { ...result, ...(responseImageDataUrl ? { imageDataUrl: responseImageDataUrl } : {}), record });
+      } finally {
+        if (locks) await database.releaseAiGenerationLocks(locks);
+      }
     }
 
     if (context.request.method === "POST" && pathname === "/api/data-quality/cleanup") {
@@ -2758,6 +2763,66 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     createdByName: session.user.name,
     createdAt: nowIso(),
   };
+}
+
+function marketingAiOperationLog(session: UserSession, record: MarketingAiRecord): OperationLog {
+  return {
+    id: makeId("op"),
+    storeId: record.storeId,
+    userId: session.user.id,
+    action: "生成AI营销内容",
+    targetType: "marketingAiRecord",
+    targetId: record.id,
+    summary: `${session.user.name} 生成${record.title}`,
+    createdAt: nowIso(),
+  };
+}
+
+function aiGenerationLockExpiry() {
+  const createdAt = nowIso();
+  return {
+    createdAt,
+    expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
+  };
+}
+
+function acquireAiGenerationLocks(database: D1BeautyDatabase, session: UserSession, kind: MarketingAiKind) {
+  const timestamps = aiGenerationLockExpiry();
+  return database.acquireAiGenerationLocks({
+    ownerId: session.user.id,
+    kind,
+    ...timestamps,
+    maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
+  });
+}
+
+async function storeMarketingAiImage(env: Env, record: MarketingAiRecord, imageDataUrl: string) {
+  const bucket = getR2Bucket(env);
+  if (!bucket) return imageDataUrl;
+
+  try {
+    const response = await fetch(imageDataUrl);
+    if (!response.ok) return imageDataUrl;
+    const blob = await response.blob();
+    const contentType = blob.type || response.headers.get("Content-Type") || "image/png";
+    if (!contentType.startsWith("image/")) return imageDataUrl;
+    const extension = contentType.includes("webp") ? "webp" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "png";
+    const key = `marketing-ai/${record.storeId ?? "platform"}/${record.id}.${extension}`;
+    await bucket.put(key, blob, {
+      httpMetadata: { contentType },
+      customMetadata: {
+        recordId: record.id,
+        userId: record.createdBy,
+        storeId: record.storeId ?? "",
+        provider: record.provider ?? "",
+        model: record.model ?? "",
+        generatedAt: record.createdAt,
+      },
+    });
+    return assetUrlForKey(key);
+  } catch {
+    return imageDataUrl;
+  }
 }
 
 async function runAiImageTest(data: AppData, body: JsonBody) {
