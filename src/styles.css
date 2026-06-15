@@ -26989,3 +26989,76 @@ img.brand-icon-mark {
     font-weight: 880;
   }
 }
+
+/* Employee workbench readability lock.
+   This screen uses light operational cards, so keep card copy dark even when
+   shared workbench/card parity rules are loaded earlier in the cascade. */
+.app-shell.theme-day .employee-work-page .workbench-panel.employee-task-panel,
+.app-shell.theme-day .employee-work-page .employee-stat-grid article,
+.app-shell.theme-day .employee-work-page .employee-appointment-card,
+.app-shell.theme-day .employee-work-page .employee-follow-card,
+.app-shell.theme-day .employee-work-page .empty {
+  border-color: rgba(111, 66, 193, 0.18) !important;
+  background:
+    radial-gradient(circle at 92% 10%, rgba(111, 66, 193, 0.08), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 244, 255, 0.94)) !important;
+  color: #2f255f !important;
+  box-shadow: 0 16px 34px rgba(63, 39, 112, 0.08) !important;
+}
+
+.app-shell.theme-day .employee-work-page .panel-title h2,
+.app-shell.theme-day .employee-work-page .panel-title span,
+.app-shell.theme-day .employee-work-page .employee-stat-grid strong,
+.app-shell.theme-day .employee-work-page .employee-appointment-card strong,
+.app-shell.theme-day .employee-work-page .employee-follow-card strong {
+  color: #2f255f !important;
+  text-shadow: none !important;
+}
+
+.app-shell.theme-day .employee-work-page .employee-stat-grid span,
+.app-shell.theme-day .employee-work-page .employee-stat-grid small,
+.app-shell.theme-day .employee-work-page .employee-appointment-card span,
+.app-shell.theme-day .employee-work-page .employee-appointment-card p,
+.app-shell.theme-day .employee-work-page .employee-appointment-card small,
+.app-shell.theme-day .employee-work-page .employee-follow-card span,
+.app-shell.theme-day .employee-work-page .empty {
+  color: rgba(47, 37, 95, 0.72) !important;
+  text-shadow: none !important;
+}
+
+.app-shell.theme-day .employee-work-page .employee-appointment-card button,
+.app-shell.theme-day .employee-work-page .employee-follow-card button {
+  background: #6f42c1 !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(111, 66, 193, 0.18) !important;
+}
+
+.app-shell.theme-night .employee-work-page .workbench-panel.employee-task-panel,
+.app-shell.theme-night .employee-work-page .employee-stat-grid article,
+.app-shell.theme-night .employee-work-page .employee-appointment-card,
+.app-shell.theme-night .employee-work-page .employee-follow-card,
+.app-shell.theme-night .employee-work-page .empty {
+  border-color: rgba(202, 184, 255, 0.18) !important;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(42, 34, 60, 0.96), rgba(30, 24, 42, 0.92)) !important;
+  color: var(--night-text) !important;
+}
+
+.app-shell.theme-night .employee-work-page .panel-title h2,
+.app-shell.theme-night .employee-work-page .panel-title span,
+.app-shell.theme-night .employee-work-page .employee-stat-grid strong,
+.app-shell.theme-night .employee-work-page .employee-appointment-card strong,
+.app-shell.theme-night .employee-work-page .employee-follow-card strong {
+  color: var(--night-text) !important;
+}
+
+.app-shell.theme-night .employee-work-page .employee-stat-grid span,
+.app-shell.theme-night .employee-work-page .employee-stat-grid small,
+.app-shell.theme-night .employee-work-page .employee-appointment-card span,
+.app-shell.theme-night .employee-work-page .employee-appointment-card p,
+.app-shell.theme-night .employee-work-page .employee-appointment-card small,
+.app-shell.theme-night .employee-work-page .employee-follow-card span,
+.app-shell.theme-night .employee-work-page .empty {
+  color: var(--night-muted) !important;
+}
