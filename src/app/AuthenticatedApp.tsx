@@ -106,10 +106,15 @@ type AiTextModelConfig = {
   inputTokenUsdPerMillion: number;
   outputTokenUsdPerMillion: number;
 };
+const OPENAI_IMAGE_MODELS = ["gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
+type OpenAiImageModel = typeof OPENAI_IMAGE_MODELS[number];
+const LEGACY_OPENAI_IMAGE_MODEL_ALIASES: Record<string, OpenAiImageModel> = {
+  "gpt-image-2": "gpt-image-1.5",
+};
 type AiImageModelConfig = {
   enabled: boolean;
   provider: "openai";
-  model: string;
+  model: OpenAiImageModel;
   apiKey: string;
   defaultSize: "1024x1024" | "1024x1536" | "1536x1024";
   defaultQuality: "standard" | "high";
@@ -185,7 +190,7 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
   image: {
     enabled: true,
     provider: "openai",
-    model: "gpt-image-2",
+    model: "gpt-image-1.5",
     apiKey: "",
     defaultSize: "1024x1024",
     defaultQuality: "high",
@@ -726,6 +731,13 @@ export function boundedPrice(value: unknown) {
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
 }
 
+function normalizeOpenAiImageModel(value: unknown, fallback: OpenAiImageModel): OpenAiImageModel {
+  if (typeof value !== "string") return fallback;
+  const model = value.trim();
+  if (model in LEGACY_OPENAI_IMAGE_MODEL_ALIASES) return LEGACY_OPENAI_IMAGE_MODEL_ALIASES[model];
+  return OPENAI_IMAGE_MODELS.includes(model as OpenAiImageModel) ? model as OpenAiImageModel : fallback;
+}
+
 function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
   const fallback = cloneAiGenerationConfig();
   if (!input || typeof input !== "object") return fallback;
@@ -769,7 +781,7 @@ function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
       ...image,
       enabled: typeof image.enabled === "boolean" ? image.enabled : fallback.image.enabled,
       apiKey: typeof image.apiKey === "string" ? image.apiKey : fallback.image.apiKey,
-      model: typeof image.model === "string" ? image.model : fallback.image.model,
+      model: normalizeOpenAiImageModel(image.model, fallback.image.model),
       defaultSize: ["1024x1024", "1024x1536", "1536x1024"].includes(image.defaultSize ?? "") ? image.defaultSize as AiImageModelConfig["defaultSize"] : fallback.image.defaultSize,
       defaultQuality: image.defaultQuality === "standard" || image.defaultQuality === "high" ? image.defaultQuality : fallback.image.defaultQuality,
       maxImagesPerRequest: Math.max(1, Math.min(8, Math.trunc(Number(image.maxImagesPerRequest) || fallback.image.maxImagesPerRequest))),

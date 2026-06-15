@@ -2165,10 +2165,15 @@ type AiTextModelConfig = {
   inputTokenUsdPerMillion: number;
   outputTokenUsdPerMillion: number;
 };
+const openAiImageModels = ["gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
+type OpenAiImageModel = typeof openAiImageModels[number];
+const legacyOpenAiImageModelAliases: Record<string, OpenAiImageModel> = {
+  "gpt-image-2": "gpt-image-1.5",
+};
 type AiImageModelConfig = {
   enabled: boolean;
   provider: "openai";
-  model: string;
+  model: OpenAiImageModel;
   apiKey: string;
   defaultSize: "1024x1024" | "1024x1536" | "1536x1024";
   defaultQuality: "standard" | "high";
@@ -2198,6 +2203,7 @@ type AiGenerationConfig = {
 type AiChatMessage = { role: "user" | "assistant"; content: string };
 type MarketingAiKind = "copy" | "image" | "video" | "talk";
 
+const providerFetchTimeoutMs = 110_000;
 const aiVideoDurations = [5, 10, 15];
 const aiVideoResolutions: AiVideoResolution[] = ["480p", "720p", "1080p"];
 const aiVideoAspectRatios: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
@@ -2213,7 +2219,7 @@ const defaultAiGenerationConfig: AiGenerationConfig = {
   image: {
     enabled: true,
     provider: "openai",
-    model: "gpt-image-2",
+    model: "gpt-image-1.5",
     apiKey: "",
     defaultSize: "1024x1024",
     defaultQuality: "high",
@@ -2245,6 +2251,13 @@ function cloneAiGenerationConfig(config: AiGenerationConfig = defaultAiGeneratio
 function normalizeAiPrice(value: unknown) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
+}
+
+function normalizeOpenAiImageModel(value: unknown, fallback: OpenAiImageModel): OpenAiImageModel {
+  if (typeof value !== "string") return fallback;
+  const model = value.trim();
+  if (model in legacyOpenAiImageModelAliases) return legacyOpenAiImageModelAliases[model];
+  return openAiImageModels.includes(model as OpenAiImageModel) ? model as OpenAiImageModel : fallback;
 }
 
 function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
@@ -2288,7 +2301,7 @@ function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
       ...image,
       enabled: typeof image.enabled === "boolean" ? image.enabled : fallback.image.enabled,
       apiKey: typeof image.apiKey === "string" ? image.apiKey : fallback.image.apiKey,
-      model: typeof image.model === "string" ? image.model : fallback.image.model,
+      model: normalizeOpenAiImageModel(image.model, fallback.image.model),
       defaultSize: ["1024x1024", "1024x1536", "1536x1024"].includes(image.defaultSize ?? "") ? image.defaultSize as AiImageModelConfig["defaultSize"] : fallback.image.defaultSize,
       defaultQuality: image.defaultQuality === "standard" || image.defaultQuality === "high" ? image.defaultQuality : fallback.image.defaultQuality,
       maxImagesPerRequest: Math.max(1, Math.min(8, Math.trunc(Number(image.maxImagesPerRequest) || fallback.image.maxImagesPerRequest))),
@@ -2350,12 +2363,23 @@ function providerErrorMessage(provider: string, status: number, payload: Record<
 
 async function fetchProviderJson(provider: string, url: string, init: RequestInit) {
   const startedAt = Date.now();
-  const response = await fetch(url, init);
-  const payload = await readProviderJson(response);
-  if (!response.ok) {
-    throw new Error(providerErrorMessage(provider, response.status, payload));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), providerFetchTimeoutMs);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const payload = await readProviderJson(response);
+    if (!response.ok) {
+      throw new Error(providerErrorMessage(provider, response.status, payload));
+    }
+    return { payload, elapsedMs: Date.now() - startedAt };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`${provider}调用超时：${Math.round(providerFetchTimeoutMs / 1000)}秒内未返回，请稍后重试或检查供应商状态`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return { payload, elapsedMs: Date.now() - startedAt };
 }
 
 function readAiChatHistory(body: JsonBody): AiChatMessage[] {
