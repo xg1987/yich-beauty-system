@@ -1447,6 +1447,36 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(appointmentCheckout.appointments[0].completedAt, fixedNow(), "checkout should stamp appointment completion");
   assert.equal(appointmentCheckout.customerSignatures[0].orderId, appointmentCheckout.orders[0].id, "appointment checkout should create a pending customer signature");
   assert.equal(appointmentCheckout.customerSignatures[0].status, "待签名", "appointment checkout signature should start pending");
+  const implicitAppointmentId = "a_implicit_checkout_verify";
+  const implicitAppointmentCheckout = checkoutOrder(
+    {
+      ...cloneSeed(),
+      appointments: [
+        {
+          id: implicitAppointmentId,
+          storeId: "store1",
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          startAt: "2026-05-24T00:30:00.000Z",
+          endAt: "2026-05-24T01:30:00.000Z",
+          roomName: "护理房 1",
+          status: "已到店",
+          note: "",
+        },
+        ...cloneSeed().appointments,
+      ],
+    },
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(implicitAppointmentCheckout.orders[0].appointmentId, implicitAppointmentId, "checkout should infer matching arrived appointment when appointmentId is missing");
+  assert.equal(implicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已完成", "inferred appointment checkout should complete the appointment");
   assert.throws(
     () =>
       checkoutOrder(

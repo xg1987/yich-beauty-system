@@ -76,7 +76,6 @@ import { canvasToSignatureDataUrl } from "../lib/signatureImage";
 import { readCachedStoreName, writeCachedStoreName } from "../lib/storeNameCache";
 import packageJson from "../../package.json";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
-import { SettingsView } from "./settingsView";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "card" | "customers" | "marketing" | "reports" | "accounts" | "logs" | "admin";
 type WorkbarItem = { key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey; options?: NavigateOptions };
@@ -297,6 +296,31 @@ export function searchInputSync(setValue: (value: string) => void) {
     onCompositionEnd: sync,
     onBlur: sync,
   };
+}
+
+type CustomerOptionItem = AppData["customers"][number];
+
+function normalizeCustomerLookupText(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function customerDisplayLabel(customer: CustomerOptionItem) {
+  return customer.phone ? `${customer.name} · ${customer.phone}` : customer.name;
+}
+
+function customerMatchesSearchText(customer: CustomerOptionItem, value: string) {
+  const normalized = normalizeCustomerLookupText(value);
+  if (!normalized) return true;
+  return [customer.name, customer.phone, customerDisplayLabel(customer), `${customer.name}${customer.phone}`]
+    .filter(Boolean)
+    .some((candidate) => normalizeCustomerLookupText(candidate) === normalized);
+}
+
+function findUniqueCustomerBySearchText(customers: CustomerOptionItem[], value: string) {
+  const normalized = normalizeCustomerLookupText(value);
+  if (!normalized) return undefined;
+  const matches = customers.filter((customer) => customerMatchesSearchText(customer, value));
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 function nextAppointmentDateTimeRange(durationMinutes = 60) {
@@ -971,6 +995,7 @@ const MemoInventory = memo(Inventory);
 const MemoManagementCenter = memo(ManagementCenter);
 const MemoRoomSettings = memo(RoomSettings);
 const LazyApprovalsView = lazy(() => import("./approvalsView").then((module) => ({ default: module.ApprovalsView })));
+const LazySettingsView = lazy(() => import("./settingsView").then((module) => ({ default: module.SettingsView })));
 const LazyPlatformAdminView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAdminView })));
 const LazyPlatformDataReadOnlyView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformDataReadOnlyView })));
 const LazyPlatformAccountAdminView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAccountAdminView })));
@@ -1225,16 +1250,18 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
         <GlobalMutationStatus />
         {error && <span className="error-chip app-error-chip">{error}</span>}
         {accountSettingsOpen ? (
-          <SettingsView
-            session={session}
-            setView={returnFromAccountSettings}
-            returnView={activeView}
-            updateProfile={updateAccountProfile}
-            uploadAccountAvatar={actions.uploadAccountAvatar}
-            themeMode={themeMode}
-            setThemeMode={setThemeMode}
-            initialUpdateInfo={appUpdateInfo}
-          />
+          <Suspense fallback={<ViewFallback title="系统设置" />}>
+            <LazySettingsView
+              session={session}
+              setView={returnFromAccountSettings}
+              returnView={activeView}
+              updateProfile={updateAccountProfile}
+              uploadAccountAvatar={actions.uploadAccountAvatar}
+              themeMode={themeMode}
+              setThemeMode={setThemeMode}
+              initialUpdateInfo={appUpdateInfo}
+            />
+          </Suspense>
         ) : (
           <>
             {showManagementBack && (
@@ -2878,6 +2905,21 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
         .filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedAppointmentCustomerSearch))
         .slice(0, 8)
     : [];
+  const appointmentCustomerSearchUnresolved = Boolean(
+    appointmentCustomerSearch.trim() &&
+      (!selectedAppointmentCustomer || !customerMatchesSearchText(selectedAppointmentCustomer, appointmentCustomerSearch)),
+  );
+  const updateAppointmentCustomerSearch = (value: string) => {
+    setAppointmentCustomerSearch(value);
+    const uniqueMatch = findUniqueCustomerBySearchText(data.customers, value);
+    if (uniqueMatch) {
+      setCustomerId(uniqueMatch.id);
+      return;
+    }
+    if (value.trim() && selectedAppointmentCustomer && !customerMatchesSearchText(selectedAppointmentCustomer, value)) {
+      setCustomerId("");
+    }
+  };
   const serviceStaffIds = new Set(serviceStaff.map((staff) => staff.id));
   const roomNames = roomNamesOf(data);
   const [roomName, setRoomName] = useState(roomNames[0] ?? "");
@@ -2909,6 +2951,12 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     event.preventDefault();
     const nextStartAt = new Date(startAt);
     if (!hasConfiguredRooms || !roomNames.includes(roomName) || nextStartAt < new Date()) return;
+    if (!customerId || appointmentCustomerSearchUnresolved) {
+      void runMutation(() => {
+        throw new Error("请先从客户搜索结果中选择客户，确认后再保存预约。");
+      });
+      return;
+    }
     if (selectedTimeConflict) {
       void runMutation(() => {
         throw new Error(selectedStaffAppointmentConflictText || selectedStaffUnavailableConflictText || "该人员在此时间段已有安排");
@@ -3045,15 +3093,32 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const bookedAppointments = confirmationPendingAppointments.filter((appointment) => appointmentArrivalConfirmationWindow(appointment, data.services).opensAt > appointmentNow);
   const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
+  const findAppointmentOrder = (appointment: Appointment) =>
+    data.orders.find((order) => order.status !== "已退款" && order.appointmentId === appointment.id) ??
+    data.orders.find((order) =>
+      order.status !== "已退款" &&
+      !order.appointmentId &&
+      order.customerId === appointment.customerId &&
+      order.staffId === appointment.staffId &&
+      order.createdAt.slice(0, 10) === appointment.startAt.slice(0, 10),
+    );
+  const findAppointmentSignature = (order: Order | undefined) => {
+    if (!order) return undefined;
+    const signatures = data.customerSignatures.filter((item) => item.orderId === order.id);
+    return signatures.find((item) => item.status === "已签名" && item.title === "服务完成确认签名") ??
+      signatures.find((item) => item.status === "已签名") ??
+      signatures.find((item) => item.title === "服务完成确认签名") ??
+      signatures[0];
+  };
   const arrivedServiceSignatureTasks = arrivedAppointments.map((appointment) => {
-    const order = data.orders.find((item) => item.appointmentId === appointment.id && item.status !== "已退款");
-    const signature = order ? data.customerSignatures.find((item) => item.orderId === order.id && item.title === "服务完成确认签名") : undefined;
+    const order = findAppointmentOrder(appointment);
+    const signature = findAppointmentSignature(order);
     return { appointment, order, signature };
   }).filter((item) => item.signature?.status !== "已签名");
   const completedServiceSignatureTasks = completedRangeAppointments
     .map((appointment) => {
-      const order = data.orders.find((item) => item.appointmentId === appointment.id && item.status !== "已退款");
-      const signature = order ? data.customerSignatures.find((item) => item.orderId === order.id && item.title === "服务完成确认签名") : undefined;
+      const order = findAppointmentOrder(appointment);
+      const signature = findAppointmentSignature(order);
       return { appointment, order, signature };
     })
     .filter((item): item is { appointment: Appointment; order: Order; signature: CustomerSignature | undefined } =>
@@ -3061,6 +3126,9 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     );
   const pendingServiceSignatureTasks = [...arrivedServiceSignatureTasks, ...completedServiceSignatureTasks]
     .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
+  const effectivelyCompletedRangeAppointments = visibleRangeAppointments
+    .filter((appointment) => appointment.status === "已完成" || findAppointmentSignature(findAppointmentOrder(appointment))?.status === "已签名")
+    .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
   const selectedTimeRangeInvalid = Number.isNaN(selectedStartAt.getTime()) || Number.isNaN(selectedEndAt.getTime()) || !(selectedStartAt < selectedEndAt);
@@ -3131,10 +3199,10 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const rescheduleEndDate = new Date(rescheduleEndAt);
   const rescheduleTimeRangeInvalid = Number.isNaN(rescheduleStartDate.getTime()) || Number.isNaN(rescheduleEndDate.getTime()) || !(rescheduleStartDate < rescheduleEndDate);
   const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
-  const appointmentSaveDisabled = !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const appointmentSaveDisabled = !customerId || appointmentCustomerSearchUnresolved || !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
   const rescheduleSaveDisabled = !rescheduleStaffId || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
-    if (appointment.status === "已完成") {
+    if (appointment.status === "已完成" || findAppointmentSignature(findAppointmentOrder(appointment))?.status === "已签名") {
       return (
         <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>
           查看详情
@@ -3259,12 +3327,12 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     },
   ];
   const activeAppointment = data.appointments.find((appointment) => appointment.id === activeAppointmentId);
-  const selectedCompletedAppointment = data.appointments.find((appointment) => appointment.id === selectedAppointmentDetailId && appointment.status === "已完成");
+  const selectedCompletedAppointment = effectivelyCompletedRangeAppointments.find((appointment) => appointment.id === selectedAppointmentDetailId);
   const selectedCompletedOrder = selectedCompletedAppointment
-    ? data.orders.find((order) => order.appointmentId === selectedCompletedAppointment.id && order.status !== "已退款")
+    ? findAppointmentOrder(selectedCompletedAppointment)
     : undefined;
   const selectedCompletedSignature = selectedCompletedOrder
-    ? data.customerSignatures.find((signature) => signature.orderId === selectedCompletedOrder.id)
+    ? findAppointmentSignature(selectedCompletedOrder)
     : undefined;
 
   return (
@@ -3336,18 +3404,18 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
           <div className="appointment-range-list">
             <div className="appointment-room-list-head">
               <strong>{selectedAppointmentRange.label}预约明细</strong>
-              <small>已完成 {completedRangeAppointments.length} 单</small>
+              <small>已完成 {effectivelyCompletedRangeAppointments.length} 单</small>
             </div>
-            {completedRangeAppointments.length > 0 ? (
+            {effectivelyCompletedRangeAppointments.length > 0 ? (
               <DataTable
                 columns={["时间", "客户", "项目", "服务人员", "房间", "状态", "操作"]}
-                rows={completedRangeAppointments.slice(0, 20).map((appointment) => [
+                rows={effectivelyCompletedRangeAppointments.slice(0, 20).map((appointment) => [
                   appointmentTimeRange(data, appointment),
                   nameOf(data.customers, appointment.customerId),
                   appointmentServiceNames(data, appointment),
                   nameOf(data.staff, appointment.staffId),
                   appointment.roomName ?? "-",
-                  <Badge key={`${appointment.id}-status`} text={appointmentStatusText(appointment.status)} tone={appointmentBadgeTone(appointment.status)} />,
+                  <Badge key={`${appointment.id}-status`} text="已完成" tone="ok" />,
                   <div key={`${appointment.id}-action`} className="table-action">
                     {appointmentDetailAction(appointment)}
                   </div>,
@@ -3368,7 +3436,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
                   <div><dt>服务人员</dt><dd>{nameOf(data.staff, selectedCompletedAppointment.staffId)}</dd></div>
                   <div><dt>房间</dt><dd>{selectedCompletedAppointment.roomName ?? "-"}</dd></div>
                   <div><dt>预约时间</dt><dd>{appointmentTimeRange(data, selectedCompletedAppointment)}</dd></div>
-                  <div><dt>完成时间</dt><dd>{selectedCompletedAppointment.completedAt ? shortDate(selectedCompletedAppointment.completedAt) : "-"}</dd></div>
+                  <div><dt>完成时间</dt><dd>{selectedCompletedAppointment.completedAt ? shortDate(selectedCompletedAppointment.completedAt) : selectedCompletedSignature?.signedAt ? shortDate(selectedCompletedSignature.signedAt) : selectedCompletedOrder ? shortDate(selectedCompletedOrder.createdAt) : "-"}</dd></div>
                   <div><dt>订单编号</dt><dd>{selectedCompletedOrder?.orderNo ?? "-"}</dd></div>
                   <div><dt>支付方式</dt><dd>{selectedCompletedOrder?.payMethod ?? "-"}</dd></div>
                   <div><dt>实收/扣款</dt><dd>{selectedCompletedOrder ? money(selectedCompletedOrder.paidAmount) : "-"}</dd></div>
@@ -3399,10 +3467,19 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
                 客户
                 <input
                   value={appointmentCustomerSearch}
-                  {...searchInputSync(setAppointmentCustomerSearch)}
-                  placeholder={selectedAppointmentCustomer ? customerOptionOf(selectedAppointmentCustomer).label : "输入客户姓名或手机号搜索"}
+                  {...searchInputSync(updateAppointmentCustomerSearch)}
+                  placeholder={selectedAppointmentCustomer ? customerDisplayLabel(selectedAppointmentCustomer) : "输入客户姓名或手机号搜索"}
                 />
               </label>
+              {selectedAppointmentCustomer && !appointmentCustomerSearchUnresolved && (
+                <div className="checkout-selected-customer">
+                  <span>已选择客户</span>
+                  <strong>{customerDisplayLabel(selectedAppointmentCustomer)}</strong>
+                </div>
+              )}
+              {appointmentCustomerSearchUnresolved && (
+                <p className="checkout-customer-warning">请从下方搜索结果中点选客户，不能只输入姓名保存。</p>
+              )}
               {normalizedAppointmentCustomerSearch && (
                 <div className="checkout-customer-result-list">
                   {appointmentCustomerSearchResults.length ? appointmentCustomerSearchResults.map((customer) => (
@@ -3647,6 +3724,12 @@ function Pos({
         .filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedCustomerSearch))
         .slice(0, 8)
     : [];
+  const customerSearchUnresolved = Boolean(
+    usesCustomer &&
+      customerSearch.trim() &&
+      (!selectedCustomer || !customerMatchesSearchText(selectedCustomer, customerSearch)),
+  );
+  const checkoutCustomerSelectionInvalid = usesCustomer && (!customerId || customerSearchUnresolved);
 
   useEffect(() => {
     const firstStaffId = checkoutStaff[0]?.id ?? "";
@@ -3880,6 +3963,24 @@ function Pos({
 
   const clearAppointment = () => {
     setAppointmentId("");
+  };
+
+  const updateCheckoutCustomerSearch = (value: string) => {
+    setCustomerSearch(value);
+    const uniqueMatch = findUniqueCustomerBySearchText(data.customers, value);
+    if (uniqueMatch) {
+      if (uniqueMatch.id !== customerId) {
+        clearAppointment();
+        setCardId("");
+      }
+      setCustomerId(uniqueMatch.id);
+      return;
+    }
+    if (value.trim() && selectedCustomer && !customerMatchesSearchText(selectedCustomer, value)) {
+      clearAppointment();
+      setCustomerId("");
+      setCardId("");
+    }
   };
 
   const cashierFlowRecords = buildCashierFlowRecords(data);
@@ -4304,6 +4405,7 @@ function Pos({
       messages.push(`商品 ${zeroPriceNames} 的售价为 0，请先到商品资料填写售价。`);
     }
     if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
+    if (customerSearchUnresolved) messages.push("请先从客户搜索结果中选择客户，确认后再收银。");
     if (!usesCustomer && !guestName.trim()) messages.push("请填写客户姓名，收银完成后需要客户签名。");
     if (!usesCustomer && !guestPhone.trim()) {
       messages.push("请填写客户手机号，收银完成后需要客户签名。");
@@ -4425,10 +4527,19 @@ function Pos({
             客户
             <input
               value={customerSearch}
-              {...searchInputSync(setCustomerSearch)}
-              placeholder={selectedCustomer ? `${selectedCustomer.name} · ${selectedCustomer.phone}` : "输入客户姓名或手机号搜索"}
+              {...searchInputSync(updateCheckoutCustomerSearch)}
+              placeholder={selectedCustomer ? customerDisplayLabel(selectedCustomer) : "输入客户姓名或手机号搜索"}
             />
           </label>
+          {selectedCustomer && !customerSearchUnresolved && (
+            <div className="checkout-selected-customer">
+              <span>已选择客户</span>
+              <strong>{customerDisplayLabel(selectedCustomer)}</strong>
+            </div>
+          )}
+          {customerSearchUnresolved && (
+            <p className="checkout-customer-warning">请从下方搜索结果中点选客户，不能只输入姓名收银。</p>
+          )}
           {normalizedCustomerSearch && (
             <div className="checkout-customer-result-list">
               {customerSearchResults.length ? customerSearchResults.map((customer) => (
@@ -4865,7 +4976,7 @@ function Pos({
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
           </div>
-          <button className="primary-button" disabled={checkoutSubmitting}>
+          <button className="primary-button" disabled={checkoutSubmitting || checkoutCustomerSelectionInvalid}>
             {checkoutSubmitting ? "正在收银..." : "完成收银"}
           </button>
         </form>
@@ -7896,7 +8007,7 @@ export function optionOf(item: { id: string; name: string }) {
 }
 
 export function customerOptionOf(customer: AppData["customers"][number]) {
-  return { value: customer.id, label: customer.phone ? `${customer.name} · ${customer.phone}` : customer.name };
+  return { value: customer.id, label: customerDisplayLabel(customer) };
 }
 
 function numberFromInput(value: string, fallback: number) {

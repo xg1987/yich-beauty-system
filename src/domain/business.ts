@@ -2856,10 +2856,28 @@ export function checkoutOrder(
   }
 
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
-  const appointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
-  if (input.appointmentId && !appointment) {
+  const explicitAppointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
+  if (input.appointmentId && !explicitAppointment) {
     throw new Error("预约不存在");
   }
+  const inferredAppointment = input.appointmentId ? undefined : data.appointments
+    .filter((item) => {
+      if (item.status !== "已到店") return false;
+      if ((item.storeId ?? storeId) !== storeId) return false;
+      if (item.customerId !== customerId || item.staffId !== input.staffId) return false;
+      if (item.startAt.slice(0, 10) !== createdAt.slice(0, 10)) return false;
+      if (!selectedServiceIds.every((id) => appointmentAllowsService(item, id))) return false;
+      if (data.orders.some((order) => order.appointmentId === item.id && order.status !== "已退款")) return false;
+      const appointmentStart = +new Date(item.startAt);
+      const appointmentEnd = +appointmentEndAt(item, data.services);
+      const checkoutTime = +new Date(createdAt);
+      return Number.isFinite(checkoutTime) && checkoutTime >= appointmentStart - 30 * 60 * 1000 && checkoutTime <= appointmentEnd + 4 * 60 * 60 * 1000;
+    })
+    .sort((left, right) =>
+      Math.abs(+new Date(createdAt) - +appointmentEndAt(left, data.services)) -
+      Math.abs(+new Date(createdAt) - +appointmentEndAt(right, data.services)),
+    )[0];
+  const appointment = explicitAppointment ?? inferredAppointment;
   if (appointment) {
     if (appointment.status !== "已到店") {
       throw new Error("只有已到店预约可以直接收银");

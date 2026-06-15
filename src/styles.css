@@ -17759,6 +17759,41 @@ textarea,
   gap: 10px;
 }
 
+.checkout-selected-customer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-left: 5px solid rgba(111, 66, 193, 0.62);
+  border-radius: 14px;
+  padding: 10px 13px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(111, 66, 193, 0.1), transparent 34%),
+    rgba(255, 255, 255, 0.66);
+  color: #2f255f;
+}
+
+.checkout-selected-customer span {
+  color: rgba(47, 37, 95, 0.6);
+  font-size: 12px;
+}
+
+.checkout-selected-customer strong {
+  font-size: 14px;
+  text-align: right;
+}
+
+.checkout-customer-warning {
+  margin: 0;
+  border: 1px solid rgba(180, 83, 9, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 251, 235, 0.78);
+  color: #8a4a0a;
+  font-size: 13px;
+}
+
 .checkout-customer-result-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -17978,6 +18013,16 @@ textarea,
 
   .checkout-customer-result-list {
     grid-template-columns: 1fr;
+  }
+
+  .checkout-selected-customer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .checkout-selected-customer strong {
+    text-align: left;
   }
 
   .checkout-guest-grid {
@@ -20876,6 +20921,25 @@ textarea,
   background:
     radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.18), transparent 34%),
     linear-gradient(135deg, rgba(58, 47, 80, 0.9), rgba(42, 34, 60, 0.86));
+}
+
+.theme-night .checkout-selected-customer {
+  border-color: rgba(202, 184, 255, 0.16);
+  border-left-color: rgba(139, 92, 246, 0.62);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.08);
+  color: var(--night-text);
+}
+
+.theme-night .checkout-selected-customer span {
+  color: var(--night-muted);
+}
+
+.theme-night .checkout-customer-warning {
+  border-color: rgba(251, 191, 36, 0.22);
+  background: rgba(120, 53, 15, 0.22);
+  color: #fde68a;
 }
 
 .theme-night .checkout-customer-result-list span,
