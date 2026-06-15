@@ -76,6 +76,7 @@ import { canvasToSignatureDataUrl } from "../lib/signatureImage";
 import { readCachedStoreName, writeCachedStoreName } from "../lib/storeNameCache";
 import packageJson from "../../package.json";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
+import { SettingsView } from "./settingsView";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "card" | "customers" | "marketing" | "reports" | "accounts" | "logs" | "admin";
 type WorkbarItem = { key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey; options?: NavigateOptions };
@@ -970,7 +971,6 @@ const MemoInventory = memo(Inventory);
 const MemoManagementCenter = memo(ManagementCenter);
 const MemoRoomSettings = memo(RoomSettings);
 const LazyApprovalsView = lazy(() => import("./approvalsView").then((module) => ({ default: module.ApprovalsView })));
-const LazySettingsView = lazy(() => import("./settingsView").then((module) => ({ default: module.SettingsView })));
 const LazyPlatformAdminView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAdminView })));
 const LazyPlatformDataReadOnlyView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformDataReadOnlyView })));
 const LazyPlatformAccountAdminView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAccountAdminView })));
@@ -1225,18 +1225,16 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
         <GlobalMutationStatus />
         {error && <span className="error-chip app-error-chip">{error}</span>}
         {accountSettingsOpen ? (
-          <Suspense fallback={<ViewFallback title="系统设置" />}>
-            <LazySettingsView
-              session={session}
-              setView={returnFromAccountSettings}
-              returnView={activeView}
-              updateProfile={updateAccountProfile}
-              uploadAccountAvatar={actions.uploadAccountAvatar}
-              themeMode={themeMode}
-              setThemeMode={setThemeMode}
-              initialUpdateInfo={appUpdateInfo}
-            />
-          </Suspense>
+          <SettingsView
+            session={session}
+            setView={returnFromAccountSettings}
+            returnView={activeView}
+            updateProfile={updateAccountProfile}
+            uploadAccountAvatar={actions.uploadAccountAvatar}
+            themeMode={themeMode}
+            setThemeMode={setThemeMode}
+            initialUpdateInfo={appUpdateInfo}
+          />
         ) : (
           <>
             {showManagementBack && (
@@ -3051,7 +3049,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     const order = data.orders.find((item) => item.appointmentId === appointment.id && item.status !== "已退款");
     const signature = order ? data.customerSignatures.find((item) => item.orderId === order.id && item.title === "服务完成确认签名") : undefined;
     return { appointment, order, signature };
-  });
+  }).filter((item) => item.signature?.status !== "已签名");
   const completedServiceSignatureTasks = completedRangeAppointments
     .map((appointment) => {
       const order = data.orders.find((item) => item.appointmentId === appointment.id && item.status !== "已退款");
@@ -3215,13 +3213,13 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
     <article className="appointment-work-card status-待签名" key={signature?.id ?? appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
-        <Badge text={signature ? "待服务签名" : order ? "待生成签名" : "已到店待服务"} tone="warn" />
+        <Badge text={signature?.status === "已签名" ? "已签名" : signature ? "待服务签名" : order ? "待生成签名" : "已到店待服务"} tone="warn" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
         <span>{order ? order.serviceName ?? nameOf(data.services, order.serviceId) : appointmentServiceNames(data, appointment)} · {nameOf(data.staff, order?.staffId ?? appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
-        {signature && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
+        {signature?.status === "待签名" && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
         {!signature && order && (
           <button type="button" disabled={mutationPending} onClick={() => createServiceSignature(appointment, order)}>
             生成签名

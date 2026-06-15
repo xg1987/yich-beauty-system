@@ -5003,8 +5003,17 @@ export function signCustomerSignature(
         order.id === linkedOrder.id ? { ...order, cardId: debitCard.id, payMethod: "会员卡" as const } : order,
       )
     : data.orders;
+  const completesServiceAppointment = signature.title === "服务完成确认签名" && Boolean(linkedOrder?.appointmentId);
+  const appointments = completesServiceAppointment && linkedOrder?.appointmentId
+    ? data.appointments.map((appointment) =>
+        appointment.id === linkedOrder.appointmentId && appointment.status !== "已完成"
+          ? { ...appointment, status: "已完成" as const, completedAt: appointment.completedAt ?? signedAt, updatedAt: signedAt }
+          : appointment,
+      )
+    : data.appointments;
   return {
     ...data,
+    appointments,
     memberCards,
     memberCardTransactions,
     orders,

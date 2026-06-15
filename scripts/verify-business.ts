@@ -139,6 +139,74 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  const seed = cloneSeed();
+  const appointmentId = "a_service_signature_verify";
+  const orderId = "o_service_signature_verify";
+  const signatureId = "sig_service_signature_verify";
+  const token = "sign_service_signature_verify";
+  const signed = signCustomerSignature(
+    {
+      ...seed,
+      appointments: [
+        {
+          id: appointmentId,
+          storeId: "store1",
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          startAt: "2026-05-24T02:00:00.000Z",
+          endAt: "2026-05-24T03:00:00.000Z",
+          roomName: "VIP护理房",
+          status: "已到店",
+          note: "",
+        },
+        ...seed.appointments,
+      ],
+      orders: [
+        {
+          id: orderId,
+          storeId: "store1",
+          orderNo: "SO_SERVICE_SIGNATURE_VERIFY",
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          serviceName: "水光护理",
+          totalAmount: 398,
+          paidAmount: 398,
+          discountAmount: 0,
+          appointmentId,
+          payMethod: "微信",
+          status: "已支付",
+          createdAt: fixedNow(),
+        },
+        ...seed.orders,
+      ],
+      customerSignatures: [
+        {
+          id: signatureId,
+          storeId: "store1",
+          token,
+          customerId: "c1",
+          orderId,
+          title: "服务完成确认签名",
+          content: "确认本次到店服务无误。",
+          status: "待签名",
+          requestedBy: "u_manager",
+          createdAt: fixedNow(),
+          expiresAt: "2026-05-25T01:00:00.000Z",
+        },
+        ...seed.customerSignatures,
+      ],
+    },
+    { token, signerName: "周女士", signatureText: "data:image/png;base64,service-signature" },
+    { now: fixedNow },
+  );
+  const appointment = signed.appointments.find((item) => item.id === appointmentId);
+  assert.equal(appointment?.status, "已完成", "service completion signature should complete linked arrived appointment");
+  assert.equal(appointment?.completedAt, fixedNow(), "service completion signature should stamp appointment completion time");
+}
+
+{
   const cleanReport = formalDataAudit({
     ...cloneSeed(),
     onlineStorefronts: cloneSeed().onlineStorefronts.map((storefront) => ({ ...storefront, shareCode: "yich-store" })),
