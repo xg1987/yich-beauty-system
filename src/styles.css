@@ -18059,13 +18059,14 @@ textarea,
   .app-shell .main > .topbar .topbar-actions,
   .app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 16px);
-    right: max(14px, env(safe-area-inset-right, 0px));
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: max(12px, env(safe-area-inset-right, 0px));
     grid-column: 2;
-    gap: 8px;
+    gap: 10px;
     width: auto;
     flex-wrap: nowrap;
-    z-index: 270;
+    z-index: 1200;
+    isolation: isolate;
   }
 
   .app-shell .main > .topbar .topbar-actions .icon-button,
@@ -18073,35 +18074,47 @@ textarea,
   .app-shell .main > .topbar .topbar-actions .account-avatar-button,
   .theme-day .app-shell .main > .topbar .topbar-actions .icon-button.notification-button,
   .theme-day .app-shell .main > .topbar .topbar-actions .account-avatar-button {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    min-height: 40px;
+    position: relative;
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    min-height: 46px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.72);
+    border: 2px solid rgba(255, 255, 255, 0.92);
     border-radius: 999px;
     background: linear-gradient(135deg, #6f42c1 0%, #45257f 100%);
     color: #fff;
-    box-shadow: 0 12px 26px rgba(69, 37, 127, 0.28);
+    box-shadow:
+      0 14px 30px rgba(69, 37, 127, 0.34),
+      0 0 0 1px rgba(69, 37, 127, 0.14);
     backdrop-filter: blur(12px);
   }
 
   .app-shell .main > .topbar .topbar-actions .icon-button svg,
   .app-shell .main > .topbar .topbar-actions .icon-button.notification-button svg,
   .app-shell .main > .topbar .topbar-actions .account-avatar-button svg {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     color: #fff;
-    stroke-width: 2.5;
+    stroke-width: 2.7;
   }
 
   .app-shell .main > .topbar .topbar-actions .account-avatar-button {
     margin-left: 0;
   }
 
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
   .app-shell .main > .topbar .topbar-actions .account-avatar-button img {
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
   }
 
   .app-shell .main > .topbar .topbar-actions .notification-button span {
