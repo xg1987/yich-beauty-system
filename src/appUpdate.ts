@@ -17,10 +17,7 @@ const API_BASE_URL = (import.meta as unknown as { env?: { VITE_API_BASE_URL?: st
 export const CURRENT_APP_VERSION = packageJson.version;
 const CHECK_INTERVAL_MS = 60_000;
 const STARTUP_CHECK_DELAY_MS = 3_000;
-const AUTO_PROMPT_START_HOUR = 5;
-const AUTO_PROMPT_END_HOUR = 12;
 const DISMISSED_UPDATE_KEY = "yich-dismissed-update-version";
-const AUTO_PROMPT_DATE_KEY = "yich-update-auto-prompt-date";
 export const APP_UPDATE_AVAILABLE_EVENT = "yich-app-update-available";
 
 let promptedVersion = "";
@@ -60,13 +57,10 @@ async function checkForAppUpdate({ allowAutoPrompt }: { allowAutoPrompt: boolean
     if (!status.updateAvailable || !serverVersion) return;
 
     const autoPrompt = allowAutoPrompt
-      && isMorningAutoPromptTime()
-      && !hasAutoPromptedToday()
       && serverVersion !== promptedVersion
       && serverVersion !== readSessionValue(DISMISSED_UPDATE_KEY);
     if (autoPrompt) {
       promptedVersion = serverVersion;
-      markAutoPromptedToday();
     }
 
     window.dispatchEvent(new CustomEvent(APP_UPDATE_AVAILABLE_EVENT, {
@@ -144,42 +138,6 @@ async function clearBrowserCaches() {
   if (!("caches" in window)) return;
   const cacheNames = await window.caches.keys();
   await Promise.all(cacheNames.map((cacheName) => window.caches.delete(cacheName)));
-}
-
-function todayKey() {
-  const now = new Date();
-  const month = `${now.getMonth() + 1}`.padStart(2, "0");
-  const day = `${now.getDate()}`.padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
-function isMorningAutoPromptTime() {
-  const hour = new Date().getHours();
-  return hour >= AUTO_PROMPT_START_HOUR && hour < AUTO_PROMPT_END_HOUR;
-}
-
-function hasAutoPromptedToday() {
-  return readLocalValue(AUTO_PROMPT_DATE_KEY) === todayKey();
-}
-
-function markAutoPromptedToday() {
-  writeLocalValue(AUTO_PROMPT_DATE_KEY, todayKey());
-}
-
-function readLocalValue(key: string) {
-  try {
-    return window.localStorage?.getItem(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalValue(key: string, value: string) {
-  try {
-    window.localStorage?.setItem(key, value);
-  } catch {
-    // Storage can be unavailable in restricted browser contexts.
-  }
 }
 
 function readSessionValue(key: string) {

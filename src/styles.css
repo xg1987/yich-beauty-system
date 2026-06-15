@@ -18062,18 +18062,51 @@ textarea,
     top: calc(env(safe-area-inset-top, 0px) + 16px);
     right: max(14px, env(safe-area-inset-right, 0px));
     grid-column: 2;
-    gap: 6px;
+    gap: 8px;
     width: auto;
     flex-wrap: nowrap;
     z-index: 270;
   }
 
-  .topbar-actions .icon-button,
-  .topbar-actions .account-avatar-button {
-    width: 38px;
-    height: 38px;
-    min-height: 38px;
-    border-radius: 13px;
+  .app-shell .main > .topbar .topbar-actions .icon-button,
+  .app-shell .main > .topbar .topbar-actions .icon-button.notification-button,
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button,
+  .theme-day .app-shell .main > .topbar .topbar-actions .icon-button.notification-button,
+  .theme-day .app-shell .main > .topbar .topbar-actions .account-avatar-button {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border: 1px solid rgba(111, 66, 193, 0.2);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--yich-purple-deep);
+    box-shadow: 0 10px 24px rgba(69, 37, 127, 0.12);
+    backdrop-filter: blur(12px);
+  }
+
+  .app-shell .main > .topbar .topbar-actions .icon-button svg,
+  .app-shell .main > .topbar .topbar-actions .icon-button.notification-button svg,
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button svg {
+    width: 22px;
+    height: 22px;
+    color: var(--yich-purple-deep);
+    stroke-width: 2.35;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button {
+    margin-left: 0;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .account-avatar-button img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .app-shell .main > .topbar .topbar-actions .notification-button span {
+    top: -4px;
+    right: -3px;
   }
 
   .notification-panel,
