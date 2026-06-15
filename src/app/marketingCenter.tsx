@@ -807,7 +807,22 @@ export function MarketingCenter({ data, session, actions }: { data: AppData; ses
           <PanelTitle icon={<Sparkles size={18} />} title="生成记录" action={`${selectedGenerationMode.title} · ${typedMarketingAiRecords.length} 条`} />
           <div className="marketing-record-list">
             {typedMarketingAiRecords.slice(0, 12).map((record) => (
-              <article key={record.id} className="marketing-record-item">
+              <article
+                key={record.id}
+                className="marketing-record-item"
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  if ((event.target as HTMLElement).closest("button")) return;
+                  setSelectedRecordId(record.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  if ((event.target as HTMLElement).closest("button")) return;
+                  event.preventDefault();
+                  setSelectedRecordId(record.id);
+                }}
+              >
                 <div className="marketing-record-main">
                   <span className="marketing-record-type">{marketingRecordKindLabel(record.kind)}</span>
                   <strong>{marketingRecordTitle(record)}</strong>

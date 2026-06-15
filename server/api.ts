@@ -379,7 +379,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "marketing:manage");
         const body = await readJson(request);
         const kind = requiredString(body, "kind") as MarketingAiKind;
-        const locks = kind === "image" ? database.acquireAiGenerationLocks({
+        const locks = kind === "image" || kind === "copy" ? database.acquireAiGenerationLocks({
           ownerId: session.user.id,
           kind,
           createdAt: nowIso(),
@@ -2503,6 +2503,23 @@ function imageGenerationCost(config: AiImageModelConfig, usage: unknown) {
   };
 }
 
+function combinedAiGenerationCost(label: string, ...costs: Array<MarketingAiRecord["cost"] | undefined>): MarketingAiRecord["cost"] {
+  const availableCosts = costs.filter(Boolean) as NonNullable<MarketingAiRecord["cost"]>[];
+  const inputTokens = availableCosts.reduce((total, cost) => total + (cost.inputTokens ?? 0), 0);
+  const outputTokens = availableCosts.reduce((total, cost) => total + (cost.outputTokens ?? 0), 0);
+  const totalTokens = availableCosts.reduce((total, cost) => total + (cost.totalTokens ?? 0), 0);
+  return {
+    amountUsd: roundAiUsd(availableCosts.reduce((total, cost) => total + cost.amountUsd, 0)),
+    currency: "USD",
+    basis: label,
+    priceConfigured: availableCosts.some((cost) => cost.priceConfigured),
+    estimated: availableCosts.some((cost) => cost.estimated),
+    inputTokens: inputTokens || undefined,
+    outputTokens: outputTokens || undefined,
+    totalTokens: totalTokens || undefined,
+  };
+}
+
 function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
   const specKey = `${durationSeconds}s:${resolution}`;
   const amountUsd = roundAiUsd(config.priceUsdBySpec[specKey] ?? 0);
@@ -2550,6 +2567,23 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   const assets = marketingImageAssets(body);
   const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
   return `基于用户上传素材生成美业门店产品展示短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}参考素材：${assetSummary}。比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，优先展示上传产品、模特或门店场景，保持产品外观和包装识别度；适合短视频发布，避免医疗承诺。`;
+}
+
+function marketingCopyPosterPrompt(body: JsonBody, copyText: string) {
+  const storeName = marketingText(body.storeName, "美业门店");
+  const productName = marketingText(body.productName, "护理产品");
+  const serviceName = marketingText(body.serviceName, "护理项目");
+  const channel = marketingText(body.channel, "朋友圈");
+  const marketingNode = marketingText(body.marketingNode, "日常护理节点");
+  const customerType = marketingText(body.customerType, "目标客户");
+  const bodyState = marketingText(body.bodyState, "常规护理需求");
+  const marketingGoal = marketingText(body.marketingGoal, "到店转化");
+  const posterStyle = marketingText(body.posterStyle, "高端美业风");
+  const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
+  const copyBrief = copyText.replace(/\s+/g, " ").slice(0, 900);
+  const assets = marketingImageAssets(body);
+  const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
+  return `根据这条已经生成的门店营销文案，继续生成一张可直接配套发布的中文美业海报。文案摘要：${copyBrief}。门店：${storeName}。发布渠道：${channel}。营销节点：${marketingNode}。客户类型：${customerType}。身体状态/痛点：${bodyState}。营销目的：${marketingGoal}。项目：${serviceName}。商品：${productName}。海报风格：${posterStyle}。尺寸用途：${posterSize}。参考素材：${assetSummary}。要求：使用 GPT 图片生成能力创作正式商业海报，不要做网页截图、不要生成模板占位图、不要只排版文字；画面要有真实高级美业/养生/护理场景，配合文案主题，适合手机端朋友圈或小红书发布；中文文字只保留一个 4 到 8 字主标题和一行短副标题，不要长段小字，不要水印，不要医疗夸大承诺。`;
 }
 
 function escapeSvgText(value: string) {
@@ -2616,6 +2650,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
+  if (kind === "copy") assertMarketingAiAllowed(data, session, "image");
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
   const billing = quotaState.credits > 0 ? { source: "credit" as const, creditsCharged: 1 } : { source: "free" as const };
   const prompt = marketingPrompt(body, kind);
@@ -2624,7 +2659,28 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     const result = await runAiTextCompletion(data, prompt, {
       systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
     });
-    return { kind, provider: result.provider, model: result.model, text: result.text, imageDataUrl: kind === "copy" ? marketingPosterDataUrl(body, result.text) : undefined, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
+    if (kind === "talk") {
+      return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
+    }
+    const imageConfig = aiGenerationConfigFromData(data).image;
+    const imageResult = await runAiImageTest(data, {
+      prompt: marketingCopyPosterPrompt(body, result.text),
+      size: marketingImageSize(optionalString(body, "posterSize")),
+    });
+    const textCost = textGenerationCost(config, result.usage);
+    const posterCost = imageGenerationCost(imageConfig, imageResult.usage);
+    return {
+      kind,
+      provider: `${result.provider}+${imageResult.provider}`,
+      model: `${result.model}+${imageResult.model}`,
+      text: result.text,
+      imageDataUrl: imageResult.imageDataUrl,
+      revisedPrompt: imageResult.revisedPrompt,
+      usage: { text: result.usage, image: imageResult.usage },
+      cost: combinedAiGenerationCost("文案生成 + GPT Image 2 海报生成", textCost, posterCost),
+      elapsedMs: result.elapsedMs + imageResult.elapsedMs,
+      billing,
+    };
   }
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
