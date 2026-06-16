@@ -1214,18 +1214,25 @@ button[aria-busy="true"] {
 .datetime-picker-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 320;
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: auto;
+  overscroll-behavior: contain;
   background: rgba(31, 21, 55, 0.28);
   backdrop-filter: blur(3px);
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .datetime-picker-dialog {
   width: min(520px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 48px));
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
+  overflow: hidden;
   border: 1px solid rgba(111, 66, 193, 0.18);
   border-radius: 18px;
   padding: 16px;
@@ -1271,10 +1278,12 @@ button[aria-busy="true"] {
 }
 
 .datetime-picker-body {
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 154px;
   gap: 14px;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .datetime-picker-calendar {
@@ -1338,6 +1347,9 @@ button[aria-busy="true"] {
   display: grid;
   gap: 6px;
   padding-right: 2px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .datetime-picker-time button {
@@ -1370,12 +1382,39 @@ button[aria-busy="true"] {
 }
 
 @media (max-width: 560px) {
+  .datetime-picker-backdrop {
+    place-items: end center;
+    padding: 12px 10px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .datetime-picker-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    padding: 14px;
+  }
+
   .datetime-picker-body {
     grid-template-columns: 1fr;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .datetime-picker-time {
-    min-height: 180px;
+    min-height: 0;
+  }
+
+  .datetime-picker-time > div > div {
+    max-height: min(214px, 34dvh);
+  }
+
+  .datetime-picker-actions {
+    position: sticky;
+    bottom: 0;
+    padding-top: 8px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 32%);
   }
 }
 
@@ -26842,6 +26881,14 @@ img.brand-icon-mark {
 
 .app-shell:has(.modal-backdrop) .workbar {
   z-index: 70;
+}
+
+.app-shell:has(.datetime-picker-backdrop) .modal-backdrop {
+  z-index: 320;
+}
+
+.app-shell:has(.datetime-picker-backdrop) .workbar {
+  pointer-events: none;
 }
 
 .app-shell[data-mutating="true"] .workbar {
