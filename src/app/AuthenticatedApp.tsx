@@ -38,7 +38,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useRef, useState } from "react";
 import { APP_UPDATE_AVAILABLE_EVENT, checkAppUpdateStatus } from "../appUpdate";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { BrandIcon } from "../components/business/BrandIcon";
@@ -4026,30 +4026,17 @@ function Pos({
     if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
   }, [data.customers, selectedSignature?.id]);
 
-  const signaturePoint = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const canvas = event.currentTarget;
+  const signaturePointFromClient = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: (event.clientX - rect.left) * (canvas.width / rect.width),
-      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height),
     };
   };
 
-  const startSignatureDrawing = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const context = event.currentTarget.getContext("2d");
+  const drawSignaturePoint = (canvas: HTMLCanvasElement, point: { x: number; y: number }) => {
+    const context = canvas.getContext("2d");
     if (!context) return;
-    signatureDrawingRef.current = true;
-    const point = signaturePoint(event);
-    context.beginPath();
-    context.moveTo(point.x, point.y);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const drawSignature = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (!signatureDrawingRef.current) return;
-    const context = event.currentTarget.getContext("2d");
-    if (!context) return;
-    const point = signaturePoint(event);
     context.lineWidth = 4;
     context.lineCap = "round";
     context.lineJoin = "round";
@@ -4057,6 +4044,42 @@ function Pos({
     context.lineTo(point.x, point.y);
     context.stroke();
     setHasSignatureDrawing(true);
+  };
+
+  const startSignatureDrawing = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const context = event.currentTarget.getContext("2d");
+    if (!context) return;
+    signatureDrawingRef.current = true;
+    const point = signaturePointFromClient(event.currentTarget, event.clientX, event.clientY);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const drawSignature = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!signatureDrawingRef.current) return;
+    const point = signaturePointFromClient(event.currentTarget, event.clientX, event.clientY);
+    drawSignaturePoint(event.currentTarget, point);
+  };
+
+  const startTouchSignatureDrawing = (event: ReactTouchEvent<HTMLCanvasElement>) => {
+    const touch = event.touches[0];
+    const context = event.currentTarget.getContext("2d");
+    if (!touch || !context) return;
+    event.preventDefault();
+    signatureDrawingRef.current = true;
+    const point = signaturePointFromClient(event.currentTarget, touch.clientX, touch.clientY);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  };
+
+  const drawTouchSignature = (event: ReactTouchEvent<HTMLCanvasElement>) => {
+    if (!signatureDrawingRef.current) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    event.preventDefault();
+    const point = signaturePointFromClient(event.currentTarget, touch.clientX, touch.clientY);
+    drawSignaturePoint(event.currentTarget, point);
   };
 
   const stopSignatureDrawing = () => {
@@ -5053,13 +5076,17 @@ function Pos({
               <div className="signature-canvas-wrap">
                 <canvas
                   ref={signatureCanvasRef}
-                  width={720}
-                  height={220}
+                  width={960}
+                  height={420}
                   className="signature-canvas"
                   onPointerDown={startSignatureDrawing}
                   onPointerMove={drawSignature}
                   onPointerUp={stopSignatureDrawing}
                   onPointerCancel={stopSignatureDrawing}
+                  onTouchStart={startTouchSignatureDrawing}
+                  onTouchMove={drawTouchSignature}
+                  onTouchEnd={stopSignatureDrawing}
+                  onTouchCancel={stopSignatureDrawing}
                 />
                 {!hasSignatureDrawing && <span>请客户在此处手写签名</span>}
               </div>

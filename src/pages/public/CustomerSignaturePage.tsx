@@ -244,8 +244,8 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                       <div className="signature-canvas-wrap">
                         <canvas
                           ref={canvasRef}
-                          width={720}
-                          height={260}
+                          width={960}
+                          height={420}
                           className="signature-canvas"
                           onPointerDown={startSignature}
                           onPointerMove={drawSignature}

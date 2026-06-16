@@ -6490,7 +6490,7 @@ html[data-theme="day"],
 .signature-canvas {
   display: block;
   width: 100%;
-  height: 190px;
+  height: clamp(260px, 32dvh, 340px);
   touch-action: none;
 }
 
@@ -8246,19 +8246,35 @@ textarea,
 
 .refund-inline-signature {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 16px;
+  padding: 18px;
   border: 1px solid rgba(122, 86, 180, 0.14);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.64);
 }
 
 .refund-inline-signature .signature-canvas-wrap {
-  min-height: 180px;
+  min-height: clamp(300px, 42dvh, 430px);
 }
 
 .refund-inline-signature .signature-canvas {
-  min-height: 180px;
+  height: clamp(300px, 42dvh, 430px);
+  min-height: clamp(300px, 42dvh, 430px);
+}
+
+@media (max-width: 1100px) {
+  .signature-form .signature-canvas {
+    height: clamp(300px, 38dvh, 390px);
+  }
+
+  .refund-inline-signature .signature-canvas-wrap,
+  .refund-inline-signature .signature-canvas {
+    min-height: clamp(320px, 45dvh, 420px);
+  }
+
+  .refund-inline-signature .signature-canvas {
+    height: clamp(320px, 45dvh, 420px);
+  }
 }
 
 .signature-complete-actions {
@@ -18946,7 +18962,25 @@ textarea,
   }
 
   .signature-canvas {
-    height: 170px;
+    height: clamp(280px, 42dvh, 360px);
+  }
+
+  .refund-inline-signature {
+    padding: 16px;
+  }
+
+  .refund-inline-signature .signature-canvas-wrap,
+  .refund-inline-signature .signature-canvas {
+    min-height: clamp(300px, 48dvh, 380px);
+  }
+
+  .refund-inline-signature .signature-canvas {
+    height: clamp(300px, 48dvh, 380px);
+  }
+
+  .signature-canvas-wrap > span {
+    inset: auto 14px 18px;
+    text-align: center;
   }
 
   .signature-form-actions {
