@@ -1214,7 +1214,7 @@ button[aria-busy="true"] {
 .datetime-picker-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 320;
+  z-index: 5000;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -1314,6 +1314,18 @@ button[aria-busy="true"] {
   color: rgba(49, 40, 36, 0.36);
 }
 
+.datetime-picker-calendar button:disabled,
+.datetime-picker-calendar button.disabled,
+.datetime-picker-time button:disabled,
+.datetime-picker-time button.disabled {
+  border: 1px solid rgba(49, 40, 36, 0.04);
+  background: rgba(49, 40, 36, 0.045);
+  color: rgba(49, 40, 36, 0.28);
+  cursor: not-allowed;
+  opacity: 0.72;
+  box-shadow: none;
+}
+
 .datetime-picker-calendar button.selected,
 .datetime-picker-time button.selected {
   background: linear-gradient(135deg, #6f42c1, #9a68e6);
@@ -1365,6 +1377,7 @@ button[aria-busy="true"] {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .datetime-picker-actions button {
@@ -1384,22 +1397,33 @@ button[aria-busy="true"] {
 @media (max-width: 560px) {
   .datetime-picker-backdrop {
     place-items: end center;
-    padding: 12px 10px max(12px, env(safe-area-inset-bottom));
+    padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
   }
 
   .datetime-picker-dialog {
     width: 100%;
-    max-height: calc(100dvh - 24px - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - max(10px, env(safe-area-inset-top)) - max(10px, env(safe-area-inset-bottom)));
     border-radius: 20px 20px 0 0;
-    padding: 14px;
+    padding: 12px;
+    gap: 10px;
   }
 
   .datetime-picker-body {
     grid-template-columns: 1fr;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
+  }
+
+  .datetime-picker-calendar {
+    gap: 5px;
+  }
+
+  .datetime-picker-calendar button {
+    min-height: 31px;
+    border-radius: 9px;
   }
 
   .datetime-picker-time {
@@ -1407,14 +1431,24 @@ button[aria-busy="true"] {
   }
 
   .datetime-picker-time > div > div {
-    max-height: min(214px, 34dvh);
+    max-height: min(164px, 24dvh);
   }
 
   .datetime-picker-actions {
-    position: sticky;
-    bottom: 0;
-    padding-top: 8px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 32%);
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(111, 66, 193, 0.12);
+    background: #fff;
+  }
+
+  .datetime-picker-actions button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 8px;
   }
 }
 

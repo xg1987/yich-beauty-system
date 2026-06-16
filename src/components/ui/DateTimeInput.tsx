@@ -1,5 +1,6 @@
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 type DateTimeInputProps = {
   label: string;
@@ -14,47 +15,141 @@ export function DateTimeInput({ label, value, onChange, disabled = false, minDat
   const selectedDate = useMemo(() => parseLocalDateTime(value), [value]);
   const minDate = useMemo(() => minDateTime ? parseLocalDateTime(minDateTime) : undefined, [minDateTime]);
   const [viewDate, setViewDate] = useState(() => selectedDate);
+  const [draftDate, setDraftDate] = useState(() => selectedDate);
   const monthDays = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
   const hours = useMemo(() => Array.from({ length: 24 }, (_, index) => index), []);
   const minutes = useMemo(() => Array.from({ length: 60 }, (_, index) => index), []);
 
   const openPicker = () => {
     if (disabled) return;
-    setViewDate(selectedDate);
+    const nextDate = clampToMinDate(selectedDate, minDate);
+    setDraftDate(nextDate);
+    setViewDate(nextDate);
     setIsOpen(true);
   };
 
   const updateDateTime = (nextDate: Date) => {
     if (disabled) return;
-    const clampedDate = minDate && nextDate < minDate ? minDate : nextDate;
+    const clampedDate = clampToMinDate(nextDate, minDate);
     onChange(toLocalDateTimeValue(clampedDate));
+  };
+
+  const updateDraftDate = (nextDate: Date) => {
+    if (disabled) return;
+    const clampedDate = clampToMinDate(nextDate, minDate);
+    setDraftDate(clampedDate);
+    setViewDate(clampedDate);
   };
 
   const selectDay = (day: Date) => {
     if (isBeforeMinDay(day, minDate)) return;
-    const nextDate = new Date(selectedDate);
+    const nextDate = new Date(draftDate);
     nextDate.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
-    setViewDate(nextDate);
-    updateDateTime(nextDate);
+    updateDraftDate(nextDate);
   };
 
   const selectHour = (hour: number) => {
-    const nextDate = new Date(selectedDate);
+    const nextDate = new Date(draftDate);
     nextDate.setHours(hour);
-    if (isBeforeMinDateTime(nextDate, minDate)) return;
-    updateDateTime(nextDate);
+    updateDraftDate(nextDate);
   };
 
   const selectMinute = (minute: number) => {
-    const nextDate = new Date(selectedDate);
+    const nextDate = new Date(draftDate);
     nextDate.setMinutes(minute);
     if (isBeforeMinDateTime(nextDate, minDate)) return;
-    updateDateTime(nextDate);
+    updateDraftDate(nextDate);
   };
 
   const jumpMonth = (step: number) => {
     setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + step, 1, current.getHours(), current.getMinutes()));
   };
+
+  const chooseNow = () => {
+    updateDraftDate(new Date());
+  };
+
+  const confirmSelection = () => {
+    updateDateTime(draftDate);
+    setIsOpen(false);
+  };
+
+  const picker = (
+    <div className="datetime-picker-backdrop" onClick={() => setIsOpen(false)}>
+      <div className="datetime-picker-dialog" role="dialog" aria-modal="true" aria-label={`${label}选择`} onClick={(event) => event.stopPropagation()}>
+        <div className="datetime-picker-head">
+          <button type="button" onClick={() => jumpMonth(-1)} aria-label="上个月"><ChevronLeft size={18} /></button>
+          <strong>{viewDate.getFullYear()}年{pad(viewDate.getMonth() + 1)}月</strong>
+          <button type="button" onClick={() => jumpMonth(1)} aria-label="下个月"><ChevronRight size={18} /></button>
+        </div>
+        <div className="datetime-picker-body">
+          <div className="datetime-picker-calendar">
+            {["日", "一", "二", "三", "四", "五", "六"].map((day) => <span key={day}>{day}</span>)}
+            {monthDays.map((day) => (
+              <button
+                type="button"
+                disabled={isBeforeMinDay(day, minDate)}
+                className={[
+                  day.getMonth() === viewDate.getMonth() ? "" : "muted",
+                  isSameDay(day, draftDate) ? "selected" : "",
+                  isBeforeMinDay(day, minDate) ? "disabled" : "",
+                ].filter(Boolean).join(" ")}
+                key={day.toISOString()}
+                onClick={() => selectDay(day)}
+              >
+                {day.getDate()}
+              </button>
+            ))}
+          </div>
+          <div className="datetime-picker-time">
+            <div>
+              <span>时</span>
+              <div>
+                {hours.map((hour) => (
+                  <button
+                    type="button"
+                    disabled={isBeforeMinHour(draftDate, hour, minDate)}
+                    className={[
+                      draftDate.getHours() === hour ? "selected" : "",
+                      isBeforeMinHour(draftDate, hour, minDate) ? "disabled" : "",
+                    ].filter(Boolean).join(" ")}
+                    key={hour}
+                    onClick={() => selectHour(hour)}
+                  >
+                    {pad(hour)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span>分</span>
+              <div>
+                {minutes.map((minute) => (
+                  <button
+                    type="button"
+                    disabled={isBeforeMinMinute(draftDate, minute, minDate)}
+                    className={[
+                      draftDate.getMinutes() === minute ? "selected" : "",
+                      isBeforeMinMinute(draftDate, minute, minDate) ? "disabled" : "",
+                    ].filter(Boolean).join(" ")}
+                    key={minute}
+                    onClick={() => selectMinute(minute)}
+                  >
+                    {pad(minute)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="datetime-picker-actions">
+          <button type="button" onClick={() => setIsOpen(false)}>取消</button>
+          <button type="button" onClick={chooseNow}>现在</button>
+          <button type="button" className="primary" onClick={confirmSelection}>确定</button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="datetime-field">
@@ -68,81 +163,7 @@ export function DateTimeInput({ label, value, onChange, disabled = false, minDat
         <input type="text" value={formatDisplayValue(value)} readOnly disabled={disabled} />
         <CalendarDays size={17} />
       </div>
-      {isOpen && (
-        <div className="datetime-picker-backdrop" onClick={() => setIsOpen(false)}>
-          <div className="datetime-picker-dialog" role="dialog" aria-modal="true" aria-label={`${label}选择`} onClick={(event) => event.stopPropagation()}>
-            <div className="datetime-picker-head">
-              <button type="button" onClick={() => jumpMonth(-1)} aria-label="上个月"><ChevronLeft size={18} /></button>
-              <strong>{viewDate.getFullYear()}年{pad(viewDate.getMonth() + 1)}月</strong>
-              <button type="button" onClick={() => jumpMonth(1)} aria-label="下个月"><ChevronRight size={18} /></button>
-            </div>
-            <div className="datetime-picker-body">
-              <div className="datetime-picker-calendar">
-                {["日", "一", "二", "三", "四", "五", "六"].map((day) => <span key={day}>{day}</span>)}
-                {monthDays.map((day) => (
-                  <button
-                    type="button"
-                    disabled={isBeforeMinDay(day, minDate)}
-                    className={[
-                      day.getMonth() === viewDate.getMonth() ? "" : "muted",
-                      isSameDay(day, selectedDate) ? "selected" : "",
-                      isBeforeMinDay(day, minDate) ? "disabled" : "",
-                    ].filter(Boolean).join(" ")}
-                    key={day.toISOString()}
-                    onClick={() => selectDay(day)}
-                  >
-                    {day.getDate()}
-                  </button>
-                ))}
-              </div>
-              <div className="datetime-picker-time">
-                <div>
-                  <span>时</span>
-                  <div>
-                    {hours.map((hour) => (
-                      <button
-                        type="button"
-                        disabled={isBeforeMinHour(selectedDate, hour, minDate)}
-                        className={[
-                          selectedDate.getHours() === hour ? "selected" : "",
-                          isBeforeMinHour(selectedDate, hour, minDate) ? "disabled" : "",
-                        ].filter(Boolean).join(" ")}
-                        key={hour}
-                        onClick={() => selectHour(hour)}
-                      >
-                        {pad(hour)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <span>分</span>
-                  <div>
-                    {minutes.map((minute) => (
-                      <button
-                        type="button"
-                        disabled={isBeforeMinMinute(selectedDate, minute, minDate)}
-                        className={[
-                          selectedDate.getMinutes() === minute ? "selected" : "",
-                          isBeforeMinMinute(selectedDate, minute, minDate) ? "disabled" : "",
-                        ].filter(Boolean).join(" ")}
-                        key={minute}
-                        onClick={() => selectMinute(minute)}
-                      >
-                        {pad(minute)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="datetime-picker-actions">
-              <button type="button" onClick={() => updateDateTime(new Date())}>现在</button>
-              <button type="button" className="primary" onClick={() => setIsOpen(false)}>确定</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {isOpen && createPortal(picker, document.body)}
     </div>
   );
 }
@@ -161,6 +182,10 @@ function parseLocalDateTime(value: string) {
 
 function toLocalDateTimeValue(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function clampToMinDate(date: Date, minDate?: Date) {
+  return minDate && date < minDate ? new Date(minDate) : new Date(date);
 }
 
 function formatDisplayValue(value: string) {
