@@ -23,7 +23,7 @@ type NotificationPanelProps = {
   actions: ApiActions;
   runMutation: RunMutation;
   mutationPending: boolean;
-  setView: (view: ViewKey) => void;
+  setView: (view: ViewKey, options?: { appointmentId?: string }) => void;
   onClose: () => void;
 };
 
@@ -62,7 +62,7 @@ export function NotificationPanel({ data, session, actions, runMutation, mutatio
     if (!alreadyRead) {
       void runMutation(() => actions.markNotificationRead(item.id));
     }
-    setView(item.view);
+    setView(item.view, item.view === "appointments" && item.targetType === "appointment" ? { appointmentId: item.targetId } : undefined);
     onClose();
   };
   const markAllRead = () => {

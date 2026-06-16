@@ -42,7 +42,6 @@ import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointer
 import { APP_UPDATE_AVAILABLE_EVENT, checkAppUpdateStatus } from "../appUpdate";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { BrandIcon } from "../components/business/BrandIcon";
-import { NotificationPanel, visibleNotifications } from "../components/business/NotificationPanel";
 import { UserAvatar } from "../components/business/UserAvatar";
 import { appUpdateInfoFromEvent } from "../components/AppUpdatePrompt";
 import type { AppUpdateInfo } from "../components/AppUpdatePrompt";
@@ -674,6 +673,30 @@ export function appointmentServiceNames(data: AppData, appointment: Pick<Appoint
   return appointmentServiceIds(appointment).map((serviceId) => nameOf(data.services, serviceId)).join("、") || "到店确认项目";
 }
 
+function appointmentConsumptionNames(data: AppData, appointment: Appointment, order?: Order) {
+  if (!order) return appointmentServiceNames(data, appointment);
+  const savedName = order.serviceName?.trim();
+  if (savedName) return savedName;
+  const serviceIds = (order.serviceIds?.length ? order.serviceIds : [order.serviceId]).filter(Boolean);
+  return serviceIds.map((serviceId) => nameOf(data.services, serviceId)).join("、") || appointmentServiceNames(data, appointment);
+}
+
+function appointmentRangeForDate(startAt: string, ranges: Record<AppointmentRange, { start: Date; end: Date }>): AppointmentRange | undefined {
+  const timestamp = +new Date(startAt);
+  if (!Number.isFinite(timestamp)) return undefined;
+  return (["today", "tomorrow", "week"] as AppointmentRange[]).find((range) =>
+    timestamp >= ranges[range].start.getTime() && timestamp <= ranges[range].end.getTime(),
+  );
+}
+
+function visibleNotificationsForSession(data: AppData, session: UserSession) {
+  return (data.notifications ?? [])
+    .filter((item) => item.audienceRoles.includes(session.user.role))
+    .filter((item) => session.user.role !== "therapist" || !item.staffId || item.staffId === session.user.staffId)
+    .filter((item) => canAccessView(session, item.view))
+    .filter((item) => !(item.archivedByUserIds ?? []).includes(session.user.id));
+}
+
 function findStaffAppointmentConflict(data: AppData, staffId: string, startAt: Date, endAt: Date) {
   return data.appointments.filter(isActiveRoomAppointment).find((appointment) => {
     if (appointment.staffId !== staffId) return false;
@@ -1015,6 +1038,7 @@ const LazyReports = lazy(() => import("../pages/shared/Reports"));
 const LazyOperationLogs = lazy(() => import("../pages/shared/OperationLogs"));
 const LazyCustomerRefundManagement = lazy(() => import("../components/business/ManagementOperations").then((module) => ({ default: module.CustomerRefundManagement })));
 const LazyStaffScheduleManagement = lazy(() => import("../components/business/ManagementOperations").then((module) => ({ default: module.StaffScheduleManagement })));
+const LazyNotificationPanel = lazy(() => import("../components/business/NotificationPanel").then((module) => ({ default: module.NotificationPanel })));
 
 function ViewFallback({ title }: { title: string }) {
   return (
@@ -1038,6 +1062,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
   const [posEntryCustomerId, setPosEntryCustomerId] = useState<string | undefined>();
   const [posEntryKey, setPosEntryKey] = useState(0);
+  const [appointmentEntryId, setAppointmentEntryId] = useState<string | undefined>();
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>(() => initialViewFromUrl() === "inventory" ? initialInventoryModuleFromUrl() : undefined);
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -1136,6 +1161,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
+    setAppointmentEntryId(nextView === "appointments" ? options?.appointmentId : undefined);
     if (nextView === "pos") setPosEntryKey((key) => key + 1);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
     setCatalogEntryModule(nextView === "catalog" ? options?.catalogModule : undefined);
@@ -1172,7 +1198,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const activeView = canAccessView(session, view) && (!isPlatformAdmin || platformAdminAllowedViews.has(view)) ? view : visibleNavItems[0]?.key ?? "dashboard";
   const activeWorkbar = workbarForView(activeView, posEntryModule, isEmployeeOperator);
   const currentWorkbarItems = isPlatformAdmin ? platformWorkbarItems : isEmployeeOperator ? employeeWorkbarItems : workbarItems;
-  const notificationCount = visibleNotifications(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
+  const notificationCount = visibleNotificationsForSession(data, session).filter((item) => !item.readByUserIds.includes(session.user.id)).length;
 
   const showAdminDetailBack = false;
   const showManagementBack = adminDetailFromCenter && activeView !== "settings" && activeView !== "roomSettings";
@@ -1224,15 +1250,17 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             <UserAvatar />
           </button>
           {notificationPanelOpen && (
-            <NotificationPanel
-              data={data}
-              session={session}
-              actions={actions}
-              runMutation={runMutation}
-              mutationPending={mutationPending}
-              setView={navigate}
-              onClose={() => setNotificationPanelOpen(false)}
-            />
+            <Suspense fallback={null}>
+              <LazyNotificationPanel
+                data={data}
+                session={session}
+                actions={actions}
+                runMutation={runMutation}
+                mutationPending={mutationPending}
+                setView={navigate}
+                onClose={() => setNotificationPanelOpen(false)}
+              />
+            </Suspense>
           )}
           {accountMenuOpen && (
             <AccountMenu
@@ -1281,7 +1309,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
                 <LazyPlatformAdminView data={data} />
               </Suspense>
             ) : <MemoDashboard data={data} session={session} setView={navigate} />)}
-            {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} />}
+            {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} initialAppointmentId={appointmentEntryId} />}
             {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
@@ -2873,7 +2901,7 @@ function RoomSettingsContent({
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
-function Appointments({ data, session, actions, runMutation, setView }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView }) {
+function Appointments({ data, session, actions, runMutation, setView, initialAppointmentId }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView; initialAppointmentId?: string }) {
   const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
   const currentAppointmentStaffId = session.user.staffId ?? "";
@@ -2898,6 +2926,7 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const [activeAppointmentAction, setActiveAppointmentAction] = useState<"reschedule" | "cancel" | undefined>();
   const [activeAppointmentId, setActiveAppointmentId] = useState("");
   const [selectedAppointmentDetailId, setSelectedAppointmentDetailId] = useState("");
+  const appliedInitialAppointmentIdRef = useRef<string | undefined>(undefined);
   const [rescheduleStaffId, setRescheduleStaffId] = useState(defaultAppointmentStaffId);
   const [rescheduleServiceId, setRescheduleServiceId] = useState(data.services[0]?.id ?? "");
   const [rescheduleServiceIds, setRescheduleServiceIds] = useState<string[]>(() => data.services[0]?.id ? [data.services[0].id] : []);
@@ -3133,6 +3162,22 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
   const effectivelyCompletedRangeAppointments = visibleRangeAppointments
     .filter((appointment) => appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment))
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
+  useEffect(() => {
+    if (!initialAppointmentId || appliedInitialAppointmentIdRef.current === initialAppointmentId) return;
+    const targetAppointment = data.appointments.find((appointment) => appointment.id === initialAppointmentId);
+    if (!targetAppointment) return;
+    appliedInitialAppointmentIdRef.current = initialAppointmentId;
+    const targetRange = appointmentRangeForDate(targetAppointment.startAt, appointmentRanges);
+    if (targetRange) setAppointmentRange(targetRange);
+    if (targetAppointment.status === "已完成" || appointmentHasLinkedSignedOrder(targetAppointment)) {
+      setSelectedAppointmentDetailId(targetAppointment.id);
+    } else {
+      setSelectedAppointmentDetailId("");
+    }
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".appointment-range-list")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  }, [initialAppointmentId, data.appointments, data.orders, data.customerSignatures]);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
   const selectedTimeRangeInvalid = Number.isNaN(selectedStartAt.getTime()) || Number.isNaN(selectedEndAt.getTime()) || !(selectedStartAt < selectedEndAt);
@@ -3413,17 +3458,20 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
             {effectivelyCompletedRangeAppointments.length > 0 ? (
               <DataTable
                 columns={["时间", "客户", "项目", "服务人员", "房间", "状态", "操作"]}
-                rows={effectivelyCompletedRangeAppointments.slice(0, 20).map((appointment) => [
-                  appointmentTimeRange(data, appointment),
-                  nameOf(data.customers, appointment.customerId),
-                  appointmentServiceNames(data, appointment),
-                  nameOf(data.staff, appointment.staffId),
-                  appointment.roomName ?? "-",
-                  <Badge key={`${appointment.id}-status`} text="已完成" tone="ok" />,
-                  <div key={`${appointment.id}-action`} className="table-action">
-                    {appointmentDetailAction(appointment)}
-                  </div>,
-                ])}
+                rows={effectivelyCompletedRangeAppointments.slice(0, 20).map((appointment) => {
+                  const order = findAppointmentOrder(appointment);
+                  return [
+                    appointmentTimeRange(data, appointment),
+                    nameOf(data.customers, appointment.customerId),
+                    appointmentConsumptionNames(data, appointment, order),
+                    nameOf(data.staff, order?.staffId ?? appointment.staffId),
+                    appointment.roomName ?? "-",
+                    <Badge key={`${appointment.id}-status`} text="已完成" tone="ok" />,
+                    <div key={`${appointment.id}-action`} className="table-action">
+                      {appointmentDetailAction(appointment)}
+                    </div>,
+                  ];
+                })}
               />
             ) : (
               <div className="appointment-work-empty">当前范围暂无已完成预约</div>
@@ -3436,8 +3484,8 @@ function Appointments({ data, session, actions, runMutation, setView }: { data: 
                 </div>
                 <dl>
                   <div><dt>客户</dt><dd>{nameOf(data.customers, selectedCompletedAppointment.customerId)}</dd></div>
-                  <div><dt>项目</dt><dd>{appointmentServiceNames(data, selectedCompletedAppointment)}</dd></div>
-                  <div><dt>服务人员</dt><dd>{nameOf(data.staff, selectedCompletedAppointment.staffId)}</dd></div>
+                  <div><dt>消费项目</dt><dd>{appointmentConsumptionNames(data, selectedCompletedAppointment, selectedCompletedOrder)}</dd></div>
+                  <div><dt>服务人员</dt><dd>{nameOf(data.staff, selectedCompletedOrder?.staffId ?? selectedCompletedAppointment.staffId)}</dd></div>
                   <div><dt>房间</dt><dd>{selectedCompletedAppointment.roomName ?? "-"}</dd></div>
                   <div><dt>预约时间</dt><dd>{appointmentTimeRange(data, selectedCompletedAppointment)}</dd></div>
                   <div><dt>完成时间</dt><dd>{selectedCompletedAppointment.completedAt ? shortDate(selectedCompletedAppointment.completedAt) : selectedCompletedSignature?.signedAt ? shortDate(selectedCompletedSignature.signedAt) : selectedCompletedOrder ? shortDate(selectedCompletedOrder.createdAt) : "-"}</dd></div>
