@@ -877,7 +877,6 @@ export function MarketingCenter({
                     <small>{marketingRecordMeta(record)}</small>
                   </div>
                   <div className="marketing-record-cost">
-                    <span>{recordPending ? "费用状态" : "本次费用"}</span>
                     <b>{recordPending ? "完成后显示" : formatAiCostCredits(record.cost)}</b>
                     {!recordPending && formatAiCreditCharge(record) && <small>{formatAiCreditCharge(record)}</small>}
                   </div>
