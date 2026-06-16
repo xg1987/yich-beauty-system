@@ -10253,6 +10253,15 @@ textarea,
   border-radius: 16px;
 }
 
+.sg,
+.sg .table-wrap,
+.sg .refund-inline-signature,
+.sg .signature-canvas-wrap,
+.sg .signature-canvas {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .appointment-modal-detail {
   gap: 16px;
 }
@@ -18967,6 +18976,101 @@ textarea,
 
   .refund-inline-signature {
     padding: 16px;
+  }
+
+  .sg {
+    overflow: hidden;
+  }
+
+  .sg .table-wrap {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .sg table,
+  .sg thead,
+  .sg tbody,
+  .sg tr,
+  .sg th,
+  .sg td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sg thead {
+    display: none;
+  }
+
+  .sg tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .sg tr {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(111, 66, 193, 0.12);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .sg td {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .sg td::before {
+    color: rgba(47, 37, 95, 0.54);
+    font-size: 12px;
+    font-weight: 850;
+    line-height: 1.5;
+  }
+
+  .sg td:nth-child(1)::before { content: "客户"; }
+  .sg td:nth-child(2)::before { content: "内容"; }
+  .sg td:nth-child(3)::before { content: "状态"; }
+  .sg td:nth-child(4)::before { content: "签名人"; }
+  .sg td:nth-child(5)::before { content: "时间"; }
+  .sg td:nth-child(6)::before { content: "记录"; }
+  .sg td:nth-child(7)::before { content: "操作"; }
+
+  .sg .signature-record-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .sg .signature-record-actions button {
+    flex: 1 1 104px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .sg .checkout-product-section-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .sg .checkout-product-section-head button {
+    flex: 1 1 108px;
+    min-width: 0;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .sg .refund-inline-signature label,
+  .sg .refund-inline-signature input {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .refund-inline-signature .signature-canvas-wrap,

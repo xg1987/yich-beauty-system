@@ -4765,7 +4765,7 @@ function Pos({
       >
       <div className="module-detail-stack cashier-modal-detail">
         {activeModule === "card" && (
-        <section className="panel">
+        <section className="panel sg">
         <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
         <form className="form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
