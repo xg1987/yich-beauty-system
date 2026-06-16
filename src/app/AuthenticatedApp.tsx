@@ -3964,6 +3964,13 @@ function Pos({
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
   );
+  const selectedCheckoutAppointment = appointmentId ? data.appointments.find((appointment) => appointment.id === appointmentId) : undefined;
+  const selectedCheckoutAppointmentServiceIds = selectedCheckoutAppointment ? appointmentServiceIds(selectedCheckoutAppointment) : [];
+  const selectedCheckoutAppointmentNeedsServiceSelection = Boolean(selectedCheckoutAppointment && selectedCheckoutAppointmentServiceIds.length === 0);
+  const checkoutAppointmentServiceLabel = (appointment: Appointment) => {
+    const label = appointmentServiceNames(data, appointment);
+    return appointmentServiceIds(appointment).length ? label : `${label}（需选实际服务）`;
+  };
 
   const clearAppointment = () => {
     setAppointmentId("");
@@ -4108,6 +4115,7 @@ function Pos({
     const appointment = data.appointments.find((item) => item.id === id);
     if (!appointment) return;
     const nextServiceIds = appointmentServiceIds(appointment);
+    setCheckoutValidationMessages([]);
     setCheckoutCustomerMode("customer");
     setCheckoutContentMode("service");
     setCustomerId(appointment.customerId);
@@ -4115,7 +4123,10 @@ function Pos({
     setGuestName("");
     setGuestPhone("");
     setStaffId(appointment.staffId);
-    setCheckoutServiceIds(nextServiceIds);
+    if (nextServiceIds.length > 0) {
+      setCheckoutServiceIds(nextServiceIds);
+      resetCheckoutDiscount();
+    }
     setCollaboratorStaffIds([]);
     setCardId("");
     setServicePickerOpen(false);
@@ -4402,7 +4413,9 @@ function Pos({
     if (!staffId) {
       messages.push(usesProduct && !usesService ? "请选择收银人员。商品开单可以选择店长/老板或服务人员。" : "请选择服务人员。");
     }
-    if (usesService && selectedServices.length === 0) messages.push("请选择服务项目。");
+    if (usesService && selectedServices.length === 0) {
+      messages.push(selectedCheckoutAppointmentNeedsServiceSelection ? "这条预约没有绑定服务项目，请先选择实际服务项目后再收银。" : "请选择服务项目。");
+    }
     if (usesProduct && checkoutProductItems.length === 0) messages.push("请选择销售商品。");
     if (usesProduct && checkoutProductRows.some((item) => item.product.price <= 0)) {
       const zeroPriceNames = checkoutProductRows.filter((item) => item.product.price <= 0).map((item) => item.product.name).join("、");
@@ -4480,7 +4493,9 @@ function Pos({
         setActiveModule(undefined);
       }
     })
-      .catch(() => undefined)
+      .catch((caught) => {
+        setCheckoutValidationMessages([caught instanceof Error ? caught.message : "收银失败，请稍后重试"]);
+      })
       .finally(() => {
         checkoutSubmittingRef.current = false;
         setCheckoutSubmitting(false);
@@ -4867,7 +4882,7 @@ function Pos({
                     className={appointment.id === appointmentId ? "active" : ""}
                     onClick={() => useAppointmentForCheckout(appointment.id)}
                   >
-                    <strong>{nameOf(data.customers, appointment.customerId)} · {appointmentServiceNames(data, appointment)}</strong>
+                    <strong>{nameOf(data.customers, appointment.customerId)} · {checkoutAppointmentServiceLabel(appointment)}</strong>
                     <span>{appointmentTimeRange(data, appointment)} · {appointment.roomName ?? "未分配房间"}</span>
                   </button>
                 ))}
@@ -4938,11 +4953,17 @@ function Pos({
                   { value: "", label: arrivedAppointments.length ? "不关联预约，直接开单" : "暂无待确认到店预约" },
                   ...arrivedAppointments.map((appointment) => ({
                     value: appointment.id,
-                    label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${appointmentServiceNames(data, appointment)}`,
+                    label: `${shortDate(appointment.startAt)} · ${nameOf(data.customers, appointment.customerId)} · ${checkoutAppointmentServiceLabel(appointment)}`,
                   })),
                 ]}
               />
-              {appointmentId && <p className="form-note">已带入预约信息，收银后将生成客户签名，客户签名后预约才会标记为已完成。</p>}
+              {appointmentId && (
+                <p className="form-note">
+                  {selectedCheckoutAppointmentNeedsServiceSelection
+                    ? "这条预约是到店确认项目，请在上方选择实际服务项目；收银后将生成客户签名，客户签名后预约才会标记为已完成。"
+                    : "已带入预约信息，收银后将生成客户签名，客户签名后预约才会标记为已完成。"}
+                </p>
+              )}
             </>
           )}
           {payMethod === "会员卡" && (

@@ -531,6 +531,13 @@ function parseJson<T>(text: string): T {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error("服务返回异常，请稍后重试");
+    const preview = text.trim().replace(/\s+/g, " ").slice(0, 120);
+    if (/^<!doctype html|^<html/i.test(preview)) {
+      throw new Error("服务返回异常：接口返回了页面内容，请检查 API 服务是否正常启动");
+    }
+    if (preview) {
+      throw new Error(`服务返回异常：接口返回格式不正确（${preview}）`);
+    }
+    throw new Error("服务返回异常：接口返回格式不正确，请稍后重试");
   }
 }
