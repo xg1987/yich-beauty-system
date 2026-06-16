@@ -238,12 +238,12 @@ export class BeautyDatabase {
     this.ensureAiGenerationLocks();
     this.db.prepare("DELETE FROM aiGenerationLocks WHERE expiresAt < ?").run(input.createdAt);
 
-    const accountLockId = `account:${input.kind}:${input.ownerId}`;
+    const accountLockId = `account:${input.ownerId}`;
     const accountResult = this.db
       .prepare("INSERT OR IGNORE INTO aiGenerationLocks (id, scope, ownerId, kind, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?)")
       .run(accountLockId, "account", input.ownerId, input.kind, input.createdAt, input.expiresAt) as { changes?: number };
     if ((accountResult.changes ?? 0) <= 0) {
-      throw new Error("当前账号已有图片生成正在进行，请等待完成后再试。");
+      throw new Error("当前账号已有 AI 生成正在进行，请等待完成后再试。");
     }
 
     for (let slot = 0; slot < input.maxGlobalSlots; slot += 1) {
@@ -257,7 +257,7 @@ export class BeautyDatabase {
     }
 
     this.db.prepare("DELETE FROM aiGenerationLocks WHERE id = ?").run(accountLockId);
-    throw new Error("当前图片生成请求较多，请稍后再试。");
+    throw new Error("当前 AI 生成请求较多，请稍后再试。");
   }
 
   releaseAiGenerationLocks(lockIds: { accountLockId?: string; globalLockId?: string }) {
@@ -267,17 +267,20 @@ export class BeautyDatabase {
     });
   }
 
-  appendMarketingAiResult(input: { record: MarketingAiRecord; log: OperationLog; consumeCreditUserId?: string }) {
+  appendMarketingAiResult(input: { record: MarketingAiRecord; log: OperationLog; consumeCreditUserId?: string; consumeCreditAmount?: number }) {
     this.db.exec("BEGIN IMMEDIATE;");
     try {
       this.db.prepare("INSERT OR REPLACE INTO marketingAiRecords (id, payload_json) VALUES (?, ?)").run(input.record.id, JSON.stringify(input.record));
       this.db
         .prepare("INSERT OR REPLACE INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
         .run(input.log.id, input.log.storeId ?? null, input.log.userId, input.log.action, input.log.targetType, input.log.targetId, input.log.summary, input.log.createdAt);
-      if (input.consumeCreditUserId) {
+      const consumeCreditAmount = typeof input.consumeCreditAmount === "number" && Number.isFinite(input.consumeCreditAmount)
+        ? Math.max(0, input.consumeCreditAmount)
+        : 0;
+      if (input.consumeCreditUserId && consumeCreditAmount > 0) {
         this.db
-          .prepare("UPDATE authUsers SET payload_json = json_set(payload_json, '$.aiCredits', MAX(0, COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS INTEGER), 0) - 1)) WHERE id = ? AND COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS INTEGER), 0) > 0")
-          .run(input.consumeCreditUserId);
+          .prepare("UPDATE authUsers SET payload_json = json_set(payload_json, '$.aiCredits', ROUND(MAX(0, COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS REAL), 0) - ?), 6)) WHERE id = ? AND COALESCE(CAST(json_extract(payload_json, '$.aiCredits') AS REAL), 0) > 0")
+          .run(consumeCreditAmount, input.consumeCreditUserId);
       }
       this.db.exec("COMMIT;");
     } catch (error) {

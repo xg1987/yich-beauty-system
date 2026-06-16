@@ -1,4 +1,4 @@
-import type { AppData, MarketingAiRecord, SystemConfig } from "./types";
+import type { AppData, MarketingAiCost, MarketingAiRecord, SystemConfig } from "./types";
 
 export type AiBillingConfig = {
   freeStartsAt: string;
@@ -17,6 +17,7 @@ export type AiFreeQuotaState = {
 
 export const DEFAULT_AI_FREE_STARTS_AT = "2026-06-15";
 export const DEFAULT_AI_FREE_DAILY_LIMIT = 1;
+export const AI_CREDIT_CNY_PER_USD = 6.77;
 const CHINA_TIME_ZONE = "Asia/Shanghai";
 
 export function defaultAiBillingConfig(): AiBillingConfig {
@@ -68,8 +69,18 @@ function recordDateKey(record: MarketingAiRecord) {
   return chinaDateKey(date);
 }
 
+export function roundAiCreditAmount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Number(value.toFixed(6));
+}
+
 export function accountAiCredits(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  return typeof value === "number" && Number.isFinite(value) ? roundAiCreditAmount(value) : 0;
+}
+
+export function aiCreditChargeForCost(cost?: Pick<MarketingAiCost, "amountUsd" | "priceConfigured">) {
+  if (!cost || cost.priceConfigured === false || !Number.isFinite(cost.amountUsd) || cost.amountUsd <= 0) return 0;
+  return roundAiCreditAmount(cost.amountUsd * AI_CREDIT_CNY_PER_USD);
 }
 
 export function aiFreeQuotaState(data: AppData, accountId?: string, now = new Date()): AiFreeQuotaState {

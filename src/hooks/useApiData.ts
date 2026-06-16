@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createApiClient, setActiveDataScope, type JoinInviteResult } from "../api/client";
 import { normalizeUserSession, type UserSession } from "../domain/auth";
+import { accountAiCredits, roundAiCreditAmount } from "../domain/aiBilling";
 import { emptyAppData, isAppDataSlice, isViewKey, type AppDataUpdate } from "../domain/dataSlices";
 import type { AppData, ViewKey } from "../domain/types";
 import { clearCachedStoreName } from "../lib/storeNameCache";
@@ -195,8 +196,11 @@ export function useApiData() {
               ...current,
               authUsers: current.authUsers.map((user) => {
                 if (user.id !== result.record!.createdBy) return user;
-                const credits = typeof user.aiCredits === "number" && Number.isFinite(user.aiCredits) ? Math.max(0, Math.floor(user.aiCredits)) : 0;
-                return shouldConsumeCredit && credits > 0 ? { ...user, aiCredits: credits - 1 } : user;
+                const credits = accountAiCredits(user.aiCredits);
+                const creditCharge = result.record!.billing?.creditsCharged ?? 0;
+                return shouldConsumeCredit && credits > 0 && creditCharge > 0
+                  ? { ...user, aiCredits: roundAiCreditAmount(Math.max(0, credits - creditCharge)) }
+                  : user;
               }),
               marketingAiRecords: [
                 result.record!,

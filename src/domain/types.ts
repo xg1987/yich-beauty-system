@@ -69,6 +69,7 @@ export type MarketingAiRecord = {
   costBreakdown?: MarketingAiCostBreakdown;
   billing?: {
     source: "credit" | "free";
+    chargeCurrency?: "CNY";
     creditsCharged?: number;
   };
   provider?: string;

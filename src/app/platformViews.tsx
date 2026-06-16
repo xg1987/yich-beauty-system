@@ -841,6 +841,12 @@ function formatAiCostUsd(amount: number) {
   return `$${amount.toFixed(amount > 0 && amount < 0.01 ? 6 : 4)}`;
 }
 
+function formatAiCreditAmount(amount: number) {
+  if (!Number.isFinite(amount) || amount <= 0) return "0";
+  if (Number.isInteger(amount)) return String(amount);
+  return amount.toFixed(amount < 1 ? 4 : 2).replace(/\.?0+$/, "");
+}
+
 function marketingAiKindLabel(kind: AppData["marketingAiRecords"][number]["kind"]) {
   return kind === "image" ? "产品设计图" : kind === "video" ? "产品视频" : kind === "talk" ? "口播" : "获客图文案";
 }
@@ -1851,7 +1857,7 @@ export function PlatformAccountAdminView({
           </button>
         )}
         <button type="button" disabled={mutationPending} onClick={() => setResetUserId(user.id)}>重置密码</button>
-        {isPlatformAdmin && <button type="button" disabled={mutationPending} onClick={() => { setCreditUserId(user.id); setCreditAmount(Math.max(0, user.aiCredits ?? 0)); }}>AI充值</button>}
+        {isPlatformAdmin && <button type="button" disabled={mutationPending} onClick={() => { setCreditUserId(user.id); setCreditAmount(accountAiCredits(user.aiCredits)); }}>AI充值</button>}
         {user.staffId && user.role !== "owner" && <button type="button" disabled={mutationPending} onClick={() => deleteLinkedStaff(user)}>删除员工</button>}
       </div>
     )
@@ -1917,7 +1923,7 @@ export function PlatformAccountAdminView({
                 <strong>AI积分充值</strong>
                 <span>{creditUser.name} · {creditUser.account}</span>
               </div>
-              <label>积分数<input type="number" min={0} max={99999} step={1} value={creditAmount} onChange={(event) => setCreditAmount(Number(event.target.value))} required /></label>
+              <label>账号积分<input type="number" min={0} max={99999} step={0.01} value={creditAmount} onChange={(event) => setCreditAmount(Number(event.target.value))} required /></label>
               <div className="staff-edit-actions">
                 <SubmitStatusButton idleText="保存积分" busyText="保存中..." />
                 <button type="button" onClick={() => setCreditUserId("")}>取消</button>
@@ -1935,7 +1941,7 @@ export function PlatformAccountAdminView({
                       user.name,
                       user.account,
                       displayRoleName(user),
-                      `${Math.max(0, user.aiCredits ?? 0)} 次`,
+                      formatAiCreditAmount(accountAiCredits(user.aiCredits)),
                       <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
                       shortDate(user.createdAt),
                       renderAccountActions(user),
@@ -1971,7 +1977,7 @@ export function PlatformAccountAdminView({
                               user.name,
                               accountPhone(user),
                               displayRoleName(user),
-                              `${Math.max(0, user.aiCredits ?? 0)} 次`,
+                              formatAiCreditAmount(accountAiCredits(user.aiCredits)),
                               <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
                               shortDate(user.createdAt),
                               renderAccountActions(user),
@@ -1996,7 +2002,7 @@ export function PlatformAccountAdminView({
                   user.name,
                   user.account,
                   displayRoleName(user),
-                  `${Math.max(0, user.aiCredits ?? 0)} 次`,
+                  formatAiCreditAmount(accountAiCredits(user.aiCredits)),
                   <Badge key={`${user.id}-status`} text={displayAuthUserStatus(user.status)} tone={authUserStatusTone(user.status)} />,
                   shortDate(user.createdAt),
                   renderAccountActions(user),
@@ -2076,7 +2082,7 @@ export function PlatformAiCreditsView({
   const submitTopUp = (event: FormEvent) => {
     event.preventDefault();
     if (!selectedRow) return;
-    const amount = Math.max(0, Math.floor(Number(topUpAmount) || 0));
+    const amount = Math.max(0, Number(topUpAmount) || 0);
     if (amount <= 0) return;
     const nextCredits = selectedRow.credits + amount;
     void runMutation(() => actions.updateAuthUserAiCredits(selectedRow.user.id, nextCredits)).then(() => {
@@ -2106,13 +2112,13 @@ export function PlatformAiCreditsView({
         <div>
           <span className="eyebrow"><BadgeCent size={15} /> 平台充值</span>
           <h1>AI积分充值</h1>
-          <p>给门店老板、店长、员工账号充值 AI 生成次数。</p>
+          <p>给门店老板、店长、员工账号充值 AI 积分，生成成功后按实际费用扣积分。</p>
         </div>
         <div className="page-hero-stats">
           <StatCard title="账号总数" value={`${visibleAuthUsers.length} 个`} hint="可充值账号" />
           <StatCard title="已充值账号" value={`${creditedAccounts} 个`} hint="积分大于 0" />
-          <StatCard title="低积分账号" value={`${lowCreditAccounts} 个`} hint="剩余 1-3 次" />
-          <StatCard title="当前总积分" value={`${totalCredits} 次`} hint="全系统余额" />
+          <StatCard title="低积分账号" value={`${lowCreditAccounts} 个`} hint="剩余 1-3 积分" />
+          <StatCard title="当前总积分" value={formatAiCreditAmount(totalCredits)} hint="全系统余额" />
         </div>
       </section>
 
@@ -2126,11 +2132,11 @@ export function PlatformAiCreditsView({
                   <strong>{selectedRow.user.name}</strong>
                   <span>{selectedRow.storeName} · {displayRoleName(selectedRow.user)} · {accountPhone(selectedRow.user)}</span>
                 </div>
-                <b>{selectedRow.credits} 次</b>
+                <b>{formatAiCreditAmount(selectedRow.credits)}</b>
               </div>
               <label>
-                充值次数
-                <input type="number" min={1} max={99999} step={1} value={topUpAmount} onChange={(event) => setTopUpAmount(Number(event.target.value))} required />
+                充值积分
+                <input type="number" min={0.01} max={99999} step={0.01} value={topUpAmount} onChange={(event) => setTopUpAmount(Number(event.target.value))} required />
               </label>
               <div className="ai-credit-quick-row" aria-label="快捷充值">
                 {[10, 30, 100, 300].map((amount) => (
@@ -2140,7 +2146,7 @@ export function PlatformAiCreditsView({
                 ))}
               </div>
               <div className="ai-credit-after">
-                充值后：<strong>{selectedRow.credits + Math.max(0, Math.floor(Number(topUpAmount) || 0))} 次</strong>
+                充值后：<strong>{formatAiCreditAmount(selectedRow.credits + Math.max(0, Number(topUpAmount) || 0))}</strong>
               </div>
               <div className="staff-edit-actions">
                 <SubmitStatusButton idleText="确认充值" busyText="充值中..." disabled={mutationPending || !selectedRow || topUpAmount <= 0} />
@@ -2151,7 +2157,7 @@ export function PlatformAiCreditsView({
             <div className="ai-credit-empty-state">
               <BadgeCent size={28} />
               <strong>选择一个账号开始充值</strong>
-              <span>右侧账号列表里点“充值”，这里会显示当前积分和充值后次数。</span>
+              <span>右侧账号列表里点“充值”，这里会显示当前积分和充值后积分。</span>
             </div>
           )}
         </div>
@@ -2185,7 +2191,7 @@ export function PlatformAiCreditsView({
               </div>,
               row.storeName,
               displayRoleName(row.user),
-              <Badge key={`${row.user.id}-credits`} text={`${row.credits} 次`} tone={row.credits > 3 ? "ok" : row.credits > 0 ? "warn" : undefined} />,
+              <Badge key={`${row.user.id}-credits`} text={formatAiCreditAmount(row.credits)} tone={row.credits > 3 ? "ok" : row.credits > 0 ? "warn" : undefined} />,
               row.credits > 0 ? "积分账号" : `${row.quota.used}/${row.quota.limit}`,
               row.lastRecordAt,
               <div className="row-actions" key={`${row.user.id}-actions`}>

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Download, Eye, Image as ImageIcon, Megaphone, Plus, Search, Sparkles, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
-import { aiFreeQuotaState } from "../domain/aiBilling";
+import { AI_CREDIT_CNY_PER_USD, aiFreeQuotaState } from "../domain/aiBilling";
 import { isMarketingAiRecordPending, isStaleMarketingAiRecord } from "../domain/business";
 import type { AppData, MarketingAiRecord } from "../domain/types";
 import type { ApiActions } from "../hooks/useApiData";
@@ -91,7 +91,7 @@ const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16
 const videoRatios = ["9:16", "1:1", "16:9"];
 const videoDurations = [5, 10, 15];
 const MAX_MARKETING_ASSET_BYTES = 8 * 1024 * 1024;
-const USD_TO_CNY_DISPLAY_RATE = 6.77;
+const USD_TO_CNY_DISPLAY_RATE = AI_CREDIT_CNY_PER_USD;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MARKETING_PENDING_LOST_MESSAGE = "后台生成任务超过10分钟仍未返回结果，可能已被服务重启、供应商超时或网络中断终止。请重新生成。";
 
@@ -173,15 +173,24 @@ function aiCostAmountUsd(cost?: MarketingAiRecord["cost"] | { amountUsd: number;
   return Number.isFinite(cost.amountUsd) ? cost.amountUsd : undefined;
 }
 
-function formatAiCostRmb(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
+function formatAiCreditAmount(value: number) {
+  if (!Number.isFinite(value)) return "0";
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(value > 0 && value < 1 ? 4 : 2).replace(/\.?0+$/, "");
+}
+
+function formatAiCreditCharge(record?: Pick<MarketingAiRecord, "billing">) {
+  const amount = record?.billing?.source === "credit" ? record.billing.creditsCharged ?? 0 : 0;
+  return amount > 0 ? `扣积分 ${formatAiCreditAmount(amount)}` : "";
+}
+
+function formatAiCostCredits(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
   if (!cost) return "生成完成后显示";
   const amountUsd = aiCostAmountUsd(cost);
   if (amountUsd === undefined) return "暂无费用记录";
   if (typeof cost !== "number" && cost.priceConfigured === false) return "费用未配置";
   const amount = amountUsd * USD_TO_CNY_DISPLAY_RATE;
-  if (amount > 0 && amount < 0.01) return `人民币 ${amount.toFixed(6)} 元`;
-  if (amount > 0 && amount < 1) return `人民币 ${amount.toFixed(4)} 元`;
-  return `人民币 ${amount.toFixed(2)} 元`;
+  return `本次积分 ${formatAiCreditAmount(amount)}`;
 }
 
 function formatAiCostUsd(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
@@ -230,7 +239,7 @@ function marketingRecordContent(record: MarketingAiRecord) {
     marketingRecordTitle(record),
     marketingRecordSummary(record),
     marketingRecordMeta(record),
-    `费用：${formatAiCostRmb(record.cost)}`,
+    `积分：${formatAiCostCredits(record.cost)}`,
   ].map(compactRecordText).filter(Boolean).join("\n");
 }
 
@@ -304,10 +313,23 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   link.remove();
 }
 
+function isInlinePngDataUrl(value?: string) {
+  return Boolean(value?.startsWith("data:image/png;base64,"));
+}
+
+function isStoredPngAssetUrl(value?: string) {
+  return Boolean(value?.startsWith("/api/assets/") && value.toLowerCase().includes(".png"));
+}
+
+function isPreviewablePngSource(value?: string) {
+  return isInlinePngDataUrl(value) || isStoredPngAssetUrl(value);
+}
+
 function downloadMarketingRecord(record: MarketingAiRecord) {
   const filename = `${marketingRecordTitle(record)}-${(record.createdAt || new Date().toISOString()).slice(0, 10)}`;
-  if (record.imageDataUrl) {
-    downloadDataUrl(record.imageDataUrl, `${filename}.png`);
+  const pngSource = isPreviewablePngSource(record.imageDataUrl) ? record.imageDataUrl : "";
+  if (pngSource) {
+    downloadDataUrl(pngSource, `${filename}.png`);
     return;
   }
   const link = document.createElement("a");
@@ -361,10 +383,12 @@ export function MarketingCenter({
   const [generationError, setGenerationError] = useState("");
   const [generationResult, setGenerationResult] = useState<Awaited<ReturnType<ApiActions["generateMarketingAi"]>> | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState("");
+  const [generationDialogDismissed, setGenerationDialogDismissed] = useState(false);
   const [copyResultStatus, setCopyResultStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [downloadResultStatus, setDownloadResultStatus] = useState<"idle" | "downloaded" | "failed">("idle");
   const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
   const [manualCopyText, setManualCopyText] = useState("");
+  const generationInFlightRef = useRef(false);
   const product = data.products[0];
   const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
@@ -395,6 +419,8 @@ export function MarketingCenter({
   const dialogRecord = selectedMarketingRecord ?? generationResultRecord;
   const dialogText = dialogRecord?.text ?? generationResult?.text;
   const dialogImageDataUrl = dialogRecord?.imageDataUrl ?? generationResult?.imageDataUrl;
+  const dialogPngSource = isPreviewablePngSource(dialogImageDataUrl) ? dialogImageDataUrl : "";
+  const dialogHasInvalidImageSource = Boolean(dialogImageDataUrl && !dialogPngSource);
   const dialogVideoUrl = dialogRecord?.videoUrl ?? generationResult?.videoUrl;
   const dialogVideoTaskId = dialogRecord?.taskId ?? generationResult?.taskId;
   const dialogVideoStatus = dialogRecord?.status ?? generationResult?.status;
@@ -408,7 +434,7 @@ export function MarketingCenter({
   const dialogSummaryItems = dialogRecord
     ? [dialogRecord.marketingNode, dialogRecord.channel, dialogRecord.marketingGoal].filter(Boolean)
     : previewSummaryItems;
-  const showGenerationDialog = Boolean(generationBusy || generationError || generationResult || selectedMarketingRecord);
+  const showGenerationDialog = Boolean(generationBusy || generationError || selectedMarketingRecord || (!generationDialogDismissed && generationResult));
   const showAiTechnicalDetails = session.user.role === "superadmin";
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = () => {
@@ -451,6 +477,7 @@ export function MarketingCenter({
     setDownloadResultStatus("idle");
     setImagePreviewFailed(false);
     setManualCopyText("");
+    setGenerationDialogDismissed(false);
   }, [activeView, generationKind]);
 
   useEffect(() => {
@@ -475,17 +502,21 @@ export function MarketingCenter({
   }, [hasPendingGenerationResult, hasPendingMarketingAiRecords, refreshMarketingData]);
 
   const generate = async () => {
+    if (generationInFlightRef.current) return;
+    generationInFlightRef.current = true;
     if (!contentState.enabled) {
       setGenerationBusy(false);
       setGenerationResult(null);
       setCopyResultStatus("idle");
       setGenerationError(unavailableMessage());
+      generationInFlightRef.current = false;
       return;
     }
     if (selectedModeLocked) {
       setGenerationBusy(false);
       setGenerationResult(null);
       setGenerationError("产品视频和口播正在调试中，请先使用获客图文案或产品设计图");
+      generationInFlightRef.current = false;
       return;
     }
     if (generationKind === "image" && !productImageDataUrl && !modelImageDataUrl) {
@@ -493,12 +524,14 @@ export function MarketingCenter({
       setGenerationResult(null);
       setCopyResultStatus("idle");
       setGenerationError("请先上传产品图或模特图，再生成产品设计图");
+      generationInFlightRef.current = false;
       return;
     }
     setGenerationBusy(true);
     setGenerationError("");
     setGenerationResult(null);
     setSelectedRecordId("");
+    setGenerationDialogDismissed(false);
     setDownloadResultStatus("idle");
     setManualCopyText("");
     try {
@@ -539,6 +572,7 @@ export function MarketingCenter({
     } catch (caught) {
       setGenerationError(caught instanceof Error ? caught.message : "AI 生成失败");
     } finally {
+      generationInFlightRef.current = false;
       setGenerationBusy(false);
     }
   };
@@ -551,7 +585,7 @@ export function MarketingCenter({
     return [
       "AI获客图文案",
       dialogSummaryItems.join(" · "),
-      `费用：${formatAiCostRmb(dialogCost)}`,
+      `积分：${formatAiCostCredits(dialogCost)}`,
     ].map(compactRecordText).filter(Boolean).join("\n");
   };
 
@@ -571,8 +605,8 @@ export function MarketingCenter({
 
   const downloadPoster = () => {
     const title = dialogRecord ? marketingRecordTitle(dialogRecord) : `AI获客图文案-${new Date().toISOString().slice(0, 10)}`;
-    if (dialogImageDataUrl) {
-      downloadDataUrl(dialogImageDataUrl, `${title}.png`);
+    if (dialogPngSource) {
+      downloadDataUrl(dialogPngSource, `${title}.png`);
       setDownloadResultStatus("downloaded");
       window.setTimeout(() => setDownloadResultStatus("idle"), 1800);
       return;
@@ -603,10 +637,21 @@ export function MarketingCenter({
     setGenerationError("");
     setGenerationResult(null);
     setSelectedRecordId("");
+    setGenerationDialogDismissed(false);
     setCopyResultStatus("idle");
     setDownloadResultStatus("idle");
     setManualCopyText("");
     setActiveView("records");
+  };
+
+  const closeGenerationDialog = () => {
+    if (generationBusy) return;
+    setGenerationError("");
+    setSelectedRecordId("");
+    setGenerationDialogDismissed(Boolean(generationResult));
+    setCopyResultStatus("idle");
+    setDownloadResultStatus("idle");
+    setManualCopyText("");
   };
 
   return (
@@ -654,14 +699,14 @@ export function MarketingCenter({
       {activeView === "content" ? (
         <section className="marketing-workspace">
           <div className="workbench-panel marketing-form-panel">
-            <PanelTitle icon={<Search size={18} />} title={isPosterMode ? "AI产品设计图" : "AI获客图文案"} action={contentState.label} />
-            <div className={`marketing-quota-note ${quotaState.credits > 0 ? "paid" : ""} ${quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}>
-              {quotaState.credits > 0
-                ? `当前账号 AI 积分 ${quotaState.credits} 次，生成成功后扣 1 次。`
-                : quotaState.enforced
+            <PanelTitle icon={<Search size={18} />} title={isPosterMode ? "AI产品设计图" : "AI获客图文案"} action={quotaState.credits > 0 ? `账号积分 ${formatAiCreditAmount(quotaState.credits)}` : contentState.label} />
+            {quotaState.credits <= 0 && (
+              <div className={`marketing-quota-note ${quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}>
+                {quotaState.enforced
                   ? `当前账号未充值，今日免费剩余 ${quotaState.remaining}/${quotaState.limit} 次。`
                   : `${quotaState.startsAt} 起，未充值账号每天可免费生成 ${quotaState.limit} 次。`}
-            </div>
+              </div>
+            )}
             {!isPosterMode && (
               <>
                 <div className="marketing-context-block marketing-primary-block">
@@ -807,6 +852,7 @@ export function MarketingCenter({
           <div className="marketing-record-list">
             {typedMarketingAiRecords.slice(0, 12).map((record) => {
               const recordPending = isMarketingAiRecordPending(record);
+              const recordDownloadLabel = isPreviewablePngSource(record.imageDataUrl) ? "下载PNG" : record.kind === "video" ? "下载视频" : "下载文案";
               return (
                 <article
                   key={record.id}
@@ -832,12 +878,13 @@ export function MarketingCenter({
                   </div>
                   <div className="marketing-record-cost">
                     <span>{recordPending ? "费用状态" : "本次费用"}</span>
-                    <b>{recordPending ? "完成后显示" : formatAiCostRmb(record.cost)}</b>
+                    <b>{recordPending ? "完成后显示" : formatAiCostCredits(record.cost)}</b>
+                    {!recordPending && formatAiCreditCharge(record) && <small>{formatAiCreditCharge(record)}</small>}
                   </div>
                   <div className="marketing-record-actions">
                     <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
                     <button type="button" aria-label="复制文案" disabled={recordPending} onClick={() => void copyRecord(record)}><Copy size={15} /></button>
-                    <button type="button" aria-label={record.imageDataUrl ? "下载图片" : record.kind === "copy" ? "下载文案" : "下载图片"} disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
+                    <button type="button" aria-label={recordDownloadLabel} disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
                   </div>
                 </article>
               );
@@ -859,14 +906,7 @@ export function MarketingCenter({
                 type="button"
                 aria-label="关闭生成结果"
                 disabled={generationBusy}
-                onClick={() => {
-                  setGenerationError("");
-                  setGenerationResult(null);
-                  setSelectedRecordId("");
-                  setCopyResultStatus("idle");
-                  setDownloadResultStatus("idle");
-                  setManualCopyText("");
-                }}
+                onClick={closeGenerationDialog}
               >
                 <X size={18} />
               </button>
@@ -913,12 +953,17 @@ export function MarketingCenter({
                           <strong>口播脚本已生成</strong>
                           <span>右侧可复制内容</span>
                         </div>
-                      ) : dialogImageDataUrl && !imagePreviewFailed ? (
-                        <img className="marketing-result-image" src={dialogImageDataUrl} alt="AI 产品设计图" onError={() => setImagePreviewFailed(true)} />
-                      ) : dialogImageDataUrl ? (
+                      ) : dialogPngSource && !imagePreviewFailed ? (
+                        <img className="marketing-result-image" src={dialogPngSource} alt="AI 产品设计图 PNG" onError={() => setImagePreviewFailed(true)} />
+                      ) : dialogPngSource ? (
                         <div className="marketing-poster-placeholder">
                           <ImageIcon size={26} />
                           <span>PNG 已生成，预览暂时加载失败，可下载PNG保存</span>
+                        </div>
+                      ) : dialogHasInvalidImageSource ? (
+                        <div className="marketing-poster-placeholder error">
+                          <ImageIcon size={26} />
+                          <span>图片接口未返回可保存的 PNG，请重新生成</span>
                         </div>
                       ) : (
                         <div className="marketing-poster-placeholder">
@@ -934,7 +979,8 @@ export function MarketingCenter({
                           <span>{showAiTechnicalDetails && dialogProvider && dialogModel ? `${AI_PROVIDER_LABELS[dialogProvider as keyof typeof AI_PROVIDER_LABELS] ?? dialogProvider} · ${dialogModel}` : "本次生成"}</span>
                         </div>
                         <div className="marketing-cost-pill">
-                          <b>{formatAiCostRmb(dialogCost)}</b>
+                          <b>{formatAiCostCredits(dialogCost)}</b>
+                          {formatAiCreditCharge(dialogRecord) && <small>{formatAiCreditCharge(dialogRecord)}</small>}
                           {showAiTechnicalDetails && <small>{formatAiCostUsd(dialogCost)} · {formatAiUsageCostDetail(dialogCost)}</small>}
                         </div>
                       </div>
@@ -961,8 +1007,8 @@ export function MarketingCenter({
                         <button type="button" className="secondary-button" onClick={() => void copyGenerationText()}>
                           <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "已显示内容" : "复制内容"}
                         </button>
-                        <button type="button" className="secondary-button" onClick={downloadPoster}>
-                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogImageDataUrl ? "下载PNG" : "下载文案"}
+                        <button type="button" className="secondary-button" onClick={downloadPoster} disabled={dialogKind === "image" && !dialogPngSource && !dialogText && !dialogVideoUrl}>
+                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogPngSource ? "下载PNG" : "下载文案"}
                         </button>
                         <button type="button" className="secondary-button" onClick={returnToRecords}>
                           <Eye size={16} /> 返回记录

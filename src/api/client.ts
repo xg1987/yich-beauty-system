@@ -58,6 +58,8 @@ export type AiTestChatResult = {
   model: string;
   text: string;
   usage?: unknown;
+  cost?: MarketingAiCost;
+  record?: MarketingAiRecord;
   raw?: unknown;
   elapsedMs: number;
 };
@@ -70,6 +72,7 @@ export type AiTestImageResult = {
   revisedPrompt?: string;
   usage?: unknown;
   cost?: MarketingAiCost;
+  record?: MarketingAiRecord;
   raw?: unknown;
   elapsedMs: number;
 };

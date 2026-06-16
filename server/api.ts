@@ -78,7 +78,7 @@ import { hashPassword } from "../src/lib/password";
 // Read version from package.json (Node.js ESM)
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
-import { assertAiFreeQuotaAvailable } from "../src/domain/aiBilling";
+import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../src/domain/aiBilling";
 import { requireMobilePhone } from "../src/domain/phone";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
@@ -384,15 +384,13 @@ export function createApiServer(database = new BeautyDatabase()) {
         const startedAt = Date.now();
         const currentData = database.readData();
         assertMarketingAiGeneratePreflight(currentData, session, kind);
-        const locks = kind === "image"
-          ? database.acquireAiGenerationLocks({
-              ownerId: session.user.id,
-              kind,
-              createdAt: nowIso(),
-              expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
-              maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
-            })
-          : undefined;
+        const locks = database.acquireAiGenerationLocks({
+          ownerId: session.user.id,
+          kind,
+          createdAt: nowIso(),
+          expiresAt: new Date(Date.now() + aiImageGenerationLockTtlMs).toISOString(),
+          maxGlobalSlots: aiImageGenerationMaxGlobalSlots,
+        });
         let pendingRecord: MarketingAiRecord | undefined;
         try {
           pendingRecord = marketingAiRecord(currentData, session, body, {
@@ -411,6 +409,7 @@ export function createApiServer(database = new BeautyDatabase()) {
             record,
             log: marketingAiOperationLog(session, record),
             consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
+            consumeCreditAmount: result.billing?.source === "credit" ? result.billing.creditsCharged : undefined,
           });
           sendJson(response, 200, { ...result, record });
           return;
@@ -2655,6 +2654,11 @@ function aiCostBreakdown(input: MarketingAiRecord["costBreakdown"]): MarketingAi
   return Object.fromEntries(Object.entries(input ?? {}).filter(([, cost]) => Boolean(cost))) as MarketingAiRecord["costBreakdown"];
 }
 
+function aiBillingForCost(quotaState: ReturnType<typeof assertAiFreeQuotaAvailable>, cost: MarketingAiRecord["cost"]): MarketingAiRecord["billing"] {
+  if (quotaState.credits <= 0) return { source: "free" };
+  return { source: "credit", chargeCurrency: "CNY", creditsCharged: aiCreditChargeForCost(cost) };
+}
+
 function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
   const specKey = `${durationSeconds}s:${resolution}`;
   const amountUsd = roundAiUsd(config.priceUsdBySpec[specKey] ?? 0);
@@ -2795,6 +2799,7 @@ async function runMarketingAiBackgroundTask(
       record,
       log: marketingAiOperationLog(session, record),
       consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
+      consumeCreditAmount: result.billing?.source === "credit" ? result.billing.creditsCharged : undefined,
     });
   } catch (error) {
     const currentData = database.readData();
@@ -2829,7 +2834,6 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
-  const billing = quotaState.credits > 0 ? { source: "credit" as const, creditsCharged: 1 } : { source: "free" as const };
   const prompt = marketingPrompt(body, kind);
   if (kind === "copy" || kind === "talk") {
     const config = aiGenerationConfigFromData(data).copy;
@@ -2838,6 +2842,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     });
     if (kind === "talk") {
       const textCost = textGenerationCost(config, result.usage);
+      const billing = aiBillingForCost(quotaState, textCost);
       return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textCost, costBreakdown: aiCostBreakdown({ text: textCost }), elapsedMs: result.elapsedMs, billing };
     }
     const imageConfig = aiGenerationConfigFromData(data).image;
@@ -2848,6 +2853,8 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     });
     const textCost = textGenerationCost(config, result.usage);
     const posterCost = imageResult.cost ?? imageGenerationCost(imageConfig, imageResult.usage);
+    const combinedCost = combinedAiGenerationCost("文案生成 + GPT Image 2 产品设计图生成", textCost, posterCost);
+    const billing = aiBillingForCost(quotaState, combinedCost);
     return {
       kind,
       provider: `${result.provider}+${imageResult.provider}`,
@@ -2856,7 +2863,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
       imageDataUrl: imageResult.imageDataUrl,
       revisedPrompt: imageResult.revisedPrompt,
       usage: { text: result.usage, image: imageResult.usage },
-      cost: combinedAiGenerationCost("文案生成 + GPT Image 2 产品设计图生成", textCost, posterCost),
+      cost: combinedCost,
       costBreakdown: aiCostBreakdown({ text: textCost, image: posterCost }),
       elapsedMs: result.elapsedMs + imageResult.elapsedMs,
       billing,
@@ -2866,6 +2873,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     const config = aiGenerationConfigFromData(data).image;
     const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
     const imageCost = result.cost ?? imageGenerationCost(config, result.usage);
+    const billing = aiBillingForCost(quotaState, imageCost);
     return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageCost, costBreakdown: aiCostBreakdown({ image: imageCost }), elapsedMs: result.elapsedMs, billing };
   }
   const config = aiGenerationConfigFromData(data);
@@ -2879,6 +2887,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     aspectRatio: optionalString(body, "videoRatio"),
   });
   const videoCost = provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined;
+  const billing = aiBillingForCost(quotaState, videoCost);
   return { kind, ...result, cost: videoCost, costBreakdown: aiCostBreakdown({ video: videoCost }), billing };
 }
 
@@ -3009,12 +3018,11 @@ async function runAiImageTest(data: AppData, body: JsonBody) {
   const { payload, elapsedMs } = await fetchProviderJson("OpenAI", request.url, request.init);
   const output = Array.isArray(payload.data) ? payload.data[0] as { b64_json?: unknown; url?: unknown; revised_prompt?: unknown } | undefined : undefined;
   const b64 = typeof output?.b64_json === "string" ? output.b64_json : undefined;
-  const imageUrl = typeof output?.url === "string" ? output.url : undefined;
-  if (!b64 && !imageUrl) throw new Error("OpenAI 未返回图片数据");
+  if (!b64) throw new Error("OpenAI 未返回 PNG 图片数据");
   return {
     provider: "openai" as const,
     model: config.model,
-    imageDataUrl: b64 ? `data:image/png;base64,${b64}` : imageUrl,
+    imageDataUrl: `data:image/png;base64,${b64}`,
     revisedPrompt: typeof output?.revised_prompt === "string" ? output.revised_prompt : undefined,
     usage: payload.usage,
     cost: imageGenerationCost(config, payload.usage, { prompt, size, quality, assetCount: assets.length }),

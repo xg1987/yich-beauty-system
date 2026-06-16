@@ -49,7 +49,7 @@ import type {
   ViewKey,
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
-import { accountAiCredits, defaultAiBillingConfig, normalizeAiBillingConfig, serializeAiBillingConfig } from "./aiBilling";
+import { accountAiCredits, defaultAiBillingConfig, normalizeAiBillingConfig, roundAiCreditAmount, serializeAiBillingConfig } from "./aiBilling";
 import { appointmentEndAt, appointmentServiceIds, assignAppointmentRooms } from "./appointments";
 import { optionalMobilePhone, requireMobilePhone } from "./phone";
 import { normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
@@ -2242,8 +2242,8 @@ export function resetAuthUserPassword(data: AppData, input: AuthUserPasswordRese
 export function updateAuthUserAiCredits(data: AppData, input: AuthUserAiCreditsInput): AppData {
   const user = data.authUsers.find((item) => item.id === input.userId);
   if (!user) throw new Error("账号不存在");
-  const credits = Number(input.credits);
-  if (!Number.isInteger(credits) || credits < 0 || credits > 99999) throw new Error("AI 积分必须是 0 到 99999 的整数");
+  const credits = roundAiCreditAmount(Number(input.credits));
+  if (!Number.isFinite(Number(input.credits)) || Number(input.credits) < 0 || credits > 99999) throw new Error("AI 积分必须是 0 到 99999");
   return {
     ...data,
     authUsers: data.authUsers.map((item) => item.id === user.id ? { ...item, aiCredits: credits } : item),
@@ -2262,13 +2262,14 @@ export function updateAuthUserAiCredits(data: AppData, input: AuthUserAiCreditsI
   };
 }
 
-export function consumeAuthUserAiCredit(data: AppData, userId: string): AppData {
+export function consumeAuthUserAiCredit(data: AppData, userId: string, amount = 1): AppData {
   const user = data.authUsers.find((item) => item.id === userId);
   const credits = accountAiCredits(user?.aiCredits);
-  if (!user || credits <= 0) return data;
+  const charge = roundAiCreditAmount(amount);
+  if (!user || credits <= 0 || charge <= 0) return data;
   return {
     ...data,
-    authUsers: data.authUsers.map((item) => item.id === user.id ? { ...item, aiCredits: credits - 1 } : item),
+    authUsers: data.authUsers.map((item) => item.id === user.id ? { ...item, aiCredits: roundAiCreditAmount(Math.max(0, credits - charge)) } : item),
   };
 }
 

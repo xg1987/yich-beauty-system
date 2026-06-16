@@ -72,7 +72,7 @@ import {
 } from "../../src/domain/business";
 import { hashPassword } from "../../src/lib/password";
 import { requireMobilePhone } from "../../src/domain/phone";
-import { assertAiFreeQuotaAvailable } from "../../src/domain/aiBilling";
+import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../../src/domain/aiBilling";
 
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
@@ -385,7 +385,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/ai-test/chat") {
       assertSuperadminAiTester(session);
-      return sendJson(200, await runAiChatTest(await database.readData(), await readJson(context.request)));
+      const body = await readJson(context.request);
+      const data = await database.readData();
+      const result = await runAiChatTest(data, body);
+      const config = aiGenerationConfigFromData(data).copy;
+      const cost = textGenerationCost(config, result.usage);
+      const record = aiTestMarketingRecord(data, session, body, {
+        kind: "talk",
+        provider: result.provider,
+        model: result.model,
+        text: result.text,
+        status: "已完成",
+        elapsedMs: result.elapsedMs,
+        cost,
+        costBreakdown: aiCostBreakdown({ text: cost }),
+      });
+      await database.appendMarketingAiResult({ record, log: marketingAiOperationLog(session, record) });
+      return sendJson(200, { ...result, cost, record });
     }
 
     if (context.request.method === "POST" && pathname === "/api/ai-test/image") {
@@ -394,10 +410,39 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const data = await database.readData();
       const startedAt = Date.now();
       try {
-        return sendJson(200, await runAiImageTest(data, body));
+        const result = await runAiImageTest(data, body);
+        let record = aiTestMarketingRecord(data, session, body, {
+          kind: "image",
+          provider: result.provider,
+          model: result.model,
+          imageDataUrl: result.imageDataUrl,
+          status: "已完成",
+          elapsedMs: result.elapsedMs,
+          cost: result.cost,
+          costBreakdown: aiCostBreakdown({ image: result.cost }),
+        });
+        if (record.imageDataUrl) {
+          const storedImageUrl = await storeMarketingAiImage(context.env, record, record.imageDataUrl);
+          record = { ...record, imageDataUrl: storedImageUrl };
+        }
+        await database.appendMarketingAiResult({ record, log: marketingAiOperationLog(session, record) });
+        return sendJson(200, { ...result, imageDataUrl: record.imageDataUrl ?? result.imageDataUrl, record });
       } catch (error) {
         if (isOpenAiImageRuntimeError(error)) {
-          return sendJson(200, aiImageFailureResult(data, body, error, startedAt));
+          const result = aiImageFailureResult(data, body, error, startedAt);
+          const record = aiTestMarketingRecord(data, session, body, {
+            kind: "image",
+            provider: result.provider,
+            model: result.model,
+            status: "生成失败",
+            errorMessage: result.errorMessage,
+            text: result.errorMessage,
+            elapsedMs: result.elapsedMs,
+            cost: result.cost,
+            costBreakdown: aiCostBreakdown({ image: result.cost }),
+          });
+          await database.appendMarketingAiResult({ record, log: marketingAiOperationLog(session, record) });
+          return sendJson(200, { ...result, record });
         }
         throw error;
       }
@@ -420,7 +465,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const startedAt = Date.now();
       const currentData = await database.readData();
       assertMarketingAiGeneratePreflight(currentData, session, kind);
-      const locks = kind === "image" ? await acquireAiGenerationLocks(database, session, kind) : undefined;
+      const locks = await acquireAiGenerationLocks(database, session, kind);
       let pendingRecord: MarketingAiRecord | undefined;
       try {
         pendingRecord = marketingAiRecord(currentData, session, body, {
@@ -446,6 +491,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           record,
           log,
           consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
+          consumeCreditAmount: result.billing?.source === "credit" ? result.billing.creditsCharged : undefined,
         });
         return sendJson(200, { ...result, ...(responseImageDataUrl ? { imageDataUrl: responseImageDataUrl } : {}), record });
         } catch (error) {
@@ -2730,6 +2776,11 @@ function aiCostBreakdown(input: MarketingAiRecord["costBreakdown"]): MarketingAi
   return Object.fromEntries(Object.entries(input ?? {}).filter(([, cost]) => Boolean(cost))) as MarketingAiRecord["costBreakdown"];
 }
 
+function aiBillingForCost(quotaState: ReturnType<typeof assertAiFreeQuotaAvailable>, cost: MarketingAiRecord["cost"]): MarketingAiRecord["billing"] {
+  if (quotaState.credits <= 0) return { source: "free" };
+  return { source: "credit", chargeCurrency: "CNY", creditsCharged: aiCreditChargeForCost(cost) };
+}
+
 function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
   const specKey = `${durationSeconds}s:${resolution}`;
   const amountUsd = roundAiUsd(config.priceUsdBySpec[specKey] ?? 0);
@@ -2875,6 +2926,7 @@ async function runMarketingAiBackgroundTask(
       record,
       log: marketingAiOperationLog(session, record),
       consumeCreditUserId: result.billing?.source === "credit" ? session.user.id : undefined,
+      consumeCreditAmount: result.billing?.source === "credit" ? result.billing.creditsCharged : undefined,
     });
   } catch (error) {
     const currentData = await database.readData();
@@ -2909,7 +2961,6 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
-  const billing = quotaState.credits > 0 ? { source: "credit" as const, creditsCharged: 1 } : { source: "free" as const };
   const prompt = marketingPrompt(body, kind);
   if (kind === "copy" || kind === "talk") {
     const config = aiGenerationConfigFromData(data).copy;
@@ -2918,6 +2969,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     });
     if (kind === "talk") {
       const textCost = textGenerationCost(config, result.usage);
+      const billing = aiBillingForCost(quotaState, textCost);
       return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textCost, costBreakdown: aiCostBreakdown({ text: textCost }), elapsedMs: result.elapsedMs, billing };
     }
     const imageConfig = aiGenerationConfigFromData(data).image;
@@ -2928,6 +2980,8 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     });
     const textCost = textGenerationCost(config, result.usage);
     const posterCost = imageResult.cost ?? imageGenerationCost(imageConfig, imageResult.usage);
+    const combinedCost = combinedAiGenerationCost("文案生成 + GPT Image 2 产品设计图生成", textCost, posterCost);
+    const billing = aiBillingForCost(quotaState, combinedCost);
     return {
       kind,
       provider: `${result.provider}+${imageResult.provider}`,
@@ -2936,7 +2990,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
       imageDataUrl: imageResult.imageDataUrl,
       revisedPrompt: imageResult.revisedPrompt,
       usage: { text: result.usage, image: imageResult.usage },
-      cost: combinedAiGenerationCost("文案生成 + GPT Image 2 产品设计图生成", textCost, posterCost),
+      cost: combinedCost,
       costBreakdown: aiCostBreakdown({ text: textCost, image: posterCost }),
       elapsedMs: result.elapsedMs + imageResult.elapsedMs,
       billing,
@@ -2946,6 +3000,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     const config = aiGenerationConfigFromData(data).image;
     const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
     const imageCost = result.cost ?? imageGenerationCost(config, result.usage);
+    const billing = aiBillingForCost(quotaState, imageCost);
     return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageCost, costBreakdown: aiCostBreakdown({ image: imageCost }), elapsedMs: result.elapsedMs, billing };
   }
   const config = aiGenerationConfigFromData(data);
@@ -2959,6 +3014,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     aspectRatio: optionalString(body, "videoRatio"),
   });
   const videoCost = provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined;
+  const billing = aiBillingForCost(quotaState, videoCost);
   return { kind, ...result, cost: videoCost, costBreakdown: aiCostBreakdown({ video: videoCost }), billing };
 }
 
@@ -3043,6 +3099,19 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     createdBy: session.user.id,
     createdByName: session.user.name,
     createdAt: nowIso(),
+  };
+}
+
+function aiTestMarketingRecord(data: AppData, session: UserSession, body: JsonBody, result: Parameters<typeof marketingAiRecord>[3]): MarketingAiRecord {
+  const kindLabel = result.kind === "image" ? "AI图片测试" : result.kind === "talk" ? "AI文案测试" : "AI模型测试";
+  return {
+    ...marketingAiRecord(data, session, {
+      ...body,
+      channel: "后台测试",
+      marketingNode: kindLabel,
+      marketingGoal: "模型连通测试",
+    }, result),
+    title: kindLabel,
   };
 }
 
@@ -3135,12 +3204,11 @@ async function runAiImageTest(data: AppData, body: JsonBody) {
   const { payload, elapsedMs } = await fetchProviderJson("OpenAI", request.url, request.init);
   const output = Array.isArray(payload.data) ? payload.data[0] as { b64_json?: unknown; url?: unknown; revised_prompt?: unknown } | undefined : undefined;
   const b64 = typeof output?.b64_json === "string" ? output.b64_json : undefined;
-  const imageUrl = typeof output?.url === "string" ? output.url : undefined;
-  if (!b64 && !imageUrl) throw new Error("OpenAI 未返回图片数据");
+  if (!b64) throw new Error("OpenAI 未返回 PNG 图片数据");
   return {
     provider: "openai" as const,
     model: config.model,
-    imageDataUrl: b64 ? `data:image/png;base64,${b64}` : imageUrl,
+    imageDataUrl: `data:image/png;base64,${b64}`,
     revisedPrompt: typeof output?.revised_prompt === "string" ? output.revised_prompt : undefined,
     usage: payload.usage,
     cost: imageGenerationCost(config, payload.usage, { prompt, size, quality, assetCount: assets.length }),
@@ -3153,6 +3221,7 @@ function isOpenAiImageRuntimeError(error: unknown) {
   return error instanceof Error && (
     error.message.includes("OpenAI调用超时")
     || error.message.includes("OpenAI 未返回图片数据")
+    || error.message.includes("OpenAI 未返回 PNG 图片数据")
   );
 }
 
