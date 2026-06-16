@@ -5031,7 +5031,7 @@ function Pos({
         </section>
         )}
         {activeModule === "signature" && (
-        <section className="panel">
+        <section className="panel sg">
           <PanelTitle icon={<LockKeyhole size={18} />} title="客户确认签名" action={`${data.customerSignatures?.length ?? 0} 份`} />
           <DataTable
           columns={["客户", "收银内容", "状态", "签名人", "签名时间", "关联记录", "操作"]}
@@ -6505,7 +6505,7 @@ function Customers({
         </section>
         )}
         {activeModule === "signature" && (
-        <section className="panel">
+        <section className="panel sg">
         <PanelTitle icon={<LockKeyhole size={18} />} title="服务签名记录" action={`${data.customerSignatures?.length ?? 0} 份`} />
         <DataTable
           columns={["客户", "服务项目", "状态", "签名人", "签名时间", "关联记录", "操作"]}
