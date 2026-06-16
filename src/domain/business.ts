@@ -4989,11 +4989,18 @@ export function signCustomerSignature(
     ? data.memberCardTransactions.some((transaction) => transaction.orderId === linkedOrder.id && transaction.type === "消费")
     : false;
   const debitCard = linkedOrder && !alreadyDebited ? selectSignatureDebitCard(data, linkedOrder) : undefined;
+  const linkedOrderServiceIds = linkedOrder
+    ? linkedOrder.serviceIds?.length
+      ? linkedOrder.serviceIds
+      : linkedOrder.serviceId
+        ? [linkedOrder.serviceId]
+        : []
+    : [];
   const memberCards = debitCard
     ? data.memberCards.map((card) => {
         if (card.id !== debitCard.id || !linkedOrder) return card;
         if (card.type === "储值卡") return { ...card, balance: Math.max(0, card.balance - linkedOrder.paidAmount) };
-        return updateMemberCardServiceTimes(card, linkedOrder.serviceId, -1);
+        return linkedOrderServiceIds.reduce((nextCard, serviceId) => updateMemberCardServiceTimes(nextCard, serviceId, -1), card);
       })
     : data.memberCards;
   const debitedCard = debitCard ? memberCards.find((card) => card.id === debitCard.id) : undefined;
@@ -5008,7 +5015,7 @@ export function signCustomerSignature(
             staffId: linkedOrder.staffId,
             type: "消费",
             amountDelta: debitedCard.type === "储值卡" ? -linkedOrder.paidAmount : 0,
-            timesDelta: debitedCard.type === "储值卡" ? 0 : -1,
+            timesDelta: debitedCard.type === "储值卡" ? 0 : -linkedOrderServiceIds.length,
             balanceAfter: debitedCard.balance,
             remainingTimesAfter: debitedCard.remainingTimes,
             note: `${linkedOrder.orderNo} · 签名确认扣卡`,

@@ -1872,6 +1872,55 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "多项目签名扣卡客户",
+      customerPhone: "13800001981",
+      name: "多项目护理卡",
+      type: "次数卡",
+      remainingTimes: 0,
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 3, remainingTimes: 3 },
+        { serviceId: "v2", totalTimes: 2, remainingTimes: 2 },
+      ],
+      paidAmount: 1980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const checkedOut = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceIds: ["v1", "v1", "v2"],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signed = signCustomerSignature(
+    checkedOut,
+    {
+      token: checkedOut.customerSignatures[0].token,
+      signerName: "多项目签名扣卡客户",
+      signatureText: "data:image/png;base64,multi-service",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(signed.memberCards[0].remainingTimes, 2, "multi-service signature should deduct every selected service quantity");
+  assert.deepEqual(
+    signed.memberCards[0].serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 1], ["v2", 1]],
+    "multi-service signature should debit each service entitlement by quantity",
+  );
+  assert.equal(signed.memberCardTransactions[0].timesDelta, -3, "multi-service signature transaction should record total debited quantity");
+  assert.deepEqual(signed.orders[0].serviceIds, ["v1", "v1", "v2"], "multi-service signature should keep order service quantities");
+}
+
+{
   const lowBalanceData = cloneSeed();
   lowBalanceData.memberCards = lowBalanceData.memberCards.map((item) =>
     item.id === "m1" ? { ...item, balance: 1 } : item,

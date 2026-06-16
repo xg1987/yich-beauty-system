@@ -1107,6 +1107,22 @@ try {
     },
   });
   assert.equal(afterPackageCheckout.memberCards.find((item) => item.id === packageCard.id)?.remainingTimes, 4, "package card should be usable by any selected package service");
+  const afterMultiPackageCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c2",
+      staffId: "s2",
+      serviceIds: ["v1", "v2"],
+      payMethod: "会员卡",
+      cardId: packageCard.id,
+    },
+  });
+  assert.deepEqual(afterMultiPackageCheckout.orders[0].serviceIds, ["v1", "v2"], "checkout API should return all selected service ids");
+  assert.equal(afterMultiPackageCheckout.memberCardTransactions[0].timesDelta, -2, "checkout API should debit every selected package service");
+  const afterMultiPackageReload = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  const reloadedMultiPackageOrder = afterMultiPackageReload.orders.find((order) => order.id === afterMultiPackageCheckout.orders[0].id);
+  assert.deepEqual(reloadedMultiPackageOrder?.serviceIds, ["v1", "v2"], "checkout API should persist order service ids through database reload");
   const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${apiCardId}/recharge`, {
     method: "POST",
     token: session.token,
@@ -1424,7 +1440,7 @@ try {
   assert.ok(restrictedTherapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments after shared appointment permission is closed");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 8, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 9, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.equal(persistedData.distributionCommissions.length, 0, "base API should not expose distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");

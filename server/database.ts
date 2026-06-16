@@ -453,7 +453,7 @@ export class BeautyDatabase {
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceIds_json, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -464,6 +464,7 @@ export class BeautyDatabase {
           order.guestPhone ?? null,
           order.staffId,
           order.serviceId,
+          order.serviceIds?.length ? JSON.stringify(order.serviceIds) : null,
           order.serviceName ?? null,
           order.servicePrice ?? null,
           order.serviceConsumables?.length ? JSON.stringify(order.serviceConsumables) : null,
@@ -1086,6 +1087,7 @@ export class BeautyDatabase {
         guestPhone TEXT,
         staffId TEXT NOT NULL,
         serviceId TEXT NOT NULL,
+        serviceIds_json TEXT,
         serviceName TEXT,
         servicePrice REAL,
         serviceConsumables_json TEXT,
@@ -1288,6 +1290,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "giftProductId", "TEXT");
     this.addColumnIfMissing("orders", "productItems_json", "TEXT");
     this.addColumnIfMissing("orders", "giftProductItems_json", "TEXT");
+    this.addColumnIfMissing("orders", "serviceIds_json", "TEXT");
     this.addColumnIfMissing("orders", "serviceName", "TEXT");
     this.addColumnIfMissing("orders", "servicePrice", "REAL");
     this.addColumnIfMissing("orders", "serviceConsumables_json", "TEXT");
@@ -1651,12 +1654,13 @@ function mapMemberCard(row: unknown): MemberCard {
 }
 
 function mapOrder(row: unknown): Order {
-  const value = row as Order & { serviceConsumables_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
+  const value = row as Order & { serviceIds_json?: string | null; serviceConsumables_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
     guestName: value.guestName ?? undefined,
     guestPhone: value.guestPhone ?? undefined,
+    serviceIds: parseJsonArray<string>(value.serviceIds_json) ?? value.serviceIds,
     serviceName: value.serviceName ?? undefined,
     servicePrice: value.servicePrice ?? undefined,
     serviceConsumables: parseJsonArray<ServiceConsumable>(value.serviceConsumables_json) ?? value.serviceConsumables,
