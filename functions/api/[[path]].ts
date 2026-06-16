@@ -139,8 +139,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const corsResponse = handleCors(context.request);
     if (corsResponse) return corsResponse;
 
-    await database.seedIfEmpty();
-
     const url = new URL(context.request.url);
     const pathname = url.pathname;
 
@@ -149,13 +147,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (context.request.method === "GET" && pathname === "/api/health") {
+      const schema = await database.checkSchema();
       return sendJson(200, {
-        ok: true,
+        ok: schema.ok,
         service: "yich-system-api",
         version: pkg.version,
         runtime: "cloudflare-d1",
+        schema,
       });
     }
+
+    await database.seedIfEmpty();
 
     if (context.request.method === "POST" && pathname === "/api/auth/login") {
       const body = await readJson(context.request);

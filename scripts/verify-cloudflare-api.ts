@@ -3,17 +3,18 @@ import type { AppData } from "../src/domain/types";
 
 const baseUrl = process.env.API_BASE_URL ?? "http://localhost:8788";
 const allowPersistentWrite = process.env.ALLOW_PERSISTENT_CLOUDFLARE_VERIFY === "1";
-const isRemotePagesTarget = /^https:\/\/.+\.pages\.dev\/?$/.test(baseUrl);
+const isLocalTarget = isLocalApiTarget(baseUrl);
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const scheduleDayOffset = 10000 + (Date.now() % 100000);
 const roomName = "护理房 1";
 const closeBusinessDate = futureDay(1000 + (Date.now() % 100000));
 
-if (isRemotePagesTarget && !allowPersistentWrite) {
-  throw new Error("线上验证会写入正式 D1 数据。请改用本地 wrangler pages dev，或明确设置 ALLOW_PERSISTENT_CLOUDFLARE_VERIFY=1。");
+if (!isLocalTarget && !allowPersistentWrite) {
+  throw new Error("Cloudflare API 验证会写入目标 D1 数据。请改用本地 wrangler pages dev，或明确设置 ALLOW_PERSISTENT_CLOUDFLARE_VERIFY=1。");
 }
 
-const health = await request<{ ok: boolean; runtime?: string }>(baseUrl, "/api/health");
+const health = await request<{ ok: boolean; runtime?: string; schema?: { ok: boolean; missingTables?: string[] } }>(baseUrl, "/api/health");
+assertCloudflareSchemaReady(health);
 assert.equal(health.ok, true, "health check should pass");
 assert.equal(health.runtime, "cloudflare-d1", "Cloudflare API should report D1 runtime");
 
@@ -614,7 +615,7 @@ async function request<T>(baseUrl: string, path: string, options: { method?: str
   const text = await response.text();
   const data = text ? parseJson<T | { error: string }>(text) : undefined;
   if (!response.ok) {
-    throw new Error(isErrorPayload(data) ? data.error : `HTTP ${response.status}`);
+    throw new Error(formatVerifyError(isErrorPayload(data) ? data.error : `HTTP ${response.status}`));
   }
   if (data === undefined) {
     throw new Error("服务暂时不可用");
@@ -640,6 +641,40 @@ function parseJson<T>(text: string): T {
 
 function isErrorPayload(value: unknown): value is { error: string } {
   return typeof value === "object" && value !== null && "error" in value && typeof (value as { error: unknown }).error === "string";
+}
+
+function formatVerifyError(message: string) {
+  if (/D1_ERROR:.*no such table|no such table:/i.test(message)) {
+    const migrateCommand = isLocalTarget ? "npm run d1:migrate:local" : "npm run d1:migrate:remote";
+    return [
+      "Cloudflare D1 表结构未迁移到当前版本，验证已停止。",
+      `原始错误：${message}`,
+      `请先运行：${migrateCommand}`,
+      "迁移完成后重新启动 wrangler pages dev，再运行 npm run verify:cloudflare-api。",
+    ].join("\n");
+  }
+  return message;
+}
+
+function assertCloudflareSchemaReady(health: { schema?: { ok: boolean; missingTables?: string[] } }) {
+  if (!health.schema || health.schema.ok) return;
+  const missingTables = health.schema.missingTables ?? [];
+  const migrateCommand = isLocalTarget ? "npm run d1:migrate:local" : "npm run d1:migrate:remote";
+  throw new Error([
+    "Cloudflare D1 表结构未迁移到当前版本，已停止验证，避免写入半旧结构。",
+    `缺失表：${missingTables.length ? missingTables.join(", ") : "未知"}`,
+    `请先运行：${migrateCommand}`,
+    "迁移完成后重新启动 wrangler pages dev，再运行 npm run verify:cloudflare-api。",
+  ].join("\n"));
+}
+
+function isLocalApiTarget(value: string) {
+  try {
+    const url = new URL(value);
+    return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]" || url.hostname === "::1";
+  } catch {
+    return false;
+  }
 }
 
 function futureDay(offsetDays: number) {

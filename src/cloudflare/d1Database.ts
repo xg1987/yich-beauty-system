@@ -96,6 +96,18 @@ export class D1BeautyDatabase {
     await this.replaceData(seedData);
   }
 
+  async checkSchema() {
+    const rows = await this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all<{ name: string }>();
+    const existingTables = new Set((rows.results ?? []).map((row) => row.name));
+    const missingTables = tableNames.filter((tableName) => !existingTables.has(tableName));
+    return {
+      ok: missingTables.length === 0,
+      missingTables,
+    };
+  }
+
   async seedIfEmpty() {
     const authRow = await this.db.prepare("SELECT COUNT(*) AS count FROM authUsers").first<{ count: number }>();
     if ((authRow?.count ?? 0) === 0) {
