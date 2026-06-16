@@ -90,7 +90,7 @@ const AI_VIDEO_DURATIONS = [5, 10, 15];
 const AI_VIDEO_RESOLUTIONS: AiVideoResolution[] = ["480p", "720p", "1080p"];
 const AI_VIDEO_ASPECT_RATIOS: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
 const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = { openai: "OpenAI", deepseek: "DeepSeek", seedance: "Seedance", kling: "Kling", hailuo: "海螺" };
-const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = { copy: "AI 写文案", image: "AI 做海报", video: "AI 做视频" };
+const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = { copy: "AI 写文案", image: "AI 做产品设计图", video: "AI 做产品视频" };
 const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = { owner: { copy: true, image: true, video: true }, staff: { copy: true, image: true, video: false } };
 const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
   copy: { enabled: true, provider: "deepseek", model: "deepseek-v4-pro", apiKey: "", inputTokenUsdPerMillion: 0.435, outputTokenUsdPerMillion: 0.87 },
@@ -371,7 +371,7 @@ export function PlatformAiConfigView({
       <Modal
         open={activeAiPanel === "image"}
         title="图片模型配置"
-        subtitle="用于产品图解析、海报图片生成和门店营销素材。"
+        subtitle="用于产品图解析、产品设计图生成和门店营销素材。"
         size="large"
         className="ai-config-modal"
         onClose={() => setActiveAiPanel(null)}
@@ -837,11 +837,54 @@ function formatAiTestCost(cost?: { amountUsd: number; currency: "USD"; estimated
   return `${cost.estimated ? "预估" : "实际"} $${amount.toFixed(amount > 0 && amount < 0.01 ? 6 : 4)} ${cost.currency}`;
 }
 
+function formatAiCostUsd(amount: number) {
+  return `$${amount.toFixed(amount > 0 && amount < 0.01 ? 6 : 4)}`;
+}
+
+function marketingAiKindLabel(kind: AppData["marketingAiRecords"][number]["kind"]) {
+  return kind === "image" ? "产品设计图" : kind === "video" ? "产品视频" : kind === "talk" ? "口播" : "获客图文案";
+}
+
+function aiRecordCostUsd(record: AppData["marketingAiRecords"][number]) {
+  const amount = record.cost?.amountUsd;
+  return typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
+}
+
+type AiCostCategory = "text" | "image" | "video";
+
+function aiRecordCategoryCostUsd(record: AppData["marketingAiRecords"][number], category: AiCostCategory) {
+  const breakdownAmount = record.costBreakdown?.[category]?.amountUsd;
+  if (typeof breakdownAmount === "number" && Number.isFinite(breakdownAmount)) return breakdownAmount;
+  const total = aiRecordCostUsd(record);
+  if (record.costBreakdown && Object.keys(record.costBreakdown).length > 0) return 0;
+  if (category === "text" && record.kind === "talk") return total;
+  if (category === "image" && record.kind === "image") return total;
+  if (category === "video" && record.kind === "video") return total;
+  return 0;
+}
+
+function aiRecordUnsplitCostUsd(record: AppData["marketingAiRecords"][number]) {
+  if (record.costBreakdown && Object.keys(record.costBreakdown).length > 0) return 0;
+  if (record.kind === "copy") return aiRecordCostUsd(record);
+  return 0;
+}
+
+function aiRecordChinaDateKey(record: AppData["marketingAiRecords"][number]) {
+  const date = new Date(record.createdAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 export function PlatformAiTestCenterView({ data, setView, actions }: { data: AppData; setView: (view: ViewKey) => void; actions: ApiActions }) {
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
   const [activeTab, setActiveTab] = useState<AiTestTab>("chat");
   const [chatPrompt, setChatPrompt] = useState("帮我写一条美容院老客回访微信话术，语气自然，不要太营销。");
-  const [imagePrompt, setImagePrompt] = useState("生成一张高端美容院开业活动海报，紫色主色，包含中文标题：开业礼遇。");
+  const [imagePrompt, setImagePrompt] = useState("生成一张高端美容院开业活动产品设计图，紫色主色，包含中文标题：开业礼遇。");
   const [videoPrompt, setVideoPrompt] = useState("高端美容院护理房，柔和灯光，产品陈列干净，镜头缓慢推进，适合门店宣传短视频。");
   const [videoProvider, setVideoProvider] = useState<AiVideoProviderConfig["provider"]>(aiConfig.video.defaultProvider);
   const activeVideoConfig = aiConfig.video.providers.find((provider) => provider.provider === videoProvider) ?? aiConfig.video.providers[0];
@@ -2382,6 +2425,162 @@ export function PlatformAuditReadOnlyView({ data, setView, showBack }: { data: A
   );
 }
 
+function AiCostStatisticsSection({ data }: { data: AppData }) {
+  const aiRecords = [...(data.marketingAiRecords ?? [])].sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
+  const todayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const currentMonthKey = todayKey.slice(0, 7);
+  const completedAiRecords = aiRecords.filter((record) => record.status !== "生成中" && record.status !== "生成失败");
+  const pendingAiRecords = aiRecords.filter((record) => record.status === "生成中");
+  const failedAiRecords = aiRecords.filter((record) => record.status === "生成失败");
+  const estimatedAiRecords = aiRecords.filter((record) => record.cost?.estimated);
+  const aiTotalCost = aiRecords.reduce((sum, record) => sum + aiRecordCostUsd(record), 0);
+  const aiTextCost = aiRecords.reduce((sum, record) => sum + aiRecordCategoryCostUsd(record, "text"), 0);
+  const aiImageCost = aiRecords.reduce((sum, record) => sum + aiRecordCategoryCostUsd(record, "image"), 0);
+  const aiVideoCost = aiRecords.reduce((sum, record) => sum + aiRecordCategoryCostUsd(record, "video"), 0);
+  const aiUnsplitCost = aiRecords.reduce((sum, record) => sum + aiRecordUnsplitCostUsd(record), 0);
+  const aiTodayCost = aiRecords
+    .filter((record) => aiRecordChinaDateKey(record) === todayKey)
+    .reduce((sum, record) => sum + aiRecordCostUsd(record), 0);
+  const aiMonthCost = aiRecords
+    .filter((record) => aiRecordChinaDateKey(record).startsWith(currentMonthKey))
+    .reduce((sum, record) => sum + aiRecordCostUsd(record), 0);
+  const aiImageRelatedRecords = aiRecords.filter((record) => record.kind === "image" || (record.model ?? "").includes("gpt-image"));
+  const storeNameById = new Map(data.storeProfiles.map((store) => [store.id, store.name]));
+  const aiModelRows = Array.from(aiRecords.reduce((map, record) => {
+    const key = record.model ?? "未记录模型";
+    const current = map.get(key) ?? { count: 0, textCost: 0, imageCost: 0, videoCost: 0, unsplitCost: 0, failed: 0, estimated: 0 };
+    current.count += 1;
+    current.textCost += aiRecordCategoryCostUsd(record, "text");
+    current.imageCost += aiRecordCategoryCostUsd(record, "image");
+    current.videoCost += aiRecordCategoryCostUsd(record, "video");
+    current.unsplitCost += aiRecordUnsplitCostUsd(record);
+    if (record.status === "生成失败") current.failed += 1;
+    if (record.cost?.estimated) current.estimated += 1;
+    map.set(key, current);
+    return map;
+  }, new Map<string, { count: number; textCost: number; imageCost: number; videoCost: number; unsplitCost: number; failed: number; estimated: number }>()).entries())
+    .sort(([, left], [, right]) => (right.textCost + right.imageCost + right.videoCost + right.unsplitCost) - (left.textCost + left.imageCost + left.videoCost + left.unsplitCost))
+    .slice(0, 8)
+    .map(([model, summary]) => [
+      model,
+      `${summary.count} 次`,
+      formatAiCostUsd(summary.textCost),
+      formatAiCostUsd(summary.imageCost),
+      formatAiCostUsd(summary.videoCost),
+      formatAiCostUsd(summary.unsplitCost),
+      summary.estimated ? `${summary.estimated} 次预估` : "实际用量",
+      summary.failed ? `${summary.failed} 次失败` : "无失败",
+    ]);
+  const aiStoreRows = Array.from(aiRecords.reduce((map, record) => {
+    const key = record.storeId ? storeNameById.get(record.storeId) ?? record.storeId : "平台/未绑定门店";
+    const current = map.get(key) ?? { count: 0, textCost: 0, imageCost: 0, videoCost: 0, unsplitCost: 0, users: new Set<string>() };
+    current.count += 1;
+    current.textCost += aiRecordCategoryCostUsd(record, "text");
+    current.imageCost += aiRecordCategoryCostUsd(record, "image");
+    current.videoCost += aiRecordCategoryCostUsd(record, "video");
+    current.unsplitCost += aiRecordUnsplitCostUsd(record);
+    if (record.createdByName) current.users.add(record.createdByName);
+    map.set(key, current);
+    return map;
+  }, new Map<string, { count: number; textCost: number; imageCost: number; videoCost: number; unsplitCost: number; users: Set<string> }>()).entries())
+    .sort(([, left], [, right]) => (right.textCost + right.imageCost + right.videoCost + right.unsplitCost) - (left.textCost + left.imageCost + left.videoCost + left.unsplitCost))
+    .slice(0, 8)
+    .map(([storeName, summary]) => [
+      storeName,
+      `${summary.count} 次`,
+      formatAiCostUsd(summary.textCost),
+      formatAiCostUsd(summary.imageCost),
+      formatAiCostUsd(summary.videoCost),
+      formatAiCostUsd(summary.unsplitCost),
+      Array.from(summary.users).slice(0, 3).join("、") || "-",
+    ]);
+  const aiRecentRows = aiRecords.slice(0, 10).map((record) => [
+    shortDate(record.createdAt),
+    record.createdByName,
+    marketingAiKindLabel(record.kind),
+    record.model ?? "-",
+    formatAiCostUsd(aiRecordCategoryCostUsd(record, "text")),
+    formatAiCostUsd(aiRecordCategoryCostUsd(record, "image")),
+    formatAiCostUsd(aiRecordCategoryCostUsd(record, "video")),
+    formatAiCostUsd(aiRecordUnsplitCostUsd(record)),
+    record.status ?? "已完成",
+    record.cost?.estimated ? "预估" : "实际/未记录",
+  ]);
+
+  return (
+    <section className="usage-card">
+      <PanelTitle icon={<BadgeCent size={18} />} title="AI 生成费用统计" action={`${aiRecords.length} 次记录`} />
+      <div className="usage-metrics">
+        <div>
+          <strong>{formatAiCostUsd(aiTotalCost)}</strong>
+          <span>系统内累计成本</span>
+        </div>
+        <div>
+          <strong>{formatAiCostUsd(aiTextCost)}</strong>
+          <span>文案/文字费用</span>
+        </div>
+        <div>
+          <strong>{formatAiCostUsd(aiImageCost)}</strong>
+          <span>图片/产品设计图费用</span>
+        </div>
+        <div>
+          <strong>{formatAiCostUsd(aiVideoCost)}</strong>
+          <span>产品视频费用</span>
+        </div>
+        <div>
+          <strong>{formatAiCostUsd(aiUnsplitCost)}</strong>
+          <span>历史未拆分</span>
+        </div>
+        <div>
+          <strong>{completedAiRecords.length} / {failedAiRecords.length} / {pendingAiRecords.length}</strong>
+          <span>完成 / 失败 / 生成中</span>
+        </div>
+      </div>
+
+      <div className="usage-inline-note">
+        <span>本月 / 今日</span>
+        <strong>{formatAiCostUsd(aiMonthCost)} / {formatAiCostUsd(aiTodayCost)} · 图片相关 {aiImageRelatedRecords.length} 次 · 预估 {estimatedAiRecords.length} 次</strong>
+      </div>
+
+      <DataTable
+        columns={["模型", "次数", "文案费用", "图片费用", "产品视频费用", "未拆分历史", "费用口径", "失败"]}
+        rows={aiModelRows.length > 0 ? aiModelRows : [["暂无 AI 费用记录", "-", "-", "-", "-", "-", "-", "-"]]}
+      />
+      <DataTable
+        columns={["门店", "次数", "文案费用", "图片费用", "产品视频费用", "未拆分历史", "使用人"]}
+        rows={aiStoreRows.length > 0 ? aiStoreRows : [["暂无门店记录", "-", "-", "-", "-", "-", "-"]]}
+      />
+      <DataTable
+        columns={["时间", "使用人", "类型", "模型", "文案费用", "图片费用", "产品视频费用", "未拆分历史", "状态", "费用口径"]}
+        rows={aiRecentRows.length > 0 ? aiRecentRows : [["暂无记录", "-", "-", "-", "-", "-", "-", "-", "-", "-"]]}
+      />
+    </section>
+  );
+}
+
+export function PlatformAiUsageReadOnlyView({ data, setView, showBack }: { data: AppData; setView: (view: ViewKey) => void; showBack?: boolean }) {
+  const updatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
+  return (
+    <div className="admin-center-page platform-admin-page usage-monitor-page">
+      {showBack && <PlatformPageTitle title="AI费用统计" onBack={() => setView("settings")} />}
+      <header className="usage-monitor-header">
+        <div className="usage-monitor-title">
+          <div>
+            {!showBack && <h1>AI费用统计</h1>}
+            <p>文案、图片、视频费用独立统计 · {updatedAt}</p>
+          </div>
+        </div>
+      </header>
+      <AiCostStatisticsSection data={data} />
+    </div>
+  );
+}
+
 export function PlatformUsageReadOnlyView({
   data,
   setView,
@@ -2459,6 +2658,7 @@ export function PlatformUsageReadOnlyView({
     ["inventoryLogs", data.inventoryLogs.length],
     ["operationLogs", data.operationLogs.length],
     ["approvalRequests", data.approvalRequests.length],
+    ["marketingAiRecords", data.marketingAiRecords.length],
   ] as const;
   const d1Records = d1Tables.reduce((sum, [, count]) => sum + count, 0);
   const r2LimitBytes = r2Usage?.limitBytes ?? 10 * 1024 * 1024 * 1024;
@@ -2495,6 +2695,7 @@ export function PlatformUsageReadOnlyView({
     inventoryLogs: "库存流水",
     operationLogs: "操作日志",
     approvalRequests: "审批记录",
+    marketingAiRecords: "AI生成记录",
   };
   const updatedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const r2Status = r2Loading ? "检查中" : r2Usage?.available ? "正常" : "需配置";

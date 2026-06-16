@@ -151,6 +151,10 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
   aiTest: [
     "storeOwnerApplications",
   ],
+  aiUsage: [
+    "operationLogs",
+    "marketingAiRecords",
+  ],
   storeCustomerDetails: [
     "customers",
     "services",
@@ -167,6 +171,8 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
   ],
   usage: [
     "storeOwnerApplications",
+    "operationLogs",
+    "marketingAiRecords",
   ],
   roomSettings: [
     "appointments",

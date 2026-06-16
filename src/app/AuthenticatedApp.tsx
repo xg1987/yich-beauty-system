@@ -1,4 +1,5 @@
 import {
+  BadgeCent,
   Bell,
   Boxes,
   Building2,
@@ -145,7 +146,7 @@ const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", 
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-12";
+const APP_BUILD_DATE = "2026-06-16";
 const DEFAULT_SYSTEM_TITLE = "祝融｜坤锋美业门店系统";
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES);
@@ -165,8 +166,8 @@ export const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = {
 };
 const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = {
   copy: "AI 写文案",
-  image: "AI 做海报",
-  video: "AI 做视频",
+  image: "AI 做产品设计图",
+  video: "AI 做产品视频",
 };
 const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = {
   owner: { copy: true, image: true, video: true },
@@ -527,6 +528,7 @@ const viewTitles: Record<ViewKey, string> = {
   aiConfig: "AI 能力配置",
   aiCredits: "AI积分充值",
   aiTest: "AI 智能测试中心",
+  aiUsage: "AI费用统计",
   storeCustomerDetails: "分店客户明细",
   usage: "服务器用量监控",
   roomSettings: "房间设置",
@@ -907,7 +909,7 @@ const workbarItems: WorkbarItem[] = [
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
-const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "storeCustomerDetails", "logs", "usage", "settings"]);
+const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "aiUsage", "storeCustomerDetails", "logs", "usage", "settings"]);
 
 const employeeWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
@@ -1004,6 +1006,7 @@ const LazyPlatformSystemConfigView = lazy(() => import("./platformViews").then((
 const LazyPlatformAiConfigView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAiConfigView })));
 const LazyPlatformAiCreditsView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAiCreditsView })));
 const LazyPlatformAiTestCenterView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAiTestCenterView })));
+const LazyPlatformAiUsageReadOnlyView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformAiUsageReadOnlyView })));
 const LazyPlatformStoreCustomerDetailsView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformStoreCustomerDetailsView })));
 const LazyPlatformUsageReadOnlyView = lazy(() => import("./platformViews").then((module) => ({ default: module.PlatformUsageReadOnlyView })));
 const LazyMarketingCenter = lazy(() => import("./marketingCenter").then((module) => ({ default: module.MarketingCenter })));
@@ -1345,6 +1348,11 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
                 <LazyPlatformAiTestCenterView data={data} setView={navigate} actions={actions} />
               </Suspense>
             )}
+            {activeView === "aiUsage" && (
+              <Suspense fallback={<ViewFallback title="AI费用统计" />}>
+                <LazyPlatformAiUsageReadOnlyView data={data} setView={navigate} showBack={showAdminDetailBack} />
+              </Suspense>
+            )}
             {activeView === "storeCustomerDetails" && (
               <Suspense fallback={<ViewFallback title="分店客户明细" />}>
                 <LazyPlatformStoreCustomerDetailsView data={data} setView={navigate} showBack={showAdminDetailBack} />
@@ -1469,6 +1477,7 @@ function ManagementCenter({
     { title: "AI积分充值", desc: "给账号充值生成次数", icon: CreditCard, tone: "plum", view: "aiCredits" },
     { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "AI 智能测试中心", desc: "聊天 / 图片 / 视频接口试跑", icon: MessageCircle, tone: "plum", view: "aiTest" },
+    { title: "AI费用统计", desc: "文案 / 图片 / 视频费用", icon: BadgeCent, tone: "plum", view: "aiUsage" },
     { title: "分店客户明细", desc: "客户业务 / 消费明细", icon: UsersRound, tone: "violet", view: "storeCustomerDetails" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
@@ -1587,7 +1596,7 @@ function ManagementCenter({
       <Modal
         open={aiUsagePermissionsOpen}
         title="AI 使用权限"
-        subtitle="设置店长和员工可使用的 AI 写文案、AI 做海报和 AI 做视频能力"
+        subtitle="设置店长和员工可使用的 AI 写文案、AI 做产品设计图和 AI 做产品视频能力"
         size="large"
         onClose={() => setAiUsagePermissionsOpen(false)}
       >
@@ -1822,7 +1831,7 @@ function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = 
   if (view === "reports") return "reports";
   if (view === "accounts") return "accounts";
   if (view === "logs") return "logs";
-  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "storeCustomerDetails", "usage", "roomSettings"].includes(view)) return "admin";
+  if (["settings", "catalog", "inventory", "approvals", "staff", "reports", "logs", "accounts", "permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "aiUsage", "storeCustomerDetails", "usage", "roomSettings"].includes(view)) return "admin";
   return "workbench";
 }
 

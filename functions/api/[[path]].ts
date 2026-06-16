@@ -144,8 +144,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const url = new URL(context.request.url);
     const pathname = url.pathname;
 
-    if (context.request.method === "GET" && pathname.startsWith("/api/assets/")) {
-      return serveR2Asset(context.env, pathname);
+    if ((context.request.method === "GET" || context.request.method === "HEAD") && pathname.startsWith("/api/assets/")) {
+      return serveR2Asset(context.env, pathname, context.request.method);
     }
 
     if (context.request.method === "GET" && pathname === "/api/health") {
@@ -452,6 +452,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           if (!pendingRecord) throw error;
         const currentData = await database.readData();
         const message = error instanceof Error ? error.message : "AI 生成失败";
+        const failureCost = marketingAiFailureCost(currentData, body, kind, error);
         const failureRecord = marketingAiRecord(currentData, session, body, {
           kind,
           ...marketingAiPendingProvider(currentData, kind),
@@ -459,7 +460,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           status: "生成失败",
           errorMessage: message,
           elapsedMs: Date.now() - startedAt,
-          cost: marketingAiFailureCost(currentData, body, kind, error),
+          cost: failureCost,
+          costBreakdown: aiCostBreakdown({ image: failureCost }),
         });
         if (pendingRecord) {
           failureRecord.id = pendingRecord.id;
@@ -1997,15 +1999,17 @@ function assetKeyFromPath(pathname: string) {
   return key;
 }
 
-async function serveR2Asset(env: Env, pathname: string) {
+async function serveR2Asset(env: Env, pathname: string, method = "GET") {
   const bucket = getR2Bucket(env);
   if (!bucket) return sendJson(404, { error: "资源不存在" });
 
-  const object = await bucket.get(assetKeyFromPath(pathname));
+  const key = assetKeyFromPath(pathname);
+  const object = await bucket.get(key);
   if (!object) return sendJson(404, { error: "资源不存在" });
 
   const headers = new Headers({
     "Cache-Control": "public, max-age=31536000, immutable",
+    "Content-Disposition": `inline; filename="${encodeURIComponent(key.split("/").at(-1) ?? "poster.png")}"`,
     ...corsHeaders(),
   });
   if (object.writeHttpMetadata) {
@@ -2016,7 +2020,7 @@ async function serveR2Asset(env: Env, pathname: string) {
     headers.set("Content-Type", "application/octet-stream");
   }
 
-  return new Response(object.body, { headers });
+  return new Response(method === "HEAD" ? null : object.body, { headers });
 }
 
 async function uploadAccountAvatar(request: Request, env: Env, session: UserSession) {
@@ -2644,10 +2648,8 @@ function estimatedImageGenerationCost(config: AiImageModelConfig, input: ImageCo
   const textInputTokens = Math.max(1, Math.ceil(prompt.length / 2));
   const imageInputTokens = Math.max(0, input.assetCount ?? 0) * 1600;
   const size = input.size ?? config.defaultSize;
-  const baseOutputTokens = size === "1024x1536" || size === "1536x1024" ? 10500 : 7000;
   const quality = input.quality ?? config.defaultQuality;
-  const qualityMultiplier = quality === "high" ? 1 : quality === "medium" || quality === "standard" ? 0.7 : 0.8;
-  const outputTokens = Math.max(1, Math.ceil(baseOutputTokens * qualityMultiplier));
+  const outputTokens = estimatedImageOutputTokens(config, size, quality);
   const amountUsd = roundAiUsd(
     textInputTokens / 1_000_000 * config.textInputUsdPerMillion
     + imageInputTokens / 1_000_000 * config.imageInputUsdPerMillion
@@ -2663,6 +2665,22 @@ function estimatedImageGenerationCost(config: AiImageModelConfig, input: ImageCo
     outputTokens,
     totalTokens: textInputTokens + imageInputTokens + outputTokens,
   };
+}
+
+function estimatedImageOutputTokens(config: AiImageModelConfig, size: string, quality: string) {
+  const normalizedQuality = quality === "standard" ? "medium" : quality;
+  if (config.model === "gpt-image-2") {
+    const isSquare = size === "1024x1024";
+    if (normalizedQuality === "low") return isSquare ? 200 : 167;
+    if (normalizedQuality === "medium") return isSquare ? 1767 : 1367;
+    return isSquare ? 7033 : 5500;
+  }
+  const legacyTokens: Record<string, Record<string, number>> = {
+    low: { "1024x1024": 272, "1024x1536": 408, "1536x1024": 400 },
+    medium: { "1024x1024": 1056, "1024x1536": 1584, "1536x1024": 1568 },
+    high: { "1024x1024": 4160, "1024x1536": 6240, "1536x1024": 6208 },
+  };
+  return legacyTokens[normalizedQuality]?.[size] ?? legacyTokens.high["1024x1024"];
 }
 
 function imageGenerationCost(config: AiImageModelConfig, usage: unknown, estimate?: ImageCostEstimateInput) {
@@ -2708,6 +2726,10 @@ function combinedAiGenerationCost(label: string, ...costs: Array<MarketingAiReco
   };
 }
 
+function aiCostBreakdown(input: MarketingAiRecord["costBreakdown"]): MarketingAiRecord["costBreakdown"] {
+  return Object.fromEntries(Object.entries(input ?? {}).filter(([, cost]) => Boolean(cost))) as MarketingAiRecord["costBreakdown"];
+}
+
 function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
   const specKey = `${durationSeconds}s:${resolution}`;
   const amountUsd = roundAiUsd(config.priceUsdBySpec[specKey] ?? 0);
@@ -2733,9 +2755,9 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   const marketingGoal = marketingText(body.marketingGoal, "到店转化");
   const posterStyle = marketingText(body.posterStyle, "门店品牌风格");
   const customRequirement = optionalString(body, "customRequirement");
-  const nodeContext = `营销节点：${marketingNode}。客户类型：${customerType}。消费节点：${lifecycleNode}。身体状态/文案痛点：${bodyState}。营销目的：${marketingGoal}。海报/内容风格：${posterStyle}。`;
+  const nodeContext = `营销节点：${marketingNode}。客户类型：${customerType}。消费节点：${lifecycleNode}。身体状态/文案痛点：${bodyState}。营销目的：${marketingGoal}。产品设计图/内容风格：${posterStyle}。`;
   if (kind === "copy") {
-    return `请为美业门店生成一套${channel}营销内容。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement || "无"}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，也要能配合海报标题使用；围绕时间节点和客户当前状态来写，不要把客户身份、身体状态、营销目的混为一类；不要虚假承诺，不要夸大医疗效果。`;
+    return `请为美业门店生成一套${channel}营销内容。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement || "无"}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，也要能配合产品设计图标题使用；围绕时间节点和客户当前状态来写，不要把客户身份、身体状态、营销目的混为一类；不要虚假承诺，不要夸大医疗效果。`;
   }
   if (kind === "talk") {
     const talkScene = marketingText(body.talkScene, `${channel}口播`);
@@ -2747,7 +2769,7 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
     const posterOffer = marketingText(body.posterOffer, "限时体验价");
     const assets = marketingImageAssets(body);
     const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-    return `基于用户上传的产品图、模特图或门店图，生成一张可直接用于美业门店发布的高端中文营销海报。主题：${posterTitle}。行动信息：${posterOffer}。门店：${storeName}。项目：${serviceName}。商品：${productName}。尺寸用途：${posterSize}。${nodeContext}参考素材：${assetSummary}。素材使用要求：保留上传产品的外观、包装、颜色和关键卖点；如果有模特图，保持人物自然真实，不改变身份特征；如果有门店图，延续门店环境质感。视觉要求：真实高级美业/中式养生商业海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面要有真实质感的护理环境、草药/艾灸/药浴/护肤产品或干净门店场景，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；避免医疗承诺。`;
+    return `基于用户上传的产品图、模特图或门店图，生成一张可直接用于美业门店发布的高端中文产品设计图。主题：${posterTitle}。行动信息：${posterOffer}。门店：${storeName}。项目：${serviceName}。商品：${productName}。尺寸用途：${posterSize}。${nodeContext}参考素材：${assetSummary}。素材使用要求：保留上传产品的外观、包装、颜色和关键卖点；如果有模特图，保持人物自然真实，不改变身份特征；如果有门店图，延续门店环境质感。视觉要求：真实高级美业/中式养生商业产品设计图，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面要有真实质感的护理环境、草药/艾灸/药浴/护肤产品或干净门店场景，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；避免医疗承诺。`;
   }
   const videoRatio = marketingText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
@@ -2857,6 +2879,7 @@ async function runMarketingAiBackgroundTask(
   } catch (error) {
     const currentData = await database.readData();
     const message = error instanceof Error ? error.message : "AI 生成失败";
+    const failureCost = marketingAiFailureCost(currentData, body, kind, error);
     const failureRecord = {
       ...marketingAiRecord(currentData, session, body, {
         kind,
@@ -2865,7 +2888,8 @@ async function runMarketingAiBackgroundTask(
         status: "生成失败",
         errorMessage: message,
         elapsedMs: Date.now() - startedAt,
-        cost: marketingAiFailureCost(currentData, body, kind, error),
+        cost: failureCost,
+        costBreakdown: aiCostBreakdown({ image: failureCost }),
       }),
       id: pendingRecord.id,
       createdAt: pendingRecord.createdAt,
@@ -2893,7 +2917,8 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
       systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
     });
     if (kind === "talk") {
-      return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
+      const textCost = textGenerationCost(config, result.usage);
+      return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textCost, costBreakdown: aiCostBreakdown({ text: textCost }), elapsedMs: result.elapsedMs, billing };
     }
     const imageConfig = aiGenerationConfigFromData(data).image;
     const imageResult = await runAiImageTest(data, {
@@ -2911,7 +2936,8 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
       imageDataUrl: imageResult.imageDataUrl,
       revisedPrompt: imageResult.revisedPrompt,
       usage: { text: result.usage, image: imageResult.usage },
-      cost: combinedAiGenerationCost("文案生成 + GPT Image 2 海报生成", textCost, posterCost),
+      cost: combinedAiGenerationCost("文案生成 + GPT Image 2 产品设计图生成", textCost, posterCost),
+      costBreakdown: aiCostBreakdown({ text: textCost, image: posterCost }),
       elapsedMs: result.elapsedMs + imageResult.elapsedMs,
       billing,
     };
@@ -2919,7 +2945,8 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
     const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
-    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: result.cost ?? imageGenerationCost(config, result.usage), elapsedMs: result.elapsedMs, billing };
+    const imageCost = result.cost ?? imageGenerationCost(config, result.usage);
+    return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageCost, costBreakdown: aiCostBreakdown({ image: imageCost }), elapsedMs: result.elapsedMs, billing };
   }
   const config = aiGenerationConfigFromData(data);
   const provider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
@@ -2931,7 +2958,8 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     durationSeconds,
     aspectRatio: optionalString(body, "videoRatio"),
   });
-  return { kind, ...result, cost: provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined, billing };
+  const videoCost = provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined;
+  return { kind, ...result, cost: videoCost, costBreakdown: aiCostBreakdown({ video: videoCost }), billing };
 }
 
 function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind) {
@@ -2978,13 +3006,14 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   errorMessage?: string;
   elapsedMs?: number;
   cost?: MarketingAiRecord["cost"];
+  costBreakdown?: MarketingAiRecord["costBreakdown"];
   billing?: MarketingAiRecord["billing"];
 }): MarketingAiRecord {
   const title = {
-    copy: "AI营销内容",
+    copy: "AI获客图文案",
     talk: "AI口播",
-    image: "AI海报",
-    video: "AI视频",
+    image: "AI产品设计图",
+    video: "AI产品视频",
   }[result.kind];
   return {
     id: makeId("mar"),
@@ -3007,6 +3036,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     errorMessage: result.errorMessage,
     elapsedMs: result.elapsedMs,
     cost: result.cost,
+    costBreakdown: result.costBreakdown,
     billing: result.billing,
     provider: result.provider,
     model: result.model,
@@ -3022,7 +3052,7 @@ function marketingAiOperationLog(session: UserSession, record: MarketingAiRecord
     id: makeId("op"),
     storeId: record.storeId,
     userId: session.user.id,
-    action: "生成AI营销内容",
+    action: "生成AI营销素材",
     targetType: "marketingAiRecord",
     targetId: record.id,
     summary: `${session.user.name} ${statusText}${record.title}`,
@@ -3058,10 +3088,9 @@ async function storeMarketingAiImage(env: Env, record: MarketingAiRecord, imageD
     const blob = await response.blob();
     const contentType = blob.type || response.headers.get("Content-Type") || "image/png";
     if (!contentType.startsWith("image/")) return imageDataUrl;
-    const extension = contentType.includes("webp") ? "webp" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "png";
-    const key = `marketing-ai/${record.storeId ?? "platform"}/${record.id}.${extension}`;
+    const key = `marketing-ai/${record.storeId ?? "platform"}/${record.id}.png`;
     await bucket.put(key, blob, {
-      httpMetadata: { contentType },
+      httpMetadata: { contentType: "image/png" },
       customMetadata: {
         recordId: record.id,
         userId: record.createdBy,
@@ -3098,6 +3127,7 @@ async function runAiImageTest(data: AppData, body: JsonBody) {
         prompt,
         size,
         quality,
+        output_format: "png",
         n: 1,
       }),
     } satisfies RequestInit,
@@ -3164,6 +3194,9 @@ async function openAiImageEditRequest(config: AiImageModelConfig, prompt: string
   form.append("quality", quality);
   form.append("n", "1");
   form.append("output_format", "png");
+  if (config.model !== "gpt-image-2") {
+    form.append("input_fidelity", "high");
+  }
   for (const asset of assets.slice(0, 16)) {
     form.append("image[]", await marketingImageBlob(asset), asset.name);
   }

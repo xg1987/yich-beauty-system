@@ -16,7 +16,7 @@ export type AiFreeQuotaState = {
 };
 
 export const DEFAULT_AI_FREE_STARTS_AT = "2026-06-15";
-export const DEFAULT_AI_FREE_DAILY_LIMIT = 3;
+export const DEFAULT_AI_FREE_DAILY_LIMIT = 1;
 const CHINA_TIME_ZONE = "Asia/Shanghai";
 
 export function defaultAiBillingConfig(): AiBillingConfig {

@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiCost, MarketingAiCostBreakdown, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import type { AppDataSlice } from "../domain/dataSlices";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -86,16 +86,6 @@ export type AiTestVideoResult = {
   elapsedMs: number;
 };
 export type MarketingAiGenerateKind = "copy" | "image" | "video" | "talk";
-export type MarketingAiCost = {
-  amountUsd: number;
-  currency: "USD";
-  basis: string;
-  priceConfigured: boolean;
-  estimated: boolean;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-};
 export type MarketingAiGenerateResult = {
   kind: MarketingAiGenerateKind;
   provider: "openai" | "deepseek" | AiVideoProviderKey;
@@ -103,6 +93,7 @@ export type MarketingAiGenerateResult = {
   text?: string;
   usage?: unknown;
   cost?: MarketingAiCost;
+  costBreakdown?: MarketingAiCostBreakdown;
   imageDataUrl?: string;
   revisedPrompt?: string;
   taskId?: string;

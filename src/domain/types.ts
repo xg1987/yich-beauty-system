@@ -16,6 +16,7 @@ export type ViewKey =
   | "aiConfig"
   | "aiCredits"
   | "aiTest"
+  | "aiUsage"
   | "storeCustomerDetails"
   | "usage"
   | "roomSettings"
@@ -30,6 +31,19 @@ export type StoreAiUsagePermissions = {
 export type StoreOperationalPermissions = {
   staffCanViewAllAppointments: boolean;
 };
+
+export type MarketingAiCost = {
+  amountUsd: number;
+  currency: "USD";
+  basis: string;
+  priceConfigured: boolean;
+  estimated: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+};
+
+export type MarketingAiCostBreakdown = Partial<Record<"text" | "image" | "video", MarketingAiCost>>;
 
 export type MarketingAiRecord = {
   id: string;
@@ -51,16 +65,8 @@ export type MarketingAiRecord = {
   status?: string;
   errorMessage?: string;
   elapsedMs?: number;
-  cost?: {
-    amountUsd: number;
-    currency: "USD";
-    basis: string;
-    priceConfigured: boolean;
-    estimated: boolean;
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-  };
+  cost?: MarketingAiCost;
+  costBreakdown?: MarketingAiCostBreakdown;
   billing?: {
     source: "credit" | "free";
     creditsCharged?: number;
