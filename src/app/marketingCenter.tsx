@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, Eye, Image as ImageIcon, Megaphone, Plus, Search, Sparkles, X } from "lucide-react";
+import { BookOpen, Copy, Download, Eye, Film, Globe2, Image as ImageIcon, Lock, Megaphone, MessageCircle, Mic2, Plus, Search, ShieldCheck, Sparkles, Users, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -28,6 +28,59 @@ type MarketingCalendarNode = {
   priority: number;
   serviceHint: string;
 };
+
+const marketingComplianceReplacements: Array<[RegExp, string]> = [
+  [/比医院还有效|替代药物/g, "作为日常护理参考"],
+  [/绝对有效/g, "很多客户反馈有感"],
+  [/100%见效|百分百见效/g, "做完后更容易感受到"],
+  [/100%|百分百/g, "更安心"],
+  [/一次见效|立刻见效|马上见效/g, "体验后更有感"],
+  [/见效/g, "有感"],
+  [/调理疾病|改善疾病/g, "调整状态"],
+  [/根治|治愈/g, "改善"],
+  [/治疗/g, "调理"],
+  [/彻底|永久/g, "持续"],
+  [/包治|包好/g, "多数客户反馈不错"],
+  [/保证|必定/g, "建议体验"],
+  [/无效退款/g, "体验前可先了解"],
+  [/中医/g, "东方美学"],
+  [/消炎|杀菌/g, "舒缓清洁"],
+  [/诊断|处方/g, "评估建议"],
+  [/药物|医疗|疾病/g, "日常护理"],
+  [/疗效|效果/g, "感受"],
+  [/绝对/g, "更"],
+  [/三伏灸|三九灸|药灸|泥灸|艾灸|灸/g, "艾草温护"],
+  [/药浴/g, "草本浴"],
+  [/祛湿|排湿|湿气|湿重|寒湿/g, "清爽轻养"],
+  [/舒肝/g, "放松舒缓"],
+  [/温补|养阳/g, "温暖护理"],
+  [/虚胖/g, "轻盈管理"],
+  [/失眠/g, "睡眠状态"],
+  [/疼痛/g, "不适"],
+  [/炎症/g, "肌肤不适"],
+  [/身体状态|痛点/g, "护理需求"],
+  [/治/g, "调"],
+];
+
+const marketingComplianceGuideRows = [
+  { blocked: "根治", replacement: "改善 / 从根本上调理" },
+  { blocked: "治疗 / 治愈", replacement: "调理 / 改善" },
+  { blocked: "绝对有效", replacement: "很多客户反馈有感" },
+  { blocked: "100%见效", replacement: "做完后更容易感受到" },
+  { blocked: "永久 / 彻底", replacement: "持续调理 / 坚持做" },
+  { blocked: "包好 / 保证", replacement: "大部分客户反馈不错" },
+  { blocked: "消炎 / 杀菌", replacement: "舒缓 / 清洁护理" },
+  { blocked: "替代药物", replacement: "配合日常护理" },
+  { blocked: "诊断 / 处方", replacement: "评估 / 建议" },
+  { blocked: "比医院还好", replacement: "日常养护优先选择" },
+];
+
+function marketingCompliantText(value: string) {
+  return marketingComplianceReplacements
+    .reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value)
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
 
 const marketingCalendarNodes: MarketingCalendarNode[] = [
   { title: "小寒暖护", date: "2026-01-05", category: "节气内容", description: "小寒寒湿重，适合手脚凉、肩颈紧和睡眠关怀。", leadDays: 8, priority: 50, serviceHint: "艾灸、足浴、肩颈" },
@@ -74,19 +127,24 @@ const marketingCalendarNodes: MarketingCalendarNode[] = [
   { title: "项目复购提醒", date: "2026-06-14", category: "项目周期", description: "没有更近节日时，优先结合项目周期提醒老客复购。", leadDays: 365, priority: 12, serviceHint: "按客户最近消费项目推荐" },
 ];
 const marketingGoals = ["复购提醒", "项目转化", "沉睡唤醒", "护理建议"];
-const generationModes: Array<{ kind: MarketingGenerationKind; title: string; description: string; locked?: boolean }> = [
-  { kind: "copy", title: "获客图文案", description: "输出配套话术和产品设计图" },
-  { kind: "image", title: "产品设计图", description: "调用图片模型生成正式产品设计图" },
-  { kind: "video", title: "产品视频", description: "调试中，暂不开放", locked: true },
-  { kind: "talk", title: "口播", description: "调试中，暂不开放", locked: true },
+const generationModes: Array<{ kind: MarketingGenerationKind; title: string; description: string; icon: typeof Sparkles; locked?: boolean }> = [
+  { kind: "copy", title: "获客图文案", description: "配套话术 + 产品图文", icon: Sparkles },
+  { kind: "image", title: "产品设计图", description: "生成正式产品设计图", icon: ImageIcon },
+  { kind: "video", title: "产品视频", description: "调试中，暂不开放", icon: Film, locked: true },
+  { kind: "talk", title: "口播", description: "调试中，暂不开放", icon: Mic2, locked: true },
 ];
 const posterStyles = [
-  { title: "中医养生风", description: "宣纸、草药、药灸、温和调理" },
+  { title: "东方美学风", description: "节令、草本、温润、高级护理" },
   { title: "节气设计图", description: "三伏、三九、换季、时令提醒" },
   { title: "轻奢护理风", description: "适合皮肤管理和高客单护理" },
   { title: "小红书种草", description: "痛点标题、体验感、收藏转化" },
 ];
-const channels = ["朋友圈", "小红书", "私聊", "社群"];
+const channelCards = [
+  { name: "朋友圈", icon: Globe2, tone: "blue" },
+  { name: "小红书", icon: BookOpen, tone: "red" },
+  { name: "私聊", icon: MessageCircle, tone: "silver" },
+  { name: "社群", icon: Users, tone: "teal" },
+] as const;
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
 const videoRatios = ["9:16", "1:1", "16:9"];
 const videoDurations = [5, 10, 15];
@@ -128,6 +186,13 @@ function marketingNodeTimingLabel(daysUntil: number) {
   return `已过 ${Math.abs(daysUntil)} 天`;
 }
 
+function marketingNodeTone(title: string) {
+  if (title.includes("夏至") || title.includes("大暑") || title.includes("小暑")) return "amber";
+  if (title.includes("三伏") || title.includes("端午") || title.includes("重阳")) return "rose";
+  if (title.includes("冬") || title.includes("寒") || title.includes("雪")) return "violet";
+  return "teal";
+}
+
 function getMarketingNodes(today = new Date()): MarketingNode[] {
   const todayDate = localDateOnly(today);
   const projectNodes = marketingCalendarNodes.filter((node) => node.category === "项目周期");
@@ -164,7 +229,13 @@ function getMarketingNodes(today = new Date()): MarketingNode[] {
     dateLabel: "自动兜底",
   }));
 
-  return result.length >= 3 ? result : [...result, ...fallbackNodes, ...projectFallback].slice(0, 3);
+  return (result.length >= 3 ? result : [...result, ...fallbackNodes, ...projectFallback].slice(0, 3)).map((node) => ({
+    ...node,
+    title: marketingCompliantText(node.title),
+    badge: marketingCompliantText(node.badge),
+    description: marketingCompliantText(node.description),
+    hint: node.hint ? marketingCompliantText(node.hint) : node.hint,
+  }));
 }
 
 function aiCostAmountUsd(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
@@ -233,7 +304,7 @@ function marketingCopySections(text: string) {
 }
 
 function marketingRecordContent(record: MarketingAiRecord) {
-  if (record.text) return record.text;
+  if (record.text) return marketingCompliantText(record.text);
   if (record.videoUrl) return record.videoUrl;
   return [
     marketingRecordTitle(record),
@@ -252,7 +323,7 @@ function compactRecordText(value?: string) {
 }
 
 function marketingRecordPreviewText(record: MarketingAiRecord) {
-  return compactRecordText(record.text || record.videoUrl);
+  return marketingCompliantText(compactRecordText(record.text || record.videoUrl));
 }
 
 function marketingRecordTitle(record: MarketingAiRecord) {
@@ -264,7 +335,7 @@ function marketingRecordTitle(record: MarketingAiRecord) {
 }
 
 function marketingRecordSummary(record: MarketingAiRecord) {
-  if (record.status === "生成失败") return compactRecordText(record.errorMessage || record.text || "生成失败").slice(0, 48);
+  if (record.status === "生成失败") return marketingCompliantText(compactRecordText(record.errorMessage || record.text || "生成失败")).slice(0, 48);
   if (isMarketingAiRecordPending(record)) return "正在生成，请稍后查看结果";
   const content = marketingRecordPreviewText(record);
   if (content) return content.slice(0, 48);
@@ -275,7 +346,7 @@ function marketingRecordSummary(record: MarketingAiRecord) {
     record.channel,
     record.serviceName,
     record.productName,
-  ].map(compactRecordText).filter(Boolean).join(" · ") || "已生成，可点击查看详情";
+  ].map((item) => marketingCompliantText(compactRecordText(item))).filter(Boolean).join(" · ") || "已生成，可点击查看详情";
 }
 
 function marketingRecordMeta(record: MarketingAiRecord) {
@@ -338,7 +409,7 @@ function downloadMarketingRecord(record: MarketingAiRecord) {
     link.download = `${filename}.mp4`;
     link.target = "_blank";
   } else {
-    const blob = new Blob([record.text ?? ""], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([record.text ? marketingCompliantText(record.text) : ""], { type: "text/plain;charset=utf-8" });
     link.href = URL.createObjectURL(blob);
     link.download = `${filename}.txt`;
   }
@@ -367,7 +438,7 @@ export function MarketingCenter({
   const [channel, setChannel] = useState("朋友圈");
   const [marketingGoal, setMarketingGoal] = useState("复购提醒");
   const [generationKind, setGenerationKind] = useState<MarketingGenerationKind>("copy");
-  const [posterStyle, setPosterStyle] = useState("中医养生风");
+  const [posterStyle, setPosterStyle] = useState("东方美学风");
   const [posterSize, setPosterSize] = useState("朋友圈 1:1");
   const [videoRatio, setVideoRatio] = useState("9:16");
   const [videoDuration, setVideoDuration] = useState(5);
@@ -401,14 +472,30 @@ export function MarketingCenter({
   const isPosterMode = generationKind === "image";
   const quotaState = aiFreeQuotaState(data, session.user.id);
   const selectedNode = todayMarketingNodes.find((item) => item.title === marketingNode) ?? todayMarketingNodes[0];
-  const audienceSummary = `${customerType}，${bodyState}`;
+  const selectedNodeTone = marketingNodeTone(selectedNode.title);
+  const selectedNodeDateParts = (selectedNode.dateLabel ?? "").split(" · ");
+  const selectedNodeDate = selectedNodeDateParts[0] ?? "";
+  const selectedNodeTime = selectedNodeDateParts[selectedNodeDateParts.length - 1] ?? "";
+  const safeMarketingNode = marketingCompliantText(marketingNode);
+  const safeBodyState = marketingCompliantText(bodyState);
+  const safeMarketingGoal = marketingCompliantText(marketingGoal);
+  const safePosterStyle = marketingCompliantText(posterStyle);
+  const safeCustomRequirement = marketingCompliantText(customRequirement.trim());
+  const audienceSummary = `${customerType}，${safeBodyState}`;
   const nodeBrief = [selectedNode.title, selectedNode.dateLabel, selectedNode.hint].filter(Boolean).join(" · ");
   const generationRequirement = [
     nodeBrief ? `当前营销时间节点：${nodeBrief}` : "",
     selectedNode.description ? `节点策略：${selectedNode.description}` : "",
-    customRequirement.trim(),
-  ].filter(Boolean).join("\n");
-  const previewSummaryItems = [marketingNode, channel, marketingGoal];
+    safeCustomRequirement,
+  ].filter(Boolean).map(marketingCompliantText).join("\n");
+  const previewSummaryItems = [safeMarketingNode, channel, safeMarketingGoal];
+  const copyPreviewText = [
+    `${channel} · ${safeMarketingNode}`,
+    selectedNode.description,
+    selectedNode.hint ? `适合项目：${selectedNode.hint}` : "",
+    `目标：${safeMarketingGoal}`,
+    safeCustomRequirement ? `补充要求：${safeCustomRequirement}` : "",
+  ].filter(Boolean).map(marketingCompliantText).join("\n");
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
   const latestGenerationResultRecord = generationResult?.record?.id ? marketingAiRecords.find((record) => record.id === generationResult.record?.id) : undefined;
@@ -417,7 +504,8 @@ export function MarketingCenter({
   const hasPendingGenerationResult = Boolean(generationResultRecord && isMarketingAiRecordPending(generationResultRecord) && !isStaleMarketingAiRecord(generationResultRecord));
   const selectedMarketingRecord = marketingAiRecords.find((record) => record.id === selectedRecordId);
   const dialogRecord = selectedMarketingRecord ?? generationResultRecord;
-  const dialogText = dialogRecord?.text ?? generationResult?.text;
+  const rawDialogText = dialogRecord?.text ?? generationResult?.text;
+  const dialogText = rawDialogText ? marketingCompliantText(rawDialogText) : rawDialogText;
   const dialogImageDataUrl = dialogRecord?.imageDataUrl ?? generationResult?.imageDataUrl;
   const dialogPngSource = isPreviewablePngSource(dialogImageDataUrl) ? dialogImageDataUrl : "";
   const dialogHasInvalidImageSource = Boolean(dialogImageDataUrl && !dialogPngSource);
@@ -432,7 +520,7 @@ export function MarketingCenter({
   const dialogProvider = dialogRecord?.provider ?? generationResult?.provider;
   const dialogModel = dialogRecord?.model ?? generationResult?.model;
   const dialogSummaryItems = dialogRecord
-    ? [dialogRecord.marketingNode, dialogRecord.channel, dialogRecord.marketingGoal].filter(Boolean)
+    ? [dialogRecord.marketingNode, dialogRecord.channel, dialogRecord.marketingGoal].map((item) => item ? marketingCompliantText(item) : item).filter(Boolean)
     : previewSummaryItems;
   const showGenerationDialog = Boolean(generationBusy || generationError || selectedMarketingRecord || (!generationDialogDismissed && generationResult));
   const showAiTechnicalDetails = session.user.role === "superadmin";
@@ -537,20 +625,20 @@ export function MarketingCenter({
     try {
       const result = await actions.generateMarketingAi({
         kind: generationKind,
-        storeName,
-        productName: product?.name,
-        serviceName: service?.name,
+        storeName: marketingCompliantText(storeName),
+        productName: product?.name ? marketingCompliantText(product.name) : undefined,
+        serviceName: service?.name ? marketingCompliantText(service.name) : undefined,
         audience: audienceSummary,
         channel,
-        marketingNode,
+        marketingNode: safeMarketingNode,
         customerType,
-        lifecycleNode: marketingNode,
-        bodyState,
-        marketingGoal,
-        posterStyle,
+        lifecycleNode: safeMarketingNode,
+        bodyState: safeBodyState,
+        marketingGoal: safeMarketingGoal,
+        posterStyle: safePosterStyle,
         posterSize,
-        posterTitle: marketingNode,
-        posterOffer: marketingGoal,
+        posterTitle: safeMarketingNode,
+        posterOffer: safeMarketingGoal,
         productImageName,
         productImageDataUrl,
         modelImageName,
@@ -560,8 +648,8 @@ export function MarketingCenter({
         customRequirement: generationRequirement,
         videoRatio,
         videoDuration,
-        videoScript,
-        talkScene: `${marketingNode} · ${marketingGoal} · ${channel}`,
+        videoScript: marketingCompliantText(videoScript),
+        talkScene: `${safeMarketingNode} · ${safeMarketingGoal} · ${channel}`,
       });
       setGenerationResult(result);
       if (result.record?.id) setSelectedRecordId(result.record.id);
@@ -593,6 +681,12 @@ export function MarketingCenter({
     const text = dialogCopyText();
     const copied = await copyTextToClipboard(text);
     setManualCopyText(copied ? "" : text);
+    setCopyResultStatus(copied ? "copied" : "failed");
+    window.setTimeout(() => setCopyResultStatus("idle"), 1800);
+  };
+
+  const copyCurrentPreview = async () => {
+    const copied = await copyTextToClipboard(copyPreviewText);
     setCopyResultStatus(copied ? "copied" : "failed");
     window.setTimeout(() => setCopyResultStatus("idle"), 1800);
   };
@@ -655,7 +749,7 @@ export function MarketingCenter({
   };
 
   return (
-    <div className="page-stack marketing-center-page">
+    <div className={`page-stack marketing-center-page ${!isPosterMode ? "marketing-copy-layout" : ""}`}>
       <PageHero
         icon={<Megaphone size={18} />}
         eyebrow="AI智能营销"
@@ -670,19 +764,35 @@ export function MarketingCenter({
           <small>{selectedGenerationMode.title}</small>
         </div>
         <div className="marketing-output-mode-grid" aria-label="生成内容类型">
-          {generationModes.map((item) => (
-            <button
-              type="button"
-              key={item.kind}
-              className={generationKind === item.kind ? "active" : ""}
-              disabled={item.locked}
-              onClick={() => {
-                if (!item.locked) setGenerationKind(item.kind);
-              }}
-            >
+          {generationModes.filter((item) => !item.locked).map((item) => {
+            const ModeIcon = item.icon;
+            const isActive = generationKind === item.kind;
+            return (
+              <button
+                type="button"
+                key={item.kind}
+                className={isActive ? "active" : ""}
+                aria-pressed={isActive}
+                onClick={() => {
+                  setGenerationKind(item.kind);
+                }}
+              >
+                <span className="marketing-mode-icon" aria-hidden="true">
+                  <ModeIcon size={19} strokeWidth={2.35} />
+                </span>
+                <strong>{item.title}</strong>
+                <span className="marketing-mode-desc">{item.description}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="marketing-locked-mode-row" aria-label="暂未开放类型">
+          {generationModes.filter((item) => item.locked).map((item) => (
+            <span className="marketing-locked-mode-chip" key={item.kind}>
+              <Lock size={14} strokeWidth={2.4} aria-hidden="true" />
               <strong>{item.title}</strong>
-              <span>{item.description}</span>
-            </button>
+              <em>调试中</em>
+            </span>
           ))}
         </div>
       </section>
@@ -698,8 +808,19 @@ export function MarketingCenter({
 
       {activeView === "content" ? (
         <section className="marketing-workspace">
-          <div className="workbench-panel marketing-form-panel">
-            <PanelTitle icon={<Search size={18} />} title={isPosterMode ? "AI产品设计图" : "AI获客图文案"} action={quotaState.credits > 0 ? `账号积分 ${formatAiCreditAmount(quotaState.credits)}` : contentState.label} />
+          <div className={`workbench-panel marketing-form-panel ${!isPosterMode ? "marketing-copy-workbench" : ""}`}>
+            <PanelTitle
+              icon={isPosterMode ? <ImageIcon size={18} /> : <span className="marketing-copy-title-icon"><Sparkles size={26} strokeWidth={2.5} /></span>}
+              title={isPosterMode ? "AI产品设计图" : "AI 获客文案"}
+              action={!isPosterMode
+                ? (
+                  <span className="marketing-copy-title-actions">
+                    <span className="marketing-compliance-badge"><ShieldCheck size={15} /> 合规模式</span>
+                    {quotaState.credits > 0 && <span className="marketing-credit-badge">积分 {formatAiCreditAmount(quotaState.credits)}</span>}
+                  </span>
+                )
+                : quotaState.credits > 0 ? `账号积分 ${formatAiCreditAmount(quotaState.credits)}` : contentState.label}
+            />
             {quotaState.credits <= 0 && (
               <div className={`marketing-quota-note ${quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}>
                 {quotaState.enforced
@@ -708,58 +829,99 @@ export function MarketingCenter({
               </div>
             )}
             {!isPosterMode && (
-              <>
-                <div className="marketing-context-block marketing-primary-block">
-                  <div className="marketing-section-head">
-                    <div>
-                      <strong>今天推荐</strong>
-                    </div>
+              <div className="marketing-copy-stage">
+                <article className="marketing-today-card" data-tone={selectedNodeTone}>
+                  <div className="marketing-today-head">
+                    <span className="marketing-today-eyebrow">今日推荐</span>
+                    {selectedNodeTime && <em>{selectedNodeTime}</em>}
                   </div>
-                  <div className="marketing-node-grid" aria-label="推荐营销节点">
-                    {todayMarketingNodes.map((item) => (
-                      <button type="button" key={item.title} className={marketingNode === item.title ? "active" : ""} onClick={() => setMarketingNode(item.title)}>
-                        <span>{item.badge}</span>
-                        <strong>{item.title}</strong>
-                        {item.dateLabel && <em>{item.dateLabel}</em>}
-                        <small>{item.description}</small>
-                        {item.hint && <small className="marketing-node-service">适合：{item.hint}</small>}
-                      </button>
+                  <h3>{selectedNode.title}</h3>
+                  <p>{selectedNode.description}</p>
+                  <div className="marketing-today-tags" aria-label="推荐标签">
+                    {[...(selectedNode.hint ? selectedNode.hint.split("、").slice(0, 2) : []), marketingGoal].map((item) => (
+                      <span key={item}>{item}</span>
                     ))}
+                  </div>
+                </article>
+
+                <div className="marketing-copy-block">
+                  <div className="marketing-copy-heading">
+                    <strong>选择节气</strong>
+                  </div>
+                  <div className="marketing-node-strip" aria-label="切换推荐营销节点">
+                    {todayMarketingNodes.map((item) => {
+                      const dateParts = (item.dateLabel ?? "").split(" · ");
+                      const nodeDate = dateParts[0] ?? "";
+                      const nodeTime = dateParts[dateParts.length - 1] ?? "";
+                      return (
+                        <button
+                          type="button"
+                          key={item.title}
+                          className={marketingNode === item.title ? "active" : ""}
+                          data-tone={marketingNodeTone(item.title)}
+                          onClick={() => setMarketingNode(item.title)}
+                        >
+                          <span aria-hidden="true" />
+                          <strong>{item.title}</strong>
+                          {nodeDate && <small>{nodeDate}</small>}
+                          {nodeTime && <em>{nodeTime}</em>}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div className="marketing-context-block marketing-primary-block">
-                  <div className="marketing-section-head">
-                    <div>
-                      <strong>基础条件</strong>
-                    </div>
+                <div className="marketing-copy-block">
+                  <div className="marketing-copy-heading">
+                    <strong>发到哪里</strong>
                   </div>
-                  <div className="marketing-config-stack">
-                    <div className="marketing-config-row">
-                      <div className="marketing-config-label">
-                        <strong>发到哪里</strong>
-                        <small>格式语气</small>
-                      </div>
-                      <div className="marketing-chip-row" aria-label="渠道">
-                        {channels.map((item) => (
-                          <button type="button" key={item} className={channel === item ? "active" : ""} onClick={() => setChannel(item)}>{item}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="marketing-config-row">
-                      <div className="marketing-config-label">
-                        <strong>想达到什么目的</strong>
-                        <small>行动引导</small>
-                      </div>
-                      <div className="marketing-chip-row" aria-label="营销目的">
-                        {marketingGoals.map((item) => (
-                          <button type="button" key={item} className={marketingGoal === item ? "active" : ""} onClick={() => setMarketingGoal(item)}>{item}</button>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="marketing-channel-card-grid" aria-label="渠道">
+                    {channelCards.map((item) => {
+                      const ChannelIcon = item.icon;
+                      return (
+                        <button
+                          type="button"
+                          key={item.name}
+                          className={`marketing-channel-card ${channel === item.name ? "active" : ""}`}
+                          data-tone={item.tone}
+                          onClick={() => setChannel(item.name)}
+                        >
+                          <ChannelIcon size={24} />
+                          <strong>{item.name}</strong>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              </>
+
+                <article className="marketing-copy-preview-card">
+                  <header>
+                    <span><BookOpen size={17} /> {channel} · {marketingNode}</span>
+                    <button type="button" aria-label="收起预览" tabIndex={-1}>-</button>
+                  </header>
+                  <div>
+                    <p className="marketing-compliance-note"><Sparkles size={18} /> 点击「生成文案」，已自动规避违禁词</p>
+                  </div>
+                </article>
+
+                <details className="marketing-compliance-panel">
+                  <summary>
+                    <span><ShieldCheck size={16} /> 查看违禁词对照表</span>
+                  </summary>
+                  <div className="marketing-compliance-grid" role="table" aria-label="违禁词替换对照">
+                    <div className="marketing-compliance-row head" role="row">
+                      <strong>不能用</strong>
+                      <strong>换成这个</strong>
+                    </div>
+                    {marketingComplianceGuideRows.map((row) => (
+                      <div className="marketing-compliance-row" role="row" key={row.blocked}>
+                        <span>{row.blocked}</span>
+                        <em>{row.replacement}</em>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
             )}
 
             {isPosterMode ? (
@@ -833,14 +995,19 @@ export function MarketingCenter({
                     value={customRequirement}
                     onChange={(event) => setCustomRequirement(event.target.value)}
                     rows={3}
-                    placeholder="例如：重点推三伏药浴，语气温和，不要太像广告。"
+                    placeholder="例如：重点推节令草本浴，语气温和，不要太像广告。"
                   />
                 </label>
 
               </>
             )}
-            <div className="marketing-form-actions single">
-              <button type="button" className="primary-button" disabled={!contentState.enabled || generationBusy} onClick={generate}>
+            <div className={`marketing-form-actions ${!isPosterMode ? "marketing-copy-actions" : "single"}`}>
+              {!isPosterMode && (
+                <button type="button" className="secondary-button marketing-copy-action" onClick={() => void copyCurrentPreview()}>
+                  <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : "复制文案"}
+                </button>
+              )}
+              <button type="button" className="primary-button marketing-copy-action" disabled={!contentState.enabled || generationBusy} onClick={generate}>
                 <Sparkles size={16} /> {generationBusy ? "生成中..." : `生成${selectedGenerationMode.title}`}
               </button>
             </div>

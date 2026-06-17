@@ -22827,58 +22827,185 @@ textarea,
 
 .marketing-type-panel {
   display: grid;
-  gap: 12px;
-  border-left: 6px solid #6f42c1;
+  gap: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.12) !important;
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(250, 247, 255, 0.94)) !important;
+  box-shadow: 0 14px 30px rgba(63, 39, 112, 0.07);
 }
 
 .marketing-type-panel .marketing-section-head {
   margin-bottom: 0;
 }
 
+.marketing-type-panel .marketing-section-head strong {
+  color: #1f2937;
+}
+
+.marketing-type-panel .marketing-section-head > small {
+  border-color: rgba(111, 66, 193, 0.14);
+  background: rgba(255, 255, 255, 0.82);
+  color: #4f2f91;
+}
+
 .marketing-type-panel .marketing-output-mode-grid button {
+  position: relative;
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border-color: rgba(111, 66, 193, 0.13);
+  border-radius: 17px;
   background:
-    radial-gradient(circle at 92% 10%, rgba(111, 66, 193, 0.07), transparent 38%),
-    rgba(248, 244, 255, 0.92);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(251, 250, 255, 0.94));
+  box-shadow: 0 10px 22px rgba(63, 39, 112, 0.055);
+  overflow: hidden;
+}
+
+.marketing-type-panel .marketing-output-mode-grid button.active {
+  border-color: rgba(42, 143, 125, 0.42);
+  background:
+    linear-gradient(145deg, rgba(236, 253, 245, 0.94), rgba(255, 255, 255, 0.96));
+  box-shadow:
+    0 12px 24px rgba(42, 143, 125, 0.12),
+    inset 0 0 0 1px rgba(42, 143, 125, 0.08);
+}
+
+.marketing-type-panel .marketing-output-mode-grid button.active::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #2a8f7d, #6f42c1);
 }
 
 .marketing-type-panel .marketing-output-mode-grid button:disabled {
   cursor: not-allowed;
-  border-color: rgba(111, 66, 193, 0.12);
+  border-color: rgba(148, 163, 184, 0.16);
   background:
-    radial-gradient(circle at 92% 10%, rgba(148, 163, 184, 0.08), transparent 38%),
-    rgba(244, 241, 249, 0.76);
-  box-shadow: none;
-  opacity: 0.72;
+    linear-gradient(145deg, rgba(248, 250, 252, 0.92), rgba(241, 245, 249, 0.88));
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.035);
+  opacity: 1;
+}
+
+.marketing-type-panel .marketing-output-mode-grid .marketing-mode-icon {
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 11px;
+  background: rgba(111, 66, 193, 0.1);
+  color: #5b36a4;
+}
+
+.marketing-type-panel .marketing-output-mode-grid button.active .marketing-mode-icon {
+  background: linear-gradient(135deg, #2a8f7d, #6f42c1);
+  color: #ffffff;
+}
+
+.marketing-type-panel .marketing-output-mode-grid .marketing-mode-icon svg {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
+.marketing-type-panel .marketing-output-mode-grid button.locked .marketing-mode-icon {
+  background: rgba(148, 163, 184, 0.11);
+  color: #64748b;
+}
+
+.marketing-type-panel .marketing-output-mode-grid button strong {
+  grid-column: 2 / -1;
+  color: #25134f;
+  font-size: 16px;
+  font-weight: 920;
+  line-height: 1.18;
+  white-space: nowrap;
+}
+
+.marketing-type-panel .marketing-output-mode-grid .marketing-mode-desc {
+  grid-column: 2 / -1;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: rgba(37, 19, 79, 0.64);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.marketing-locked-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.marketing-locked-mode-chip {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  border-radius: 999px;
+  background: rgba(241, 245, 249, 0.92);
+  color: #475569 !important;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.marketing-locked-mode-chip strong {
+  color: #475569 !important;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.marketing-locked-mode-chip em {
+  color: #64748b !important;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 780;
+}
+
+.marketing-locked-mode-chip svg {
+  color: #64748b !important;
+  stroke: currentColor !important;
 }
 
 .theme-day .marketing-type-panel .marketing-output-mode-grid button strong,
 .theme-night .marketing-type-panel .marketing-output-mode-grid button strong {
-  color: #25134f;
+  color: #1f2937;
 }
 
-.theme-day .marketing-type-panel .marketing-output-mode-grid button span,
-.theme-night .marketing-type-panel .marketing-output-mode-grid button span {
-  color: rgba(37, 19, 79, 0.76);
+.theme-day .marketing-type-panel .marketing-output-mode-grid button .marketing-mode-desc,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button .marketing-mode-desc {
+  color: rgba(31, 41, 55, 0.68);
 }
 
 .theme-day .marketing-type-panel .marketing-output-mode-grid button.active strong,
 .theme-night .marketing-type-panel .marketing-output-mode-grid button.active strong {
-  color: #2d1768;
+  color: #0f766e;
 }
 
-.theme-day .marketing-type-panel .marketing-output-mode-grid button.active span,
-.theme-night .marketing-type-panel .marketing-output-mode-grid button.active span {
-  color: rgba(45, 23, 104, 0.82);
+.theme-day .marketing-type-panel .marketing-output-mode-grid button.active .marketing-mode-desc,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button.active .marketing-mode-desc {
+  color: rgba(15, 118, 110, 0.76);
 }
 
 .theme-day .marketing-type-panel .marketing-output-mode-grid button:disabled strong,
 .theme-night .marketing-type-panel .marketing-output-mode-grid button:disabled strong {
-  color: rgba(47, 37, 95, 0.58);
+  color: #94a3b8;
 }
 
-.theme-day .marketing-type-panel .marketing-output-mode-grid button:disabled span,
-.theme-night .marketing-type-panel .marketing-output-mode-grid button:disabled span {
-  color: rgba(47, 37, 95, 0.48);
+.theme-day .marketing-type-panel .marketing-output-mode-grid button:disabled .marketing-mode-desc,
+.theme-night .marketing-type-panel .marketing-output-mode-grid button:disabled .marketing-mode-desc {
+  color: #a8b3c3;
 }
 
 .marketing-workspace {
@@ -24071,6 +24198,1309 @@ textarea,
   color: #6f42c1 !important;
 }
 
+.marketing-center-page .marketing-copy-workbench {
+  gap: 18px;
+  border: 1px solid rgba(111, 66, 193, 0.14) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(247, 245, 252, 0.94)) !important;
+  box-shadow: 0 18px 46px rgba(74, 50, 126, 0.12);
+}
+
+.marketing-center-page > .page-hero {
+  height: 128px;
+  min-height: 128px;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+  margin: 0;
+  padding: 18px 24px;
+  border: 1px solid rgba(111, 66, 193, 0.16) !important;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 88% 20%, rgba(185, 133, 44, 0.32), transparent 28%),
+    linear-gradient(135deg, #5b36a4 0%, #6f42c1 52%, #2a8f7d 100%) !important;
+  box-shadow: 0 18px 42px rgba(78, 50, 140, 0.22);
+}
+
+.marketing-center-page > .page-hero h1,
+.marketing-center-page > .page-hero h2 {
+  color: #ffffff !important;
+}
+
+.marketing-center-page > .page-hero p,
+.marketing-center-page > .page-hero span {
+  color: rgba(255, 255, 255, 0.76) !important;
+}
+
+.marketing-center-page > .page-hero svg {
+  color: #ffffff !important;
+}
+
+.marketing-center-page > .page-hero .page-hero-copy {
+  gap: 10px;
+}
+
+.marketing-center-page > .page-hero h1,
+.marketing-center-page > .page-hero h2,
+.marketing-center-page > .page-hero .eyebrow {
+  font-size: clamp(22px, 5vw, 30px) !important;
+  font-weight: 920;
+  line-height: 1.16;
+}
+
+.marketing-center-page > .page-hero .eyebrow {
+  min-height: 42px;
+  padding: 0 18px;
+}
+
+.marketing-center-page > .page-hero .eyebrow svg {
+  width: 22px;
+  height: 22px;
+}
+
+.marketing-center-page .marketing-copy-workbench .panel-title h2,
+.marketing-center-page .marketing-copy-workbench .panel-title svg,
+.marketing-center-page .marketing-copy-workbench .marketing-copy-heading strong,
+.marketing-center-page .marketing-copy-workbench .marketing-custom-field > span {
+  color: #2f255f !important;
+}
+
+.marketing-center-page .marketing-copy-workbench .panel-title span {
+  color: rgba(47, 37, 95, 0.6) !important;
+}
+
+.marketing-copy-stage {
+  display: grid;
+  gap: 18px;
+}
+
+.marketing-today-card {
+  min-height: 218px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 28px 30px;
+  border-radius: 28px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  background:
+    linear-gradient(135deg, rgba(241, 236, 255, 0.98) 0%, rgba(249, 250, 255, 0.98) 56%, rgba(232, 248, 243, 0.94) 100%);
+  color: #2f255f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.marketing-center-page .marketing-copy-workbench .marketing-today-eyebrow {
+  color: #4c1d95 !important;
+  font-size: 14px;
+  font-weight: 930;
+  line-height: 1.25;
+}
+
+.marketing-center-page .marketing-copy-workbench .marketing-today-card h3 {
+  margin: 0;
+  color: #24124d !important;
+  font-size: clamp(30px, 7vw, 42px);
+  font-weight: 950;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.marketing-center-page .marketing-copy-workbench .marketing-today-card p {
+  max-width: 760px;
+  margin: 0;
+  color: #514379 !important;
+  font-size: clamp(16px, 3vw, 20px);
+  font-weight: 780;
+  line-height: 1.62;
+}
+
+.marketing-today-tags,
+.marketing-goal-pill-row,
+.marketing-node-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.marketing-center-page .marketing-copy-workbench .marketing-today-tags span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 66, 193, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  color: #4c1d95 !important;
+  font-size: 14px;
+  font-weight: 920;
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.08);
+}
+
+.marketing-node-strip {
+  margin-top: -4px;
+}
+
+.marketing-center-page .marketing-copy-workbench .marketing-node-strip button,
+.marketing-center-page .marketing-copy-workbench .marketing-goal-pill-row button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(111, 66, 193, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #4b3a76 !important;
+  font-weight: 900;
+  box-shadow: 0 7px 14px rgba(79, 70, 229, 0.06);
+}
+
+.marketing-center-page .marketing-copy-workbench .marketing-node-strip button.active,
+.marketing-center-page .marketing-copy-workbench .marketing-goal-pill-row button.active {
+  border-color: rgba(111, 66, 193, 0.48);
+  background: #efe8ff;
+  color: #3b1f7a !important;
+}
+
+.marketing-copy-block {
+  display: grid;
+  gap: 12px;
+}
+
+.marketing-copy-heading {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+}
+
+.marketing-channel-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.marketing-channel-card {
+  min-width: 0;
+  min-height: 128px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 18px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.marketing-channel-card svg {
+  width: 30px;
+  height: 30px;
+  color: #0f766e;
+  stroke-width: 2.4;
+}
+
+.marketing-channel-card strong {
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 930;
+  line-height: 1.2;
+}
+
+.marketing-channel-card.active {
+  border-color: rgba(15, 118, 110, 0.5);
+  background: #ecfdf5;
+  color: #0f766e;
+  box-shadow:
+    0 12px 24px rgba(15, 118, 110, 0.12),
+    inset 0 0 0 1px rgba(15, 118, 110, 0.1);
+}
+
+.marketing-channel-card.active svg,
+.marketing-channel-card.active strong {
+  color: #0f766e;
+}
+
+.marketing-channel-card[data-tone="red"].active {
+  border-color: rgba(194, 72, 78, 0.28);
+  background: rgba(255, 241, 240, 0.98);
+  color: #9c3f43;
+}
+
+.marketing-channel-card[data-tone="red"].active svg,
+.marketing-channel-card[data-tone="red"].active strong {
+  color: #9c3f43;
+}
+
+.marketing-channel-card[data-tone="teal"].active {
+  border-color: rgba(42, 143, 125, 0.28);
+  background: rgba(232, 247, 242, 0.98);
+  color: #247769;
+}
+
+.marketing-channel-card[data-tone="teal"].active svg,
+.marketing-channel-card[data-tone="teal"].active strong {
+  color: #2d6d63;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card {
+  border-color: rgba(111, 66, 193, 0.16) !important;
+  background:
+    linear-gradient(145deg, rgba(250, 247, 255, 0.98), rgba(255, 255, 255, 0.94)) !important;
+  color: #5b36a4 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card svg,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card svg,
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card strong,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card strong {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="blue"],
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="blue"] {
+  border-color: rgba(42, 143, 125, 0.32) !important;
+  background:
+    linear-gradient(145deg, rgba(232, 247, 242, 0.98), rgba(245, 255, 252, 0.94)) !important;
+  color: #0f766e !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"],
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"] {
+  border-color: rgba(219, 39, 119, 0.24) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 241, 246, 0.98), rgba(255, 250, 252, 0.94)) !important;
+  color: #be185d !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"],
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"] {
+  border-color: rgba(124, 58, 237, 0.22) !important;
+  background:
+    linear-gradient(145deg, rgba(245, 243, 255, 0.98), rgba(253, 244, 255, 0.92)) !important;
+  color: #6d28d9 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"],
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"] {
+  border-color: rgba(14, 165, 233, 0.24) !important;
+  background:
+    linear-gradient(145deg, rgba(240, 249, 255, 0.98), rgba(236, 253, 245, 0.9)) !important;
+  color: #0369a1 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card.active,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card.active {
+  border-color: rgba(15, 118, 110, 0.5) !important;
+  background: #ecfdf5 !important;
+  color: #0f766e !important;
+  transform: translateY(-1px);
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card.active svg,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card.active svg,
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card.active strong,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card.active strong {
+  color: #0f766e !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"].active,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"].active {
+  border-color: rgba(194, 72, 78, 0.32) !important;
+  background: #fff1f0 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"].active svg,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"].active svg,
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"].active strong,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="red"].active strong {
+  color: #9c3f43 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"].active,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"].active {
+  border-color: rgba(124, 58, 237, 0.42) !important;
+  background: #f5f3ff !important;
+  color: #6d28d9 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"].active svg,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"].active svg,
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"].active strong,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="silver"].active strong {
+  color: #6d28d9 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"].active,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"].active {
+  border-color: rgba(14, 165, 233, 0.4) !important;
+  background: #f0f9ff !important;
+  color: #0369a1 !important;
+}
+
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"].active svg,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"].active svg,
+.theme-day .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"].active strong,
+.theme-night .marketing-center-page .marketing-copy-workbench .marketing-channel-card[data-tone="teal"].active strong {
+  color: #0369a1 !important;
+}
+
+.marketing-copy-preview-card {
+  overflow: hidden;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.84);
+  color: rgba(47, 37, 95, 0.78);
+  box-shadow: 0 12px 28px rgba(74, 50, 126, 0.07);
+}
+
+.marketing-copy-preview-card header {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  border-bottom: 1px solid rgba(111, 66, 193, 0.12);
+}
+
+.marketing-copy-preview-card header span {
+  color: #3b2a6f !important;
+  font-size: 16px;
+  font-weight: 920;
+}
+
+.marketing-copy-preview-card div {
+  display: grid;
+  gap: 10px;
+  min-height: 148px;
+  align-content: center;
+  padding: 28px;
+}
+
+.marketing-copy-preview-card p {
+  margin: 0;
+  color: #514379 !important;
+  font-size: 17px;
+  font-weight: 780;
+  line-height: 1.65;
+}
+
+.marketing-copy-preview-card .marketing-compliance-note {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 999px;
+  background: rgba(236, 253, 245, 0.86);
+  color: #0f766e !important;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.marketing-compliance-panel {
+  overflow: hidden;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 28px rgba(74, 50, 126, 0.06);
+}
+
+.marketing-compliance-panel summary {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 18px;
+  color: #5b36a4 !important;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 920;
+  list-style: none;
+}
+
+.marketing-compliance-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.marketing-compliance-panel summary::after {
+  content: "展开";
+  flex: 0 0 auto;
+  color: rgba(91, 54, 164, 0.62);
+  font-size: 13px;
+  font-weight: 860;
+}
+
+.marketing-compliance-panel[open] summary::after {
+  content: "收起";
+}
+
+.marketing-compliance-panel summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.marketing-compliance-grid {
+  display: grid;
+  border-top: 1px solid rgba(111, 66, 193, 0.12);
+}
+
+.marketing-compliance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid rgba(111, 66, 193, 0.1);
+  align-items: center;
+}
+
+.marketing-compliance-row:first-child {
+  border-top: 0;
+}
+
+.marketing-compliance-row.head {
+  background: linear-gradient(90deg, rgba(245, 243, 255, 0.78), rgba(236, 253, 245, 0.72));
+}
+
+.marketing-compliance-row strong {
+  color: #3b2a6f !important;
+  font-size: 14px;
+  font-weight: 920;
+}
+
+.marketing-compliance-row span {
+  color: #b42318 !important;
+  font-size: 15px;
+  font-weight: 880;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  word-break: break-word;
+}
+
+.marketing-compliance-row em {
+  color: #0f766e !important;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 880;
+  word-break: break-word;
+}
+
+.marketing-copy-workbench .marketing-custom-field {
+  border-color: rgba(111, 66, 193, 0.14);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.marketing-copy-workbench .marketing-custom-field textarea {
+  border-color: rgba(111, 66, 193, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f255f;
+}
+
+.marketing-copy-workbench .marketing-custom-field textarea::placeholder {
+  color: rgba(47, 37, 95, 0.4);
+}
+
+.marketing-copy-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.marketing-copy-actions .marketing-copy-action {
+  min-height: 54px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 930;
+}
+
+.marketing-copy-actions .secondary-button.marketing-copy-action {
+  border-color: rgba(111, 66, 193, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  color: #2f255f;
+}
+
+.marketing-copy-layout {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.marketing-copy-layout > .marketing-mode-tabs {
+  display: flex !important;
+}
+
+.marketing-copy-layout > .marketing-type-panel {
+  display: grid !important;
+  gap: 10px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid rgba(111, 66, 193, 0.12) !important;
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(250, 247, 255, 0.94)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.76),
+    0 14px 30px rgba(47, 27, 99, 0.08);
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-section-head {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-section-head strong {
+  color: #1f2937 !important;
+  font-size: 16px;
+  font-weight: 930;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-section-head > small {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  background: rgba(255, 255, 255, 0.82);
+  color: #4f2f91 !important;
+  font-size: 14px;
+  font-weight: 920;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button {
+  min-height: 86px;
+  padding: 12px 14px;
+  border-color: rgba(111, 66, 193, 0.13);
+  border-radius: 17px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(251, 250, 255, 0.94));
+  color: #1f2937;
+  box-shadow: 0 10px 22px rgba(63, 39, 112, 0.055);
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button.active {
+  border-color: rgba(42, 143, 125, 0.42);
+  background:
+    linear-gradient(145deg, rgba(236, 253, 245, 0.94), rgba(255, 255, 255, 0.96));
+  color: #0f766e;
+  box-shadow:
+    0 12px 24px rgba(42, 143, 125, 0.12),
+    inset 0 0 0 1px rgba(42, 143, 125, 0.08);
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button::before {
+  display: block;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid .marketing-mode-icon {
+  background: rgba(111, 66, 193, 0.1);
+  color: currentColor;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button.active .marketing-mode-icon {
+  background: linear-gradient(135deg, #2a8f7d, #6f42c1);
+  color: #ffffff;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button strong {
+  color: currentColor !important;
+  font-size: 16px;
+  font-weight: 940;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button .marketing-mode-desc {
+  color: rgba(31, 41, 55, 0.68) !important;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button.active .marketing-mode-desc {
+  color: rgba(15, 118, 110, 0.76) !important;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-locked-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-locked-mode-chip {
+  min-height: 34px;
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  background: rgba(241, 245, 249, 0.92);
+  color: #475569 !important;
+}
+
+.marketing-copy-layout > .marketing-type-panel .marketing-locked-mode-chip strong,
+.marketing-copy-layout > .marketing-type-panel .marketing-locked-mode-chip em,
+.marketing-copy-layout > .marketing-type-panel .marketing-locked-mode-chip svg {
+  color: #475569 !important;
+  stroke: currentColor !important;
+}
+
+.marketing-copy-layout .marketing-workspace {
+  display: block;
+}
+
+.marketing-copy-layout .marketing-form-panel.marketing-copy-workbench {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 0 !important;
+  border-left: 6px solid #6f42c1 !important;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 86% 0%, rgba(111, 66, 193, 0.08), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(250, 247, 255, 0.92)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.76),
+    0 14px 30px rgba(47, 27, 99, 0.08);
+}
+
+.marketing-copy-layout .marketing-copy-workbench .panel-title {
+  min-height: 58px;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.marketing-copy-layout .marketing-copy-workbench .panel-title > div {
+  min-width: 0;
+  gap: 14px;
+}
+
+.marketing-copy-title-icon {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f7e9ef 0%, #e7d8df 100%);
+  color: #a83b62 !important;
+  box-shadow: 0 10px 24px rgba(139, 49, 84, 0.1);
+}
+
+.marketing-copy-title-icon svg {
+  width: 30px;
+  height: 30px;
+  color: currentColor !important;
+  stroke: currentColor !important;
+  stroke-width: 2.5;
+}
+
+.marketing-copy-layout .marketing-copy-workbench .panel-title h2 {
+  color: #3b2035 !important;
+  font-size: 25px;
+  font-weight: 940;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.marketing-copy-layout .marketing-copy-workbench .panel-title > span {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+}
+
+.marketing-copy-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.marketing-compliance-badge,
+.marketing-credit-badge {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.marketing-compliance-badge {
+  border: 1px solid rgba(137, 212, 184, 0.58);
+  background: linear-gradient(180deg, #d8efe5, #b9d7cc);
+  color: #164f45 !important;
+}
+
+.marketing-compliance-badge svg {
+  color: #164f45 !important;
+  stroke: currentColor !important;
+}
+
+.marketing-credit-badge {
+  border: 1px solid rgba(171, 61, 101, 0.14);
+  background: rgba(255, 255, 255, 0.78);
+  color: #6f2e4f !important;
+}
+
+.marketing-copy-layout .marketing-copy-stage {
+  display: grid;
+  gap: 32px;
+}
+
+.marketing-copy-layout .marketing-today-card {
+  position: relative;
+  min-height: 236px;
+  overflow: hidden;
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 38px 42px;
+  border: 0;
+  border-radius: 24px;
+  background: #a6335d;
+  color: #fff;
+  box-shadow: none;
+}
+
+.marketing-copy-layout .marketing-today-card::before,
+.marketing-copy-layout .marketing-today-card::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.marketing-copy-layout .marketing-today-card::before {
+  width: 166px;
+  height: 166px;
+  right: 44px;
+  bottom: -42px;
+}
+
+.marketing-copy-layout .marketing-today-card::after {
+  width: 112px;
+  height: 112px;
+  right: 96px;
+  bottom: 40px;
+}
+
+.marketing-copy-layout .marketing-today-card[data-tone="amber"] {
+  background: #bd7813;
+}
+
+.marketing-copy-layout .marketing-today-card[data-tone="violet"] {
+  background: #5b4dae;
+}
+
+.marketing-copy-layout .marketing-today-card[data-tone="teal"] {
+  background: #247769;
+}
+
+.marketing-copy-layout .marketing-today-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.marketing-copy-layout .marketing-today-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.marketing-copy-layout .marketing-today-eyebrow {
+  color: rgba(255, 255, 255, 0.76) !important;
+  font-size: 20px;
+  font-weight: 920;
+}
+
+.marketing-copy-layout .marketing-today-head em {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 22px;
+  font-style: normal;
+  font-weight: 930;
+  white-space: nowrap;
+}
+
+.marketing-copy-layout .marketing-today-card h3 {
+  margin: 0;
+  color: #fff !important;
+  font-size: clamp(38px, 5vw, 54px);
+  font-weight: 960;
+  line-height: 1.05;
+}
+
+.marketing-copy-layout .marketing-today-card p {
+  max-width: 940px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: clamp(18px, 2.2vw, 25px);
+  font-weight: 830;
+  line-height: 1.65;
+}
+
+.marketing-copy-layout .marketing-today-tags {
+  gap: 12px;
+}
+
+.marketing-copy-layout .marketing-today-tags span {
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #9b2f58 !important;
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow: none;
+}
+
+.marketing-copy-layout .marketing-copy-heading {
+  min-height: 32px;
+}
+
+.marketing-copy-layout .marketing-copy-heading strong {
+  color: #6b5b66 !important;
+  font-size: 22px;
+  font-weight: 930;
+}
+
+.marketing-copy-layout .marketing-node-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 0;
+}
+
+.marketing-copy-layout .marketing-node-strip button {
+  position: relative;
+  min-height: 132px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 8px;
+  padding: 24px 156px 22px 54px;
+  border: 1px solid #44443f;
+  border-color: rgba(75, 37, 64, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #4b2540 !important;
+  box-shadow: 0 12px 24px rgba(126, 48, 91, 0.08);
+}
+
+.marketing-copy-layout .marketing-node-strip button > span {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  width: 14px;
+  height: 14px;
+  display: block;
+  border-radius: 999px;
+  background: #e05285;
+  transform: translateY(-50%);
+}
+
+.marketing-copy-layout .marketing-node-strip button[data-tone="amber"] > span {
+  background: #f5a623;
+}
+
+.marketing-copy-layout .marketing-node-strip button[data-tone="violet"] > span {
+  background: #7b72ee;
+}
+
+.marketing-copy-layout .marketing-node-strip button[data-tone="teal"] > span {
+  background: #11937f;
+}
+
+.marketing-copy-layout .marketing-node-strip button strong {
+  min-width: 0;
+  width: 100%;
+  color: #3b2035 !important;
+  font-size: 25px;
+  font-weight: 950;
+  line-height: 1.12;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketing-copy-layout .marketing-node-strip button small {
+  min-width: 0;
+  width: 100%;
+  color: rgba(59, 32, 53, 0.58) !important;
+  font-size: 20px;
+  font-weight: 820;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketing-copy-layout .marketing-node-strip button em {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 15px;
+  border-radius: 999px;
+  background: #fff4e9;
+  color: #893318 !important;
+  font-size: 19px;
+  font-style: normal;
+  font-weight: 920;
+  white-space: nowrap;
+  max-width: calc(100% - 58px);
+  transform: translateY(-50%);
+}
+
+.marketing-copy-layout .marketing-node-strip button.active {
+  border-color: #f08eb2;
+  background: #fde7ef;
+  color: #7b2145 !important;
+}
+
+.marketing-copy-layout .marketing-node-strip button.active strong {
+  color: #7b2145 !important;
+}
+
+.marketing-copy-layout .marketing-node-strip button.active small {
+  color: rgba(74, 57, 57, 0.52) !important;
+}
+
+.marketing-copy-layout .marketing-node-strip button.active em {
+  background: rgba(255, 246, 236, 0.96);
+  color: #7b2145 !important;
+}
+
+.marketing-copy-layout .marketing-channel-card-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card,
+.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card,
+.marketing-copy-layout .marketing-channel-card {
+  min-height: 124px;
+  border: 1px solid rgba(75, 37, 64, 0.12) !important;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86) !important;
+  color: #6b5b66 !important;
+  box-shadow: 0 12px 24px rgba(126, 48, 91, 0.07);
+}
+
+.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card svg,
+.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card svg,
+.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card strong,
+.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card strong,
+.marketing-copy-layout .marketing-channel-card svg,
+.marketing-copy-layout .marketing-channel-card strong {
+  color: #aaa7a1 !important;
+  color: #6b5b66 !important;
+  stroke: currentColor !important;
+}
+
+.marketing-copy-layout .marketing-channel-card svg {
+  width: 32px;
+  height: 32px;
+}
+
+.marketing-copy-layout .marketing-channel-card strong {
+  font-size: 22px;
+  font-weight: 940;
+}
+
+.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card.active,
+.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card.active,
+.marketing-copy-layout .marketing-channel-card.active {
+  border-color: #f08eb2 !important;
+  background: #fde7ef !important;
+  color: #a6335d !important;
+  transform: none;
+}
+
+.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card.active svg,
+.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card.active svg,
+.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card.active strong,
+.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-channel-card.active strong,
+.marketing-copy-layout .marketing-channel-card.active svg,
+.marketing-copy-layout .marketing-channel-card.active strong {
+  color: #a6335d !important;
+}
+
+.marketing-copy-layout .marketing-copy-preview-card {
+  overflow: hidden;
+  border: 1px solid rgba(75, 37, 64, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #6b5b66;
+  box-shadow: 0 12px 24px rgba(126, 48, 91, 0.07);
+}
+
+.marketing-copy-layout .marketing-copy-preview-card header {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 32px;
+  border-bottom: 1px solid rgba(75, 37, 64, 0.1);
+}
+
+.marketing-copy-layout .marketing-copy-preview-card header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: #4b2540 !important;
+  font-size: 23px;
+  font-weight: 920;
+}
+
+.marketing-copy-layout .marketing-copy-preview-card header svg {
+  color: #6b5b66 !important;
+  stroke: currentColor !important;
+}
+
+.marketing-copy-layout .marketing-copy-preview-card header button {
+  width: 48px;
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(171, 61, 101, 0.08);
+  color: #6f2e4f;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.marketing-copy-layout .marketing-copy-preview-card div {
+  min-height: 160px;
+  display: grid;
+  align-content: center;
+  padding: 30px 34px;
+}
+
+.marketing-copy-layout .marketing-copy-preview-card .marketing-compliance-note {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #6b5b66 !important;
+  font-size: 24px;
+  font-weight: 880;
+}
+
+.marketing-copy-layout .marketing-copy-preview-card .marketing-compliance-note svg {
+  color: #6b5b66 !important;
+  stroke: currentColor !important;
+}
+
+.marketing-copy-layout .marketing-compliance-panel {
+  border: 1px solid rgba(75, 37, 64, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 12px 24px rgba(126, 48, 91, 0.06);
+}
+
+.marketing-copy-layout .marketing-compliance-panel summary {
+  min-height: 58px;
+  color: #6f2e4f !important;
+  font-size: 19px;
+}
+
+.marketing-copy-layout .marketing-compliance-panel summary::after {
+  color: #6f2e4f;
+}
+
+.marketing-copy-layout .marketing-compliance-grid,
+.marketing-copy-layout .marketing-compliance-row {
+  border-color: rgba(75, 37, 64, 0.1);
+}
+
+.marketing-copy-layout .marketing-compliance-row.head {
+  background: rgba(253, 231, 239, 0.65);
+}
+
+.marketing-copy-layout .marketing-compliance-row strong {
+  color: #4b2540 !important;
+}
+
+.marketing-copy-layout .marketing-compliance-row span {
+  color: #ff5b64 !important;
+}
+
+.marketing-copy-layout .marketing-compliance-row em {
+  color: #22a685 !important;
+}
+
+.marketing-copy-layout .marketing-custom-field {
+  border: 1px solid rgba(75, 37, 64, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86) !important;
+}
+
+.marketing-copy-layout .marketing-custom-field > span {
+  color: #4b2540 !important;
+}
+
+.marketing-copy-layout .marketing-custom-field textarea {
+  border-color: rgba(75, 37, 64, 0.12);
+  background: rgba(255, 255, 255, 0.76);
+  color: #342138;
+}
+
+.marketing-copy-layout .marketing-custom-field textarea::placeholder {
+  color: rgba(75, 37, 64, 0.45);
+}
+
+.marketing-copy-layout .marketing-copy-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.marketing-copy-layout .marketing-copy-actions .marketing-copy-action {
+  min-height: 64px;
+  border-radius: 16px;
+  font-size: 24px;
+  font-weight: 940;
+}
+
+.marketing-copy-layout .marketing-copy-actions .secondary-button.marketing-copy-action {
+  border: 1px solid rgba(75, 37, 64, 0.16);
+  background: rgba(255, 255, 255, 0.86);
+  color: #4b2540;
+}
+
+.marketing-copy-layout .marketing-copy-actions .primary-button.marketing-copy-action {
+  border: 1px solid rgba(171, 61, 101, 0.22);
+  background: #a6335d;
+  color: #ffffff;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .panel-title h2,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .panel-title h2 {
+  color: #3b2035 !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .panel-title > div > svg,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .panel-title > div > svg {
+  color: #a83b62 !important;
+  stroke: currentColor !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-copy-title-icon,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-copy-title-icon,
+.marketing-center-page .marketing-copy-workbench .marketing-copy-title-icon {
+  color: #a83b62 !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-copy-title-icon svg,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-copy-title-icon svg,
+.marketing-center-page .marketing-copy-workbench .marketing-copy-title-icon svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-today-eyebrow,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-today-eyebrow {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-today-card h3,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-today-card h3 {
+  color: #ffffff !important;
+  font-size: clamp(38px, 5vw, 54px) !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-today-card p,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-today-card p {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: clamp(18px, 2.2vw, 25px) !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-today-tags span,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-today-tags span {
+  color: #9b2f58 !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-copy-heading strong,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-copy-heading strong {
+  color: #6b5b66 !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button strong,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button strong {
+  color: #3b2035 !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button small,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button small {
+  color: rgba(59, 32, 53, 0.58) !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button em,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button em {
+  color: #893318 !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button.active strong,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button.active strong {
+  color: #7b2145 !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button.active small,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button.active small {
+  color: rgba(74, 57, 57, 0.52) !important;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button.active em,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button.active em {
+  color: #7b2145 !important;
+}
+
+.marketing-center-page.marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button {
+  min-height: 132px;
+  align-content: center;
+  padding: 24px 156px 22px 54px;
+}
+
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-copy-preview-card header span,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-copy-preview-card header span,
+.app-shell.theme-day .marketing-copy-layout .marketing-copy-workbench .marketing-copy-preview-card .marketing-compliance-note,
+.app-shell.theme-night .marketing-copy-layout .marketing-copy-workbench .marketing-copy-preview-card .marketing-compliance-note {
+  color: #6b5b66 !important;
+}
+
 @media (min-width: 1181px) {
   .marketing-center-page {
     gap: 14px;
@@ -24383,6 +25813,10 @@ textarea,
   .marketing-workspace {
     grid-template-columns: 1fr;
   }
+
+  .marketing-copy-layout .marketing-node-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 767px) {
@@ -24545,6 +25979,337 @@ textarea,
 
   .marketing-cost-pill small {
     text-align: left;
+  }
+}
+
+@media (max-width: 767px) {
+  .marketing-copy-layout {
+    padding: 0;
+  }
+
+  .marketing-center-page > .page-hero {
+    height: auto;
+    min-height: 132px;
+    margin: 0;
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .marketing-center-page > .page-hero h1,
+  .marketing-center-page > .page-hero h2,
+  .marketing-center-page > .page-hero .eyebrow {
+    font-size: clamp(22px, 6vw, 30px) !important;
+  }
+
+  .marketing-center-page .marketing-copy-workbench {
+    gap: 16px;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .marketing-copy-layout .marketing-form-panel.marketing-copy-workbench {
+    gap: 14px;
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .marketing-copy-layout .marketing-copy-workbench .panel-title {
+    min-height: 48px;
+    margin-bottom: 4px;
+  }
+
+  .marketing-copy-title-icon {
+    width: 54px;
+    height: 54px;
+    flex-basis: 54px;
+    border-radius: 15px;
+  }
+
+  .marketing-copy-title-icon svg {
+    width: 27px;
+    height: 27px;
+  }
+
+  .marketing-copy-layout .marketing-copy-workbench .panel-title h2 {
+    font-size: 22px;
+  }
+
+  .marketing-copy-title-actions {
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .marketing-compliance-badge,
+  .marketing-credit-badge {
+    min-height: 30px;
+    padding: 0 11px;
+    font-size: 12px;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel {
+    gap: 10px;
+    margin: 0;
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel .marketing-section-head strong {
+    font-size: 16px;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel .marketing-section-head > small {
+    min-height: 30px;
+    font-size: 12px;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button {
+    min-height: 86px;
+    padding: 12px 14px;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button strong {
+    font-size: 16px;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel .marketing-output-mode-grid button .marketing-mode-desc {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .marketing-copy-layout > .marketing-type-panel .marketing-locked-mode-chip {
+    min-height: 30px;
+    padding: 0 10px;
+  }
+
+  .marketing-today-card {
+    min-height: 188px;
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .marketing-copy-layout .marketing-today-card {
+    min-height: 246px;
+    gap: 14px;
+    padding: 26px 24px;
+    border-radius: 20px;
+  }
+
+  .marketing-copy-layout .marketing-today-card::before {
+    width: 128px;
+    height: 128px;
+    right: -18px;
+    bottom: -34px;
+  }
+
+  .marketing-copy-layout .marketing-today-card::after {
+    width: 92px;
+    height: 92px;
+    right: 38px;
+    bottom: 58px;
+  }
+
+  .marketing-copy-layout .marketing-today-head {
+    align-items: flex-start;
+  }
+
+  .marketing-copy-layout .marketing-today-eyebrow {
+    font-size: 17px;
+  }
+
+  .marketing-copy-layout .marketing-today-head em {
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 16px;
+  }
+
+  .marketing-today-card h3 {
+    font-size: clamp(30px, 9vw, 40px);
+  }
+
+  .marketing-copy-layout .marketing-today-card h3 {
+    font-size: clamp(36px, 12vw, 46px);
+  }
+
+  .marketing-today-card p {
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .marketing-copy-layout .marketing-today-card p {
+    font-size: 18px;
+    line-height: 1.58;
+  }
+
+  .marketing-copy-layout .marketing-today-tags span {
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+
+  .marketing-copy-layout .marketing-copy-stage {
+    gap: 24px;
+  }
+
+  .marketing-copy-layout .marketing-copy-heading strong {
+    font-size: 20px;
+  }
+
+  .marketing-copy-layout .marketing-node-strip {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .marketing-copy-layout .marketing-node-strip button {
+    min-height: 116px;
+    padding: 54px 20px 20px;
+  }
+
+  .marketing-center-page.marketing-copy-layout .marketing-copy-workbench .marketing-node-strip button {
+    min-height: 116px;
+    padding: 54px 20px 20px;
+  }
+
+  .marketing-copy-layout .marketing-node-strip button > span {
+    top: 22px;
+    left: 20px;
+    transform: none;
+  }
+
+  .marketing-copy-layout .marketing-node-strip button strong {
+    font-size: 23px;
+  }
+
+  .marketing-copy-layout .marketing-node-strip button small {
+    font-size: 18px;
+  }
+
+  .marketing-copy-layout .marketing-node-strip button em {
+    top: 16px;
+    right: 16px;
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 16px;
+    max-width: calc(100% - 52px);
+    transform: none;
+  }
+
+  .marketing-channel-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .marketing-channel-card {
+    min-height: 104px;
+    border-radius: 18px;
+  }
+
+  .marketing-copy-layout .marketing-channel-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .marketing-copy-layout .marketing-channel-card {
+    min-height: 114px;
+    border-radius: 16px;
+  }
+
+  .marketing-copy-layout .marketing-channel-card strong {
+    font-size: 20px;
+  }
+
+  .marketing-copy-preview-card header {
+    min-height: 58px;
+    padding: 0 20px;
+  }
+
+  .marketing-copy-layout .marketing-copy-preview-card header {
+    min-height: 64px;
+    padding: 0 18px;
+  }
+
+  .marketing-copy-layout .marketing-copy-preview-card header span {
+    font-size: 18px;
+  }
+
+  .marketing-copy-layout .marketing-copy-preview-card header button {
+    width: 40px;
+    height: 32px;
+  }
+
+  .marketing-copy-preview-card div {
+    min-height: 132px;
+    padding: 22px 20px;
+  }
+
+  .marketing-copy-layout .marketing-copy-preview-card div {
+    min-height: 122px;
+    padding: 24px 22px;
+  }
+
+  .marketing-copy-preview-card p {
+    font-size: 15px;
+  }
+
+  .marketing-copy-preview-card .marketing-compliance-note {
+    width: 100%;
+    font-size: 13px;
+    border-radius: 14px;
+  }
+
+  .marketing-copy-layout .marketing-copy-preview-card .marketing-compliance-note {
+    width: auto;
+    font-size: 18px;
+    line-height: 1.5;
+  }
+
+  .marketing-compliance-panel summary {
+    min-height: 50px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+
+  .marketing-copy-layout .marketing-compliance-panel summary {
+    font-size: 16px;
+  }
+
+  .marketing-compliance-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+    padding: 11px 14px;
+  }
+
+  .marketing-compliance-row.head {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .marketing-compliance-row span,
+  .marketing-compliance-row em {
+    font-size: 14px;
+  }
+
+  .marketing-copy-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .marketing-copy-layout .marketing-copy-actions {
+    gap: 10px;
+  }
+
+  .marketing-copy-actions .marketing-copy-action {
+    min-height: 52px;
+    padding: 0 10px;
+    font-size: 15px;
+  }
+
+  .marketing-copy-layout .marketing-copy-actions .marketing-copy-action {
+    min-height: 56px;
+    font-size: 18px;
   }
 }
 

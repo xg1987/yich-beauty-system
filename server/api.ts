@@ -2464,13 +2464,53 @@ function marketingText(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : fallback;
 }
 
+const marketingComplianceReplacements: Array<[RegExp, string]> = [
+  [/比医院还有效|替代药物/g, "作为日常护理参考"],
+  [/绝对有效/g, "很多客户反馈有感"],
+  [/100%见效|百分百见效/g, "做完后更容易感受到"],
+  [/100%|百分百/g, "更安心"],
+  [/一次见效|立刻见效|马上见效/g, "体验后更有感"],
+  [/见效/g, "有感"],
+  [/调理疾病|改善疾病/g, "调整状态"],
+  [/根治|治愈/g, "改善"],
+  [/治疗/g, "调理"],
+  [/彻底|永久/g, "持续"],
+  [/包治|包好/g, "多数客户反馈不错"],
+  [/保证|必定/g, "建议体验"],
+  [/无效退款/g, "体验前可先了解"],
+  [/中医/g, "东方美学"],
+  [/消炎|杀菌/g, "舒缓清洁"],
+  [/诊断|处方/g, "评估建议"],
+  [/药物|医疗|疾病/g, "日常护理"],
+  [/疗效|效果/g, "感受"],
+  [/绝对/g, "更"],
+  [/三伏灸|三九灸|药灸|泥灸|艾灸|灸/g, "艾草温护"],
+  [/药浴/g, "草本浴"],
+  [/祛湿|排湿|湿气|湿重|寒湿/g, "清爽轻养"],
+  [/舒肝/g, "放松舒缓"],
+  [/温补|养阳/g, "温暖护理"],
+  [/虚胖/g, "轻盈管理"],
+  [/失眠/g, "睡眠状态"],
+  [/疼痛/g, "不适"],
+  [/炎症/g, "肌肤不适"],
+  [/身体状态|痛点/g, "护理需求"],
+  [/治/g, "调"],
+];
+
+function marketingCompliantString(value: string) {
+  return marketingComplianceReplacements
+    .reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value)
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
+function marketingCompliantText(value: unknown, fallback = "", maxLength = 120) {
+  const raw = typeof value === "string" && value.trim() ? value.trim() : fallback;
+  return marketingCompliantString(raw.slice(0, maxLength));
+}
+
 function marketingPosterSafeText(value: unknown, fallback = "") {
-  return marketingText(value, fallback)
-    .replace(/祛湿|排湿|湿气|湿重|寒湿/g, "清爽轻养")
-    .replace(/药浴|艾灸|灸|温补/g, "草本护理")
-    .replace(/中医|养生|经络|气血|出汗|疲惫|肩颈|体内|身体/g, "东方草本护理")
-    .replace(/治疗|疗效|改善疾病|调理疾病|失眠|虚胖|疼痛|炎症/g, "日常护理")
-    .replace(/身体状态|痛点/g, "护理需求");
+  return marketingCompliantText(value, fallback);
 }
 
 function marketingImageSize(posterSize: string | undefined) {
@@ -2672,51 +2712,52 @@ function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: num
 }
 
 function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
-  const storeName = marketingText(body.storeName, "美业门店");
-  const productName = marketingText(body.productName, "护理产品");
-  const serviceName = marketingText(body.serviceName, "护理项目");
-  const audience = marketingText(body.audience, "目标客户");
-  const channel = marketingText(body.channel, "朋友圈");
-  const marketingNode = marketingText(body.marketingNode, "日常护理节点");
-  const customerType = marketingText(body.customerType, audience);
-  const lifecycleNode = marketingText(body.lifecycleNode, "无明确消费节点");
-  const bodyState = marketingText(body.bodyState, "常规护理需求");
-  const marketingGoal = marketingText(body.marketingGoal, "到店转化");
-  const posterStyle = marketingText(body.posterStyle, "门店品牌风格");
-  const customRequirement = optionalString(body, "customRequirement");
-  const nodeContext = `营销节点：${marketingNode}。客户类型：${customerType}。消费节点：${lifecycleNode}。身体状态/文案痛点：${bodyState}。营销目的：${marketingGoal}。产品设计图/内容风格：${posterStyle}。`;
+  const storeName = marketingCompliantText(body.storeName, "美业门店");
+  const productName = marketingCompliantText(body.productName, "护理产品");
+  const serviceName = marketingCompliantText(body.serviceName, "护理项目");
+  const audience = marketingCompliantText(body.audience, "目标客户");
+  const channel = marketingCompliantText(body.channel, "朋友圈");
+  const marketingNode = marketingCompliantText(body.marketingNode, "日常护理节点");
+  const customerType = marketingCompliantText(body.customerType, audience);
+  const lifecycleNode = marketingCompliantText(body.lifecycleNode, "无明确消费节点");
+  const bodyState = marketingCompliantText(body.bodyState, "常规护理需求");
+  const marketingGoal = marketingCompliantText(body.marketingGoal, "到店转化");
+  const posterStyle = marketingCompliantText(body.posterStyle, "门店品牌风格");
+  const customRequirement = marketingCompliantText(optionalString(body, "customRequirement"), "无", 1000);
+  const compliance = "合规要求：只写生活美容和日常护理表达；用“调、改善、感受、体验、舒缓、护理建议”这类说法；规避绝对化承诺、专业诊疗表达、机构或药品对比。";
+  const nodeContext = `营销节点：${marketingNode}。客户类型：${customerType}。消费节点：${lifecycleNode}。护理需求/文案方向：${bodyState}。营销目的：${marketingGoal}。产品设计图/内容风格：${posterStyle}。`;
   if (kind === "copy") {
-    return `请为美业门店生成一套${channel}营销内容。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement || "无"}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，也要能配合产品设计图标题使用；围绕时间节点和客户当前状态来写，不要把客户身份、身体状态、营销目的混为一类；不要虚假承诺，不要夸大医疗效果。`;
+    return `请为美业门店生成一套${channel}营销内容。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement}。要求：中文，适合门店员工直接复制发布，包含标题、正文、到店邀约，也要能配合产品设计图标题使用；围绕时间节点和客户当前状态来写，不要把客户身份、护理需求、营销目的混为一类；${compliance}`;
   }
   if (kind === "talk") {
-    const talkScene = marketingText(body.talkScene, `${channel}口播`);
-    return `请生成一段美业门店口播脚本。使用场景：${talkScene}。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement || "无"}。要求：中文，适合短视频、视频号或直播开场口播；节奏自然，短句，像店长或美容师真人介绍；包含开场钩子、客户痛点、项目推荐理由、到店预约引导；不要虚假承诺，不要夸大医疗效果。`;
+    const talkScene = marketingCompliantText(body.talkScene, `${channel}口播`);
+    return `请生成一段美业门店口播脚本。使用场景：${talkScene}。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}客群摘要：${audience}。客户自定义要求：${customRequirement}。要求：中文，适合短视频、视频号或直播开场口播；节奏自然，短句，像店长或美容师真人介绍；包含开场钩子、客户感受、项目推荐理由、到店预约引导；${compliance}`;
   }
   if (kind === "image") {
-    const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
-    const posterTitle = marketingText(body.posterTitle, "到店护理礼遇");
-    const posterOffer = marketingText(body.posterOffer, "限时体验价");
+    const posterSize = marketingCompliantText(body.posterSize, "朋友圈 1:1");
+    const posterTitle = marketingCompliantText(body.posterTitle, "到店护理礼遇");
+    const posterOffer = marketingCompliantText(body.posterOffer, "限时体验价");
     const assets = marketingImageAssets(body);
     const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-    return `基于用户上传的产品图、模特图或门店图，生成一张可直接用于美业门店发布的高端中文产品设计图。主题：${posterTitle}。行动信息：${posterOffer}。门店：${storeName}。项目：${serviceName}。商品：${productName}。尺寸用途：${posterSize}。${nodeContext}参考素材：${assetSummary}。素材使用要求：保留上传产品的外观、包装、颜色和关键卖点；如果有模特图，保持人物自然真实，不改变身份特征；如果有门店图，延续门店环境质感。视觉要求：真实高级美业/中式养生商业产品设计图，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面要有真实质感的护理环境、草药/艾灸/药浴/护肤产品或干净门店场景，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；避免医疗承诺。`;
+    return `基于用户上传的产品图、模特图或门店图，生成一张可直接用于美业门店发布的高端中文产品设计图。主题：${posterTitle}。行动信息：${posterOffer}。门店：${storeName}。项目：${serviceName}。商品：${productName}。尺寸用途：${posterSize}。${nodeContext}参考素材：${assetSummary}。素材使用要求：保留上传产品的外观、包装、颜色和关键卖点；如果有模特图，保持人物自然真实，不改变身份特征；如果有门店图，延续门店环境质感。视觉要求：真实高级美业/东方美学商业产品设计图，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面要有真实质感的护理环境、草本元素、温润水疗、护肤产品或干净门店场景，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
   }
-  const videoRatio = marketingText(body.videoRatio, "9:16");
+  const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
-  const videoScript = marketingText(body.videoScript, "门店护理环境、产品陈列、护理手法和预约引导。");
+  const videoScript = marketingCompliantText(body.videoScript, "门店护理环境、产品陈列、护理手法和预约引导。");
   const assets = marketingImageAssets(body);
   const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-  return `基于用户上传素材生成美业门店产品展示短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}参考素材：${assetSummary}。比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，优先展示上传产品、模特或门店场景，保持产品外观和包装识别度；适合短视频发布，避免医疗承诺。`;
+  return `基于用户上传素材生成美业门店产品展示短视频。门店：${storeName}。商品：${productName}。项目：${serviceName}。${nodeContext}参考素材：${assetSummary}。比例：${videoRatio}。时长：${videoDuration}秒。脚本重点：${videoScript}。画面要专业、真实、干净，优先展示上传产品、模特或门店场景，保持产品外观和包装识别度；适合短视频发布；${compliance}`;
 }
 
 function marketingCopyPosterPrompt(body: JsonBody, copyText: string) {
-  void copyText;
-  const storeName = marketingText(body.storeName, "美业门店");
-  const channel = marketingText(body.channel, "朋友圈");
+  const safeCopyText = marketingCompliantText(copyText, "节令护理", 800);
+  const storeName = marketingCompliantText(body.storeName, "美业门店");
+  const channel = marketingCompliantText(body.channel, "朋友圈");
   const posterStyle = marketingPosterSafeText(body.posterStyle, "高端美业风");
-  const posterSize = marketingText(body.posterSize, "朋友圈 1:1");
+  const posterSize = marketingCompliantText(body.posterSize, "朋友圈 1:1");
   const assets = marketingImageAssets(body);
   const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-  return `Create a premium beauty salon promotional poster for social media. Brand/store name: ${storeName}. Channel: ${channel}. Style: ${posterStyle}. Target format: ${posterSize}. Reference assets: ${assetSummary}. Visual direction: elegant beauty salon interior, soft natural light, clean skincare product display, plants, fragrance diffuser, refined commercial photography, warm modern composition, plenty of negative space, phone-friendly poster layout. Include only short Chinese poster text: main title “节令护理” and subtitle “预约到店体验”. Keep it tasteful, realistic, polished, and uncluttered.`;
+  return `Create a premium beauty salon promotional poster for social media. Brand/store name: ${storeName}. Channel: ${channel}. Style: ${posterStyle}. Target format: ${posterSize}. Reference assets: ${assetSummary}. Copy reference: ${safeCopyText}. Visual direction: elegant beauty salon interior, soft natural light, clean skincare product display, plants, fragrance diffuser, refined commercial photography, warm modern composition, plenty of negative space, phone-friendly poster layout. Include only short Chinese poster text: main title “节令护理” and subtitle “预约到店体验”. Keep it tasteful, realistic, polished, and uncluttered. Avoid medical claims, absolute promises, hospital comparisons, and medicine replacement wording.`;
 }
 
 function escapeSvgText(value: string) {
@@ -2745,18 +2786,19 @@ function marketingPosterLines(value: string, fallback: string, maxLength: number
 }
 
 function marketingPosterDataUrl(body: JsonBody, text: string) {
-  const marketingNode = marketingText(body.marketingNode, "夏季祛湿");
-  const storeName = marketingText(body.storeName, "美业门店");
-  const serviceName = marketingText(body.serviceName, "护理项目");
-  const marketingGoal = marketingText(body.marketingGoal, "护理提醒");
-  const bodyState = marketingText(body.bodyState, "身体状态");
-  const posterStyle = marketingText(body.posterStyle, "中医养生风");
-  const customRequirement = optionalString(body, "customRequirement");
-  const title = compactMarketingLine(marketingNode, "夏季祛湿", 18);
-  const headlineLines = marketingPosterLines(`${marketingNode} · ${marketingGoal}`, "把寒湿慢慢排出去", 18, 9, 2);
-  const subtitleLines = marketingPosterLines(customRequirement || `${serviceName} · ${bodyState}`, "适合门店朋友圈发布", 24, 16, 2);
+  const marketingNode = marketingCompliantText(body.marketingNode, "节令护理");
+  const storeName = marketingCompliantText(body.storeName, "美业门店");
+  const serviceName = marketingCompliantText(body.serviceName, "护理项目");
+  const marketingGoal = marketingCompliantText(body.marketingGoal, "护理提醒");
+  const bodyState = marketingCompliantText(body.bodyState, "护理需求");
+  const posterStyle = marketingCompliantText(body.posterStyle, "东方美学风");
+  const customRequirement = marketingCompliantText(optionalString(body, "customRequirement"), "", 180);
+  const safeText = marketingCompliantText(text, "适合门店朋友圈发布", 360);
+  const title = compactMarketingLine(marketingNode, "节令护理", 18);
+  const headlineLines = marketingPosterLines(`${marketingNode} · ${marketingGoal}`, "清爽护理提醒", 18, 9, 2);
+  const subtitleLines = marketingPosterLines(customRequirement || `${serviceName} · ${bodyState}` || safeText, "适合门店朋友圈发布", 24, 16, 2);
   const footer = compactMarketingLine(`${storeName}｜${marketingGoal}`, "门店护理提醒", 26);
-  const wellness = posterStyle.includes("中医") || posterStyle.includes("节气");
+  const wellness = posterStyle.includes("东方") || posterStyle.includes("节气") || posterStyle.includes("草本");
   const background = wellness
     ? `<rect width="900" height="1200" fill="#f7f1e4"/><circle cx="720" cy="210" r="180" fill="#e4d3b4" opacity=".42"/><path d="M70 920 C260 810 380 1010 610 880 C725 815 805 830 865 872" fill="none" stroke="#b89155" stroke-width="6" opacity=".35"/>`
     : `<rect width="900" height="1200" fill="#f7f3ff"/><circle cx="735" cy="210" r="190" fill="#d7c7ff" opacity=".44"/><circle cx="154" cy="960" r="230" fill="#bfe7df" opacity=".34"/>`;
@@ -2838,16 +2880,17 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   if (kind === "copy" || kind === "talk") {
     const config = aiGenerationConfigFromData(data).copy;
     const result = await runAiTextCompletion(data, prompt, {
-      systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规，禁止夸大医疗效果。",
+      systemPrompt: "你是祝融坤锋美业门店系统的营销助手。输出必须可直接给门店员工使用，中文，具体、自然、合规。只写生活美容和日常护理表达，避免绝对化承诺、专业诊疗表达、机构或药品对比。",
     });
+    const safeText = marketingCompliantText(result.text, "", 6000);
     if (kind === "talk") {
       const textCost = textGenerationCost(config, result.usage);
       const billing = aiBillingForCost(quotaState, textCost);
-      return { kind, provider: result.provider, model: result.model, text: result.text, usage: result.usage, cost: textCost, costBreakdown: aiCostBreakdown({ text: textCost }), elapsedMs: result.elapsedMs, billing };
+      return { kind, provider: result.provider, model: result.model, text: safeText, usage: result.usage, cost: textCost, costBreakdown: aiCostBreakdown({ text: textCost }), elapsedMs: result.elapsedMs, billing };
     }
     const imageConfig = aiGenerationConfigFromData(data).image;
     const imageResult = await runAiImageTest(data, {
-      prompt: marketingCopyPosterPrompt(body, result.text),
+      prompt: marketingCopyPosterPrompt(body, safeText),
       size: marketingImageSize(optionalString(body, "posterSize")),
       quality: "medium",
     });
@@ -2859,7 +2902,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
       kind,
       provider: `${result.provider}+${imageResult.provider}`,
       model: `${result.model}+${imageResult.model}`,
-      text: result.text,
+      text: safeText,
       imageDataUrl: imageResult.imageDataUrl,
       revisedPrompt: imageResult.revisedPrompt,
       usage: { text: result.usage, image: imageResult.usage },
@@ -2944,20 +2987,24 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     image: "AI产品设计图",
     video: "AI产品视频",
   }[result.kind];
+  const safeOptional = (field: string) => {
+    const value = optionalString(body, field);
+    return value ? marketingCompliantText(value) : undefined;
+  };
   return {
     id: makeId("mar"),
     storeId: sessionStoreId(data, session),
     kind: result.kind,
     title,
-    channel: optionalString(body, "channel"),
-    marketingNode: optionalString(body, "marketingNode"),
-    customerType: optionalString(body, "customerType"),
-    lifecycleNode: optionalString(body, "lifecycleNode"),
-    bodyState: optionalString(body, "bodyState"),
-    marketingGoal: optionalString(body, "marketingGoal"),
-    serviceName: optionalString(body, "serviceName"),
-    productName: optionalString(body, "productName"),
-    text: result.text,
+    channel: safeOptional("channel"),
+    marketingNode: safeOptional("marketingNode"),
+    customerType: safeOptional("customerType"),
+    lifecycleNode: safeOptional("lifecycleNode"),
+    bodyState: safeOptional("bodyState"),
+    marketingGoal: safeOptional("marketingGoal"),
+    serviceName: safeOptional("serviceName"),
+    productName: safeOptional("productName"),
+    text: result.text ? marketingCompliantText(result.text, "", 6000) : result.text,
     imageDataUrl: result.imageDataUrl,
     videoUrl: result.videoUrl,
     taskId: result.taskId,

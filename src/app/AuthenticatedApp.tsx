@@ -3873,6 +3873,9 @@ function Pos({
   const selectedCustomerCheckoutCards = usesCustomer
     ? data.memberCards.filter((card) => card.customerId === customerId && card.status === "正常")
     : [];
+  const selectedCustomerProjectCards = selectedCustomerCheckoutCards.filter((card) => card.type !== "储值卡" && memberCardPurchasedServiceIds(card).length > 0);
+  const selectedCustomerPurchasedServiceIds = new Set(selectedCustomerProjectCards.flatMap(memberCardPurchasedServiceIds));
+  const selectedCustomerPurchasedServiceIdsKey = Array.from(selectedCustomerPurchasedServiceIds).sort().join("|");
   const checkoutCardSelectedServiceText = (card: AppData["memberCards"][number]) => {
     if (!usesService || selectedServiceRows.length === 0) return memberCardTimesText(card, data.services);
     return selectedServiceRows
@@ -3940,22 +3943,35 @@ function Pos({
       blocked: card.remainingTimes <= 0,
     }];
   };
+  useEffect(() => {
+    if (!usesService || !usesCustomer) return;
+    setCheckoutServiceIds((ids) => {
+      const next = ids.filter((id) => selectedCustomerPurchasedServiceIds.has(id));
+      return next.length === ids.length ? ids : next;
+    });
+  }, [selectedCustomerPurchasedServiceIdsKey, usesCustomer, usesService]);
   const total = (usesService ? serviceSubtotal : 0) + (usesProduct ? productSubtotal : 0);
   const checkoutDiscountedPrice = Math.max(0, total - discountAmount);
   const checkoutSavedAmount = Math.max(0, discountAmount);
+  const servicePickerSourceServices = usesCustomer
+    ? data.services.filter((service) => selectedCustomerPurchasedServiceIds.has(service.id))
+    : data.services;
   const serviceCategoryName = (service: Service) => service.category?.trim() || "未分类";
   const servicePickerCategories = [
     "全部",
-    ...Array.from(new Set(data.services.map(serviceCategoryName))),
+    ...Array.from(new Set(servicePickerSourceServices.map(serviceCategoryName))),
   ];
   const servicesInPickerCategory = (category: string) =>
-    category === "全部" ? data.services : data.services.filter((service) => serviceCategoryName(service) === category);
+    category === "全部" ? servicePickerSourceServices : servicePickerSourceServices.filter((service) => serviceCategoryName(service) === category);
   const servicePickerCategoryCount = (category: string) => servicesInPickerCategory(category).length;
   const normalizedServicePickerSearch = servicePickerSearch.trim().toLowerCase();
   const servicePickerServices = servicesInPickerCategory(servicePickerCategory).filter((service) => {
     const searchTarget = `${service.name} ${service.category}`.toLowerCase();
     return !normalizedServicePickerSearch || searchTarget.includes(normalizedServicePickerSearch);
   });
+  const servicePickerEmptyText = usesCustomer && servicePickerSourceServices.length === 0
+    ? "当前客户暂无已购买项目"
+    : "没有匹配的项目";
   const productCategoryName = (product: Product) => product.category?.trim() || "未分类";
   const productSubcategoryName = (product: Product) => product.subcategory?.trim() || "未分小类";
   const productPickerCategories = [
@@ -3995,6 +4011,7 @@ function Pos({
     .reduce((sum, order) => sum + order.paidAmount, 0)
     + todayMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
+  const currentCheckoutSignatures = selectedSignature ? [selectedSignature] : [];
   const selectedSignatureContext = selectedSignature ? signatureRecordContext(data, selectedSignature) : undefined;
   const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
   const selectedSignatureLinkedToOrder = selectedSignatureContext ? signatureRecordCanCompleteCheckout(selectedSignatureContext) : false;
@@ -4673,9 +4690,9 @@ function Pos({
             <span>客户可用服务</span>
             <strong>{selectedCustomerCheckoutCards.length ? `${selectedCustomerCheckoutCards.length} 张有效卡` : "暂无有效卡"}</strong>
           </div>
-          {selectedCustomerCheckoutCards.length ? (
+          {selectedCustomerProjectCards.length ? (
             <div className="checkout-customer-card-list">
-              {selectedCustomerCheckoutCards.map((card) => (
+              {selectedCustomerProjectCards.map((card) => (
                 <div className="checkout-customer-card-row" key={card.id}>
                   <div className="checkout-customer-card-title">
                     <strong>{card.name}</strong>
@@ -4696,7 +4713,7 @@ function Pos({
               ))}
             </div>
           ) : (
-            <div className="checkout-product-empty">当前客户暂无可用卡，可现金、微信等方式购买服务。</div>
+            <div className="checkout-product-empty">当前客户暂无已购买项目。</div>
           )}
         </div>
       )}
@@ -5080,35 +5097,24 @@ function Pos({
         )}
         {activeModule === "signature" && (
         <section className="panel sg">
-          <PanelTitle icon={<LockKeyhole size={18} />} title="客户确认签名" action={`${data.customerSignatures?.length ?? 0} 份`} />
-          <DataTable
-          columns={["客户", "收银内容", "状态", "签名人", "签名时间", "关联记录", "操作"]}
-          rows={(data.customerSignatures ?? []).map((signature) => {
-            const context = signatureRecordContext(data, signature);
-            const isExpired = customerSignatureIsExpired(signature, signatureNow);
-            const canCompleteService = signature.status === "待签名" && !isExpired && signatureRecordCanCompleteCheckout(context);
-            return [
-              context.customerName,
-              context.serviceName,
-              <Badge key={`${signature.id}-status`} text={isExpired ? "已过期" : signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
-              signature.signerName ?? "-",
-              signature.signedAt ? shortDate(signature.signedAt) : "-",
-              context.orderNo !== "-" ? context.orderNo : signature.serviceRecordId ? "服务档案" : "未关联",
-              <span className="signature-record-actions" key={`${signature.id}-actions`}>
-                {canCompleteService ? (
-                  <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
-                    现场签名
-                  </button>
-                ) : signature.status === "待签名" ? (
-                  <span className="signature-action-note">{isExpired ? "已过期" : "未关联收银"}</span>
-                ) : null}
-                <button type="button" onClick={() => setSelectedSignatureId(signature.id)}>
-                  查看详情
-                </button>
-              </span>,
-            ];
-          })}
-        />
+          <PanelTitle icon={<LockKeyhole size={18} />} title="客户确认签名" action={selectedSignature ? "当前服务" : "未选择"} />
+          {currentCheckoutSignatures.length ? (
+            <DataTable
+              columns={["客户", "当前服务", "状态", "关联订单"]}
+              rows={currentCheckoutSignatures.map((signature) => {
+                const context = signatureRecordContext(data, signature);
+                const isExpired = customerSignatureIsExpired(signature, signatureNow);
+                return [
+                  context.customerName,
+                  context.serviceName,
+                  <Badge key={`${signature.id}-status`} text={isExpired ? "已过期" : signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
+                  context.orderNo !== "-" ? context.orderNo : "未关联",
+                ];
+              })}
+            />
+          ) : (
+            <div className="checkout-product-empty">暂无当前服务签名。完成收银后，会在这里显示本次服务确认。</div>
+          )}
         {selectedSignatureBlockMessage && (
           <p className="signature-blocked-message">{selectedSignatureBlockMessage}</p>
         )}
@@ -5284,7 +5290,7 @@ function Pos({
               </button>
               );
             }) : (
-              <div className="product-picker-empty">没有匹配的项目</div>
+              <div className="product-picker-empty">{servicePickerEmptyText}</div>
             )}
           </div>
         </div>
@@ -8127,6 +8133,12 @@ export function memberCardProjectScopeText(card: AppData["memberCards"][number],
   }
   if (card.serviceIds?.length) return card.serviceIds.map((id) => nameOf(services, id)).join(" / ");
   return card.serviceId ? nameOf(services, card.serviceId) : "通用";
+}
+
+export function memberCardPurchasedServiceIds(card: AppData["memberCards"][number]) {
+  if (card.serviceEntitlements?.length) return card.serviceEntitlements.map((item) => item.serviceId).filter(Boolean);
+  if (card.serviceIds?.length) return card.serviceIds.filter(Boolean);
+  return card.serviceId ? [card.serviceId] : [];
 }
 
 export function memberCardTimesText(card: AppData["memberCards"][number], services: AppData["services"], focusedServiceId?: string) {
