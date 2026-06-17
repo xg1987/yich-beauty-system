@@ -4011,7 +4011,6 @@ function Pos({
     .reduce((sum, order) => sum + order.paidAmount, 0)
     + todayMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
-  const currentCheckoutSignatures = selectedSignature ? [selectedSignature] : [];
   const selectedSignatureContext = selectedSignature ? signatureRecordContext(data, selectedSignature) : undefined;
   const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
   const selectedSignatureLinkedToOrder = selectedSignatureContext ? signatureRecordCanCompleteCheckout(selectedSignatureContext) : false;
@@ -5098,20 +5097,8 @@ function Pos({
         {activeModule === "signature" && (
         <section className="panel sg">
           <PanelTitle icon={<LockKeyhole size={18} />} title="客户确认签名" action={selectedSignature ? "当前服务" : "未选择"} />
-          {currentCheckoutSignatures.length ? (
-            <DataTable
-              columns={["客户", "当前服务", "状态", "关联订单"]}
-              rows={currentCheckoutSignatures.map((signature) => {
-                const context = signatureRecordContext(data, signature);
-                const isExpired = customerSignatureIsExpired(signature, signatureNow);
-                return [
-                  context.customerName,
-                  context.serviceName,
-                  <Badge key={`${signature.id}-status`} text={isExpired ? "已过期" : signature.status} tone={signature.status === "已签名" ? "ok" : "warn"} />,
-                  context.orderNo !== "-" ? context.orderNo : "未关联",
-                ];
-              })}
-            />
+          {selectedSignature ? (
+            <SignatureRecordDetail data={data} signature={selectedSignature} />
           ) : (
             <div className="checkout-product-empty">暂无当前服务签名。完成收银后，会在这里显示本次服务确认。</div>
           )}
@@ -5156,7 +5143,6 @@ function Pos({
             </button>
           </div>
         )}
-        {selectedSignature && <SignatureRecordDetail data={data} signature={selectedSignature} />}
         </section>
         )}
         {activeModule === "orders" && (
