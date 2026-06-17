@@ -1891,6 +1891,108 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   const opened = openMemberCard(
     cloneSeed(),
     {
+      customerName: "储值签名扣卡客户",
+      customerPhone: "13800001983",
+      name: "全店储值卡",
+      type: "储值卡",
+      balance: 5000,
+      paidAmount: 5000,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const checkedOut = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+      cardId: opened.memberCards[0].id,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(checkedOut.orders[0].payMethod, "微信", "stored-value service order should keep the original collection method before signature");
+  assert.equal(checkedOut.orders[0].cardId, opened.memberCards[0].id, "stored-value service order should persist the planned debit source");
+  assert.equal(checkedOut.memberCards[0].balance, 5000, "planned debit source should not deduct before customer signature");
+  const signed = signCustomerSignature(
+    checkedOut,
+    {
+      token: checkedOut.customerSignatures[0].token,
+      signerName: "储值签名扣卡客户",
+      signatureText: "data:image/png;base64,stored-value",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(signed.memberCards[0].balance, 4602, "signature completion should deduct service amount from the selected stored-value card");
+  assert.equal(signed.memberCardTransactions[0].amountDelta, -398, "stored-value signature deduction should record amount consumption");
+  assert.equal(signed.orders[0].payMethod, "会员卡", "stored-value signature deduction should mark the order as member-card redemption after signing");
+}
+
+{
+  const firstOpened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "重复项目扣卡客户",
+      customerPhone: "13800001984",
+      name: "泥灸大卡",
+      type: "套餐卡",
+      serviceEntitlements: [{ serviceId: "v1", totalTimes: 8, remainingTimes: 8 }],
+      paidAmount: 2980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const secondOpened = openMemberCard(
+    firstOpened,
+    {
+      customerName: "重复项目扣卡客户",
+      customerPhone: "13800001984",
+      name: "泥灸小卡",
+      type: "套餐卡",
+      serviceEntitlements: [{ serviceId: "v1", totalTimes: 2, remainingTimes: 2 }],
+      paidAmount: 980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const smallCardId = secondOpened.memberCards[0].id;
+  const largeCardId = secondOpened.memberCards[1].id;
+  const checkedOut = checkoutOrder(
+    secondOpened,
+    {
+      customerId: secondOpened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+      cardId: smallCardId,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signed = signCustomerSignature(
+    checkedOut,
+    {
+      token: checkedOut.customerSignatures[0].token,
+      signerName: "重复项目扣卡客户",
+      signatureText: "data:image/png;base64,one-card-only",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(signed, smallCardId).serviceEntitlements?.[0]?.remainingTimes, 1, "duplicate service should deduct only the selected source card");
+  assert.equal(card(signed, largeCardId).serviceEntitlements?.[0]?.remainingTimes, 8, "duplicate service should not deduct other cards that include the same service");
+  assert.equal(signed.orders[0].cardId, smallCardId, "order should keep the explicitly selected debit source");
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
       customerName: "多项目签名扣卡客户",
       customerPhone: "13800001981",
       name: "多项目护理卡",

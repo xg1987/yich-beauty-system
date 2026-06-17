@@ -3636,9 +3636,20 @@ function Pos({
   const selectedCustomerCheckoutCards = usesCustomer
     ? data.memberCards.filter((card) => card.customerId === customerId && card.status === "正常")
     : [];
+  const selectedCustomerDebitCards = selectedCustomerCheckoutCards.filter((card) => card.type !== "折扣卡");
   const selectedCustomerProjectCards = selectedCustomerCheckoutCards.filter((card) => card.type !== "储值卡" && memberCardPurchasedServiceIds(card).length > 0);
-  const selectedCustomerPurchasedServiceIds = new Set(selectedCustomerProjectCards.flatMap(memberCardPurchasedServiceIds));
-  const selectedCustomerPurchasedServiceIdsKey = Array.from(selectedCustomerPurchasedServiceIds).sort().join("|");
+  const selectedCustomerStoredValueCards = selectedCustomerCheckoutCards.filter((card) => card.type === "储值卡");
+  const selectedCustomerStoreServices = data.services.filter((service) =>
+    service.status !== "停用"
+    && (!selectedCustomer?.storeId || !service.storeId || service.storeId === selectedCustomer.storeId),
+  );
+  const selectedCustomerProjectServiceIds = new Set(selectedCustomerProjectCards.flatMap(memberCardPurchasedServiceIds));
+  const selectedCustomerSelectableServiceIds = new Set(
+    selectedCustomerStoredValueCards.length
+      ? selectedCustomerStoreServices.map((service) => service.id)
+      : Array.from(selectedCustomerProjectServiceIds),
+  );
+  const selectedCustomerSelectableServiceIdsKey = Array.from(selectedCustomerSelectableServiceIds).sort().join("|");
   const checkoutCardSelectedServiceText = (card: AppData["memberCards"][number]) => {
     if (!usesService || selectedServiceRows.length === 0) return memberCardTimesText(card, data.services);
     return selectedServiceRows
@@ -3709,15 +3720,15 @@ function Pos({
   useEffect(() => {
     if (!usesService || !usesCustomer) return;
     setCheckoutServiceIds((ids) => {
-      const next = ids.filter((id) => selectedCustomerPurchasedServiceIds.has(id));
+      const next = ids.filter((id) => selectedCustomerSelectableServiceIds.has(id));
       return next.length === ids.length ? ids : next;
     });
-  }, [selectedCustomerPurchasedServiceIdsKey, usesCustomer, usesService]);
+  }, [selectedCustomerSelectableServiceIdsKey, usesCustomer, usesService]);
   const total = (usesService ? serviceSubtotal : 0) + (usesProduct ? productSubtotal : 0);
   const checkoutDiscountedPrice = Math.max(0, total - discountAmount);
   const checkoutSavedAmount = Math.max(0, discountAmount);
   const servicePickerSourceServices = usesCustomer
-    ? data.services.filter((service) => selectedCustomerPurchasedServiceIds.has(service.id))
+    ? selectedCustomerStoreServices.filter((service) => selectedCustomerSelectableServiceIds.has(service.id))
     : data.services;
   const serviceCategoryName = (service: Service) => service.category?.trim() || "未分类";
   const servicePickerCategories = [
@@ -3775,12 +3786,35 @@ function Pos({
   const checkoutMemberCardBlockedText = checkoutBlockedCardUsageRows
     .map((row) => `${row.name}：${row.remainingText}，${row.requiredText}`)
     .join("；");
+  const checkoutDebitCandidateCards = usesCustomer && usesService && selectedServiceRows.length > 0
+    ? selectedCustomerCheckoutCards
+        .filter((card) => card.type !== "折扣卡")
+        .filter((card) => checkoutCardServiceUsageRows(card).every((row) => !row.blocked))
+        .sort((left, right) => {
+          const leftStored = left.type === "储值卡" ? 1 : 0;
+          const rightStored = right.type === "储值卡" ? 1 : 0;
+          if (leftStored !== rightStored) return leftStored - rightStored;
+          const leftExpiry = left.expiresAt ? +new Date(left.expiresAt) : Number.POSITIVE_INFINITY;
+          const rightExpiry = right.expiresAt ? +new Date(right.expiresAt) : Number.POSITIVE_INFINITY;
+          if (leftExpiry !== rightExpiry) return leftExpiry - rightExpiry;
+          return left.remainingTimes - right.remainingTimes;
+        })
+    : [];
+  const checkoutDebitCandidateIdsKey = checkoutDebitCandidateCards.map((card) => card.id).join("|");
+  const selectedCheckoutDebitCard = cardId
+    ? selectedCustomerCheckoutCards.find((card) => card.id === cardId)
+    : undefined;
+  const checkoutDebitCardOptionLabel = (card: AppData["memberCards"][number]) =>
+    `${card.name} · ${card.type} · ${checkoutCardSelectedServiceText(card)}`;
+  const checkoutDebitCardOptions = checkoutDebitCandidateCards.length
+    ? checkoutDebitCandidateCards.map((card) => ({ value: card.id, label: checkoutDebitCardOptionLabel(card) }))
+    : [{ value: "", label: "当前服务没有可扣卡来源" }];
   const checkoutServiceCardBlocked = Boolean(
     usesCustomer
     && usesService
     && selectedServiceRows.length > 0
-    && selectedCustomerProjectCards.length > 0
-    && !selectedCustomerProjectCards.some((card) => checkoutCardServiceUsageRows(card).every((row) => !row.blocked)),
+    && selectedCustomerCheckoutCards.some((card) => card.type !== "折扣卡")
+    && checkoutDebitCandidateCards.length === 0,
   );
   const checkoutServiceCardBlockedText = selectedServiceRows
     .map(({ service, quantity }) => `${service.name} 本单需 ${quantity} 次`)
@@ -3814,6 +3848,16 @@ function Pos({
         ? `会员卡项目次数不足，不能完成签名扣卡：${selectedSignatureCardBlockedRows.map((row) => `${row.serviceName} 剩 ${row.beforeText}，本次用 ${row.usedText}`).join("；")}`
         : "这条签名未关联收银订单，不能作为收银确认签名。"
     : undefined;
+  useEffect(() => {
+    if (!usesCustomer || !usesService || selectedServiceRows.length === 0) return;
+    if (checkoutDebitCandidateCards.length === 0) {
+      if (cardId) setCardId("");
+      return;
+    }
+    if (!checkoutDebitCandidateCards.some((card) => card.id === cardId)) {
+      setCardId(checkoutDebitCandidateCards[0].id);
+    }
+  }, [cardId, checkoutDebitCandidateIdsKey, selectedServiceRows.length, usesCustomer, usesService]);
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
   );
@@ -4308,6 +4352,9 @@ function Pos({
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
+    if (usesCustomer && usesService && selectedServiceRows.length > 0 && checkoutDebitCandidateCards.length > 0 && !cardId) {
+      messages.push("请选择本次扣卡来源。");
+    }
     if (payMethod === "会员卡" && checkoutMemberCardBlocked) {
       messages.push(`会员卡项目次数不足，不能扣卡：${checkoutMemberCardBlockedText}`);
     }
@@ -4339,7 +4386,7 @@ function Pos({
         adjustmentReason: adjustmentReason || undefined,
         appointmentId: usesCustomer && usesService ? appointmentId || undefined : undefined,
         payMethod,
-        cardId: usesCustomer && payMethod === "会员卡" ? cardId : undefined,
+        cardId: usesCustomer && (payMethod === "会员卡" || usesService) ? cardId || undefined : undefined,
       }),
     ).then((nextData) => {
       const latestOrder = nextData.orders[0];
@@ -4482,32 +4529,47 @@ function Pos({
         <div className="checkout-customer-card-summary">
           <div className="checkout-product-section-head">
             <span>客户可用服务</span>
-            <strong>{selectedCustomerCheckoutCards.length ? `${selectedCustomerCheckoutCards.length} 张有效卡` : "暂无有效卡"}</strong>
+            <strong>{selectedCustomerDebitCards.length ? `${selectedCustomerDebitCards.length} 张可扣卡` : "暂无可扣卡"}</strong>
           </div>
-          {selectedCustomerProjectCards.length ? (
+          {selectedCustomerDebitCards.length ? (
             <div className="checkout-customer-card-list">
-              {selectedCustomerProjectCards.map((card) => (
-                <div className="checkout-customer-card-row" key={card.id}>
-                  <div className="checkout-customer-card-title">
-                    <strong>{card.name}</strong>
-                    <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
+              {selectedCustomerDebitCards.map((card) => {
+                const usageRows = checkoutCardServiceUsageRows(card);
+                const canUseForCurrentOrder = usageRows.every((row) => !row.blocked);
+                const selectedForDebit = card.id === cardId;
+                return (
+                  <div className={selectedForDebit ? "checkout-customer-card-row active" : "checkout-customer-card-row"} key={card.id}>
+                    <div className="checkout-customer-card-title">
+                      <strong>{card.name}</strong>
+                      <span>{card.type} · {card.type === "储值卡" ? "全店项目" : memberCardProjectScopeText(card, data.services)}</span>
+                      {selectedServiceRows.length > 0 && (
+                        <button
+                          type="button"
+                          className={selectedForDebit ? "checkout-card-source-button active" : "checkout-card-source-button"}
+                          disabled={!canUseForCurrentOrder}
+                          onClick={() => setCardId(card.id)}
+                        >
+                          {selectedForDebit ? "本次扣这张" : canUseForCurrentOrder ? "改扣这张" : "不可扣"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="checkout-customer-card-usage">
+                      {usageRows.map((row) => (
+                        <div className={row.blocked ? "blocked" : ""} key={row.key}>
+                          <span>{row.name}</span>
+                          <small>{row.scopeText}</small>
+                          <em>{row.remainingText}</em>
+                          <b>{selectedServiceRows.length > 0 && !selectedForDebit ? "未选为来源" : row.requiredText}</b>
+                          <i>{selectedServiceRows.length > 0 && !selectedForDebit && !row.blocked ? "可切换" : row.statusText}</i>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="checkout-customer-card-usage">
-                    {checkoutCardServiceUsageRows(card).map((row) => (
-                      <div className={row.blocked ? "blocked" : ""} key={row.key}>
-                        <span>{row.name}</span>
-                        <small>{row.scopeText}</small>
-                        <em>{row.remainingText}</em>
-                        <b>{row.requiredText}</b>
-                        <i>{row.statusText}</i>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="checkout-product-empty">当前客户暂无已购买项目。</div>
+            <div className="checkout-product-empty">当前客户暂无可用于本次服务的会员卡。</div>
           )}
         </div>
       )}
@@ -4629,7 +4691,13 @@ function Pos({
         <form className="form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
-            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(customerOptionOf)} />
+            <Select
+              label="客户"
+              value={customerId}
+              onChange={setCustomerId}
+              options={data.customers.map(customerOptionOf)}
+              searchable
+            />
           ) : (
             <>
               <label>客户姓名<input ref={cardCustomerNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
@@ -4724,6 +4792,13 @@ function Pos({
                       <div>
                         <strong>{service.name}</strong>
                         <span>{service.category || "未分类"} · 单价 {money(service.price)}</span>
+                        {usesCustomer && (
+                          <small className="checkout-service-card-source">
+                            扣卡来源：{selectedCheckoutDebitCard
+                              ? `${selectedCheckoutDebitCard.name} · ${selectedCheckoutDebitCard.type} · ${memberCardTimesText(selectedCheckoutDebitCard, data.services, service.id)}`
+                              : "未选择"}
+                          </small>
+                        )}
                       </div>
                       <div className="checkout-product-qty" aria-label={`${service.name} 份数`}>
                         <button type="button" aria-label={`减少${service.name}`} onClick={() => setCheckoutServiceQuantity(service.id, quantity - 1)}>
@@ -4853,9 +4928,17 @@ function Pos({
               label="选择会员卡"
               value={cardId}
               onChange={setCardId}
-              options={availableCards.length
-                ? availableCards.map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, focusedCheckoutServiceId)}` }))
+              options={(usesService && selectedServiceRows.length > 0 ? checkoutDebitCandidateCards : availableCards).length
+                ? (usesService && selectedServiceRows.length > 0 ? checkoutDebitCandidateCards : availableCards).map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, focusedCheckoutServiceId)}` }))
                 : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "商品购买仅支持储值卡" }]}
+            />
+          )}
+          {payMethod !== "会员卡" && usesCustomer && usesService && selectedServiceRows.length > 0 && (
+            <Select
+              label="本次扣卡来源"
+              value={cardId}
+              onChange={setCardId}
+              options={checkoutDebitCardOptions}
             />
           )}
           <>
@@ -6213,7 +6296,13 @@ function Customers({
         <form className="form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
-            <Select label="客户" value={customerId} onChange={setCustomerId} options={data.customers.map(customerOptionOf)} />
+            <Select
+              label="客户"
+              value={customerId}
+              onChange={setCustomerId}
+              options={data.customers.map(customerOptionOf)}
+              searchable
+            />
           ) : (
             <>
               <label>客户姓名<input ref={customerCardNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>

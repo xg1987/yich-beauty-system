@@ -2891,7 +2891,7 @@ export function checkoutOrder(
     }
   }
 
-  const selectedCard = input.payMethod === "会员卡"
+  const selectedCard = input.cardId
     ? data.memberCards.find((item) => item.id === input.cardId && item.customerId === customerId)
     : undefined;
   if (input.payMethod === "会员卡") {
@@ -2920,6 +2920,24 @@ export function checkoutOrder(
     throw new Error("优惠金额无效");
   }
   const paidAmount = total - totalDiscount;
+  if (input.payMethod !== "会员卡" && input.cardId) {
+    if (!customerId) {
+      throw new Error("新客不能选择扣卡来源");
+    }
+    if (!selectedCard || selectedCard.status !== "正常") {
+      throw new Error("请选择有效会员卡");
+    }
+    if (selectedServices.length === 0) {
+      throw new Error("扣卡来源只能用于服务项目");
+    }
+    if (selectedCard.type === "折扣卡") {
+      throw new Error("折扣卡不能作为扣卡来源");
+    }
+    if (selectedCard.type === "储值卡" && selectedCard.balance < paidAmount) {
+      throw new Error("会员卡余额不足");
+    }
+    assertMemberCardServiceQuantityAvailable(selectedCard, selectedServiceIds, data.services);
+  }
   if (selectedCard?.type === "储值卡" && selectedCard.balance < paidAmount) {
     throw new Error("会员卡余额不足");
   }
@@ -2927,7 +2945,7 @@ export function checkoutOrder(
     data.orders.some((order) =>
       isRecentDuplicateOrder(order, {
         appointmentId: appointment?.id,
-        cardId: input.payMethod === "会员卡" ? input.cardId : undefined,
+        cardId: input.cardId,
         customerId,
         createdAt,
         discountAmount: totalDiscount,
@@ -2966,7 +2984,7 @@ export function checkoutOrder(
     giftProductId: giftProductItems[0]?.productId,
     productItems: productItems.length ? withProductNameSnapshots(data, productItems) : undefined,
     giftProductItems: giftProductItems.length ? withProductNameSnapshots(data, giftProductItems) : undefined,
-    cardId: input.payMethod === "会员卡" ? input.cardId : undefined,
+    cardId: input.cardId,
     totalAmount: total,
     paidAmount,
     discountAmount: totalDiscount,

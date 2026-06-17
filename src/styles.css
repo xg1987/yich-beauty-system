@@ -17652,6 +17652,13 @@ textarea,
   font-size: 12px;
 }
 
+.checkout-service-card-source {
+  color: #237766;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .checkout-service-line > span:last-child {
   color: #3d2279;
   font-size: 16px;
@@ -17687,11 +17694,46 @@ textarea,
   background: rgba(255, 255, 255, 0.72);
 }
 
+.checkout-customer-card-row.active {
+  border-color: rgba(47, 191, 143, 0.36);
+  background:
+    radial-gradient(circle at 92% 14%, rgba(47, 191, 143, 0.12), transparent 34%),
+    rgba(247, 255, 252, 0.84);
+}
+
 .checkout-customer-card-title {
   min-width: 0;
   display: grid;
   align-content: center;
   gap: 5px;
+}
+
+.checkout-card-source-button {
+  width: fit-content;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #3d2279;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.checkout-card-source-button.active {
+  border-color: rgba(47, 191, 143, 0.26);
+  background: rgba(237, 249, 243, 0.92);
+  color: #237766;
+}
+
+.checkout-card-source-button:disabled {
+  cursor: not-allowed;
+  border-color: rgba(207, 65, 104, 0.14);
+  background: rgba(255, 244, 248, 0.78);
+  color: rgba(168, 50, 81, 0.74);
 }
 
 .checkout-customer-card-row strong {
