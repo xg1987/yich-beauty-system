@@ -19446,6 +19446,95 @@ textarea,
   box-shadow: 0 12px 26px rgba(42, 143, 125, 0.22);
 }
 
+.public-route-fallback {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #ffffff, #f8fbfa);
+  color: #1f5f54;
+}
+
+.public-route-fallback section {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 24px;
+  border: 1px solid rgba(35, 119, 102, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 36px rgba(42, 143, 125, 0.08);
+  text-align: center;
+}
+
+.public-route-fallback strong {
+  font-size: 18px;
+  font-weight: 880;
+}
+
+.public-route-fallback span {
+  color: rgba(31, 95, 84, 0.68);
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.signature-route-loading {
+  place-items: start center;
+}
+
+.signature-loading-card {
+  min-height: 180px;
+}
+
+.signature-loading-title {
+  width: 112px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(35, 119, 102, 0.12);
+}
+
+.signature-loading-line,
+.signature-loading-list span,
+.signature-loading-input,
+.signature-loading-canvas {
+  display: block;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(35, 119, 102, 0.08), rgba(35, 119, 102, 0.14), rgba(35, 119, 102, 0.08));
+  background-size: 220% 100%;
+  animation: signature-loading-sheen 1.2s ease-in-out infinite;
+}
+
+.signature-loading-line {
+  height: 74px;
+}
+
+.signature-loading-list {
+  display: grid;
+  gap: 8px;
+}
+
+.signature-loading-list span {
+  height: 38px;
+}
+
+.signature-loading-input {
+  height: 44px;
+}
+
+.signature-loading-canvas {
+  min-height: 320px;
+}
+
+@keyframes signature-loading-sheen {
+  0% {
+    background-position: 120% 0;
+  }
+
+  100% {
+    background-position: -120% 0;
+  }
+}
+
   .signature-page-pending .signature-form {
     order: 2;
   }

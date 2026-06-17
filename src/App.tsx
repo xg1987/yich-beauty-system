@@ -62,7 +62,7 @@ function AppRoutes() {
   const pathname = window.location.pathname;
   if (pathname === "/download") {
     return (
-      <Suspense fallback={<RouteFallback />}>
+      <Suspense fallback={<PublicRouteFallback label="下载中心" />}>
         <DownloadGuidePage />
       </Suspense>
     );
@@ -71,7 +71,7 @@ function AppRoutes() {
   const publicStoreMatch = pathname.match(/^\/store\/([^/]+)/);
   if (publicStoreMatch) {
     return (
-      <Suspense fallback={<RouteFallback />}>
+      <Suspense fallback={<PublicRouteFallback label="线上店铺" />}>
         <PublicStoreRoute shareCode={decodeURIComponent(publicStoreMatch[1])} />
       </Suspense>
     );
@@ -80,7 +80,7 @@ function AppRoutes() {
   const publicSignatureMatch = pathname.match(/^\/signature\/([^/]+)/);
   if (publicSignatureMatch) {
     return (
-      <Suspense fallback={<RouteFallback />}>
+      <Suspense fallback={<PublicSignatureFallback />}>
         <PublicSignatureRoute token={decodeURIComponent(publicSignatureMatch[1])} />
       </Suspense>
     );
@@ -93,5 +93,43 @@ function AppRoutes() {
         <PwaInstallPrompt />
       </Suspense>
     </>
+  );
+}
+
+function PublicSignatureFallback() {
+  return (
+    <div className="public-store-page signature-page signature-page-pending signature-route-loading">
+      <main className="public-store-shell">
+        <section className="public-store-panel">
+          <div className="signature-grid">
+            <section className="signature-detail signature-loading-card" aria-busy="true">
+              <div className="signature-loading-title">确认内容</div>
+              <div className="signature-loading-line" />
+              <div className="signature-loading-list">
+                <span />
+                <span />
+                <span />
+              </div>
+            </section>
+            <section className="signature-form signature-loading-card" aria-busy="true">
+              <div className="signature-loading-title">签名确认</div>
+              <div className="signature-loading-input" />
+              <div className="signature-loading-canvas" />
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function PublicRouteFallback({ label }: { label: string }) {
+  return (
+    <div className="public-route-fallback">
+      <section>
+        <strong>{label}</strong>
+        <span>正在打开</span>
+      </section>
+    </div>
   );
 }

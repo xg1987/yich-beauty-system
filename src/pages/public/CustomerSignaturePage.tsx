@@ -159,7 +159,8 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
 
   const signature = payload?.signature;
   const isSigned = signature?.status === "已签名";
-  const pageClassName = `public-store-page signature-page ${signature && !isSigned ? "signature-page-pending" : ""}`;
+  const usePendingSignatureLayout = loading || !signature || !isSigned;
+  const pageClassName = `public-store-page signature-page ${usePendingSignatureLayout ? "signature-page-pending" : ""}`;
   const returnToSystem = () => {
     window.location.assign("/?view=pos");
   };
@@ -173,7 +174,7 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
             返回系统
           </button>
         </div>
-        {(!signature || isSigned) && (
+        {isSigned && (
           <section className="public-store-hero signature-hero">
             <BrandIcon className="public-store-mark brand-icon-mark" />
             <span>客户确认签名</span>
@@ -189,13 +190,25 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
           </section>
         )}
         <section className="public-store-panel">
+          {error && <p className="public-status error">{error}</p>}
           {loading && (
-            <div className="signature-state-card">
-              <strong>正在加载签名内容</strong>
-              <span>请稍候，系统正在读取本次服务确认信息。</span>
+            <div className="signature-grid">
+              <section className="signature-detail signature-loading-card" aria-busy="true">
+                <div className="signature-loading-title">确认内容</div>
+                <div className="signature-loading-line" />
+                <div className="signature-loading-list">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </section>
+              <section className="signature-form signature-loading-card" aria-busy="true">
+                <div className="signature-loading-title">签名确认</div>
+                <div className="signature-loading-input" />
+                <div className="signature-loading-canvas" />
+              </section>
             </div>
           )}
-          {error && <p className="public-status error">{error}</p>}
           {!loading && error && !payload && (
             <div className="signature-state-card error">
               <strong>签名链接暂时无法打开</strong>
