@@ -29700,6 +29700,70 @@ img.brand-icon-mark {
     padding-bottom: max(72px, env(safe-area-inset-bottom));
   }
 
+  .system-modal:has(.appointment-modal-detail),
+  .system-modal.large:has(.appointment-modal-detail) {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+
+  .system-modal-body:has(.appointment-modal-detail) {
+    overflow-x: hidden;
+  }
+
+  .appointment-modal-detail,
+  .appointment-create-form,
+  .appointment-create-form > *,
+  .appointment-create-form label,
+  .appointment-create-form input,
+  .appointment-create-form select,
+  .appointment-create-form textarea,
+  .appointment-create-form .datetime-field,
+  .appointment-create-form .datetime-field-control,
+  .appointment-room-slot-section,
+  .appointment-room-slot-grid,
+  .appointment-room-slot-button,
+  .checkout-customer-search,
+  .checkout-customer-warning,
+  .checkout-customer-result-list,
+  .checkout-selected-customer {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .appointment-create-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    overflow-x: hidden;
+  }
+
+  .appointment-create-form > .checkout-customer-search,
+  .appointment-create-form > .appointment-room-slot-section,
+  .appointment-create-form > .appointment-time-grid,
+  .appointment-create-form > label,
+  .appointment-create-form > .datetime-field,
+  .appointment-create-form > .appointment-room-choice-note,
+  .appointment-create-form > .form-warning,
+  .appointment-create-form > .row-actions {
+    grid-column: 1 / -1;
+  }
+
+  .appointment-time-grid,
+  .checkout-customer-result-list,
+  .appointment-room-slot-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .checkout-customer-warning,
+  .appointment-room-choice-note,
+  .appointment-room-slot-text,
+  .appointment-room-slot-text > span,
+  .system-modal:has(.appointment-modal-detail) .system-modal-title,
+  .system-modal:has(.appointment-modal-detail) .system-modal-title span {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .system-modal-footer {
     padding: 12px 14px max(14px, env(safe-area-inset-bottom));
   }

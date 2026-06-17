@@ -2677,6 +2677,8 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
     : firstBusinessStaffId(data);
   const [customerId, setCustomerId] = useState("");
   const [appointmentCustomerSearch, setAppointmentCustomerSearch] = useState("");
+  const appointmentCustomerSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const appointmentAutoReviewCustomerIdRef = useRef("");
   const [appointmentReviewReady, setAppointmentReviewReady] = useState(false);
   const [staffId, setStaffId] = useState(defaultAppointmentStaffId);
   const [startAt, setStartAt] = useState(() => nextAppointmentDateTimeRange().start);
@@ -2711,9 +2713,26 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
         .filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedAppointmentCustomerSearch))
         .slice(0, 8)
     : [];
+  const resolveAppointmentCustomerFromSearch = (value: string) => {
+    const normalized = normalizeCustomerLookupText(value.trim());
+    if (!normalized) return selectedAppointmentCustomer;
+    if (selectedAppointmentCustomer && customerMatchesSearchText(selectedAppointmentCustomer, value)) return selectedAppointmentCustomer;
+    const exactMatches = data.customers.filter((customer) => {
+      const name = normalizeCustomerLookupText(customer.name);
+      const phone = normalizeCustomerLookupText(customer.phone ?? "");
+      return name === normalized || Boolean(phone && phone === normalized);
+    });
+    if (exactMatches.length === 1) return exactMatches[0];
+    if (normalized.length >= 4) {
+      const phoneMatches = data.customers.filter((customer) => normalizeCustomerLookupText(customer.phone ?? "").includes(normalized));
+      if (phoneMatches.length === 1) return phoneMatches[0];
+    }
+    return undefined;
+  };
+  const resolvedAppointmentCustomer = resolveAppointmentCustomerFromSearch(appointmentCustomerSearch);
   const appointmentCustomerSearchUnresolved = Boolean(
     appointmentCustomerSearch.trim() &&
-      (!selectedAppointmentCustomer || !customerMatchesSearchText(selectedAppointmentCustomer, appointmentCustomerSearch)),
+      !resolvedAppointmentCustomer,
   );
   const updateAppointmentCustomerSearch = (value: string) => {
     setAppointmentCustomerSearch(value);
@@ -2723,6 +2742,12 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
     if (!value.trim() && !selectedAppointmentCustomer) {
       setCustomerId("");
     }
+  };
+  const readAppointmentCustomerSearchValue = () => appointmentCustomerSearchInputRef.current?.value ?? appointmentCustomerSearch;
+  const syncAppointmentCustomerSearchFromInput = () => {
+    const value = readAppointmentCustomerSearchValue();
+    if (value !== appointmentCustomerSearch) updateAppointmentCustomerSearch(value);
+    return value;
   };
   const serviceStaffIds = new Set(serviceStaff.map((staff) => staff.id));
   const roomNames = roomNamesOf(data);
@@ -2735,12 +2760,33 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   const minAppointmentDateTime = toLocalInputValue(new Date().toISOString());
 
   useEffect(() => {
+    if (appointmentAutoReviewCustomerIdRef.current && appointmentAutoReviewCustomerIdRef.current === customerId) {
+      appointmentAutoReviewCustomerIdRef.current = "";
+      return;
+    }
     setAppointmentReviewReady(false);
   }, [customerId, staffId, startAt, endAt, roomName, note]);
 
   useEffect(() => {
     setExpandedWorkflowGroups({});
   }, [appointmentRange]);
+
+  useEffect(() => {
+    if (!showAppointmentForm) return;
+    const input = appointmentCustomerSearchInputRef.current;
+    if (!input) return;
+    const sync = () => updateAppointmentCustomerSearch(input.value);
+    input.addEventListener("input", sync);
+    input.addEventListener("change", sync);
+    input.addEventListener("compositionend", sync);
+    input.addEventListener("keyup", sync);
+    return () => {
+      input.removeEventListener("input", sync);
+      input.removeEventListener("change", sync);
+      input.removeEventListener("compositionend", sync);
+      input.removeEventListener("keyup", sync);
+    };
+  }, [selectedAppointmentCustomer, showAppointmentForm]);
 
   useEffect(() => {
     const firstStaffId = defaultAppointmentStaffId;
@@ -2762,11 +2808,15 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
 
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
+    const currentCustomerSearch = syncAppointmentCustomerSearchFromInput();
+    const currentResolvedCustomer = resolveAppointmentCustomerFromSearch(currentCustomerSearch);
+    const currentCustomerUnresolved = Boolean(currentCustomerSearch.trim() && !currentResolvedCustomer);
+    const appointmentCustomerId = currentResolvedCustomer?.id ?? customerId;
     const nextStartAt = new Date(startAt);
     if (!hasConfiguredRooms || !roomNames.includes(roomName) || nextStartAt < new Date()) return;
-    if (!customerId || appointmentCustomerSearchUnresolved) {
+    if (!appointmentCustomerId || currentCustomerUnresolved) {
       void runMutation(() => {
-        throw new Error("请先从客户搜索结果中选择客户，确认后再保存预约。");
+        throw new Error("请先输入完整姓名/手机号，或从客户搜索结果中点选客户后再保存预约。");
       });
       return;
     }
@@ -2777,12 +2827,17 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
       return;
     }
     if (!appointmentReviewReady) {
+      if (currentResolvedCustomer && currentResolvedCustomer.id !== customerId) {
+        appointmentAutoReviewCustomerIdRef.current = currentResolvedCustomer.id;
+        setCustomerId(currentResolvedCustomer.id);
+        setAppointmentCustomerSearch("");
+      }
       setAppointmentReviewReady(true);
       return;
     }
     void runMutation(() =>
       actions.addAppointment({
-        customerId,
+        customerId: appointmentCustomerId,
         staffId,
         serviceId: "",
         serviceIds: [],
@@ -3032,7 +3087,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   const rescheduleEndDate = new Date(rescheduleEndAt);
   const rescheduleTimeRangeInvalid = Number.isNaN(rescheduleStartDate.getTime()) || Number.isNaN(rescheduleEndDate.getTime()) || !(rescheduleStartDate < rescheduleEndDate);
   const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
-  const appointmentSaveDisabled = !customerId || appointmentCustomerSearchUnresolved || !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const appointmentSaveDisabled = !(customerId || resolvedAppointmentCustomer) || appointmentCustomerSearchUnresolved || !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
   const rescheduleSaveDisabled = !rescheduleStaffId || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const appointmentDetailAction = (appointment: Appointment) => {
     if (appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment)) {
@@ -3344,6 +3399,9 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
               <label>
                 客户
                 <input
+                  ref={appointmentCustomerSearchInputRef}
+                  autoComplete="off"
+                  inputMode="search"
                   value={appointmentCustomerSearch}
                   {...searchInputSync(updateAppointmentCustomerSearch)}
                   placeholder={selectedAppointmentCustomer ? customerDisplayLabel(selectedAppointmentCustomer) : "输入客户姓名或手机号搜索"}
