@@ -29700,13 +29700,13 @@ img.brand-icon-mark {
     padding-bottom: max(72px, env(safe-area-inset-bottom));
   }
 
-  .system-modal:has(.appointment-modal-detail),
-  .system-modal.large:has(.appointment-modal-detail) {
+  .appointment-create-modal,
+  .system-modal.large.appointment-create-modal {
     width: calc(100vw - 16px);
     max-width: calc(100vw - 16px);
   }
 
-  .system-modal-body:has(.appointment-modal-detail) {
+  .appointment-create-modal .system-modal-body {
     overflow-x: hidden;
   }
 
@@ -29758,8 +29758,8 @@ img.brand-icon-mark {
   .appointment-room-choice-note,
   .appointment-room-slot-text,
   .appointment-room-slot-text > span,
-  .system-modal:has(.appointment-modal-detail) .system-modal-title,
-  .system-modal:has(.appointment-modal-detail) .system-modal-title span {
+  .appointment-create-modal .system-modal-title,
+  .appointment-create-modal .system-modal-title span {
     white-space: normal;
     overflow-wrap: anywhere;
   }

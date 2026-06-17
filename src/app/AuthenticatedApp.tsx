@@ -2707,7 +2707,8 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   const staffOptions = serviceStaff.map(optionOf);
   const appointmentStaffOptions = staffOptions;
   const selectedAppointmentCustomer = data.customers.find((item) => item.id === customerId);
-  const normalizedAppointmentCustomerSearch = appointmentCustomerSearch.trim().toLowerCase();
+  const appointmentCustomerSearchText = appointmentCustomerSearch.trim();
+  const normalizedAppointmentCustomerSearch = appointmentCustomerSearchText.toLowerCase();
   const appointmentCustomerSearchResults = normalizedAppointmentCustomerSearch
     ? data.customers
         .filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(normalizedAppointmentCustomerSearch))
@@ -2731,7 +2732,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   };
   const resolvedAppointmentCustomer = resolveAppointmentCustomerFromSearch(appointmentCustomerSearch);
   const appointmentCustomerSearchUnresolved = Boolean(
-    appointmentCustomerSearch.trim() &&
+    appointmentCustomerSearchText &&
       !resolvedAppointmentCustomer,
   );
   const updateAppointmentCustomerSearch = (value: string) => {
@@ -2742,6 +2743,11 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
     if (!value.trim() && !selectedAppointmentCustomer) {
       setCustomerId("");
     }
+  };
+  const selectAppointmentCustomer = (customer: CustomerOptionItem) => {
+    setCustomerId(customer.id);
+    setAppointmentCustomerSearch(customerDisplayLabel(customer));
+    setAppointmentReviewReady(false);
   };
   const readAppointmentCustomerSearchValue = () => appointmentCustomerSearchInputRef.current?.value ?? appointmentCustomerSearch;
   const syncAppointmentCustomerSearchFromInput = () => {
@@ -2830,7 +2836,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
       if (currentResolvedCustomer && currentResolvedCustomer.id !== customerId) {
         appointmentAutoReviewCustomerIdRef.current = currentResolvedCustomer.id;
         setCustomerId(currentResolvedCustomer.id);
-        setAppointmentCustomerSearch("");
+        setAppointmentCustomerSearch(customerDisplayLabel(currentResolvedCustomer));
       }
       setAppointmentReviewReady(true);
       return;
@@ -3391,6 +3397,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
         title="新增预约"
         subtitle="选择预约时间后，系统会自动筛选可用房间"
         size="large"
+        className="appointment-create-modal"
         onClose={() => setShowAppointmentForm(false)}
       >
         <div className="module-detail-stack appointment-modal-detail">
@@ -3419,18 +3426,14 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
               {!selectedAppointmentCustomer && !normalizedAppointmentCustomerSearch && (
                 <p className="checkout-customer-warning">新增预约必须先搜索并点选客户，避免默认客户误提交。</p>
               )}
-              {normalizedAppointmentCustomerSearch && (
+              {normalizedAppointmentCustomerSearch && appointmentCustomerSearchUnresolved && (
                 <div className="checkout-customer-result-list">
                   {appointmentCustomerSearchResults.length ? appointmentCustomerSearchResults.map((customer) => (
                     <button
                       type="button"
                       key={customer.id}
                       className={customer.id === customerId ? "active" : ""}
-                      onClick={() => {
-                        setCustomerId(customer.id);
-                        setAppointmentCustomerSearch("");
-                        setAppointmentReviewReady(false);
-                      }}
+                      onClick={() => selectAppointmentCustomer(customer)}
                     >
                       <strong>{customer.name}</strong>
                       <span>{customer.phone || "未留手机号"}</span>
