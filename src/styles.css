@@ -8385,6 +8385,10 @@ textarea,
   display: grid;
   place-items: center;
   padding: max(8px, env(safe-area-inset-top)) 12px max(8px, env(safe-area-inset-bottom));
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   background: rgba(31, 18, 61, 0.52);
   backdrop-filter: blur(14px);
 }
@@ -8397,6 +8401,7 @@ textarea,
   flex-direction: column;
   gap: 8px;
   overflow: hidden;
+  overscroll-behavior: contain;
   padding: 16px;
   border: 1px solid rgba(208, 194, 238, 0.72);
   border-radius: 22px;
@@ -8545,6 +8550,7 @@ textarea,
 .signature-capture-canvas-wrap {
   flex: 1 1 auto;
   height: 100%;
+  max-height: min(54dvh, 520px);
 }
 
 .signature-capture-canvas {
@@ -19676,12 +19682,14 @@ textarea,
 
   .signature-capture-dialog {
     width: 100%;
-    height: calc(var(--yich-visual-viewport-height, 100dvh) - 16px);
+    height: auto;
     max-height: calc(var(--yich-visual-viewport-height, 100dvh) - 16px);
     display: flex;
     flex-direction: column;
     gap: 6px;
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     padding: 10px;
     border-radius: 18px;
   }
@@ -19743,7 +19751,9 @@ textarea,
   }
 
   .signature-capture-canvas-wrap {
-    height: 100%;
+    flex: 0 0 auto;
+    height: clamp(360px, 48dvh, 500px);
+    max-height: clamp(360px, 48dvh, 500px);
   }
 
   .signature-capture-canvas-wrap,
@@ -19756,13 +19766,15 @@ textarea,
   }
 
   .signature-capture-actions {
-    position: static;
+    position: sticky;
+    bottom: 0;
     grid-template-columns: 0.8fr 0.8fr 1.4fr;
     align-items: center;
     gap: 8px;
-    padding-top: 4px;
-    padding-bottom: max(2px, env(safe-area-inset-bottom));
-    background: transparent;
+    padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(111, 66, 193, 0.1);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(10px);
   }
 
   .signature-capture-actions button {
@@ -19845,7 +19857,7 @@ textarea,
 
   .signature-page-pending .signature-form {
     gap: 10px;
-    padding-bottom: 92px;
+    padding-bottom: 12px;
   }
 
   .signature-page-pending .signature-content-card {
@@ -19882,14 +19894,12 @@ textarea,
   }
 
   .signature-page-pending .signature-canvas {
-    height: clamp(520px, 66dvh, 720px);
+    height: clamp(440px, 58dvh, 560px);
   }
 
   .signature-page-pending .signature-form-actions {
-    position: fixed;
-    right: 16px;
+    position: sticky;
     bottom: max(8px, env(safe-area-inset-bottom));
-    left: 16px;
     margin: 0;
     border-color: rgba(35, 119, 102, 0.14);
     background: rgba(255, 255, 255, 0.96);
@@ -19913,12 +19923,14 @@ textarea,
   }
 
   .signature-capture-dialog {
-    height: calc(var(--yich-visual-viewport-height, 100dvh) - 12px);
+    height: auto;
     max-height: calc(var(--yich-visual-viewport-height, 100dvh) - 12px);
     display: flex;
     flex-direction: column;
     gap: 6px;
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     padding: 8px;
     border-radius: 16px;
   }
@@ -19973,8 +19985,8 @@ textarea,
   }
 
   .signature-capture-canvas-label {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 0 0 auto;
+    min-height: auto;
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -19982,9 +19994,10 @@ textarea,
   }
 
   .signature-capture-canvas-label > .signature-canvas-wrap {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: auto;
+    flex: 0 0 auto;
+    min-height: clamp(500px, 64dvh, 580px);
+    height: clamp(500px, 64dvh, 580px);
+    max-height: clamp(500px, 64dvh, 580px);
   }
 
   .signature-capture-canvas-wrap,
@@ -20003,12 +20016,15 @@ textarea,
 
   .signature-capture-actions {
     flex: 0 0 auto;
-    position: static;
+    position: sticky;
+    bottom: 0;
     display: grid;
     grid-template-columns: 0.8fr 0.8fr 1.35fr;
     gap: 7px;
-    padding: 4px 0 max(2px, env(safe-area-inset-bottom));
-    background: transparent;
+    padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(111, 66, 193, 0.1);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(10px);
   }
 
   .signature-capture-actions button,
@@ -29806,6 +29822,12 @@ img.brand-icon-mark {
 
 .app-shell:has(.datetime-picker-backdrop) .workbar {
   pointer-events: none;
+}
+
+.app-shell:has(.signature-capture-backdrop) .workbar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(18px);
 }
 
 .app-shell[data-mutating="true"] .workbar {
