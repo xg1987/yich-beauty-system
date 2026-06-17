@@ -39,12 +39,9 @@ import {
   UsersRound,
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useRef, useState } from "react";
-import { APP_UPDATE_AVAILABLE_EVENT, checkAppUpdateStatus } from "../appUpdate";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { BrandIcon } from "../components/business/BrandIcon";
 import { UserAvatar } from "../components/business/UserAvatar";
-import { appUpdateInfoFromEvent } from "../components/AppUpdatePrompt";
-import type { AppUpdateInfo } from "../components/AppUpdatePrompt";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import { StatCard } from "../components/layout/StatCard";
@@ -145,7 +142,7 @@ const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", 
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-16";
+const APP_BUILD_DATE = "2026-06-17";
 const DEFAULT_SYSTEM_TITLE = "祝融｜坤锋美业门店系统";
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES = ["护理房 1", "护理房 2", "VIP护理房", "仪器房", "身心护理房", "备用房"];
 const LEGACY_DEFAULT_APPOINTMENT_ROOM_NAME_SET = new Set(LEGACY_DEFAULT_APPOINTMENT_ROOM_NAMES);
@@ -1056,7 +1053,6 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
-  const [appUpdateInfo, setAppUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
   const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
@@ -1091,25 +1087,6 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     document.addEventListener("pointerdown", closeFloatingPanels);
     return () => document.removeEventListener("pointerdown", closeFloatingPanels);
   }, [accountMenuOpen, notificationPanelOpen]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const handleAppUpdate = (event: Event) => {
-      const info = appUpdateInfoFromEvent(event);
-      if (info) setAppUpdateInfo(info);
-    };
-
-    window.addEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
-    void checkAppUpdateStatus().then((status) => {
-      if (cancelled || !status.updateAvailable || !status.serverVersion) return;
-      setAppUpdateInfo({ currentVersion: status.currentVersion, serverVersion: status.serverVersion });
-    });
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
-    };
-  }, []);
 
   useEffect(() => {
     if (!session || data || error) {
@@ -1266,7 +1243,6 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             <AccountMenu
               session={session}
               avatarUrl={currentAvatarUrl}
-              updateAvailable={Boolean(appUpdateInfo)}
               logout={logout}
               openSettings={() => {
                 setAccountSettingsOpen(true);
@@ -1290,7 +1266,6 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               uploadAccountAvatar={actions.uploadAccountAvatar}
               themeMode={themeMode}
               setThemeMode={setThemeMode}
-              initialUpdateInfo={appUpdateInfo}
             />
           </Suspense>
         ) : (
@@ -4003,6 +3978,15 @@ function Pos({
     return matchesCategory && matchesSubcategory && (!normalizedProductPickerSearch || searchTarget.includes(normalizedProductPickerSearch));
   });
   const paidTotal = Math.max(0, total - discountAmount);
+  const selectedCheckoutCard = payMethod === "会员卡" ? availableCards.find((card) => card.id === cardId) : undefined;
+  const checkoutSelectedCardUsageRows = selectedCheckoutCard ? checkoutCardServiceUsageRows(selectedCheckoutCard) : [];
+  const checkoutBlockedCardUsageRows = payMethod === "会员卡"
+    ? checkoutSelectedCardUsageRows.filter((row) => row.blocked)
+    : [];
+  const checkoutMemberCardBlocked = checkoutBlockedCardUsageRows.length > 0;
+  const checkoutMemberCardBlockedText = checkoutBlockedCardUsageRows
+    .map((row) => `${row.name}：${row.remainingText}，${row.requiredText}`)
+    .join("；");
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashIn(transaction) > 0);
@@ -4519,6 +4503,9 @@ function Pos({
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
+    if (payMethod === "会员卡" && checkoutMemberCardBlocked) {
+      messages.push(`会员卡项目次数不足，不能扣卡：${checkoutMemberCardBlockedText}`);
+    }
 
     if (messages.length > 0) {
       setCheckoutValidationMessages(messages);
@@ -5088,7 +5075,10 @@ function Pos({
             <span>应收金额</span>
             <strong>{money(paidTotal)}</strong>
           </div>
-          <button className="primary-button" disabled={checkoutSubmitting || checkoutCustomerSelectionInvalid}>
+          {checkoutMemberCardBlocked && (
+            <p className="form-error">会员卡项目次数不足，不能扣卡：{checkoutMemberCardBlockedText}</p>
+          )}
+          <button className="primary-button" disabled={checkoutSubmitting || checkoutCustomerSelectionInvalid || checkoutMemberCardBlocked}>
             {checkoutSubmitting ? "正在收银..." : "完成收银"}
           </button>
         </form>
@@ -8048,6 +8038,99 @@ export function signatureRecordContext(data: AppData, signature: CustomerSignatu
   };
 }
 
+function signatureServiceQuantityRows(data: AppData, order: Order) {
+  const serviceIds = (order.serviceIds?.length ? order.serviceIds : [order.serviceId]).filter(Boolean);
+  const rows = new Map<string, { serviceId: string; name: string; quantity: number }>();
+  serviceIds.forEach((serviceId) => {
+    const current = rows.get(serviceId);
+    rows.set(serviceId, {
+      serviceId,
+      name: nameOf(data.services, serviceId),
+      quantity: (current?.quantity ?? 0) + 1,
+    });
+  });
+  return Array.from(rows.values());
+}
+
+function signatureMemberCardSupportsService(card: AppData["memberCards"][number], serviceId: string) {
+  if (card.type === "储值卡") return true;
+  if (!serviceId) return false;
+  if (card.serviceEntitlements?.length) return card.serviceEntitlements.some((item) => item.serviceId === serviceId);
+  if (card.serviceIds?.length) return card.serviceIds.includes(serviceId);
+  if (card.serviceId && card.serviceId !== serviceId) return false;
+  return true;
+}
+
+function signatureMemberCardRemainingForService(card: AppData["memberCards"][number], serviceId: string) {
+  if (card.type === "储值卡") return Number.POSITIVE_INFINITY;
+  if (card.serviceEntitlements?.length) {
+    return card.serviceEntitlements.find((item) => item.serviceId === serviceId)?.remainingTimes ?? 0;
+  }
+  return signatureMemberCardSupportsService(card, serviceId) ? card.remainingTimes : 0;
+}
+
+function signatureCardCanDebitOrder(data: AppData, card: AppData["memberCards"][number], order: Order) {
+  if (card.customerId !== order.customerId || card.status !== "正常") return false;
+  if (card.type === "储值卡") return card.balance >= order.paidAmount;
+  if (card.type === "折扣卡") return false;
+  return signatureServiceQuantityRows(data, order).every((row) =>
+    signatureMemberCardSupportsService(card, row.serviceId)
+    && signatureMemberCardRemainingForService(card, row.serviceId) >= row.quantity,
+  );
+}
+
+function signatureCardPriority(card: AppData["memberCards"][number], serviceId: string) {
+  const serviceSpecific = card.serviceId === serviceId || Boolean(card.serviceIds?.includes(serviceId));
+  const typePriority = card.type === "次数卡" ? 0 : card.type === "套餐卡" ? 1 : card.type === "储值卡" ? 2 : 3;
+  return (serviceSpecific ? 0 : 10) + typePriority;
+}
+
+function signatureOrderDebitCard(data: AppData, order: Order) {
+  const explicitCard = order.cardId
+    ? data.memberCards.find((card) => card.id === order.cardId)
+    : undefined;
+  if (explicitCard && (signatureCardCanDebitOrder(data, explicitCard, order) || order.payMethod === "会员卡")) return explicitCard;
+  const firstServiceId = signatureServiceQuantityRows(data, order)[0]?.serviceId ?? order.serviceId;
+  return data.memberCards
+    .filter((card) => signatureCardCanDebitOrder(data, card, order))
+    .sort((a, b) => signatureCardPriority(a, firstServiceId) - signatureCardPriority(b, firstServiceId))[0];
+}
+
+function signatureMemberCardUsageRows(data: AppData, order: Order) {
+  const card = signatureOrderDebitCard(data, order);
+  if (!card) return [];
+  const alreadyDebited = data.memberCardTransactions.some((transaction) => transaction.orderId === order.id && transaction.type === "消费");
+  if (card.type === "储值卡") {
+    const afterBalance = alreadyDebited ? card.balance : Math.max(0, card.balance - order.paidAmount);
+    const beforeBalance = alreadyDebited ? card.balance + order.paidAmount : card.balance;
+    return [{
+      key: `${order.id}:${card.id}:balance`,
+      cardName: card.name,
+      serviceName: "储值余额",
+      usedText: money(order.paidAmount),
+      beforeText: money(beforeBalance),
+      afterText: money(afterBalance),
+      statusText: alreadyDebited ? "已扣" : "待扣",
+    }];
+  }
+  return signatureServiceQuantityRows(data, order).map((row) => {
+    const entitlement = card.serviceEntitlements?.find((item) => item.serviceId === row.serviceId);
+    const currentRemaining = signatureMemberCardRemainingForService(card, row.serviceId);
+    const afterTimes = alreadyDebited ? currentRemaining : Math.max(0, currentRemaining - row.quantity);
+    const beforeTimes = alreadyDebited ? currentRemaining + row.quantity : currentRemaining;
+    const formatTimes = (value: number) => entitlement ? `${value}/${entitlement.totalTimes}次` : `${value}次`;
+    return {
+      key: `${order.id}:${card.id}:${row.serviceId}`,
+      cardName: card.name,
+      serviceName: row.name,
+      usedText: `${row.quantity}次`,
+      beforeText: formatTimes(beforeTimes),
+      afterText: formatTimes(afterTimes),
+      statusText: alreadyDebited ? "已扣" : "待扣",
+    };
+  });
+}
+
 function customerSignatureIsExpired(signature: CustomerSignature, nowMs = Date.now()) {
   return signature.status === "待签名"
     && Boolean(signature.expiresAt)
@@ -8061,6 +8144,7 @@ function signatureRecordCanCompleteCheckout(context: ReturnType<typeof signature
 export function SignatureRecordDetail({ data, signature }: { data: AppData; signature: CustomerSignature }) {
   const context = signatureRecordContext(data, signature);
   const signedAt = signature.signedAt ? shortDate(signature.signedAt) : "-";
+  const cardUsageRows = context.order ? signatureMemberCardUsageRows(data, context.order) : [];
   return (
     <section className="signature-record-detail">
       <div className="signature-record-meta">
@@ -8075,6 +8159,16 @@ export function SignatureRecordDetail({ data, signature }: { data: AppData; sign
         <div>
           <strong>确认内容</strong>
           <p>{signature.content}</p>
+          {cardUsageRows.length > 0 && (
+            <div className="signature-card-usage">
+              <strong>会员卡扣次</strong>
+              {cardUsageRows.map((row) => (
+                <p key={row.key}>
+                  {row.cardName} · {row.serviceName}：本次用 {row.usedText}，扣前 {row.beforeText}，扣后剩 {row.afterText}（{row.statusText}）。
+                </p>
+              ))}
+            </div>
+          )}
           {context.serviceRecord && (
             <p>
               护理步骤：{context.serviceRecord.careSteps || "未记录"}；使用产品：{context.serviceRecord.productsUsed || "未记录"}

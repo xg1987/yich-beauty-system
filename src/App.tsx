@@ -1,11 +1,8 @@
-import { Component, lazy, Suspense, useEffect, useState } from "react";
+import { Component, lazy, Suspense, useEffect } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import { APP_UPDATE_AVAILABLE_EVENT, dismissAppUpdatePrompt, installAppUpdateChecker, reloadForAppUpdate } from "./appUpdate";
 import { cleanUpdateRecoveryQuery, isRecoverableLoadError, recoverFromStaleAssets } from "./appRecovery";
 import AuthGate from "./app/AuthGate";
 import { RouteFallback, StartupRecovery } from "./components/AppLoadingViews";
-import { AppUpdatePrompt, appUpdateInfoFromEvent } from "./components/AppUpdatePrompt";
-import type { AppUpdateInfo } from "./components/AppUpdatePrompt";
 
 const DownloadGuidePage = lazy(() => import("./pages/public/DownloadGuidePage"));
 const PublicStoreRoute = lazy(() => import("./pages/public/PublicStoreRoute"));
@@ -34,16 +31,8 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 }
 
 export default function App() {
-  const [pendingUpdate, setPendingUpdate] = useState<AppUpdateInfo | null>(null);
-  const [updateRefreshing, setUpdateRefreshing] = useState(false);
-
   useEffect(() => {
     cleanUpdateRecoveryQuery();
-    const uninstallChecker = installAppUpdateChecker();
-    const handleAppUpdate = (event: Event) => {
-      const info = appUpdateInfoFromEvent(event);
-      if (info?.autoPrompt) setPendingUpdate(info);
-    };
     const handlePreloadError = (event: Event) => {
       event.preventDefault();
       void recoverFromStaleAssets();
@@ -54,39 +43,17 @@ export default function App() {
       void recoverFromStaleAssets();
     };
 
-    window.addEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
     window.addEventListener("vite:preloadError", handlePreloadError);
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
     return () => {
-      uninstallChecker();
-      window.removeEventListener(APP_UPDATE_AVAILABLE_EVENT, handleAppUpdate);
       window.removeEventListener("vite:preloadError", handlePreloadError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     };
   }, []);
 
-  const dismissUpdate = () => {
-    if (pendingUpdate) dismissAppUpdatePrompt(pendingUpdate.serverVersion);
-    setPendingUpdate(null);
-  };
-
-  const updateNow = () => {
-    if (!pendingUpdate) return;
-    setUpdateRefreshing(true);
-    void reloadForAppUpdate(pendingUpdate.serverVersion);
-  };
-
   return (
     <AppErrorBoundary>
       <AppRoutes />
-      {pendingUpdate && (
-        <AppUpdatePrompt
-          info={pendingUpdate}
-          updating={updateRefreshing}
-          onDismiss={dismissUpdate}
-          onUpdate={updateNow}
-        />
-      )}
     </AppErrorBoundary>
   );
 }

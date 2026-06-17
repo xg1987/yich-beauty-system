@@ -6691,6 +6691,22 @@ html[data-theme="day"],
   line-height: 1.65;
 }
 
+.signature-card-usage {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 12px;
+  background: rgba(249, 246, 255, 0.72);
+}
+
+.signature-card-usage p {
+  margin: 0;
+  color: #3d2279;
+  font-weight: 750;
+}
+
 .signature-record-image-panel {
   display: grid;
   gap: 10px;

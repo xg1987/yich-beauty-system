@@ -5,12 +5,11 @@ import type { AppData, UserRole, ViewKey } from "../domain/types";
 import type { UserSession } from "../domain/auth";
 import { checkAppUpdateStatus, reloadForAppUpdate } from "../appUpdate";
 import type { AppUpdateStatus } from "../appUpdate";
-import type { AppUpdateInfo } from "../components/AppUpdatePrompt";
 import packageJson from "../../package.json";
 
 type ThemeMode = "day" | "night";
 const APP_VERSION = packageJson.version;
-const APP_BUILD_DATE = "2026-06-12";
+const APP_BUILD_DATE = "2026-06-17";
 
 function displayRoleName(user: { account: string; role: UserRole; roleName: string }) {
   if (user.role === "superadmin") return "系统管理员";
@@ -145,7 +144,6 @@ export function SettingsView({
   uploadAccountAvatar,
   themeMode,
   setThemeMode,
-  initialUpdateInfo,
 }: {
   session: UserSession;
   setView: (view: ViewKey) => void;
@@ -154,7 +152,6 @@ export function SettingsView({
   uploadAccountAvatar: (file: File) => Promise<{ avatarUrl: string; key: string; size: number }>;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
-  initialUpdateInfo?: AppUpdateInfo | null;
 }) {
   const displayName = session.user.role === "superadmin" || session.user.name.toLowerCase().includes("admin") ? "admin" : session.user.name;
   const displayRole = displayRoleName(session.user);
@@ -166,16 +163,7 @@ export function SettingsView({
   const [saved, setSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | undefined>();
   const [avatarProcessing, setAvatarProcessing] = useState(false);
-  const [versionStatus, setVersionStatus] = useState<AppUpdateStatus | null>(
-    initialUpdateInfo
-      ? {
-        currentVersion: initialUpdateInfo.currentVersion,
-        serverVersion: initialUpdateInfo.serverVersion,
-        updateAvailable: true,
-        checkedAt: new Date().toISOString(),
-      }
-      : null,
-  );
+  const [versionStatus, setVersionStatus] = useState<AppUpdateStatus | null>(null);
   const [versionChecking, setVersionChecking] = useState(false);
   const [versionRefreshing, setVersionRefreshing] = useState(false);
 
@@ -238,21 +226,6 @@ export function SettingsView({
       .then(setVersionStatus)
       .finally(() => setVersionChecking(false));
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    setVersionChecking(true);
-    void checkAppUpdateStatus()
-      .then((status) => {
-        if (!cancelled) setVersionStatus(status);
-      })
-      .finally(() => {
-        if (!cancelled) setVersionChecking(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const updateVersion = () => {
     if (!versionStatus?.serverVersion || !versionStatus.updateAvailable) return;

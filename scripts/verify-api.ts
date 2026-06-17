@@ -1123,6 +1123,39 @@ try {
   const afterMultiPackageReload = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   const reloadedMultiPackageOrder = afterMultiPackageReload.orders.find((order) => order.id === afterMultiPackageCheckout.orders[0].id);
   assert.deepEqual(reloadedMultiPackageOrder?.serviceIds, ["v1", "v2"], "checkout API should persist order service ids through database reload");
+  const afterOpenLimitedPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c2",
+      name: "API 独立套餐卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 5, remainingTimes: 5 },
+        { serviceId: "v2", totalTimes: 1, remainingTimes: 1 },
+      ],
+      paidAmount: 1200,
+      payMethod: "支付宝",
+      expiresAt: "2027-12-31",
+    },
+  });
+  const limitedPackageCard = afterOpenLimitedPackageCard.memberCards[0];
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/checkout", {
+        method: "POST",
+        token: session.token,
+        body: {
+          customerId: "c2",
+          staffId: "s2",
+          serviceIds: ["v2", "v2"],
+          payMethod: "会员卡",
+          cardId: limitedPackageCard.id,
+        },
+      }),
+    /肩颈舒缓 SPA剩余次数不足/,
+    "checkout API should reject package card checkout when one service balance is insufficient",
+  );
   const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${apiCardId}/recharge`, {
     method: "POST",
     token: session.token,

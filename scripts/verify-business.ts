@@ -1748,6 +1748,22 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(opened.memberCards[0].remainingTimes, 13, "package card should sum per-service entitlement times");
+  assert.throws(
+    () =>
+      checkoutOrder(
+        opened,
+        {
+          customerId: opened.customers[0].id,
+          staffId: "s2",
+          serviceIds: ["v2", "v2", "v2", "v2"],
+          payMethod: "会员卡",
+          cardId: opened.memberCards[0].id,
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /肩颈舒缓 SPA剩余次数不足/,
+    "package card should reject checkout when selected service quantity exceeds that service balance",
+  );
   const checkedOutV2 = checkoutOrder(
     opened,
     {
