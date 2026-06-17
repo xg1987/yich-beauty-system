@@ -71,7 +71,7 @@ import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, 
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import { canvasToSignatureDataUrl } from "../lib/signatureImage";
-import { readCachedStoreName, writeCachedStoreName } from "../lib/storeNameCache";
+import { writeCachedStoreName } from "../lib/storeNameCache";
 import packageJson from "../../package.json";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
 
@@ -932,14 +932,12 @@ function initialInventoryModuleFromUrl(): InventoryModuleKey {
 }
 
 function LoadingGate({
-  storeName,
   stage,
   loading,
   error,
   refreshData,
   logout,
 }: {
-  storeName: string;
   stage: LoadingGateStage;
   loading: boolean;
   error?: string;
@@ -948,31 +946,21 @@ function LoadingGate({
 }) {
   const isError = Boolean(error);
   const showActions = isError || stage === "stalled";
-  const brandTitle = storeName || DEFAULT_SYSTEM_TITLE;
+  const title = isError ? "连接失败" : stage === "stalled" ? "连接较慢" : "正在进入系统";
+  const hint = isError ? "请检查网络后重试" : stage === "stalled" ? "数据加载时间较长，可以重试或退出后重新登录" : "正在准备业务数据";
 
   return (
-    <div className={`loading-page ${isError ? "is-error" : ""}`} aria-live="polite">
-      <section className="loading-minimal">
-        <div className="loading-brand">
-          <span aria-hidden="true" />
-          <strong>{brandTitle}</strong>
-          <span aria-hidden="true" />
-          <small>美业门店管理系统</small>
-        </div>
-        {isError && (
-          <div className="loading-error-copy">
-            <h1>连接失败</h1>
-            <p>请重试</p>
-          </div>
-        )}
-        {!isError && <div className="loading-progress" aria-hidden="true"><i /></div>}
-        {!isError && <small>请稍候</small>}
+    <div className={`app-route-loading app-data-loading ${isError ? "is-error" : ""}`} aria-live="polite">
+      <section className="app-route-loading-card" aria-busy={!isError && !showActions}>
+        <span className="app-route-loading-mark" aria-hidden="true" />
+        <strong>{title}</strong>
+        <small>{hint}</small>
         {showActions && (
-          <div className="loading-actions">
-            <button type="button" className="loading-action-primary" disabled={loading && !isError && stage !== "stalled"} onClick={() => void refreshData()}>
+          <div className="app-route-loading-actions">
+            <button type="button" className="app-route-loading-primary" disabled={loading && !isError && stage !== "stalled"} onClick={() => void refreshData()}>
               {loading && !isError && stage !== "stalled" ? "连接中" : "重试"}
             </button>
-            <button type="button" className="loading-action-secondary" onClick={logout}>
+            <button type="button" className="app-route-loading-secondary" onClick={logout}>
               退出
             </button>
           </div>
@@ -1135,7 +1123,6 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   if (!data) {
     return (
       <LoadingGate
-        storeName={readCachedStoreName(session)}
         stage={loadingGateStage}
         loading={loading}
         error={error}

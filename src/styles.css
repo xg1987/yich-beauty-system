@@ -743,6 +743,95 @@ button[aria-busy="true"] {
   color: #2d243d;
 }
 
+.app-route-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 250, 0.96)),
+    #f8fbfa;
+  color: #2f244f;
+}
+
+.app-route-loading-card {
+  width: min(360px, calc(100vw - 40px));
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px 16px;
+  border: 1px solid rgba(143, 128, 176, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 40px rgba(48, 35, 86, 0.08);
+  text-align: center;
+}
+
+.app-route-loading-card strong {
+  color: #2f244f;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.app-route-loading-card small {
+  color: #81779a;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.app-route-loading-mark {
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(93, 75, 128, 0.14);
+  border-top-color: #2f9d86;
+  border-radius: 999px;
+  animation: app-route-loading-spin 0.9s linear infinite;
+}
+
+.app-route-loading.is-error .app-route-loading-mark {
+  border-color: rgba(184, 70, 89, 0.18);
+  border-top-color: #b84659;
+}
+
+.app-route-loading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.app-route-loading-actions button {
+  min-width: 84px;
+  min-height: 36px;
+  border-radius: 8px;
+  font-weight: 760;
+}
+
+.app-route-loading-primary {
+  border: 1px solid #2f9d86;
+  background: #2f9d86;
+  color: #fff;
+}
+
+.app-route-loading-primary:disabled {
+  opacity: 0.58;
+}
+
+.app-route-loading-secondary {
+  border: 1px solid rgba(87, 72, 122, 0.16);
+  background: #fff;
+  color: #2f244f;
+}
+
+@keyframes app-route-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 620px) {
   .loading-brand {
     column-gap: 12px;

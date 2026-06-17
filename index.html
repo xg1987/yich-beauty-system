@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#4B168A" />
+    <meta name="theme-color" content="#F8FBFA" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="祝融坤锋美业" />
@@ -18,7 +18,7 @@
 
       body {
         margin: 0;
-        background: #4b168a;
+        background: #f8fbfa;
       }
 
       .startup-loading {
@@ -27,11 +27,8 @@
         display: grid;
         place-items: center;
         overflow: hidden;
-        background:
-          radial-gradient(circle at 50% 44%, rgba(255, 241, 196, 0.24), rgba(183, 133, 235, 0.2) 28%, transparent 62%),
-          radial-gradient(circle at 16% 14%, rgba(255, 255, 255, 0.1), transparent 34%),
-          linear-gradient(145deg, #7d43c6, #5b2aa3 48%, #321052);
-        color: #f7efff;
+        background: #f8fbfa;
+        color: #2f244f;
       }
 
       .startup-loading__inner {
@@ -42,62 +39,40 @@
         text-align: center;
       }
 
-      .startup-loading strong {
-        color: #d7ad55;
-        font-family: Songti SC, STSong, "Noto Serif CJK SC", SimSun, serif;
-        font-size: clamp(18px, 6vw, 24px);
-        font-weight: 900;
-        letter-spacing: 0.16em;
-      }
-
       .startup-loading small {
-        color: rgba(247, 239, 255, 0.72);
-        font-size: 11px;
-        font-weight: 760;
-        letter-spacing: 0.28em;
+        color: #81779a;
+        font-size: 13px;
+        font-weight: 650;
+        letter-spacing: 0;
       }
 
-      .startup-loading__bar {
-        width: min(280px, 72vw);
-        height: 4px;
-        overflow: hidden;
+      .startup-loading__mark {
+        width: 26px;
+        height: 26px;
+        border: 3px solid rgba(93, 75, 128, 0.14);
+        border-top-color: #2f9d86;
         border-radius: 999px;
-        background: rgba(28, 0, 58, 0.42);
+        animation: startup-loading-spin 0.9s linear infinite;
       }
 
-      .startup-loading__bar i {
-        display: block;
-        width: 78%;
-        height: 100%;
-        border-radius: inherit;
-        background: linear-gradient(90deg, #fff0b6, #d7ad55 56%, #f2e6ff);
-        animation: startup-loading-flow 1.8s ease-in-out infinite;
-      }
-
-      @keyframes startup-loading-flow {
-        0%,
-        100% {
-          transform: translate(-18%) scaleX(0.72);
-        }
-        50% {
-          transform: translate(34%) scaleX(0.96);
+      @keyframes startup-loading-spin {
+        to {
+          transform: rotate(360deg);
         }
       }
     </style>
-    <link rel="icon" href="/favicon.ico?v=0.1.278" sizes="any" />
-    <link rel="icon" type="image/png" href="/favicon-32x32.png?v=0.1.278" sizes="32x32" />
-    <link rel="icon" type="image/png" href="/favicon-16x16.png?v=0.1.278" sizes="16x16" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.1.278" />
-    <link rel="manifest" href="/manifest.webmanifest?v=0.1.278" />
+    <link rel="icon" href="/favicon.ico?v=0.1.295" sizes="any" />
+    <link rel="icon" type="image/png" href="/favicon-32x32.png?v=0.1.295" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/favicon-16x16.png?v=0.1.295" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.1.295" />
+    <link rel="manifest" href="/manifest.webmanifest?v=0.1.295" />
   </head>
   <body>
     <div id="root">
       <div class="startup-loading" role="status" aria-live="polite">
         <div class="startup-loading__inner">
-          <strong>祝融坤锋美业</strong>
-          <small>美业门店管理系统</small>
-          <span class="startup-loading__bar" aria-hidden="true"><i></i></span>
-          <small>请稍候</small>
+          <span class="startup-loading__mark" aria-hidden="true"></span>
+          <small>正在打开</small>
         </div>
       </div>
     </div>
