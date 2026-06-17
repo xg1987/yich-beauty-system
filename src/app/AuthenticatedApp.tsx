@@ -85,7 +85,7 @@ type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "batches" | "logs";
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
-type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
+type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; posSignatureId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
 type AiVideoResolution = "480p" | "720p" | "1080p";
@@ -1031,6 +1031,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
   const [posEntryCustomerId, setPosEntryCustomerId] = useState<string | undefined>();
+  const [posEntrySignatureId, setPosEntrySignatureId] = useState<string | undefined>();
   const [posEntryKey, setPosEntryKey] = useState(0);
   const [appointmentEntryId, setAppointmentEntryId] = useState<string | undefined>();
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>(() => initialViewFromUrl() === "inventory" ? initialInventoryModuleFromUrl() : undefined);
@@ -1112,6 +1113,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     setPosEntryModule(nextView === "pos" ? options?.posModule : undefined);
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
+    setPosEntrySignatureId(nextView === "pos" ? options?.posSignatureId : undefined);
     setAppointmentEntryId(nextView === "appointments" ? options?.appointmentId : undefined);
     if (nextView === "pos") setPosEntryKey((key) => key + 1);
     setInventoryEntryModule(nextView === "inventory" ? options?.inventoryModule : undefined);
@@ -1259,7 +1261,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               </Suspense>
             ) : <MemoDashboard data={data} session={session} setView={navigate} />)}
             {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} initialAppointmentId={appointmentEntryId} />}
-            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
+            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialSignatureId={posEntrySignatureId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
               <Suspense fallback={<ViewFallback title="营销中心" />}>
@@ -1896,7 +1898,7 @@ function EmployeeWorkDashboard({
               <article key={signature.id} className="employee-follow-card">
                 <strong>服务签名</strong>
                 <span>{nameOf(data.customers, signature.customerId)} · {signature.status}</span>
-                <button type="button" onClick={() => setView("pos", { posModule: "signature" })}>去签名</button>
+                <button type="button" onClick={() => setView("pos", { posModule: "signature", posSignatureId: signature.id })}>去签名</button>
               </article>
             ))}
             {followUpRows.map((followUp) => (
@@ -3511,6 +3513,7 @@ function Pos({
   initialModule,
   initialAppointmentId,
   initialCustomerId,
+  initialSignatureId,
   initialEntryKey = 0,
   onReturnManagement,
   onReturnAppointments,
@@ -3523,6 +3526,7 @@ function Pos({
   initialModule?: PosModuleKey;
   initialAppointmentId?: string;
   initialCustomerId?: string;
+  initialSignatureId?: string;
   initialEntryKey?: number;
   onReturnManagement?: () => void;
   onReturnAppointments?: () => void;
@@ -3566,6 +3570,7 @@ function Pos({
   const checkoutRequestIdRef = useRef(makeId("checkout"));
   const appliedInitialAppointmentRef = useRef<string | undefined>(undefined);
   const appliedInitialCustomerRef = useRef<string | undefined>(undefined);
+  const appliedInitialSignatureRef = useRef<string | undefined>(undefined);
   const cardCustomerDraftTouchedRef = useRef(false);
   const cardCustomerNameInputRef = useRef<HTMLInputElement | null>(null);
   const cardCustomerPhoneInputRef = useRef<HTMLInputElement | null>(null);
@@ -3988,6 +3993,12 @@ function Pos({
     setSelectedSignatureId(selectedCashierSignature.id);
     setActiveModule("signature");
   };
+  const closeSignatureCapture = () => {
+    setActiveModule("orders");
+    setSelectedSignatureId("");
+    setSignatureMessage(undefined);
+    setHasSignatureDrawing(false);
+  };
   useEffect(() => {
     const customerName = selectedSignature ? nameOf(data.customers, selectedSignature.customerId) : "";
     setSignatureSignerName(customerName === "-" ? "" : customerName);
@@ -4324,6 +4335,20 @@ function Pos({
     }
     if (fromManagement) setActiveModule(normalizePosModule("single"));
   }, [fromManagement, initialModule, initialEntryKey]);
+
+  useEffect(() => {
+    if (!initialSignatureId) {
+      appliedInitialSignatureRef.current = undefined;
+      return;
+    }
+    const entryId = `${initialEntryKey}:${initialSignatureId}`;
+    if (appliedInitialSignatureRef.current === entryId) return;
+    const targetSignature = data.customerSignatures.find((signature) => signature.id === initialSignatureId);
+    if (!targetSignature) return;
+    appliedInitialSignatureRef.current = entryId;
+    setSelectedSignatureId(targetSignature.id);
+    setActiveModule("signature");
+  }, [initialSignatureId, initialEntryKey, data.customerSignatures]);
 
   useEffect(() => {
     if (!initialCustomerId) {
@@ -5149,15 +5174,19 @@ function Pos({
         )}
       </div>
       </Modal>
-      {selectedSignatureCanComplete && selectedSignature && selectedSignatureContext && (
+      {activeModule === "signature" && selectedSignatureCanComplete && selectedSignature && selectedSignatureContext && (
         <div className="signature-capture-backdrop" role="dialog" aria-modal="true" aria-label="客户大屏签名">
           <section className="signature-capture-dialog">
             <div className="signature-capture-header">
-              <div>
+              <button type="button" className="signature-capture-return" onClick={closeSignatureCapture}>
+                <ArrowLeft size={18} />
+                <span>返回</span>
+              </button>
+              <div className="signature-capture-title">
                 <span>客户确认签名</span>
                 <strong>{selectedSignatureContext.customerName}</strong>
               </div>
-              <button type="button" onClick={() => setActiveModule("orders")} aria-label="关闭签名栏">
+              <button type="button" className="signature-capture-close" onClick={closeSignatureCapture} aria-label="关闭签名栏">
                 <X size={22} />
               </button>
             </div>
@@ -5214,7 +5243,7 @@ function Pos({
             {signatureMessage && <p className={signatureMessage.type === "success" ? "form-success" : "form-error"}>{signatureMessage.text}</p>}
             <div className="signature-capture-actions">
               <button type="button" onClick={clearSignatureDrawing}>清除</button>
-              <button type="button" onClick={() => setActiveModule("orders")}>取消</button>
+              <button type="button" onClick={closeSignatureCapture}>取消</button>
               <button type="button" className="signature-complete-button" disabled={mutationPending} onClick={signSelectedSignature}>
                 <LockKeyhole size={18} />
                 {mutationPending ? "正在保存签名..." : "确认签名"}
