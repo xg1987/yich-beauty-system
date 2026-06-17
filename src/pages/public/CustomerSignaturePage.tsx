@@ -1,4 +1,4 @@
-import { ClipboardList, LockKeyhole } from "lucide-react";
+import { ArrowLeft, ClipboardList, LockKeyhole } from "lucide-react";
 import { type FormEvent, type PointerEvent, type TouchEvent, useEffect, useRef, useState } from "react";
 import type { PublicCustomerSignaturePayload } from "../../api/client";
 import { BrandIcon } from "../../components/business/BrandIcon";
@@ -159,26 +159,35 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
 
   const signature = payload?.signature;
   const isSigned = signature?.status === "已签名";
+  const pageClassName = `public-store-page signature-page ${signature && !isSigned ? "signature-page-pending" : ""}`;
   const returnToSystem = () => {
     window.location.assign("/?view=pos");
   };
 
   return (
-    <div className="public-store-page signature-page">
+    <div className={pageClassName}>
       <main className="public-store-shell">
-        <section className="public-store-hero signature-hero">
-          <BrandIcon className="public-store-mark brand-icon-mark" />
-          <span>客户确认签名</span>
-          <h1>{signature?.title ?? "客户服务确认"}</h1>
-          <p>{payload?.customer ? `${payload.customer.name} · ${payload.customer.phone}` : "请核对服务内容后签名确认"}</p>
-          {signature && (
-            <div className="signature-hero-meta" aria-label="签名状态">
-              <span>{signature.status}</span>
-              {payload?.order && <span>{payload.order.orderNo}</span>}
-              {signature.expiresAt && <span>有效期至 {shortDate(signature.expiresAt)}</span>}
-            </div>
-          )}
-        </section>
+        <div className="signature-page-actions">
+          <button type="button" onClick={returnToSystem}>
+            <ArrowLeft size={18} />
+            返回系统
+          </button>
+        </div>
+        {(!signature || isSigned) && (
+          <section className="public-store-hero signature-hero">
+            <BrandIcon className="public-store-mark brand-icon-mark" />
+            <span>客户确认签名</span>
+            <h1>{signature?.title ?? "客户服务确认"}</h1>
+            <p>{payload?.customer ? `${payload.customer.name} · ${payload.customer.phone}` : "请核对服务内容后签名确认"}</p>
+            {signature && (
+              <div className="signature-hero-meta" aria-label="签名状态">
+                <span>{signature.status}</span>
+                {payload?.order && <span>{payload.order.orderNo}</span>}
+                {signature.expiresAt && <span>有效期至 {shortDate(signature.expiresAt)}</span>}
+              </div>
+            )}
+          </section>
+        )}
         <section className="public-store-panel">
           {loading && (
             <div className="signature-state-card">
@@ -202,9 +211,9 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                 </div>
                 {payload.order && (
                   <div className="signature-info-list">
-                    <span><small>订单</small>{payload.order.orderNo}</span>
-                    <span><small>项目</small>{payload.order.serviceName}</span>
-                    <span><small>实收</small>{money(payload.order.paidAmount)} · {payload.order.payMethod}</span>
+                    <span><small>订单</small><strong>{payload.order.orderNo}</strong></span>
+                    <span><small>项目</small><strong>{payload.order.serviceName}</strong></span>
+                    <span><small>实收</small><strong>{money(payload.order.paidAmount)} · {payload.order.payMethod}</strong></span>
                   </div>
                 )}
                 {payload.serviceRecord && (

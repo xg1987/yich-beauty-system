@@ -6414,6 +6414,31 @@ html[data-theme="day"],
   box-shadow: 0 24px 62px rgba(47, 27, 99, 0.12);
 }
 
+.signature-page-actions {
+  position: sticky;
+  top: max(10px, env(safe-area-inset-top));
+  z-index: 12;
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.signature-page-actions button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #2f255f;
+  font-size: 15px;
+  font-weight: 850;
+  box-shadow: 0 12px 28px rgba(47, 27, 99, 0.12);
+  backdrop-filter: blur(12px);
+}
+
 .signature-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 410px);
@@ -6459,8 +6484,9 @@ html[data-theme="day"],
 
 .signature-info-list {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
   border: 1px solid rgba(42, 143, 125, 0.12);
   border-radius: 16px;
   background: rgba(42, 143, 125, 0.08);
@@ -6469,17 +6495,36 @@ html[data-theme="day"],
 }
 
 .signature-info-list span {
-  display: grid;
-  gap: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(42, 143, 125, 0.1);
   color: #2f255f;
   font-weight: 700;
   line-height: 1.45;
 }
 
+.signature-info-list span:last-child {
+  border-bottom: 0;
+}
+
 .signature-info-list small {
+  flex: 0 0 auto;
   color: rgba(47, 37, 95, 0.58);
   font-size: 12px;
   font-weight: 760;
+}
+
+.signature-info-list strong {
+  min-width: 0;
+  color: #2f255f;
+  font-size: 14px;
+  font-weight: 860;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .signature-expiry {
@@ -6524,7 +6569,7 @@ html[data-theme="day"],
 .signature-canvas {
   display: block;
   width: 100%;
-  height: clamp(260px, 32dvh, 340px);
+  height: clamp(360px, 46dvh, 560px);
   touch-action: none;
 }
 
@@ -19302,6 +19347,16 @@ textarea,
     padding: 12px;
   }
 
+  .signature-page-actions {
+    top: max(8px, env(safe-area-inset-top));
+    margin-bottom: 10px;
+  }
+
+  .signature-page-actions button {
+    min-height: 42px;
+    padding: 0 14px;
+  }
+
   .signature-hero {
     min-height: 160px;
     padding: 26px 18px;
@@ -19321,6 +19376,99 @@ textarea,
 
   .signature-canvas {
     height: clamp(280px, 42dvh, 360px);
+  }
+
+.signature-page-pending .signature-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.signature-page-pending {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 250, 0.98));
+}
+
+.signature-page-pending .public-store-panel {
+  border-color: rgba(35, 119, 102, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 36px rgba(42, 143, 125, 0.08);
+}
+
+.signature-page-pending .signature-page-actions button {
+  border-color: rgba(35, 119, 102, 0.16);
+  background: rgba(255, 255, 255, 0.96);
+  color: #237766;
+  box-shadow: 0 10px 24px rgba(42, 143, 125, 0.1);
+}
+
+.signature-page-pending .signature-detail,
+.signature-page-pending .signature-form {
+  border-color: rgba(35, 119, 102, 0.14);
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(42, 143, 125, 0.08);
+}
+
+.signature-page-pending .signature-detail .panel-title h2,
+.signature-page-pending .signature-form .panel-title h2 {
+  color: #1f5f54;
+}
+
+.signature-page-pending .signature-content-card {
+  border-color: rgba(35, 119, 102, 0.12);
+  background: rgba(248, 252, 250, 0.96);
+}
+
+.signature-page-pending .signature-canvas-wrap {
+  border-color: rgba(35, 119, 102, 0.16);
+  background:
+    linear-gradient(rgba(35, 119, 102, 0.035) 1px, transparent 1px),
+    #fff;
+  background-size: 100% 42px;
+}
+
+.signature-page-pending .signature-form-actions {
+  border-color: rgba(35, 119, 102, 0.14);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -10px 24px rgba(42, 143, 125, 0.1);
+}
+
+.signature-page-pending .signature-form-actions .secondary-button {
+  border-color: rgba(35, 119, 102, 0.22);
+  background: #fff;
+  color: #237766;
+}
+
+.signature-page-pending .signature-form-actions .primary-button {
+  border-color: rgba(35, 119, 102, 0.18);
+  background: linear-gradient(135deg, #2a8f7d, #1f6f61);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(42, 143, 125, 0.22);
+}
+
+  .signature-page-pending .signature-form {
+    order: 2;
+  }
+
+  .signature-page-pending .signature-detail {
+    order: 1;
+  }
+
+  .signature-page-pending .signature-canvas {
+    height: clamp(460px, 58dvh, 660px);
+  }
+
+  .signature-page-pending .signature-form-actions {
+    position: sticky;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 8;
+    padding: 8px;
+    margin: 0 -8px -8px;
+    border: 1px solid rgba(111, 66, 193, 0.12);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 -12px 28px rgba(47, 27, 99, 0.12);
+    backdrop-filter: blur(12px);
   }
 
   .refund-inline-signature {
@@ -19559,6 +19707,118 @@ textarea,
 }
 
 @media (max-width: 767px) {
+  .signature-page {
+    padding: 8px;
+  }
+
+  .signature-page-actions {
+    top: max(6px, env(safe-area-inset-top));
+    margin-bottom: 8px;
+  }
+
+  .signature-page-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .signature-page-pending .signature-hero {
+    min-height: 0;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .signature-page-pending .signature-hero h1 {
+    font-size: 22px;
+    line-height: 1.12;
+  }
+
+  .signature-page-pending .signature-hero p {
+    margin: 0;
+  }
+
+  .signature-page-pending .signature-hero-meta {
+    gap: 6px;
+  }
+
+  .signature-page-pending .public-store-panel {
+    padding: 8px;
+  }
+
+  .signature-page-pending .signature-detail,
+  .signature-page-pending .signature-form {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .signature-page-pending .signature-detail {
+    gap: 10px;
+  }
+
+  .signature-page-pending .signature-form {
+    gap: 10px;
+    padding-bottom: 92px;
+  }
+
+  .signature-page-pending .signature-content-card {
+    max-height: none;
+    overflow: visible;
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .signature-page-pending .signature-detail p {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .signature-page-pending .signature-info-list {
+    border-radius: 14px;
+  }
+
+  .signature-page-pending .signature-info-list span {
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+
+  .signature-page-pending .signature-info-list strong {
+    font-size: 13px;
+  }
+
+  .signature-page-pending .signature-form input {
+    min-height: 44px;
+  }
+
+  .signature-page-pending .signature-canvas-wrap {
+    margin-top: 6px;
+  }
+
+  .signature-page-pending .signature-canvas {
+    height: clamp(520px, 66dvh, 720px);
+  }
+
+  .signature-page-pending .signature-form-actions {
+    position: fixed;
+    right: 16px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 16px;
+    margin: 0;
+    border-color: rgba(35, 119, 102, 0.14);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -10px 24px rgba(42, 143, 125, 0.1);
+  }
+
+  .signature-page-pending .signature-form-actions .secondary-button {
+    border-color: rgba(35, 119, 102, 0.22);
+    background: #fff;
+    color: #237766;
+  }
+
+  .signature-page-pending .signature-form-actions .primary-button {
+    border-color: rgba(35, 119, 102, 0.18);
+    background: linear-gradient(135deg, #2a8f7d, #1f6f61);
+    color: #fff;
+  }
+
   .signature-capture-backdrop {
     padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
   }
