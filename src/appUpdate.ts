@@ -17,12 +17,7 @@ const API_BASE_URL = (import.meta as unknown as { env?: { VITE_API_BASE_URL?: st
 export const CURRENT_APP_VERSION = packageJson.version;
 const CHECK_INTERVAL_MS = 60_000;
 const STARTUP_CHECK_DELAY_MS = 3_000;
-const DISMISSED_UPDATE_KEY = "yich-dismissed-update-version";
-const DISMISSED_UPDATE_DATE_KEY = "yich-dismissed-update-date";
-const PROMPTED_UPDATE_DATE_KEY = "yich-prompted-update-date";
 export const APP_UPDATE_AVAILABLE_EVENT = "yich-app-update-available";
-
-let promptedVersion = "";
 
 export function installAppUpdateChecker() {
   if (typeof window === "undefined") return () => undefined;
@@ -53,27 +48,9 @@ export function installAppUpdateChecker() {
 }
 
 async function checkForAppUpdate({ allowAutoPrompt }: { allowAutoPrompt: boolean }) {
+  void allowAutoPrompt;
   try {
-    const status = await checkAppUpdateStatus({ manual: false });
-    const serverVersion = status.serverVersion;
-    if (!status.updateAvailable || !serverVersion) return;
-
-    const today = currentDateKey();
-    const dismissedVersion = readLocalValue(DISMISSED_UPDATE_KEY);
-    const dismissedDate = readLocalValue(DISMISSED_UPDATE_DATE_KEY);
-    const promptedDate = readLocalValue(PROMPTED_UPDATE_DATE_KEY);
-    const autoPrompt = allowAutoPrompt
-      && serverVersion !== promptedVersion
-      && !(serverVersion === dismissedVersion && dismissedDate === today)
-      && promptedDate !== today;
-    if (autoPrompt) {
-      promptedVersion = serverVersion;
-      writeLocalValue(PROMPTED_UPDATE_DATE_KEY, today);
-    }
-
-    window.dispatchEvent(new CustomEvent(APP_UPDATE_AVAILABLE_EVENT, {
-      detail: { currentVersion: CURRENT_APP_VERSION, serverVersion, autoPrompt },
-    }));
+    await checkAppUpdateStatus({ manual: false });
   } catch {
     // Network failures should not interrupt daily store operations.
   }
@@ -114,8 +91,7 @@ export async function checkAppUpdateStatus(options: { manual?: boolean } = { man
 }
 
 export function dismissAppUpdatePrompt(serverVersion: string) {
-  writeLocalValue(DISMISSED_UPDATE_KEY, serverVersion);
-  writeLocalValue(DISMISSED_UPDATE_DATE_KEY, currentDateKey());
+  void serverVersion;
 }
 
 export async function reloadForAppUpdate(serverVersion: string) {
@@ -152,45 +128,4 @@ async function clearBrowserCaches() {
   if (!("caches" in window)) return;
   const cacheNames = await window.caches.keys();
   await Promise.all(cacheNames.map((cacheName) => window.caches.delete(cacheName)));
-}
-
-function readSessionValue(key: string) {
-  try {
-    return window.sessionStorage?.getItem(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSessionValue(key: string, value: string) {
-  try {
-    window.sessionStorage?.setItem(key, value);
-  } catch {
-    // Storage can be unavailable in restricted browser contexts.
-  }
-}
-
-function readLocalValue(key: string) {
-  try {
-    return window.localStorage?.getItem(key) ?? readSessionValue(key);
-  } catch {
-    return readSessionValue(key);
-  }
-}
-
-function writeLocalValue(key: string, value: string) {
-  try {
-    window.localStorage?.setItem(key, value);
-    return;
-  } catch {
-    // Fall back to session storage below.
-  }
-  writeSessionValue(key, value);
-}
-
-function currentDateKey() {
-  const now = new Date();
-  const month = `${now.getMonth() + 1}`.padStart(2, "0");
-  const day = `${now.getDate()}`.padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
 }

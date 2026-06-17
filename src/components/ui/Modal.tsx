@@ -1,5 +1,5 @@
 import { ArrowLeft, X } from "lucide-react";
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 
 type ModalSize = "medium" | "large";
 
@@ -15,6 +15,8 @@ type ModalProps = {
 };
 
 export function Modal({ open, title, subtitle, children, footer, size = "medium", className, onClose }: ModalProps) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
 
@@ -31,6 +33,38 @@ export function Modal({ open, title, subtitle, children, footer, size = "medium"
     };
   }, [onClose, open]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const updateViewportSize = () => {
+      const visualViewport = window.visualViewport;
+      document.documentElement.style.setProperty("--yich-visual-viewport-height", `${visualViewport?.height ?? window.innerHeight}px`);
+      document.documentElement.style.setProperty("--yich-visual-viewport-offset-top", `${visualViewport?.offsetTop ?? 0}px`);
+    };
+    const keepFocusedControlVisible = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!dialogRef.current?.contains(target)) return;
+      if (!target.matches("input, select, textarea")) return;
+      window.setTimeout(() => {
+        target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+      }, 120);
+    };
+
+    updateViewportSize();
+    window.visualViewport?.addEventListener("resize", updateViewportSize);
+    window.visualViewport?.addEventListener("scroll", updateViewportSize);
+    window.addEventListener("resize", updateViewportSize);
+    document.addEventListener("focusin", keepFocusedControlVisible);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateViewportSize);
+      window.visualViewport?.removeEventListener("scroll", updateViewportSize);
+      window.removeEventListener("resize", updateViewportSize);
+      document.removeEventListener("focusin", keepFocusedControlVisible);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -38,6 +72,7 @@ export function Modal({ open, title, subtitle, children, footer, size = "medium"
       <section
         aria-modal="true"
         className={["system-modal", size, className].filter(Boolean).join(" ")}
+        ref={dialogRef}
         role="dialog"
         aria-labelledby="system-modal-title"
         onMouseDown={(event) => event.stopPropagation()}

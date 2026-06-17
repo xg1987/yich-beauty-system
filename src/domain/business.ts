@@ -4996,6 +4996,28 @@ export function signCustomerSignature(
         ? [linkedOrder.serviceId]
         : []
     : [];
+  if (linkedOrder && !alreadyDebited && linkedOrderServiceIds.length > 0 && !debitCard) {
+    const relevantProjectCards = data.memberCards.filter((card) =>
+      card.customerId === linkedOrder.customerId
+      && card.status === "正常"
+      && card.type !== "储值卡"
+      && card.type !== "折扣卡"
+      && linkedOrderServiceIds.some((serviceId) => memberCardSupportsService(card, serviceId)),
+    );
+    if (relevantProjectCards.length > 0) {
+      const shortfalls = Array.from(serviceQuantityCounts(linkedOrderServiceIds))
+        .map(([serviceId, quantity]) => {
+          const available = relevantProjectCards.reduce((max, card) =>
+            Math.max(max, memberCardRemainingForService(card, serviceId)),
+          0);
+          return available < quantity
+            ? `${data.services.find((service) => service.id === serviceId)?.name ?? "当前项目"}剩余${available}次，本次需要${quantity}次`
+            : "";
+        })
+        .filter(Boolean);
+      throw new Error(shortfalls.length ? `会员卡项目次数不足：${shortfalls.join("；")}` : "会员卡项目次数不足，不能完成签名扣卡");
+    }
+  }
   const memberCards = debitCard
     ? data.memberCards.map((card) => {
         if (card.id !== debitCard.id || !linkedOrder) return card;

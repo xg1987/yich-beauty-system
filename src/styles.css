@@ -8312,6 +8312,194 @@ textarea,
   min-height: clamp(300px, 42dvh, 430px);
 }
 
+.signature-panel-ready {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid rgba(35, 119, 102, 0.18);
+  border-radius: 14px;
+  background: rgba(237, 249, 243, 0.78);
+  color: #2f255f;
+}
+
+.signature-panel-ready strong {
+  color: #237766;
+  font-size: 17px;
+}
+
+.signature-panel-ready span {
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.signature-capture-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  background: rgba(31, 18, 61, 0.52);
+  backdrop-filter: blur(14px);
+}
+
+.signature-capture-dialog {
+  width: min(1120px, 100%);
+  max-height: min(92dvh, 920px);
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+  gap: 14px;
+  overflow: hidden;
+  padding: 22px;
+  border: 1px solid rgba(208, 194, 238, 0.72);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(249, 246, 255, 0.96));
+  box-shadow: 0 28px 80px rgba(31, 18, 61, 0.32);
+}
+
+.signature-capture-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.signature-capture-header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.signature-capture-header span,
+.signature-capture-summary small,
+.signature-capture-name,
+.signature-capture-canvas-label {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.signature-capture-header strong {
+  color: #2f255f;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.08;
+}
+
+.signature-capture-header button {
+  width: 52px;
+  height: 52px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 16px;
+  background: #fff;
+  color: #2f255f;
+}
+
+.signature-capture-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.signature-capture-summary > span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #2f255f;
+  font-size: 15px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.signature-capture-card-usage {
+  display: grid;
+  gap: 8px;
+}
+
+.signature-capture-card-usage p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(35, 119, 102, 0.16);
+  border-radius: 12px;
+  background: rgba(237, 249, 243, 0.75);
+  color: #2f255f;
+}
+
+.signature-capture-card-usage p.blocked {
+  border-color: rgba(207, 65, 104, 0.22);
+  background: rgba(255, 244, 248, 0.86);
+}
+
+.signature-capture-card-usage strong {
+  color: #237766;
+}
+
+.signature-capture-card-usage .blocked strong {
+  color: #a83251;
+}
+
+.signature-capture-card-usage span {
+  color: rgba(47, 37, 95, 0.72);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.signature-capture-name,
+.signature-capture-canvas-label {
+  display: grid;
+  gap: 8px;
+}
+
+.signature-capture-canvas-label {
+  min-height: 0;
+}
+
+.signature-capture-name input {
+  min-height: 48px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 12px;
+  background: #fff;
+  color: #2f255f;
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.signature-capture-canvas-wrap,
+.signature-capture-canvas {
+  min-height: clamp(360px, 48dvh, 520px);
+}
+
+.signature-capture-canvas {
+  height: clamp(360px, 48dvh, 520px);
+}
+
+.signature-capture-actions {
+  position: static;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(110px, 0.7fr) minmax(180px, 1.4fr);
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+  background: transparent;
+}
+
+.signature-capture-actions button {
+  height: 50px;
+  min-height: 50px;
+  justify-content: center;
+  border-radius: 14px;
+}
+
 @media (max-width: 1100px) {
   .signature-form .signature-canvas {
     height: clamp(300px, 38dvh, 390px);
@@ -8324,6 +8512,10 @@ textarea,
 
   .refund-inline-signature .signature-canvas {
     height: clamp(320px, 45dvh, 420px);
+  }
+
+  .signature-capture-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -19132,6 +19324,106 @@ textarea,
     height: clamp(300px, 48dvh, 380px);
   }
 
+  .signature-capture-backdrop {
+    align-items: stretch;
+    justify-items: stretch;
+    padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .signature-capture-dialog {
+    width: 100%;
+    height: calc(var(--yich-visual-viewport-height, 100dvh) - 16px);
+    max-height: calc(var(--yich-visual-viewport-height, 100dvh) - 16px);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+    gap: 6px;
+    overflow: hidden;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .signature-capture-header strong {
+    font-size: 28px;
+  }
+
+  .signature-capture-header button {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+
+  .signature-capture-summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .signature-capture-summary > span {
+    gap: 2px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .signature-capture-card-usage p {
+    display: grid;
+    gap: 2px;
+    padding: 6px 8px;
+  }
+
+  .signature-capture-card-usage span {
+    font-size: 12px;
+  }
+
+  .signature-capture-name,
+  .signature-capture-canvas-label {
+    gap: 5px;
+  }
+
+  .signature-capture-name input {
+    min-height: 38px;
+    font-size: 16px;
+  }
+
+  .signature-capture-canvas-label {
+    min-height: 0;
+  }
+
+  .signature-capture-canvas-wrap {
+    height: 100%;
+  }
+
+  .signature-capture-canvas-wrap,
+  .signature-capture-canvas {
+    min-height: 0;
+  }
+
+  .signature-capture-canvas {
+    height: 100%;
+  }
+
+  .signature-capture-actions {
+    position: static;
+    grid-template-columns: 0.8fr 0.8fr 1.4fr;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+    padding-bottom: max(2px, env(safe-area-inset-bottom));
+    background: transparent;
+  }
+
+  .signature-capture-actions button {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 8px;
+    border-radius: 12px;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .signature-capture-actions .signature-complete-button {
+    height: 44px;
+    min-height: 44px;
+    gap: 6px;
+  }
+
   .signature-canvas-wrap > span {
     inset: auto 14px 18px;
     text-align: center;
@@ -19144,6 +19436,113 @@ textarea,
   .signature-record-meta,
   .signature-record-content {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .signature-capture-backdrop {
+    padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
+  }
+
+  .signature-capture-dialog {
+    height: calc(var(--yich-visual-viewport-height, 100dvh) - 12px);
+    max-height: calc(var(--yich-visual-viewport-height, 100dvh) - 12px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    padding: 8px;
+    border-radius: 16px;
+  }
+
+  .signature-capture-header {
+    flex: 0 0 auto;
+  }
+
+  .signature-capture-header span {
+    display: none;
+  }
+
+  .signature-capture-header strong {
+    font-size: 20px;
+    line-height: 1.1;
+  }
+
+  .signature-capture-header button {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .signature-capture-summary,
+  .signature-capture-name {
+    display: none;
+  }
+
+  .signature-capture-card-usage {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  .signature-capture-card-usage p {
+    min-height: 0;
+    padding: 5px 8px;
+    border-radius: 10px;
+  }
+
+  .signature-capture-card-usage strong,
+  .signature-capture-card-usage span {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .signature-capture-canvas-label {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    font-size: 0;
+  }
+
+  .signature-capture-canvas-label > .signature-canvas-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+  }
+
+  .signature-capture-canvas-wrap,
+  .signature-capture-canvas {
+    min-height: 0;
+  }
+
+  .signature-capture-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .signature-capture-canvas .signature-canvas-placeholder {
+    font-size: 13px;
+  }
+
+  .signature-capture-actions {
+    flex: 0 0 auto;
+    position: static;
+    display: grid;
+    grid-template-columns: 0.8fr 0.8fr 1.35fr;
+    gap: 7px;
+    padding: 4px 0 max(2px, env(safe-area-inset-bottom));
+    background: transparent;
+  }
+
+  .signature-capture-actions button,
+  .signature-capture-actions .signature-complete-button {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 6px;
+    border-radius: 11px;
+    font-size: 14px;
+    line-height: 1;
   }
 }
 
@@ -28765,22 +29164,25 @@ img.brand-icon-mark {
   .modal-backdrop {
     --modal-header-safe: var(--yich-topbar-h, 72px);
     --modal-mobile-top: 8px;
-    --modal-mobile-bottom: max(112px, calc(92px + env(safe-area-inset-bottom)));
-    inset: var(--modal-header-safe) 0 0;
+    --modal-mobile-bottom: max(12px, env(safe-area-inset-bottom));
+    inset: calc(var(--modal-header-safe) + var(--yich-visual-viewport-offset-top, 0px)) 0 auto;
+    min-height: 0;
+    height: calc(var(--yich-visual-viewport-height, 100dvh) - var(--modal-header-safe));
     display: grid;
     place-items: start center;
     align-items: start;
     justify-items: center;
     padding: var(--modal-mobile-top) 8px var(--modal-mobile-bottom);
-    overflow: hidden;
+    overflow: auto;
+    overscroll-behavior: contain;
   }
 
   .system-modal,
   .system-modal.large {
     width: 100%;
     max-width: 100%;
-    height: calc(100dvh - var(--modal-header-safe) - var(--modal-mobile-top) - var(--modal-mobile-bottom));
-    max-height: calc(100dvh - var(--modal-header-safe) - var(--modal-mobile-top) - var(--modal-mobile-bottom));
+    height: calc(var(--yich-visual-viewport-height, 100dvh) - var(--modal-header-safe) - var(--modal-mobile-top) - var(--modal-mobile-bottom));
+    max-height: calc(var(--yich-visual-viewport-height, 100dvh) - var(--modal-header-safe) - var(--modal-mobile-top) - var(--modal-mobile-bottom));
     min-height: 0;
     margin: 0;
     border-radius: 18px;
@@ -28819,11 +29221,33 @@ img.brand-icon-mark {
   }
 
   .system-modal-body > .module-detail-stack {
-    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    padding-bottom: max(72px, env(safe-area-inset-bottom));
   }
 
   .system-modal-footer {
     padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+  }
+
+  .inventory-modal-detail form.form > .primary-button,
+  .catalog-modal-detail form.form > .primary-button,
+  .inventory-modal-detail .form-submit-row,
+  .catalog-modal-detail .form-submit-row {
+    position: sticky;
+    bottom: 0;
+    z-index: 8;
+    width: 100%;
+    padding: 10px 0 max(8px, env(safe-area-inset-bottom));
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.94) 24%, rgba(255, 255, 255, 0.98));
+    backdrop-filter: blur(8px);
+  }
+
+  .inventory-modal-detail form.form > .primary-button,
+  .catalog-modal-detail form.form > .primary-button,
+  .inventory-modal-detail .form-submit-row .primary-button,
+  .catalog-modal-detail .form-submit-row .primary-button {
+    width: 100%;
+    min-height: 48px;
   }
 }
 

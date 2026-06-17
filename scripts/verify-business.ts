@@ -1937,6 +1937,52 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "签名不足客户",
+      customerPhone: "13800001982",
+      name: "不足项目护理卡",
+      type: "套餐卡",
+      remainingTimes: 0,
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 3, remainingTimes: 3 },
+        { serviceId: "v2", totalTimes: 1, remainingTimes: 1 },
+      ],
+      paidAmount: 1980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const checkedOut = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceIds: ["v2", "v2"],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.throws(
+    () =>
+      signCustomerSignature(
+        checkedOut,
+        {
+          token: checkedOut.customerSignatures[0].token,
+          signerName: "签名不足客户",
+          signatureText: "data:image/png;base64,insufficient",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /肩颈舒缓 SPA剩余1次，本次需要2次/,
+    "signature completion should reject service-card deduction when the selected service balance is insufficient",
+  );
+}
+
+{
   const lowBalanceData = cloneSeed();
   lowBalanceData.memberCards = lowBalanceData.memberCards.map((item) =>
     item.id === "m1" ? { ...item, balance: 1 } : item,

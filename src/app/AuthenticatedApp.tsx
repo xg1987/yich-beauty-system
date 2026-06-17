@@ -37,6 +37,7 @@ import {
   Trash2,
   UserRound,
   UsersRound,
+  X,
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "../components/business/AccountMenu";
@@ -431,34 +432,6 @@ export function downloadCsvFile(filename: string, columns: Array<string | number
 
 const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
 const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
-export const permissionLabels: Record<Permission, string> = {
-  "dashboard:view": "今日总览",
-  "appointments:manage": "预约管理",
-  "pos:manage": "开单收银",
-  "customers:manage": "客户档案",
-  "marketing:manage": "营销中心",
-  "catalog:manage": "项目商品",
-  "staff:view": "查看员工",
-  "staff:manage": "员工管理",
-  "commissions:settle": "提成结算",
-  "inventory:manage": "库存管理",
-  "reports:view": "报表分析",
-  "approvals:manage": "审批中心",
-  "logs:view": "操作日志",
-  "settings:view": "系统设置",
-};
-export const permissionOptions = (Object.keys(permissionLabels) as Permission[]).map((permission) => ({
-  value: permission,
-  label: permissionLabels[permission],
-}));
-export const roleScopeLabels: Record<UserRole, string> = {
-  superadmin: "平台级",
-  owner: "门店全部",
-  manager: "门店管理",
-  frontdesk: "到店业务",
-  therapist: "预约按门店开关",
-  finance: "财务处理",
-};
 
 function dateInputValue(date = new Date()) {
   const year = date.getFullYear();
@@ -475,7 +448,8 @@ function addMonthsInputValue(months: number, baseDate = new Date()) {
 }
 
 function productExpiryText(product: Product) {
-  return product.expiryAt ? shortDate(product.expiryAt) : "未设置";
+  if (!product.expiryAt) return "未设置";
+  return /^\d{4}-\d{2}-\d{2}$/.test(product.expiryAt) ? product.expiryAt.replace(/-/g, "/") : shortDate(product.expiryAt);
 }
 
 function productShelfLifeText(product: Product) {
@@ -1638,192 +1612,6 @@ function ManagementCenter({
       </Modal>
     </div>
   );
-}
-
-function managementEntryDetails(
-  item: { title: string; desc: string; icon: typeof LayoutDashboard; tone: ModuleTone; view?: ViewKey },
-  data: AppData,
-  session: UserSession,
-) {
-  const today = new Date();
-  const todayAppointments = data.appointments.filter((appointment) => new Date(appointment.startAt).toDateString() === today.toDateString());
-  const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
-  const todayRevenue = todayOrders.reduce((sum, order) => sum + order.paidAmount, 0);
-  const totalRevenue = data.orders.reduce((sum, order) => sum + order.paidAmount, 0);
-  const activeCards = data.memberCards.filter((card) => card.status === "正常").length;
-  const pendingApprovals = data.approvalRequests.filter((request) => request.status === "待审批").length;
-  const lowStock = data.products.filter((product) => product.stock <= product.warningStock).length;
-  const businessStaff = businessStaffOf(data);
-  const rooms = roomNamesOf(data);
-  const maintenanceRooms = maintenanceRoomNamesOf(data, rooms).length;
-  const operationLogs = data.operationLogs ?? [];
-  const Icon = item.icon;
-  const base = {
-    tone: item.tone,
-    icon: <Icon size={24} />,
-    label: item.title,
-    value: item.view ? viewTitles[item.view] : item.title,
-    description: item.desc,
-  };
-
-  if (item.view === "appointments") {
-    return {
-      ...base,
-      value: `${todayAppointments.length} 单`,
-      items: [
-        { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "已预约、待确认和已完成" },
-        { label: "房间数量", value: `${rooms.length} 间`, hint: "来自房间设置" },
-        { label: "维护房间", value: `${maintenanceRooms} 间`, hint: "预约不可选择" },
-      ],
-    };
-  }
-  if (item.view === "pos") {
-    return {
-      ...base,
-      value: money(todayRevenue),
-      items: [
-        { label: "今日收款", value: money(todayRevenue), hint: `${todayOrders.length} 笔订单` },
-        { label: "累计实收", value: money(totalRevenue), hint: "全部订单实收" },
-        { label: "有效会员卡", value: `${activeCards} 张`, hint: "可用于卡扣" },
-      ],
-    };
-  }
-  if (item.view === "customers") {
-    return {
-      ...base,
-      value: `${data.customers.length} 位`,
-      items: [
-        { label: "客户总数", value: `${data.customers.length} 位`, hint: "门店客户档案" },
-        { label: "有效项目卡", value: `${activeCards} 张`, hint: "客户资产" },
-        { label: "待签名", value: `${data.customerSignatures.filter((signature) => signature.status === "待签名").length} 份`, hint: "客户确认签名" },
-      ],
-    };
-  }
-  if (item.view === "catalog") {
-    return {
-      ...base,
-      value: `${data.services.length + data.products.length} 项`,
-      items: [
-        { label: "服务项目", value: `${data.services.length} 项`, hint: "预约和开单可选" },
-        { label: "商品资料", value: `${data.products.length} 项`, hint: "库存商品" },
-        { label: "低库存", value: `${lowStock} 项`, hint: "需要补货或盘点" },
-      ],
-    };
-  }
-  if (item.view === "staff") {
-    const scopedCommissions = session.user.staffId
-      ? data.commissions.filter((commission) => commission.staffId === session.user.staffId)
-      : data.commissions;
-    return {
-      ...base,
-      value: `${businessStaff.length} 人`,
-      items: [
-        { label: "员工档案", value: `${businessStaff.length} 人`, hint: "岗位、状态和账号" },
-        { label: "提成记录", value: `${scopedCommissions.length} 条`, hint: "按权限查看" },
-        { label: "待结算", value: money(scopedCommissions.filter((commission) => commission.status === "待结算").reduce((sum, commission) => sum + commission.amount, 0)), hint: "当前待处理" },
-      ],
-    };
-  }
-  if (item.view === "inventory") {
-    return {
-      ...base,
-      value: `${lowStock} 项`,
-      items: [
-        { label: "低库存", value: `${lowStock} 项`, hint: "低于安全库存" },
-        { label: "商品资料", value: `${data.products.length} 项`, hint: "库存基础资料" },
-        { label: "库存流水", value: `${data.inventoryLogs.length} 条`, hint: "出入库和盘点" },
-      ],
-    };
-  }
-  if (item.view === "reports") {
-    return {
-      ...base,
-      value: money(todayRevenue),
-      items: [
-        { label: "今日实收", value: money(todayRevenue), hint: "当天收入" },
-        { label: "今日订单", value: `${todayOrders.length} 单`, hint: "当天收银记录" },
-        { label: "累计实收", value: money(totalRevenue), hint: "经营汇总" },
-      ],
-    };
-  }
-  if (item.view === "approvals" || item.view === "permissions") {
-    return {
-      ...base,
-      value: `${pendingApprovals} 单`,
-      items: [
-        { label: "待审批", value: `${pendingApprovals} 单`, hint: "需要处理" },
-        { label: "已通过", value: `${data.approvalRequests.filter((request) => request.status === "已通过").length} 单`, hint: "审批结果" },
-        { label: "已拒绝", value: `${data.approvalRequests.filter((request) => request.status === "已拒绝").length} 单`, hint: "审批结果" },
-      ],
-    };
-  }
-  if (item.view === "logs") {
-    return {
-      ...base,
-      value: `${operationLogs.length} 条`,
-      items: [
-        { label: "操作记录", value: `${operationLogs.length} 条`, hint: "登录和业务操作" },
-        { label: "操作类型", value: `${new Set(operationLogs.map((log) => log.action)).size} 类`, hint: "审计范围" },
-        { label: "账号数量", value: `${data.authUsers.length} 个`, hint: "可追溯账号" },
-      ],
-    };
-  }
-  if (item.view === "accounts") {
-    return {
-      ...base,
-      value: `${data.authUsers.length} 个`,
-      items: [
-        { label: "账号数量", value: `${data.authUsers.length} 个`, hint: "平台和门店账号" },
-        { label: "员工档案", value: `${businessStaff.length} 人`, hint: "可绑定账号" },
-        { label: "待加入邀请", value: `${data.staffInvites.filter((invite) => invite.status === "待加入").length} 个`, hint: "邀请码状态" },
-      ],
-    };
-  }
-  if (item.view === "usage") {
-    return {
-      ...base,
-      value: "实时读取",
-      items: [
-        { label: "Worker 指标", value: "实时", hint: "进入页面后读取请求量" },
-        { label: "R2 容量", value: "实时", hint: "进入页面后读取存储用量" },
-        { label: "系统配置", value: `${data.systemConfigs?.length ?? 0} 项`, hint: "平台设置" },
-      ],
-    };
-  }
-  if (item.view === "aiConfig") {
-    const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
-    const enabledVideoProviders = aiConfig.video.providers.filter((provider) => provider.enabled).length;
-    return {
-      ...base,
-      value: "3 类能力",
-      items: [
-        { label: "文案模型", value: AI_PROVIDER_LABELS[aiConfig.copy.provider], hint: aiConfig.copy.model },
-        { label: "图片模型", value: AI_PROVIDER_LABELS[aiConfig.image.provider], hint: aiConfig.image.model },
-        { label: "视频模型", value: `${enabledVideoProviders} 个`, hint: "Seedance / Kling / 海螺" },
-      ],
-    };
-  }
-  if (item.view === "aiTest") {
-    const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
-    const enabledVideoProviders = aiConfig.video.providers.filter((provider) => provider.enabled).length;
-    return {
-      ...base,
-      value: "3 项试跑",
-      items: [
-        { label: "文案对话", value: aiConfig.copy.enabled ? "可测试" : "停用", hint: aiConfig.copy.model },
-        { label: "图片生成", value: aiConfig.image.enabled ? "可测试" : "停用", hint: aiConfig.image.model },
-        { label: "视频任务", value: `${enabledVideoProviders} 个`, hint: "创建 / 查询任务" },
-      ],
-    };
-  }
-  return {
-    ...base,
-    items: [
-      { label: "今日预约", value: `${todayAppointments.length} 单`, hint: "今日总览统计" },
-      { label: "今日收款", value: money(todayRevenue), hint: "经营统计" },
-      { label: "待审批", value: `${pendingApprovals} 单`, hint: "管理事项" },
-    ],
-  };
 }
 
 function workbarForView(view: ViewKey, posModule?: PosModuleKey, employeeMode = false): WorkbarKey {
@@ -3987,6 +3775,16 @@ function Pos({
   const checkoutMemberCardBlockedText = checkoutBlockedCardUsageRows
     .map((row) => `${row.name}：${row.remainingText}，${row.requiredText}`)
     .join("；");
+  const checkoutServiceCardBlocked = Boolean(
+    usesCustomer
+    && usesService
+    && selectedServiceRows.length > 0
+    && selectedCustomerProjectCards.length > 0
+    && !selectedCustomerProjectCards.some((card) => checkoutCardServiceUsageRows(card).every((row) => !row.blocked)),
+  );
+  const checkoutServiceCardBlockedText = selectedServiceRows
+    .map(({ service, quantity }) => `${service.name} 本单需 ${quantity} 次`)
+    .join("；");
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashIn(transaction) > 0);
@@ -3996,18 +3794,25 @@ function Pos({
     + todayMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
   const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
   const selectedSignatureContext = selectedSignature ? signatureRecordContext(data, selectedSignature) : undefined;
+  const selectedSignatureCardUsageRows = selectedSignatureContext?.order ? signatureMemberCardUsageRows(data, selectedSignatureContext.order) : [];
+  const selectedSignatureServiceRows = selectedSignatureContext?.order ? signatureServiceQuantityRows(data, selectedSignatureContext.order) : [];
+  const selectedSignatureCardBlockedRows = selectedSignatureCardUsageRows.filter((row) => row.blocked);
   const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
   const selectedSignatureLinkedToOrder = selectedSignatureContext ? signatureRecordCanCompleteCheckout(selectedSignatureContext) : false;
+  const selectedSignatureCardBlocked = selectedSignatureCardBlockedRows.length > 0;
   const selectedSignatureCanComplete = Boolean(
     selectedSignature
     && selectedSignature.status === "待签名"
     && !selectedSignatureExpired
-    && selectedSignatureLinkedToOrder,
+    && selectedSignatureLinkedToOrder
+    && !selectedSignatureCardBlocked,
   );
   const selectedSignatureBlockMessage = selectedSignature && selectedSignature.status === "待签名" && !selectedSignatureCanComplete
     ? selectedSignatureExpired
       ? "签名链接已过期，请重新生成签名后再让客户确认。"
-      : "这条签名未关联收银订单，不能作为收银确认签名。"
+      : selectedSignatureCardBlocked
+        ? `会员卡项目次数不足，不能完成签名扣卡：${selectedSignatureCardBlockedRows.map((row) => `${row.serviceName} 剩 ${row.beforeText}，本次用 ${row.usedText}`).join("；")}`
+        : "这条签名未关联收银订单，不能作为收银确认签名。"
     : undefined;
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
@@ -4505,6 +4310,9 @@ function Pos({
     if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
     if (payMethod === "会员卡" && checkoutMemberCardBlocked) {
       messages.push(`会员卡项目次数不足，不能扣卡：${checkoutMemberCardBlockedText}`);
+    }
+    if (checkoutServiceCardBlocked) {
+      messages.push(`客户已购项目次数不足，不能继续开单：${checkoutServiceCardBlockedText}`);
     }
 
     if (messages.length > 0) {
@@ -5078,7 +4886,10 @@ function Pos({
           {checkoutMemberCardBlocked && (
             <p className="form-error">会员卡项目次数不足，不能扣卡：{checkoutMemberCardBlockedText}</p>
           )}
-          <button className="primary-button" disabled={checkoutSubmitting || checkoutCustomerSelectionInvalid || checkoutMemberCardBlocked}>
+          {checkoutServiceCardBlocked && (
+            <p className="form-error">客户已购项目次数不足，不能继续开单：{checkoutServiceCardBlockedText}</p>
+          )}
+          <button className="primary-button" disabled={checkoutSubmitting || checkoutCustomerSelectionInvalid || checkoutMemberCardBlocked || checkoutServiceCardBlocked}>
             {checkoutSubmitting ? "正在收银..." : "完成收银"}
           </button>
         </form>
@@ -5096,41 +4907,10 @@ function Pos({
           <p className="signature-blocked-message">{selectedSignatureBlockMessage}</p>
         )}
         {selectedSignatureCanComplete && (
-          <div className="refund-inline-signature">
-            <div className="checkout-product-section-head">
-              <span>现场签名</span>
-              <button type="button" onClick={clearSignatureDrawing}>清除签名</button>
-            </div>
-            <label>签名人姓名<input value={signatureSignerName} onChange={(event) => setSignatureSignerName(event.target.value)} /></label>
-            <label>
-              手写签名
-              <div className="signature-canvas-wrap">
-                <canvas
-                  ref={signatureCanvasRef}
-                  width={960}
-                  height={420}
-                  className="signature-canvas"
-                  onPointerDown={startSignatureDrawing}
-                  onPointerMove={drawSignature}
-                  onPointerUp={stopSignatureDrawing}
-                  onPointerCancel={stopSignatureDrawing}
-                  onTouchStart={startTouchSignatureDrawing}
-                  onTouchMove={drawTouchSignature}
-                  onTouchEnd={stopSignatureDrawing}
-                  onTouchCancel={stopSignatureDrawing}
-                />
-                {!hasSignatureDrawing && <span>请客户在此处手写签名</span>}
-              </div>
-            </label>
+          <div className="signature-panel-ready">
+            <strong>大屏签名栏已打开</strong>
+            <span>请客户在弹出的签名栏中确认本次服务和扣卡信息。</span>
             {signatureMessage && <p className={signatureMessage.type === "success" ? "form-success" : "form-error"}>{signatureMessage.text}</p>}
-          </div>
-        )}
-        {selectedSignatureCanComplete && (
-          <div className="signature-complete-actions">
-            <button type="button" className="signature-complete-button" disabled={mutationPending} onClick={signSelectedSignature}>
-              <LockKeyhole size={18} />
-              {mutationPending ? "正在保存签名..." : "完成客户签名"}
-            </button>
           </div>
         )}
         </section>
@@ -5211,6 +4991,80 @@ function Pos({
         )}
       </div>
       </Modal>
+      {selectedSignatureCanComplete && selectedSignature && selectedSignatureContext && (
+        <div className="signature-capture-backdrop" role="dialog" aria-modal="true" aria-label="客户大屏签名">
+          <section className="signature-capture-dialog">
+            <div className="signature-capture-header">
+              <div>
+                <span>客户确认签名</span>
+                <strong>{selectedSignatureContext.customerName}</strong>
+              </div>
+              <button type="button" onClick={() => setActiveModule("orders")} aria-label="关闭签名栏">
+                <X size={22} />
+              </button>
+            </div>
+            <div className="signature-capture-summary">
+              <span><small>收银内容</small>{selectedSignatureContext.serviceName}</span>
+              <span><small>服务人员</small>{selectedSignatureContext.staffName}</span>
+              <span><small>订单编号</small>{selectedSignatureContext.orderNo}</span>
+              <span><small>金额/支付</small>{selectedSignatureContext.order ? `${money(selectedSignatureContext.order.paidAmount)} · ${selectedSignatureContext.order.payMethod}` : "-"}</span>
+            </div>
+            {selectedSignatureCardUsageRows.length > 0 && (
+              <div className="signature-capture-card-usage">
+                {selectedSignatureCardUsageRows.map((row) => (
+                  <p className={row.blocked ? "blocked" : ""} key={row.key}>
+                    <strong>{row.cardName} · {row.serviceName}</strong>
+                    <span>本次用 {row.usedText}，扣前 {row.beforeText}，扣后剩 {row.afterText}（{row.statusText}）</span>
+                  </p>
+                ))}
+              </div>
+            )}
+            {selectedSignatureCardUsageRows.length === 0 && selectedSignatureServiceRows.length > 0 && (
+              <div className="signature-capture-card-usage">
+                {selectedSignatureServiceRows.map((row) => (
+                  <p key={`${row.serviceId}:service`}>
+                    <strong>{row.name}</strong>
+                    <span>本次服务 {row.quantity} 次，请客户确认服务内容无误。</span>
+                  </p>
+                ))}
+              </div>
+            )}
+            <label className="signature-capture-name">
+              签名人姓名
+              <input value={signatureSignerName} onChange={(event) => setSignatureSignerName(event.target.value)} />
+            </label>
+            <label className="signature-capture-canvas-label">
+              手写签名
+              <div className="signature-canvas-wrap signature-capture-canvas-wrap">
+                <canvas
+                  ref={signatureCanvasRef}
+                  width={960}
+                  height={420}
+                  className="signature-canvas signature-capture-canvas"
+                  onPointerDown={startSignatureDrawing}
+                  onPointerMove={drawSignature}
+                  onPointerUp={stopSignatureDrawing}
+                  onPointerCancel={stopSignatureDrawing}
+                  onTouchStart={startTouchSignatureDrawing}
+                  onTouchMove={drawTouchSignature}
+                  onTouchEnd={stopSignatureDrawing}
+                  onTouchCancel={stopSignatureDrawing}
+                />
+                {!hasSignatureDrawing && <span>请客户在此处手写签名</span>}
+              </div>
+            </label>
+            {signatureMessage && <p className={signatureMessage.type === "success" ? "form-success" : "form-error"}>{signatureMessage.text}</p>}
+            <div className="signature-capture-actions">
+              <button type="button" onClick={clearSignatureDrawing}>清除</button>
+              <button type="button" onClick={() => setActiveModule("orders")}>取消</button>
+              <button type="button" className="signature-complete-button" disabled={mutationPending} onClick={signSelectedSignature}>
+                <LockKeyhole size={18} />
+                {mutationPending ? "正在保存签名..." : "确认签名"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <Modal
         open={servicePickerOpen}
         title="选择项目"
@@ -6842,7 +6696,9 @@ function Catalog({
         <form className="form" onSubmit={addProduct}>
           <label>名称<input value={productName} onChange={(event) => setProductName(event.target.value)} required /></label>
           <label>初始库存<input type="number" value={productStock} onChange={(event) => setProductStock(Number(event.target.value))} /></label>
-          <SubmitStatusButton idleText="保存商品" busyText="保存中..." />
+          <div className="form-submit-row">
+            <SubmitStatusButton idleText="保存商品" busyText="保存中..." />
+          </div>
         </form>
         </section>
         )}
@@ -7410,9 +7266,32 @@ function Inventory({
       .filter((log) => log.note === "新增物品首批入库")
       .map((log) => [log.productId, log]),
   );
+  const productInitialStockBatches = new Map(
+    data.inventoryBatches
+      .filter((batch) => batch.source === "首批入库")
+      .map((batch) => [batch.productId, batch]),
+  );
+  const productLatestInboundLogs = new Map<string, InventoryLog>();
+  data.inventoryLogs
+    .filter((log) => log.delta > 0)
+    .sort((current, next) => next.createdAt.localeCompare(current.createdAt))
+    .forEach((log) => {
+      if (!productLatestInboundLogs.has(log.productId)) productLatestInboundLogs.set(log.productId, log);
+    });
+  const productLatestBatches = new Map<string, AppData["inventoryBatches"][number]>();
+  data.inventoryBatches
+    .slice()
+    .sort((current, next) => next.createdAt.localeCompare(current.createdAt))
+    .forEach((batch) => {
+      if (!productLatestBatches.has(batch.productId)) productLatestBatches.set(batch.productId, batch);
+    });
   const allIntakeHistoryProducts = data.products
-    .map((product) => ({ product, log: productInitialStockLogs.get(product.id) }))
-    .sort((current, next) => (next.log?.createdAt ?? "").localeCompare(current.log?.createdAt ?? ""));
+    .map((product) => ({
+      product,
+      log: productInitialStockLogs.get(product.id),
+      batch: productInitialStockBatches.get(product.id),
+    }))
+    .sort((current, next) => (next.log?.createdAt ?? next.batch?.createdAt ?? "").localeCompare(current.log?.createdAt ?? current.batch?.createdAt ?? ""));
   const intakeHistoryProducts = allIntakeHistoryProducts.slice(0, 3);
   const inventoryProductUsage = (item: Product) => {
     const logs = data.inventoryLogs.filter((log) => log.productId === item.id);
@@ -7423,9 +7302,13 @@ function Inventory({
     return { inbound, used, total, usagePercent };
   };
   const exportInventoryCsv = () => {
-      const columns = ["商品名称", "大类", "小类", "总数", "已使用", "剩余", "项目扣减", "使用占比", "预警库存", "保质期", "到期日期", "剩余天数", "状态"];
+      const columns = ["商品名称", "大类", "小类", "总数", "已使用", "剩余", "项目扣减", "使用占比", "预警库存", "保质期", "到期日期", "剩余天数", "首批入库时间", "最近入库时间", "最近批次来源", "状态"];
     const rows = data.products.map((item) => {
       const usage = inventoryProductUsage(item);
+      const initialLog = productInitialStockLogs.get(item.id);
+      const initialBatch = productInitialStockBatches.get(item.id);
+      const latestInboundLog = productLatestInboundLogs.get(item.id);
+      const latestBatch = productLatestBatches.get(item.id);
       const status = [
         productExpiryStatus(item)?.text,
         item.stock <= item.warningStock ? "需补货" : undefined,
@@ -7443,6 +7326,9 @@ function Inventory({
         productShelfLifeText(item),
         productExpiryText(item),
         productExpiryDaysText(item),
+        initialLog?.createdAt ? shortDate(initialLog.createdAt) : initialBatch?.createdAt ? shortDate(initialBatch.createdAt) : "未记录",
+        latestInboundLog?.createdAt ? shortDate(latestInboundLog.createdAt) : "未记录",
+        latestBatch?.source ?? "-",
         status,
       ];
     });
@@ -7641,11 +7527,13 @@ function Inventory({
                   <div className="inventory-intake-history">
                     {intakeHistoryProducts.length > 0 ? (
                       <div className="inventory-intake-records">
-                        {intakeHistoryProducts.map(({ product, log }) => (
+                        {intakeHistoryProducts.map(({ product, log, batch }) => (
                           <div className="inventory-intake-record" key={product.id}>
                             <div className="inventory-intake-record-main">
                               <strong>{product.name}</strong>
                               <span>{`${product.category ?? "面护类"}${product.subcategory ? ` / ${product.subcategory}` : ""}`}</span>
+                              <span>{`入库时间：${log?.createdAt ? shortDate(log.createdAt) : batch?.createdAt ? shortDate(batch.createdAt) : "未记录"}`}</span>
+                              <span>{batch ? `批次：${batch.source} · 到期 ${productExpiryText(product)}` : "批次：未记录"}</span>
                             </div>
                               <span><small>售价</small>{product.price > 0 ? money(product.price) : "未设置"}</span>
                               <span><small>首批</small>{formatProductStockWithServiceUnits(product, log ? log.delta : product.stock)}</span>
@@ -7739,6 +7627,8 @@ function Inventory({
                       const expiryStatus = productExpiryStatus(item);
                       const stockStatus = item.stock <= item.warningStock ? { text: "需补货", tone: "warn" as const } : undefined;
                       const usage = inventoryProductUsage(item);
+                      const latestInboundLog = productLatestInboundLogs.get(item.id);
+                      const latestBatch = productLatestBatches.get(item.id);
                       return (
                         <article
                           key={item.id}
@@ -7790,6 +7680,14 @@ function Inventory({
                             <span>
                               <small>到期</small>
                               <strong>{productExpiryText(item)}</strong>
+                            </span>
+                            <span>
+                              <small>最近入库</small>
+                              <strong>{latestInboundLog?.createdAt ? shortDate(latestInboundLog.createdAt) : "未记录"}</strong>
+                            </span>
+                            <span>
+                              <small>批次来源</small>
+                              <strong>{latestBatch?.source ?? "-"}</strong>
                             </span>
                           </span>
                           <span className="inventory-product-card-foot">
@@ -8097,26 +7995,39 @@ function signatureOrderDebitCard(data: AppData, order: Order) {
 }
 
 function signatureMemberCardUsageRows(data: AppData, order: Order) {
-  const card = signatureOrderDebitCard(data, order);
+  const card = signatureOrderDebitCard(data, order)
+    ?? data.memberCards
+      .filter((item) =>
+        item.customerId === order.customerId
+        && item.status === "正常"
+        && item.type !== "储值卡"
+        && item.type !== "折扣卡"
+        && signatureServiceQuantityRows(data, order).some((row) => signatureMemberCardSupportsService(item, row.serviceId)),
+      )
+      .sort((a, b) => signatureCardPriority(a, signatureServiceQuantityRows(data, order)[0]?.serviceId ?? order.serviceId) - signatureCardPriority(b, signatureServiceQuantityRows(data, order)[0]?.serviceId ?? order.serviceId))[0];
   if (!card) return [];
   const alreadyDebited = data.memberCardTransactions.some((transaction) => transaction.orderId === order.id && transaction.type === "消费");
   if (card.type === "储值卡") {
     const afterBalance = alreadyDebited ? card.balance : Math.max(0, card.balance - order.paidAmount);
     const beforeBalance = alreadyDebited ? card.balance + order.paidAmount : card.balance;
+    const blocked = !alreadyDebited && card.balance < order.paidAmount;
     return [{
       key: `${order.id}:${card.id}:balance`,
       cardName: card.name,
       serviceName: "储值余额",
       usedText: money(order.paidAmount),
       beforeText: money(beforeBalance),
-      afterText: money(afterBalance),
-      statusText: alreadyDebited ? "已扣" : "待扣",
+      afterText: blocked ? money(card.balance) : money(afterBalance),
+      statusText: alreadyDebited ? "已扣" : blocked ? "不足" : "待扣",
+      blocked,
     }];
   }
   return signatureServiceQuantityRows(data, order).map((row) => {
     const entitlement = card.serviceEntitlements?.find((item) => item.serviceId === row.serviceId);
     const currentRemaining = signatureMemberCardRemainingForService(card, row.serviceId);
-    const afterTimes = alreadyDebited ? currentRemaining : Math.max(0, currentRemaining - row.quantity);
+    const supports = signatureMemberCardSupportsService(card, row.serviceId);
+    const blocked = !alreadyDebited && (!supports || currentRemaining < row.quantity);
+    const afterTimes = alreadyDebited || blocked ? currentRemaining : Math.max(0, currentRemaining - row.quantity);
     const beforeTimes = alreadyDebited ? currentRemaining + row.quantity : currentRemaining;
     const formatTimes = (value: number) => entitlement ? `${value}/${entitlement.totalTimes}次` : `${value}次`;
     return {
@@ -8126,7 +8037,8 @@ function signatureMemberCardUsageRows(data: AppData, order: Order) {
       usedText: `${row.quantity}次`,
       beforeText: formatTimes(beforeTimes),
       afterText: formatTimes(afterTimes),
-      statusText: alreadyDebited ? "已扣" : "待扣",
+      statusText: alreadyDebited ? "已扣" : blocked ? "不足" : "待扣",
+      blocked,
     };
   });
 }
@@ -8145,6 +8057,7 @@ export function SignatureRecordDetail({ data, signature }: { data: AppData; sign
   const context = signatureRecordContext(data, signature);
   const signedAt = signature.signedAt ? shortDate(signature.signedAt) : "-";
   const cardUsageRows = context.order ? signatureMemberCardUsageRows(data, context.order) : [];
+  const serviceUsageRows = context.order ? signatureServiceQuantityRows(data, context.order) : [];
   return (
     <section className="signature-record-detail">
       <div className="signature-record-meta">
@@ -8165,6 +8078,16 @@ export function SignatureRecordDetail({ data, signature }: { data: AppData; sign
               {cardUsageRows.map((row) => (
                 <p key={row.key}>
                   {row.cardName} · {row.serviceName}：本次用 {row.usedText}，扣前 {row.beforeText}，扣后剩 {row.afterText}（{row.statusText}）。
+                </p>
+              ))}
+            </div>
+          )}
+          {cardUsageRows.length === 0 && serviceUsageRows.length > 0 && (
+            <div className="signature-card-usage">
+              <strong>本次服务</strong>
+              {serviceUsageRows.map((row) => (
+                <p key={`${row.serviceId}:service`}>
+                  {row.name}：本次服务 {row.quantity} 次。
                 </p>
               ))}
             </div>

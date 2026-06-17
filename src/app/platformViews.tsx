@@ -62,9 +62,6 @@ import {
   memberCardProjectScopeText,
   memberCardTimesText,
   nameOf,
-  permissionLabels,
-  permissionOptions,
-  roleScopeLabels,
   roomNamesOf,
   searchInputSync,
   serializeAiGenerationConfig,
@@ -74,6 +71,7 @@ import {
   SignatureRecordDetail,
   videoSpecKey,
 } from "./AuthenticatedApp";
+import { permissionLabels, permissionOptions, roleScopeLabels } from "./permissionDisplay";
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
