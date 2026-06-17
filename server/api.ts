@@ -116,10 +116,12 @@ export function createApiServer(database = new BeautyDatabase()) {
       const url = new URL(request.url ?? "/", "http://localhost");
 
       if (request.method === "GET" && url.pathname === "/api/health") {
+        const clientVersion = url.searchParams.get("clientVersion");
+        const manualUpdateCheck = url.searchParams.get("manualUpdateCheck") === "1";
         sendJson(response, 200, {
           ok: true,
           service: "yich-system-api",
-          version: pkg.version,
+          ...(!clientVersion || manualUpdateCheck ? { version: pkg.version } : {}),
         });
         return;
       }

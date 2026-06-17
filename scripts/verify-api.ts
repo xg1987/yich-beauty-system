@@ -22,6 +22,10 @@ try {
 
   const health = await request<{ ok: boolean }>(baseUrl, "/api/health");
   assert.equal(health.ok, true, "health check should pass");
+  const autoVersionHealth = await request<{ version?: string }>(baseUrl, "/api/health?clientVersion=0.1.0");
+  assert.equal(autoVersionHealth.version, undefined, "automatic client version checks should not expose update versions");
+  const manualVersionHealth = await request<{ version?: string }>(baseUrl, "/api/health?clientVersion=0.1.0&manualUpdateCheck=1");
+  assert.ok(manualVersionHealth.version, "manual settings update check should expose the current version");
 
   await assert.rejects(() => request<AppData>(baseUrl, "/api/data"), /请先登录/, "protected data endpoint should require login");
 

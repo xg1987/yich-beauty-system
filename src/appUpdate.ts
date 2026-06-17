@@ -54,7 +54,7 @@ export function installAppUpdateChecker() {
 
 async function checkForAppUpdate({ allowAutoPrompt }: { allowAutoPrompt: boolean }) {
   try {
-    const status = await checkAppUpdateStatus();
+    const status = await checkAppUpdateStatus({ manual: false });
     const serverVersion = status.serverVersion;
     if (!status.updateAvailable || !serverVersion) return;
 
@@ -79,9 +79,14 @@ async function checkForAppUpdate({ allowAutoPrompt }: { allowAutoPrompt: boolean
   }
 }
 
-export async function checkAppUpdateStatus(): Promise<AppUpdateStatus> {
+export async function checkAppUpdateStatus(options: { manual?: boolean } = { manual: true }): Promise<AppUpdateStatus> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/health?clientVersion=${encodeURIComponent(CURRENT_APP_VERSION)}&t=${Date.now()}`, {
+    const query = new URLSearchParams({
+      clientVersion: CURRENT_APP_VERSION,
+      t: `${Date.now()}`,
+    });
+    if (options.manual !== false) query.set("manualUpdateCheck", "1");
+    const response = await fetch(`${API_BASE_URL}/api/health?${query.toString()}`, {
       cache: "no-store",
       headers: {
         "Cache-Control": "no-cache",

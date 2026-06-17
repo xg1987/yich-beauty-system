@@ -148,10 +148,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname === "/api/health") {
       const schema = await database.checkSchema();
+      const clientVersion = url.searchParams.get("clientVersion");
+      const manualUpdateCheck = url.searchParams.get("manualUpdateCheck") === "1";
       return sendJson(200, {
         ok: schema.ok,
         service: "yich-system-api",
-        version: pkg.version,
+        ...(!clientVersion || manualUpdateCheck ? { version: pkg.version } : {}),
         runtime: "cloudflare-d1",
         schema,
       });
