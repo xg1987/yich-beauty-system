@@ -12200,6 +12200,21 @@ textarea,
   gap: 9px;
 }
 
+.appointment-workflow-more-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgba(109, 69, 196, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #4f2f93;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(63, 43, 105, 0.06);
+}
+
 .appointment-work-card {
   min-width: 0;
   display: grid;
@@ -12364,6 +12379,31 @@ textarea,
 
 .appointment-action-form {
   padding: 2px;
+}
+
+.appointment-confirm-panel {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(42, 143, 125, 0.16);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(240, 255, 251, 0.92), rgba(255, 255, 255, 0.78));
+  color: #2f255f;
+}
+
+.appointment-confirm-panel strong {
+  color: #2f255f;
+  font-size: 14px;
+  font-weight: 930;
+}
+
+.appointment-confirm-panel span,
+.appointment-confirm-panel small {
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.45;
 }
 
 .appointment-room-action-row {

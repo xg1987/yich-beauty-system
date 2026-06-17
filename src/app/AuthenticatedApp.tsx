@@ -2664,6 +2664,8 @@ function RoomSettingsContent({
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
+const APPOINTMENT_WORKFLOW_PREVIEW_LIMIT = 6;
+
 function Appointments({ data, session, actions, runMutation, setView, initialAppointmentId }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView; initialAppointmentId?: string }) {
   const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
@@ -2671,8 +2673,9 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   const defaultAppointmentStaffId = currentAppointmentStaffId && serviceStaff.some((staff) => staff.id === currentAppointmentStaffId)
     ? currentAppointmentStaffId
     : firstBusinessStaffId(data);
-  const [customerId, setCustomerId] = useState(data.customers[0]?.id ?? "");
+  const [customerId, setCustomerId] = useState("");
   const [appointmentCustomerSearch, setAppointmentCustomerSearch] = useState("");
+  const [appointmentReviewReady, setAppointmentReviewReady] = useState(false);
   const [staffId, setStaffId] = useState(defaultAppointmentStaffId);
   const [startAt, setStartAt] = useState(() => nextAppointmentDateTimeRange().start);
   const [endAt, setEndAt] = useState(() => nextAppointmentDateTimeRange().end);
@@ -2712,12 +2715,10 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   );
   const updateAppointmentCustomerSearch = (value: string) => {
     setAppointmentCustomerSearch(value);
-    const uniqueMatch = findUniqueCustomerBySearchText(data.customers, value);
-    if (uniqueMatch) {
-      setCustomerId(uniqueMatch.id);
-      return;
-    }
     if (value.trim() && selectedAppointmentCustomer && !customerMatchesSearchText(selectedAppointmentCustomer, value)) {
+      setCustomerId("");
+    }
+    if (!value.trim() && !selectedAppointmentCustomer) {
       setCustomerId("");
     }
   };
@@ -2727,8 +2728,17 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   const [rescheduleRoomName, setRescheduleRoomName] = useState(roomNames[0] ?? "");
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [appointmentRange, setAppointmentRange] = useState<AppointmentRange>("today");
+  const [expandedWorkflowGroups, setExpandedWorkflowGroups] = useState<Record<string, boolean>>({});
   const hasConfiguredRooms = roomNames.length > 0;
   const minAppointmentDateTime = toLocalInputValue(new Date().toISOString());
+
+  useEffect(() => {
+    setAppointmentReviewReady(false);
+  }, [customerId, staffId, startAt, endAt, roomName, note]);
+
+  useEffect(() => {
+    setExpandedWorkflowGroups({});
+  }, [appointmentRange]);
 
   useEffect(() => {
     const firstStaffId = defaultAppointmentStaffId;
@@ -2764,6 +2774,10 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
       });
       return;
     }
+    if (!appointmentReviewReady) {
+      setAppointmentReviewReady(true);
+      return;
+    }
     void runMutation(() =>
       actions.addAppointment({
         customerId,
@@ -2777,6 +2791,9 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
       }),
     ).then(() => {
       setNote("");
+      setCustomerId("");
+      setAppointmentCustomerSearch("");
+      setAppointmentReviewReady(false);
       setShowAppointmentForm(false);
     });
   };
@@ -2843,8 +2860,9 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
       return;
     }
     const nextRange = nextAppointmentDateTimeRange();
-    setCustomerId((current) => data.customers.some((customer) => customer.id === current) ? current : data.customers[0]?.id ?? "");
+    setCustomerId("");
     setAppointmentCustomerSearch("");
+    setAppointmentReviewReady(false);
     setStaffId(defaultAppointmentStaffId);
     setStartAt(nextRange.start);
     setEndAt(nextRange.end);
@@ -2993,6 +3011,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
     };
   });
   const firstAvailableRoom = roomAvailabilityOptions.find((option) => !option.disabled)?.value ?? "";
+  const selectedAppointmentStaff = data.staff.find((item) => item.id === staffId);
   const roomIcon = (name: string) => {
     if (/vip/i.test(name)) return <Crown size={18} />;
     if (name.includes("身心")) return <HeartPulse size={18} />;
@@ -3019,6 +3038,28 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
         <button type="button" onClick={() => setSelectedAppointmentDetailId(appointment.id)}>
           查看详情
         </button>
+      );
+    }
+    return <span>-</span>;
+  };
+  const appointmentListAction = (appointment: Appointment) => {
+    if (appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment)) {
+      return appointmentDetailAction(appointment);
+    }
+    if (appointment.status === "已确认" || appointment.status === "待确认") {
+      return (
+        <>
+          <button type="button" disabled={mutationPending} onClick={() => openReschedule(appointment)}>改约</button>
+          <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
+        </>
+      );
+    }
+    if (appointment.status === "已到店") {
+      return (
+        <>
+          <button type="button" onClick={() => setView("pos", { posModule: "single", appointmentId: appointment.id })}>进入收银</button>
+          <button type="button" disabled={mutationPending} onClick={() => openCancel(appointment)}>取消</button>
+        </>
       );
     }
     return <span>-</span>;
@@ -3115,26 +3156,45 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
       </div>
     </article>
   );
+  const renderWorkflowItems = <T,>(key: string, items: T[], renderItem: (item: T) => ReactNode) => {
+    const expanded = Boolean(expandedWorkflowGroups[key]);
+    const visibleItems = expanded ? items : items.slice(0, APPOINTMENT_WORKFLOW_PREVIEW_LIMIT);
+    const hiddenCount = Math.max(0, items.length - APPOINTMENT_WORKFLOW_PREVIEW_LIMIT);
+    return (
+      <>
+        {visibleItems.map(renderItem)}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            className="appointment-workflow-more-button"
+            onClick={() => setExpandedWorkflowGroups((current) => ({ ...current, [key]: !expanded }))}
+          >
+            {expanded ? "收起预约" : `更多预约 ${hiddenCount} 条`}
+          </button>
+        )}
+      </>
+    );
+  };
   const appointmentWorkflowGroups = [
     {
       key: "booked",
       title: "已预约",
       value: bookedAppointments.length,
-      renderItems: () => bookedAppointments.slice(0, 6).map(renderBookedAppointmentCard),
+      renderItems: () => renderWorkflowItems("booked", bookedAppointments, renderBookedAppointmentCard),
       empty: "暂无已预约",
     },
     {
       key: "arrival",
       title: "待确认到店",
       value: arrivalConfirmationAppointments.length,
-      renderItems: () => arrivalConfirmationAppointments.slice(0, 6).map((appointment) => renderCheckInAppointmentCard(appointment)),
+      renderItems: () => renderWorkflowItems("arrival", arrivalConfirmationAppointments, (appointment) => renderCheckInAppointmentCard(appointment)),
       empty: "暂无待确认到店",
     },
     {
       key: "signature",
       title: "待服务签名",
       value: pendingServiceSignatureTasks.length,
-      renderItems: () => pendingServiceSignatureTasks.slice(0, 6).map(renderServiceSignatureCard),
+      renderItems: () => renderWorkflowItems("signature", pendingServiceSignatureTasks, renderServiceSignatureCard),
       empty: "暂无待签名服务",
     },
   ];
@@ -3216,28 +3276,29 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
           <div className="appointment-range-list">
             <div className="appointment-room-list-head">
               <strong>{selectedAppointmentRange.label}预约明细</strong>
-              <small>已完成 {effectivelyCompletedRangeAppointments.length} 单</small>
+              <small>共 {visibleRangeAppointments.length} 单 · 已完成 {effectivelyCompletedRangeAppointments.length} 单</small>
             </div>
-            {effectivelyCompletedRangeAppointments.length > 0 ? (
+            {visibleRangeAppointments.length > 0 ? (
               <DataTable
                 columns={["时间", "客户", "项目", "服务人员", "房间", "状态", "操作"]}
-                rows={effectivelyCompletedRangeAppointments.slice(0, 20).map((appointment) => {
+                rows={visibleRangeAppointments.slice(0, 60).map((appointment) => {
                   const order = findAppointmentOrder(appointment);
+                  const effectivelyCompleted = appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment);
                   return [
                     appointmentTimeRange(data, appointment),
                     nameOf(data.customers, appointment.customerId),
-                    appointmentConsumptionNames(data, appointment, order),
+                    effectivelyCompleted ? appointmentConsumptionNames(data, appointment, order) : appointmentServiceNames(data, appointment),
                     nameOf(data.staff, order?.staffId ?? appointment.staffId),
                     appointment.roomName ?? "-",
-                    <Badge key={`${appointment.id}-status`} text="已完成" tone="ok" />,
+                    <Badge key={`${appointment.id}-status`} text={effectivelyCompleted ? "已完成" : appointmentStatusText(appointment.status)} tone={effectivelyCompleted ? "ok" : appointmentBadgeTone(appointment.status)} />,
                     <div key={`${appointment.id}-action`} className="table-action">
-                      {appointmentDetailAction(appointment)}
+                      {appointmentListAction(appointment)}
                     </div>,
                   ];
                 })}
               />
             ) : (
-              <div className="appointment-work-empty">当前范围暂无已完成预约</div>
+              <div className="appointment-work-empty">当前范围暂无预约记录</div>
             )}
             {selectedCompletedAppointment && (
               <div className="appointment-completed-detail">
@@ -3295,6 +3356,9 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
               {appointmentCustomerSearchUnresolved && (
                 <p className="checkout-customer-warning">请从下方搜索结果中点选客户，不能只输入姓名保存。</p>
               )}
+              {!selectedAppointmentCustomer && !normalizedAppointmentCustomerSearch && (
+                <p className="checkout-customer-warning">新增预约必须先搜索并点选客户，避免默认客户误提交。</p>
+              )}
               {normalizedAppointmentCustomerSearch && (
                 <div className="checkout-customer-result-list">
                   {appointmentCustomerSearchResults.length ? appointmentCustomerSearchResults.map((customer) => (
@@ -3305,6 +3369,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
                       onClick={() => {
                         setCustomerId(customer.id);
                         setAppointmentCustomerSearch("");
+                        setAppointmentReviewReady(false);
                       }}
                     >
                       <strong>{customer.name}</strong>
@@ -3366,10 +3431,20 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
             {selectedStaffAppointmentConflictText && <p className="form-warning">{selectedStaffAppointmentConflictText}</p>}
             {selectedStaffUnavailableConflictText && <p className="form-warning">{selectedStaffUnavailableConflictText}</p>}
             {!hasConfiguredRooms && <p className="form-warning">当前门店还没有可用于预约的房间，请先到房间管理配置。</p>}
+            {appointmentReviewReady && selectedAppointmentCustomer && selectedAppointmentStaff && !selectedTimeRangeInvalid && (
+              <div className="appointment-confirm-panel">
+                <strong>请核对预约信息</strong>
+                <span>客户：{customerDisplayLabel(selectedAppointmentCustomer)}</span>
+                <span>服务人员：{selectedAppointmentStaff.name}</span>
+                <span>时间：{shortDate(selectedStartAt.toISOString())}-{shortTime(selectedEndAt.toISOString())}</span>
+                <span>房间：{roomName}</span>
+                <small>再次点击“确认保存预约”后才会创建预约记录。</small>
+              </div>
+            )}
             <div className="row-actions">
-              <SubmitStatusButton idleText="保存预约" busyText="保存中..." disabled={appointmentSaveDisabled} />
+              <SubmitStatusButton idleText={appointmentReviewReady ? "确认保存预约" : "核对预约"} busyText="保存中..." disabled={appointmentSaveDisabled} />
               {!hasConfiguredRooms && <button type="button" onClick={() => { setShowAppointmentForm(false); setView("roomSettings"); }}>房间管理</button>}
-              <button type="button" onClick={() => setShowAppointmentForm(false)}>取消</button>
+              <button type="button" onClick={() => { setAppointmentReviewReady(false); setShowAppointmentForm(false); }}>取消</button>
             </div>
           </form>
         </div>

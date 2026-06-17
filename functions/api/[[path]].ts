@@ -937,14 +937,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requirePermission(session, "appointments:manage");
       const body = await readJson(context.request);
       const requestedStaffId = requiredString(body, "staffId");
-      const appointedData = updateData(await database.readData(), session, {
-        action: "新增预约",
-        targetType: "appointment",
-        targetId: "latest",
-        summary: `${session.user.name} 新增预约`,
-      }, (data) =>
-        createAppointment(data, {
-          storeId: sessionStoreId(data, session),
+      const baseData = await database.readData();
+      let appointedData = createAppointment(
+        baseData,
+        {
+          storeId: sessionStoreId(baseData, session),
           customerId: requiredString(body, "customerId"),
           staffId: requestedStaffId,
           serviceId: optionalString(body, "serviceId"),
@@ -953,15 +950,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           endAt: optionalString(body, "endAt"),
           roomName: requiredString(body, "roomName"),
           note: optionalString(body, "note") ?? "",
-        }),
+        },
       );
       const appointment = appointedData.appointments[0];
       const customer = appointedData.customers.find((item) => item.id === appointment.customerId);
+      const staff = appointedData.staff.find((item) => item.id === appointment.staffId);
       const service = appointedData.services.find((item) => item.id === appointment.serviceId);
       const serviceNames = (appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId])
         .map((serviceId) => appointedData.services.find((item) => item.id === serviceId)?.name)
         .filter(Boolean)
         .join("、") || "到店确认项目";
+      appointedData = addOperationLog(appointedData, {
+        userId: session.user.id,
+        action: "新增预约",
+        targetType: "appointment",
+        targetId: appointment.id,
+        summary: `${session.user.name} 新增预约：${customer?.name ?? "客户"} · ${staff?.name ?? "服务人员"} · ${serviceNames} · ${shortTimeText(appointment.startAt)}-${shortClockText(appointment.endAt)}`,
+      });
       const nextData = addSystemNotification(appointedData, {
         title: "新的到店预约",
         desc: `${customer?.name ?? "客户"} · ${serviceNames || service?.name || "项目"} · ${shortTimeText(appointment.startAt)}`,
@@ -1960,7 +1965,14 @@ function sanitizePublicSignature(signature: CustomerSignature) {
 function shortTimeText(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  return date.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function shortClockText(value: string | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 function isStoreOwnerInviteCode(data: AppData, inviteCode: string) {
