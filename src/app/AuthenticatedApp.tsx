@@ -39,7 +39,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { BrandIcon } from "../components/business/BrandIcon";
 import { UserAvatar } from "../components/business/UserAvatar";
@@ -540,6 +540,14 @@ function firstBusinessStaffId(data: AppData) {
 function activeStaffOf(data: AppData) {
   return data.staff.filter((staff) => staff.status === "active");
 }
+
+const WORKBENCH_SCHEDULE_START_HOUR = 8;
+const WORKBENCH_SCHEDULE_END_HOUR = 23;
+const WORKBENCH_SCHEDULE_TOTAL_MINUTES = (WORKBENCH_SCHEDULE_END_HOUR - WORKBENCH_SCHEDULE_START_HOUR) * 60;
+const WORKBENCH_SCHEDULE_HOURS = Array.from(
+  { length: WORKBENCH_SCHEDULE_END_HOUR - WORKBENCH_SCHEDULE_START_HOUR + 1 },
+  (_, index) => WORKBENCH_SCHEDULE_START_HOUR + index,
+);
 
 function firstActiveStaffId(data: AppData) {
   return activeStaffOf(data)[0]?.id ?? "";
@@ -1645,13 +1653,9 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
   const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
   const todayRevenue = roleCashOrders.reduce((sum, item) => sum + item.paidAmount, 0)
     + roleMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
-  const todayCashPaymentCount = roleCashOrders.length + roleMemberCardIncomeTransactions.length;
   const completedAppointments = roleAppointmentsList.filter((item) => item.status === "已完成").length;
   const pendingConfirmAppointments = roleAppointmentsList.filter((item) => item.status === "待确认");
   const pendingArrivalAppointments = roleAppointmentsList.filter((item) => item.status === "已确认");
-  const arrivedWaitingCheckout = roleAppointmentsList.filter(
-    (item) => item.status === "已到店" && !data.orders.some((order) => order.appointmentId === item.id && order.status !== "已退款"),
-  );
   const onlineRequests = data.onlineBookingRequests.filter((item) => item.status === "待处理").length;
   const myCommission = userStaffId ? data.commissions.filter((item) => item.staffId === userStaffId && item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0) : 0;
   const signatureStaffId = (signature: CustomerSignature) => {
@@ -1685,46 +1689,50 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
     : isOrdinaryEmployee
       ? `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 客户 ${data.customers.length}`
       : `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 今日实收 ${money(todayRevenue)}`;
-  const businessItems = [
-    { label: "今日实收", value: money(todayRevenue), hint: `${todayCashPaymentCount} 笔收款` },
-    { label: "待确认到店", value: `${arrivedWaitingCheckout.length} 单`, hint: "到店后处理" },
-    { label: "待签名", value: `${pendingSignatureList.length} 份`, hint: "客户确认签名" },
-    { label: "有效会员卡", value: `${activeCards} 张`, hint: "客户可用资产" },
-  ];
-  const cashPaymentBreakdown = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[])
-    .map((method) => {
-      const methodOrders = roleCashOrders.filter((order) => order.payMethod === method);
-      const methodCardTransactions = roleMemberCardIncomeTransactions.filter((transaction) => transaction.payMethod === method);
-      return {
-        amount: methodOrders.reduce((sum, order) => sum + order.paidAmount, 0)
-          + methodCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0),
-        count: methodOrders.length + methodCardTransactions.length,
-        method,
-      };
-    })
-    .filter((item) => item.count > 0);
-  const memberCardRedemptions = roleOrders.filter((order) => order.payMethod === "会员卡");
-  const paymentBreakdown: Array<{ method: string; amount: number; count: number }> = [
-    ...cashPaymentBreakdown,
-    ...(memberCardRedemptions.length
-      ? [{
-          amount: memberCardRedemptions.reduce((sum, order) => sum + order.paidAmount, 0),
-          count: memberCardRedemptions.length,
-          method: "会员卡核销",
-        }]
-      : []),
-  ];
-  const staffTodayStats = businessStaffOf(data)
-    .map((staff) => {
-      const appointments = todayAppointmentsList.filter((item) => item.staffId === staff.id);
-      const orders = todayOrders.filter((item) => item.staffId === staff.id);
-      const revenue = orders.reduce((sum, order) => sum + order.paidAmount, 0);
-      const completed = appointments.filter((item) => item.status === "已完成").length;
-      return { appointments: appointments.length, completed, orders: orders.length, revenue, staff };
-    })
-    .filter((item) => item.appointments > 0 || item.orders > 0 || item.revenue > 0)
-    .sort((a, b) => b.revenue - a.revenue || b.completed - a.completed || b.appointments - a.appointments)
-    .slice(0, 5);
+  const effectiveTodayAppointments = todayAppointmentsList.filter((item) => !["已取消", "爽约"].includes(item.status));
+  const scheduleStaff = activeStaffOf(data);
+  const scheduleDayStart = new Date(today);
+  scheduleDayStart.setHours(WORKBENCH_SCHEDULE_START_HOUR, 0, 0, 0);
+  const scheduleDayEnd = new Date(today);
+  scheduleDayEnd.setHours(WORKBENCH_SCHEDULE_END_HOUR, 0, 0, 0);
+  const visibleScheduleAppointments = effectiveTodayAppointments.filter((appointment) => {
+    const start = new Date(appointment.startAt);
+    const end = new Date(appointmentEndAt(appointment, data.services));
+    return +end > +scheduleDayStart && +start < +scheduleDayEnd;
+  });
+  const freeStaffCount = scheduleStaff.filter((staff) => !visibleScheduleAppointments.some((appointment) => appointment.staffId === staff.id)).length;
+  const scheduleRows = scheduleStaff.map((staff) => {
+    const appointments = visibleScheduleAppointments
+      .filter((appointment) => appointment.staffId === staff.id)
+      .map((appointment) => {
+        const start = new Date(appointment.startAt);
+        const end = new Date(appointmentEndAt(appointment, data.services));
+        const startMinutes = Math.max(0, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+start - +scheduleDayStart) / 60000)));
+        const endMinutes = Math.max(startMinutes, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+end - +scheduleDayStart) / 60000)));
+        const left = (startMinutes / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
+        const rawDurationMinutes = Math.max(0, endMinutes - startMinutes);
+        const visualDurationMinutes = Math.max(60, Math.ceil(rawDurationMinutes / 30) * 30);
+        const visualEndMinutes = Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, startMinutes + visualDurationMinutes);
+        const visualWidth = ((visualEndMinutes - startMinutes) / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
+        const serviceNames = appointmentServiceIds(appointment)
+          .map((serviceId) => nameOf(data.services, serviceId))
+          .filter((name) => name && name !== "-");
+        const timeLabel = start.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+        const customerName = nameOf(data.customers, appointment.customerId);
+        const serviceLabel = serviceNames[0] ?? "预约";
+        const fullLabel = `${timeLabel} ${customerName} ${serviceLabel}`;
+        return {
+          appointment,
+          label: fullLabel,
+          left,
+          primaryLabel: timeLabel,
+          secondaryLabel: customerName,
+          tone: scheduleAppointmentTone(appointment.status),
+          width: visualWidth,
+        };
+      });
+    return { appointments, staff };
+  });
 
   if (isOrdinaryEmployee) {
     const todayCardOpens = todayMemberCardIncomeTransactions.length;
@@ -1759,48 +1767,63 @@ function Dashboard({ data, session, setView }: { data: AppData; session: UserSes
         ))}
       </section>
 
-      <section className="workbench-panel workbench-business-panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="今日经营" action={money(todayRevenue)} />
-        <div className="workbench-business-grid">
-          {businessItems.map((item) => (
-            <article key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <small>{item.hint}</small>
-            </article>
-          ))}
+      <section className="workbench-panel workbench-schedule-panel">
+        <div className="workbench-schedule-head">
+          <div>
+            <h2>今日预约排班表</h2>
+          </div>
+          <div>
+            <strong>今日{effectiveTodayAppointments.length}单 · {scheduleStaff.length}人 · 空闲{freeStaffCount}人</strong>
+            <div className="workbench-schedule-legend" aria-label="预约状态">
+              <span className="legend-pending"><i className="pending" />待确认</span>
+              <span className="legend-waiting"><i className="waiting" />待到店</span>
+              <span className="legend-active"><i className="active" />服务中</span>
+              <span className="legend-done"><i className="done" />已完成</span>
+            </div>
+          </div>
         </div>
-        <div className="workbench-pay-list">
-          {paymentBreakdown.map((item) => (
-            <div key={item.method}>
-              <span>{item.method}</span>
-              <strong>{money(item.amount)}</strong>
-              <small>{item.count} 笔</small>
+        <div className="workbench-schedule-table" aria-label="今日预约排班时间轴">
+          <div className="workbench-schedule-time-row">
+            <span aria-hidden="true" />
+            <div>
+              {WORKBENCH_SCHEDULE_HOURS.map((hour) => <b key={hour}>{hour.toString().padStart(2, "0")}</b>)}
+            </div>
+          </div>
+          {scheduleRows.map((row) => (
+            <div key={row.staff.id} className="workbench-schedule-row">
+              <div className="workbench-schedule-staff">
+                <strong>{row.staff.name}</strong>
+              </div>
+              <div className="workbench-schedule-lane">
+                {row.appointments.map((item) => (
+                  <button
+                    key={item.appointment.id}
+                    type="button"
+                    className={`workbench-schedule-block ${item.tone}`}
+                    style={{ "--schedule-left": `${item.left}%`, "--schedule-width": `${item.width}%` } as CSSProperties}
+                    title={item.label}
+                    onClick={() => setView("appointments", { appointmentId: item.appointment.id })}
+                  >
+                    <span>{item.primaryLabel}</span>
+                    <small>{item.secondaryLabel}</small>
+                  </button>
+                ))}
+                {row.appointments.length === 0 && <span className="workbench-schedule-free">空闲 · 可安排</span>}
+              </div>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="workbench-panel workbench-staff-panel">
-        <PanelTitle icon={<UsersRound size={18} />} title="人员今日表现" action={`${staffTodayStats.length} 人有记录`} />
-        <div className="workbench-staff-list">
-          {staffTodayStats.map((item) => (
-            <article key={item.staff.id} className="workbench-staff-row">
-              <div>
-                <strong>{item.staff.name}</strong>
-                <span>{displayStaffRole(item.staff.role)}</span>
-              </div>
-              <div>
-                <strong>{money(item.revenue)}</strong>
-                <span>{item.completed}/{item.appointments} 服务 · {item.orders} 单</span>
-              </div>
-            </article>
-          ))}
-          {staffTodayStats.length === 0 && <p className="empty">今日暂无服务或收款记录</p>}
+          {scheduleRows.length === 0 && <p className="empty">暂无排班数据</p>}
         </div>
       </section>
     </div>
   );
+}
+
+function scheduleAppointmentTone(status: Appointment["status"]) {
+  if (status === "待确认") return "pending";
+  if (status === "已到店") return "active";
+  if (status === "已完成") return "done";
+  return "waiting";
 }
 
 function EmployeeWorkDashboard({

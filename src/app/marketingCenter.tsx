@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Copy, Download, Eye, Film, Globe2, Image as ImageIcon, Lock, Megaphone, MessageCircle, Mic2, Plus, Search, ShieldCheck, Sparkles, Users, X } from "lucide-react";
+import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gift, Globe2, Image as ImageIcon, LayoutGrid, Megaphone, MessageCircle, Mic2, PencilLine, PlaySquare, Plus, Search, ShieldCheck, Sparkles, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -19,6 +19,15 @@ import {
 type MarketingViewKey = "content" | "records";
 type MarketingGenerationKind = "copy" | "image" | "video" | "talk";
 type MarketingNode = { title: string; badge: string; description: string; hint?: string; dateLabel?: string };
+type BirthdayMarketingTask = {
+  id: string;
+  name: string;
+  timingLabel: string;
+  daysUntil: number;
+  tag: string;
+  tagTone: "purple" | "blue" | "gray";
+  birthdayLabel: string;
+};
 type MarketingCalendarNode = {
   title: string;
   date: string;
@@ -60,19 +69,6 @@ const marketingComplianceReplacements: Array<[RegExp, string]> = [
   [/炎症/g, "肌肤不适"],
   [/身体状态|痛点/g, "护理需求"],
   [/治/g, "调"],
-];
-
-const marketingComplianceGuideRows = [
-  { blocked: "根治", replacement: "改善 / 从根本上调理" },
-  { blocked: "治疗 / 治愈", replacement: "调理 / 改善" },
-  { blocked: "绝对有效", replacement: "很多客户反馈有感" },
-  { blocked: "100%见效", replacement: "做完后更容易感受到" },
-  { blocked: "永久 / 彻底", replacement: "持续调理 / 坚持做" },
-  { blocked: "包好 / 保证", replacement: "大部分客户反馈不错" },
-  { blocked: "消炎 / 杀菌", replacement: "舒缓 / 清洁护理" },
-  { blocked: "替代药物", replacement: "配合日常护理" },
-  { blocked: "诊断 / 处方", replacement: "评估 / 建议" },
-  { blocked: "比医院还好", replacement: "日常养护优先选择" },
 ];
 
 function marketingCompliantText(value: string) {
@@ -126,24 +122,17 @@ const marketingCalendarNodes: MarketingCalendarNode[] = [
   { title: "三九温补", date: "2026-12-22", category: "养生节点", description: "三九前后温补需求强，适合寒湿、肩颈和睡眠客群。", leadDays: 18, priority: 80, serviceHint: "三九灸、药浴、足浴" },
   { title: "项目复购提醒", date: "2026-06-14", category: "项目周期", description: "没有更近节日时，优先结合项目周期提醒老客复购。", leadDays: 365, priority: 12, serviceHint: "按客户最近消费项目推荐" },
 ];
-const marketingGoals = ["复购提醒", "项目转化", "沉睡唤醒", "护理建议"];
-const generationModes: Array<{ kind: MarketingGenerationKind; title: string; description: string; icon: typeof Sparkles; locked?: boolean }> = [
-  { kind: "copy", title: "获客图文案", description: "配套话术 + 产品图文", icon: Sparkles },
-  { kind: "image", title: "产品设计图", description: "生成正式产品设计图", icon: ImageIcon },
-  { kind: "video", title: "产品视频", description: "调试中，暂不开放", icon: Film, locked: true },
-  { kind: "talk", title: "口播", description: "调试中，暂不开放", icon: Mic2, locked: true },
+const generationModes: Array<{ kind: MarketingGenerationKind; title: string; icon: typeof Sparkles; locked?: boolean; status?: string }> = [
+  { kind: "copy", title: "获客文案", icon: PencilLine },
+  { kind: "image", title: "产品海报", icon: ImageIcon },
+  { kind: "video", title: "产品视频", icon: PlaySquare, locked: true, status: "调试中" },
+  { kind: "talk", title: "口播脚本", icon: Mic2, locked: true, status: "调试中" },
 ];
-const posterStyles = [
-  { title: "东方美学风", description: "节令、草本、温润、高级护理" },
-  { title: "节气设计图", description: "三伏、三九、换季、时令提醒" },
-  { title: "轻奢护理风", description: "适合皮肤管理和高客单护理" },
-  { title: "小红书种草", description: "痛点标题、体验感、收藏转化" },
-];
-const channelCards = [
-  { name: "朋友圈", icon: Globe2, tone: "blue" },
-  { name: "小红书", icon: BookOpen, tone: "red" },
-  { name: "私聊", icon: MessageCircle, tone: "silver" },
-  { name: "社群", icon: Users, tone: "teal" },
+const posterStyles = ["东方美学风", "节气设计图", "轻奢护理风", "小红书种草"];
+const birthdayChannels = [
+  { name: "微信私聊", sourceChannel: "私聊", icon: MessageCircle },
+  { name: "朋友圈", sourceChannel: "朋友圈", icon: Globe2 },
+  { name: "小红书", sourceChannel: "小红书", icon: BookOpen },
 ] as const;
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
 const videoRatios = ["9:16", "1:1", "16:9"];
@@ -184,6 +173,69 @@ function marketingNodeTimingLabel(daysUntil: number) {
   if (daysUntil === 0) return "今天";
   if (daysUntil > 0) return `还有 ${daysUntil} 天`;
   return `已过 ${Math.abs(daysUntil)} 天`;
+}
+
+function parseBirthdayParts(value?: string) {
+  if (!value) return undefined;
+  const match = value.trim().match(/^(?:\d{4}[-/])?(\d{1,2})[-/](\d{1,2})$/);
+  if (!match) return undefined;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+  return { month, day };
+}
+
+function birthdayDaysUntil(value: string | undefined, today = new Date()) {
+  const parts = parseBirthdayParts(value);
+  if (!parts) return undefined;
+  const todayDate = localDateOnly(today);
+  let target = new Date(todayDate.getFullYear(), parts.month - 1, parts.day);
+  if (target.getTime() < todayDate.getTime()) target = new Date(todayDate.getFullYear() + 1, parts.month - 1, parts.day);
+  const daysUntil = Math.round((target.getTime() - todayDate.getTime()) / MS_PER_DAY);
+  if (!Number.isFinite(daysUntil)) return undefined;
+  return {
+    daysUntil,
+    birthdayLabel: `${parts.month}月${parts.day}日`,
+  };
+}
+
+function birthdayTimingText(daysUntil: number) {
+  if (daysUntil === 0) return "今天生日";
+  if (daysUntil === 1) return "明天生日";
+  return `还有 ${daysUntil} 天`;
+}
+
+function customerBirthdayTag(data: AppData, customerId: string): Pick<BirthdayMarketingTask, "tag" | "tagTone"> {
+  const cards = data.memberCards.filter((card) => card.customerId === customerId);
+  if (cards.some((card) => card.type === "储值卡" && card.balance > 0)) return { tag: "储值客户", tagTone: "purple" };
+  if (cards.some((card) => (card.type === "次数卡" || card.type === "套餐卡") && (card.remainingTimes > 0 || card.serviceEntitlements?.some((item) => item.remainingTimes > 0)))) {
+    return { tag: "有次卡", tagTone: "blue" };
+  }
+  return { tag: "会员", tagTone: "gray" };
+}
+
+function getBirthdayMarketingTasks(data: AppData, today = new Date()): BirthdayMarketingTask[] {
+  return data.customers
+    .map((customer) => {
+      const birthday = birthdayDaysUntil(customer.birthday, today);
+      if (!birthday || birthday.daysUntil > 7) return undefined;
+      return {
+        id: customer.id,
+        name: marketingCompliantText(customer.name),
+        timingLabel: birthdayTimingText(birthday.daysUntil),
+        daysUntil: birthday.daysUntil,
+        birthdayLabel: birthday.birthdayLabel,
+        ...customerBirthdayTag(data, customer.id),
+      };
+    })
+    .filter((item): item is BirthdayMarketingTask => Boolean(item))
+    .sort((left, right) => left.daysUntil - right.daysUntil || left.name.localeCompare(right.name, "zh-Hans-CN"))
+    .slice(0, 6);
+}
+
+function birthdayBlessingPreview(task?: BirthdayMarketingTask) {
+  if (!task) return "暂无生日客户。";
+  return marketingCompliantText(`${task.name}，生日快乐，今天为你准备了一份专属护理礼遇，愿你每天都美丽加倍，幸福加倍～`);
 }
 
 function marketingNodeTone(title: string) {
@@ -438,6 +490,7 @@ export function MarketingCenter({
   const [channel, setChannel] = useState("朋友圈");
   const [marketingGoal, setMarketingGoal] = useState("复购提醒");
   const [generationKind, setGenerationKind] = useState<MarketingGenerationKind>("copy");
+  const [selectedBirthdayTaskId, setSelectedBirthdayTaskId] = useState("");
   const [posterStyle, setPosterStyle] = useState("东方美学风");
   const [posterSize, setPosterSize] = useState("朋友圈 1:1");
   const [videoRatio, setVideoRatio] = useState("9:16");
@@ -463,6 +516,9 @@ export function MarketingCenter({
   const product = data.products[0];
   const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
+  const birthdayTasks = useMemo(() => getBirthdayMarketingTasks(data), [data]);
+  const selectedBirthdayTask = birthdayTasks.find((item) => item.id === selectedBirthdayTaskId) ?? birthdayTasks[0];
+  const todayBirthdayCount = birthdayTasks.filter((item) => item.daysUntil === 0).length;
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
   const aiPermissions = storeAiUsagePermissions(data);
   const selectedCapability = generationKind === "image" ? "image" : generationKind === "video" ? "video" : "copy";
@@ -476,26 +532,39 @@ export function MarketingCenter({
   const selectedNodeDateParts = (selectedNode.dateLabel ?? "").split(" · ");
   const selectedNodeDate = selectedNodeDateParts[0] ?? "";
   const selectedNodeTime = selectedNodeDateParts[selectedNodeDateParts.length - 1] ?? "";
-  const safeMarketingNode = marketingCompliantText(marketingNode);
+  const birthdayMarketingNode = selectedBirthdayTask ? "生日提醒" : marketingNode;
+  const birthdayMarketingGoal = selectedBirthdayTask ? "生日祝福" : marketingGoal;
+  const effectiveCustomerType = selectedBirthdayTask?.tag ?? customerType;
+  const safeMarketingNode = marketingCompliantText(birthdayMarketingNode);
   const safeBodyState = marketingCompliantText(bodyState);
-  const safeMarketingGoal = marketingCompliantText(marketingGoal);
+  const safeMarketingGoal = marketingCompliantText(birthdayMarketingGoal);
   const safePosterStyle = marketingCompliantText(posterStyle);
   const safeCustomRequirement = marketingCompliantText(customRequirement.trim());
-  const audienceSummary = `${customerType}，${safeBodyState}`;
+  const audienceSummary = `${effectiveCustomerType}，${safeBodyState}`;
   const nodeBrief = [selectedNode.title, selectedNode.dateLabel, selectedNode.hint].filter(Boolean).join(" · ");
+  const birthdayBrief = selectedBirthdayTask
+    ? `生日客户：${selectedBirthdayTask.name}，${selectedBirthdayTask.timingLabel}，客户标签：${selectedBirthdayTask.tag}，生日：${selectedBirthdayTask.birthdayLabel}`
+    : "";
   const generationRequirement = [
+    birthdayBrief,
     nodeBrief ? `当前营销时间节点：${nodeBrief}` : "",
     selectedNode.description ? `节点策略：${selectedNode.description}` : "",
     safeCustomRequirement,
   ].filter(Boolean).map(marketingCompliantText).join("\n");
   const previewSummaryItems = [safeMarketingNode, channel, safeMarketingGoal];
-  const copyPreviewText = [
-    `${channel} · ${safeMarketingNode}`,
-    selectedNode.description,
-    selectedNode.hint ? `适合项目：${selectedNode.hint}` : "",
-    `目标：${safeMarketingGoal}`,
-    safeCustomRequirement ? `补充要求：${safeCustomRequirement}` : "",
-  ].filter(Boolean).map(marketingCompliantText).join("\n");
+  const copyPreviewText = selectedBirthdayTask
+    ? [
+      `${channel} · ${selectedBirthdayTask.name} · ${safeMarketingGoal}`,
+      birthdayBlessingPreview(selectedBirthdayTask),
+      safeCustomRequirement ? `补充要求：${safeCustomRequirement}` : "",
+    ].filter(Boolean).map(marketingCompliantText).join("\n")
+    : [
+      `${channel} · ${safeMarketingNode}`,
+      selectedNode.description,
+      selectedNode.hint ? `适合项目：${selectedNode.hint}` : "",
+      `目标：${safeMarketingGoal}`,
+      safeCustomRequirement ? `补充要求：${safeCustomRequirement}` : "",
+    ].filter(Boolean).map(marketingCompliantText).join("\n");
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
   const latestGenerationResultRecord = generationResult?.record?.id ? marketingAiRecords.find((record) => record.id === generationResult.record?.id) : undefined;
@@ -556,6 +625,16 @@ export function MarketingCenter({
   useEffect(() => {
     if (selectedModeLocked) setGenerationKind("copy");
   }, [selectedModeLocked]);
+
+  useEffect(() => {
+    if (birthdayTasks.length === 0) {
+      if (selectedBirthdayTaskId) setSelectedBirthdayTaskId("");
+      return;
+    }
+    if (!birthdayTasks.some((item) => item.id === selectedBirthdayTaskId)) {
+      setSelectedBirthdayTaskId(birthdayTasks[0].id);
+    }
+  }, [birthdayTasks, selectedBirthdayTaskId]);
 
   useEffect(() => {
     setGenerationError("");
@@ -691,6 +770,15 @@ export function MarketingCenter({
     window.setTimeout(() => setCopyResultStatus("idle"), 1800);
   };
 
+  const copyBirthdayBatchPreview = async () => {
+    const text = birthdayTasks.length > 0
+      ? birthdayTasks.slice(0, 6).map((task) => `${task.name}｜${task.timingLabel}\n${birthdayBlessingPreview(task)}`).join("\n\n")
+      : birthdayBlessingPreview();
+    const copied = await copyTextToClipboard(text);
+    setCopyResultStatus(copied ? "copied" : "failed");
+    window.setTimeout(() => setCopyResultStatus("idle"), 1800);
+  };
+
   const copyRecord = async (record: MarketingAiRecord) => {
     const copied = await copyTextToClipboard(marketingRecordContent(record));
     setCopyResultStatus(copied ? "copied" : "failed");
@@ -757,22 +845,23 @@ export function MarketingCenter({
       />
 
       <section className="workbench-panel marketing-type-panel" aria-label="生成类型">
-        <div className="marketing-section-head">
+        <div className="marketing-section-head marketing-type-heading">
           <div>
+            <span className="marketing-heading-icon" aria-hidden="true"><LayoutGrid size={18} strokeWidth={2.6} /></span>
             <strong>生成类型</strong>
           </div>
-          <small>{selectedGenerationMode.title}</small>
         </div>
         <div className="marketing-output-mode-grid" aria-label="生成内容类型">
-          {generationModes.filter((item) => !item.locked).map((item) => {
+          {generationModes.map((item) => {
             const ModeIcon = item.icon;
             const isActive = generationKind === item.kind;
             return (
               <button
                 type="button"
                 key={item.kind}
-                className={isActive ? "active" : ""}
+                className={`${isActive ? "active" : ""} ${item.locked ? "locked" : ""}`.trim()}
                 aria-pressed={isActive}
+                disabled={item.locked}
                 onClick={() => {
                   setGenerationKind(item.kind);
                 }}
@@ -781,47 +870,25 @@ export function MarketingCenter({
                   <ModeIcon size={19} strokeWidth={2.35} />
                 </span>
                 <strong>{item.title}</strong>
-                <span className="marketing-mode-desc">{item.description}</span>
+                {isActive && <span className="marketing-mode-check" aria-hidden="true">✓</span>}
+                {item.status && <em className="marketing-mode-status">{item.status}</em>}
               </button>
             );
           })}
         </div>
-        <div className="marketing-locked-mode-row" aria-label="暂未开放类型">
-          {generationModes.filter((item) => item.locked).map((item) => (
-            <span className="marketing-locked-mode-chip" key={item.kind}>
-              <Lock size={14} strokeWidth={2.4} aria-hidden="true" />
-              <strong>{item.title}</strong>
-              <em>调试中</em>
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section className="marketing-mode-tabs" aria-label="营销中心视图">
-        <button type="button" className={activeView === "content" ? "active" : ""} onClick={() => setActiveView("content")}>
-          <Sparkles size={16} /> 营销内容
-        </button>
-        <button type="button" className={activeView === "records" ? "active" : ""} onClick={() => setActiveView("records")}>
-          <Eye size={16} /> 生成记录 <span>{typedMarketingAiRecords.length}</span>
-        </button>
       </section>
 
       {activeView === "content" ? (
         <section className="marketing-workspace">
           <div className={`workbench-panel marketing-form-panel ${!isPosterMode ? "marketing-copy-workbench" : ""}`}>
-            <PanelTitle
-              icon={isPosterMode ? <ImageIcon size={18} /> : <span className="marketing-copy-title-icon"><Sparkles size={26} strokeWidth={2.5} /></span>}
-              title={isPosterMode ? "AI产品设计图" : "AI 获客文案"}
-              action={!isPosterMode
-                ? (
-                  <span className="marketing-copy-title-actions">
-                    <span className="marketing-compliance-badge"><ShieldCheck size={15} /> 合规模式</span>
-                    {quotaState.credits > 0 && <span className="marketing-credit-badge">积分 {formatAiCreditAmount(quotaState.credits)}</span>}
-                  </span>
-                )
-                : quotaState.credits > 0 ? `账号积分 ${formatAiCreditAmount(quotaState.credits)}` : contentState.label}
-            />
-            {quotaState.credits <= 0 && (
+            {isPosterMode && (
+              <PanelTitle
+                icon={<ImageIcon size={18} />}
+                title="AI产品海报"
+                action={quotaState.credits > 0 ? `账号积分 ${formatAiCreditAmount(quotaState.credits)}` : contentState.label}
+              />
+            )}
+            {isPosterMode && quotaState.credits <= 0 && (
               <div className={`marketing-quota-note ${quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}>
                 {quotaState.enforced
                   ? `当前账号未充值，今日免费剩余 ${quotaState.remaining}/${quotaState.limit} 次。`
@@ -829,97 +896,90 @@ export function MarketingCenter({
               </div>
             )}
             {!isPosterMode && (
-              <div className="marketing-copy-stage">
-                <article className="marketing-today-card" data-tone={selectedNodeTone}>
-                  <div className="marketing-today-head">
-                    <span className="marketing-today-eyebrow">今日推荐</span>
-                    {selectedNodeTime && <em>{selectedNodeTime}</em>}
-                  </div>
-                  <h3>{selectedNode.title}</h3>
-                  <p>{selectedNode.description}</p>
-                  <div className="marketing-today-tags" aria-label="推荐标签">
-                    {[...(selectedNode.hint ? selectedNode.hint.split("、").slice(0, 2) : []), marketingGoal].map((item) => (
-                      <span key={item}>{item}</span>
-                    ))}
-                  </div>
-                </article>
-
-                <div className="marketing-copy-block">
-                  <div className="marketing-copy-heading">
-                    <strong>选择节气</strong>
-                  </div>
-                  <div className="marketing-node-strip" aria-label="切换推荐营销节点">
-                    {todayMarketingNodes.map((item) => {
-                      const dateParts = (item.dateLabel ?? "").split(" · ");
-                      const nodeDate = dateParts[0] ?? "";
-                      const nodeTime = dateParts[dateParts.length - 1] ?? "";
-                      return (
-                        <button
-                          type="button"
-                          key={item.title}
-                          className={marketingNode === item.title ? "active" : ""}
-                          data-tone={marketingNodeTone(item.title)}
-                          onClick={() => setMarketingNode(item.title)}
-                        >
-                          <span aria-hidden="true" />
-                          <strong>{item.title}</strong>
-                          {nodeDate && <small>{nodeDate}</small>}
-                          {nodeTime && <em>{nodeTime}</em>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="marketing-copy-block">
-                  <div className="marketing-copy-heading">
-                    <strong>发到哪里</strong>
-                  </div>
-                  <div className="marketing-channel-card-grid" aria-label="渠道">
-                    {channelCards.map((item) => {
-                      const ChannelIcon = item.icon;
-                      return (
-                        <button
-                          type="button"
-                          key={item.name}
-                          className={`marketing-channel-card ${channel === item.name ? "active" : ""}`}
-                          data-tone={item.tone}
-                          onClick={() => setChannel(item.name)}
-                        >
-                          <ChannelIcon size={24} />
-                          <strong>{item.name}</strong>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <article className="marketing-copy-preview-card">
-                  <header>
-                    <span><BookOpen size={17} /> {channel} · {marketingNode}</span>
-                    <button type="button" aria-label="收起预览" tabIndex={-1}>-</button>
-                  </header>
-                  <div>
-                    <p className="marketing-compliance-note"><Sparkles size={18} /> 点击「生成文案」，已自动规避违禁词</p>
-                  </div>
-                </article>
-
-                <details className="marketing-compliance-panel">
-                  <summary>
-                    <span><ShieldCheck size={16} /> 查看违禁词对照表</span>
-                  </summary>
-                  <div className="marketing-compliance-grid" role="table" aria-label="违禁词替换对照">
-                    <div className="marketing-compliance-row head" role="row">
-                      <strong>不能用</strong>
-                      <strong>换成这个</strong>
+              <div className="marketing-copy-stage marketing-birthday-workflow">
+                <section className="marketing-birthday-panel" aria-label="今日营销任务">
+                  <header className="marketing-task-head">
+                    <div>
+                      <CalendarCheck size={19} strokeWidth={2.35} aria-hidden="true" />
+                      <strong>今日营销任务</strong>
                     </div>
-                    {marketingComplianceGuideRows.map((row) => (
-                      <div className="marketing-compliance-row" role="row" key={row.blocked}>
-                        <span>{row.blocked}</span>
-                        <em>{row.replacement}</em>
-                      </div>
-                    ))}
+                    <button type="button" onClick={() => setActiveView("records")}>查看全部</button>
+                  </header>
+                  <div className="marketing-birthday-card">
+                    <div className="marketing-birthday-title">
+                      <span><CakeSlice size={17} strokeWidth={2.45} /> 生日提醒 · {todayBirthdayCount > 0 ? `今日 ${todayBirthdayCount} 位` : "未来 7 天"}</span>
+                    </div>
+                    <div className="marketing-birthday-list">
+                      {birthdayTasks.length > 0 ? birthdayTasks.slice(0, 3).map((task) => (
+                        <button
+                          type="button"
+                          key={task.id}
+                          className={`marketing-birthday-row ${selectedBirthdayTask?.id === task.id ? "active" : ""}`}
+                          onClick={() => {
+                            setSelectedBirthdayTaskId(task.id);
+                            setChannel("私聊");
+                            setMarketingGoal("生日祝福");
+                          }}
+                        >
+                          <span className="marketing-birthday-avatar" aria-hidden="true">{task.name.slice(0, 1) || "客"}</span>
+                          <span className="marketing-birthday-main">
+                            <strong>{task.name}</strong>
+                            <small>{task.timingLabel}</small>
+                          </span>
+                          <em data-tone={task.tagTone}>{task.tag}</em>
+                          <span className="marketing-birthday-action"><Sparkles size={15} /> 生成祝福</span>
+                        </button>
+                      )) : (
+                        <div className="marketing-birthday-empty">
+                          <span className="marketing-birthday-avatar" aria-hidden="true">客</span>
+                          <p>暂无生日客户</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
+                </section>
+
+                <article className="marketing-copy-preview-card marketing-birthday-preview-card">
+                  <header>
+                    <span><MessageCircle size={17} /> 推荐文案预览 · {selectedGenerationMode.title}</span>
+                  </header>
+                  <div className="marketing-birthday-preview-body">
+                    <div className="marketing-channel-pill-row" aria-label="渠道">
+                      {birthdayChannels.map((item) => {
+                        const ChannelIcon = item.icon;
+                        const isActive = channel === item.sourceChannel;
+                        return (
+                          <button
+                            type="button"
+                            key={item.name}
+                            className={isActive ? "active" : ""}
+                            onClick={() => setChannel(item.sourceChannel)}
+                          >
+                            <ChannelIcon size={16} strokeWidth={2.35} />
+                            <strong>{item.name}</strong>
+                            {isActive && <span aria-hidden="true">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p>{birthdayBlessingPreview(selectedBirthdayTask)}</p>
+                    <footer>
+                      <span className="marketing-compliance-note"><ShieldCheck size={15} /> 已规避敏感词</span>
+                      <button type="button" onClick={() => void copyCurrentPreview()}>换一条</button>
+                    </footer>
+                  </div>
+                </article>
+
+                <details className="marketing-custom-disclosure">
+                  <summary><Plus size={16} /> 补充优惠/护理项目</summary>
+                  <label className="marketing-custom-field">
+                    <span>我想自己写要求</span>
+                    <textarea
+                      value={customRequirement}
+                      onChange={(event) => setCustomRequirement(event.target.value)}
+                      rows={3}
+                    />
+                  </label>
                 </details>
               </div>
             )}
@@ -929,15 +989,13 @@ export function MarketingCenter({
                 <div className="marketing-section-head">
                   <div>
                     <strong>上传图片</strong>
-                    <span>产品图或模特图，至少上传 1 张</span>
                   </div>
-                  <small>至少 1 张</small>
                 </div>
                 <div className="marketing-upload-grid marketing-material-grid compact">
                   <label className="marketing-upload-box">
                     <Plus size={18} />
                     <strong>产品图</strong>
-                    <span>{productImageName || "上传产品图片"}</span>
+                    {productImageName && <span>{productImageName}</span>}
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
@@ -947,7 +1005,7 @@ export function MarketingCenter({
                   <label className="marketing-upload-box">
                     <Plus size={18} />
                     <strong>模特图</strong>
-                    <span>{modelImageName || "上传模特图片"}</span>
+                    {modelImageName && <span>{modelImageName}</span>}
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
@@ -964,9 +1022,8 @@ export function MarketingCenter({
                   </div>
                   <div className="marketing-style-grid" aria-label="图片风格">
                     {posterStyles.map((item) => (
-                      <button type="button" key={item.title} className={posterStyle === item.title ? "active" : ""} onClick={() => setPosterStyle(item.title)}>
-                        <strong>{item.title}</strong>
-                        <span>{item.description}</span>
+                      <button type="button" key={item} className={posterStyle === item ? "active" : ""} onClick={() => setPosterStyle(item)}>
+                        <strong>{item}</strong>
                       </button>
                     ))}
                   </div>
@@ -982,33 +1039,19 @@ export function MarketingCenter({
                       value={customRequirement}
                       onChange={(event) => setCustomRequirement(event.target.value)}
                       rows={3}
-                      placeholder="例如：背景干净、高级，突出产品或模特，不要太多文字。"
                     />
                   </label>
                 </div>
               </div>
-            ) : (
-              <>
-                <label className="marketing-custom-field">
-                  <span>我想自己写要求</span>
-                  <textarea
-                    value={customRequirement}
-                    onChange={(event) => setCustomRequirement(event.target.value)}
-                    rows={3}
-                    placeholder="例如：重点推节令草本浴，语气温和，不要太像广告。"
-                  />
-                </label>
-
-              </>
-            )}
+            ) : null}
             <div className={`marketing-form-actions ${!isPosterMode ? "marketing-copy-actions" : "single"}`}>
               {!isPosterMode && (
-                <button type="button" className="secondary-button marketing-copy-action" onClick={() => void copyCurrentPreview()}>
-                  <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : "复制文案"}
+                <button type="button" className="secondary-button marketing-copy-action" onClick={() => void copyBirthdayBatchPreview()}>
+                  <Gift size={16} /> {copyResultStatus === "copied" ? "已批量生成" : "批量生成"}
                 </button>
               )}
               <button type="button" className="primary-button marketing-copy-action" disabled={!contentState.enabled || generationBusy} onClick={generate}>
-                <Sparkles size={16} /> {generationBusy ? "生成中..." : `生成${selectedGenerationMode.title}`}
+                <Sparkles size={16} /> {generationBusy ? "生成中..." : selectedBirthdayTask && !isPosterMode ? "生成生日祝福" : `生成${selectedGenerationMode.title}`}
               </button>
             </div>
           </div>
