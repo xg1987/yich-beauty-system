@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "dev:api": "tsx server/start.ts",
     "dev:full": "sh -c 'npm run dev:api & npm run dev; wait'",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run verify:pwa-version && tsc --noEmit && vite build",
     "verify:copy": "tsx scripts/verify-copy.ts",
     "verify:ai-model": "tsx scripts/verify-ai-model-config.ts",
     "verify:theme-avatar": "tsx scripts/verify-theme-avatar.ts",
@@ -27,7 +27,8 @@
     "d1:migrate:local": "wrangler d1 migrations apply yich-beauty-db --local",
     "d1:migrate:remote": "wrangler d1 migrations apply yich-beauty-db --remote",
     "dev:cloudflare": "npm run build && wrangler pages dev dist --compatibility-date=2026-05-24",
-    "deploy:pages": "npm run android:apk && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true"
+    "deploy:pages": "npm run android:apk && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true",
+    "verify:pwa-version": "tsx scripts/verify-pwa-version.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
