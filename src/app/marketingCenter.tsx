@@ -1016,37 +1016,58 @@ export function MarketingCenter({
 
       <section className="workbench-panel marketing-type-panel" aria-label="生成类型">
         <div className="marketing-section-head marketing-type-heading">
-          <div>
-            <span className="marketing-heading-icon" aria-hidden="true"><LayoutGrid size={18} strokeWidth={2.6} /></span>
-            <strong>生成类型</strong>
+          <div className="marketing-heading-tabs" role="tablist" aria-label="营销生成视图">
+            <button
+              type="button"
+              className={`marketing-heading-tab ${activeView === "content" ? "active" : ""}`}
+              role="tab"
+              aria-selected={activeView === "content"}
+              onClick={() => setActiveView("content")}
+            >
+              <span className="marketing-heading-icon" aria-hidden="true"><LayoutGrid size={18} strokeWidth={2.6} /></span>
+              <strong>生成类型</strong>
+            </button>
+            <button
+              type="button"
+              className={`marketing-heading-tab ${activeView === "records" ? "active" : ""}`}
+              role="tab"
+              aria-selected={activeView === "records"}
+              onClick={() => setActiveView("records")}
+            >
+              <span className="marketing-heading-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.6} /></span>
+              <strong>生成记录</strong>
+              <em>{typedMarketingAiRecords.length}</em>
+            </button>
           </div>
         </div>
-        <div className="marketing-output-mode-grid" aria-label="生成内容类型">
-          {generationModes.map((item) => {
-            const ModeIcon = item.icon;
-            const isActive = generationKind === item.kind;
-            return (
-              <button
-                type="button"
-                key={item.kind}
-                className={`${isActive ? "active" : ""} ${item.locked ? "locked" : ""}`.trim()}
-                data-mode={item.kind}
-                aria-pressed={isActive}
-                disabled={item.locked}
-                onClick={() => {
-                  setGenerationKind(item.kind);
-                }}
-              >
-                <span className="marketing-mode-icon" aria-hidden="true">
-                  <ModeIcon size={19} strokeWidth={2.35} />
-                </span>
-                <strong>{item.title}</strong>
-                {isActive && <span className="marketing-mode-check" aria-hidden="true">✓</span>}
-                {item.status && <em className="marketing-mode-status">{item.status}</em>}
-              </button>
-            );
-          })}
-        </div>
+        {activeView === "content" && (
+          <div className="marketing-output-mode-grid" aria-label="生成内容类型">
+            {generationModes.map((item) => {
+              const ModeIcon = item.icon;
+              const isActive = generationKind === item.kind;
+              return (
+                <button
+                  type="button"
+                  key={item.kind}
+                  className={`${isActive ? "active" : ""} ${item.locked ? "locked" : ""}`.trim()}
+                  data-mode={item.kind}
+                  aria-pressed={isActive}
+                  disabled={item.locked}
+                  onClick={() => {
+                    setGenerationKind(item.kind);
+                  }}
+                >
+                  <span className="marketing-mode-icon" aria-hidden="true">
+                    <ModeIcon size={19} strokeWidth={2.35} />
+                  </span>
+                  <strong>{item.title}</strong>
+                  {isActive && <span className="marketing-mode-check" aria-hidden="true">✓</span>}
+                  {item.status && <em className="marketing-mode-status">{item.status}</em>}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {activeView === "content" ? (

@@ -27171,6 +27171,19 @@ textarea,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .marketing-heading-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .marketing-heading-tab {
+    width: 100%;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
   .marketing-result-overlay {
     align-items: center;
     justify-items: center;
@@ -27610,6 +27623,66 @@ textarea,
   gap: 10px;
   min-width: 0;
   line-height: 1;
+}
+
+.marketing-heading-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.marketing-heading-tab {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px 0 10px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #4c3b78;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 920;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.marketing-heading-tab.active {
+  border-color: rgba(111, 66, 193, 0.58);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(246, 241, 255, 0.96));
+  color: #2f255f;
+  box-shadow: 0 10px 24px rgba(111, 66, 193, 0.14);
+}
+
+.marketing-heading-tab:not(.active):hover {
+  border-color: rgba(111, 66, 193, 0.3);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.marketing-heading-tab .marketing-heading-icon {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+}
+
+.marketing-heading-tab strong {
+  white-space: nowrap;
+}
+
+.marketing-heading-tab em {
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.1);
+  color: #6f42c1;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 940;
 }
 
 .marketing-heading-icon {
