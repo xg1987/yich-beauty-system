@@ -566,6 +566,7 @@ export function MarketingCenter({
   const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
   const [manualCopyText, setManualCopyText] = useState("");
   const generationInFlightRef = useRef(false);
+  const generationDialogDismissedRef = useRef(false);
   const product = data.products[0];
   const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
@@ -740,7 +741,7 @@ export function MarketingCenter({
   const dialogSummaryItems = dialogRecord
     ? [dialogRecord.marketingNode, dialogRecord.channel, dialogRecord.marketingGoal].map((item) => item ? marketingCompliantText(item) : item).filter(Boolean)
     : previewSummaryItems;
-  const showGenerationDialog = Boolean(generationBusy || generationError || selectedMarketingRecord || (!generationDialogDismissed && generationResult));
+  const showGenerationDialog = Boolean(selectedMarketingRecord || (!generationDialogDismissed && (generationBusy || generationError || generationResult)));
   const showAiTechnicalDetails = session.user.role === "superadmin";
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = () => {
@@ -814,6 +815,7 @@ export function MarketingCenter({
     setImagePreviewFailed(false);
     setManualCopyText("");
     setGenerationDialogDismissed(false);
+    generationDialogDismissedRef.current = false;
   }, [activeView, generationKind]);
 
   useEffect(() => {
@@ -868,6 +870,7 @@ export function MarketingCenter({
     setGenerationResult(null);
     setSelectedRecordId("");
     setGenerationDialogDismissed(false);
+    generationDialogDismissedRef.current = false;
     setDownloadResultStatus("idle");
     setManualCopyText("");
     try {
@@ -900,7 +903,7 @@ export function MarketingCenter({
         talkScene: `${safeMarketingNode} · ${safeMarketingGoal} · ${channel}`,
       });
       setGenerationResult(result);
-      if (result.record?.id) setSelectedRecordId(result.record.id);
+      if (result.record?.id && !generationDialogDismissedRef.current) setSelectedRecordId(result.record.id);
       if (result.status === "生成失败" || result.record?.status === "生成失败") {
         setGenerationError(result.errorMessage || result.record?.errorMessage || result.text || "AI 生成失败");
       }
@@ -980,6 +983,7 @@ export function MarketingCenter({
     setGenerationResult(null);
     setSelectedRecordId("");
     setGenerationDialogDismissed(false);
+    generationDialogDismissedRef.current = false;
     setCopyResultStatus("idle");
     setDownloadResultStatus("idle");
     setManualCopyText("");
@@ -987,13 +991,19 @@ export function MarketingCenter({
   };
 
   const closeGenerationDialog = () => {
-    if (generationBusy) return;
     setGenerationError("");
     setSelectedRecordId("");
-    setGenerationDialogDismissed(Boolean(generationResult));
+    setGenerationDialogDismissed(true);
+    generationDialogDismissedRef.current = true;
     setCopyResultStatus("idle");
     setDownloadResultStatus("idle");
     setManualCopyText("");
+  };
+
+  const openMarketingRecord = (recordId: string) => {
+    generationDialogDismissedRef.current = false;
+    setGenerationDialogDismissed(false);
+    setSelectedRecordId(recordId);
   };
 
   return (
@@ -1300,13 +1310,13 @@ export function MarketingCenter({
                   tabIndex={0}
                   onClick={(event) => {
                     if ((event.target as HTMLElement).closest("button")) return;
-                    setSelectedRecordId(record.id);
+                    openMarketingRecord(record.id);
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     if ((event.target as HTMLElement).closest("button")) return;
                     event.preventDefault();
-                    setSelectedRecordId(record.id);
+                    openMarketingRecord(record.id);
                   }}
                 >
                   <div className="marketing-record-main">
@@ -1320,7 +1330,7 @@ export function MarketingCenter({
                     {!recordPending && formatAiCreditCharge(record) && <small>{formatAiCreditCharge(record)}</small>}
                   </div>
                   <div className="marketing-record-actions">
-                    <button type="button" aria-label="查看记录" onClick={() => setSelectedRecordId(record.id)}><Eye size={15} /></button>
+                    <button type="button" aria-label="查看记录" onClick={() => openMarketingRecord(record.id)}><Eye size={15} /></button>
                     <button type="button" aria-label="复制文案" disabled={recordPending} onClick={() => void copyRecord(record)}><Copy size={15} /></button>
                     <button type="button" aria-label={recordDownloadLabel} disabled={recordPending} onClick={() => downloadMarketingRecord(record)}><Download size={15} /></button>
                   </div>
@@ -1343,7 +1353,6 @@ export function MarketingCenter({
               <button
                 type="button"
                 aria-label="关闭生成结果"
-                disabled={generationBusy}
                 onClick={closeGenerationDialog}
               >
                 <X size={18} />
