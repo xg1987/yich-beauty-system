@@ -32,7 +32,6 @@ export function visibleNotifications(data: AppData, session: UserSession) {
     .filter((item) => item.audienceRoles.includes(session.user.role))
     .filter((item) => session.user.role !== "therapist" || !item.staffId || item.staffId === session.user.staffId)
     .filter((item) => canAccessView(session, item.view))
-    .filter((item) => !(item.archivedByUserIds ?? []).includes(session.user.id))
     .slice()
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }
@@ -45,6 +44,19 @@ function notificationIcon(view: ViewKey) {
   if (view === "pos") return CreditCard;
   if (view === "reports") return ChartNoAxesColumnIncreasing;
   return Bell;
+}
+
+function notificationAppointmentId(data: AppData, item: SystemNotification) {
+  if (item.view !== "appointments") return undefined;
+  if (item.targetType === "appointment") return item.targetId;
+  const timeText = item.desc.match(/\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}/)?.[0];
+  const customerName = item.desc.split("·")[0]?.trim();
+  if (!timeText) return undefined;
+  return data.appointments.find((appointment) => {
+    const customer = data.customers.find((candidate) => candidate.id === appointment.customerId);
+    if (customerName && customer?.name !== customerName) return false;
+    return shortDate(appointment.startAt).startsWith(timeText);
+  })?.id;
 }
 
 export function NotificationPanel({ data, session, actions, runMutation, mutationPending, setView, onClose }: NotificationPanelProps) {
@@ -62,23 +74,22 @@ export function NotificationPanel({ data, session, actions, runMutation, mutatio
     if (!alreadyRead) {
       void runMutation(() => actions.markNotificationRead(item.id));
     }
-    setView(item.view, item.view === "appointments" && item.targetType === "appointment" ? { appointmentId: item.targetId } : undefined);
+    const appointmentId = notificationAppointmentId(data, item);
     onClose();
+    window.setTimeout(() => {
+      setView(item.view, appointmentId ? { appointmentId } : undefined);
+    }, 0);
   };
   const markAllRead = () => {
     if (unreadCount === 0 || mutationPending) return;
     void runMutation(() => actions.markAllNotificationsRead());
   };
-  const archiveItem = (item: SystemNotification) => {
-    if (mutationPending) return;
-    void runMutation(() => actions.archiveNotification(item.id));
-  };
 
   return (
     <aside className="notification-panel">
       <div className="notification-head">
-        <strong>通知中心</strong>
-        {unreadCount > 0 && <button type="button" disabled={mutationPending} aria-busy={mutationPending} onClick={markAllRead}>{mutationPending ? "处理中..." : "全部已读"}</button>}
+        <strong>通知</strong>
+        <button type="button" disabled={mutationPending || unreadCount === 0} aria-busy={mutationPending} onClick={markAllRead}>{mutationPending ? "处理中..." : "✓ 全部已读"}</button>
         <button className="icon-button" aria-label="关闭通知" onClick={onClose}><X size={16} /></button>
       </div>
       <div className="notification-filters" aria-label="通知筛选">
@@ -106,9 +117,6 @@ export function NotificationPanel({ data, session, actions, runMutation, mutatio
                   <small>{shortDate(item.createdAt)}</small>
                 </span>
                 <em>{unread ? "新" : "已读"}</em>
-              </button>
-              <button type="button" className="notification-archive" disabled={mutationPending} aria-busy={mutationPending} onClick={() => archiveItem(item)}>
-                {mutationPending ? "处理中..." : "归档"}
               </button>
             </div>
           );

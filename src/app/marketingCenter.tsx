@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gift, Globe2, Image as ImageIcon, LayoutGrid, Megaphone, MessageCircle, Mic2, PencilLine, PlaySquare, Plus, Search, ShieldCheck, Sparkles, X } from "lucide-react";
+import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gift, Image as ImageIcon, ImagePlus, LayoutGrid, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, PartyPopper, Plus, ShieldCheck, Sparkles, Video, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -36,6 +36,17 @@ type MarketingCalendarNode = {
   leadDays: number;
   priority: number;
   serviceHint: string;
+};
+type MarketingTaskCategory = "birthday" | "festival" | "wellness" | "repurchase";
+type MarketingTaskItem =
+  | { kind: "node"; category: Exclude<MarketingTaskCategory, "birthday">; id: string; title: string; subtitle: string; badge: string; tagTone: string; tone: string; node: MarketingNode }
+  | { kind: "birthday"; category: "birthday"; id: string; title: string; subtitle: string; badge: string; tagTone: string; tone: string; birthdayTask: BirthdayMarketingTask };
+
+const marketingTaskCategoryIcons: Record<MarketingTaskCategory, typeof CakeSlice> = {
+  birthday: PartyPopper,
+  festival: CalendarCheck,
+  wellness: Sparkles,
+  repurchase: Gift,
 };
 
 const marketingComplianceReplacements: Array<[RegExp, string]> = [
@@ -123,16 +134,22 @@ const marketingCalendarNodes: MarketingCalendarNode[] = [
   { title: "项目复购提醒", date: "2026-06-14", category: "项目周期", description: "没有更近节日时，优先结合项目周期提醒老客复购。", leadDays: 365, priority: 12, serviceHint: "按客户最近消费项目推荐" },
 ];
 const generationModes: Array<{ kind: MarketingGenerationKind; title: string; icon: typeof Sparkles; locked?: boolean; status?: string }> = [
-  { kind: "copy", title: "获客文案", icon: PencilLine },
-  { kind: "image", title: "产品海报", icon: ImageIcon },
-  { kind: "video", title: "产品视频", icon: PlaySquare, locked: true, status: "调试中" },
-  { kind: "talk", title: "口播脚本", icon: Mic2, locked: true, status: "调试中" },
+  { kind: "copy", title: "获客图文案", icon: MessageSquarePlus },
+  { kind: "image", title: "产品海报", icon: ImagePlus },
+  { kind: "video", title: "产品视频", icon: Video, locked: true, status: "调试中" },
+  { kind: "talk", title: "口播脚本", icon: MicVocal, locked: true, status: "调试中" },
 ];
 const posterStyles = ["东方美学风", "节气设计图", "轻奢护理风", "小红书种草"];
+const posterStyleTones: Record<string, "oriental" | "season" | "luxury" | "social"> = {
+  东方美学风: "oriental",
+  节气设计图: "season",
+  轻奢护理风: "luxury",
+  小红书种草: "social",
+};
 const birthdayChannels = [
-  { name: "微信私聊", sourceChannel: "私聊", icon: MessageCircle },
-  { name: "朋友圈", sourceChannel: "朋友圈", icon: Globe2 },
-  { name: "小红书", sourceChannel: "小红书", icon: BookOpen },
+  { name: "微信私聊", sourceChannel: "私聊", icon: MessageCircle, tone: "green" },
+  { name: "朋友圈", sourceChannel: "朋友圈", icon: ImageIcon, tone: "blue" },
+  { name: "小红书", sourceChannel: "小红书", icon: BookOpen, tone: "rose" },
 ] as const;
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
 const videoRatios = ["9:16", "1:1", "16:9"];
@@ -245,6 +262,14 @@ function marketingNodeTone(title: string) {
   return "teal";
 }
 
+function marketingTaskTone(category: Exclude<MarketingTaskCategory, "birthday">, badge: string, title: string) {
+  if (category === "repurchase" || badge === "项目周期") return "blue";
+  if (badge === "传统节日") return "rose";
+  if (badge === "节气内容") return "amber";
+  if (badge === "养生节点") return "teal";
+  return marketingNodeTone(title);
+}
+
 function getMarketingNodes(today = new Date()): MarketingNode[] {
   const todayDate = localDateOnly(today);
   const projectNodes = marketingCalendarNodes.filter((node) => node.category === "项目周期");
@@ -290,6 +315,26 @@ function getMarketingNodes(today = new Date()): MarketingNode[] {
   }));
 }
 
+function getProjectCycleMarketingNode(): MarketingNode {
+  const projectNode = marketingCalendarNodes.find((node) => node.category === "项目周期");
+  if (!projectNode) {
+    return {
+      title: "项目复购提醒",
+      badge: "项目周期",
+      description: "按客户最近消费项目提醒老客复购。",
+      hint: "会员卡、次数卡、最近消费项目",
+      dateLabel: "项目周期",
+    };
+  }
+  return {
+    title: marketingCompliantText(projectNode.title),
+    badge: marketingCompliantText(projectNode.category),
+    description: marketingCompliantText(projectNode.description),
+    hint: marketingCompliantText(projectNode.serviceHint),
+    dateLabel: "项目周期",
+  };
+}
+
 function aiCostAmountUsd(cost?: MarketingAiRecord["cost"] | { amountUsd: number; priceConfigured?: boolean } | number) {
   if (!cost) return undefined;
   if (typeof cost === "number") return Number.isFinite(cost) ? cost : undefined;
@@ -314,6 +359,11 @@ function formatAiCostCredits(cost?: MarketingAiRecord["cost"] | { amountUsd: num
   if (typeof cost !== "number" && cost.priceConfigured === false) return "费用未配置";
   const amount = amountUsd * USD_TO_CNY_DISPLAY_RATE;
   return `本次积分 ${formatAiCreditAmount(amount)}`;
+}
+
+function posterSizeForMarketingChannel(value: string) {
+  if (value === "小红书") return "小红书 3:4";
+  return "朋友圈 1:1";
 }
 
 function formatAiCostUsd(cost?: { amountUsd: number; currency: "USD"; basis: string; priceConfigured: boolean; estimated: boolean }) {
@@ -367,7 +417,7 @@ function marketingRecordContent(record: MarketingAiRecord) {
 }
 
 function marketingRecordKindLabel(kind: MarketingAiRecord["kind"]) {
-  return kind === "image" ? "产品设计图" : kind === "video" ? "产品视频" : kind === "talk" ? "口播" : "文案";
+  return kind === "image" ? "产品设计图" : kind === "video" ? "产品视频" : kind === "talk" ? "口播" : "图文案";
 }
 
 function compactRecordText(value?: string) {
@@ -490,7 +540,10 @@ export function MarketingCenter({
   const [channel, setChannel] = useState("朋友圈");
   const [marketingGoal, setMarketingGoal] = useState("复购提醒");
   const [generationKind, setGenerationKind] = useState<MarketingGenerationKind>("copy");
+  const [activeMarketingTaskCategory, setActiveMarketingTaskCategory] = useState<MarketingTaskCategory>("festival");
   const [selectedBirthdayTaskId, setSelectedBirthdayTaskId] = useState("");
+  const [showAllMarketingTasks, setShowAllMarketingTasks] = useState(false);
+  const [customRequirementOpen, setCustomRequirementOpen] = useState(false);
   const [posterStyle, setPosterStyle] = useState("东方美学风");
   const [posterSize, setPosterSize] = useState("朋友圈 1:1");
   const [videoRatio, setVideoRatio] = useState("9:16");
@@ -517,8 +570,93 @@ export function MarketingCenter({
   const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
   const birthdayTasks = useMemo(() => getBirthdayMarketingTasks(data), [data]);
-  const selectedBirthdayTask = birthdayTasks.find((item) => item.id === selectedBirthdayTaskId) ?? birthdayTasks[0];
+  const selectedBirthdayTask = selectedBirthdayTaskId ? birthdayTasks.find((item) => item.id === selectedBirthdayTaskId) : undefined;
+  const projectCycleNode = useMemo(() => getProjectCycleMarketingNode(), []);
+  const nodeTaskItem = (category: Exclude<MarketingTaskCategory, "birthday">, node: MarketingNode): MarketingTaskItem => {
+    const tone = marketingTaskTone(category, node.badge, node.title);
+    return {
+      kind: "node",
+      category,
+      id: `${category}-${node.title}`,
+      title: node.title,
+      subtitle: node.dateLabel ?? "近期推荐",
+      badge: node.badge,
+      tagTone: tone,
+      tone,
+      node,
+    };
+  };
+  const birthdayTaskItems: MarketingTaskItem[] = birthdayTasks.map((task) => ({
+    kind: "birthday" as const,
+    category: "birthday" as const,
+    id: `birthday-${task.id}`,
+    title: task.name,
+    subtitle: task.timingLabel,
+    badge: task.tag,
+    tagTone: task.tagTone,
+    tone: task.tagTone,
+    birthdayTask: task,
+  }));
+  const festivalTaskItems = todayMarketingNodes
+    .filter((node) => node.badge === "传统节日" || node.badge === "节气内容")
+    .map((node) => nodeTaskItem("festival", node));
+  const wellnessTaskItems = todayMarketingNodes
+    .filter((node) => node.badge === "养生节点")
+    .map((node) => nodeTaskItem("wellness", node));
+  const repurchaseTaskItems = [nodeTaskItem("repurchase", projectCycleNode)];
+  const marketingTasksByCategory: Record<MarketingTaskCategory, MarketingTaskItem[]> = {
+    birthday: birthdayTaskItems,
+    festival: festivalTaskItems,
+    wellness: wellnessTaskItems,
+    repurchase: repurchaseTaskItems,
+  };
+  const activeMarketingTasks = marketingTasksByCategory[activeMarketingTaskCategory];
+  const canExpandMarketingTasks = activeMarketingTasks.length > 3;
+  const visibleMarketingTasks = showAllMarketingTasks ? activeMarketingTasks : activeMarketingTasks.slice(0, 3);
   const todayBirthdayCount = birthdayTasks.filter((item) => item.daysUntil === 0).length;
+  const marketingTaskCategories: Array<{
+    key: MarketingTaskCategory;
+    title: string;
+    summary: string;
+    meta: string;
+    icon: typeof CakeSlice;
+    tone: string;
+  }> = [
+    {
+      key: "birthday",
+      title: "生日提醒",
+      summary: birthdayTasks.length > 0 ? `7天内 ${birthdayTasks.length} 位` : "7天内 0 位",
+      meta: todayBirthdayCount > 0 ? `今日 ${todayBirthdayCount} 位` : "客户关怀",
+      icon: marketingTaskCategoryIcons.birthday,
+      tone: "purple",
+    },
+    {
+      key: "festival",
+      title: "节日节气",
+      summary: festivalTaskItems[0]?.title ?? "暂无节点",
+      meta: `${festivalTaskItems.length} 个任务`,
+      icon: marketingTaskCategoryIcons.festival,
+      tone: "amber",
+    },
+    {
+      key: "wellness",
+      title: "养生节点",
+      summary: wellnessTaskItems[0]?.title ?? "暂无节点",
+      meta: `${wellnessTaskItems.length} 个任务`,
+      icon: marketingTaskCategoryIcons.wellness,
+      tone: "teal",
+    },
+    {
+      key: "repurchase",
+      title: "复购提醒",
+      summary: projectCycleNode.title,
+      meta: "老客周期",
+      icon: marketingTaskCategoryIcons.repurchase,
+      tone: "blue",
+    },
+  ];
+  const activeMarketingTaskCategoryInfo = marketingTaskCategories.find((item) => item.key === activeMarketingTaskCategory) ?? marketingTaskCategories[0];
+  const ActiveMarketingTaskIcon = activeMarketingTaskCategoryInfo.icon;
   const aiConfig = aiGenerationConfigFromSystemConfigs(data.systemConfigs);
   const aiPermissions = storeAiUsagePermissions(data);
   const selectedCapability = generationKind === "image" ? "image" : generationKind === "video" ? "video" : "copy";
@@ -526,14 +664,23 @@ export function MarketingCenter({
   const selectedGenerationMode = generationModes.find((item) => item.kind === generationKind) ?? generationModes[0];
   const selectedModeLocked = Boolean(selectedGenerationMode.locked);
   const isPosterMode = generationKind === "image";
+  const effectivePosterSize = isPosterMode ? posterSize : posterSizeForMarketingChannel(channel);
   const quotaState = aiFreeQuotaState(data, session.user.id);
-  const selectedNode = todayMarketingNodes.find((item) => item.title === marketingNode) ?? todayMarketingNodes[0];
-  const selectedNodeTone = marketingNodeTone(selectedNode.title);
-  const selectedNodeDateParts = (selectedNode.dateLabel ?? "").split(" · ");
-  const selectedNodeDate = selectedNodeDateParts[0] ?? "";
-  const selectedNodeTime = selectedNodeDateParts[selectedNodeDateParts.length - 1] ?? "";
+  const marketingCreditStatus = quotaState.credits > 0
+    ? `积分 ${formatAiCreditAmount(quotaState.credits)}`
+    : quotaState.remaining > 0
+      ? `免费 ${quotaState.remaining}次`
+      : "免费已用完";
+  const marketingQuotaDetail = quotaState.credits > 0
+    ? "生成后按实际模型费用扣除积分"
+    : quotaState.enforced
+      ? "无积分账号会优先使用今日免费次数"
+      : `${quotaState.startsAt} 起启用每日免费额度`;
+  const selectableMarketingNodes = [...todayMarketingNodes, projectCycleNode];
+  const selectedNode = selectableMarketingNodes.find((item) => item.title === marketingNode) ?? todayMarketingNodes[0] ?? projectCycleNode;
   const birthdayMarketingNode = selectedBirthdayTask ? "生日提醒" : marketingNode;
   const birthdayMarketingGoal = selectedBirthdayTask ? "生日祝福" : marketingGoal;
+  const emptyBirthdayCategory = activeMarketingTaskCategory === "birthday" && !selectedBirthdayTask;
   const effectiveCustomerType = selectedBirthdayTask?.tag ?? customerType;
   const safeMarketingNode = marketingCompliantText(birthdayMarketingNode);
   const safeBodyState = marketingCompliantText(bodyState);
@@ -552,10 +699,12 @@ export function MarketingCenter({
     safeCustomRequirement,
   ].filter(Boolean).map(marketingCompliantText).join("\n");
   const previewSummaryItems = [safeMarketingNode, channel, safeMarketingGoal];
-  const copyPreviewText = selectedBirthdayTask
-    ? [
-      `${channel} · ${selectedBirthdayTask.name} · ${safeMarketingGoal}`,
-      birthdayBlessingPreview(selectedBirthdayTask),
+  const copyPreviewText = emptyBirthdayCategory
+    ? "暂无生日客户。生日提醒会在客户生日进入未来 7 天时自动出现，可以切换到节日节气、养生节点或复购提醒继续生成内容。"
+    : selectedBirthdayTask
+      ? [
+        `${channel} · ${selectedBirthdayTask.name} · ${safeMarketingGoal}`,
+        birthdayBlessingPreview(selectedBirthdayTask),
       safeCustomRequirement ? `补充要求：${safeCustomRequirement}` : "",
     ].filter(Boolean).map(marketingCompliantText).join("\n")
     : [
@@ -622,19 +771,39 @@ export function MarketingCenter({
     }
   };
 
+  const selectMarketingTaskCategory = (category: MarketingTaskCategory) => {
+    setActiveMarketingTaskCategory(category);
+    setShowAllMarketingTasks(false);
+    if (category === "birthday") {
+      const firstBirthdayTask = birthdayTasks[0];
+      setSelectedBirthdayTaskId(firstBirthdayTask?.id ?? "");
+      if (firstBirthdayTask) {
+        setChannel("私聊");
+        setMarketingGoal("生日祝福");
+      }
+      return;
+    }
+
+    setSelectedBirthdayTaskId("");
+    const firstNodeTask = marketingTasksByCategory[category].find((task): task is Extract<MarketingTaskItem, { kind: "node" }> => task.kind === "node");
+    if (firstNodeTask) {
+      setMarketingNode(firstNodeTask.node.title);
+    }
+    setMarketingGoal("复购提醒");
+  };
+
   useEffect(() => {
     if (selectedModeLocked) setGenerationKind("copy");
   }, [selectedModeLocked]);
 
   useEffect(() => {
-    if (birthdayTasks.length === 0) {
-      if (selectedBirthdayTaskId) setSelectedBirthdayTaskId("");
-      return;
+    if (selectedBirthdayTaskId && !birthdayTasks.some((item) => item.id === selectedBirthdayTaskId)) {
+      setSelectedBirthdayTaskId("");
     }
-    if (!birthdayTasks.some((item) => item.id === selectedBirthdayTaskId)) {
-      setSelectedBirthdayTaskId(birthdayTasks[0].id);
+    if (activeMarketingTasks.length <= 3 && showAllMarketingTasks) {
+      setShowAllMarketingTasks(false);
     }
-  }, [birthdayTasks, selectedBirthdayTaskId]);
+  }, [activeMarketingTasks.length, birthdayTasks, selectedBirthdayTaskId, showAllMarketingTasks]);
 
   useEffect(() => {
     setGenerationError("");
@@ -715,7 +884,7 @@ export function MarketingCenter({
         bodyState: safeBodyState,
         marketingGoal: safeMarketingGoal,
         posterStyle: safePosterStyle,
-        posterSize,
+        posterSize: effectivePosterSize,
         posterTitle: safeMarketingNode,
         posterOffer: safeMarketingGoal,
         productImageName,
@@ -766,15 +935,6 @@ export function MarketingCenter({
 
   const copyCurrentPreview = async () => {
     const copied = await copyTextToClipboard(copyPreviewText);
-    setCopyResultStatus(copied ? "copied" : "failed");
-    window.setTimeout(() => setCopyResultStatus("idle"), 1800);
-  };
-
-  const copyBirthdayBatchPreview = async () => {
-    const text = birthdayTasks.length > 0
-      ? birthdayTasks.slice(0, 6).map((task) => `${task.name}｜${task.timingLabel}\n${birthdayBlessingPreview(task)}`).join("\n\n")
-      : birthdayBlessingPreview();
-    const copied = await copyTextToClipboard(text);
     setCopyResultStatus(copied ? "copied" : "failed");
     window.setTimeout(() => setCopyResultStatus("idle"), 1800);
   };
@@ -860,6 +1020,7 @@ export function MarketingCenter({
                 type="button"
                 key={item.kind}
                 className={`${isActive ? "active" : ""} ${item.locked ? "locked" : ""}`.trim()}
+                data-mode={item.kind}
                 aria-pressed={isActive}
                 disabled={item.locked}
                 onClick={() => {
@@ -882,18 +1043,21 @@ export function MarketingCenter({
         <section className="marketing-workspace">
           <div className={`workbench-panel marketing-form-panel ${!isPosterMode ? "marketing-copy-workbench" : ""}`}>
             {isPosterMode && (
-              <PanelTitle
-                icon={<ImageIcon size={18} />}
-                title="AI产品海报"
-                action={quotaState.credits > 0 ? `账号积分 ${formatAiCreditAmount(quotaState.credits)}` : contentState.label}
-              />
-            )}
-            {isPosterMode && quotaState.credits <= 0 && (
-              <div className={`marketing-quota-note ${quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}>
-                {quotaState.enforced
-                  ? `当前账号未充值，今日免费剩余 ${quotaState.remaining}/${quotaState.limit} 次。`
-                  : `${quotaState.startsAt} 起，未充值账号每天可免费生成 ${quotaState.limit} 次。`}
-              </div>
+              <header className="marketing-task-head marketing-poster-head">
+                <div>
+                  <ImageIcon size={19} strokeWidth={2.35} aria-hidden="true" />
+                  <strong>AI产品海报</strong>
+                </div>
+                <div className="marketing-task-head-actions">
+                  <span
+                    className={`marketing-task-credit-pill ${quotaState.credits > 0 ? "paid" : quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}
+                    title={marketingQuotaDetail}
+                  >
+                    <Sparkles size={13} aria-hidden="true" />
+                    {marketingCreditStatus}
+                  </span>
+                </div>
+              </header>
             )}
             {!isPosterMode && (
               <div className="marketing-copy-stage marketing-birthday-workflow">
@@ -903,36 +1067,88 @@ export function MarketingCenter({
                       <CalendarCheck size={19} strokeWidth={2.35} aria-hidden="true" />
                       <strong>今日营销任务</strong>
                     </div>
-                    <button type="button" onClick={() => setActiveView("records")}>查看全部</button>
-                  </header>
-                  <div className="marketing-birthday-card">
-                    <div className="marketing-birthday-title">
-                      <span><CakeSlice size={17} strokeWidth={2.45} /> 生日提醒 · {todayBirthdayCount > 0 ? `今日 ${todayBirthdayCount} 位` : "未来 7 天"}</span>
+                    <div className="marketing-task-head-actions">
+                      <span
+                        className={`marketing-task-credit-pill ${quotaState.credits > 0 ? "paid" : quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}
+                        title={marketingQuotaDetail}
+                      >
+                        <Sparkles size={13} aria-hidden="true" />
+                        {marketingCreditStatus}
+                      </span>
+                      {canExpandMarketingTasks && (
+                        <button type="button" onClick={() => setShowAllMarketingTasks((value) => !value)}>
+                          {showAllMarketingTasks ? "收起" : "查看全部"}
+                        </button>
+                      )}
                     </div>
-                    <div className="marketing-birthday-list">
-                      {birthdayTasks.length > 0 ? birthdayTasks.slice(0, 3).map((task) => (
+                  </header>
+                  <div className="marketing-task-category-grid" aria-label="营销任务分类">
+                    {marketingTaskCategories.map((category) => {
+                      const CategoryIcon = category.icon;
+                      const isActive = activeMarketingTaskCategory === category.key;
+                      return (
                         <button
                           type="button"
-                          key={task.id}
-                          className={`marketing-birthday-row ${selectedBirthdayTask?.id === task.id ? "active" : ""}`}
-                          onClick={() => {
-                            setSelectedBirthdayTaskId(task.id);
-                            setChannel("私聊");
-                            setMarketingGoal("生日祝福");
-                          }}
+                          key={category.key}
+                          className={isActive ? "active" : ""}
+                          data-category={category.key}
+                          data-tone={category.tone}
+                          aria-pressed={isActive}
+                          onClick={() => selectMarketingTaskCategory(category.key)}
                         >
-                          <span className="marketing-birthday-avatar" aria-hidden="true">{task.name.slice(0, 1) || "客"}</span>
-                          <span className="marketing-birthday-main">
-                            <strong>{task.name}</strong>
-                            <small>{task.timingLabel}</small>
-                          </span>
-                          <em data-tone={task.tagTone}>{task.tag}</em>
-                          <span className="marketing-birthday-action"><Sparkles size={15} /> 生成祝福</span>
+                          <span aria-hidden="true"><CategoryIcon size={17} strokeWidth={2.35} /></span>
+                          <strong>{category.title}</strong>
+                          <small>{category.summary}</small>
+                          <em>{category.meta}</em>
                         </button>
-                      )) : (
+                      );
+                    })}
+                  </div>
+                  <div className="marketing-birthday-card">
+                    <div className="marketing-birthday-title">
+                      <span><ActiveMarketingTaskIcon size={17} strokeWidth={2.45} /> {activeMarketingTaskCategoryInfo.title} · {activeMarketingTaskCategoryInfo.summary}</span>
+                    </div>
+                    <div className="marketing-birthday-list">
+                      {visibleMarketingTasks.length > 0 ? visibleMarketingTasks.map((task) => {
+                        const isBirthday = task.kind === "birthday";
+                        const TaskIcon = marketingTaskCategoryIcons[task.category];
+                        const isActive = isBirthday
+                          ? selectedBirthdayTask?.id === task.birthdayTask.id
+                          : !selectedBirthdayTask && marketingNode === task.node.title;
+                        return (
+                          <button
+                            type="button"
+                            key={task.id}
+                            className={`marketing-birthday-row ${isActive ? "active" : ""}`}
+                            data-tone={task.tone}
+                            onClick={() => {
+                              if (isBirthday) {
+                                setSelectedBirthdayTaskId(task.birthdayTask.id);
+                                setChannel("私聊");
+                                setMarketingGoal("生日祝福");
+                                return;
+                              }
+                              setSelectedBirthdayTaskId("");
+                              setMarketingNode(task.node.title);
+                              setMarketingGoal("复购提醒");
+                            }}
+                          >
+                            <span className="marketing-birthday-avatar" data-category={task.category} data-tone={task.tone} aria-hidden="true">
+                              <TaskIcon size={19} strokeWidth={2.45} />
+                            </span>
+                            <span className="marketing-birthday-main">
+                              <strong>{task.title}</strong>
+                              <small>{task.subtitle}</small>
+                            </span>
+                            <em data-tone={task.tagTone}>{task.badge}</em>
+                          </button>
+                        );
+                      }) : (
                         <div className="marketing-birthday-empty">
-                          <span className="marketing-birthday-avatar" aria-hidden="true">客</span>
-                          <p>暂无生日客户</p>
+                          <span className="marketing-birthday-avatar" data-category={activeMarketingTaskCategory} aria-hidden="true">
+                            <ActiveMarketingTaskIcon size={19} strokeWidth={2.45} />
+                          </span>
+                          <p>{activeMarketingTaskCategory === "birthday" ? "暂无生日客户" : "暂无可用营销任务"}</p>
                         </div>
                       )}
                     </div>
@@ -941,7 +1157,7 @@ export function MarketingCenter({
 
                 <article className="marketing-copy-preview-card marketing-birthday-preview-card">
                   <header>
-                    <span><MessageCircle size={17} /> 推荐文案预览 · {selectedGenerationMode.title}</span>
+                    <span><MessageCircle size={17} /> 推荐文案预览 · {selectedBirthdayTask || emptyBirthdayCategory ? "生日提醒" : selectedNode.title}</span>
                   </header>
                   <div className="marketing-birthday-preview-body">
                     <div className="marketing-channel-pill-row" aria-label="渠道">
@@ -953,16 +1169,17 @@ export function MarketingCenter({
                             type="button"
                             key={item.name}
                             className={isActive ? "active" : ""}
+                            data-tone={item.tone}
+                            data-channel={item.sourceChannel}
                             onClick={() => setChannel(item.sourceChannel)}
                           >
                             <ChannelIcon size={16} strokeWidth={2.35} />
                             <strong>{item.name}</strong>
-                            {isActive && <span aria-hidden="true">✓</span>}
                           </button>
                         );
                       })}
                     </div>
-                    <p>{birthdayBlessingPreview(selectedBirthdayTask)}</p>
+                    <p>{copyPreviewText}</p>
                     <footer>
                       <span className="marketing-compliance-note"><ShieldCheck size={15} /> 已规避敏感词</span>
                       <button type="button" onClick={() => void copyCurrentPreview()}>换一条</button>
@@ -970,17 +1187,28 @@ export function MarketingCenter({
                   </div>
                 </article>
 
-                <details className="marketing-custom-disclosure">
-                  <summary><Plus size={16} /> 补充优惠/护理项目</summary>
-                  <label className="marketing-custom-field">
-                    <span>我想自己写要求</span>
-                    <textarea
-                      value={customRequirement}
-                      onChange={(event) => setCustomRequirement(event.target.value)}
-                      rows={3}
-                    />
-                  </label>
-                </details>
+                <section className={`marketing-custom-disclosure ${customRequirementOpen ? "expanded" : "collapsed"}`} aria-label="补充条件">
+                  <button
+                    type="button"
+                    className="marketing-custom-card-head"
+                    aria-expanded={customRequirementOpen}
+                    onClick={() => setCustomRequirementOpen((value) => !value)}
+                  >
+                    <span><Plus size={16} /> 补充条件</span>
+                    <em>优惠 · 护理项目</em>
+                  </button>
+                  {customRequirementOpen && (
+                    <label className="marketing-custom-field">
+                      <span>补充要求</span>
+                      <textarea
+                        value={customRequirement}
+                        onChange={(event) => setCustomRequirement(event.target.value)}
+                        placeholder="优惠、护理项目、活动话术等"
+                        rows={3}
+                      />
+                    </label>
+                  )}
+                </section>
               </div>
             )}
 
@@ -1022,7 +1250,13 @@ export function MarketingCenter({
                   </div>
                   <div className="marketing-style-grid" aria-label="图片风格">
                     {posterStyles.map((item) => (
-                      <button type="button" key={item} className={posterStyle === item ? "active" : ""} onClick={() => setPosterStyle(item)}>
+                      <button
+                        type="button"
+                        key={item}
+                        className={posterStyle === item ? "active" : ""}
+                        data-style-tone={posterStyleTones[item]}
+                        onClick={() => setPosterStyle(item)}
+                      >
                         <strong>{item}</strong>
                       </button>
                     ))}
@@ -1045,13 +1279,8 @@ export function MarketingCenter({
               </div>
             ) : null}
             <div className={`marketing-form-actions ${!isPosterMode ? "marketing-copy-actions" : "single"}`}>
-              {!isPosterMode && (
-                <button type="button" className="secondary-button marketing-copy-action" onClick={() => void copyBirthdayBatchPreview()}>
-                  <Gift size={16} /> {copyResultStatus === "copied" ? "已批量生成" : "批量生成"}
-                </button>
-              )}
               <button type="button" className="primary-button marketing-copy-action" disabled={!contentState.enabled || generationBusy} onClick={generate}>
-                <Sparkles size={16} /> {generationBusy ? "生成中..." : selectedBirthdayTask && !isPosterMode ? "生成生日祝福" : `生成${selectedGenerationMode.title}`}
+                <Sparkles size={16} /> {generationBusy ? "生成中..." : selectedBirthdayTask && !isPosterMode ? "生成生日图文案" : `生成${selectedGenerationMode.title}`}
               </button>
             </div>
           </div>

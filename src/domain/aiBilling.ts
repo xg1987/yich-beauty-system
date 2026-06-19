@@ -37,9 +37,10 @@ export function normalizeAiBillingConfig(input: unknown): AiBillingConfig {
   const freeStartsAt = typeof source.freeStartsAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(source.freeStartsAt)
     ? source.freeStartsAt
     : defaults.freeStartsAt;
-  const freeDailyLimit = Number.isInteger(source.freeDailyLimit) && Number(source.freeDailyLimit) >= 0 && Number(source.freeDailyLimit) <= 100
+  const configuredFreeDailyLimit = Number.isInteger(source.freeDailyLimit) && Number(source.freeDailyLimit) >= 0
     ? Number(source.freeDailyLimit)
     : defaults.freeDailyLimit;
+  const freeDailyLimit = Math.min(configuredFreeDailyLimit, DEFAULT_AI_FREE_DAILY_LIMIT);
   return { freeStartsAt, freeDailyLimit };
 }
 

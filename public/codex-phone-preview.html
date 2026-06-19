@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mobile Preview</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #f6f1fb;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+        padding: 18px;
+      }
+
+      .phone-frame {
+        width: 390px;
+        max-width: calc(100vw - 24px);
+        height: min(844px, calc(100vh - 36px));
+        overflow: hidden;
+        border: 1px solid rgba(111, 66, 193, 0.18);
+        border-radius: 24px;
+        background: #fffdfa;
+        box-shadow: 0 22px 54px rgba(57, 39, 96, 0.18);
+      }
+
+      iframe {
+        display: block;
+        width: 390px;
+        height: 844px;
+        max-width: 100%;
+        border: 0;
+        background: #fffdfa;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="phone-frame" aria-label="手机端预览">
+      <iframe id="phone-frame" title="手机端预览"></iframe>
+    </main>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const target = new URL("/", window.location.origin);
+      params.forEach((value, key) => {
+        if (key !== "_preview") target.searchParams.set(key, value);
+      });
+      if (!target.searchParams.has("view")) target.searchParams.set("view", "marketing");
+      target.searchParams.set("_phone_frame", String(Date.now()));
+      document.getElementById("phone-frame").src = target.toString();
+    </script>
+  </body>
+</html>

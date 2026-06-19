@@ -2,7 +2,14 @@ import type { ReactNode } from "react";
 
 type DataTableProps = {
   columns: string[];
-  rows: ReactNode[][];
+  rows: DataTableRow[];
+};
+
+type DataTableRow = ReactNode[] | {
+  cells: ReactNode[];
+  className?: string;
+  dataAttributes?: Record<string, string>;
+  key?: string;
 };
 
 export function DataTable({ columns, rows }: DataTableProps) {
@@ -15,9 +22,18 @@ export function DataTable({ columns, rows }: DataTableProps) {
           <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
-          ))}
+          {rows.map((row, index) => {
+            const cells = Array.isArray(row) ? row : row.cells;
+            return (
+              <tr
+                key={Array.isArray(row) ? index : row.key ?? index}
+                className={Array.isArray(row) ? undefined : row.className}
+                {...(Array.isArray(row) ? undefined : row.dataAttributes)}
+              >
+                {cells.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
