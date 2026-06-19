@@ -24005,6 +24005,11 @@ textarea,
   padding: 0 18px;
 }
 
+.employee-work-page .employee-card-list:has(> .empty:only-child) {
+  align-content: stretch;
+  grid-template-rows: minmax(118px, 1fr);
+}
+
 .marketing-tool-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
