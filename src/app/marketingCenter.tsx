@@ -809,6 +809,7 @@ export function MarketingCenter({
   const dialogSummaryItems = dialogRecord
     ? [dialogRecord.marketingNode, dialogRecord.channel, dialogRecord.marketingGoal].map((item) => item ? marketingCompliantText(item) : item).filter(Boolean)
     : previewSummaryItems;
+  const showDialogSummary = dialogKind !== "image" && dialogSummaryItems.length > 0;
   const showGenerationDialog = Boolean(selectedMarketingRecord || (!generationDialogDismissed && (generationBusy || generationError || generationResult)));
   const showAiTechnicalDetails = session.user.role === "superadmin";
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
@@ -1557,9 +1558,11 @@ export function MarketingCenter({
                 <X size={18} />
               </button>
             </div>
-            <div className="marketing-preview-summary" aria-label="当前生成条件">
-              {dialogSummaryItems.map((item) => <span key={item}>{item}</span>)}
-            </div>
+            {showDialogSummary && (
+              <div className="marketing-preview-summary" aria-label="当前生成条件">
+                {dialogSummaryItems.map((item) => <span key={item}>{item}</span>)}
+              </div>
+            )}
             <div className="marketing-result-body">
               <div className="marketing-result-panel">
                 {generationBusy && <p className="marketing-result-status">AI 正在生成{selectedGenerationMode.title}，请稍候。</p>}
