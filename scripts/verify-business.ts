@@ -2097,6 +2097,22 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     2,
     "cross-card checkout should write one consumption transaction per debited card",
   );
+  const refunded = refundOrder(
+    signed,
+    {
+      orderId: signed.orders[0].id,
+      reason: "跨卡项目退款",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(refunded, v1CardId).serviceEntitlements?.[0]?.remainingTimes, 3, "cross-card refund should restore the card that owns v1");
+  assert.equal(card(refunded, v2CardId).serviceEntitlements?.[0]?.remainingTimes, 2, "cross-card refund should restore the card that owns v2");
+  assert.equal(
+    refunded.memberCardTransactions.filter((transaction) => transaction.orderId === signed.orders[0].id && transaction.type === "退款").length,
+    2,
+    "cross-card refund should write one refund transaction per restored card",
+  );
 }
 
 {

@@ -2780,6 +2780,13 @@ type MemberCardDebitPlanLine = {
   quantity: number;
 };
 
+const memberCardDebitServiceNotePrefix = "扣卡项目:";
+
+function memberCardDebitServiceNote(lines: MemberCardDebitPlanLine[]) {
+  const serviceIds = lines.flatMap((line) => Array.from({ length: line.quantity }, () => line.serviceId));
+  return `${memberCardDebitServiceNotePrefix}${serviceIds.join(",")}`;
+}
+
 function memberCardDebitPriority(card: MemberCard, serviceId: string) {
   const entitlement = memberCardServiceEntitlement(card, serviceId);
   const serviceSpecific = Boolean(entitlement) || card.serviceId === serviceId || Boolean(card.serviceIds?.includes(serviceId));
@@ -3214,7 +3221,7 @@ export function checkoutOrder(
           timesDelta,
           balanceAfter: debitedCard.balance,
           remainingTimesAfter: debitedCard.remainingTimes,
-          note: `${order.orderNo} · ${serviceNote}`,
+          note: `${order.orderNo} · ${serviceNote} · ${memberCardDebitServiceNote(lines)}`,
           createdAt,
         }];
       })
@@ -3398,37 +3405,74 @@ export function refundOrder(
 
   let memberCards = data.memberCards;
   let memberCardTransactions = data.memberCardTransactions;
-  if (order.payMethod === "会员卡" && order.cardId) {
-    memberCards = data.memberCards.map((card) => {
-      if (card.id !== order.cardId) return card;
-      if (card.type !== "储值卡" && !isFullRefund) {
-        throw new Error("次数卡订单只支持全额退款");
-      }
-      const refundedServiceIds = order.serviceIds?.length ? order.serviceIds : order.serviceId ? [order.serviceId] : [];
-      const nextCard =
-        card.type === "储值卡"
-          ? { ...card, balance: card.balance + refundAmount }
-          : refundedServiceIds.reduce((nextCard, serviceId) => updateMemberCardServiceTimes(nextCard, serviceId, 1), card);
+  if (order.payMethod === "会员卡") {
+    const consumptionTransactions = data.memberCardTransactions.filter(
+      (transaction) => transaction.orderId === order.id && transaction.type === "消费",
+    );
+    const legacyCard = !consumptionTransactions.length && order.cardId
+      ? data.memberCards.find((card) => card.id === order.cardId)
+      : undefined;
+    const transactionsToRefund: MemberCardTransaction[] = consumptionTransactions.length
+      ? consumptionTransactions
+      : legacyCard
+        ? [
+            {
+              id: "",
+              storeId,
+              memberCardId: legacyCard.id,
+              orderId: order.id,
+              staffId: order.staffId,
+              type: "消费",
+              amountDelta: legacyCard.type === "储值卡" ? -order.paidAmount : 0,
+              timesDelta: legacyCard.type === "储值卡"
+                ? 0
+                : -(order.serviceIds?.length ? order.serviceIds.length : order.serviceId ? 1 : 0),
+              balanceAfter: legacyCard.balance,
+              remainingTimesAfter: legacyCard.remainingTimes,
+              note: order.orderNo,
+              createdAt: order.createdAt,
+            },
+          ]
+        : [];
 
-      memberCardTransactions = [
-        {
+    if (transactionsToRefund.some((transaction) => transaction.timesDelta < 0) && !isFullRefund) {
+      throw new Error("次数卡订单只支持全额退款");
+    }
+
+    const refundTransactions: MemberCardTransaction[] = [];
+    memberCards = data.memberCards.map((card) => {
+      const cardConsumptionTransactions = transactionsToRefund.filter((transaction) => transaction.memberCardId === card.id);
+      if (!cardConsumptionTransactions.length) return card;
+
+      let nextCard = card;
+      cardConsumptionTransactions.forEach((transaction) => {
+        const refundedServiceIds = card.type === "储值卡"
+          ? []
+          : memberCardTransactionServiceIds(data, order, transaction, card);
+        const amountDelta = card.type === "储值卡"
+          ? Math.max(0, isFullRefund && consumptionTransactions.length ? -transaction.amountDelta : refundAmount)
+          : 0;
+        nextCard = card.type === "储值卡"
+          ? { ...nextCard, balance: nextCard.balance + amountDelta }
+          : refundedServiceIds.reduce((currentCard, serviceId) => updateMemberCardServiceTimes(currentCard, serviceId, 1), nextCard);
+        refundTransactions.push({
           id: idFactory("mt"),
           storeId,
           memberCardId: card.id,
           orderId: order.id,
           staffId: order.staffId,
           type: "退款",
-          amountDelta: card.type === "储值卡" ? refundAmount : 0,
-          timesDelta: card.type === "储值卡" ? 0 : refundedServiceIds.length,
+          amountDelta,
+          timesDelta: refundedServiceIds.length,
           balanceAfter: nextCard.balance,
           remainingTimesAfter: nextCard.remainingTimes,
           note: `${order.orderNo} 退款`,
           createdAt,
-        },
-        ...memberCardTransactions,
-      ];
+        });
+      });
       return nextCard;
     });
+    memberCardTransactions = [...refundTransactions, ...memberCardTransactions];
   }
 
   return {
@@ -5230,7 +5274,7 @@ export function signCustomerSignature(
           timesDelta,
           balanceAfter: debitedProjectCard.balance,
           remainingTimesAfter: debitedProjectCard.remainingTimes,
-          note: `${linkedOrder.orderNo} · 签名确认扣卡 · ${serviceNote}`,
+          note: `${linkedOrder.orderNo} · 签名确认扣卡 · ${serviceNote} · ${memberCardDebitServiceNote(lines)}`,
           createdAt: signedAt,
         }];
       })
@@ -5342,6 +5386,31 @@ function updateMemberCardServiceTimes(card: MemberCard, serviceId: string, delta
     remainingTimes: memberCardEntitlementRemainingTimes(serviceEntitlements),
     serviceEntitlements,
   };
+}
+
+function memberCardTransactionServiceIds(data: AppData, order: Order, transaction: MemberCardTransaction, card: MemberCard) {
+  const debitCount = Math.max(0, Math.abs(Math.floor(transaction.timesDelta)));
+  if (debitCount === 0) return [];
+  const orderServiceIds = order.serviceIds?.length ? order.serviceIds : order.serviceId ? [order.serviceId] : [];
+  const markerIndex = transaction.note.indexOf(memberCardDebitServiceNotePrefix);
+  if (markerIndex >= 0) {
+    const markerText = transaction.note.slice(markerIndex + memberCardDebitServiceNotePrefix.length).split("·")[0] ?? "";
+    const markerServiceIds = markerText
+      .split(",")
+      .map((serviceId) => serviceId.trim())
+      .filter((serviceId) => serviceId && memberCardSupportsService(card, serviceId));
+    if (markerServiceIds.length) return markerServiceIds.slice(0, debitCount);
+  }
+
+  const serviceIdsFromNames = orderServiceIds.filter((serviceId) => {
+    const serviceName = data.services.find((service) => service.id === serviceId)?.name;
+    return Boolean(serviceName && transaction.note.includes(serviceName) && memberCardSupportsService(card, serviceId));
+  });
+  if (serviceIdsFromNames.length) return serviceIdsFromNames.slice(0, debitCount);
+
+  return orderServiceIds
+    .filter((serviceId) => memberCardSupportsService(card, serviceId))
+    .slice(0, debitCount);
 }
 
 function memberCardCanUseForService(card: MemberCard, serviceId: string) {
