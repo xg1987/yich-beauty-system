@@ -175,6 +175,7 @@ export function createApiClient(getToken: () => string | undefined) {
       posterSize?: string;
       posterTitle?: string;
       posterOffer?: string;
+      copyOutputMode?: "text" | "image" | "poster";
       productImageName?: string;
       productImageDataUrl?: string;
       modelImageName?: string;

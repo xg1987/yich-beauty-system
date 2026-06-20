@@ -12,6 +12,7 @@ import { money, shortDate } from "../../domain/utils";
 import type { ApiActions } from "../../hooks/useApiData";
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
+type ReportPeriodMode = "day" | "week" | "month" | "year";
 
 type ReportsProps = {
   data: AppData;
@@ -82,6 +83,197 @@ function DailyCloseControl({
   );
 }
 
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addReportPeriod(date: Date, mode: ReportPeriodMode, delta: number) {
+  const next = new Date(date);
+  if (mode === "day") next.setDate(next.getDate() + delta);
+  if (mode === "week") next.setDate(next.getDate() + delta * 7);
+  if (mode === "month") next.setMonth(next.getMonth() + delta);
+  if (mode === "year") next.setFullYear(next.getFullYear() + delta);
+  return next;
+}
+
+function reportPeriodRange(date: Date, mode: ReportPeriodMode) {
+  const start = startOfLocalDay(date);
+  if (mode === "week") {
+    const day = start.getDay() || 7;
+    start.setDate(start.getDate() - day + 1);
+  }
+  if (mode === "month") start.setDate(1);
+  if (mode === "year") {
+    start.setMonth(0);
+    start.setDate(1);
+  }
+  const end = new Date(start);
+  if (mode === "day") end.setDate(end.getDate() + 1);
+  if (mode === "week") end.setDate(end.getDate() + 7);
+  if (mode === "month") end.setMonth(end.getMonth() + 1);
+  if (mode === "year") end.setFullYear(end.getFullYear() + 1);
+  return { start, end };
+}
+
+function inReportPeriod(value: string | undefined, start: Date, end: Date) {
+  if (!value) return false;
+  const time = Date.parse(value);
+  return Number.isFinite(time) && time >= +start && time < +end;
+}
+
+function reportPeriodLabel(date: Date, mode: ReportPeriodMode) {
+  if (mode === "day") return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  if (mode === "month") return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+  if (mode === "year") return `${date.getFullYear()}年`;
+  const { start, end } = reportPeriodRange(date, "week");
+  const weekEnd = new Date(+end - 1);
+  return `${start.getFullYear()}年${start.getMonth() + 1}月${start.getDate()}日 - ${weekEnd.getMonth() + 1}月${weekEnd.getDate()}日`;
+}
+
+function reportPeriodHint(mode: ReportPeriodMode) {
+  if (mode === "day") return "今日 · 可左右切换昨天/明天";
+  if (mode === "week") return "本周 · 可左右切换上周/下周";
+  if (mode === "month") return "本月 · 可左右切换上月/下月";
+  return "本年 · 可左右切换去年/明年";
+}
+
+function reportComparisonLabel(mode: ReportPeriodMode) {
+  if (mode === "day") return "较上一日";
+  if (mode === "week") return "较上周";
+  if (mode === "month") return "较上月";
+  return "较去年";
+}
+
+function reportPeriodData(data: AppData, mode: ReportPeriodMode, date: Date) {
+  const { start, end } = reportPeriodRange(date, mode);
+  return {
+    ...data,
+    orders: data.orders.filter((order) => inReportPeriod(order.createdAt, start, end)),
+    refunds: data.refunds.filter((refund) => inReportPeriod(refund.createdAt, start, end)),
+    memberCardTransactions: data.memberCardTransactions.filter((transaction) => inReportPeriod(transaction.createdAt, start, end)),
+    appointments: data.appointments.filter((appointment) => inReportPeriod(appointment.startAt, start, end)),
+    commissions: data.commissions.filter((commission) => inReportPeriod(commission.createdAt, start, end)),
+  };
+}
+
+function BusinessOverviewPanel({
+  data,
+  summary,
+  mode,
+  date,
+  setMode,
+  movePeriod,
+  exportReportSummary,
+  onOpenDaily,
+}: {
+  data: AppData;
+  summary: ReturnType<typeof reportSummary>;
+  mode: ReportPeriodMode;
+  date: Date;
+  setMode: (mode: ReportPeriodMode) => void;
+  movePeriod: (delta: number) => void;
+  exportReportSummary: () => void;
+  onOpenDaily: () => void;
+}) {
+  const periodOptions: Array<{ key: ReportPeriodMode; label: string }> = [
+    { key: "day", label: "日" },
+    { key: "week", label: "周" },
+    { key: "month", label: "月" },
+    { key: "year", label: "年" },
+  ];
+  const productIncome = data.orders.reduce((sum, order) => sum + (order.productItems ?? []).reduce((itemSum, item) => itemSum + item.amount, 0), 0);
+  const cardIncome = data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
+  const serviceIncome = Math.max(0, summary.revenue - productIncome - cardIncome);
+  const structureTotal = Math.max(1, serviceIncome + productIncome + cardIncome);
+  return (
+    <section className="business-overview-redesign">
+      <div className="business-overview-hero">
+        <div>
+          <span>店长经营看板</span>
+          <strong>经营按周期看</strong>
+          <small>日、周、月、年自由切换，可回看历史周期</small>
+        </div>
+        <button type="button" onClick={exportReportSummary}>导出</button>
+      </div>
+
+      <div className="business-period-card">
+        <div className="business-period-tabs">
+          {periodOptions.map((item) => (
+            <button key={item.key} type="button" className={mode === item.key ? "active" : ""} onClick={() => setMode(item.key)}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="business-period-main">
+          <div>
+            <strong>{reportPeriodLabel(date, mode)}</strong>
+            <span>{reportPeriodHint(mode)}</span>
+          </div>
+          <div className="business-period-arrows">
+            <button type="button" aria-label="上一周期" onClick={() => movePeriod(-1)}>‹</button>
+            <button type="button" aria-label="下一周期" onClick={() => movePeriod(1)}>›</button>
+          </div>
+        </div>
+      </div>
+
+      <section className="business-overview-card business-core-card">
+        <header>
+          <h3>核心结果</h3>
+          <span>{reportComparisonLabel(mode)}</span>
+        </header>
+        <div className="business-core-grid">
+          <article>
+            <span>实收金额</span>
+            <strong>{money(summary.revenue)}</strong>
+            <small>--</small>
+          </article>
+          <article>
+            <span>净收入</span>
+            <strong>{money(summary.netRevenue)}</strong>
+            <small>--</small>
+          </article>
+        </div>
+      </section>
+
+      <section className="business-overview-card">
+        <h3>订单与客流</h3>
+        <div className="business-mini-grid">
+          <article><span>订单数</span><strong>{summary.serviceCount} 单</strong></article>
+          <article><span>客单价</span><strong>{money(summary.averageOrderValue)}</strong></article>
+          <article><span>到店客户</span><strong>{summary.activeCustomerCount} 人</strong></article>
+        </div>
+      </section>
+
+      <section className="business-overview-card business-income-card">
+        <h3>收入结构</h3>
+        <div className="business-income-bar">
+          <i style={{ width: `${(serviceIncome / structureTotal) * 100}%` }} />
+          <b style={{ width: `${(productIncome / structureTotal) * 100}%` }} />
+          <em style={{ width: `${(cardIncome / structureTotal) * 100}%` }} />
+        </div>
+        <div className="business-income-list">
+          <span>服务收入<strong>{money(serviceIncome)}</strong></span>
+          <span>商品收入<strong>{money(productIncome)}</strong></span>
+          <span>开卡/充值<strong>{money(cardIncome)}</strong></span>
+        </div>
+      </section>
+
+      <section className="business-overview-card">
+        <h3>会员与转化</h3>
+        <div className="business-core-grid">
+          <article><span>预约转化</span><strong>{summary.serviceCount} / {data.appointments.length}</strong></article>
+          <article><span>复购率</span><strong>{(summary.repeatRate * 100).toFixed(1)}%</strong></article>
+        </div>
+      </section>
+
+      <button type="button" className="business-daily-close-link" onClick={onOpenDaily}>
+        <strong>财务日结</strong>
+        <span>流水 / 退款 / 毛利 / 库存成本 ›</span>
+      </button>
+    </section>
+  );
+}
+
 export default function Reports({
   data,
   actions,
@@ -92,7 +284,10 @@ export default function Reports({
 }: ReportsProps) {
   const [businessDate, setBusinessDate] = useState(new Date().toISOString().slice(0, 10));
   const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | "trend" | undefined>(fromManagement ? "summary" : undefined);
-  const summary = reportSummary(data);
+  const [reportPeriodMode, setReportPeriodMode] = useState<ReportPeriodMode>("day");
+  const [reportPeriodDate, setReportPeriodDate] = useState(() => new Date());
+  const periodData = reportPeriodData(data, reportPeriodMode, reportPeriodDate);
+  const summary = reportSummary(periodData);
   const percentText = (value: number) => `${(value * 100).toFixed(1)}%`;
   const exportCsv = (filename: string, columns: string[], rows: Array<Array<string | number>>) => {
     downloadCsvFile(filename, columns, rows);
@@ -164,6 +359,9 @@ export default function Reports({
     ["临期库存", summary.expiringInventoryCount, "30 天内到期批次"],
     ["低库存项", summary.lowStockCount, "低于预警值"],
   ]);
+  const moveReportPeriod = (delta: number) => {
+    setReportPeriodDate((current) => addReportPeriod(current, reportPeriodMode, delta));
+  };
   const exportTrend = () => exportCsv("yich-report-trend.csv", ["日期", "实收", "订单", "退款", "预约"], dailyTrend.map((item) => [
     item.date,
     item.revenue,
@@ -207,8 +405,9 @@ export default function Reports({
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "报表分析"}
-        subtitle="经营指标、收银流水和财务日结数据"
+        subtitle={activeModule === "summary" ? undefined : "经营指标、收银流水和财务日结数据"}
         size="large"
+        className={activeModule === "summary" ? "business-overview-modal" : undefined}
         onClose={closeModule}
       >
         <div className="module-detail-stack reports-modal-detail">
@@ -227,38 +426,16 @@ export default function Reports({
             </section>
           )}
           {activeModule === "summary" && (
-            <section className="panel">
-              <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营分析" action={<button type="button" onClick={exportReportSummary}>导出 CSV</button>} />
-              <DataTable
-                columns={["指标", "结果", "说明"]}
-                rows={[
-                  ["客单价", money(summary.averageOrderValue), "实收 / 订单数"],
-                  ["净收入", money(summary.netRevenue), "实收现金流 - 退款"],
-                  ["毛利", money(summary.grossProfit), "扣除商品/库存成本"],
-                  ["毛利率", percentText(summary.grossMargin), "毛利 / 净收入"],
-                  ["客户数", `${data.customers.length} 人`, "客户资产规模"],
-                  ["活跃客户", `${summary.activeCustomerCount} 人`, "有订单客户"],
-                  ["复购率", percentText(summary.repeatRate), `${summary.repeatCustomerCount} 位复购客户`],
-                  ["会员积分", `${summary.totalMemberPoints} 分`, "客户积分合计"],
-                  ["预约转化", `${data.orders.length}/${data.appointments.length}`, "已收银订单 / 预约"],
-                  ["库存估值", money(summary.inventoryCost), "剩余批次成本"],
-                  ["临期库存", `${summary.expiringInventoryCount} 批`, "30 天内到期批次"],
-                  ["低库存项", `${summary.lowStockCount} 项`, "低于预警值"],
-                ]}
-              />
-              <div className="divider" />
-              <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营趋势" action={<button type="button" onClick={exportTrend}>导出趋势 CSV</button>} />
-              <DataTable
-                columns={["日期", "实收", "订单", "退款", "预约"]}
-                rows={dailyTrend.map((item) => [
-                  item.date,
-                  money(item.revenue),
-                  `${item.orders} 单`,
-                  money(item.refunds),
-                  `${item.appointments} 单`,
-                ])}
-              />
-            </section>
+            <BusinessOverviewPanel
+              data={periodData}
+              summary={summary}
+              mode={reportPeriodMode}
+              date={reportPeriodDate}
+              setMode={setReportPeriodMode}
+              movePeriod={moveReportPeriod}
+              exportReportSummary={exportReportSummary}
+              onOpenDaily={() => setActiveModule("daily")}
+            />
           )}
           {activeModule === "trend" && (
             <section className="panel">

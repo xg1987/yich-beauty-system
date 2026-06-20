@@ -23396,6 +23396,342 @@ textarea,
   gap: 10px;
 }
 
+.business-overview-redesign {
+  display: grid;
+  gap: 16px;
+  padding: 4px;
+  color: #2f255f;
+}
+
+.system-modal.large.business-overview-modal {
+  width: min(720px, 100%);
+  background:
+    radial-gradient(circle at 88% 9%, rgba(111, 66, 193, 0.1), transparent 34%),
+    linear-gradient(180deg, #fbf7ff 0%, #f6efff 100%);
+}
+
+.business-overview-modal .system-modal-header {
+  margin: 16px 16px 8px;
+  padding: 12px 18px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 10px 24px rgba(86, 48, 130, 0.08);
+}
+
+.business-overview-modal .system-modal-title {
+  justify-items: center;
+}
+
+.business-overview-modal .system-modal-header strong {
+  text-align: center;
+  font-size: 22px;
+}
+
+.business-overview-modal .system-modal-back,
+.business-overview-modal .system-modal-close {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.business-overview-modal .system-modal-back {
+  font-size: 16px;
+}
+
+.business-overview-modal .system-modal-back span {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.business-overview-modal .system-modal-close {
+  border-radius: 999px;
+}
+
+.business-overview-modal .system-modal-body {
+  padding-top: 12px;
+}
+
+.business-overview-hero {
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 20px 28px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #6737bf 0%, #8b4bd4 56%, #a66a61 100%);
+  box-shadow: 0 14px 30px rgba(86, 48, 130, 0.18);
+  color: #fff;
+}
+
+.business-overview-hero div {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.business-overview-hero span,
+.business-overview-hero small {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.business-overview-hero strong {
+  font-size: 34px;
+  font-weight: 920;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.business-overview-hero button {
+  min-width: 88px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-weight: 820;
+}
+
+.business-period-card,
+.business-overview-card,
+.business-daily-close-link {
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 28px rgba(86, 48, 130, 0.12);
+}
+
+.business-period-card {
+  display: grid;
+  gap: 20px;
+  padding: 16px;
+}
+
+.business-period-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 999px;
+  background: #f6f0ff;
+}
+
+.business-period-tabs button {
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(47, 37, 95, 0.55);
+  font-size: 14px;
+  font-weight: 860;
+}
+
+.business-period-tabs button.active {
+  background: linear-gradient(90deg, #6e3bd0, #a24bda);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(111, 66, 193, 0.22);
+}
+
+.business-period-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.business-period-main > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.business-period-main strong {
+  color: #2f255f;
+  font-size: 22px;
+  font-weight: 920;
+  line-height: 1.2;
+}
+
+.business-period-main span {
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.business-period-arrows {
+  display: flex;
+  gap: 10px;
+}
+
+.business-period-arrows button {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f255f;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.business-overview-card {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.business-overview-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.business-overview-card h3 {
+  margin: 0;
+  color: #2f255f;
+  font-size: 18px;
+  font-weight: 920;
+  line-height: 1.25;
+}
+
+.business-overview-card header span {
+  color: rgba(47, 37, 95, 0.48);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.business-core-grid,
+.business-mini-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.business-core-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.business-mini-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.business-core-grid article,
+.business-mini-grid article {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 76px;
+  padding: 14px 16px;
+  border: 1px solid rgba(111, 66, 193, 0.13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.business-core-grid article:first-child {
+  background: #fbf6ff;
+}
+
+.business-core-grid article:nth-child(2) {
+  background: #f8fbff;
+}
+
+.business-core-grid span,
+.business-mini-grid span {
+  color: rgba(47, 37, 95, 0.52);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.business-core-grid strong,
+.business-mini-grid strong {
+  color: #2f255f;
+  font-size: 25px;
+  font-weight: 920;
+  line-height: 1.1;
+}
+
+.business-mini-grid strong {
+  font-size: 20px;
+}
+
+.business-core-grid small {
+  justify-self: end;
+  color: rgba(47, 37, 95, 0.42);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.business-income-bar {
+  overflow: hidden;
+  height: 14px;
+  display: flex;
+  border-radius: 999px;
+  background: #f1e8fb;
+}
+
+.business-income-bar i,
+.business-income-bar b,
+.business-income-bar em {
+  min-width: 0;
+  height: 100%;
+}
+
+.business-income-bar i {
+  background: #7440cf;
+}
+
+.business-income-bar b {
+  background: #2f9c8f;
+}
+
+.business-income-bar em {
+  background: #d64b6a;
+}
+
+.business-income-list {
+  display: grid;
+  gap: 12px;
+}
+
+.business-income-list span,
+.business-daily-close-link {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: #2f255f;
+  font-size: 14px;
+  font-weight: 780;
+}
+
+.business-income-list strong {
+  font-weight: 860;
+}
+
+.business-daily-close-link {
+  width: 100%;
+  align-items: center;
+  padding: 16px 20px;
+  text-align: left;
+}
+
+.business-daily-close-link strong {
+  color: #2f255f;
+  font-size: 16px;
+  font-weight: 920;
+}
+
+.business-daily-close-link span {
+  color: rgba(47, 37, 95, 0.55);
+  font-size: 13px;
+  font-weight: 760;
+}
+
 .workbench-schedule-panel {
   overflow: hidden;
 }
@@ -28085,6 +28421,13 @@ textarea,
   color: #92400e !important;
 }
 
+.marketing-type-credit-pill {
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 13px;
+  box-shadow: 0 8px 18px rgba(22, 133, 117, 0.08);
+}
+
 .marketing-task-category-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -28724,6 +29067,52 @@ textarea,
   stroke: currentColor !important;
 }
 
+.marketing-copy-output-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marketing-copy-output-panel button {
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f255f !important;
+  font-weight: 900;
+}
+
+.marketing-copy-output-panel button.active {
+  border-color: rgba(111, 66, 193, 0.42);
+  background: linear-gradient(135deg, rgba(111, 66, 193, 0.14), rgba(255, 255, 255, 0.9));
+  color: #6f42c1 !important;
+  box-shadow: inset 0 0 0 1px rgba(111, 66, 193, 0.14);
+}
+
+.marketing-copy-output-panel button svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-copy-output-panel button span {
+  min-width: 0;
+}
+
+.marketing-copy-output-panel button strong {
+  display: block;
+  overflow: hidden;
+  color: currentColor !important;
+  font-size: 15px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .marketing-birthday-preview-body footer button {
   border: 0;
   background: transparent;
@@ -29148,6 +29537,32 @@ textarea,
 }
 
 /* Management refund module: keep refund selection and customer card readable in every theme. */
+.app-shell.theme-day .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button,
+.app-shell.theme-night .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button {
+  color: #2f255f !important;
+  -webkit-text-fill-color: #2f255f !important;
+}
+
+.app-shell.theme-day .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button.active,
+.app-shell.theme-night .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button.active {
+  color: #5b2fb7 !important;
+  -webkit-text-fill-color: #5b2fb7 !important;
+}
+
+.app-shell.theme-day .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button strong,
+.app-shell.theme-day .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button span,
+.app-shell.theme-night .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button strong,
+.app-shell.theme-night .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button span {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.app-shell.theme-day .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button svg,
+.app-shell.theme-night .marketing-center-page.marketing-copy-layout .marketing-copy-output-panel button svg {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
 .theme-day .system-modal .refund-search,
 .theme-night .system-modal .refund-search {
   display: grid;

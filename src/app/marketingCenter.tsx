@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gift, Image as ImageIcon, ImagePlus, LayoutGrid, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, PartyPopper, Plus, ShieldCheck, Sparkles, Video, X } from "lucide-react";
+import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gift, Image as ImageIcon, ImagePlus, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, PartyPopper, Plus, ShieldCheck, Sparkles, Video, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -18,6 +18,7 @@ import {
 
 type MarketingViewKey = "content" | "records";
 type MarketingGenerationKind = "copy" | "image" | "video" | "talk";
+type MarketingCopyOutputMode = "text" | "image" | "poster";
 type MarketingNode = { title: string; badge: string; description: string; hint?: string; dateLabel?: string };
 type BirthdayMarketingTask = {
   id: string;
@@ -540,6 +541,7 @@ export function MarketingCenter({
   const [channel, setChannel] = useState("朋友圈");
   const [marketingGoal, setMarketingGoal] = useState("复购提醒");
   const [generationKind, setGenerationKind] = useState<MarketingGenerationKind>("copy");
+  const [copyOutputMode, setCopyOutputMode] = useState<MarketingCopyOutputMode>("poster");
   const [activeMarketingTaskCategory, setActiveMarketingTaskCategory] = useState<MarketingTaskCategory>("festival");
   const [selectedBirthdayTaskId, setSelectedBirthdayTaskId] = useState("");
   const [showAllMarketingTasks, setShowAllMarketingTasks] = useState(false);
@@ -665,12 +667,14 @@ export function MarketingCenter({
   const selectedGenerationMode = generationModes.find((item) => item.kind === generationKind) ?? generationModes[0];
   const selectedModeLocked = Boolean(selectedGenerationMode.locked);
   const isPosterMode = generationKind === "image";
+  const isCopyMode = generationKind === "copy";
+  const copyGenerateTitle = copyOutputMode === "text" ? "生成文案" : copyOutputMode === "image" ? "生成图片" : "生成图文";
   const effectivePosterSize = isPosterMode ? posterSize : posterSizeForMarketingChannel(channel);
   const quotaState = aiFreeQuotaState(data, session.user.id);
   const marketingCreditStatus = quotaState.credits > 0
     ? `积分 ${formatAiCreditAmount(quotaState.credits)}`
     : quotaState.remaining > 0
-      ? `免费 ${quotaState.remaining}次`
+      ? `今日免费 ${quotaState.remaining}次`
       : "免费已用完";
   const marketingQuotaDetail = quotaState.credits > 0
     ? "生成后按实际模型费用扣除积分"
@@ -798,6 +802,12 @@ export function MarketingCenter({
   }, [selectedModeLocked]);
 
   useEffect(() => {
+    if (activeView === "content" && generationKind === "copy") {
+      setCopyOutputMode("poster");
+    }
+  }, [activeView, generationKind]);
+
+  useEffect(() => {
     if (selectedBirthdayTaskId && !birthdayTasks.some((item) => item.id === selectedBirthdayTaskId)) {
       setSelectedBirthdayTaskId("");
     }
@@ -897,6 +907,7 @@ export function MarketingCenter({
         sceneImageName,
         sceneImageDataUrl,
         customRequirement: generationRequirement,
+        copyOutputMode,
         videoRatio,
         videoDuration,
         videoScript: marketingCompliantText(videoScript),
@@ -1019,26 +1030,23 @@ export function MarketingCenter({
           <div className="marketing-heading-tabs" role="tablist" aria-label="营销生成视图">
             <button
               type="button"
-              className={`marketing-heading-tab ${activeView === "content" ? "active" : ""}`}
-              role="tab"
-              aria-selected={activeView === "content"}
-              onClick={() => setActiveView("content")}
-            >
-              <span className="marketing-heading-icon" aria-hidden="true"><LayoutGrid size={18} strokeWidth={2.6} /></span>
-              <strong>生成类型</strong>
-            </button>
-            <button
-              type="button"
               className={`marketing-heading-tab ${activeView === "records" ? "active" : ""}`}
               role="tab"
               aria-selected={activeView === "records"}
-              onClick={() => setActiveView("records")}
+              onClick={() => setActiveView((view) => view === "records" ? "content" : "records")}
             >
               <span className="marketing-heading-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.6} /></span>
               <strong>生成记录</strong>
               <em>{typedMarketingAiRecords.length}</em>
             </button>
           </div>
+          <span
+            className={`marketing-task-credit-pill marketing-type-credit-pill ${quotaState.credits > 0 ? "paid" : quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}
+            title={marketingQuotaDetail}
+          >
+            <Sparkles size={13} aria-hidden="true" />
+            {marketingCreditStatus}
+          </span>
         </div>
         {activeView === "content" && (
           <div className="marketing-output-mode-grid" aria-label="生成内容类型">
@@ -1079,15 +1087,6 @@ export function MarketingCenter({
                   <ImageIcon size={19} strokeWidth={2.35} aria-hidden="true" />
                   <strong>AI产品海报</strong>
                 </div>
-                <div className="marketing-task-head-actions">
-                  <span
-                    className={`marketing-task-credit-pill ${quotaState.credits > 0 ? "paid" : quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}
-                    title={marketingQuotaDetail}
-                  >
-                    <Sparkles size={13} aria-hidden="true" />
-                    {marketingCreditStatus}
-                  </span>
-                </div>
               </header>
             )}
             {!isPosterMode && (
@@ -1098,20 +1097,13 @@ export function MarketingCenter({
                       <CalendarCheck size={19} strokeWidth={2.35} aria-hidden="true" />
                       <strong>今日营销任务</strong>
                     </div>
-                    <div className="marketing-task-head-actions">
-                      <span
-                        className={`marketing-task-credit-pill ${quotaState.credits > 0 ? "paid" : quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}
-                        title={marketingQuotaDetail}
-                      >
-                        <Sparkles size={13} aria-hidden="true" />
-                        {marketingCreditStatus}
-                      </span>
-                      {canExpandMarketingTasks && (
+                    {canExpandMarketingTasks && (
+                      <div className="marketing-task-head-actions">
                         <button type="button" onClick={() => setShowAllMarketingTasks((value) => !value)}>
                           {showAllMarketingTasks ? "收起" : "查看全部"}
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </header>
                   <div className="marketing-task-category-grid" aria-label="营销任务分类">
                     {marketingTaskCategories.map((category) => {
@@ -1210,13 +1202,48 @@ export function MarketingCenter({
                         );
                       })}
                     </div>
-                    <p>{copyPreviewText}</p>
                     <footer>
                       <span className="marketing-compliance-note"><ShieldCheck size={15} /> 已规避敏感词</span>
                       <button type="button" onClick={() => void copyCurrentPreview()}>换一条</button>
                     </footer>
                   </div>
                 </article>
+
+                <section className="marketing-copy-output-panel" aria-label="生成内容选择">
+                  <button
+                    type="button"
+                    className={copyOutputMode === "poster" ? "active" : ""}
+                    aria-pressed={copyOutputMode === "poster"}
+                    onClick={() => setCopyOutputMode("poster")}
+                  >
+                    <Sparkles size={16} strokeWidth={2.35} />
+                    <span>
+                      <strong>图文</strong>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={copyOutputMode === "text" ? "active" : ""}
+                    aria-pressed={copyOutputMode === "text"}
+                    onClick={() => setCopyOutputMode("text")}
+                  >
+                    <MessageSquarePlus size={16} strokeWidth={2.35} />
+                    <span>
+                      <strong>文案</strong>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={copyOutputMode === "image" ? "active" : ""}
+                    aria-pressed={copyOutputMode === "image"}
+                    onClick={() => setCopyOutputMode("image")}
+                  >
+                    <ImagePlus size={16} strokeWidth={2.35} />
+                    <span>
+                      <strong>图片</strong>
+                    </span>
+                  </button>
+                </section>
 
                 <section className={`marketing-custom-disclosure ${customRequirementOpen ? "expanded" : "collapsed"}`} aria-label="补充条件">
                   <button
@@ -1311,7 +1338,7 @@ export function MarketingCenter({
             ) : null}
             <div className={`marketing-form-actions ${!isPosterMode ? "marketing-copy-actions" : "single"}`}>
               <button type="button" className="primary-button marketing-copy-action" disabled={!contentState.enabled || generationBusy} onClick={generate}>
-                <Sparkles size={16} /> {generationBusy ? "生成中..." : selectedBirthdayTask && !isPosterMode ? "生成生日图文案" : `生成${selectedGenerationMode.title}`}
+                <Sparkles size={16} /> {generationBusy ? "生成中..." : selectedBirthdayTask && !isPosterMode ? (copyOutputMode === "text" ? "生成生日文案" : copyOutputMode === "image" ? "生成生日图片" : "生成生日图文") : isCopyMode ? copyGenerateTitle : `生成${selectedGenerationMode.title}`}
               </button>
             </div>
           </div>
