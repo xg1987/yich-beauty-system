@@ -1,4 +1,4 @@
-const ICON_VERSION = "0.1.298";
+const ICON_VERSION = "0.1.299";
 const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}`;
 const APP_SHELL_ASSETS = [
   "/",

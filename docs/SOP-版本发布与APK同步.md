@@ -77,6 +77,7 @@ npm run verify:bundle
 - 顶部、底部导航、弹窗、按钮、输入框不遮挡、不重叠。
 - 本次修改涉及的三个最关键按钮或入口都能点击，并出现正确结果。
 - 员工端、店长端、老板端要按实际权限测试，不能只用管理员账号替代。
+- 本地角色登录账号固定见 `docs/SOP-本地UI验收账号.md`，店长端优先用 `manager@test.local / test-password`，员工端才用 `therapist@test.local / test-password`。
 - 如果是更新版本相关改动，必须确认不会自动刷新打断使用；只有用户点“立即更新”或“重新进入”才允许刷新。
 
 三端真实浏览器验收不通过时，禁止 `git push`、禁止 `npm run deploy:pages`。

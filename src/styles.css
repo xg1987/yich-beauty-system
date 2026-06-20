@@ -32404,3 +32404,479 @@ img.brand-icon-mark {
     display: none;
   }
 }
+
+/* Mobile UI acceptance overrides: keep the manager workbench, appointment controls,
+   management hub, and cashier hub aligned with the validated mobile layout. */
+@media (max-width: 767px) {
+  .dashboard-page.workbench-visual-page .workbench-hero,
+  .page-hero,
+  .customer-module-page.module-hub .page-hero,
+  .cashier-module-page.module-hub .page-hero,
+  .admin-center-page:not(.platform-admin-page) .admin-profile-hero {
+    height: 132px !important;
+    min-height: 132px !important;
+    padding: 18px !important;
+    border-radius: 22px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-hero {
+    gap: 4px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-hero-kicker {
+    min-height: 24px !important;
+    padding: 3px 10px !important;
+    gap: 5px !important;
+    font-size: 11px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-hero-kicker svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-hero h2 {
+    font-size: 30px !important;
+    line-height: 1.02 !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-hero p {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-hero small {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .dashboard-metric {
+    min-height: 104px !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto minmax(24px, auto) !important;
+    align-content: start !important;
+    align-items: start !important;
+    gap: 2px 6px !important;
+    padding: 10px 7px 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .dashboard-metric > div {
+    display: contents !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .metric-icon {
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .metric-icon svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .dashboard-metric strong {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    font-size: 18px !important;
+    line-height: 1.06 !important;
+    white-space: nowrap !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .dashboard-metric span:not(.metric-icon),
+  .dashboard-page.workbench-visual-page .workbench-metric-row .dashboard-metric small {
+    display: block !important;
+    overflow: visible !important;
+    width: 100% !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .dashboard-metric span:not(.metric-icon) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+  .dashboard-page.workbench-visual-page .workbench-metric-row .dashboard-metric small {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    align-self: end !important;
+    max-width: 100% !important;
+    margin-top: 4px !important;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    transform: none !important;
+  }
+
+  .workbench-schedule-panel {
+    padding-right: 4px !important;
+    padding-left: 4px !important;
+  }
+
+  .workbench-schedule-table {
+    --schedule-staff-column-width: 68px !important;
+  }
+
+  .workbench-schedule-staff {
+    padding: 0 4px !important;
+  }
+
+  .workbench-schedule-staff strong {
+    overflow: hidden !important;
+    padding: 0 4px !important;
+    font-size: 13px !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .workbench-schedule-time-row > div,
+  .workbench-schedule-lane {
+    background-size: 6.25% 100% !important;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-invite-section {
+    min-height: 96px !important;
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr) !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-invite-card {
+    min-height: 64px !important;
+    gap: 6px !important;
+    padding: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-invite-heading span,
+  .admin-center-page:not(.platform-admin-page) .admin-invite-card > span {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-invite-heading small {
+    margin-top: 3px !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-invite-code {
+    grid-template-columns: minmax(0, 1fr) 30px 30px !important;
+    gap: 6px !important;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-invite-value {
+    min-height: 30px !important;
+    font-size: 16px !important;
+  }
+
+  .admin-center-page:not(.platform-admin-page) .admin-invite-code button {
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 10px !important;
+  }
+
+  .appointment-room-page .appointment-workbench-controls {
+    min-height: 0 !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    border: 1px solid rgba(111, 66, 193, 0.1) !important;
+    border-radius: 18px !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    box-shadow: 0 12px 28px rgba(62, 38, 117, 0.06) !important;
+  }
+
+  .appointment-room-page .appointment-workbench-summary {
+    order: 2 !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .appointment-room-page .appointment-workbench-summary em {
+    min-height: 34px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 0 6px !important;
+    border-radius: 12px !important;
+    font-size: 11px !important;
+    font-style: normal !important;
+    font-weight: 860 !important;
+    line-height: 1 !important;
+  }
+
+  .appointment-room-page .appointment-workbench-summary em svg {
+    width: 13px !important;
+    height: 13px !important;
+    flex: 0 0 13px !important;
+    stroke-width: 2.35 !important;
+  }
+
+  .appointment-room-page .appointment-workbench-summary em:nth-child(1) {
+    border: 1px solid rgba(111, 66, 193, 0.16) !important;
+    background: rgba(111, 66, 193, 0.08) !important;
+    color: #6f42c1 !important;
+  }
+
+  .appointment-room-page .appointment-workbench-summary em:nth-child(2) {
+    border: 1px solid rgba(214, 72, 126, 0.16) !important;
+    background: rgba(214, 72, 126, 0.08) !important;
+    color: #c93d72 !important;
+  }
+
+  .appointment-room-page .appointment-workbench-summary em:nth-child(3) {
+    border: 1px solid rgba(38, 155, 134, 0.16) !important;
+    background: rgba(38, 155, 134, 0.08) !important;
+    color: #208f7c !important;
+  }
+
+  .appointment-room-page .appointment-range-tabs {
+    order: 1 !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    padding: 3px !important;
+    border: 1px solid rgba(111, 66, 193, 0.12) !important;
+    border-radius: 18px !important;
+    background: rgba(111, 66, 193, 0.07) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62) !important;
+  }
+
+  .appointment-room-page .appointment-range-tabs button {
+    min-height: 34px !important;
+    padding: 0 8px !important;
+    border-radius: 15px !important;
+    outline: none !important;
+    font-size: 12px !important;
+    font-weight: 880 !important;
+  }
+
+  .appointment-room-page .appointment-range-tabs button.active {
+    background: linear-gradient(135deg, #6f42c1, #b04483) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 16px rgba(111, 66, 193, 0.22) !important;
+  }
+
+  .appointment-room-page .appointment-range-tabs button:focus,
+  .appointment-room-page .appointment-range-tabs button:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .appointment-room-page .appointment-room-add-button {
+    order: 3 !important;
+    width: 100% !important;
+  }
+
+  .cashier-module-page.module-hub .page-hero {
+    margin-bottom: 0 !important;
+  }
+
+  .cashier-orbit {
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.16fr) minmax(0, 0.92fr) !important;
+    gap: 10px !important;
+    padding: 10px !important;
+    border-radius: 20px !important;
+  }
+
+  .cashier-orbit-side {
+    display: grid !important;
+    gap: 10px !important;
+  }
+
+  .cashier-orbit-card,
+  .cashier-orbit-card.left,
+  .cashier-orbit-card.right {
+    min-height: 86px !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    gap: 5px 8px !important;
+    align-content: center !important;
+    padding: 12px 10px !important;
+    border-radius: 16px !important;
+    text-align: left !important;
+    transform: none !important;
+  }
+
+  .cashier-orbit-card svg {
+    grid-row: 1 / span 2 !important;
+    width: 34px !important;
+    height: 34px !important;
+    padding: 8px !important;
+    border-radius: 11px !important;
+  }
+
+  .cashier-orbit-card strong {
+    overflow: hidden !important;
+    font-size: 15px !important;
+    line-height: 1.15 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .cashier-orbit-card em {
+    justify-self: start !important;
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  .cashier-orbit-center {
+    min-height: 182px !important;
+    gap: 9px !important;
+    padding: 14px 10px !important;
+    border-radius: 18px !important;
+  }
+
+  .cashier-orbit-center svg {
+    width: 52px !important;
+    height: 52px !important;
+    padding: 13px !important;
+    border-radius: 16px !important;
+  }
+
+  .cashier-orbit-center strong {
+    font-size: 26px !important;
+    line-height: 1 !important;
+  }
+
+  .cashier-orbit-center em {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  .cashier-orbit-card.right.bottom {
+    min-height: 100% !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto auto !important;
+    justify-items: center !important;
+    align-content: center !important;
+    text-align: center !important;
+  }
+
+  .cashier-orbit-card.right.bottom svg {
+    grid-row: auto !important;
+    width: 40px !important;
+    height: 40px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .cashier-orbit {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.96fr) minmax(0, 1fr) !important;
+    align-items: stretch !important;
+  }
+
+  .cashier-orbit-side.left {
+    display: grid !important;
+    order: 1 !important;
+    grid-column: 1 !important;
+    gap: 10px !important;
+  }
+
+  .cashier-orbit-center {
+    order: 2 !important;
+    grid-column: 2 !important;
+    min-height: 186px !important;
+    grid-template-columns: 1fr !important;
+    place-items: center !important;
+    align-content: center !important;
+    text-align: center !important;
+  }
+
+  .cashier-orbit-center svg {
+    grid-row: auto !important;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 10px !important;
+  }
+
+  .cashier-orbit-center strong {
+    font-size: 25px !important;
+  }
+
+  .cashier-orbit-card.left.top {
+    order: initial !important;
+  }
+
+  .cashier-orbit-card.left.bottom {
+    order: initial !important;
+  }
+
+  .cashier-orbit-side.right {
+    display: grid !important;
+    order: 3 !important;
+    grid-column: 3 !important;
+  }
+
+  .cashier-orbit-card.right.bottom {
+    order: initial !important;
+    grid-column: auto !important;
+    min-height: 100% !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto auto !important;
+    justify-items: center !important;
+    align-content: center !important;
+    text-align: center !important;
+  }
+
+  .cashier-orbit-card,
+  .cashier-orbit-card.left,
+  .cashier-orbit-card.right {
+    min-height: 88px !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    gap: 5px 7px !important;
+    padding: 12px 8px !important;
+  }
+
+  .cashier-orbit-card.right.bottom svg {
+    grid-row: auto !important;
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  .cashier-orbit-card strong {
+    font-size: 14px !important;
+  }
+
+  .cashier-orbit-card em,
+  .cashier-orbit-center em {
+    font-size: 10px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .workbench-schedule-staff {
+    justify-items: start !important;
+    padding: 0 3px !important;
+    text-align: left !important;
+  }
+
+  .workbench-schedule-staff strong {
+    width: 100% !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+    text-align: left !important;
+    letter-spacing: 0 !important;
+  }
+}

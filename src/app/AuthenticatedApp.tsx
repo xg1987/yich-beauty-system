@@ -4,7 +4,10 @@ import {
   Boxes,
   Building2,
   CalendarDays,
+  CalendarClock,
+  Camera,
   ChartNoAxesColumnIncreasing,
+  ClipboardCheck,
   ClipboardList,
   Copy,
   CreditCard,
@@ -14,6 +17,7 @@ import {
   BedDouble,
   Eye,
   EyeOff,
+  FileBox,
   Gift,
   HeartHandshake,
   HeartPulse,
@@ -23,7 +27,9 @@ import {
   MessageCircle,
   Minus,
   PackageMinus,
+  PackageOpen,
   PackagePlus,
+  ReceiptText,
   Pencil,
   Plus,
   RefreshCw,
@@ -31,12 +37,16 @@ import {
   Search,
   Settings,
   Share2,
+  ShoppingBag,
   ShieldCheck,
   Sparkles,
   Crown,
   Trash2,
   UserRound,
+  UserCheck,
+  UserCog,
   UsersRound,
+  Warehouse,
   X,
 } from "lucide-react";
 import { type CSSProperties, FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -1459,21 +1469,22 @@ function ManagementCenter({
     { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
   ];
   const storeManagementCards: ManagementCard[] = [
-    { title: "账号管理", desc: "员工审核 / 密码重置", icon: UsersRound, tone: "violet", view: "accounts" },
+    { title: "账号管理", desc: "员工审核 / 密码重置", icon: UserCog, tone: "violet", view: "accounts" },
     { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
-    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackagePlus, tone: "teal", view: "catalog" },
-    { title: "商品档案", desc: "商品资料 / 编码规格", icon: Boxes, tone: "teal", view: "catalog", catalogModule: "productList" },
-    { title: "库存列表", desc: "库存状态 / 预警查看", icon: Boxes, tone: "teal", view: "inventory", inventoryModule: "list" },
+    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackageOpen, tone: "teal", view: "catalog" },
+    { title: "商品档案", desc: "商品资料 / 编码规格", icon: FileBox, tone: "teal", view: "catalog", catalogModule: "productList" },
+    { title: "库存列表", desc: "库存状态 / 预警查看", icon: Warehouse, tone: "teal", view: "inventory", inventoryModule: "list" },
     { title: "销售业绩", desc: "经营数据 / 员工业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "营销中心", desc: "生日祝福 / 引流文案", icon: Camera, tone: "plum", view: "marketing" },
     { title: "客户退费", desc: "会员卡退费 / 退卡记录", icon: CreditCard, tone: "rose", onClick: () => setCustomerRefundOpen(true) },
     { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
-    { title: "员工管理", desc: "员工档案 / 权限状态", icon: UsersRound, tone: "violet", view: "staff" },
-    { title: "员工排班", desc: "班次查看 / 不可预约时间", icon: CalendarDays, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
-    { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
-    { title: "员工提成", desc: "员工提成 / 结算记录", icon: CreditCard, tone: "amber", view: "staff" },
+    { title: "员工管理", desc: "员工档案 / 权限状态", icon: UserCheck, tone: "violet", view: "staff" },
+    { title: "员工排班", desc: "班次查看 / 不可预约时间", icon: CalendarClock, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
+    { title: "预约权限", desc: "员工查看全店预约开关", icon: LockKeyhole, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
+    { title: "员工提成", desc: "员工提成 / 结算记录", icon: ReceiptText, tone: "amber", view: "staff" },
     { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
-    { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardList, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
-    { title: "供应商采购", desc: "供应商 / 采购入库", icon: Building2, tone: "amber", view: "inventory", inventoryModule: "purchase" },
+    { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardCheck, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
+    { title: "供应商采购", desc: "供应商 / 采购入库", icon: ShoppingBag, tone: "amber", view: "inventory", inventoryModule: "purchase" },
     { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
     { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
   ];
@@ -2931,10 +2942,6 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   };
 
   const openAppointmentForm = () => {
-    if (!hasConfiguredRooms) {
-      setView("roomSettings");
-      return;
-    }
     const nextRange = nextAppointmentDateTimeRange();
     setCustomerId("");
     setAppointmentCustomerSearch("");
@@ -3323,10 +3330,9 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
         <section className="panel appointment-workbench-panel">
           <div className="appointment-workbench-head appointment-workbench-controls">
             <div className="appointment-workbench-summary" aria-label={`${selectedAppointmentRange.label}预约概览`}>
-              <span>{selectedAppointmentRange.label}</span>
-              <em>预约 {visibleRangeAppointments.length}</em>
-              <em>待到店 {arrivalConfirmationAppointments.length}</em>
-              <em>待签名 {pendingServiceSignatureTasks.length}</em>
+              <em><CalendarDays size={13} />预约 {visibleRangeAppointments.length}</em>
+              <em><DoorOpen size={13} />待到店 {arrivalConfirmationAppointments.length}</em>
+              <em><Pencil size={13} />待签名 {pendingServiceSignatureTasks.length}</em>
             </div>
             <div className="appointment-range-tabs" aria-label="预约日期筛选">
               {(["today", "tomorrow", "week"] as AppointmentRange[]).map((range) => (
@@ -3343,7 +3349,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
             </div>
             <button type="button" className="appointment-room-add-button" onClick={openAppointmentForm}>
               <CalendarDays size={18} />
-              {hasConfiguredRooms ? "新增预约" : "设置房间"}
+              新增预约
             </button>
           </div>
           <div className="appointment-workflow-grid">
@@ -3553,7 +3559,6 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
             )}
             <div className="row-actions">
               <SubmitStatusButton idleText={appointmentReviewReady ? "确认保存预约" : "核对预约"} busyText="保存中..." disabled={appointmentSaveDisabled} />
-              {!hasConfiguredRooms && <button type="button" onClick={() => { setShowAppointmentForm(false); setView("roomSettings"); }}>房间管理</button>}
               <button type="button" onClick={() => { setAppointmentReviewReady(false); setShowAppointmentForm(false); }}>取消</button>
             </div>
           </form>
