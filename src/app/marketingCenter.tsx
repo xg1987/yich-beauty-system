@@ -191,7 +191,7 @@ const posterStyleExamples: Record<string, { title: string; previewSrc: string; s
     title: "国潮草本风",
     previewSrc: "/marketing-style-previews/guochao-herbal.jpg",
     summary: "草本国潮",
-    description: "适合药汤、泡脚、艾草和中式养护类产品海报。",
+    description: "适合中式植物、产品包装、东方器物和国潮质感海报。",
     cues: ["草本", "国潮", "东方"],
   },
   香氛生活风: {
