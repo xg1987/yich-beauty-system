@@ -2774,6 +2774,113 @@ function assertMemberCardServiceQuantityAvailable(card: MemberCard, serviceIds: 
   }
 }
 
+type MemberCardDebitPlanLine = {
+  cardId: string;
+  serviceId: string;
+  quantity: number;
+};
+
+function memberCardDebitPriority(card: MemberCard, serviceId: string) {
+  const entitlement = memberCardServiceEntitlement(card, serviceId);
+  const serviceSpecific = Boolean(entitlement) || card.serviceId === serviceId || Boolean(card.serviceIds?.includes(serviceId));
+  const typePriority = card.type === "次数卡" ? 0 : card.type === "套餐卡" ? 1 : 2;
+  const expiresAt = card.expiresAt ? +new Date(card.expiresAt) : Number.POSITIVE_INFINITY;
+  return { serviceSpecific, typePriority, expiresAt };
+}
+
+function compareMemberCardDebitPriority(left: MemberCard, right: MemberCard, serviceId: string) {
+  const a = memberCardDebitPriority(left, serviceId);
+  const b = memberCardDebitPriority(right, serviceId);
+  if (a.serviceSpecific !== b.serviceSpecific) return a.serviceSpecific ? -1 : 1;
+  if (a.typePriority !== b.typePriority) return a.typePriority - b.typePriority;
+  if (a.expiresAt !== b.expiresAt) return a.expiresAt - b.expiresAt;
+  return memberCardRemainingForService(left, serviceId) - memberCardRemainingForService(right, serviceId);
+}
+
+function buildMemberCardDebitPlan(data: AppData, customerId: string, serviceIds: string[], preferredCardId?: string): MemberCardDebitPlanLine[] {
+  const selectedServiceIds = serviceIds.filter(Boolean);
+  if (!customerId || selectedServiceIds.length === 0) return [];
+  const cards = data.memberCards.filter((card) =>
+    card.customerId === customerId
+    && card.status === "正常"
+    && card.type !== "储值卡"
+    && card.type !== "折扣卡",
+  );
+  const allocatedTotalByCard = new Map<string, number>();
+  const allocatedByCardService = new Map<string, number>();
+  const lines = new Map<string, MemberCardDebitPlanLine>();
+  for (const serviceId of selectedServiceIds) {
+    const eligibleCards = cards
+      .filter((card) => memberCardSupportsService(card, serviceId))
+      .filter((card) => {
+        const entitlement = memberCardServiceEntitlement(card, serviceId);
+        if (card.serviceEntitlements?.length) {
+          return (entitlement?.remainingTimes ?? 0) - (allocatedByCardService.get(`${card.id}:${serviceId}`) ?? 0) > 0;
+        }
+        return card.remainingTimes - (allocatedTotalByCard.get(card.id) ?? 0) > 0;
+      })
+      .sort((left, right) => {
+        if (preferredCardId) {
+          if (left.id === preferredCardId && right.id !== preferredCardId) return -1;
+          if (right.id === preferredCardId && left.id !== preferredCardId) return 1;
+        }
+        return compareMemberCardDebitPriority(left, right, serviceId);
+      });
+    const selectedCard = eligibleCards[0];
+    if (!selectedCard) continue;
+    allocatedTotalByCard.set(selectedCard.id, (allocatedTotalByCard.get(selectedCard.id) ?? 0) + 1);
+    allocatedByCardService.set(`${selectedCard.id}:${serviceId}`, (allocatedByCardService.get(`${selectedCard.id}:${serviceId}`) ?? 0) + 1);
+    const lineKey = `${selectedCard.id}:${serviceId}`;
+    const current = lines.get(lineKey);
+    lines.set(lineKey, {
+      cardId: selectedCard.id,
+      serviceId,
+      quantity: (current?.quantity ?? 0) + 1,
+    });
+  }
+  return Array.from(lines.values());
+}
+
+function memberCardDebitPlanCoversServices(plan: MemberCardDebitPlanLine[], serviceIds: string[]) {
+  const required = serviceQuantityCounts(serviceIds.filter(Boolean));
+  const available = new Map<string, number>();
+  plan.forEach((line) => available.set(line.serviceId, (available.get(line.serviceId) ?? 0) + line.quantity));
+  return Array.from(required).every(([serviceId, quantity]) => (available.get(serviceId) ?? 0) >= quantity);
+}
+
+function projectCardsForServices(data: AppData, customerId: string, serviceIds: string[]) {
+  const ids = serviceIds.filter(Boolean);
+  return data.memberCards.filter((card) =>
+    card.customerId === customerId
+    && card.status === "正常"
+    && card.type !== "储值卡"
+    && card.type !== "折扣卡"
+    && ids.some((serviceId) => memberCardSupportsService(card, serviceId)),
+  );
+}
+
+function memberCardDebitPlanShortfalls(data: AppData, customerId: string, serviceIds: string[], plan: MemberCardDebitPlanLine[]) {
+  const allocated = new Map<string, number>();
+  plan.forEach((line) => allocated.set(line.serviceId, (allocated.get(line.serviceId) ?? 0) + line.quantity));
+  return Array.from(serviceQuantityCounts(serviceIds.filter(Boolean)))
+    .map(([serviceId, quantity]) => {
+      const covered = allocated.get(serviceId) ?? 0;
+      if (covered >= quantity) return "";
+      const available = data.memberCards
+        .filter((card) =>
+          card.customerId === customerId
+          && card.status === "正常"
+          && card.type !== "储值卡"
+          && card.type !== "折扣卡"
+          && memberCardSupportsService(card, serviceId),
+        )
+        .reduce((sum, card) => sum + memberCardRemainingForService(card, serviceId), 0);
+      const serviceName = data.services.find((service) => service.id === serviceId)?.name ?? "当前项目";
+      return `${serviceName}剩余次数不足；${serviceName}剩余${available}次，本次需要${quantity}次`;
+    })
+    .filter(Boolean);
+}
+
 export function checkoutOrder(
   data: AppData,
   input: CheckoutInput,
@@ -2894,17 +3001,27 @@ export function checkoutOrder(
   const selectedCard = input.cardId
     ? data.memberCards.find((item) => item.id === input.cardId && item.customerId === customerId)
     : undefined;
+  const serviceDebitPlan = selectedServiceIds.length
+    ? buildMemberCardDebitPlan(data, customerId, selectedServiceIds, input.cardId)
+    : [];
+  const serviceDebitPlanCoversOrder = memberCardDebitPlanCoversServices(serviceDebitPlan, selectedServiceIds);
+  const relevantProjectCards = selectedServiceIds.length ? projectCardsForServices(data, customerId, selectedServiceIds) : [];
   if (input.payMethod === "会员卡") {
     if (!customerId) {
       throw new Error("新客不能使用会员卡支付");
     }
-    if (!selectedCard || selectedCard.status !== "正常") {
+    if (selectedServices.length > 0 && relevantProjectCards.length > 0) {
+      if (!serviceDebitPlanCoversOrder) {
+        const shortfalls = memberCardDebitPlanShortfalls(data, customerId, selectedServiceIds, serviceDebitPlan);
+        throw new Error(shortfalls.length ? `会员卡项目次数不足：${shortfalls.join("；")}` : "会员卡项目次数不足");
+      }
+    } else if (!selectedCard || selectedCard.status !== "正常") {
       throw new Error("请选择有效会员卡");
-    }
-    if (selectedServices.length === 0 && selectedCard.type !== "储值卡") {
+    } else if (selectedServices.length === 0 && selectedCard.type !== "储值卡") {
       throw new Error("次数卡或套餐卡只能用于服务项目");
+    } else {
+      assertMemberCardServiceQuantityAvailable(selectedCard, selectedServiceIds, data.services);
     }
-    assertMemberCardServiceQuantityAvailable(selectedCard, selectedServiceIds, data.services);
   }
 
   const productSubtotal = productItems.reduce((sum, item) => sum + item.amount, 0);
@@ -2967,6 +3084,7 @@ export function checkoutOrder(
   const serviceConsumption = selectedServices.flatMap((service) => serviceInventoryConsumables(data, service));
   const serviceQuantityLines = summarizeServiceQuantityLines(selectedServices);
   const serviceNameSnapshot = serviceQuantityLines.join("、") || undefined;
+  const orderCardId = serviceDebitPlan[0]?.cardId ?? input.cardId;
   const order: Order = {
     id: orderId,
     storeId,
@@ -2984,7 +3102,7 @@ export function checkoutOrder(
     giftProductId: giftProductItems[0]?.productId,
     productItems: productItems.length ? withProductNameSnapshots(data, productItems) : undefined,
     giftProductItems: giftProductItems.length ? withProductNameSnapshots(data, giftProductItems) : undefined,
-    cardId: input.cardId,
+    cardId: orderCardId,
     totalAmount: total,
     paidAmount,
     discountAmount: totalDiscount,
@@ -3054,15 +3172,57 @@ export function checkoutOrder(
     });
   });
 
+  const serviceDebitPlanByCard = new Map<string, string[]>();
+  serviceDebitPlan.forEach((line) => {
+    const ids = serviceDebitPlanByCard.get(line.cardId) ?? [];
+    for (let index = 0; index < line.quantity; index += 1) ids.push(line.serviceId);
+    serviceDebitPlanByCard.set(line.cardId, ids);
+  });
+  const shouldDebitProjectCardsNow = input.payMethod === "会员卡" && serviceDebitPlanCoversOrder && serviceDebitPlan.length > 0;
   const memberCards = data.memberCards.map((card) => {
-    if (input.payMethod !== "会员卡" || card.id !== input.cardId) return card;
+    const projectServiceIds = serviceDebitPlanByCard.get(card.id) ?? [];
+    if (shouldDebitProjectCardsNow && projectServiceIds.length > 0) {
+      return projectServiceIds.reduce((nextCard, id) => updateMemberCardServiceTimes(nextCard, id, -1), card);
+    }
+    if (input.payMethod !== "会员卡" || card.id !== input.cardId || shouldDebitProjectCardsNow) return card;
     if (card.type === "储值卡") return { ...card, balance: Math.max(0, card.balance - paidAmount) };
     return selectedServiceIds.reduce((nextCard, id) => updateMemberCardServiceTimes(nextCard, id, -1), card);
   });
 
   const selectedCardAfterCheckout = memberCards.find((card) => card.id === input.cardId);
+  const projectDebitTransactions: MemberCardTransaction[] = shouldDebitProjectCardsNow
+    ? Array.from(serviceDebitPlan.reduce((groups, line) => {
+        const lines = groups.get(line.cardId) ?? [];
+        lines.push(line);
+        groups.set(line.cardId, lines);
+        return groups;
+      }, new Map<string, MemberCardDebitPlanLine[]>()).entries()).flatMap<MemberCardTransaction>(([cardIdForTransaction, lines]) => {
+        const debitedCard = memberCards.find((card) => card.id === cardIdForTransaction);
+        if (!debitedCard) return [];
+        const timesDelta = -lines.reduce((sum, line) => sum + line.quantity, 0);
+        const serviceNote = lines
+          .map((line) => `${data.services.find((service) => service.id === line.serviceId)?.name ?? "项目"} x${line.quantity}`)
+          .join("、");
+        return [{
+          id: idFactory("mt"),
+          storeId,
+          memberCardId: debitedCard.id,
+          orderId,
+          staffId: input.staffId,
+          type: "消费" as const,
+          amountDelta: 0,
+          timesDelta,
+          balanceAfter: debitedCard.balance,
+          remainingTimesAfter: debitedCard.remainingTimes,
+          note: `${order.orderNo} · ${serviceNote}`,
+          createdAt,
+        }];
+      })
+    : [];
   const memberCardTransactions: MemberCardTransaction[] =
-    input.payMethod === "会员卡" && selectedCardAfterCheckout
+    projectDebitTransactions.length
+      ? [...projectDebitTransactions, ...data.memberCardTransactions]
+      : input.payMethod === "会员卡" && selectedCardAfterCheckout
       ? [
           {
             id: idFactory("mt"),
@@ -5006,7 +5166,6 @@ export function signCustomerSignature(
   const alreadyDebited = linkedOrder
     ? data.memberCardTransactions.some((transaction) => transaction.orderId === linkedOrder.id && transaction.type === "消费")
     : false;
-  const debitCard = linkedOrder && !alreadyDebited ? selectSignatureDebitCard(data, linkedOrder) : undefined;
   const linkedOrderServiceIds = linkedOrder
     ? linkedOrder.serviceIds?.length
       ? linkedOrder.serviceIds
@@ -5014,38 +5173,75 @@ export function signCustomerSignature(
         ? [linkedOrder.serviceId]
         : []
     : [];
-  if (linkedOrder && !alreadyDebited && linkedOrderServiceIds.length > 0 && !debitCard) {
-    const relevantProjectCards = data.memberCards.filter((card) =>
-      card.customerId === linkedOrder.customerId
-      && card.status === "正常"
-      && card.type !== "储值卡"
-      && card.type !== "折扣卡"
-      && linkedOrderServiceIds.some((serviceId) => memberCardSupportsService(card, serviceId)),
-    );
+  const signatureDebitPlan = linkedOrder && !alreadyDebited && linkedOrderServiceIds.length > 0
+    ? buildMemberCardDebitPlan(data, linkedOrder.customerId, linkedOrderServiceIds, linkedOrder.cardId)
+    : [];
+  const signatureDebitPlanCoversOrder = memberCardDebitPlanCoversServices(signatureDebitPlan, linkedOrderServiceIds);
+  const debitCard = linkedOrder && !alreadyDebited && signatureDebitPlan.length === 0 ? selectSignatureDebitCard(data, linkedOrder) : undefined;
+  if (linkedOrder && !alreadyDebited && linkedOrderServiceIds.length > 0 && !signatureDebitPlanCoversOrder && !debitCard) {
+    const relevantProjectCards = projectCardsForServices(data, linkedOrder.customerId, linkedOrderServiceIds);
     if (relevantProjectCards.length > 0) {
-      const shortfalls = Array.from(serviceQuantityCounts(linkedOrderServiceIds))
-        .map(([serviceId, quantity]) => {
-          const available = relevantProjectCards.reduce((max, card) =>
-            Math.max(max, memberCardRemainingForService(card, serviceId)),
-          0);
-          return available < quantity
-            ? `${data.services.find((service) => service.id === serviceId)?.name ?? "当前项目"}剩余${available}次，本次需要${quantity}次`
-            : "";
-        })
-        .filter(Boolean);
+      const shortfalls = memberCardDebitPlanShortfalls(data, linkedOrder.customerId, linkedOrderServiceIds, signatureDebitPlan);
       throw new Error(shortfalls.length ? `会员卡项目次数不足：${shortfalls.join("；")}` : "会员卡项目次数不足，不能完成签名扣卡");
     }
   }
-  const memberCards = debitCard
+  const signatureDebitPlanByCard = new Map<string, string[]>();
+  signatureDebitPlan.forEach((line) => {
+    const ids = signatureDebitPlanByCard.get(line.cardId) ?? [];
+    for (let index = 0; index < line.quantity; index += 1) ids.push(line.serviceId);
+    signatureDebitPlanByCard.set(line.cardId, ids);
+  });
+  const memberCards = signatureDebitPlanCoversOrder && signatureDebitPlan.length > 0
     ? data.memberCards.map((card) => {
+        const projectServiceIds = signatureDebitPlanByCard.get(card.id) ?? [];
+        return projectServiceIds.length
+          ? projectServiceIds.reduce((nextCard, serviceId) => updateMemberCardServiceTimes(nextCard, serviceId, -1), card)
+          : card;
+      })
+    : debitCard
+      ? data.memberCards.map((card) => {
         if (card.id !== debitCard.id || !linkedOrder) return card;
         if (card.type === "储值卡") return { ...card, balance: Math.max(0, card.balance - linkedOrder.paidAmount) };
         return linkedOrderServiceIds.reduce((nextCard, serviceId) => updateMemberCardServiceTimes(nextCard, serviceId, -1), card);
       })
-    : data.memberCards;
+      : data.memberCards;
   const debitedCard = debitCard ? memberCards.find((card) => card.id === debitCard.id) : undefined;
+  const signatureProjectTransactions: MemberCardTransaction[] = linkedOrder && signatureDebitPlanCoversOrder && signatureDebitPlan.length > 0
+    ? Array.from(signatureDebitPlan.reduce((groups, line) => {
+        const lines = groups.get(line.cardId) ?? [];
+        lines.push(line);
+        groups.set(line.cardId, lines);
+        return groups;
+      }, new Map<string, MemberCardDebitPlanLine[]>()).entries()).flatMap<MemberCardTransaction>(([cardIdForTransaction, lines]) => {
+        const debitedProjectCard = memberCards.find((card) => card.id === cardIdForTransaction);
+        if (!debitedProjectCard) return [];
+        const timesDelta = -lines.reduce((sum, line) => sum + line.quantity, 0);
+        const serviceNote = lines
+          .map((line) => `${data.services.find((service) => service.id === line.serviceId)?.name ?? "项目"} x${line.quantity}`)
+          .join("、");
+        return [{
+          id: idFactory("mt"),
+          storeId: linkedOrder.storeId ?? debitedProjectCard.storeId,
+          memberCardId: debitedProjectCard.id,
+          orderId: linkedOrder.id,
+          staffId: linkedOrder.staffId,
+          type: "消费" as const,
+          amountDelta: 0,
+          timesDelta,
+          balanceAfter: debitedProjectCard.balance,
+          remainingTimesAfter: debitedProjectCard.remainingTimes,
+          note: `${linkedOrder.orderNo} · 签名确认扣卡 · ${serviceNote}`,
+          createdAt: signedAt,
+        }];
+      })
+    : [];
   const memberCardTransactions: MemberCardTransaction[] =
-    linkedOrder && debitedCard
+    signatureProjectTransactions.length
+      ? [
+          ...signatureProjectTransactions,
+          ...data.memberCardTransactions,
+        ]
+      : linkedOrder && debitedCard
       ? [
           {
             id: idFactory("mt"),
@@ -5064,9 +5260,10 @@ export function signCustomerSignature(
           ...data.memberCardTransactions,
         ]
       : data.memberCardTransactions;
-  const orders = debitCard && linkedOrder
+  const primaryDebitedCardId = signatureDebitPlan[0]?.cardId ?? debitCard?.id;
+  const orders = primaryDebitedCardId && linkedOrder
     ? data.orders.map((order) =>
-        order.id === linkedOrder.id ? { ...order, cardId: debitCard.id, payMethod: "会员卡" as const } : order,
+        order.id === linkedOrder.id ? { ...order, cardId: primaryDebitedCardId, payMethod: "会员卡" as const } : order,
       )
     : data.orders;
   const completesServiceAppointment = signature.title === "服务完成确认签名" && Boolean(linkedOrder?.appointmentId);

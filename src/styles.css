@@ -23529,13 +23529,12 @@ textarea,
   grid-template-columns: repeat(16, minmax(0, 1fr));
   align-items: center;
   background:
-    repeating-linear-gradient(
+    linear-gradient(
       to right,
       rgba(111, 66, 193, 0.12) 0,
       rgba(111, 66, 193, 0.12) 1px,
-      transparent 1px,
-      transparent 6.6667%
-    );
+      transparent 1px
+    ) 0 0 / 6.25% 100% repeat-x;
 }
 
 .workbench-schedule-time-row b {
@@ -23581,13 +23580,12 @@ textarea,
   position: relative;
   min-height: 52px;
   background:
-    repeating-linear-gradient(
+    linear-gradient(
       to right,
-      rgba(111, 66, 193, 0.1) 0,
-      rgba(111, 66, 193, 0.1) 1px,
-      transparent 1px,
-      transparent 6.6667%
-    );
+      rgba(111, 66, 193, 0.16) 0,
+      rgba(111, 66, 193, 0.16) 1px,
+      transparent 1px
+    ) 0 0 / 6.25% 100% repeat-x;
 }
 
 .workbench-schedule-block {
@@ -32543,6 +32541,19 @@ img.brand-icon-mark {
   .workbench-schedule-time-row > div,
   .workbench-schedule-lane {
     background-size: 6.25% 100% !important;
+  }
+
+  .workbench-schedule-block {
+    padding: 0 !important;
+  }
+
+  .workbench-schedule-block span,
+  .workbench-schedule-block small {
+    display: none !important;
+  }
+
+  .workbench-schedule-free {
+    display: none !important;
   }
 
   .admin-center-page:not(.platform-admin-page) .admin-invite-section {

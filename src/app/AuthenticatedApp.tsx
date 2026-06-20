@@ -3843,6 +3843,29 @@ function Pos({
       : Array.from(selectedCustomerProjectServiceIds),
   );
   const selectedCustomerSelectableServiceIdsKey = Array.from(selectedCustomerSelectableServiceIds).sort().join("|");
+  const checkoutAutoDebitPlan = buildUiMemberCardDebitPlan(
+    selectedCustomerProjectCards,
+    selectedServices.map((service) => service.id),
+    data.services,
+  );
+  const checkoutAutoDebitCoveredQuantity = checkoutAutoDebitPlan.reduce((sum, row) => sum + row.quantity, 0);
+  const checkoutAutoDebitRequiredQuantity = selectedServices.length;
+  const checkoutAutoDebitCoversOrder = checkoutAutoDebitRequiredQuantity === 0 || checkoutAutoDebitCoveredQuantity >= checkoutAutoDebitRequiredQuantity;
+  const checkoutRelevantProjectCards = selectedCustomerProjectCards.filter((card) =>
+    selectedServices.some((service) => signatureMemberCardSupportsService(card, service.id)),
+  );
+  const checkoutAutoDebitShortfalls = selectedServiceRows
+    .map(({ service, quantity }) => {
+      const covered = checkoutAutoDebitPlan
+        .filter((row) => row.service.id === service.id)
+        .reduce((sum, row) => sum + row.quantity, 0);
+      if (covered >= quantity) return "";
+      const available = checkoutRelevantProjectCards
+        .filter((card) => signatureMemberCardSupportsService(card, service.id))
+        .reduce((sum, card) => sum + signatureMemberCardRemainingForService(card, service.id), 0);
+      return `${service.name} 剩余${available}次，本单需${quantity}次`;
+    })
+    .filter(Boolean);
   const checkoutCardSelectedServiceText = (card: AppData["memberCards"][number]) => {
     if (!usesService || selectedServiceRows.length === 0) return memberCardTimesText(card, data.services);
     return selectedServiceRows
@@ -3970,9 +3993,10 @@ function Pos({
     return matchesCategory && matchesSubcategory && (!normalizedProductPickerSearch || searchTarget.includes(normalizedProductPickerSearch));
   });
   const paidTotal = Math.max(0, total - discountAmount);
-  const selectedCheckoutCard = payMethod === "会员卡" ? availableCards.find((card) => card.id === cardId) : undefined;
+  const serviceAutoDebitActive = usesCustomer && usesService && selectedServiceRows.length > 0 && checkoutRelevantProjectCards.length > 0;
+  const selectedCheckoutCard = payMethod === "会员卡" && !serviceAutoDebitActive ? availableCards.find((card) => card.id === cardId) : undefined;
   const checkoutSelectedCardUsageRows = selectedCheckoutCard ? checkoutCardServiceUsageRows(selectedCheckoutCard) : [];
-  const checkoutBlockedCardUsageRows = payMethod === "会员卡"
+  const checkoutBlockedCardUsageRows = payMethod === "会员卡" && !serviceAutoDebitActive
     ? checkoutSelectedCardUsageRows.filter((row) => row.blocked)
     : [];
   const checkoutMemberCardBlocked = checkoutBlockedCardUsageRows.length > 0;
@@ -4006,12 +4030,10 @@ function Pos({
     usesCustomer
     && usesService
     && selectedServiceRows.length > 0
-    && selectedCustomerCheckoutCards.some((card) => card.type !== "折扣卡")
-    && checkoutDebitCandidateCards.length === 0,
+    && checkoutRelevantProjectCards.length > 0
+    && !checkoutAutoDebitCoversOrder,
   );
-  const checkoutServiceCardBlockedText = selectedServiceRows
-    .map(({ service, quantity }) => `${service.name} 本单需 ${quantity} 次`)
-    .join("；");
+  const checkoutServiceCardBlockedText = checkoutAutoDebitShortfalls.join("；");
   const today = new Date();
   const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
   const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashIn(transaction) > 0);
@@ -4043,6 +4065,10 @@ function Pos({
     : undefined;
   useEffect(() => {
     if (!usesCustomer || !usesService || selectedServiceRows.length === 0) return;
+    if (serviceAutoDebitActive) {
+      if (cardId) setCardId("");
+      return;
+    }
     if (checkoutDebitCandidateCards.length === 0) {
       if (cardId) setCardId("");
       return;
@@ -4050,7 +4076,7 @@ function Pos({
     if (!checkoutDebitCandidateCards.some((card) => card.id === cardId)) {
       setCardId(checkoutDebitCandidateCards[0].id);
     }
-  }, [cardId, checkoutDebitCandidateIdsKey, selectedServiceRows.length, usesCustomer, usesService]);
+  }, [cardId, checkoutDebitCandidateIdsKey, selectedServiceRows.length, serviceAutoDebitActive, usesCustomer, usesService]);
   const arrivedAppointments = data.appointments.filter(
     (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
   );
@@ -4564,8 +4590,8 @@ function Pos({
     }
     if (discountAmount < 0) messages.push("折扣金额不能小于 0。");
     if (discountAmount >= total && total > 0) messages.push("折扣不能大于或等于原价。");
-    if (payMethod === "会员卡" && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
-    if (usesCustomer && usesService && selectedServiceRows.length > 0 && checkoutDebitCandidateCards.length > 0 && !cardId) {
+    if (payMethod === "会员卡" && !serviceAutoDebitActive && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
+    if (!serviceAutoDebitActive && usesCustomer && usesService && selectedServiceRows.length > 0 && checkoutDebitCandidateCards.length > 0 && !cardId) {
       messages.push("请选择本次扣卡来源。");
     }
     if (payMethod === "会员卡" && checkoutMemberCardBlocked) {
@@ -4599,7 +4625,7 @@ function Pos({
         adjustmentReason: adjustmentReason || undefined,
         appointmentId: usesCustomer && usesService ? appointmentId || undefined : undefined,
         payMethod,
-        cardId: usesCustomer && (payMethod === "会员卡" || usesService) ? cardId || undefined : undefined,
+        cardId: usesCustomer && !serviceAutoDebitActive && (payMethod === "会员卡" || usesService) ? cardId || undefined : undefined,
       }),
     ).then((nextData) => {
       const latestOrder = nextData.orders[0];
@@ -4741,30 +4767,32 @@ function Pos({
       {usesCustomer && usesService && (
         <div className="checkout-customer-card-summary">
           <div className="checkout-product-section-head">
-            <span>客户可用服务</span>
-            <strong>{selectedCustomerDebitCards.length ? `${selectedCustomerDebitCards.length} 张可扣卡` : "暂无可扣卡"}</strong>
+            <span>项目扣卡计划</span>
+            <strong>{checkoutAutoDebitPlan.length ? `${checkoutAutoDebitPlan.length} 条自动扣除` : selectedCustomerProjectCards.length ? "待选项目" : "暂无项目卡"}</strong>
           </div>
-          {selectedCustomerDebitCards.length ? (
+          {selectedServiceRows.length > 0 && checkoutAutoDebitPlan.length > 0 ? (
+            <div className="checkout-customer-card-usage auto-debit">
+              {checkoutAutoDebitPlan.map((row) => (
+                <div key={`${row.card.id}:${row.service.id}`}>
+                  <span>{row.service.name}</span>
+                  <small>{row.card.name}</small>
+                  <em>{row.beforeText}</em>
+                  <b>本单扣 {row.quantity} 次</b>
+                  <i>{row.afterText}</i>
+                </div>
+              ))}
+            </div>
+          ) : selectedServiceRows.length > 0 && checkoutServiceCardBlocked ? (
+            <div className="checkout-product-empty">当前项目次数不足：{checkoutServiceCardBlockedText}</div>
+          ) : selectedCustomerProjectCards.length ? (
             <div className="checkout-customer-card-list">
-              {selectedCustomerDebitCards.map((card) => {
+              {selectedCustomerProjectCards.map((card) => {
                 const usageRows = checkoutCardServiceUsageRows(card);
-                const canUseForCurrentOrder = usageRows.every((row) => !row.blocked);
-                const selectedForDebit = card.id === cardId;
                 return (
-                  <div className={selectedForDebit ? "checkout-customer-card-row active" : "checkout-customer-card-row"} key={card.id}>
+                  <div className="checkout-customer-card-row" key={card.id}>
                     <div className="checkout-customer-card-title">
                       <strong>{card.name}</strong>
-                      <span>{card.type} · {card.type === "储值卡" ? "全店项目" : memberCardProjectScopeText(card, data.services)}</span>
-                      {selectedServiceRows.length > 0 && (
-                        <button
-                          type="button"
-                          className={selectedForDebit ? "checkout-card-source-button active" : "checkout-card-source-button"}
-                          disabled={!canUseForCurrentOrder}
-                          onClick={() => setCardId(card.id)}
-                        >
-                          {selectedForDebit ? "本次扣这张" : canUseForCurrentOrder ? "改扣这张" : "不可扣"}
-                        </button>
-                      )}
+                      <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
                     </div>
                     <div className="checkout-customer-card-usage">
                       {usageRows.map((row) => (
@@ -4772,8 +4800,8 @@ function Pos({
                           <span>{row.name}</span>
                           <small>{row.scopeText}</small>
                           <em>{row.remainingText}</em>
-                          <b>{selectedServiceRows.length > 0 && !selectedForDebit ? "未选为来源" : row.requiredText}</b>
-                          <i>{selectedServiceRows.length > 0 && !selectedForDebit && !row.blocked ? "可切换" : row.statusText}</i>
+                          <b>{row.requiredText}</b>
+                          <i>{row.statusText}</i>
                         </div>
                       ))}
                     </div>
@@ -4782,7 +4810,7 @@ function Pos({
               })}
             </div>
           ) : (
-            <div className="checkout-product-empty">当前客户暂无可用于本次服务的会员卡。</div>
+            <div className="checkout-product-empty">当前客户暂无项目次数卡。</div>
           )}
         </div>
       )}
@@ -5007,9 +5035,10 @@ function Pos({
                         <span>{service.category || "未分类"} · 单价 {money(service.price)}</span>
                         {usesCustomer && (
                           <small className="checkout-service-card-source">
-                            扣卡来源：{selectedCheckoutDebitCard
-                              ? `${selectedCheckoutDebitCard.name} · ${selectedCheckoutDebitCard.type} · ${memberCardTimesText(selectedCheckoutDebitCard, data.services, service.id)}`
-                              : "未选择"}
+                            扣卡：{checkoutAutoDebitPlan
+                              .filter((row) => row.service.id === service.id)
+                              .map((row) => `${row.card.name} ${row.quantity}次`)
+                              .join("；") || "无可扣次数"}
                           </small>
                         )}
                       </div>
@@ -5136,7 +5165,7 @@ function Pos({
               )}
             </>
           )}
-          {payMethod === "会员卡" && (
+          {payMethod === "会员卡" && !serviceAutoDebitActive && (
             <Select
               label="选择会员卡"
               value={cardId}
@@ -5144,14 +5173,6 @@ function Pos({
               options={(usesService && selectedServiceRows.length > 0 ? checkoutDebitCandidateCards : availableCards).length
                 ? (usesService && selectedServiceRows.length > 0 ? checkoutDebitCandidateCards : availableCards).map((item) => ({ value: item.id, label: `${item.name} · ${item.type} · ${memberCardTimesText(item, data.services, focusedCheckoutServiceId)}` }))
                 : [{ value: "", label: usesService ? "当前客户暂无可用会员卡" : "商品购买仅支持储值卡" }]}
-            />
-          )}
-          {payMethod !== "会员卡" && usesCustomer && usesService && selectedServiceRows.length > 0 && (
-            <Select
-              label="本次扣卡来源"
-              value={cardId}
-              onChange={setCardId}
-              options={checkoutDebitCardOptions}
             />
           )}
           <>
@@ -8289,6 +8310,71 @@ function signatureCardPriority(card: AppData["memberCards"][number], serviceId: 
   return (serviceSpecific ? 0 : 10) + typePriority;
 }
 
+function uiDebitCardPriority(card: AppData["memberCards"][number], serviceId: string) {
+  const serviceSpecific = card.serviceEntitlements?.some((item) => item.serviceId === serviceId)
+    || card.serviceId === serviceId
+    || Boolean(card.serviceIds?.includes(serviceId));
+  const typePriority = card.type === "次数卡" ? 0 : card.type === "套餐卡" ? 1 : 2;
+  const expiresAt = card.expiresAt ? +new Date(card.expiresAt) : Number.POSITIVE_INFINITY;
+  return { serviceSpecific, typePriority, expiresAt };
+}
+
+function compareUiDebitCardPriority(left: AppData["memberCards"][number], right: AppData["memberCards"][number], serviceId: string) {
+  const a = uiDebitCardPriority(left, serviceId);
+  const b = uiDebitCardPriority(right, serviceId);
+  if (a.serviceSpecific !== b.serviceSpecific) return a.serviceSpecific ? -1 : 1;
+  if (a.typePriority !== b.typePriority) return a.typePriority - b.typePriority;
+  if (a.expiresAt !== b.expiresAt) return a.expiresAt - b.expiresAt;
+  return signatureMemberCardRemainingForService(left, serviceId) - signatureMemberCardRemainingForService(right, serviceId);
+}
+
+function buildUiMemberCardDebitPlan(cards: AppData["memberCards"], serviceIds: string[], services: AppData["services"]) {
+  const projectCards = cards.filter((card) => card.status === "正常" && card.type !== "储值卡" && card.type !== "折扣卡");
+  const allocatedTotalByCard = new Map<string, number>();
+  const allocatedByCardService = new Map<string, number>();
+  const lines = new Map<string, {
+    card: AppData["memberCards"][number];
+    service: Service;
+    quantity: number;
+    beforeText: string;
+    afterText: string;
+  }>();
+  serviceIds.filter(Boolean).forEach((serviceId) => {
+    const service = services.find((item) => item.id === serviceId);
+    if (!service) return;
+    const selectedCard = projectCards
+      .filter((card) => signatureMemberCardSupportsService(card, serviceId))
+      .filter((card) => {
+        const entitlement = card.serviceEntitlements?.find((item) => item.serviceId === serviceId);
+        if (card.serviceEntitlements?.length) {
+          return (entitlement?.remainingTimes ?? 0) - (allocatedByCardService.get(`${card.id}:${serviceId}`) ?? 0) > 0;
+        }
+        return card.remainingTimes - (allocatedTotalByCard.get(card.id) ?? 0) > 0;
+      })
+      .sort((left, right) => compareUiDebitCardPriority(left, right, serviceId))[0];
+    if (!selectedCard) return;
+    allocatedTotalByCard.set(selectedCard.id, (allocatedTotalByCard.get(selectedCard.id) ?? 0) + 1);
+    allocatedByCardService.set(`${selectedCard.id}:${serviceId}`, (allocatedByCardService.get(`${selectedCard.id}:${serviceId}`) ?? 0) + 1);
+    const key = `${selectedCard.id}:${serviceId}`;
+    const current = lines.get(key);
+    const quantity = (current?.quantity ?? 0) + 1;
+    const entitlement = selectedCard.serviceEntitlements?.find((item) => item.serviceId === serviceId);
+    const beforeRemaining = signatureMemberCardRemainingForService(selectedCard, serviceId);
+    const allocatedForService = allocatedByCardService.get(`${selectedCard.id}:${serviceId}`) ?? 0;
+    const afterRemaining = selectedCard.serviceEntitlements?.length
+      ? Math.max(0, beforeRemaining - allocatedForService)
+      : Math.max(0, selectedCard.remainingTimes - (allocatedTotalByCard.get(selectedCard.id) ?? 0));
+    lines.set(key, {
+      card: selectedCard,
+      service,
+      quantity,
+      beforeText: entitlement ? `剩 ${beforeRemaining}/${entitlement.totalTimes} 次` : `剩 ${beforeRemaining} 次`,
+      afterText: entitlement ? `扣后 ${afterRemaining}/${entitlement.totalTimes} 次` : `扣后 ${afterRemaining} 次`,
+    });
+  });
+  return Array.from(lines.values());
+}
+
 function signatureOrderDebitCard(data: AppData, order: Order) {
   const explicitCard = order.cardId
     ? data.memberCards.find((card) => card.id === order.cardId)
@@ -8301,6 +8387,54 @@ function signatureOrderDebitCard(data: AppData, order: Order) {
 }
 
 function signatureMemberCardUsageRows(data: AppData, order: Order) {
+  const alreadyDebited = data.memberCardTransactions.some((transaction) => transaction.orderId === order.id && transaction.type === "消费");
+  const orderServiceIds = (order.serviceIds?.length ? order.serviceIds : [order.serviceId]).filter(Boolean);
+  const projectPlan = buildUiMemberCardDebitPlan(
+    data.memberCards.filter((card) => card.customerId === order.customerId),
+    orderServiceIds,
+    data.services,
+  );
+  if (projectPlan.length > 0) {
+    const plannedRows = projectPlan.map((line) => {
+      const currentRemaining = signatureMemberCardRemainingForService(line.card, line.service.id);
+      const entitlement = line.card.serviceEntitlements?.find((item) => item.serviceId === line.service.id);
+      const beforeTimes = alreadyDebited ? currentRemaining + line.quantity : currentRemaining;
+      const afterTimes = alreadyDebited ? currentRemaining : Math.max(0, currentRemaining - line.quantity);
+      const formatTimes = (value: number) => entitlement ? `${value}/${entitlement.totalTimes}次` : `${value}次`;
+      return {
+        key: `${order.id}:${line.card.id}:${line.service.id}`,
+        cardName: line.card.name,
+        serviceName: line.service.name,
+        usedText: `${line.quantity}次`,
+        beforeText: formatTimes(beforeTimes),
+        afterText: formatTimes(afterTimes),
+        statusText: alreadyDebited ? "已扣" : "待扣",
+        blocked: false,
+      };
+    });
+    const blockedRows = signatureServiceQuantityRows(data, order)
+      .map((row) => {
+        const covered = projectPlan
+          .filter((line) => line.service.id === row.serviceId)
+          .reduce((sum, line) => sum + line.quantity, 0);
+        if (covered >= row.quantity) return undefined;
+        const available = data.memberCards
+          .filter((card) => card.customerId === order.customerId && signatureMemberCardSupportsService(card, row.serviceId))
+          .reduce((sum, card) => sum + signatureMemberCardRemainingForService(card, row.serviceId), 0);
+        return {
+          key: `${order.id}:shortfall:${row.serviceId}`,
+          cardName: "客户项目次数",
+          serviceName: row.name,
+          usedText: `${row.quantity}次`,
+          beforeText: `${available}次`,
+          afterText: `${available}次`,
+          statusText: "不足",
+          blocked: true,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    return [...plannedRows, ...blockedRows];
+  }
   const card = signatureOrderDebitCard(data, order)
     ?? data.memberCards
       .filter((item) =>
@@ -8312,7 +8446,6 @@ function signatureMemberCardUsageRows(data: AppData, order: Order) {
       )
       .sort((a, b) => signatureCardPriority(a, signatureServiceQuantityRows(data, order)[0]?.serviceId ?? order.serviceId) - signatureCardPriority(b, signatureServiceQuantityRows(data, order)[0]?.serviceId ?? order.serviceId))[0];
   if (!card) return [];
-  const alreadyDebited = data.memberCardTransactions.some((transaction) => transaction.orderId === order.id && transaction.type === "消费");
   if (card.type === "储值卡") {
     const afterBalance = alreadyDebited ? card.balance : Math.max(0, card.balance - order.paidAmount);
     const beforeBalance = alreadyDebited ? card.balance + order.paidAmount : card.balance;

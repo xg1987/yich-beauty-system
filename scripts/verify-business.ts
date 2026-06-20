@@ -2039,6 +2039,67 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  const firstOpened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "跨卡项目扣卡客户",
+      customerPhone: "13800001985",
+      name: "面部护理十次卡",
+      type: "次数卡",
+      serviceEntitlements: [{ serviceId: "v1", totalTimes: 3, remainingTimes: 3 }],
+      paidAmount: 980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const secondOpened = openMemberCard(
+    firstOpened,
+    {
+      customerName: "跨卡项目扣卡客户",
+      customerPhone: "13800001985",
+      name: "面部护理十次卡",
+      type: "次数卡",
+      serviceEntitlements: [{ serviceId: "v2", totalTimes: 2, remainingTimes: 2 }],
+      paidAmount: 980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const v2CardId = secondOpened.memberCards[0].id;
+  const v1CardId = secondOpened.memberCards[1].id;
+  const checkedOut = checkoutOrder(
+    secondOpened,
+    {
+      customerId: secondOpened.customers[0].id,
+      staffId: "s2",
+      serviceIds: ["v1", "v2"],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signed = signCustomerSignature(
+    checkedOut,
+    {
+      token: checkedOut.customerSignatures[0].token,
+      signerName: "跨卡项目扣卡客户",
+      signatureText: "data:image/png;base64,cross-card-services",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(signed, v1CardId).serviceEntitlements?.[0]?.remainingTimes, 2, "cross-card checkout should debit the card that owns v1");
+  assert.equal(card(signed, v2CardId).serviceEntitlements?.[0]?.remainingTimes, 1, "cross-card checkout should debit the card that owns v2");
+  assert.equal(
+    signed.memberCardTransactions.filter((transaction) => transaction.orderId === signed.orders[0].id && transaction.type === "消费").length,
+    2,
+    "cross-card checkout should write one consumption transaction per debited card",
+  );
+}
+
+{
   const opened = openMemberCard(
     cloneSeed(),
     {
