@@ -211,6 +211,21 @@ export function useApiData() {
       }
       return result;
     },
+    refreshMarketingVideoStatus: async (...args: Parameters<typeof client.refreshMarketingVideoStatus>) => {
+      const result = await client.refreshMarketingVideoStatus(...args);
+      if (result.record) {
+        setData((current) => current
+          ? {
+              ...current,
+              marketingAiRecords: [
+                result.record!,
+                ...(current.marketingAiRecords ?? []).filter((record) => record.id !== result.record!.id),
+              ],
+            }
+          : current);
+      }
+      return result;
+    },
   }), [client]);
 
   return {

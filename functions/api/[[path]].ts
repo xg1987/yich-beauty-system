@@ -480,8 +480,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         });
         await database.upsertMarketingAiRecord(pendingRecord);
         const result = await runMarketingAiGenerate(currentData, session, body);
+        const resultVideoUrl = kind === "video" && "videoUrl" in result ? result.videoUrl : undefined;
+        const resultProviderStatus = kind === "video" && "status" in result ? result.status : undefined;
+        const resultStatus = kind === "video" && !resultVideoUrl ? resultProviderStatus || "任务已提交" : "已完成";
         let record = {
-          ...marketingAiRecord(currentData, session, body, { ...result, status: "已完成" }),
+          ...marketingAiRecord(currentData, session, body, { ...result, status: resultStatus }),
           id: pendingRecord.id,
           createdAt: pendingRecord.createdAt,
         };
@@ -536,6 +539,33 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       } finally {
         if (locks) await database.releaseAiGenerationLocks(locks);
       }
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/marketing-ai/video-status") {
+      requirePermission(session, "marketing:manage");
+      const body = await readJson(context.request);
+      const recordId = requiredTrimmedText(body, "recordId", 120);
+      const currentData = await database.readData();
+      const record = currentData.marketingAiRecords.find((item) => item.id === recordId);
+      if (!record || record.kind !== "video") throw new Error("视频生成记录不存在");
+      if (session.user.role !== "superadmin" && record.storeId !== sessionStoreId(currentData, session)) {
+        throw new Error("只能刷新本门店的视频记录");
+      }
+      if (!record.taskId) throw new Error("这条视频记录没有任务 ID，无法刷新状态");
+      const provider = record.provider === "seedance" || record.provider === "kling" || record.provider === "hailuo" ? record.provider : undefined;
+      if (!provider) throw new Error("视频供应商信息不完整，无法刷新状态");
+      const result = await runAiVideoStatusTest(currentData, { provider, taskId: record.taskId });
+      const nextRecord: MarketingAiRecord = {
+        ...record,
+        provider: result.provider,
+        model: result.model,
+        videoUrl: result.videoUrl || record.videoUrl,
+        status: result.videoUrl ? "已完成" : result.status || record.status || "任务已提交",
+        errorMessage: record.errorMessage,
+        elapsedMs: result.elapsedMs,
+      };
+      await database.upsertMarketingAiRecord(nextRecord);
+      return sendJson(200, { kind: "video", ...result, record: nextRecord });
     }
 
     if (context.request.method === "POST" && pathname === "/api/data-quality/cleanup") {
@@ -2845,7 +2875,7 @@ function aiBillingForCost(quotaState: ReturnType<typeof assertAiFreeQuotaAvailab
 }
 
 function normalizeMarketingAiGenerateBody(body: JsonBody, kind: MarketingAiKind): JsonBody {
-  if (kind !== "image") return body;
+  if (kind !== "image" && kind !== "video") return body;
   return {
     ...body,
     productName: undefined,
@@ -2859,7 +2889,7 @@ function normalizeMarketingAiGenerateBody(body: JsonBody, kind: MarketingAiKind)
     posterTitle: undefined,
     posterOffer: undefined,
     talkScene: undefined,
-    videoScript: undefined,
+    ...(kind === "image" ? { videoScript: undefined } : {}),
   };
 }
 
@@ -2934,6 +2964,18 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
     const hasModelAsset = Boolean(optionalString(body, "modelImageDataUrl"));
     const styleSceneDirective = marketingPosterStyleSceneDirective(posterStyle, hasModelAsset);
     return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端产品设计图。核心任务：以参考产品图片为唯一依据和唯一主体，自动从上传图片中识别产品外观、包装、材质、颜色、名称和卖点，围绕这个上传产品做商业海报设计。门店：${storeName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。${productDetailLine}${styleSceneDirective}参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质、名称和关键识别点；必须忽略请求里的商品名、项目名、posterTitle、posterOffer、节日节点、渠道、营销目标或任务；不要把产品自动改成其他品类；不要加入任何与上传图片无关的节日名、营销任务、护理项目名、人体部位或服务场景，除非这些元素已经明确出现在上传产品图或用户填写的产品详情中；人物出现与否必须跟所选风格示例一致，不能每个风格都硬塞人物；如果用户额外上传了模特图，优先保持该人物自然真实并与产品互动；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主；不要凭空添加任何营销标题、活动文案或卖点文字；只允许保留或轻微美化上传产品包装上原本可识别的文字，无法识别时宁可不加文字；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
+  }
+  if (kind === "video") {
+    const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
+    const videoDuration = Number(body.videoDuration) || 5;
+    const videoScript = marketingCompliantText(body.videoScript, "产品静物陈列，镜头缓慢推进，展示产品包装、质感和使用氛围。", 800);
+    const assets = marketingImageAssets(body);
+    const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
+    const productDetail = marketingCompliantText(optionalString(body, "customRequirement"), "", 1000);
+    const productDetailLine = productDetail ? `用户填写的产品详情/要求：${productDetail}。这些信息只用于理解产品特点、材质、适用场景和镜头要求，不要生成大段字幕。` : "";
+    const hasModelAsset = Boolean(optionalString(body, "modelImageDataUrl"));
+    const styleSceneDirective = marketingPosterStyleSceneDirective(posterStyle, hasModelAsset);
+    return `基于用户上传的产品图生成一条美业门店可发布的产品短视频。核心任务：以上传产品图为唯一产品来源，保持产品外观、包装、颜色、材质、形状和关键识别点，围绕这个产品做图生视频。门店：${storeName}。视频比例：${videoRatio}。时长：${videoDuration}秒。产品视频风格：${posterStyle}。${productDetailLine}${styleSceneDirective}参考素材：${assetSummary}。镜头要求：${videoScript}。素材使用要求：必须优先展示上传产品图里的真实产品，不要把产品改成其他品类；不要加入任何与上传图片或产品详情无关的节日名、营销任务、护理项目名、人体部位或服务场景；人物出现与否必须跟所选风格示例一致，不能每个风格都硬塞人物；如果用户额外上传了模特图，优先保持该人物自然真实并与产品互动；如果有门店图，只作为空间氛围参考。视频要求：真实高级商业短视频，镜头稳定，轻微推拉、平移、光影流动或手部自然展示即可；产品始终清晰可辨，不要水印，不要卡通，不要 UI 截图，不要长字幕；可保留产品包装上原有文字，避免新增营销文字；${compliance}`;
   }
   const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
@@ -3027,8 +3069,11 @@ async function runMarketingAiBackgroundTask(
   try {
     const currentData = await database.readData();
     const result = await runMarketingAiGenerate(currentData, session, body);
+    const resultVideoUrl = kind === "video" && "videoUrl" in result ? result.videoUrl : undefined;
+    const resultProviderStatus = kind === "video" && "status" in result ? result.status : undefined;
+    const resultStatus = kind === "video" && !resultVideoUrl ? resultProviderStatus || "任务已提交" : "已完成";
     let record = {
-      ...marketingAiRecord(currentData, session, body, { ...result, status: "已完成" }),
+      ...marketingAiRecord(currentData, session, body, { ...result, status: resultStatus }),
       id: pendingRecord.id,
       createdAt: pendingRecord.createdAt,
     };
@@ -3077,6 +3122,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const copyOutputMode = requestedCopyOutputMode === "text" || requestedCopyOutputMode === "image" ? requestedCopyOutputMode : "poster";
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
+  if (kind === "video" && !optionalString(generateBody, "productImageDataUrl")) throw new Error("请先上传产品图，再生成产品视频");
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
   const prompt = marketingPrompt(generateBody, kind);
   if (kind === "copy" || kind === "talk") {
@@ -3137,9 +3183,11 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const durationSeconds = aiVideoDurations.includes(Number(generateBody.videoDuration)) ? Number(generateBody.videoDuration) : provider?.defaultDurationSeconds ?? 5;
   const resolution = provider?.defaultResolution ?? "720p";
   const result = await runAiVideoTest(data, {
+    ...generateBody,
     prompt,
     provider: config.video.defaultProvider,
     durationSeconds,
+    resolution,
     aspectRatio: optionalString(generateBody, "videoRatio"),
   });
   const videoCost = provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined;

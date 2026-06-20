@@ -159,6 +159,8 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AiTestVideoResult>("/api/ai-test/video", { method: "POST", body, token: getToken() }),
     queryAiVideo: (body: { provider: AiVideoProviderKey; taskId: string }) =>
       request<AiTestVideoResult>("/api/ai-test/video-status", { method: "POST", body, token: getToken() }),
+    refreshMarketingVideoStatus: (recordId: string) =>
+      request<MarketingAiGenerateResult>("/api/marketing-ai/video-status", { method: "POST", body: { recordId }, token: getToken() }),
     generateMarketingAi: (body: {
       kind: MarketingAiGenerateKind;
       storeName?: string;
