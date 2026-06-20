@@ -1144,21 +1144,65 @@ try {
     },
   });
   const limitedPackageCard = afterOpenLimitedPackageCard.memberCards[0];
+  const afterCrossCardPackageCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c2",
+      staffId: "s2",
+      serviceIds: ["v2", "v2"],
+      payMethod: "会员卡",
+      cardId: limitedPackageCard.id,
+    },
+  });
+  assert.equal(
+    afterCrossCardPackageCheckout.memberCards.find((item) => item.id === limitedPackageCard.id)?.serviceEntitlements?.find((item) => item.serviceId === "v2")?.remainingTimes,
+    0,
+    "checkout API should debit the preferred package card first",
+  );
+  assert.equal(
+    afterCrossCardPackageCheckout.memberCards.find((item) => item.id === packageCard.id)?.remainingTimes,
+    1,
+    "checkout API should continue debiting another eligible package card for duplicate services",
+  );
+  assert.equal(
+    afterCrossCardPackageCheckout.memberCardTransactions.filter((item) => item.orderId === afterCrossCardPackageCheckout.orders[0].id && item.type === "消费").length,
+    2,
+    "checkout API should write one transaction per debited package card",
+  );
+  const afterOpenInsufficientPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerName: "API 套餐不足客户",
+      customerPhone: "13600000888",
+      name: "API 不足套餐卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v2", totalTimes: 1, remainingTimes: 1 },
+      ],
+      paidAmount: 300,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+    },
+  });
+  const insufficientCustomerId = afterOpenInsufficientPackageCard.customers.find((customer) => customer.phone === "13600000888")?.id;
+  assert.ok(insufficientCustomerId, "open package card API should create insufficient test customer");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, "/api/checkout", {
         method: "POST",
         token: session.token,
         body: {
-          customerId: "c2",
+          customerId: insufficientCustomerId,
           staffId: "s2",
           serviceIds: ["v2", "v2"],
           payMethod: "会员卡",
-          cardId: limitedPackageCard.id,
+          cardId: afterOpenInsufficientPackageCard.memberCards[0].id,
         },
       }),
     /肩颈舒缓 SPA剩余次数不足/,
-    "checkout API should reject package card checkout when one service balance is insufficient",
+    "checkout API should reject package card checkout when the customer has no eligible balance left",
   );
   const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${apiCardId}/recharge`, {
     method: "POST",
@@ -1477,7 +1521,7 @@ try {
   assert.ok(restrictedTherapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments after shared appointment permission is closed");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 9, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 10, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.equal(persistedData.distributionCommissions.length, 0, "base API should not expose distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");

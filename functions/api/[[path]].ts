@@ -2993,7 +2993,7 @@ async function runMarketingAiBackgroundTask(
     const failureRecord = {
       ...marketingAiRecord(currentData, session, body, {
         kind,
-        ...marketingAiPendingProvider(currentData, kind),
+        ...marketingAiPendingProvider(currentData, kind, body),
         text: message,
         status: "生成失败",
         errorMessage: message,
@@ -3016,6 +3016,8 @@ async function runMarketingAiBackgroundTask(
 async function runMarketingAiGenerate(data: AppData, session: UserSession, body: JsonBody) {
   const kind = requiredString(body, "kind") as MarketingAiKind;
   if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
+  const requestedCopyOutputMode = optionalString(body, "copyOutputMode");
+  const copyOutputMode = requestedCopyOutputMode === "text" || requestedCopyOutputMode === "image" ? requestedCopyOutputMode : "poster";
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
@@ -3027,6 +3029,11 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     });
     const safeText = marketingCompliantText(result.text, "", 6000);
     if (kind === "talk") {
+      const textCost = textGenerationCost(config, result.usage);
+      const billing = aiBillingForCost(quotaState, textCost);
+      return { kind, provider: result.provider, model: result.model, text: safeText, usage: result.usage, cost: textCost, costBreakdown: aiCostBreakdown({ text: textCost }), elapsedMs: result.elapsedMs, billing };
+    }
+    if (copyOutputMode === "text") {
       const textCost = textGenerationCost(config, result.usage);
       const billing = aiBillingForCost(quotaState, textCost);
       return { kind, provider: result.provider, model: result.model, text: safeText, usage: result.usage, cost: textCost, costBreakdown: aiCostBreakdown({ text: textCost }), elapsedMs: result.elapsedMs, billing };
@@ -3045,7 +3052,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
       kind,
       provider: `${result.provider}+${imageResult.provider}`,
       model: `${result.model}+${imageResult.model}`,
-      text: safeText,
+      text: copyOutputMode === "image" ? undefined : safeText,
       imageDataUrl: imageResult.imageDataUrl,
       revisedPrompt: imageResult.revisedPrompt,
       usage: { text: result.usage, image: imageResult.usage },
@@ -3077,9 +3084,10 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   return { kind, ...result, cost: videoCost, costBreakdown: aiCostBreakdown({ video: videoCost }), billing };
 }
 
-function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind) {
+function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind, body?: JsonBody) {
   const config = aiGenerationConfigFromData(data);
   if (kind === "image") return { provider: "openai", model: config.image.model };
+  if (kind === "copy" && body && optionalString(body, "copyOutputMode") === "text") return { provider: config.copy.provider, model: config.copy.model };
   if (kind === "copy") return { provider: `${config.copy.provider}+openai`, model: `${config.copy.model}+${config.image.model}` };
   if (kind === "talk") return { provider: config.copy.provider, model: config.copy.model };
   const videoProvider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
@@ -3088,6 +3096,9 @@ function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind) {
 
 function marketingAiFailureCost(data: AppData, body: JsonBody, kind: MarketingAiKind, error: unknown): MarketingAiRecord["cost"] | undefined {
   const message = error instanceof Error ? error.message : "";
+  const requestedCopyOutputMode = optionalString(body, "copyOutputMode");
+  const copyOutputMode = requestedCopyOutputMode === "text" || requestedCopyOutputMode === "image" ? requestedCopyOutputMode : "poster";
+  if (kind === "copy" && copyOutputMode === "text") return undefined;
   if (kind !== "image" && !(kind === "copy" && message.includes("OpenAI"))) return undefined;
   const config = aiGenerationConfigFromData(data).image;
   const prompt = kind === "image"
