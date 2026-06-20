@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gift, Image as ImageIcon, ImagePlus, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, PartyPopper, Plus, ShieldCheck, Sparkles, Video, X } from "lucide-react";
+import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gem, Gift, Hand, Image as ImageIcon, ImagePlus, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, Package, PartyPopper, Plus, Scissors, ShieldCheck, Sparkles, Store, UserRound, Video, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -39,6 +39,15 @@ type MarketingCalendarNode = {
   serviceHint: string;
 };
 type MarketingTaskCategory = "birthday" | "festival" | "wellness" | "repurchase";
+type MarketingStyleTone = "oriental" | "season" | "luxury" | "social" | "medical" | "herbal" | "aroma" | "salon";
+type VideoTemplateExample = {
+  title: string;
+  summary: string;
+  description: string;
+  cues: string[];
+  frames: Array<{ src: string; alt: string }>;
+  icon: typeof Video;
+};
 type MarketingTaskItem =
   | { kind: "node"; category: Exclude<MarketingTaskCategory, "birthday">; id: string; title: string; subtitle: string; badge: string; tagTone: string; tone: string; node: MarketingNode }
   | { kind: "birthday"; category: "birthday"; id: string; title: string; subtitle: string; badge: string; tagTone: string; tone: string; birthdayTask: BirthdayMarketingTask };
@@ -141,7 +150,7 @@ const generationModes: Array<{ kind: MarketingGenerationKind; title: string; ico
   { kind: "talk", title: "口播脚本", icon: MicVocal, locked: true, status: "调试中" },
 ];
 const posterStyles = ["东方美学风", "节气设计图", "轻奢护理风", "小红书种草", "医美极简风", "国潮草本风", "香氛生活风", "高端沙龙风"];
-const posterStyleTones: Record<string, "oriental" | "season" | "luxury" | "social" | "medical" | "herbal" | "aroma" | "salon"> = {
+const posterStyleTones: Record<string, MarketingStyleTone> = {
   东方美学风: "oriental",
   节气设计图: "season",
   轻奢护理风: "luxury",
@@ -219,7 +228,7 @@ const videoRatios = ["9:16", "1:1", "16:9"];
 const videoDurations = [5, 10, 15];
 const videoPaces = ["慢推", "平移", "微距", "快切"];
 const videoTemplates = ["产品质感展示", "手持试用展示", "人物场景种草", "门店护理场景", "高端品牌广告", "社媒快节奏切片"];
-const videoTemplateTones: Record<string, "oriental" | "season" | "luxury" | "social" | "medical" | "herbal" | "aroma" | "salon"> = {
+const videoTemplateTones: Record<string, MarketingStyleTone> = {
   产品质感展示: "luxury",
   手持试用展示: "aroma",
   人物场景种草: "social",
@@ -227,13 +236,79 @@ const videoTemplateTones: Record<string, "oriental" | "season" | "luxury" | "soc
   高端品牌广告: "salon",
   社媒快节奏切片: "season",
 };
-const videoTemplateExamples: Record<string, { title: string; summary: string; description: string }> = {
-  产品质感展示: { title: "产品质感展示", summary: "静物光影", description: "慢推产品包装、材质和光影，适合大多数产品首测。" },
-  手持试用展示: { title: "手持试用展示", summary: "手部动作", description: "手部拿起、打开、涂抹或展示质地，突出真实使用感。" },
-  人物场景种草: { title: "人物场景种草", summary: "真人分享", description: "人物自拍感、手持产品和社媒种草氛围，适合小红书/朋友圈。" },
-  门店护理场景: { title: "门店护理场景", summary: "空间服务", description: "产品出现在护理床、护理师或门店空间里，适合服务带产品。" },
-  高端品牌广告: { title: "高端品牌广告", summary: "品牌大片", description: "微距、慢动作、包装特写和高级质感，适合高客单产品。" },
-  社媒快节奏切片: { title: "社媒快节奏切片", summary: "多镜头快切", description: "快速展示包装、质地、使用和氛围，适合短视频发布。" },
+const videoTemplateExamples: Record<string, VideoTemplateExample> = {
+  产品质感展示: {
+    title: "产品质感展示",
+    summary: "静物光影",
+    description: "展示包装、材质、光影和陈列质感的镜头感觉。",
+    cues: ["静物光影", "材质特写", "产品清晰"],
+    frames: [
+      { src: "/marketing-style-previews/luxury.jpg", alt: "产品包装和光影质感示例" },
+      { src: "/marketing-style-previews/guochao-herbal.jpg", alt: "产品材质和桌面陈列示例" },
+      { src: "/marketing-style-previews/salon-premium.jpg", alt: "高端产品陈列示例" },
+    ],
+    icon: Package,
+  },
+  手持试用展示: {
+    title: "手持试用展示",
+    summary: "手部动作",
+    description: "展示拿起、打开、涂抹或展示质地的镜头感觉。",
+    cues: ["手部动作", "真实试用", "产品清晰"],
+    frames: [
+      { src: "/marketing-style-previews/aroma-lifestyle.jpg", alt: "手持产品生活感示例" },
+      { src: "/marketing-style-previews/social.jpg", alt: "手部试用质地示例" },
+      { src: "/marketing-style-previews/luxury.jpg", alt: "产品放回台面示例" },
+    ],
+    icon: Hand,
+  },
+  人物场景种草: {
+    title: "人物场景种草",
+    summary: "真人分享",
+    description: "展示人物手持产品、自拍感和生活化分享的镜头感觉。",
+    cues: ["真人分享", "生活场景", "社媒种草"],
+    frames: [
+      { src: "/marketing-style-previews/social.jpg", alt: "人物种草分享示例" },
+      { src: "/marketing-style-previews/oriental.jpg", alt: "人物与产品融合示例" },
+      { src: "/marketing-style-previews/aroma-lifestyle.jpg", alt: "生活化产品使用示例" },
+    ],
+    icon: UserRound,
+  },
+  门店护理场景: {
+    title: "门店护理场景",
+    summary: "空间服务",
+    description: "展示产品出现在护理床、护理师动作或门店空间里的镜头感觉。",
+    cues: ["门店空间", "护理动作", "产品入镜"],
+    frames: [
+      { src: "/marketing-style-previews/medical-minimal.jpg", alt: "门店护理空间示例" },
+      { src: "/marketing-style-previews/salon-premium.jpg", alt: "高端沙龙空间示例" },
+      { src: "/marketing-style-previews/luxury.jpg", alt: "护理产品陈列示例" },
+    ],
+    icon: Store,
+  },
+  高端品牌广告: {
+    title: "高端品牌广告",
+    summary: "品牌大片",
+    description: "展示微距、柔光、包装特写和高级品牌感的镜头感觉。",
+    cues: ["品牌大片", "柔光微距", "高级质感"],
+    frames: [
+      { src: "/marketing-style-previews/salon-premium.jpg", alt: "高端品牌广告示例" },
+      { src: "/marketing-style-previews/luxury.jpg", alt: "产品包装特写示例" },
+      { src: "/marketing-style-previews/oriental.jpg", alt: "高级氛围陈列示例" },
+    ],
+    icon: Gem,
+  },
+  社媒快节奏切片: {
+    title: "社媒快节奏切片",
+    summary: "多镜头快切",
+    description: "展示包装、质地、使用和氛围快速切换的镜头感觉。",
+    cues: ["多镜头快切", "发布感", "节奏更快"],
+    frames: [
+      { src: "/marketing-style-previews/social.jpg", alt: "社媒快切产品示例" },
+      { src: "/marketing-style-previews/season.jpg", alt: "氛围转场示例" },
+      { src: "/marketing-style-previews/aroma-lifestyle.jpg", alt: "生活方式快切示例" },
+    ],
+    icon: Scissors,
+  },
 };
 const MAX_MARKETING_ASSET_BYTES = 8 * 1024 * 1024;
 const USD_TO_CNY_DISPLAY_RATE = AI_CREDIT_CNY_PER_USD;
@@ -1440,11 +1515,12 @@ export function MarketingCenter({
                       const example = isVideoMode ? videoTemplateExamples[item] : posterStyleExamples[item];
                       const active = isVideoMode ? videoTemplate === item : posterStyle === item;
                       const tone = isVideoMode ? videoTemplateTones[item] : posterStyleTones[item];
+                      const TemplateIcon = isVideoMode ? videoTemplateExamples[item].icon : null;
                       return (
                         <button
                           type="button"
                           key={item}
-                          className={active ? "active" : ""}
+                          className={[active ? "active" : "", isVideoMode ? "marketing-video-template-button" : ""].filter(Boolean).join(" ")}
                           data-style-tone={tone}
                           onClick={() => {
                             if (isVideoMode) {
@@ -1454,8 +1530,20 @@ export function MarketingCenter({
                             setPosterStyle(item);
                           }}
                         >
-                          <strong>{item}</strong>
-                          <span>{example.summary}</span>
+                          {isVideoMode && TemplateIcon ? (
+                            <>
+                              <span className="marketing-video-template-icon"><TemplateIcon size={22} /></span>
+                              <span className="marketing-video-template-copy">
+                                <strong>{item}</strong>
+                                <em>{example.summary}</em>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <strong>{item}</strong>
+                              <span>{example.summary}</span>
+                            </>
+                          )}
                         </button>
                       );
                     })}
@@ -1484,45 +1572,56 @@ export function MarketingCenter({
                     </label>
                   )}
                   {isVideoMode && (
-                    <>
-                      <div className="marketing-style-preview-card" data-style-tone={videoTemplateTones[activeVideoTemplateExample.title]}>
-                        <div className="marketing-style-preview-copy">
+                    <article className="marketing-video-template-preview" data-style-tone={videoTemplateTones[activeVideoTemplateExample.title]}>
+                      <div className="marketing-video-storyboard">
+                        {activeVideoTemplateExample.frames.map((frame) => (
+                          <div className="marketing-video-storyboard-frame" key={frame.alt}>
+                            <img src={frame.src} alt={frame.alt} />
+                          </div>
+                        ))}
+                        <span>当前示例</span>
+                      </div>
+                      <div className="marketing-video-template-detail">
+                        <div className="marketing-video-template-summary">
                           <strong>{activeVideoTemplateExample.title}</strong>
                           <p>{activeVideoTemplateExample.description}</p>
                           <div>
-                            <span>{activeVideoTemplateExample.summary}</span>
-                            <span>{videoPace}</span>
+                            {activeVideoTemplateExample.cues.map((cue) => <span key={cue}>{cue}</span>)}
                           </div>
                         </div>
+                        <div className="marketing-video-template-controls">
+                          <label className="marketing-video-control-select">
+                            <span>视频比例</span>
+                            <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value)}>
+                              {videoRatios.map((item) => <option key={item} value={item}>{item}</option>)}
+                            </select>
+                          </label>
+                          <label className="marketing-video-control-select">
+                            <span>视频时长</span>
+                            <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
+                              {videoDurations.map((item) => <option key={item} value={item}>{item} 秒</option>)}
+                            </select>
+                          </label>
+                          <label className="marketing-video-control-select">
+                            <span>镜头节奏</span>
+                            <select value={videoPace} onChange={(event) => setVideoPace(event.target.value)}>
+                              {videoPaces.map((item) => <option key={item} value={item}>{item}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                        <label className="marketing-video-detail-field">
+                          <span>镜头要求 / 产品详情</span>
+                          <textarea
+                            value={videoScript}
+                            onChange={(event) => setVideoScript(event.target.value)}
+                            maxLength={200}
+                            placeholder="请输入镜头要求、产品卖点或需要突出的细节，例如：突出质地、吸收过程、使用感等..."
+                            rows={3}
+                          />
+                          <em>{videoScript.length} / 200</em>
+                        </label>
                       </div>
-                      <label className="marketing-size-select">
-                        <span>视频比例</span>
-                        <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value)}>
-                          {videoRatios.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
-                      <label className="marketing-size-select">
-                        <span>视频时长</span>
-                        <select value={videoDuration} onChange={(event) => setVideoDuration(Number(event.target.value))}>
-                          {videoDurations.map((item) => <option key={item} value={item}>{item} 秒</option>)}
-                        </select>
-                      </label>
-                      <label className="marketing-size-select">
-                        <span>镜头节奏</span>
-                        <select value={videoPace} onChange={(event) => setVideoPace(event.target.value)}>
-                          {videoPaces.map((item) => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                      </label>
-                      <label className="marketing-custom-field">
-                        <span>镜头要求 / 产品详情</span>
-                        <textarea
-                          value={videoScript}
-                          onChange={(event) => setVideoScript(event.target.value)}
-                          placeholder="例如：产品成分、质地、香味、适合场景、希望突出的卖点，或镜头慢推包装、手持展示质地、人物试用产品"
-                          rows={3}
-                        />
-                      </label>
-                    </>
+                    </article>
                   )}
                   {!isVideoMode && (
                     <label className="marketing-custom-field">

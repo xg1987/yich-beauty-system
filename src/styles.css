@@ -29485,6 +29485,267 @@ textarea,
     0 10px 20px var(--poster-style-shadow);
 }
 
+.marketing-style-grid .marketing-video-template-button {
+  min-height: 72px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 44px 10px 14px;
+  border-radius: 16px;
+  box-shadow: 0 8px 16px var(--poster-style-shadow);
+}
+
+.marketing-style-grid .marketing-video-template-button[data-style-tone].active {
+  box-shadow:
+    inset 0 0 0 1px var(--poster-style-ring),
+    0 10px 20px var(--poster-style-shadow);
+}
+
+.marketing-video-template-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--poster-style-main);
+  color: #fff !important;
+  box-shadow: 0 10px 18px var(--poster-style-shadow);
+}
+
+.marketing-style-grid button .marketing-video-template-icon {
+  color: #fff !important;
+}
+
+.marketing-video-template-icon svg {
+  width: 22px;
+  height: 22px;
+  color: currentColor;
+  stroke-width: 2.3;
+}
+
+.marketing-video-template-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  color: var(--poster-style-text) !important;
+}
+
+.marketing-video-template-copy em {
+  color: rgba(47, 37, 95, 0.66);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.marketing-video-template-preview {
+  --poster-style-main: #5b2fb7;
+  --poster-style-border: rgba(91, 47, 183, 0.28);
+  --poster-style-soft: rgba(91, 47, 183, 0.12);
+  --poster-style-text: #32146f;
+  display: grid;
+  grid-template-columns: minmax(260px, 1.05fr) minmax(280px, 0.95fr);
+  gap: 18px;
+  align-items: stretch;
+  min-width: 0;
+  overflow: hidden;
+  padding: 12px;
+  border: 1px solid var(--poster-style-border);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 12%, var(--poster-style-soft), transparent 34%),
+    rgba(255, 255, 255, 0.86);
+  box-shadow: 0 12px 24px rgba(47, 37, 95, 0.08);
+}
+
+.marketing-video-template-preview[data-style-tone="season"] {
+  --poster-style-main: #d97706;
+  --poster-style-border: rgba(217, 119, 6, 0.28);
+  --poster-style-soft: rgba(217, 119, 6, 0.14);
+  --poster-style-text: #743a03;
+}
+
+.marketing-video-template-preview[data-style-tone="luxury"] {
+  --poster-style-main: #008c7a;
+  --poster-style-border: rgba(0, 140, 122, 0.28);
+  --poster-style-soft: rgba(0, 140, 122, 0.14);
+  --poster-style-text: #005f54;
+}
+
+.marketing-video-template-preview[data-style-tone="social"] {
+  --poster-style-main: #c0265a;
+  --poster-style-border: rgba(192, 38, 90, 0.28);
+  --poster-style-soft: rgba(192, 38, 90, 0.14);
+  --poster-style-text: #8f1744;
+}
+
+.marketing-video-template-preview[data-style-tone="medical"] {
+  --poster-style-main: #4f7ea8;
+  --poster-style-border: rgba(79, 126, 168, 0.28);
+  --poster-style-soft: rgba(79, 126, 168, 0.14);
+  --poster-style-text: #28577d;
+}
+
+.marketing-video-template-preview[data-style-tone="herbal"] {
+  --poster-style-main: #8a4f1d;
+  --poster-style-border: rgba(138, 79, 29, 0.28);
+  --poster-style-soft: rgba(138, 79, 29, 0.14);
+  --poster-style-text: #6b3610;
+}
+
+.marketing-video-template-preview[data-style-tone="aroma"] {
+  --poster-style-main: #7e8f55;
+  --poster-style-border: rgba(126, 143, 85, 0.28);
+  --poster-style-soft: rgba(126, 143, 85, 0.14);
+  --poster-style-text: #566734;
+}
+
+.marketing-video-template-preview[data-style-tone="salon"] {
+  --poster-style-main: #17686f;
+  --poster-style-border: rgba(23, 104, 111, 0.28);
+  --poster-style-soft: rgba(23, 104, 111, 0.14);
+  --poster-style-text: #0f565c;
+}
+
+.marketing-video-storyboard {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(111, 66, 193, 0.1);
+}
+
+.marketing-video-storyboard-frame {
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-right: 2px solid rgba(255, 255, 255, 0.88);
+}
+
+.marketing-video-storyboard-frame:last-of-type {
+  border-right: 0;
+}
+
+.marketing-video-storyboard-frame img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.marketing-video-storyboard > span {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--poster-style-text) !important;
+  font-size: 11px;
+  font-weight: 880;
+  box-shadow: 0 6px 14px rgba(47, 37, 95, 0.12);
+}
+
+.marketing-video-template-detail {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 13px;
+  padding: 4px 4px 4px 0;
+}
+
+.marketing-video-template-summary {
+  display: grid;
+  gap: 7px;
+}
+
+.marketing-video-template-summary strong {
+  color: var(--poster-style-text) !important;
+  font-size: 21px;
+  font-weight: 950;
+  line-height: 1.18;
+}
+
+.marketing-video-template-summary p {
+  margin: 0;
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.5;
+}
+
+.marketing-video-template-summary div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.marketing-video-template-summary div span {
+  min-height: 24px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--poster-style-soft);
+  color: var(--poster-style-text) !important;
+  font-size: 12px;
+  font-weight: 880;
+}
+
+.marketing-video-template-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.marketing-video-control-select,
+.marketing-video-detail-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.marketing-video-control-select > span,
+.marketing-video-detail-field > span {
+  color: #2f255f !important;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.marketing-video-control-select select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(111, 66, 193, 0.2);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #2f255f;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.marketing-video-detail-field {
+  position: relative;
+}
+
+.marketing-video-detail-field textarea {
+  min-height: 84px;
+  padding-bottom: 24px;
+  resize: vertical;
+}
+
+.marketing-video-detail-field em {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  color: rgba(47, 37, 95, 0.42);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 780;
+}
+
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button[data-style-tone] strong,
 .app-shell.theme-night .marketing-center-page .marketing-style-grid button[data-style-tone] strong {
   color: var(--poster-style-text) !important;
@@ -29799,14 +30060,29 @@ textarea,
 
 .app-shell.theme-night .marketing-style-gallery-trigger,
 .app-shell.theme-night .marketing-style-preview-card,
+.app-shell.theme-night .marketing-video-template-preview,
 .app-shell.theme-night .marketing-style-gallery-grid button {
   border-color: var(--night-app-line);
   background: rgba(255, 255, 255, 0.08);
 }
 
 .app-shell.theme-night .marketing-style-preview-copy p,
+.app-shell.theme-night .marketing-video-template-summary p,
+.app-shell.theme-night .marketing-video-template-copy em,
 .app-shell.theme-night .marketing-style-gallery-copy em {
   color: var(--night-app-muted);
+}
+
+.app-shell.theme-night .marketing-video-control-select > span,
+.app-shell.theme-night .marketing-video-detail-field > span {
+  color: var(--night-app-text) !important;
+}
+
+.app-shell.theme-night .marketing-video-control-select select,
+.app-shell.theme-night .marketing-video-detail-field textarea {
+  border-color: var(--night-app-line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--night-app-text);
 }
 
 .app-shell.theme-night .marketing-style-gallery-dialog {
@@ -29993,6 +30269,28 @@ textarea,
     padding: 10px 11px;
   }
 
+  .marketing-center-page .marketing-poster-options .marketing-style-grid .marketing-video-template-button {
+    min-height: 68px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 9px;
+    padding: 9px 34px 9px 10px;
+  }
+
+  .marketing-video-template-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+  }
+
+  .marketing-video-template-copy strong {
+    font-size: 14px;
+    line-height: 1.15;
+  }
+
+  .marketing-video-template-copy em {
+    font-size: 11px;
+  }
+
   .marketing-style-head {
     gap: 8px;
   }
@@ -30014,6 +30312,30 @@ textarea,
 
   .marketing-style-preview-copy {
     padding: 0 2px 2px;
+  }
+
+  .marketing-video-template-preview {
+    grid-template-columns: 1fr;
+    gap: 11px;
+    padding: 9px;
+  }
+
+  .marketing-video-storyboard-frame {
+    aspect-ratio: 3 / 4;
+  }
+
+  .marketing-video-template-detail {
+    gap: 11px;
+    padding: 0 2px 2px;
+  }
+
+  .marketing-video-template-summary strong {
+    font-size: 18px;
+  }
+
+  .marketing-video-template-controls {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .marketing-style-gallery-overlay {
