@@ -502,7 +502,7 @@ function marketingRecordTitle(record: MarketingAiRecord) {
 function marketingRecordSummary(record: MarketingAiRecord) {
   if (record.status === "生成失败") return marketingCompliantText(compactRecordText(record.errorMessage || record.text || "生成失败")).slice(0, 48);
   if (isMarketingAiRecordPending(record)) return "正在生成，请稍后查看结果";
-  if (record.kind === "image") return marketingCompliantText(compactRecordText(record.productName || "产品设计图")).slice(0, 48);
+  if (record.kind === "image") return "上传产品图";
   const content = marketingRecordPreviewText(record);
   if (content) return content.slice(0, 48);
   return [
@@ -953,14 +953,11 @@ export function MarketingCenter({
     setDownloadResultStatus("idle");
     setManualCopyText("");
     try {
-      const productPosterTitle = product?.name
-        ? marketingCompliantText(product.name)
-        : "产品设计图";
       const usesProductPosterContext = generationKind === "image";
       const result = await actions.generateMarketingAi({
         kind: generationKind,
         storeName: marketingCompliantText(storeName),
-        productName: product?.name ? marketingCompliantText(product.name) : undefined,
+        productName: usesProductPosterContext ? undefined : product?.name ? marketingCompliantText(product.name) : undefined,
         serviceName: usesProductPosterContext ? undefined : service?.name ? marketingCompliantText(service.name) : undefined,
         audience: audienceSummary,
         channel: usesProductPosterContext ? undefined : channel,
@@ -971,7 +968,7 @@ export function MarketingCenter({
         marketingGoal: usesProductPosterContext ? undefined : safeMarketingGoal,
         posterStyle: safePosterStyle,
         posterSize: effectivePosterSize,
-        posterTitle: usesProductPosterContext ? productPosterTitle : safeMarketingNode,
+        posterTitle: usesProductPosterContext ? "上传产品图" : safeMarketingNode,
         posterOffer: usesProductPosterContext ? undefined : safeMarketingGoal,
         productImageName,
         productImageDataUrl,

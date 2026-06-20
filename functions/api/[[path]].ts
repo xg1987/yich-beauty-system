@@ -2879,12 +2879,12 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   }
   if (kind === "image") {
     const posterSize = marketingCompliantText(body.posterSize, "朋友圈 1:1");
-    const posterTitle = marketingCompliantText(body.posterTitle, productName || "产品设计图");
+    const posterTitle = marketingCompliantText(body.posterTitle, "上传产品图");
     const posterOffer = optionalString(body, "posterOffer");
     const assets = marketingImageAssets(body);
     const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
     const offerLine = posterOffer ? `行动信息：${marketingCompliantText(posterOffer)}。` : "";
-    return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端中文产品设计图。核心任务：以参考产品为唯一主体，围绕产品外观、包装、材质、颜色、名称和卖点做商业海报设计。主题：${posterTitle}。${offerLine}门店：${storeName}。商品：${productName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质和关键识别点；不要把产品自动改成其他品类；不要加入与产品无关的护理项目、节日节气、复购提醒、足浴、泡脚、洗脚、足盆、腿部、脚部或人体服务场景，除非这些元素已经明确出现在上传产品图中；如果有模特图，保持人物自然真实但产品仍是主体；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
+    return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端中文产品设计图。核心任务：以参考产品图片为唯一依据和唯一主体，自动从上传图片中识别产品外观、包装、材质、颜色、名称和卖点，围绕这个上传产品做商业海报设计。主题：${posterTitle}。${offerLine}门店：${storeName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质、名称和关键识别点；不要使用系统里的商品名、项目名、节日节点或营销任务来替代上传产品；不要把产品自动改成药汤、泡脚药包、护理项目或其他品类；不要加入与产品无关的护理项目、节日节气、复购提醒、足浴、泡脚、洗脚、足盆、腿部、脚部或人体服务场景，除非这些元素已经明确出现在上传产品图中；如果有模特图，保持人物自然真实但产品仍是主体；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主，留出清晰文字安全区；中文文字优先使用上传产品包装上可识别的产品名，无法识别时只写简短通用标题，不要凭空写“药汤”“泡脚”“端午”等字样；不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
   }
   const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
@@ -3171,7 +3171,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     bodyState: isProductImageRecord ? undefined : safeOptional("bodyState"),
     marketingGoal: isProductImageRecord ? undefined : safeOptional("marketingGoal"),
     serviceName: isProductImageRecord ? undefined : safeOptional("serviceName"),
-    productName: safeOptional("productName"),
+    productName: isProductImageRecord ? undefined : safeOptional("productName"),
     text: result.text ? marketingCompliantText(result.text, "", 6000) : result.text,
     imageDataUrl: result.imageDataUrl,
     videoUrl: result.videoUrl,
