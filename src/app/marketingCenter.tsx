@@ -771,6 +771,7 @@ export function MarketingCenter({
     selectedNode.description ? `节点策略：${selectedNode.description}` : "",
     safeCustomRequirement,
   ].filter(Boolean).map(marketingCompliantText).join("\n");
+  const productPosterRequirement = safeCustomRequirement || undefined;
   const previewSummaryItems = [safeMarketingNode, channel, safeMarketingGoal];
   const copyPreviewText = emptyBirthdayCategory
     ? "暂无生日客户。生日提醒会在客户生日进入未来 7 天时自动出现，可以切换到节日节气、养生节点或复购提醒继续生成内容。"
@@ -976,7 +977,7 @@ export function MarketingCenter({
         modelImageDataUrl,
         sceneImageName,
         sceneImageDataUrl,
-        customRequirement: generationRequirement,
+        customRequirement: usesProductPosterContext ? productPosterRequirement : generationRequirement || undefined,
         copyOutputMode,
         videoRatio,
         videoDuration,
@@ -1421,10 +1422,11 @@ export function MarketingCenter({
                     </select>
                   </label>
                   <label className="marketing-custom-field">
-                    <span>我想自己写要求</span>
+                    <span>产品详情 / 我想自己写要求</span>
                     <textarea
                       value={customRequirement}
                       onChange={(event) => setCustomRequirement(event.target.value)}
+                      placeholder="例如：产品成分、质地、香味、适合场景、希望突出的卖点或画面要求"
                       rows={3}
                     />
                   </label>

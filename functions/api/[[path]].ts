@@ -2863,29 +2863,32 @@ function normalizeMarketingAiGenerateBody(body: JsonBody, kind: MarketingAiKind)
   };
 }
 
-function marketingPosterStyleSceneDirective(posterStyle: string) {
+function marketingPosterStyleSceneDirective(posterStyle: string, hasModelAsset: boolean) {
   if (posterStyle.includes("东方美学")) {
-    return "风格场景：自动生成一位气质自然的东方审美人物，人物可手持、轻触、使用或在梳妆/护理台旁展示上传产品；人物服装、妆容、背景、花器、屏风、木质或宣纸质感都要服务东方美学氛围；上传产品必须清晰完整地出现在画面核心位置，人物和产品要像真实广告拍摄一样融合。";
+    return "风格场景：参考示例有人物，必须生成一位气质自然的东方审美人物，人物可手持、轻触、使用或在梳妆/护理台旁展示上传产品；人物服装、妆容、背景、花器、屏风、木质或宣纸质感都要服务东方美学氛围；上传产品必须清晰完整地出现在画面核心位置，人物和产品要像真实广告拍摄一样融合。";
   }
   if (posterStyle.includes("轻奢")) {
-    return "风格场景：高级护理或梳妆空间，允许生成局部手部、肩颈以上人物或专业护理师动作来衬托产品；金属、玻璃、丝绒、柔光等材质要克制高级；上传产品必须作为主角，不能被人物或空间抢走。";
+    return "风格场景：参考示例有人物和护理动作，必须生成高级护理人物、局部手部或专业护理师动作来衬托产品；金属、玻璃、丝绒、柔光等材质要克制高级；上传产品必须作为主角，不能被人物或空间抢走。";
   }
   if (posterStyle.includes("医美") || posterStyle.includes("极简")) {
-    return "风格场景：洁净、专业、极简的护理空间，允许生成自然真实的人物面部或手部作为信任感场景；画面要像专业品牌大片，上传产品保持清晰、干净、可信。";
+    return "风格场景：参考示例有人物和仪器动作，必须生成自然真实的人物面部、手部或专业护理动作作为信任感场景；整体保持洁净、专业、极简，像专业品牌大片；上传产品保持清晰、干净、可信。";
   }
   if (posterStyle.includes("国潮") || posterStyle.includes("草本")) {
-    return "风格场景：东方国潮和草本植物质感，允许生成手持产品或人物局部动作来增强真实使用感；背景可有中式器物、植物、纸纹或木质陈列，但不能改变上传产品品类。";
+    return `${hasModelAsset ? "风格场景：参考示例以产品陈列为主；用户上传了模特图时可以让模特轻度参与展示产品，但不要抢主体。" : "风格场景：参考示例没有人物主体，不要强行生成人物；以产品陈列、中式器物、植物、纸纹、木质台面和国潮包装质感为主。"}背景可有东方草本氛围，但不能改变上传产品品类。`;
   }
   if (posterStyle.includes("香氛") || posterStyle.includes("生活")) {
-    return "风格场景：松弛的生活方式画面，允许生成自然人物、居家台面、香氛、窗光和植物氛围；人物动作要围绕展示上传产品，整体像真实社媒生活大片。";
+    return `${hasModelAsset ? "风格场景：参考示例以生活产品陈列为主；用户上传了模特图时可以让人物自然出现在生活场景中展示产品。" : "风格场景：参考示例没有人物主体，不要强行生成人物；以居家台面、窗光、香氛、花材、毛巾和植物氛围来承托产品。"}整体要松弛、自然、像真实生活方式大片。`;
   }
   if (posterStyle.includes("沙龙") || posterStyle.includes("高端")) {
-    return "风格场景：高端美业沙龙环境，允许生成顾客、护理师、前台或陈列台场景来托起产品质感；上传产品应像门店主推产品一样被清晰展示。";
+    return `${hasModelAsset ? "风格场景：参考示例以高端门店空间和产品陈列为主；用户上传了模特图时可以让人物作为远景或局部动作出现。" : "风格场景：参考示例没有人物主体，不要强行生成人物；以高端美业沙龙空间、镜面、灯光、陈列台和产品静物为主。"}上传产品应像门店主推产品一样被清晰展示。`;
   }
   if (posterStyle.includes("小红书") || posterStyle.includes("种草")) {
-    return "风格场景：真实社媒种草氛围，允许生成自然人物试用、手持产品、桌面随拍或生活化陈列；画面要真实、有分享感，上传产品保持清楚可辨。";
+    return "风格场景：参考示例有人物、手部试用和拼贴感，必须生成自然人物自拍感、手部试用、手持产品、桌面随拍或多图拼贴；画面要真实、有分享感，像小红书种草内容，上传产品保持清楚可辨。";
   }
-  return "风格场景：根据所选风格自动生成合适人物或生活场景来衬托上传产品；人物、背景和道具都必须服务产品展示，上传产品保持清晰完整。";
+  if (posterStyle.includes("节气")) {
+    return `${hasModelAsset ? "风格场景：参考示例以产品陈列和节令植物为主；用户上传了模特图时可以让人物作为轻量氛围出现。" : "风格场景：参考示例没有人物主体，不要强行生成人物；以节令植物、自然光、水面、花材、布料和产品静物陈列为主。"}画面保留季节氛围，但不能加入与上传产品无关的节日营销文字。`;
+  }
+  return `${hasModelAsset ? "风格场景：用户上传了模特图，可以让人物自然展示产品。" : "风格场景：按示例风格生成产品静物或生活场景，不要强行生成人物。"}背景和道具都必须服务产品展示，上传产品保持清晰完整。`;
 }
 
 function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
@@ -2926,8 +2929,11 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
     const posterSize = marketingCompliantText(body.posterSize, "朋友圈 1:1");
     const assets = marketingImageAssets(body);
     const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-    const styleSceneDirective = marketingPosterStyleSceneDirective(posterStyle);
-    return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端产品设计图。核心任务：以参考产品图片为唯一依据和唯一主体，自动从上传图片中识别产品外观、包装、材质、颜色、名称和卖点，围绕这个上传产品做商业海报设计。门店：${storeName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。${styleSceneDirective}参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质、名称和关键识别点；必须忽略请求里的商品名、项目名、posterTitle、posterOffer、节日节点、渠道、营销目标或任务；不要把产品自动改成其他品类；不要加入任何与上传图片无关的节日名、营销任务、护理项目名、人体部位或服务场景，除非这些元素已经明确出现在上传产品图中；可以根据风格自动生成真实人物，但人物动作必须围绕上传产品，不能变成项目服务宣传；如果用户额外上传了模特图，优先保持该人物自然真实并与产品互动；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主；不要凭空添加任何营销标题、活动文案或卖点文字；只允许保留或轻微美化上传产品包装上原本可识别的文字，无法识别时宁可不加文字；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
+    const productDetail = marketingCompliantText(optionalString(body, "customRequirement"), "", 1000);
+    const productDetailLine = productDetail ? `用户填写的产品详情/要求：${productDetail}。这些信息只用于理解产品特点、材质、适用场景和画面要求，不要直接照抄成大段海报文字。` : "";
+    const hasModelAsset = Boolean(optionalString(body, "modelImageDataUrl"));
+    const styleSceneDirective = marketingPosterStyleSceneDirective(posterStyle, hasModelAsset);
+    return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端产品设计图。核心任务：以参考产品图片为唯一依据和唯一主体，自动从上传图片中识别产品外观、包装、材质、颜色、名称和卖点，围绕这个上传产品做商业海报设计。门店：${storeName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。${productDetailLine}${styleSceneDirective}参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质、名称和关键识别点；必须忽略请求里的商品名、项目名、posterTitle、posterOffer、节日节点、渠道、营销目标或任务；不要把产品自动改成其他品类；不要加入任何与上传图片无关的节日名、营销任务、护理项目名、人体部位或服务场景，除非这些元素已经明确出现在上传产品图或用户填写的产品详情中；人物出现与否必须跟所选风格示例一致，不能每个风格都硬塞人物；如果用户额外上传了模特图，优先保持该人物自然真实并与产品互动；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主；不要凭空添加任何营销标题、活动文案或卖点文字；只允许保留或轻微美化上传产品包装上原本可识别的文字，无法识别时宁可不加文字；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
   }
   const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
