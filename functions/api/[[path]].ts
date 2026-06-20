@@ -2651,7 +2651,13 @@ function marketingPosterSafeText(value: unknown, fallback = "") {
   return marketingCompliantText(value, fallback);
 }
 
-function marketingImageSize(posterSize: string | undefined) {
+function marketingImageSize(posterSize: string | undefined, model?: string) {
+  const supportsCustomSize = model === "gpt-image-2" || model === "gpt-image-2-2026-04-21";
+  if (supportsCustomSize) {
+    if (posterSize?.includes("16:9")) return "1536x864";
+    if (posterSize?.includes("9:16")) return "864x1536";
+    if (posterSize?.includes("3:4")) return "1152x1536";
+  }
   if (posterSize?.includes("16:9")) return "1536x1024";
   if (posterSize?.includes("9:16") || posterSize?.includes("3:4")) return "1024x1536";
   return "1024x1024";
@@ -3042,7 +3048,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     const imageResult = await runAiImageTest(data, {
       ...body,
       prompt: marketingCopyPosterPrompt(body, safeText),
-      size: marketingImageSize(optionalString(body, "posterSize")),
+      size: marketingImageSize(optionalString(body, "posterSize"), imageConfig.model),
       quality: "medium",
     });
     const textCost = textGenerationCost(config, result.usage);
@@ -3068,7 +3074,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     const result = await runAiImageTest(data, {
       ...body,
       prompt,
-      size: marketingImageSize(optionalString(body, "posterSize")),
+      size: marketingImageSize(optionalString(body, "posterSize"), config.model),
       quality: "medium",
     });
     const imageCost = result.cost ?? imageGenerationCost(config, result.usage);
@@ -3119,7 +3125,7 @@ function marketingAiFailureCost(data: AppData, body: JsonBody, kind: MarketingAi
   })();
   return estimatedImageGenerationCost(config, {
     prompt,
-    size: marketingImageSize(optionalString(body, "posterSize")),
+    size: marketingImageSize(optionalString(body, "posterSize"), config.model),
     quality: "medium",
     assetCount,
     reason: `${message || "图片生成未返回结果"}，供应商未返回 token 用量，按请求规格预估成本`,
