@@ -29195,7 +29195,7 @@ textarea,
   z-index: 8;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+  gap: 8px;
   padding: 8px 0 0;
   background: linear-gradient(180deg, rgba(250, 247, 255, 0), rgba(250, 247, 255, 0.96) 28%, rgba(250, 247, 255, 0.98));
 }
@@ -29217,6 +29217,71 @@ textarea,
   border: 1px solid rgba(171, 61, 101, 0.22);
   background: linear-gradient(105deg, #6f42c1 0%, #7a3bc0 48%, #bd456e 100%);
   color: #ffffff;
+}
+
+.marketing-record-shortcut {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #4c3b78;
+  font-size: 14px;
+  font-weight: 880;
+  box-shadow: 0 8px 18px rgba(62, 38, 117, 0.06);
+}
+
+.marketing-record-shortcut svg {
+  color: #6f42c1 !important;
+  stroke: currentColor !important;
+}
+
+.marketing-record-shortcut em {
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.1);
+  color: #6f42c1;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 940;
+}
+
+.marketing-record-back {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #6f42c1;
+  font-size: 13px;
+  font-weight: 880;
+}
+
+.app-shell.theme-day .marketing-center-page .marketing-record-shortcut,
+.app-shell.theme-night .marketing-center-page .marketing-record-shortcut {
+  color: #4c3b78 !important;
+  -webkit-text-fill-color: #4c3b78;
+}
+
+.app-shell.theme-day .marketing-center-page .marketing-record-shortcut span,
+.app-shell.theme-night .marketing-center-page .marketing-record-shortcut span {
+  color: #4c3b78 !important;
+  -webkit-text-fill-color: #4c3b78;
+}
+
+.app-shell.theme-day .marketing-center-page .marketing-record-shortcut svg,
+.app-shell.theme-night .marketing-center-page .marketing-record-shortcut svg,
+.app-shell.theme-day .marketing-center-page .marketing-record-shortcut em,
+.app-shell.theme-night .marketing-center-page .marketing-record-shortcut em {
+  color: #6f42c1 !important;
+  -webkit-text-fill-color: #6f42c1;
 }
 
 .marketing-center-page > .marketing-type-panel .marketing-output-mode-grid button {

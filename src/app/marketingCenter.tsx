@@ -1027,19 +1027,6 @@ export function MarketingCenter({
 
       <section className="workbench-panel marketing-type-panel" aria-label="生成类型">
         <div className="marketing-section-head marketing-type-heading">
-          <div className="marketing-heading-tabs" role="tablist" aria-label="营销生成视图">
-            <button
-              type="button"
-              className={`marketing-heading-tab ${activeView === "records" ? "active" : ""}`}
-              role="tab"
-              aria-selected={activeView === "records"}
-              onClick={() => setActiveView((view) => view === "records" ? "content" : "records")}
-            >
-              <span className="marketing-heading-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.6} /></span>
-              <strong>生成记录</strong>
-              <em>{typedMarketingAiRecords.length}</em>
-            </button>
-          </div>
           <span
             className={`marketing-task-credit-pill marketing-type-credit-pill ${quotaState.credits > 0 ? "paid" : quotaState.enforced && quotaState.remaining === 0 ? "empty" : ""}`}
             title={marketingQuotaDetail}
@@ -1340,12 +1327,29 @@ export function MarketingCenter({
               <button type="button" className="primary-button marketing-copy-action" disabled={!contentState.enabled || generationBusy} onClick={generate}>
                 <Sparkles size={16} /> {generationBusy ? "生成中..." : selectedBirthdayTask && !isPosterMode ? (copyOutputMode === "text" ? "生成生日文案" : copyOutputMode === "image" ? "生成生日图片" : "生成生日图文") : isCopyMode ? copyGenerateTitle : `生成${selectedGenerationMode.title}`}
               </button>
+              <button
+                type="button"
+                className="marketing-record-shortcut"
+                onClick={() => setActiveView("records")}
+              >
+                <Sparkles size={15} aria-hidden="true" />
+                <span>生成记录</span>
+                <em>{typedMarketingAiRecords.length}</em>
+              </button>
             </div>
           </div>
         </section>
       ) : (
         <section className="workbench-panel marketing-record-panel">
-          <PanelTitle icon={<Sparkles size={18} />} title="生成记录" action={`${selectedGenerationMode.title} · ${typedMarketingAiRecords.length} 条`} />
+          <PanelTitle
+            icon={<Sparkles size={18} />}
+            title="生成记录"
+            action={(
+              <button type="button" className="marketing-record-back" onClick={() => setActiveView("content")}>
+                返回生成
+              </button>
+            )}
+          />
           <div className="marketing-record-list">
             {typedMarketingAiRecords.slice(0, 12).map((record) => {
               const recordPending = isMarketingAiRecordPending(record);
