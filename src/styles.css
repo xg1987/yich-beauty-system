@@ -29434,6 +29434,46 @@ textarea,
   --poster-style-text: #8f1744;
 }
 
+.marketing-style-grid button[data-style-tone="medical"] {
+  --poster-style-main: #4f7ea8;
+  --poster-style-border: rgba(79, 126, 168, 0.46);
+  --poster-style-soft: rgba(79, 126, 168, 0.18);
+  --poster-style-bg: linear-gradient(135deg, rgba(232, 244, 252, 0.98), rgba(247, 251, 255, 0.9));
+  --poster-style-ring: rgba(79, 126, 168, 0.26);
+  --poster-style-shadow: rgba(79, 126, 168, 0.14);
+  --poster-style-text: #28577d;
+}
+
+.marketing-style-grid button[data-style-tone="herbal"] {
+  --poster-style-main: #8a4f1d;
+  --poster-style-border: rgba(138, 79, 29, 0.46);
+  --poster-style-soft: rgba(138, 79, 29, 0.18);
+  --poster-style-bg: linear-gradient(135deg, rgba(245, 232, 211, 0.98), rgba(232, 245, 229, 0.9));
+  --poster-style-ring: rgba(138, 79, 29, 0.26);
+  --poster-style-shadow: rgba(138, 79, 29, 0.14);
+  --poster-style-text: #6b3610;
+}
+
+.marketing-style-grid button[data-style-tone="aroma"] {
+  --poster-style-main: #7e8f55;
+  --poster-style-border: rgba(126, 143, 85, 0.46);
+  --poster-style-soft: rgba(126, 143, 85, 0.18);
+  --poster-style-bg: linear-gradient(135deg, rgba(238, 246, 224, 0.98), rgba(255, 249, 239, 0.9));
+  --poster-style-ring: rgba(126, 143, 85, 0.26);
+  --poster-style-shadow: rgba(126, 143, 85, 0.14);
+  --poster-style-text: #566734;
+}
+
+.marketing-style-grid button[data-style-tone="salon"] {
+  --poster-style-main: #17686f;
+  --poster-style-border: rgba(23, 104, 111, 0.46);
+  --poster-style-soft: rgba(23, 104, 111, 0.18);
+  --poster-style-bg: linear-gradient(135deg, rgba(222, 244, 244, 0.98), rgba(255, 247, 225, 0.9));
+  --poster-style-ring: rgba(23, 104, 111, 0.26);
+  --poster-style-shadow: rgba(23, 104, 111, 0.14);
+  --poster-style-text: #0f565c;
+}
+
 .marketing-style-grid button[data-style-tone].active {
   border-color: var(--poster-style-main);
   background:
@@ -29516,6 +29556,34 @@ textarea,
   --poster-style-border: rgba(192, 38, 90, 0.28);
   --poster-style-soft: rgba(192, 38, 90, 0.14);
   --poster-style-text: #8f1744;
+}
+
+.marketing-style-preview-card[data-style-tone="medical"] {
+  --poster-style-main: #4f7ea8;
+  --poster-style-border: rgba(79, 126, 168, 0.28);
+  --poster-style-soft: rgba(79, 126, 168, 0.14);
+  --poster-style-text: #28577d;
+}
+
+.marketing-style-preview-card[data-style-tone="herbal"] {
+  --poster-style-main: #8a4f1d;
+  --poster-style-border: rgba(138, 79, 29, 0.28);
+  --poster-style-soft: rgba(138, 79, 29, 0.14);
+  --poster-style-text: #6b3610;
+}
+
+.marketing-style-preview-card[data-style-tone="aroma"] {
+  --poster-style-main: #7e8f55;
+  --poster-style-border: rgba(126, 143, 85, 0.28);
+  --poster-style-soft: rgba(126, 143, 85, 0.14);
+  --poster-style-text: #566734;
+}
+
+.marketing-style-preview-card[data-style-tone="salon"] {
+  --poster-style-main: #17686f;
+  --poster-style-border: rgba(23, 104, 111, 0.28);
+  --poster-style-soft: rgba(23, 104, 111, 0.14);
+  --poster-style-text: #0f565c;
 }
 
 .marketing-style-preview-media {
@@ -29657,6 +29725,34 @@ textarea,
   --poster-style-border: rgba(192, 38, 90, 0.28);
   --poster-style-soft: rgba(192, 38, 90, 0.14);
   --poster-style-text: #8f1744;
+}
+
+.marketing-style-gallery-grid button[data-style-tone="medical"] {
+  --poster-style-main: #4f7ea8;
+  --poster-style-border: rgba(79, 126, 168, 0.28);
+  --poster-style-soft: rgba(79, 126, 168, 0.14);
+  --poster-style-text: #28577d;
+}
+
+.marketing-style-gallery-grid button[data-style-tone="herbal"] {
+  --poster-style-main: #8a4f1d;
+  --poster-style-border: rgba(138, 79, 29, 0.28);
+  --poster-style-soft: rgba(138, 79, 29, 0.14);
+  --poster-style-text: #6b3610;
+}
+
+.marketing-style-gallery-grid button[data-style-tone="aroma"] {
+  --poster-style-main: #7e8f55;
+  --poster-style-border: rgba(126, 143, 85, 0.28);
+  --poster-style-soft: rgba(126, 143, 85, 0.14);
+  --poster-style-text: #566734;
+}
+
+.marketing-style-gallery-grid button[data-style-tone="salon"] {
+  --poster-style-main: #17686f;
+  --poster-style-border: rgba(23, 104, 111, 0.28);
+  --poster-style-soft: rgba(23, 104, 111, 0.14);
+  --poster-style-text: #0f565c;
 }
 
 .marketing-style-gallery-grid button.active {

@@ -140,12 +140,16 @@ const generationModes: Array<{ kind: MarketingGenerationKind; title: string; ico
   { kind: "video", title: "产品视频", icon: Video, locked: true, status: "调试中" },
   { kind: "talk", title: "口播脚本", icon: MicVocal, locked: true, status: "调试中" },
 ];
-const posterStyles = ["东方美学风", "节气设计图", "轻奢护理风", "小红书种草"];
-const posterStyleTones: Record<string, "oriental" | "season" | "luxury" | "social"> = {
+const posterStyles = ["东方美学风", "节气设计图", "轻奢护理风", "小红书种草", "医美极简风", "国潮草本风", "香氛生活风", "高端沙龙风"];
+const posterStyleTones: Record<string, "oriental" | "season" | "luxury" | "social" | "medical" | "herbal" | "aroma" | "salon"> = {
   东方美学风: "oriental",
   节气设计图: "season",
   轻奢护理风: "luxury",
   小红书种草: "social",
+  医美极简风: "medical",
+  国潮草本风: "herbal",
+  香氛生活风: "aroma",
+  高端沙龙风: "salon",
 };
 const posterStyleExamples: Record<string, { title: string; previewSrc: string; summary: string; description: string; cues: string[] }> = {
   东方美学风: {
@@ -175,6 +179,34 @@ const posterStyleExamples: Record<string, { title: string; previewSrc: string; s
     summary: "真实分享",
     description: "适合做种草笔记、体验分享和社媒传播内容。",
     cues: ["清新", "拼贴", "种草"],
+  },
+  医美极简风: {
+    title: "医美极简风",
+    previewSrc: "/marketing-style-previews/medical-minimal.jpg",
+    summary: "干净专业",
+    description: "适合强调专业感、洁净空间和高信任度护理项目。",
+    cues: ["极简", "洁净", "专业"],
+  },
+  国潮草本风: {
+    title: "国潮草本风",
+    previewSrc: "/marketing-style-previews/guochao-herbal.jpg",
+    summary: "草本国潮",
+    description: "适合药汤、泡脚、艾草和中式养护类产品海报。",
+    cues: ["草本", "国潮", "东方"],
+  },
+  香氛生活风: {
+    title: "香氛生活风",
+    previewSrc: "/marketing-style-previews/aroma-lifestyle.jpg",
+    summary: "生活场景",
+    description: "适合香氛、舒缓护理、家居感和轻松种草内容。",
+    cues: ["香氛", "生活", "松弛"],
+  },
+  高端沙龙风: {
+    title: "高端沙龙风",
+    previewSrc: "/marketing-style-previews/salon-premium.jpg",
+    summary: "门店质感",
+    description: "适合展示高客单项目、门店环境和精致服务体验。",
+    cues: ["沙龙", "质感", "高级"],
   },
 };
 const birthdayChannels = [
@@ -1470,7 +1502,7 @@ export function MarketingCenter({
             <div className="marketing-result-dialog-head">
               <div>
                 <span>图片风格示例</span>
-                <h2 id="marketing-style-gallery-title">四种效果对比</h2>
+                <h2 id="marketing-style-gallery-title">八种效果对比</h2>
               </div>
               <button
                 type="button"
