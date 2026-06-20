@@ -474,7 +474,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       try {
         pendingRecord = marketingAiRecord(currentData, session, body, {
           kind,
-          ...marketingAiPendingProvider(currentData, kind),
+          ...marketingAiPendingProvider(currentData, kind, body),
           status: "生成中",
         });
         await database.upsertMarketingAiRecord(pendingRecord);
@@ -505,7 +505,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const failureCost = marketingAiFailureCost(currentData, body, kind, error);
         const failureRecord = marketingAiRecord(currentData, session, body, {
           kind,
-          ...marketingAiPendingProvider(currentData, kind),
+          ...marketingAiPendingProvider(currentData, kind, body),
           text: message,
           status: "生成失败",
           errorMessage: message,
@@ -2331,7 +2331,7 @@ type AiGenerationConfig = {
 type AiChatMessage = { role: "user" | "assistant"; content: string };
 type MarketingAiKind = "copy" | "image" | "video" | "talk";
 
-const providerFetchTimeoutMs = 260_000;
+const providerFetchTimeoutMs = 95_000;
 const aiVideoDurations = [5, 10, 15];
 const aiVideoResolutions: AiVideoResolution[] = ["480p", "720p", "1080p"];
 const aiVideoAspectRatios: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
@@ -3040,6 +3040,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     }
     const imageConfig = aiGenerationConfigFromData(data).image;
     const imageResult = await runAiImageTest(data, {
+      ...body,
       prompt: marketingCopyPosterPrompt(body, safeText),
       size: marketingImageSize(optionalString(body, "posterSize")),
       quality: "medium",
@@ -3064,7 +3065,12 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   }
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
-    const result = await runAiImageTest(data, { prompt, size: marketingImageSize(optionalString(body, "posterSize")) });
+    const result = await runAiImageTest(data, {
+      ...body,
+      prompt,
+      size: marketingImageSize(optionalString(body, "posterSize")),
+      quality: "medium",
+    });
     const imageCost = result.cost ?? imageGenerationCost(config, result.usage);
     const billing = aiBillingForCost(quotaState, imageCost);
     return { kind, provider: result.provider, model: result.model, imageDataUrl: result.imageDataUrl, revisedPrompt: result.revisedPrompt, usage: result.usage, cost: imageCost, costBreakdown: aiCostBreakdown({ image: imageCost }), elapsedMs: result.elapsedMs, billing };
@@ -3114,7 +3120,7 @@ function marketingAiFailureCost(data: AppData, body: JsonBody, kind: MarketingAi
   return estimatedImageGenerationCost(config, {
     prompt,
     size: marketingImageSize(optionalString(body, "posterSize")),
-    quality: config.defaultQuality,
+    quality: "medium",
     assetCount,
     reason: `${message || "图片生成未返回结果"}，供应商未返回 token 用量，按请求规格预估成本`,
   });
