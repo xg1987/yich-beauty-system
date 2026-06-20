@@ -2879,11 +2879,12 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   }
   if (kind === "image") {
     const posterSize = marketingCompliantText(body.posterSize, "朋友圈 1:1");
-    const posterTitle = marketingCompliantText(body.posterTitle, "到店护理礼遇");
-    const posterOffer = marketingCompliantText(body.posterOffer, "限时体验价");
+    const posterTitle = marketingCompliantText(body.posterTitle, productName || "产品设计图");
+    const posterOffer = optionalString(body, "posterOffer");
     const assets = marketingImageAssets(body);
     const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-    return `基于用户上传的产品图、模特图或门店图，生成一张可直接用于美业门店发布的高端中文产品设计图。主题：${posterTitle}。行动信息：${posterOffer}。门店：${storeName}。项目：${serviceName}。商品：${productName}。尺寸用途：${posterSize}。${nodeContext}参考素材：${assetSummary}。素材使用要求：保留上传产品的外观、包装、颜色和关键卖点；如果有模特图，保持人物自然真实，不改变身份特征；如果有门店图，延续门店环境质感。视觉要求：真实高级美业/东方美学商业产品设计图，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面要有真实质感的护理环境、草本元素、温润水疗、护肤产品或干净门店场景，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
+    const offerLine = posterOffer ? `行动信息：${marketingCompliantText(posterOffer)}。` : "";
+    return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端中文产品设计图。核心任务：以参考产品为唯一主体，围绕产品外观、包装、材质、颜色、名称和卖点做商业海报设计。主题：${posterTitle}。${offerLine}门店：${storeName}。商品：${productName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质和关键识别点；不要把产品自动改成其他品类；不要加入与产品无关的护理项目、节日节气、复购提醒、足浴、泡脚、洗脚、足盆、腿部、脚部或人体服务场景，除非这些元素已经明确出现在上传产品图中；如果有模特图，保持人物自然真实但产品仍是主体；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主，留出清晰文字安全区；中文文字只保留一个主标题和一行短副标题，标题控制在 4 到 8 个汉字，不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
   }
   const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
@@ -3157,18 +3158,19 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     const value = optionalString(body, field);
     return value ? marketingCompliantText(value) : undefined;
   };
+  const isProductImageRecord = result.kind === "image";
   return {
     id: makeId("mar"),
     storeId: sessionStoreId(data, session),
     kind: result.kind,
     title,
-    channel: safeOptional("channel"),
-    marketingNode: safeOptional("marketingNode"),
-    customerType: safeOptional("customerType"),
-    lifecycleNode: safeOptional("lifecycleNode"),
-    bodyState: safeOptional("bodyState"),
-    marketingGoal: safeOptional("marketingGoal"),
-    serviceName: safeOptional("serviceName"),
+    channel: isProductImageRecord ? undefined : safeOptional("channel"),
+    marketingNode: isProductImageRecord ? undefined : safeOptional("marketingNode"),
+    customerType: isProductImageRecord ? undefined : safeOptional("customerType"),
+    lifecycleNode: isProductImageRecord ? undefined : safeOptional("lifecycleNode"),
+    bodyState: isProductImageRecord ? undefined : safeOptional("bodyState"),
+    marketingGoal: isProductImageRecord ? undefined : safeOptional("marketingGoal"),
+    serviceName: isProductImageRecord ? undefined : safeOptional("serviceName"),
     productName: safeOptional("productName"),
     text: result.text ? marketingCompliantText(result.text, "", 6000) : result.text,
     imageDataUrl: result.imageDataUrl,

@@ -502,6 +502,7 @@ function marketingRecordTitle(record: MarketingAiRecord) {
 function marketingRecordSummary(record: MarketingAiRecord) {
   if (record.status === "生成失败") return marketingCompliantText(compactRecordText(record.errorMessage || record.text || "生成失败")).slice(0, 48);
   if (isMarketingAiRecordPending(record)) return "正在生成，请稍后查看结果";
+  if (record.kind === "image") return marketingCompliantText(compactRecordText(record.productName || "产品设计图")).slice(0, 48);
   const content = marketingRecordPreviewText(record);
   if (content) return content.slice(0, 48);
   return [
@@ -515,12 +516,15 @@ function marketingRecordSummary(record: MarketingAiRecord) {
 }
 
 function marketingRecordMeta(record: MarketingAiRecord) {
-  return [
+  const items = [
     compactRecordText(record.status),
     marketingRecordKindLabel(record.kind),
-    compactRecordText(record.channel) || "未标记渠道",
     shortRecordTime(record.createdAt),
-  ].filter(Boolean).join(" · ");
+  ];
+  if (record.kind !== "image") {
+    items.splice(2, 0, compactRecordText(record.channel) || "未标记渠道");
+  }
+  return items.filter(Boolean).join(" · ");
 }
 
 function staleMarketingAiRecord(record: MarketingAiRecord): MarketingAiRecord {
@@ -949,22 +953,26 @@ export function MarketingCenter({
     setDownloadResultStatus("idle");
     setManualCopyText("");
     try {
+      const productPosterTitle = product?.name
+        ? marketingCompliantText(product.name)
+        : "产品设计图";
+      const usesProductPosterContext = generationKind === "image";
       const result = await actions.generateMarketingAi({
         kind: generationKind,
         storeName: marketingCompliantText(storeName),
         productName: product?.name ? marketingCompliantText(product.name) : undefined,
-        serviceName: service?.name ? marketingCompliantText(service.name) : undefined,
+        serviceName: usesProductPosterContext ? undefined : service?.name ? marketingCompliantText(service.name) : undefined,
         audience: audienceSummary,
-        channel,
-        marketingNode: safeMarketingNode,
-        customerType,
-        lifecycleNode: safeMarketingNode,
-        bodyState: safeBodyState,
-        marketingGoal: safeMarketingGoal,
+        channel: usesProductPosterContext ? undefined : channel,
+        marketingNode: usesProductPosterContext ? undefined : safeMarketingNode,
+        customerType: usesProductPosterContext ? undefined : customerType,
+        lifecycleNode: usesProductPosterContext ? undefined : safeMarketingNode,
+        bodyState: usesProductPosterContext ? undefined : safeBodyState,
+        marketingGoal: usesProductPosterContext ? undefined : safeMarketingGoal,
         posterStyle: safePosterStyle,
         posterSize: effectivePosterSize,
-        posterTitle: safeMarketingNode,
-        posterOffer: safeMarketingGoal,
+        posterTitle: usesProductPosterContext ? productPosterTitle : safeMarketingNode,
+        posterOffer: usesProductPosterContext ? undefined : safeMarketingGoal,
         productImageName,
         productImageDataUrl,
         modelImageName,
@@ -1477,7 +1485,7 @@ export function MarketingCenter({
                   <div className="marketing-record-main">
                     <span className="marketing-record-type">{marketingRecordKindLabel(record.kind)}</span>
                     <strong>{marketingRecordTitle(record)}</strong>
-                    <span className="marketing-record-summary">{recordPending ? "后台生成中，完成后自动更新" : record.marketingNode || marketingRecordSummary(record)}</span>
+                    <span className="marketing-record-summary">{recordPending ? "后台生成中，完成后自动更新" : record.kind === "image" ? marketingRecordSummary(record) : record.marketingNode || marketingRecordSummary(record)}</span>
                     <small>{marketingRecordMeta(record)}</small>
                   </div>
                   <div className="marketing-record-cost">
