@@ -464,8 +464,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/marketing-ai/generate") {
       requirePermission(session, "marketing:manage");
-      const body = await readJson(context.request);
-      const kind = requiredString(body, "kind") as MarketingAiKind;
+      const rawBody = await readJson(context.request);
+      const kind = requiredString(rawBody, "kind") as MarketingAiKind;
+      const body = normalizeMarketingAiGenerateBody(rawBody, kind);
       const startedAt = Date.now();
       const currentData = await database.readData();
       assertMarketingAiGeneratePreflight(currentData, session, kind);
@@ -2843,6 +2844,25 @@ function aiBillingForCost(quotaState: ReturnType<typeof assertAiFreeQuotaAvailab
   return { source: "credit", chargeCurrency: "CNY", creditsCharged: aiCreditChargeForCost(cost) };
 }
 
+function normalizeMarketingAiGenerateBody(body: JsonBody, kind: MarketingAiKind): JsonBody {
+  if (kind !== "image") return body;
+  return {
+    ...body,
+    productName: undefined,
+    serviceName: undefined,
+    channel: undefined,
+    marketingNode: undefined,
+    customerType: undefined,
+    lifecycleNode: undefined,
+    bodyState: undefined,
+    marketingGoal: undefined,
+    posterTitle: undefined,
+    posterOffer: undefined,
+    talkScene: undefined,
+    videoScript: undefined,
+  };
+}
+
 function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
   const specKey = `${durationSeconds}s:${resolution}`;
   const amountUsd = roundAiUsd(config.priceUsdBySpec[specKey] ?? 0);
@@ -2879,12 +2899,9 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
   }
   if (kind === "image") {
     const posterSize = marketingCompliantText(body.posterSize, "朋友圈 1:1");
-    const posterTitle = marketingCompliantText(body.posterTitle, "上传产品图");
-    const posterOffer = optionalString(body, "posterOffer");
     const assets = marketingImageAssets(body);
     const assetSummary = assets.length ? assets.map((asset) => `${asset.label}：${asset.name}`).join("；") : "未上传素材";
-    const offerLine = posterOffer ? `行动信息：${marketingCompliantText(posterOffer)}。` : "";
-    return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端中文产品设计图。核心任务：以参考产品图片为唯一依据和唯一主体，自动从上传图片中识别产品外观、包装、材质、颜色、名称和卖点，围绕这个上传产品做商业海报设计。主题：${posterTitle}。${offerLine}门店：${storeName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质、名称和关键识别点；不要使用系统里的商品名、项目名、节日节点或营销任务来替代上传产品；不要把产品自动改成药汤、泡脚药包、护理项目或其他品类；不要加入与产品无关的护理项目、节日节气、复购提醒、足浴、泡脚、洗脚、足盆、腿部、脚部或人体服务场景，除非这些元素已经明确出现在上传产品图中；如果有模特图，保持人物自然真实但产品仍是主体；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主，留出清晰文字安全区；中文文字优先使用上传产品包装上可识别的产品名，无法识别时只写简短通用标题，不要凭空写“药汤”“泡脚”“端午”等字样；不要生成长段小字，不要出现“标题备选”“占位”“示例”等字样；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
+    return `基于用户上传的产品图生成一张可直接用于美业门店发布的高端产品设计图。核心任务：以参考产品图片为唯一依据和唯一主体，自动从上传图片中识别产品外观、包装、材质、颜色、名称和卖点，围绕这个上传产品做商业海报设计。门店：${storeName}。尺寸用途：${posterSize}。产品设计图风格：${posterStyle}。参考素材：${assetSummary}。素材使用要求：必须优先保留上传产品的外观、包装、颜色、形状、材质、名称和关键识别点；必须忽略请求里的商品名、项目名、posterTitle、posterOffer、节日节点、渠道、营销目标或任务；不要把产品自动改成其他品类；不要加入任何与上传图片无关的节日名、营销任务、护理项目名、人体部位或服务场景，除非这些元素已经明确出现在上传产品图中；如果有模特图，保持人物自然真实但产品仍是主体；如果有门店图，只作为背景质感参考，不能抢产品主体。视觉要求：真实高级美业商业产品海报，不要廉价模板，不要卡通，不要网页 UI 截图，不要水印；画面以产品陈列、干净台面、品牌质感、适当植物/光影/材质为主；不要凭空添加任何营销标题、活动文案或卖点文字；只允许保留或轻微美化上传产品包装上原本可识别的文字，无法识别时宁可不加文字；排版克制、留白高级、手机端一眼能看懂；${compliance}`;
   }
   const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
@@ -3022,13 +3039,14 @@ async function runMarketingAiBackgroundTask(
 
 async function runMarketingAiGenerate(data: AppData, session: UserSession, body: JsonBody) {
   const kind = requiredString(body, "kind") as MarketingAiKind;
+  const generateBody = normalizeMarketingAiGenerateBody(body, kind);
   if (!["copy", "image", "video", "talk"].includes(kind)) throw new Error("AI 营销类型不正确");
-  const requestedCopyOutputMode = optionalString(body, "copyOutputMode");
+  const requestedCopyOutputMode = optionalString(generateBody, "copyOutputMode");
   const copyOutputMode = requestedCopyOutputMode === "text" || requestedCopyOutputMode === "image" ? requestedCopyOutputMode : "poster";
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
-  const prompt = marketingPrompt(body, kind);
+  const prompt = marketingPrompt(generateBody, kind);
   if (kind === "copy" || kind === "talk") {
     const config = aiGenerationConfigFromData(data).copy;
     const result = await runAiTextCompletion(data, prompt, {
@@ -3047,9 +3065,9 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
     }
     const imageConfig = aiGenerationConfigFromData(data).image;
     const imageResult = await runAiImageTest(data, {
-      ...body,
-      prompt: marketingCopyPosterPrompt(body, safeText),
-      size: marketingImageSize(optionalString(body, "posterSize"), imageConfig.model),
+      ...generateBody,
+      prompt: marketingCopyPosterPrompt(generateBody, safeText),
+      size: marketingImageSize(optionalString(generateBody, "posterSize"), imageConfig.model),
       quality: "medium",
     });
     const textCost = textGenerationCost(config, result.usage);
@@ -3073,9 +3091,9 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   if (kind === "image") {
     const config = aiGenerationConfigFromData(data).image;
     const result = await runAiImageTest(data, {
-      ...body,
+      ...generateBody,
       prompt,
-      size: marketingImageSize(optionalString(body, "posterSize"), config.model),
+      size: marketingImageSize(optionalString(generateBody, "posterSize"), config.model),
       quality: "medium",
     });
     const imageCost = result.cost ?? imageGenerationCost(config, result.usage);
@@ -3084,13 +3102,13 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   }
   const config = aiGenerationConfigFromData(data);
   const provider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
-  const durationSeconds = aiVideoDurations.includes(Number(body.videoDuration)) ? Number(body.videoDuration) : provider?.defaultDurationSeconds ?? 5;
+  const durationSeconds = aiVideoDurations.includes(Number(generateBody.videoDuration)) ? Number(generateBody.videoDuration) : provider?.defaultDurationSeconds ?? 5;
   const resolution = provider?.defaultResolution ?? "720p";
   const result = await runAiVideoTest(data, {
     prompt,
     provider: config.video.defaultProvider,
     durationSeconds,
-    aspectRatio: optionalString(body, "videoRatio"),
+    aspectRatio: optionalString(generateBody, "videoRatio"),
   });
   const videoCost = provider ? videoGenerationCost(provider, durationSeconds, resolution) : undefined;
   const billing = aiBillingForCost(quotaState, videoCost);
@@ -3108,25 +3126,26 @@ function marketingAiPendingProvider(data: AppData, kind: MarketingAiKind, body?:
 }
 
 function marketingAiFailureCost(data: AppData, body: JsonBody, kind: MarketingAiKind, error: unknown): MarketingAiRecord["cost"] | undefined {
+  const generateBody = normalizeMarketingAiGenerateBody(body, kind);
   const message = error instanceof Error ? error.message : "";
-  const requestedCopyOutputMode = optionalString(body, "copyOutputMode");
+  const requestedCopyOutputMode = optionalString(generateBody, "copyOutputMode");
   const copyOutputMode = requestedCopyOutputMode === "text" || requestedCopyOutputMode === "image" ? requestedCopyOutputMode : "poster";
   if (kind === "copy" && copyOutputMode === "text") return undefined;
   if (kind !== "image" && !(kind === "copy" && message.includes("OpenAI"))) return undefined;
   const config = aiGenerationConfigFromData(data).image;
   const prompt = kind === "image"
-    ? marketingPrompt(body, "image")
-    : marketingCopyPosterPrompt(body, marketingPrompt(body, "copy"));
+    ? marketingPrompt(generateBody, "image")
+    : marketingCopyPosterPrompt(generateBody, marketingPrompt(generateBody, "copy"));
   const assetCount = (() => {
     try {
-      return marketingImageAssets(body).length;
+      return marketingImageAssets(generateBody).length;
     } catch {
       return 0;
     }
   })();
   return estimatedImageGenerationCost(config, {
     prompt,
-    size: marketingImageSize(optionalString(body, "posterSize"), config.model),
+    size: marketingImageSize(optionalString(generateBody, "posterSize"), config.model),
     quality: "medium",
     assetCount,
     reason: `${message || "图片生成未返回结果"}，供应商未返回 token 用量，按请求规格预估成本`,

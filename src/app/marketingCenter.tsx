@@ -968,7 +968,7 @@ export function MarketingCenter({
         marketingGoal: usesProductPosterContext ? undefined : safeMarketingGoal,
         posterStyle: safePosterStyle,
         posterSize: effectivePosterSize,
-        posterTitle: usesProductPosterContext ? "上传产品图" : safeMarketingNode,
+        posterTitle: usesProductPosterContext ? undefined : safeMarketingNode,
         posterOffer: usesProductPosterContext ? undefined : safeMarketingGoal,
         productImageName,
         productImageDataUrl,
