@@ -217,6 +217,24 @@ const birthdayChannels = [
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
 const videoRatios = ["9:16", "1:1", "16:9"];
 const videoDurations = [5, 10, 15];
+const videoPaces = ["慢推", "平移", "微距", "快切"];
+const videoTemplates = ["产品质感展示", "手持试用展示", "人物场景种草", "门店护理场景", "高端品牌广告", "社媒快节奏切片"];
+const videoTemplateTones: Record<string, "oriental" | "season" | "luxury" | "social" | "medical" | "herbal" | "aroma" | "salon"> = {
+  产品质感展示: "luxury",
+  手持试用展示: "aroma",
+  人物场景种草: "social",
+  门店护理场景: "medical",
+  高端品牌广告: "salon",
+  社媒快节奏切片: "season",
+};
+const videoTemplateExamples: Record<string, { title: string; summary: string; description: string }> = {
+  产品质感展示: { title: "产品质感展示", summary: "静物光影", description: "慢推产品包装、材质和光影，适合大多数产品首测。" },
+  手持试用展示: { title: "手持试用展示", summary: "手部动作", description: "手部拿起、打开、涂抹或展示质地，突出真实使用感。" },
+  人物场景种草: { title: "人物场景种草", summary: "真人分享", description: "人物自拍感、手持产品和社媒种草氛围，适合小红书/朋友圈。" },
+  门店护理场景: { title: "门店护理场景", summary: "空间服务", description: "产品出现在护理床、护理师或门店空间里，适合服务带产品。" },
+  高端品牌广告: { title: "高端品牌广告", summary: "品牌大片", description: "微距、慢动作、包装特写和高级质感，适合高客单产品。" },
+  社媒快节奏切片: { title: "社媒快节奏切片", summary: "多镜头快切", description: "快速展示包装、质地、使用和氛围，适合短视频发布。" },
+};
 const MAX_MARKETING_ASSET_BYTES = 8 * 1024 * 1024;
 const USD_TO_CNY_DISPLAY_RATE = AI_CREDIT_CNY_PER_USD;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -616,9 +634,11 @@ export function MarketingCenter({
   const [posterStyle, setPosterStyle] = useState("东方美学风");
   const [showPosterStyleExamples, setShowPosterStyleExamples] = useState(false);
   const [posterSize, setPosterSize] = useState("朋友圈 1:1");
+  const [videoTemplate, setVideoTemplate] = useState("产品质感展示");
   const [videoRatio, setVideoRatio] = useState("9:16");
   const [videoDuration, setVideoDuration] = useState(5);
-  const [videoScript, setVideoScript] = useState("门店护理环境、产品陈列、护理手法和预约引导。");
+  const [videoPace, setVideoPace] = useState("慢推");
+  const [videoScript, setVideoScript] = useState("");
   const [customRequirement, setCustomRequirement] = useState("");
   const [productImageName, setProductImageName] = useState("");
   const [productImageDataUrl, setProductImageDataUrl] = useState("");
@@ -762,7 +782,9 @@ export function MarketingCenter({
   const safeBodyState = marketingCompliantText(bodyState);
   const safeMarketingGoal = marketingCompliantText(birthdayMarketingGoal);
   const safePosterStyle = marketingCompliantText(posterStyle);
+  const safeVideoTemplate = marketingCompliantText(videoTemplate);
   const activePosterStyleExample = posterStyleExamples[posterStyle] ?? posterStyleExamples["东方美学风"];
+  const activeVideoTemplateExample = videoTemplateExamples[videoTemplate] ?? videoTemplateExamples["产品质感展示"];
   const safeCustomRequirement = marketingCompliantText(customRequirement.trim());
   const audienceSummary = `${effectiveCustomerType}，${safeBodyState}`;
   const nodeBrief = [selectedNode.title, selectedNode.dateLabel, selectedNode.hint].filter(Boolean).join(" · ");
@@ -979,7 +1001,7 @@ export function MarketingCenter({
         lifecycleNode: usesProductPosterContext ? undefined : safeMarketingNode,
         bodyState: usesProductPosterContext ? undefined : safeBodyState,
         marketingGoal: usesProductPosterContext ? undefined : safeMarketingGoal,
-        posterStyle: safePosterStyle,
+        posterStyle: isVideoMode ? safeVideoTemplate : safePosterStyle,
         posterSize: effectivePosterSize,
         posterTitle: usesProductPosterContext ? undefined : safeMarketingNode,
         posterOffer: usesProductPosterContext ? undefined : safeMarketingGoal,
@@ -993,7 +1015,7 @@ export function MarketingCenter({
         copyOutputMode,
         videoRatio,
         videoDuration,
-        videoScript: marketingCompliantText(videoScript),
+        videoScript: isVideoMode ? [`镜头节奏：${videoPace}`, marketingCompliantText(videoScript)].filter(Boolean).join("\n") : marketingCompliantText(videoScript),
         talkScene: `${safeMarketingNode} · ${safeMarketingGoal} · ${channel}`,
       });
       setGenerationResult(result);
@@ -1399,28 +1421,38 @@ export function MarketingCenter({
                 <div className="marketing-poster-options">
                   <div className="marketing-section-head compact marketing-style-head">
                     <div>
-                      <strong>{isVideoMode ? "视频风格" : "图片风格"}</strong>
-                      <span>固定示例 · 不消耗积分</span>
+                      <strong>{isVideoMode ? "视频模板" : "图片风格"}</strong>
+                      <span>{isVideoMode ? "镜头模板 · 不消耗积分" : "固定示例 · 不消耗积分"}</span>
                     </div>
-                    <button
-                      type="button"
-                      className="marketing-style-gallery-trigger"
-                      onClick={() => setShowPosterStyleExamples(true)}
-                    >
-                      <Eye size={14} />
-                      <span>看全部</span>
-                    </button>
+                    {!isVideoMode && (
+                      <button
+                        type="button"
+                        className="marketing-style-gallery-trigger"
+                        onClick={() => setShowPosterStyleExamples(true)}
+                      >
+                        <Eye size={14} />
+                        <span>看全部</span>
+                      </button>
+                    )}
                   </div>
-                  <div className="marketing-style-grid" aria-label="图片风格">
-                    {posterStyles.map((item) => {
-                      const example = posterStyleExamples[item];
+                  <div className="marketing-style-grid" aria-label={isVideoMode ? "视频模板" : "图片风格"}>
+                    {(isVideoMode ? videoTemplates : posterStyles).map((item) => {
+                      const example = isVideoMode ? videoTemplateExamples[item] : posterStyleExamples[item];
+                      const active = isVideoMode ? videoTemplate === item : posterStyle === item;
+                      const tone = isVideoMode ? videoTemplateTones[item] : posterStyleTones[item];
                       return (
                         <button
                           type="button"
                           key={item}
-                          className={posterStyle === item ? "active" : ""}
-                          data-style-tone={posterStyleTones[item]}
-                          onClick={() => setPosterStyle(item)}
+                          className={active ? "active" : ""}
+                          data-style-tone={tone}
+                          onClick={() => {
+                            if (isVideoMode) {
+                              setVideoTemplate(item);
+                              return;
+                            }
+                            setPosterStyle(item);
+                          }}
                         >
                           <strong>{item}</strong>
                           <span>{example.summary}</span>
@@ -1428,27 +1460,41 @@ export function MarketingCenter({
                       );
                     })}
                   </div>
-                  <article className="marketing-style-preview-card" data-style-tone={posterStyleTones[activePosterStyleExample.title]}>
-                    <div className="marketing-style-preview-media">
-                      <img src={activePosterStyleExample.previewSrc} alt={`${activePosterStyleExample.title}示例效果`} />
-                      <span>当前示例</span>
-                    </div>
-                    <div className="marketing-style-preview-copy">
-                      <strong>{activePosterStyleExample.title}</strong>
-                      <p>{activePosterStyleExample.description}</p>
-                      <div>
-                        {activePosterStyleExample.cues.map((cue) => <span key={cue}>{cue}</span>)}
+                  {!isVideoMode && (
+                    <article className="marketing-style-preview-card" data-style-tone={posterStyleTones[activePosterStyleExample.title]}>
+                      <div className="marketing-style-preview-media">
+                        <img src={activePosterStyleExample.previewSrc} alt={`${activePosterStyleExample.title}示例效果`} />
+                        <span>当前示例</span>
                       </div>
-                    </div>
-                  </article>
-                  <label className="marketing-size-select">
-                    <span>{isVideoMode ? "封面尺寸" : "尺寸大小"}</span>
-                    <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
-                      {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                  </label>
+                      <div className="marketing-style-preview-copy">
+                        <strong>{activePosterStyleExample.title}</strong>
+                        <p>{activePosterStyleExample.description}</p>
+                        <div>
+                          {activePosterStyleExample.cues.map((cue) => <span key={cue}>{cue}</span>)}
+                        </div>
+                      </div>
+                    </article>
+                  )}
+                  {!isVideoMode && (
+                    <label className="marketing-size-select">
+                      <span>尺寸大小</span>
+                      <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
+                        {posterSizes.map((item) => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </label>
+                  )}
                   {isVideoMode && (
                     <>
+                      <div className="marketing-style-preview-card" data-style-tone={videoTemplateTones[activeVideoTemplateExample.title]}>
+                        <div className="marketing-style-preview-copy">
+                          <strong>{activeVideoTemplateExample.title}</strong>
+                          <p>{activeVideoTemplateExample.description}</p>
+                          <div>
+                            <span>{activeVideoTemplateExample.summary}</span>
+                            <span>{videoPace}</span>
+                          </div>
+                        </div>
+                      </div>
                       <label className="marketing-size-select">
                         <span>视频比例</span>
                         <select value={videoRatio} onChange={(event) => setVideoRatio(event.target.value)}>
@@ -1461,26 +1507,34 @@ export function MarketingCenter({
                           {videoDurations.map((item) => <option key={item} value={item}>{item} 秒</option>)}
                         </select>
                       </label>
+                      <label className="marketing-size-select">
+                        <span>镜头节奏</span>
+                        <select value={videoPace} onChange={(event) => setVideoPace(event.target.value)}>
+                          {videoPaces.map((item) => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </label>
                       <label className="marketing-custom-field">
-                        <span>镜头要求</span>
+                        <span>镜头要求 / 产品详情</span>
                         <textarea
                           value={videoScript}
                           onChange={(event) => setVideoScript(event.target.value)}
-                          placeholder="例如：产品从静物陈列到手持展示，柔和推进，突出包装和质感"
+                          placeholder="例如：产品成分、质地、香味、适合场景、希望突出的卖点，或镜头慢推包装、手持展示质地、人物试用产品"
                           rows={3}
                         />
                       </label>
                     </>
                   )}
-                  <label className="marketing-custom-field">
-                    <span>产品详情 / 我想自己写要求</span>
-                    <textarea
-                      value={customRequirement}
-                      onChange={(event) => setCustomRequirement(event.target.value)}
-                      placeholder="例如：产品成分、质地、香味、适合场景、希望突出的卖点或画面要求"
-                      rows={3}
-                    />
-                  </label>
+                  {!isVideoMode && (
+                    <label className="marketing-custom-field">
+                      <span>产品详情 / 我想自己写要求</span>
+                      <textarea
+                        value={customRequirement}
+                        onChange={(event) => setCustomRequirement(event.target.value)}
+                        placeholder="例如：产品成分、质地、香味、适合场景、希望突出的卖点或画面要求"
+                        rows={3}
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
             ) : null}

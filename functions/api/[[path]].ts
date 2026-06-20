@@ -2921,6 +2921,28 @@ function marketingPosterStyleSceneDirective(posterStyle: string, hasModelAsset: 
   return `${hasModelAsset ? "风格场景：用户上传了模特图，可以让人物自然展示产品。" : "风格场景：按示例风格生成产品静物或生活场景，不要强行生成人物。"}背景和道具都必须服务产品展示，上传产品保持清晰完整。`;
 }
 
+function marketingVideoTemplateDirective(template: string, hasModelAsset: boolean) {
+  if (template.includes("质感")) {
+    return "视频模板：产品质感展示。以产品静物为主，镜头缓慢推进或轻微环绕，重点表现包装、材质、光影、反光、纹理和高级陈列感；不强行生成人物。";
+  }
+  if (template.includes("手持") || template.includes("试用")) {
+    return "视频模板：手持试用展示。生成自然手部动作，例如拿起产品、打开包装、挤出质地、涂抹或放回台面；手部动作必须服务产品展示，产品始终清楚。";
+  }
+  if (template.includes("人物") || template.includes("种草")) {
+    return `${hasModelAsset ? "视频模板：人物场景种草。优先使用上传模特图的人物特征" : "视频模板：人物场景种草。可以自动生成自然真实的人物"}，画面像社媒真实分享，包含手持产品、自拍感、局部试用或生活化陈列；不要变成项目服务广告。`;
+  }
+  if (template.includes("门店") || template.includes("护理")) {
+    return "视频模板：门店护理场景。产品出现在护理床、护理师动作、前台陈列或门店空间中，镜头围绕产品和门店质感展开；不能把产品改成护理项目本身。";
+  }
+  if (template.includes("品牌") || template.includes("广告")) {
+    return "视频模板：高端品牌广告。使用微距、慢动作、柔光、包装特写、材质细节和高级陈列，节奏克制，像品牌大片；不要加入廉价促销字幕。";
+  }
+  if (template.includes("快节奏") || template.includes("切片")) {
+    return "视频模板：社媒快节奏切片。用多个短镜头快速切换，展示包装、质地、手部使用、场景氛围和产品特写；节奏更适合短视频平台，但画面仍要高级干净。";
+  }
+  return "视频模板：产品短视频。围绕上传产品做稳定、真实、可发布的商业短视频，镜头和人物都必须服务产品展示。";
+}
+
 function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: number, resolution: AiVideoResolution) {
   const specKey = `${durationSeconds}s:${resolution}`;
   const amountUsd = roundAiUsd(config.priceUsdBySpec[specKey] ?? 0);
@@ -2974,8 +2996,8 @@ function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {
     const productDetail = marketingCompliantText(optionalString(body, "customRequirement"), "", 1000);
     const productDetailLine = productDetail ? `用户填写的产品详情/要求：${productDetail}。这些信息只用于理解产品特点、材质、适用场景和镜头要求，不要生成大段字幕。` : "";
     const hasModelAsset = Boolean(optionalString(body, "modelImageDataUrl"));
-    const styleSceneDirective = marketingPosterStyleSceneDirective(posterStyle, hasModelAsset);
-    return `基于用户上传的产品图生成一条美业门店可发布的产品短视频。核心任务：以上传产品图为唯一产品来源，保持产品外观、包装、颜色、材质、形状和关键识别点，围绕这个产品做图生视频。门店：${storeName}。视频比例：${videoRatio}。时长：${videoDuration}秒。产品视频风格：${posterStyle}。${productDetailLine}${styleSceneDirective}参考素材：${assetSummary}。镜头要求：${videoScript}。素材使用要求：必须优先展示上传产品图里的真实产品，不要把产品改成其他品类；不要加入任何与上传图片或产品详情无关的节日名、营销任务、护理项目名、人体部位或服务场景；人物出现与否必须跟所选风格示例一致，不能每个风格都硬塞人物；如果用户额外上传了模特图，优先保持该人物自然真实并与产品互动；如果有门店图，只作为空间氛围参考。视频要求：真实高级商业短视频，镜头稳定，轻微推拉、平移、光影流动或手部自然展示即可；产品始终清晰可辨，不要水印，不要卡通，不要 UI 截图，不要长字幕；可保留产品包装上原有文字，避免新增营销文字；${compliance}`;
+    const videoTemplateDirective = marketingVideoTemplateDirective(posterStyle, hasModelAsset);
+    return `基于用户上传的产品图生成一条美业门店可发布的产品短视频。核心任务：以上传产品图为唯一产品来源，保持产品外观、包装、颜色、材质、形状和关键识别点，围绕这个产品做图生视频。门店：${storeName}。视频比例：${videoRatio}。时长：${videoDuration}秒。产品视频模板：${posterStyle}。${productDetailLine}${videoTemplateDirective}参考素材：${assetSummary}。镜头要求：${videoScript}。素材使用要求：必须优先展示上传产品图里的真实产品，不要把产品改成其他品类；不要加入任何与上传图片、产品详情或所选视频模板无关的节日名、营销任务、护理项目名、人体部位或服务场景；如果用户额外上传了模特图，优先保持该人物自然真实并与产品互动；如果有门店图，只作为空间氛围参考。视频要求：真实高级商业短视频，镜头稳定，产品始终清晰可辨，不要水印，不要卡通，不要 UI 截图，不要长字幕；可保留产品包装上原有文字，避免新增营销文字；${compliance}`;
   }
   const videoRatio = marketingCompliantText(body.videoRatio, "9:16");
   const videoDuration = Number(body.videoDuration) || 5;
