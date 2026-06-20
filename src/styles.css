@@ -24661,6 +24661,13 @@ textarea,
   cursor: pointer;
 }
 
+.marketing-upload-box.has-preview {
+  min-height: 168px;
+  align-content: start;
+  padding: 10px;
+  gap: 7px;
+}
+
 .marketing-upload-box svg {
   width: 34px;
   height: 34px;
@@ -24668,6 +24675,25 @@ textarea,
   border-radius: 13px;
   background: linear-gradient(135deg, #6f42c1, #2a8f7d);
   color: #ffffff;
+}
+
+.marketing-upload-box .marketing-upload-preview {
+  width: 100%;
+  max-width: none;
+  height: 104px;
+  display: block;
+  overflow: hidden;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.marketing-upload-box .marketing-upload-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .marketing-upload-box strong {
@@ -24683,6 +24709,11 @@ textarea,
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.marketing-upload-box .marketing-upload-file {
+  max-width: 100%;
+  display: block;
 }
 
 .marketing-upload-box input {
@@ -29419,6 +29450,277 @@ textarea,
   color: var(--poster-style-text) !important;
 }
 
+.marketing-style-head {
+  align-items: center;
+}
+
+.marketing-style-gallery-trigger {
+  flex: 0 0 auto;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 11px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #4f2d9c;
+  font-size: 12px;
+  font-weight: 880;
+  cursor: pointer;
+}
+
+.marketing-style-gallery-trigger span {
+  color: currentColor !important;
+  font-size: 12px;
+  font-weight: 880;
+  white-space: nowrap;
+}
+
+.marketing-style-preview-card {
+  --poster-style-main: #5b2fb7;
+  --poster-style-border: rgba(91, 47, 183, 0.28);
+  --poster-style-soft: rgba(91, 47, 183, 0.12);
+  --poster-style-text: #32146f;
+  display: grid;
+  grid-template-columns: minmax(140px, 0.38fr) minmax(0, 0.62fr);
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid var(--poster-style-border);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 12%, var(--poster-style-soft), transparent 34%),
+    rgba(255, 255, 255, 0.84);
+  box-shadow: 0 12px 24px rgba(47, 37, 95, 0.08);
+}
+
+.marketing-style-preview-card[data-style-tone="season"] {
+  --poster-style-main: #d97706;
+  --poster-style-border: rgba(217, 119, 6, 0.28);
+  --poster-style-soft: rgba(217, 119, 6, 0.14);
+  --poster-style-text: #743a03;
+}
+
+.marketing-style-preview-card[data-style-tone="luxury"] {
+  --poster-style-main: #008c7a;
+  --poster-style-border: rgba(0, 140, 122, 0.28);
+  --poster-style-soft: rgba(0, 140, 122, 0.14);
+  --poster-style-text: #005f54;
+}
+
+.marketing-style-preview-card[data-style-tone="social"] {
+  --poster-style-main: #c0265a;
+  --poster-style-border: rgba(192, 38, 90, 0.28);
+  --poster-style-soft: rgba(192, 38, 90, 0.14);
+  --poster-style-text: #8f1744;
+}
+
+.marketing-style-preview-media {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.marketing-style-preview-media img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.marketing-style-preview-media > span {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--poster-style-text) !important;
+  font-size: 11px;
+  font-weight: 880;
+  box-shadow: 0 6px 14px rgba(47, 37, 95, 0.12);
+}
+
+.marketing-style-preview-copy {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  padding: 4px 4px 4px 0;
+}
+
+.marketing-style-preview-copy strong {
+  color: var(--poster-style-text) !important;
+  font-size: 17px;
+  font-weight: 940;
+  line-height: 1.2;
+}
+
+.marketing-style-preview-copy p {
+  margin: 0;
+  color: rgba(47, 37, 95, 0.66);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.5;
+}
+
+.marketing-style-preview-copy div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.marketing-style-preview-copy div span {
+  min-height: 23px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--poster-style-soft);
+  color: var(--poster-style-text) !important;
+  font-size: 11px;
+  font-weight: 860;
+}
+
+.marketing-style-gallery-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4300;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(47, 37, 95, 0.26);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.marketing-style-gallery-dialog {
+  width: min(1040px, 100%);
+  max-height: min(840px, calc(100dvh - 44px));
+  overflow: auto;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-left: 6px solid #6f42c1;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(42, 143, 125, 0.1), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(249, 246, 255, 0.94));
+  box-shadow: 0 28px 70px rgba(47, 37, 95, 0.22);
+}
+
+.marketing-style-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.marketing-style-gallery-grid button {
+  --poster-style-main: #5b2fb7;
+  --poster-style-border: rgba(91, 47, 183, 0.24);
+  --poster-style-soft: rgba(91, 47, 183, 0.12);
+  --poster-style-text: #32146f;
+  min-width: 0;
+  overflow: hidden;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--poster-style-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  text-align: left;
+  cursor: pointer;
+}
+
+.marketing-style-gallery-grid button[data-style-tone="season"] {
+  --poster-style-main: #d97706;
+  --poster-style-border: rgba(217, 119, 6, 0.28);
+  --poster-style-soft: rgba(217, 119, 6, 0.14);
+  --poster-style-text: #743a03;
+}
+
+.marketing-style-gallery-grid button[data-style-tone="luxury"] {
+  --poster-style-main: #008c7a;
+  --poster-style-border: rgba(0, 140, 122, 0.28);
+  --poster-style-soft: rgba(0, 140, 122, 0.14);
+  --poster-style-text: #005f54;
+}
+
+.marketing-style-gallery-grid button[data-style-tone="social"] {
+  --poster-style-main: #c0265a;
+  --poster-style-border: rgba(192, 38, 90, 0.28);
+  --poster-style-soft: rgba(192, 38, 90, 0.14);
+  --poster-style-text: #8f1744;
+}
+
+.marketing-style-gallery-grid button.active {
+  border-color: var(--poster-style-main);
+  box-shadow:
+    inset 0 0 0 1px var(--poster-style-main),
+    0 12px 24px rgba(47, 37, 95, 0.12);
+}
+
+.marketing-style-gallery-image {
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.marketing-style-gallery-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.marketing-style-gallery-copy {
+  display: grid;
+  gap: 5px;
+  min-height: 88px;
+}
+
+.marketing-style-gallery-copy strong {
+  color: var(--poster-style-text) !important;
+  font-size: 15px;
+  font-weight: 940;
+  line-height: 1.2;
+}
+
+.marketing-style-gallery-copy em {
+  color: rgba(47, 37, 95, 0.66);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.app-shell.theme-night .marketing-style-gallery-trigger,
+.app-shell.theme-night .marketing-style-preview-card,
+.app-shell.theme-night .marketing-style-gallery-grid button {
+  border-color: var(--night-app-line);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.app-shell.theme-night .marketing-style-preview-copy p,
+.app-shell.theme-night .marketing-style-gallery-copy em {
+  color: var(--night-app-muted);
+}
+
+.app-shell.theme-night .marketing-style-gallery-dialog {
+  border-color: var(--night-app-line);
+  background:
+    radial-gradient(circle at 90% 0%, rgba(112, 220, 190, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(35, 28, 65, 0.98), rgba(24, 20, 45, 0.96));
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+}
+
 @media (max-width: 767px) {
   .marketing-center-page {
     gap: 16px;
@@ -29593,6 +29895,67 @@ textarea,
   .marketing-center-page .marketing-poster-options .marketing-style-grid button {
     min-height: 58px;
     padding: 10px 11px;
+  }
+
+  .marketing-style-head {
+    gap: 8px;
+  }
+
+  .marketing-style-gallery-trigger {
+    min-height: 30px;
+    padding: 0 9px;
+  }
+
+  .marketing-style-preview-card {
+    grid-template-columns: 1fr;
+    gap: 9px;
+    padding: 9px;
+  }
+
+  .marketing-style-preview-media {
+    aspect-ratio: 16 / 9;
+  }
+
+  .marketing-style-preview-copy {
+    padding: 0 2px 2px;
+  }
+
+  .marketing-style-gallery-overlay {
+    align-items: start;
+    padding: 12px;
+  }
+
+  .marketing-style-gallery-dialog {
+    max-height: calc(100dvh - 24px);
+    gap: 12px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .marketing-style-gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .marketing-style-gallery-grid button {
+    gap: 8px;
+    padding: 8px;
+    border-radius: 15px;
+  }
+
+  .marketing-style-gallery-copy {
+    min-height: 96px;
+  }
+
+  .marketing-upload-box.has-preview {
+    min-height: 148px;
+    padding: 8px;
+    gap: 5px;
+  }
+
+  .marketing-upload-box .marketing-upload-preview {
+    height: 88px;
+    border-radius: 11px;
   }
 
   .marketing-birthday-preview-body > p {

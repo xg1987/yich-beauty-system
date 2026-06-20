@@ -147,6 +147,36 @@ const posterStyleTones: Record<string, "oriental" | "season" | "luxury" | "socia
   轻奢护理风: "luxury",
   小红书种草: "social",
 };
+const posterStyleExamples: Record<string, { title: string; previewSrc: string; summary: string; description: string; cues: string[] }> = {
+  东方美学风: {
+    title: "东方美学风",
+    previewSrc: "/marketing-style-previews/oriental.jpg",
+    summary: "国风留白",
+    description: "适合突出东方器物、雅致护理和高端门店气质。",
+    cues: ["国风", "留白", "雅致"],
+  },
+  节气设计图: {
+    title: "节气设计图",
+    previewSrc: "/marketing-style-previews/season.jpg",
+    summary: "节令海报",
+    description: "适合节气、节日、养生节点活动，画面更有季节氛围。",
+    cues: ["节令", "植物", "活动感"],
+  },
+  轻奢护理风: {
+    title: "轻奢护理风",
+    previewSrc: "/marketing-style-previews/luxury.jpg",
+    summary: "高级护理",
+    description: "适合呈现护理空间、服务手法和专业高客单项目。",
+    cues: ["高级", "专业", "贵气"],
+  },
+  小红书种草: {
+    title: "小红书种草",
+    previewSrc: "/marketing-style-previews/social.jpg",
+    summary: "真实分享",
+    description: "适合做种草笔记、体验分享和社媒传播内容。",
+    cues: ["清新", "拼贴", "种草"],
+  },
+};
 const birthdayChannels = [
   { name: "微信私聊", sourceChannel: "私聊", icon: MessageCircle, tone: "green" },
   { name: "朋友圈", sourceChannel: "朋友圈", icon: ImageIcon, tone: "blue" },
@@ -547,6 +577,7 @@ export function MarketingCenter({
   const [showAllMarketingTasks, setShowAllMarketingTasks] = useState(false);
   const [customRequirementOpen, setCustomRequirementOpen] = useState(false);
   const [posterStyle, setPosterStyle] = useState("东方美学风");
+  const [showPosterStyleExamples, setShowPosterStyleExamples] = useState(false);
   const [posterSize, setPosterSize] = useState("朋友圈 1:1");
   const [videoRatio, setVideoRatio] = useState("9:16");
   const [videoDuration, setVideoDuration] = useState(5);
@@ -691,6 +722,7 @@ export function MarketingCenter({
   const safeBodyState = marketingCompliantText(bodyState);
   const safeMarketingGoal = marketingCompliantText(birthdayMarketingGoal);
   const safePosterStyle = marketingCompliantText(posterStyle);
+  const activePosterStyleExample = posterStyleExamples[posterStyle] ?? posterStyleExamples["东方美学风"];
   const safeCustomRequirement = marketingCompliantText(customRequirement.trim());
   const audienceSummary = `${effectiveCustomerType}，${safeBodyState}`;
   const nodeBrief = [selectedNode.title, selectedNode.dateLabel, selectedNode.hint].filter(Boolean).join(" · ");
@@ -1265,20 +1297,32 @@ export function MarketingCenter({
                   </div>
                 </div>
                 <div className="marketing-upload-grid marketing-material-grid compact">
-                  <label className="marketing-upload-box">
-                    <Plus size={18} />
+                  <label className={`marketing-upload-box ${productImageDataUrl ? "has-preview" : ""}`}>
+                    {productImageDataUrl ? (
+                      <span className="marketing-upload-preview" aria-hidden="true">
+                        <img src={productImageDataUrl} alt="" />
+                      </span>
+                    ) : (
+                      <Plus size={18} />
+                    )}
                     <strong>产品图</strong>
-                    {productImageName && <span>{productImageName}</span>}
+                    {productImageName && <span className="marketing-upload-file">{productImageName}</span>}
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
                       onChange={(event) => void handleMarketingImageChange(event.target.files?.[0], setProductImageName, setProductImageDataUrl)}
                     />
                   </label>
-                  <label className="marketing-upload-box">
-                    <Plus size={18} />
+                  <label className={`marketing-upload-box ${modelImageDataUrl ? "has-preview" : ""}`}>
+                    {modelImageDataUrl ? (
+                      <span className="marketing-upload-preview" aria-hidden="true">
+                        <img src={modelImageDataUrl} alt="" />
+                      </span>
+                    ) : (
+                      <Plus size={18} />
+                    )}
                     <strong>模特图</strong>
-                    {modelImageName && <span>{modelImageName}</span>}
+                    {modelImageName && <span className="marketing-upload-file">{modelImageName}</span>}
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
@@ -1288,24 +1332,50 @@ export function MarketingCenter({
                 </div>
 
                 <div className="marketing-poster-options">
-                  <div className="marketing-section-head compact">
+                  <div className="marketing-section-head compact marketing-style-head">
                     <div>
                       <strong>图片风格</strong>
+                      <span>固定示例 · 不消耗积分</span>
                     </div>
+                    <button
+                      type="button"
+                      className="marketing-style-gallery-trigger"
+                      onClick={() => setShowPosterStyleExamples(true)}
+                    >
+                      <Eye size={14} />
+                      <span>看全部</span>
+                    </button>
                   </div>
                   <div className="marketing-style-grid" aria-label="图片风格">
-                    {posterStyles.map((item) => (
-                      <button
-                        type="button"
-                        key={item}
-                        className={posterStyle === item ? "active" : ""}
-                        data-style-tone={posterStyleTones[item]}
-                        onClick={() => setPosterStyle(item)}
-                      >
-                        <strong>{item}</strong>
-                      </button>
-                    ))}
+                    {posterStyles.map((item) => {
+                      const example = posterStyleExamples[item];
+                      return (
+                        <button
+                          type="button"
+                          key={item}
+                          className={posterStyle === item ? "active" : ""}
+                          data-style-tone={posterStyleTones[item]}
+                          onClick={() => setPosterStyle(item)}
+                        >
+                          <strong>{item}</strong>
+                          <span>{example.summary}</span>
+                        </button>
+                      );
+                    })}
                   </div>
+                  <article className="marketing-style-preview-card" data-style-tone={posterStyleTones[activePosterStyleExample.title]}>
+                    <div className="marketing-style-preview-media">
+                      <img src={activePosterStyleExample.previewSrc} alt={`${activePosterStyleExample.title}示例效果`} />
+                      <span>当前示例</span>
+                    </div>
+                    <div className="marketing-style-preview-copy">
+                      <strong>{activePosterStyleExample.title}</strong>
+                      <p>{activePosterStyleExample.description}</p>
+                      <div>
+                        {activePosterStyleExample.cues.map((cue) => <span key={cue}>{cue}</span>)}
+                      </div>
+                    </div>
+                  </article>
                   <label className="marketing-size-select">
                     <span>尺寸大小</span>
                     <select value={posterSize} onChange={(event) => setPosterSize(event.target.value)}>
@@ -1392,6 +1462,51 @@ export function MarketingCenter({
             {typedMarketingAiRecords.length === 0 && <p className="empty">暂无{selectedGenerationMode.title}生成记录</p>}
           </div>
         </section>
+      )}
+
+      {showPosterStyleExamples && (
+        <div className="marketing-style-gallery-overlay" role="presentation">
+          <section className="marketing-style-gallery-dialog" role="dialog" aria-modal="true" aria-labelledby="marketing-style-gallery-title">
+            <div className="marketing-result-dialog-head">
+              <div>
+                <span>图片风格示例</span>
+                <h2 id="marketing-style-gallery-title">四种效果对比</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭图片风格示例"
+                onClick={() => setShowPosterStyleExamples(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="marketing-style-gallery-grid">
+              {posterStyles.map((item) => {
+                const example = posterStyleExamples[item];
+                return (
+                  <button
+                    type="button"
+                    key={item}
+                    className={posterStyle === item ? "active" : ""}
+                    data-style-tone={posterStyleTones[item]}
+                    onClick={() => {
+                      setPosterStyle(item);
+                      setShowPosterStyleExamples(false);
+                    }}
+                  >
+                    <span className="marketing-style-gallery-image">
+                      <img src={example.previewSrc} alt={`${example.title}示例效果`} />
+                    </span>
+                    <span className="marketing-style-gallery-copy">
+                      <strong>{example.title}</strong>
+                      <em>{example.description}</em>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
       )}
 
       {showGenerationDialog && (
