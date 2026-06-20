@@ -45,7 +45,8 @@ type VideoTemplateExample = {
   summary: string;
   description: string;
   cues: string[];
-  frames: Array<{ src: string; alt: string }>;
+  previewSrc: string;
+  previewAlt: string;
   icon: typeof Video;
 };
 type MarketingTaskItem =
@@ -242,11 +243,8 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     summary: "静物光影",
     description: "展示包装、材质、光影和陈列质感的镜头感觉。",
     cues: ["静物光影", "材质特写", "产品清晰"],
-    frames: [
-      { src: "/marketing-style-previews/luxury.jpg", alt: "产品包装和光影质感示例" },
-      { src: "/marketing-style-previews/guochao-herbal.jpg", alt: "产品材质和桌面陈列示例" },
-      { src: "/marketing-style-previews/salon-premium.jpg", alt: "高端产品陈列示例" },
-    ],
+    previewSrc: "/marketing-video-template-previews/product-texture.jpg",
+    previewAlt: "产品质感展示视频模板示例",
     icon: Package,
   },
   手持试用展示: {
@@ -254,11 +252,8 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     summary: "手部动作",
     description: "展示拿起、打开、涂抹或展示质地的镜头感觉。",
     cues: ["手部动作", "真实试用", "产品清晰"],
-    frames: [
-      { src: "/marketing-style-previews/aroma-lifestyle.jpg", alt: "手持产品生活感示例" },
-      { src: "/marketing-style-previews/social.jpg", alt: "手部试用质地示例" },
-      { src: "/marketing-style-previews/luxury.jpg", alt: "产品放回台面示例" },
-    ],
+    previewSrc: "/marketing-video-template-previews/hand-demo.jpg",
+    previewAlt: "手持试用展示视频模板示例",
     icon: Hand,
   },
   人物场景种草: {
@@ -266,11 +261,8 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     summary: "真人分享",
     description: "展示人物手持产品、自拍感和生活化分享的镜头感觉。",
     cues: ["真人分享", "生活场景", "社媒种草"],
-    frames: [
-      { src: "/marketing-style-previews/social.jpg", alt: "人物种草分享示例" },
-      { src: "/marketing-style-previews/oriental.jpg", alt: "人物与产品融合示例" },
-      { src: "/marketing-style-previews/aroma-lifestyle.jpg", alt: "生活化产品使用示例" },
-    ],
+    previewSrc: "/marketing-video-template-previews/social-person.jpg",
+    previewAlt: "人物场景种草视频模板示例",
     icon: UserRound,
   },
   门店护理场景: {
@@ -278,11 +270,8 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     summary: "空间服务",
     description: "展示产品出现在护理床、护理师动作或门店空间里的镜头感觉。",
     cues: ["门店空间", "护理动作", "产品入镜"],
-    frames: [
-      { src: "/marketing-style-previews/medical-minimal.jpg", alt: "门店护理空间示例" },
-      { src: "/marketing-style-previews/salon-premium.jpg", alt: "高端沙龙空间示例" },
-      { src: "/marketing-style-previews/luxury.jpg", alt: "护理产品陈列示例" },
-    ],
+    previewSrc: "/marketing-video-template-previews/salon-care.jpg",
+    previewAlt: "门店护理场景视频模板示例",
     icon: Store,
   },
   高端品牌广告: {
@@ -290,11 +279,8 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     summary: "品牌大片",
     description: "展示微距、柔光、包装特写和高级品牌感的镜头感觉。",
     cues: ["品牌大片", "柔光微距", "高级质感"],
-    frames: [
-      { src: "/marketing-style-previews/salon-premium.jpg", alt: "高端品牌广告示例" },
-      { src: "/marketing-style-previews/luxury.jpg", alt: "产品包装特写示例" },
-      { src: "/marketing-style-previews/oriental.jpg", alt: "高级氛围陈列示例" },
-    ],
+    previewSrc: "/marketing-video-template-previews/brand-ad.jpg",
+    previewAlt: "高端品牌广告视频模板示例",
     icon: Gem,
   },
   社媒快节奏切片: {
@@ -302,11 +288,8 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     summary: "多镜头快切",
     description: "展示包装、质地、使用和氛围快速切换的镜头感觉。",
     cues: ["多镜头快切", "发布感", "节奏更快"],
-    frames: [
-      { src: "/marketing-style-previews/social.jpg", alt: "社媒快切产品示例" },
-      { src: "/marketing-style-previews/season.jpg", alt: "氛围转场示例" },
-      { src: "/marketing-style-previews/aroma-lifestyle.jpg", alt: "生活方式快切示例" },
-    ],
+    previewSrc: "/marketing-video-template-previews/social-cut.jpg",
+    previewAlt: "社媒快节奏切片视频模板示例",
     icon: Scissors,
   },
 };
@@ -1573,12 +1556,8 @@ export function MarketingCenter({
                   )}
                   {isVideoMode && (
                     <article className="marketing-video-template-preview" data-style-tone={videoTemplateTones[activeVideoTemplateExample.title]}>
-                      <div className="marketing-video-storyboard">
-                        {activeVideoTemplateExample.frames.map((frame) => (
-                          <div className="marketing-video-storyboard-frame" key={frame.alt}>
-                            <img src={frame.src} alt={frame.alt} />
-                          </div>
-                        ))}
+                      <div className="marketing-video-template-media">
+                        <img src={activeVideoTemplateExample.previewSrc} alt={activeVideoTemplateExample.previewAlt} />
                         <span>当前示例</span>
                       </div>
                       <div className="marketing-video-template-detail">

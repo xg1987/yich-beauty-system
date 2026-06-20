@@ -29608,36 +29608,25 @@ textarea,
   --poster-style-text: #0f565c;
 }
 
-.marketing-video-storyboard {
+.marketing-video-template-media {
   position: relative;
   min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 286px;
+  height: 100%;
   overflow: hidden;
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: inset 0 0 0 1px rgba(111, 66, 193, 0.1);
 }
 
-.marketing-video-storyboard-frame {
-  min-width: 0;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  border-right: 2px solid rgba(255, 255, 255, 0.88);
-}
-
-.marketing-video-storyboard-frame:last-of-type {
-  border-right: 0;
-}
-
-.marketing-video-storyboard-frame img {
+.marketing-video-template-media img {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
 }
 
-.marketing-video-storyboard > span {
+.marketing-video-template-media > span {
   position: absolute;
   left: 8px;
   top: 8px;
@@ -30320,8 +30309,10 @@ textarea,
     padding: 9px;
   }
 
-  .marketing-video-storyboard-frame {
-    aspect-ratio: 3 / 4;
+  .marketing-video-template-media {
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    height: auto;
   }
 
   .marketing-video-template-detail {
