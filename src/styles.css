@@ -29399,8 +29399,10 @@ textarea,
   width: 13px;
   height: 13px;
   border-radius: 999px;
-  background: var(--poster-style-main);
-  box-shadow: 0 0 0 4px var(--poster-style-soft);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 0 0 2px var(--poster-style-main),
+    0 0 0 4px var(--poster-style-soft);
   transform: translateY(-50%);
 }
 
@@ -29483,6 +29485,13 @@ textarea,
     inset 6px 0 0 var(--poster-style-main),
     inset 0 0 0 1px var(--poster-style-ring),
     0 10px 20px var(--poster-style-shadow);
+}
+
+.marketing-style-grid button[data-style-tone].active::after {
+  background: var(--poster-style-main);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.72),
+    0 0 0 5px var(--poster-style-soft);
 }
 
 .marketing-style-grid .marketing-video-template-button {

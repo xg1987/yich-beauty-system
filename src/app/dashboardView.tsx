@@ -282,7 +282,7 @@ function EmployeeWorkDashboard({
     <div className="dashboard-page employee-work-page">
       <section className={`workbench-hero employee-work-hero role-hero-${session.user.role}`}>
         <span className="workbench-hero-kicker"><Sparkles size={15} /> {isTherapist ? "今日工作" : "前台工作"}</span>
-        <h2>{session.user.name} · {storeName || "门店"}</h2>
+        <h2>{storeName || "门店"}</h2>
         <p>{todayLabel} · 预约 {todayAppointments} · 待签名 {pendingSignatureCount} · 有效卡 {activeCards}</p>
       </section>
 
