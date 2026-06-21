@@ -166,7 +166,7 @@ const generationModes: Array<{ kind: MarketingGenerationKind; title: string; ico
   { kind: "copy", title: "获客图文案", icon: MessageSquarePlus },
   { kind: "image", title: "产品海报", icon: ImagePlus },
   { kind: "video", title: "产品视频", icon: Video },
-  { kind: "talk", title: "真人口播", icon: MicVocal, status: "出镜+提词" },
+  { kind: "talk", title: "真人口播", icon: MicVocal },
 ];
 const posterStyles = ["东方美学风", "节气设计图", "轻奢护理风", "小红书种草", "医美极简风", "国潮草本风", "香氛生活风", "高端沙龙风"];
 const posterStyleTones: Record<string, MarketingStyleTone> = {
@@ -893,6 +893,7 @@ export function MarketingCenter({
   const [talkElapsed, setTalkElapsed] = useState(0);
   const [talkCameraReady, setTalkCameraReady] = useState(false);
   const [talkCameraError, setTalkCameraError] = useState("");
+  const [talkFinalizing, setTalkFinalizing] = useState(false);
   const [talkRecordedBlob, setTalkRecordedBlob] = useState<Blob | null>(null);
   const [talkRecordedVideoUrl, setTalkRecordedVideoUrl] = useState("");
   const [talkTranscriptText, setTalkTranscriptText] = useState("");
@@ -1125,11 +1126,33 @@ export function MarketingCenter({
   const showAiTechnicalDetails = session.user.role === "superadmin";
   const selectedTalkTopic = talkTopics.find((topic) => topic.id === selectedTalkTopicId) ?? talkTopics[0];
   const talkServiceName = "补水修护";
-  const talkScriptLines = [
-    "大家好，我是店里的护理师",
-    "最近很多顾客说脸干、泛红",
-    `先做${talkServiceName}会更稳`,
-  ];
+  const talkScriptLines = (() => {
+    if (selectedTalkTopic.id === "first-repair") {
+      return [
+        "大家好，我是店里的护理师",
+        `第一次做${talkServiceName}，先看皮肤状态，不急着叠加项目`,
+        "操作过程中会以补水舒缓为主，感受通常比较温和",
+        "做完以后当天注意防晒，清洁和护肤都尽量简单",
+        "后续根据皮肤反应，再安排下一次护理会更稳",
+      ];
+    }
+    if (selectedTalkTopic.id === "home-care") {
+      return [
+        "大家好，我是店里的护理师",
+        "在家护肤最容易踩的坑，通常有三个",
+        "第一是清洁太猛，第二是精华叠太多，第三是忽略防晒",
+        "如果已经脸干、泛红，先把护肤步骤减下来",
+        `再配合一次${talkServiceName}，让状态慢慢稳住`,
+      ];
+    }
+    return [
+      "大家好，我是店里的护理师",
+      "最近换季，很多顾客反馈脸干、泛红、上妆卡粉",
+      "这类情况先别急着叠加太多产品",
+      `先做一次${talkServiceName}，把皮肤状态稳下来`,
+      "再配合日常保湿和防晒，效果会更稳定",
+    ];
+  })();
   const formattedTalkElapsed = `${String(Math.floor(talkElapsed / 60)).padStart(2, "0")}:${String(talkElapsed % 60).padStart(2, "0")}`;
   const talkResultDisplayItems = talkResultItems.map((item) => {
     if (item.title === "自动字幕") {
@@ -1212,11 +1235,13 @@ export function MarketingCenter({
   const startTalkRecorder = (stream: MediaStream) => {
     if (typeof MediaRecorder === "undefined") {
       setTalkCameraError("当前浏览器暂不支持视频录制，已显示拍摄示意");
+      setTalkFinalizing(false);
       return;
     }
     const current = talkMediaRecorderRef.current;
     if (current && current.state !== "inactive") return;
     talkRecordedChunksRef.current = [];
+    setTalkFinalizing(false);
     setTalkRecordedBlob(null);
     setTalkSilenceReport(null);
     setTalkRecordedVideoUrl((currentUrl) => {
@@ -1242,6 +1267,7 @@ export function MarketingCenter({
         });
         void analyzeTalkAudioSilence(blob).then(setTalkSilenceReport);
       }
+      setTalkFinalizing(false);
     };
     talkMediaRecorderRef.current = recorder;
     recorder.start(1000);
@@ -1373,11 +1399,23 @@ export function MarketingCenter({
       setTalkStep("entry");
       setTalkRecording(false);
       setTalkElapsed(0);
+      setTalkFinalizing(false);
       stopTalkRecorder();
       talkStreamRef.current?.getTracks().forEach((track) => track.stop());
       talkStreamRef.current = null;
     }
   }, [isTalkMode]);
+
+  useEffect(() => {
+    const overlayActive = isTalkMode && talkStep !== "entry";
+    const previousOverflow = document.body.style.overflow;
+    document.body.classList.toggle("yich-talk-overlay-active", overlayActive);
+    if (overlayActive) document.body.style.overflow = "hidden";
+    return () => {
+      document.body.classList.remove("yich-talk-overlay-active");
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isTalkMode, talkStep]);
 
   useEffect(() => () => {
     stopTalkRecorder();
@@ -1455,6 +1493,8 @@ export function MarketingCenter({
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: "user",
+            width: { ideal: talkRatio === "16:9" ? 1280 : 720 },
+            height: { ideal: talkRatio === "16:9" ? 720 : 1280 },
             aspectRatio: talkRatio === "16:9" ? 16 / 9 : 9 / 16,
           },
           audio: {
@@ -1721,12 +1761,16 @@ export function MarketingCenter({
     setTalkSavedRecordId("");
     setTalkTranscriptText("");
     setTalkSilenceReport(null);
+    setTalkFinalizing(false);
     setTalkRecording(true);
     setTalkElapsed(0);
   };
 
   const finishTalkShoot = () => {
     setTalkRecording(false);
+    if (talkMediaRecorderRef.current && talkMediaRecorderRef.current.state !== "inactive") {
+      setTalkFinalizing(true);
+    }
     stopTalkRecorder();
     setTalkStep("result");
   };
@@ -1736,6 +1780,7 @@ export function MarketingCenter({
     setTalkElapsed(0);
     setTalkTranscriptText("");
     setTalkSilenceReport(null);
+    setTalkFinalizing(false);
     setTalkSavedRecordId("");
     setTalkSaveError("");
     setTalkRecordedBlob(null);
@@ -1869,12 +1914,15 @@ export function MarketingCenter({
           </header>
 
           <article className="marketing-talk-prompter" aria-label="提词器">
-            <p>{talkScriptLines[0]}</p>
-            <p>最近很多顾客说<mark className="orange">脸干、泛红</mark></p>
-            <p>先做<mark className="teal">{talkServiceName}</mark>会更稳</p>
+            <span>提词文案</span>
+            {talkScriptLines.map((line, index) => (
+              <p key={`${line}-${index}`}>{line}</p>
+            ))}
           </article>
 
-          <div className="marketing-talk-frame-guide" aria-hidden="true" />
+          <div className="marketing-talk-frame-guide" aria-hidden="true">
+            <span>脸部放在虚线内</span>
+          </div>
           <button
             type="button"
             className="marketing-talk-ratio-chip"
@@ -1965,13 +2013,14 @@ export function MarketingCenter({
         </div>
         {talkSaveError && <p className="marketing-talk-save-error">{talkSaveError}</p>}
         {talkSavedRecordId && <p className="marketing-talk-save-success">口播素材已保存到生成记录</p>}
+        {talkFinalizing && <p className="marketing-talk-save-success">视频正在生成预览，请稍等几秒后保存</p>}
 
         <footer className="marketing-talk-result-actions">
           <button type="button" className="secondary-button" onClick={() => setTalkStep("shoot")}>
             <RotateCcw size={16} /> 重新拍摄
           </button>
-          <button type="button" className="primary-button" disabled={!talkRecordedBlob || talkSaveBusy} onClick={() => void saveTalkMaterial()}>
-            <Save size={16} /> {talkSavedRecordId ? "已保存" : talkSaveBusy ? "保存中..." : "保存素材"}
+          <button type="button" className="primary-button" disabled={!talkRecordedBlob || talkFinalizing || talkSaveBusy} onClick={() => void saveTalkMaterial()}>
+            <Save size={16} /> {talkSavedRecordId ? "已保存" : talkSaveBusy ? "保存中..." : talkFinalizing ? "生成中..." : "保存素材"}
           </button>
         </footer>
       </section>

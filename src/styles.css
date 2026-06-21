@@ -2470,6 +2470,14 @@ td {
   display: none;
 }
 
+.yich-talk-overlay-active .mobile-bottom-nav {
+  display: none !important;
+}
+
+.yich-talk-overlay-active .app-shell {
+  padding-bottom: 0 !important;
+}
+
 .admin-center-page {
   display: grid;
   gap: 22px;
@@ -28588,7 +28596,7 @@ textarea,
 .marketing-talk-flow {
   position: fixed;
   inset: 0;
-  z-index: 6500;
+  z-index: 2147483000;
   overflow: auto;
   min-height: var(--yich-visual-viewport-height, 100dvh);
   display: grid;
@@ -28802,13 +28810,14 @@ textarea,
 .marketing-talk-shoot-screen {
   position: fixed;
   inset: 0;
-  z-index: 7000;
+  z-index: 2147483000;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: min(100%, 430px);
   margin: 0 auto;
-  padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  min-height: var(--yich-visual-viewport-height, 100dvh);
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(104px + env(safe-area-inset-bottom, 0px));
   background: #1f1a18;
   color: #ffffff;
   box-shadow: 0 0 0 9999px rgba(19, 15, 32, 0.42);
@@ -28825,7 +28834,8 @@ textarea,
 
 .marketing-talk-camera-video {
   z-index: 0;
-  object-fit: cover;
+  background: #111111;
+  object-fit: contain;
   transform: scaleX(-1);
 }
 
@@ -28960,20 +28970,45 @@ textarea,
 
 .marketing-talk-prompter {
   align-self: start;
-  margin-top: 18px;
-  padding: 16px 18px;
+  max-height: min(25vh, 214px);
+  margin-top: 12px;
+  overflow-y: auto;
+  padding: 12px 14px 14px;
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.48);
+  background: rgba(0, 0, 0, 0.58);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  scrollbar-width: none;
+}
+
+.marketing-talk-prompter::-webkit-scrollbar {
+  display: none;
+}
+
+.marketing-talk-prompter > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-bottom: 7px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-size: 12px;
+  font-weight: 860;
 }
 
 .marketing-talk-prompter p {
-  margin: 0;
+  margin: 0 0 5px;
   color: #ffffff !important;
-  font-size: clamp(22px, 6vw, 28px);
+  font-size: clamp(16px, 4.45vw, 20px);
   font-weight: 930;
-  line-height: 1.48;
+  line-height: 1.42;
   letter-spacing: 0;
+}
+
+.marketing-talk-prompter p:last-child {
+  margin-bottom: 0;
 }
 
 .marketing-talk-prompter mark,
@@ -28992,13 +29027,30 @@ textarea,
 .marketing-talk-frame-guide {
   position: absolute;
   left: 50%;
-  top: 41%;
-  width: 214px;
-  height: 286px;
+  top: 47%;
+  width: 190px;
+  height: 252px;
   border: 3px dashed rgba(255, 255, 255, 0.86);
   border-bottom-color: transparent;
   border-radius: 50% 50% 28% 28%;
   transform: translate(-50%, -50%);
+}
+
+.marketing-talk-frame-guide span {
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.46);
+  color: rgba(255, 255, 255, 0.88) !important;
+  font-size: 12px;
+  font-weight: 820;
+  white-space: nowrap;
+  transform: translate(-50%, 100%);
 }
 
 .marketing-talk-ratio-chip {
@@ -29018,16 +29070,18 @@ textarea,
 }
 
 .marketing-talk-recording-status {
-  align-self: end;
+  position: absolute;
+  left: 50%;
+  bottom: calc(116px + env(safe-area-inset-bottom, 0px));
   justify-self: center;
   display: grid;
   justify-items: center;
   gap: 5px;
-  margin-bottom: 96px;
   padding: 8px 13px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.48);
   color: #ffffff;
+  transform: translateX(-50%);
 }
 
 .marketing-talk-recording-status span {
@@ -29053,35 +29107,48 @@ textarea,
 }
 
 .marketing-talk-camera-note {
-  align-self: end;
-  justify-self: center;
-  margin: 0 0 72px;
+  position: absolute;
+  left: 50%;
+  bottom: calc(198px + env(safe-area-inset-bottom, 0px));
+  max-width: calc(100% - 48px);
+  margin: 0;
   padding: 6px 10px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.44);
   color: rgba(255, 255, 255, 0.82) !important;
   font-size: 12px;
   font-weight: 780;
+  text-align: center;
+  white-space: normal;
+  transform: translateX(-50%);
 }
 
 .marketing-talk-shoot-controls {
-  align-self: end;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   display: grid;
-  grid-template-columns: 70px 1fr 70px;
+  grid-template-columns: 78px 1fr 78px;
   align-items: center;
   justify-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding: 0 24px;
 }
 
 .marketing-talk-shoot-controls button {
+  min-width: 62px;
+  min-height: 54px;
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: 6px;
   border: 0;
   background: transparent;
   color: #ffffff;
   font-size: 13px;
   font-weight: 860;
+  touch-action: manipulation;
 }
 
 .marketing-talk-shoot-controls button svg {
