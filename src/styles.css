@@ -29686,7 +29686,7 @@ textarea,
 
 .marketing-video-template-controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -29733,6 +29733,18 @@ textarea,
   font-size: 12px;
   font-style: normal;
   font-weight: 780;
+}
+
+.marketing-video-duplicate-note {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(213, 45, 111, 0.22);
+  border-radius: 10px;
+  background: rgba(213, 45, 111, 0.08);
+  color: #8f1744 !important;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.45;
 }
 
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button[data-style-tone] strong,

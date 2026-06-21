@@ -94,9 +94,9 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
   copy: { enabled: true, provider: "deepseek", model: "deepseek-v4-pro", apiKey: "", inputTokenUsdPerMillion: 0.435, outputTokenUsdPerMillion: 0.87 },
   image: { enabled: true, provider: "openai", model: "gpt-image-2", apiKey: "", defaultSize: "1024x1024", defaultQuality: "high", maxImagesPerRequest: 4, textInputUsdPerMillion: 5, imageInputUsdPerMillion: 8, imageOutputUsdPerMillion: 30 },
   video: { defaultProvider: "seedance", providers: [
-    { provider: "seedance", enabled: true, model: "seedance-2.0", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.3408, "5s:720p": 0.7332, "5s:1080p": 1.8279, "10s:480p": 0.6816, "10s:720p": 1.4665, "10s:1080p": 3.6558, "15s:480p": 1.0224, "15s:720p": 2.1997, "15s:1080p": 5.4837 } },
-    { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0, "5s:720p": 0.42, "5s:1080p": 0.56, "10s:480p": 0, "10s:720p": 0.84, "10s:1080p": 1.12, "15s:480p": 0, "15s:720p": 1.26, "15s:1080p": 1.68 } },
-    { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.1, "5s:720p": 0.28, "5s:1080p": 0.49, "10s:480p": 0.15, "10s:720p": 0.56, "10s:1080p": 0, "15s:480p": 0, "15s:720p": 0, "15s:1080p": 0 } },
+    { provider: "seedance", enabled: true, model: "seedance-2.0", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.3408, "5s:720p": 0.7332, "5s:1080p": 1.8279, "10s:480p": 0.6816, "10s:720p": 1.4665, "10s:1080p": 3.6558, "15s:480p": 1.0224, "15s:720p": 2.1997, "15s:1080p": 5.4837 } },
+    { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0, "5s:720p": 0.42, "5s:1080p": 0.56, "10s:480p": 0, "10s:720p": 0.84, "10s:1080p": 1.12, "15s:480p": 0, "15s:720p": 1.26, "15s:1080p": 1.68 } },
+    { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.1, "5s:720p": 0.28, "5s:1080p": 0.49, "10s:480p": 0.15, "10s:720p": 0.56, "10s:1080p": 0, "15s:480p": 0, "15s:720p": 0, "15s:1080p": 0 } },
   ] },
 };
 
@@ -893,7 +893,7 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
   const [videoProvider, setVideoProvider] = useState<AiVideoProviderConfig["provider"]>(aiConfig.video.defaultProvider);
   const activeVideoConfig = aiConfig.video.providers.find((provider) => provider.provider === videoProvider) ?? aiConfig.video.providers[0];
   const [videoDuration, setVideoDuration] = useState(activeVideoConfig?.defaultDurationSeconds ?? 5);
-  const [videoResolution, setVideoResolution] = useState<AiVideoResolution>(activeVideoConfig?.defaultResolution ?? "720p");
+  const [videoResolution, setVideoResolution] = useState<AiVideoResolution>(activeVideoConfig?.defaultResolution ?? "480p");
   const [videoAspectRatio, setVideoAspectRatio] = useState<AiVideoAspectRatio>(activeVideoConfig?.defaultAspectRatio ?? "9:16");
   const [videoTaskId, setVideoTaskId] = useState("");
   const [chatResult, setChatResult] = useState<Awaited<ReturnType<ApiActions["testAiChat"]>> | null>(null);

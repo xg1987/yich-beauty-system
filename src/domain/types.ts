@@ -65,6 +65,8 @@ export type MarketingAiRecord = {
   status?: string;
   errorMessage?: string;
   elapsedMs?: number;
+  materialKey?: string;
+  videoResolution?: string;
   cost?: MarketingAiCost;
   costBreakdown?: MarketingAiCostBreakdown;
   billing?: {

@@ -213,7 +213,7 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
         model: "seedance-2.0",
         apiKey: "",
         defaultDurationSeconds: 5,
-        defaultResolution: "720p",
+        defaultResolution: "480p",
         defaultAspectRatio: "9:16",
         priceUsdBySpec: {
           "5s:480p": 0.3408,
@@ -233,7 +233,7 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
         model: "kling-v3",
         apiKey: "",
         defaultDurationSeconds: 5,
-        defaultResolution: "720p",
+        defaultResolution: "480p",
         defaultAspectRatio: "9:16",
         priceUsdBySpec: {
           "5s:480p": 0,
@@ -253,7 +253,7 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
         model: "MiniMax-Hailuo-2.3",
         apiKey: "",
         defaultDurationSeconds: 5,
-        defaultResolution: "720p",
+        defaultResolution: "480p",
         defaultAspectRatio: "9:16",
         priceUsdBySpec: {
           "5s:480p": 0.1,

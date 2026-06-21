@@ -187,6 +187,7 @@ export function createApiClient(getToken: () => string | undefined) {
       customRequirement?: string;
       videoRatio?: string;
       videoDuration?: number;
+      videoResolution?: string;
       videoScript?: string;
       talkScene?: string;
       customerName?: string;

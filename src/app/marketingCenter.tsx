@@ -227,6 +227,12 @@ const birthdayChannels = [
 const posterSizes = ["朋友圈 1:1", "小红书 3:4", "竖版 9:16", "横版 16:9"];
 const videoRatios = ["9:16", "1:1", "16:9"];
 const videoDurations = [5, 10, 15];
+const videoResolutions = ["480p", "720p", "1080p"];
+const videoResolutionLabels: Record<string, string> = {
+  "480p": "480p 默认省钱",
+  "720p": "720p 更清晰",
+  "1080p": "1080p 最高成本",
+};
 const videoPaces = ["慢推", "平移", "微距", "快切"];
 const videoTemplates = ["产品质感展示", "手持试用展示", "人物场景种草", "门店护理场景", "高端品牌广告", "社媒快节奏切片"];
 const videoTemplateTones: Record<string, MarketingStyleTone> = {
@@ -323,6 +329,16 @@ function readMarketingImageFile(file: File): Promise<string> {
     reader.onerror = () => reject(new Error("图片读取失败"));
     reader.readAsDataURL(file);
   });
+}
+
+function marketingMaterialKeyFromDataUrl(dataUrl: string) {
+  if (!dataUrl) return "";
+  let hash = 2166136261;
+  for (let index = 0; index < dataUrl.length; index += 1) {
+    hash ^= dataUrl.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `image:${(hash >>> 0).toString(16)}:${dataUrl.length}`;
 }
 
 function marketingNodeTimingLabel(daysUntil: number) {
@@ -695,6 +711,7 @@ export function MarketingCenter({
   const [videoTemplate, setVideoTemplate] = useState("产品质感展示");
   const [videoRatio, setVideoRatio] = useState("9:16");
   const [videoDuration, setVideoDuration] = useState(5);
+  const [videoResolution, setVideoResolution] = useState("480p");
   const [videoPace, setVideoPace] = useState("慢推");
   const [videoScript, setVideoScript] = useState("");
   const [customRequirement, setCustomRequirement] = useState("");
@@ -874,6 +891,15 @@ export function MarketingCenter({
     ].filter(Boolean).map(marketingCompliantText).join("\n");
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
+  const productImageMaterialKey = marketingMaterialKeyFromDataUrl(productImageDataUrl);
+  const duplicateVideoRecord = productImageMaterialKey
+    ? marketingAiRecords.find((record) =>
+      record.kind === "video"
+      && record.createdBy === session.user.id
+      && record.materialKey === productImageMaterialKey
+      && record.status !== "生成失败",
+    )
+    : undefined;
   const latestGenerationResultRecord = generationResult?.record?.id ? marketingAiRecords.find((record) => record.id === generationResult.record?.id) : undefined;
   const generationResultRecord = generationResult?.record ? staleMarketingAiRecord(latestGenerationResultRecord ?? generationResult.record) : undefined;
   const hasPendingMarketingAiRecords = marketingAiRecords.some((record) => isMarketingAiRecordPending(record) && !isStaleMarketingAiRecord(record));
@@ -1029,6 +1055,22 @@ export function MarketingCenter({
       generationInFlightRef.current = false;
       return;
     }
+    if (generationKind === "video" && !videoScript.trim()) {
+      setGenerationBusy(false);
+      setGenerationResult(null);
+      setCopyResultStatus("idle");
+      setGenerationError("请填写产品详情或镜头要求，避免模型乱生成并浪费积分");
+      generationInFlightRef.current = false;
+      return;
+    }
+    if (generationKind === "video" && duplicateVideoRecord) {
+      setGenerationBusy(false);
+      setGenerationResult(null);
+      setCopyResultStatus("idle");
+      setGenerationError("同一账号已经用这张产品图提交过视频生成，请到生成记录查看，不能重复发起以免重复扣积分");
+      generationInFlightRef.current = false;
+      return;
+    }
     if (generationKind === "image" && !productImageDataUrl && !modelImageDataUrl) {
       setGenerationBusy(false);
       setGenerationResult(null);
@@ -1047,6 +1089,7 @@ export function MarketingCenter({
     setManualCopyText("");
     try {
       const usesProductPosterContext = generationKind === "image" || generationKind === "video";
+      const productMediaRequirement = isVideoMode ? marketingCompliantText(videoScript) : productPosterRequirement;
       const result = await actions.generateMarketingAi({
         kind: generationKind,
         storeName: marketingCompliantText(storeName),
@@ -1069,10 +1112,11 @@ export function MarketingCenter({
         modelImageDataUrl,
         sceneImageName,
         sceneImageDataUrl,
-        customRequirement: usesProductPosterContext ? productPosterRequirement : generationRequirement || undefined,
+        customRequirement: usesProductPosterContext ? productMediaRequirement : generationRequirement || undefined,
         copyOutputMode,
         videoRatio,
         videoDuration,
+        videoResolution,
         videoScript: isVideoMode ? [`镜头节奏：${videoPace}`, marketingCompliantText(videoScript)].filter(Boolean).join("\n") : marketingCompliantText(videoScript),
         talkScene: `${safeMarketingNode} · ${safeMarketingGoal} · ${channel}`,
       });
@@ -1582,6 +1626,12 @@ export function MarketingCenter({
                             </select>
                           </label>
                           <label className="marketing-video-control-select">
+                            <span>清晰度</span>
+                            <select value={videoResolution} onChange={(event) => setVideoResolution(event.target.value)}>
+                              {videoResolutions.map((item) => <option key={item} value={item}>{videoResolutionLabels[item]}</option>)}
+                            </select>
+                          </label>
+                          <label className="marketing-video-control-select">
                             <span>镜头节奏</span>
                             <select value={videoPace} onChange={(event) => setVideoPace(event.target.value)}>
                               {videoPaces.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -1589,16 +1639,19 @@ export function MarketingCenter({
                           </label>
                         </div>
                         <label className="marketing-video-detail-field">
-                          <span>镜头要求 / 产品详情</span>
+                          <span>镜头要求 / 产品详情（必填）</span>
                           <textarea
                             value={videoScript}
                             onChange={(event) => setVideoScript(event.target.value)}
                             maxLength={200}
-                            placeholder="请输入镜头要求、产品卖点或需要突出的细节，例如：突出质地、吸收过程、使用感等..."
+                            placeholder="必填：请输入产品成分、质地、香味、适合场景、卖点或镜头要求，未填写不会提交生成..."
                             rows={3}
                           />
                           <em>{videoScript.length} / 200</em>
                         </label>
+                        {duplicateVideoRecord && (
+                          <p className="marketing-video-duplicate-note">这张产品图已提交过视频生成，请到生成记录查看结果，不能重复提交同一素材。</p>
+                        )}
                       </div>
                     </article>
                   )}

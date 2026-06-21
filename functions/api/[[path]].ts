@@ -468,11 +468,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const kind = requiredString(rawBody, "kind") as MarketingAiKind;
       const body = normalizeMarketingAiGenerateBody(rawBody, kind);
       const startedAt = Date.now();
-      const currentData = await database.readData();
+      let currentData = await database.readData();
       assertMarketingAiGeneratePreflight(currentData, session, kind);
+      assertMarketingAiGenerateBodyReady(body, kind);
+      const duplicateVideoRecord = findDuplicateMarketingVideoRecord(currentData, session, body);
+      if (duplicateVideoRecord) throw new Error("同一账号已经用这张产品图提交过视频生成，请到生成记录查看，不能重复发起以免重复扣积分");
       const locks = await acquireAiGenerationLocks(database, session, kind);
       let pendingRecord: MarketingAiRecord | undefined;
       try {
+        currentData = await database.readData();
+        const lockedDuplicateVideoRecord = findDuplicateMarketingVideoRecord(currentData, session, body);
+        if (lockedDuplicateVideoRecord) throw new Error("同一账号已经用这张产品图提交过视频生成，请到生成记录查看，不能重复发起以免重复扣积分");
         pendingRecord = marketingAiRecord(currentData, session, body, {
           kind,
           ...marketingAiPendingProvider(currentData, kind, body),
@@ -2390,9 +2396,9 @@ const defaultAiGenerationConfig: AiGenerationConfig = {
   video: {
     defaultProvider: "seedance",
     providers: [
-      { provider: "seedance", enabled: true, model: "seedance-2.0", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "seedance", enabled: true, model: "seedance-2.0", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
     ],
   },
 };
@@ -2629,6 +2635,14 @@ function assertMarketingAiGeneratePreflight(data: AppData, session: UserSession,
   assertAiFreeQuotaAvailable(data, session.user.id);
 }
 
+function assertMarketingAiGenerateBodyReady(body: JsonBody, kind: MarketingAiKind) {
+  if (kind !== "video") return;
+  if (!optionalString(body, "productImageDataUrl")) throw new Error("请先上传产品图，再生成产品视频");
+  if (!marketingCompliantText(optionalString(body, "customRequirement"), "", 1000)) {
+    throw new Error("请填写产品详情或镜头要求，避免模型乱生成并浪费积分");
+  }
+}
+
 function marketingText(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : fallback;
 }
@@ -2724,6 +2738,32 @@ function marketingImageAsset(body: JsonBody, key: MarketingImageAsset["key"], la
     dataUrl,
     mimeType: match[1] === "image/jpg" ? "image/jpeg" : match[1],
   };
+}
+
+function marketingMaterialKeyFromDataUrl(dataUrl: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < dataUrl.length; index += 1) {
+    hash ^= dataUrl.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `image:${(hash >>> 0).toString(16)}:${dataUrl.length}`;
+}
+
+function marketingMaterialKey(body: JsonBody, kind: MarketingAiKind) {
+  if (kind !== "video") return undefined;
+  const productImageDataUrl = optionalString(body, "productImageDataUrl");
+  return productImageDataUrl ? marketingMaterialKeyFromDataUrl(productImageDataUrl) : undefined;
+}
+
+function findDuplicateMarketingVideoRecord(data: AppData, session: UserSession, body: JsonBody) {
+  const materialKey = marketingMaterialKey(body, "video");
+  if (!materialKey) return undefined;
+  return (data.marketingAiRecords ?? []).find((record) =>
+    record.kind === "video"
+    && record.createdBy === session.user.id
+    && record.materialKey === materialKey
+    && record.status !== "生成失败",
+  );
 }
 
 async function marketingImageBlob(asset: MarketingImageAsset) {
@@ -3145,6 +3185,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const capability: AiUsageCapability = kind === "image" ? "image" : kind === "video" ? "video" : "copy";
   assertMarketingAiAllowed(data, session, capability);
   if (kind === "video" && !optionalString(generateBody, "productImageDataUrl")) throw new Error("请先上传产品图，再生成产品视频");
+  if (kind === "video" && !marketingCompliantText(optionalString(generateBody, "customRequirement"), "", 1000)) throw new Error("请填写产品详情或镜头要求，避免模型乱生成并浪费积分");
   const quotaState = assertAiFreeQuotaAvailable(data, session.user.id);
   const prompt = marketingPrompt(generateBody, kind);
   if (kind === "copy" || kind === "talk") {
@@ -3203,7 +3244,9 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const config = aiGenerationConfigFromData(data);
   const provider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
   const durationSeconds = aiVideoDurations.includes(Number(generateBody.videoDuration)) ? Number(generateBody.videoDuration) : provider?.defaultDurationSeconds ?? 5;
-  const resolution = provider?.defaultResolution ?? "720p";
+  const resolution = aiVideoResolutions.includes(generateBody.videoResolution as AiVideoResolution)
+    ? generateBody.videoResolution as AiVideoResolution
+    : provider?.defaultResolution ?? "480p";
   const result = await runAiVideoTest(data, {
     ...generateBody,
     prompt,
@@ -3265,6 +3308,8 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   status?: string;
   errorMessage?: string;
   elapsedMs?: number;
+  materialKey?: string;
+  videoResolution?: string;
   cost?: MarketingAiRecord["cost"];
   costBreakdown?: MarketingAiRecord["costBreakdown"];
   billing?: MarketingAiRecord["billing"];
@@ -3280,6 +3325,10 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     return value ? marketingCompliantText(value) : undefined;
   };
   const isProductImageRecord = result.kind === "image";
+  const materialKey = marketingMaterialKey(body, result.kind);
+  const videoResolution = result.kind === "video" && aiVideoResolutions.includes(body.videoResolution as AiVideoResolution)
+    ? body.videoResolution as string
+    : undefined;
   return {
     id: makeId("mar"),
     storeId: sessionStoreId(data, session),
@@ -3300,6 +3349,8 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     status: result.status,
     errorMessage: result.errorMessage,
     elapsedMs: result.elapsedMs,
+    materialKey,
+    videoResolution,
     cost: result.cost,
     costBreakdown: result.costBreakdown,
     billing: result.billing,
