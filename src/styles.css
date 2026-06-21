@@ -20660,6 +20660,35 @@ textarea,
   align-items: end;
 }
 
+.inventory-intake-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 6px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 14px;
+  background: rgba(111, 66, 193, 0.06);
+}
+
+.inventory-intake-mode-switch button {
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(47, 37, 95, 0.72);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.inventory-intake-mode-switch button.active {
+  border-color: rgba(111, 66, 193, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f255f;
+  box-shadow: 0 10px 22px rgba(58, 35, 112, 0.08);
+}
+
 .inventory-restock-control {
   border-color: rgba(42, 143, 125, 0.18);
   background:
@@ -20676,7 +20705,7 @@ textarea,
 }
 
 .inventory-restock-form .inventory-product-form-stock {
-  grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 0.9fr) minmax(150px, 1fr) minmax(180px, 1.3fr) minmax(150px, 0.9fr);
+  grid-template-columns: minmax(110px, 0.8fr) minmax(150px, 1fr) minmax(180px, 1.3fr) minmax(150px, 0.9fr);
 }
 
 .inventory-restock-current {
@@ -21416,6 +21445,9 @@ textarea,
 
 @media (max-width: 767px) {
   .catalog-inline-control {
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
     padding: 14px;
   }
 
@@ -21433,6 +21465,42 @@ textarea,
 
   .catalog-inline-form {
     grid-template-columns: 1fr;
+  }
+
+  .inventory-modal-detail .panel,
+  .inventory-inline-control,
+  .inventory-product-form,
+  .inventory-restock-form,
+  .inventory-product-form-row,
+  .inventory-product-form-main,
+  .inventory-product-form-stock,
+  .inventory-product-form-row > *,
+  .inventory-product-form label,
+  .inventory-product-form .field,
+  .inventory-product-form input,
+  .inventory-product-form select,
+  .inventory-restock-form label,
+  .inventory-restock-form .field,
+  .inventory-restock-form input,
+  .inventory-restock-form select,
+  .inventory-restock-current,
+  .inventory-deduction-fixed {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .inventory-product-form-main,
+  .inventory-product-form-stock,
+  .inventory-restock-form .inventory-product-form-main,
+  .inventory-restock-form .inventory-product-form-stock {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inventory-product-form .form-submit-row,
+  .inventory-restock-form .form-submit-row {
+    grid-column: 1 / -1;
   }
 
   .catalog-edit-grid,
@@ -33010,6 +33078,7 @@ textarea,
 .theme-night .system-modal .catalog-product-tags button,
 .theme-night .system-modal .catalog-product-result button,
 .theme-night .system-modal .module-panel-actions button,
+.theme-night .system-modal .inventory-intake-mode-switch button,
 .theme-night .system-modal .inventory-row-actions button,
 .theme-night .system-modal .inventory-warning-row button,
 .theme-night .system-modal .inventory-product-restock-button,
@@ -33022,6 +33091,7 @@ textarea,
 .theme-night .system-modal .inventory-filter-row button.active,
 .theme-night .system-modal .inventory-filter-row button:hover,
 .theme-night .system-modal .inventory-filter-row button:focus-visible,
+.theme-night .system-modal .inventory-intake-mode-switch button.active,
 .theme-night .system-modal .catalog-product-result:hover,
 .theme-night .system-modal .catalog-product-result:focus-visible {
   border-color: rgba(112, 220, 190, 0.38) !important;

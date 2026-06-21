@@ -6743,10 +6743,10 @@ function Inventory({
   const [unitCost, setUnitCost] = useState(68);
   const [manualRestockProductId, setManualRestockProductId] = useState(data.products[0]?.id ?? "");
   const [manualRestockQuantity, setManualRestockQuantity] = useState(1);
-  const [manualRestockUnitCost, setManualRestockUnitCost] = useState(data.products[0]?.cost ? String(data.products[0].cost) : "");
   const [manualRestockExpiryAt, setManualRestockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [manualRestockNote, setManualRestockNote] = useState("");
   const [manualRestockMessage, setManualRestockMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
+  const [inventoryIntakeMode, setInventoryIntakeMode] = useState<"new" | "restock">("new");
   const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
   const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
   const [inventoryCategoryPresets, setInventoryCategoryPresets] = useState<Record<string, string[]>>(INVENTORY_CATEGORY_PRESETS);
@@ -6969,9 +6969,7 @@ function Inventory({
   };
 
   const chooseManualRestockProduct = (nextProductId: string) => {
-    const product = data.products.find((item) => item.id === nextProductId);
     setManualRestockProductId(nextProductId);
-    setManualRestockUnitCost(product?.cost ? String(product.cost) : "");
     setManualRestockExpiryAt(defaultExpiryForProduct(nextProductId));
     setManualRestockMessage(undefined);
   };
@@ -6980,13 +6978,13 @@ function Inventory({
     chooseManualRestockProduct(product.id);
     setManualRestockQuantity(1);
     setManualRestockNote("");
+    setInventoryIntakeMode("restock");
     setActiveModule("stockIn");
   };
 
   const submitManualRestock = (event: FormEvent) => {
     event.preventDefault();
     const product = data.products.find((item) => item.id === manualRestockProductId);
-    const manualUnitCost = optionalNumberFromInput(manualRestockUnitCost);
     setManualRestockMessage(undefined);
     if (!product) {
       setManualRestockMessage({ type: "error", text: "请选择补货商品" });
@@ -6996,15 +6994,10 @@ function Inventory({
       setManualRestockMessage({ type: "error", text: "请输入入库数量" });
       return;
     }
-    if (manualUnitCost === undefined || manualUnitCost < 0) {
-      setManualRestockMessage({ type: "error", text: "请输入本次进货价" });
-      return;
-    }
     void runMutation(() => actions.adjustInventory({
       productId: product.id,
       type: "入库",
       quantity: manualRestockQuantity,
-      unitCost: manualUnitCost,
       expiryAt: manualRestockExpiryAt || undefined,
       note: manualRestockNote.trim() || "手动补货入库",
     }))
@@ -7048,6 +7041,7 @@ function Inventory({
 
   useEffect(() => {
     setActiveModule(initialModule ?? "stockIn");
+    if ((initialModule ?? "stockIn") === "stockIn") setInventoryIntakeMode("new");
   }, [initialModule]);
 
   useEffect(() => {
@@ -7273,11 +7267,30 @@ function Inventory({
                 {activeModule === "stockIn" && (
                 <section className="panel">
                 <PanelTitle icon={<PackagePlus size={18} />} title="商品入库" action="新增 / 补货" />
+                <div className="inventory-intake-mode-switch" role="tablist" aria-label="商品入库模式">
+                  <button
+                    type="button"
+                    className={inventoryIntakeMode === "new" ? "active" : ""}
+                    aria-selected={inventoryIntakeMode === "new"}
+                    onClick={() => setInventoryIntakeMode("new")}
+                  >
+                    新增商品
+                  </button>
+                  <button
+                    type="button"
+                    className={inventoryIntakeMode === "restock" ? "active" : ""}
+                    aria-selected={inventoryIntakeMode === "restock"}
+                    onClick={() => setInventoryIntakeMode("restock")}
+                  >
+                    补商品
+                  </button>
+                </div>
+                {inventoryIntakeMode === "restock" && (
                 <div className="catalog-inline-control inventory-inline-control inventory-restock-control">
                   <div className="inventory-inline-header">
                     <div className="inventory-inline-title">
                       <strong>已有商品补货</strong>
-                      <span>不走供应商，直接给同一个商品增加库存并记录本次进货价</span>
+                      <span>不走供应商，直接给同一个商品增加库存；销售价只展示不修改</span>
                     </div>
                   </div>
                   <form className="form catalog-inline-form inventory-restock-form" onSubmit={submitManualRestock}>
@@ -7291,16 +7304,15 @@ function Inventory({
                       <div className="inventory-restock-current">
                         <span>当前库存</span>
                         <strong>{selectedManualRestockProduct ? formatProductStockWithServiceUnits(selectedManualRestockProduct, selectedManualRestockProduct.stock) : "-"}</strong>
-                        <small>{selectedManualRestockProduct ? `销售价 ${selectedManualRestockProduct.price > 0 ? money(selectedManualRestockProduct.price) : "未设置"}` : "请选择商品"}</small>
+                        <small>{selectedManualRestockProduct ? `固定销售价 ${selectedManualRestockProduct.price > 0 ? money(selectedManualRestockProduct.price) : "未设置"}` : "请选择商品"}</small>
                       </div>
                     </div>
                     <div className="inventory-product-form-row inventory-product-form-stock">
                       <label>入库数量<input type="number" min={0.001} step="0.001" value={manualRestockQuantity} onChange={(event) => setManualRestockQuantity(Number(event.target.value))} /></label>
-                      <label>本次进货价<input type="number" min={0} step="0.01" value={manualRestockUnitCost} onChange={(event) => setManualRestockUnitCost(event.target.value)} placeholder="不是销售价" /></label>
                       <label>到期日期<input type="date" value={manualRestockExpiryAt} onChange={(event) => setManualRestockExpiryAt(event.target.value)} /></label>
                       <label>备注<input value={manualRestockNote} onChange={(event) => setManualRestockNote(event.target.value)} placeholder="线下补货 / 老板自采" /></label>
                       <div className="form-submit-row">
-                        <SubmitStatusButton idleText="保存补货入库" busyText="保存中..." disabled={!manualRestockProductId || !manualRestockUnitCost.trim()} />
+                        <SubmitStatusButton idleText="保存补货入库" busyText="保存中..." disabled={!manualRestockProductId} />
                       </div>
                     </div>
                   </form>
@@ -7310,6 +7322,8 @@ function Inventory({
                     </p>
                   )}
                 </div>
+                )}
+                {inventoryIntakeMode === "new" && (
                 <div className="catalog-inline-control inventory-inline-control">
                   <div className="inventory-inline-header">
                     <div className="inventory-inline-title">
@@ -7410,6 +7424,7 @@ function Inventory({
                     </div>
                   </div>
                 </div>
+                )}
                 {lowStock > 0 && (
                   <div className="inventory-warning-row">
                     <strong>库存预警已触发</strong>：{lowStock} 个商品低于安全库存。
