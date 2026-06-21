@@ -18,4 +18,10 @@ if (mismatchedIcon) {
   throw new Error(`public/manifest.webmanifest 图标版本应为 ${version}，发现 ${mismatchedIcon.src}`);
 }
 
+const indexHtml = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const mismatchedIndexVersion = [...indexHtml.matchAll(/\?v=([0-9.]+)/g)].find((match) => match[1] !== version);
+if (mismatchedIndexVersion) {
+  throw new Error(`index.html PWA 资源版本应为 ${version}，发现 ${mismatchedIndexVersion[0]}`);
+}
+
 console.log(`PWA version files match v${version}`);
