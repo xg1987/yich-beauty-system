@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
 import {
   addOperationLog,
@@ -89,6 +91,7 @@ import { getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase } from "./database";
 
 type JsonBody = Record<string, unknown>;
+const execFile = promisify(execFileCallback);
 const aiImageGenerationMaxGlobalSlots = 4;
 const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
 const providerFetchTimeoutMs = 260_000;
@@ -461,6 +464,19 @@ export function createApiServer(database = new BeautyDatabase()) {
         } finally {
           if (locks) database.releaseAiGenerationLocks(locks);
         }
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/marketing-ai/talk-video") {
+        requirePermission(session, "marketing:manage");
+        const body = await readJson(request);
+        const currentData = database.readData();
+        const result = await saveMarketingTalkVideoRecord(currentData, session, body);
+        database.appendMarketingAiResult({
+          record: result.record,
+          log: marketingAiOperationLog(session, result.record),
+        });
+        sendJson(response, 200, result);
+        return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/data-quality/cleanup") {
@@ -2056,6 +2072,451 @@ async function saveLocalAccountAvatar(request: IncomingMessage, userId: string) 
   };
 }
 
+async function saveMarketingTalkVideoRecord(data: AppData, session: UserSession, body: JsonBody) {
+  const videoDataUrl = requiredString(body, "videoDataUrl");
+  const parsed = videoDataUrlToBuffer(videoDataUrl);
+  const maxVideoBytes = 60 * 1024 * 1024;
+  if (parsed.buffer.length > maxVideoBytes) throw new Error("口播视频不能超过 60MB，请缩短录制后再保存");
+  const ratio = optionalString(body, "ratio") === "16:9" ? "16:9" : "9:16";
+  const durationSeconds = Math.max(0, Math.round(Number(body.durationSeconds ?? 0) || 0));
+  const topicTitle = marketingCompliantText(optionalString(body, "topicTitle") || "真人口播");
+  const scriptText = marketingCompliantText(requiredTrimmedText(body, "scriptText", 2000));
+  let transcriptText = marketingCompliantText(optionalString(body, "transcriptText") || scriptText, "", 3000);
+  let transcriptSource: NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["transcriptSource"]> = optionalString(body, "transcriptSource") === "browser-speech" ? "browser-speech" : "script-fallback";
+  const backendTranscript = await transcribeTalkVideoIfUseful(data, parsed.buffer, parsed.contentType, transcriptText, transcriptSource, scriptText);
+  if (backendTranscript) {
+    transcriptText = backendTranscript.text;
+    transcriptSource = "openai-transcription";
+  }
+  const audioEnhancements = talkAudioEnhancementsFromBody(body);
+  const browserSilenceReport = talkSilenceReportFromBody(body);
+  let localSilenceReport: NonNullable<MarketingAiRecord["talkOptimization"]>["silenceTrim"] | undefined;
+  const extension = videoExtensionForContentType(parsed.contentType);
+  let record = marketingAiRecord(data, session, {
+    ...body,
+    channel: "真人口播",
+    marketingNode: topicTitle,
+    marketingGoal: "看词自拍",
+    serviceName: "补水修护",
+  }, {
+    kind: "talk",
+    provider: "local",
+    model: "browser-media-recorder",
+    status: "已完成",
+    elapsedMs: 0,
+    materialKey: `talk:${Date.now()}:${parsed.buffer.length}`,
+  });
+  const key = `marketing-talk/${record.storeId ?? "platform"}/${record.id}.${extension}`;
+  await mkdir(path.dirname(localAssetPath(key)), { recursive: true });
+  await writeFile(localAssetPath(key), parsed.buffer);
+  const originalVideoUrl = assetUrlForKey(key);
+  let optimizedKey: string | undefined;
+  let optimizedVideoUrl: string | undefined;
+  let noiseReduction: NonNullable<MarketingAiRecord["talkOptimization"]>["noiseReduction"] = {
+    status: audioEnhancements.noiseSuppression ? "采集时已启用" : "未启用",
+    method: "browser getUserMedia audio constraints",
+    optimizedBy: "browser",
+  };
+  const uploadedOptimizedDataUrl = optionalString(body, "optimizedVideoDataUrl");
+  if (uploadedOptimizedDataUrl) {
+    const optimized = videoDataUrlToBuffer(uploadedOptimizedDataUrl);
+    if (optimized.buffer.length > maxVideoBytes) throw new Error("优化后口播视频不能超过 60MB");
+    const optimizedExtension = videoExtensionForContentType(optimized.contentType);
+    optimizedKey = `marketing-talk/${record.storeId ?? "platform"}/${record.id}-optimized.${optimizedExtension}`;
+    await mkdir(path.dirname(localAssetPath(optimizedKey)), { recursive: true });
+    await writeFile(localAssetPath(optimizedKey), optimized.buffer);
+    optimizedVideoUrl = assetUrlForKey(optimizedKey);
+    noiseReduction = {
+      status: "已优化",
+      method: "client optimized upload",
+      optimizedBy: "uploaded",
+    };
+  } else {
+    const localOptimization = await optimizeLocalTalkVideo(key, parsed.contentType);
+    if (localOptimization.optimizedKey) {
+      optimizedKey = localOptimization.optimizedKey;
+      optimizedVideoUrl = assetUrlForKey(optimizedKey);
+    }
+    noiseReduction = localOptimization.noiseReduction ?? noiseReduction;
+    if (localOptimization.silenceTrim) {
+      localSilenceReport = localOptimization.silenceTrim;
+    }
+  }
+  const backendSilenceReport = uploadedOptimizedDataUrl ? await detectLocalTalkSilence(localAssetPath(optimizedKey ?? key)) : undefined;
+  const silenceTrim = backendSilenceReport ?? localSilenceReport ?? browserSilenceReport ?? {
+    status: "未检测",
+    method: "not available",
+    note: "浏览器未返回停顿检测，服务端未完成检测",
+  };
+  const talkOptimization: MarketingAiRecord["talkOptimization"] = {
+    transcriptText,
+    transcriptSource,
+    audioEnhancements,
+    noiseReduction,
+    silenceTrim,
+    originalVideoUrl,
+    optimizedVideoUrl,
+    durationSeconds,
+    ratio,
+  };
+  const text = talkVideoRecordText({
+    transcriptText,
+    transcriptSource,
+    scriptText,
+    ratio,
+    durationSeconds,
+    optimization: talkOptimization,
+  });
+  record = {
+    ...record,
+    title: "真人口播",
+    text,
+    videoUrl: optimizedVideoUrl ?? originalVideoUrl,
+    originalVideoUrl,
+    optimizedVideoUrl,
+    videoResolution: ratio,
+    talkOptimization,
+  };
+  return {
+    kind: "talk" as const,
+    provider: "local" as const,
+    model: "browser-media-recorder",
+    text: record.text,
+    videoUrl: record.videoUrl,
+    status: record.status,
+    elapsedMs: 0,
+    record,
+  };
+}
+
+function talkAudioEnhancementsFromBody(body: JsonBody): NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["audioEnhancements"]> {
+  const value = body.audioEnhancements;
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    echoCancellation: source.echoCancellation === true,
+    noiseSuppression: source.noiseSuppression === true,
+    autoGainControl: source.autoGainControl === true,
+  };
+}
+
+async function transcribeTalkVideoIfUseful(
+  data: AppData,
+  buffer: Buffer,
+  contentType: string,
+  currentTranscript: string,
+  currentSource: NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["transcriptSource"]>,
+  scriptText: string,
+) {
+  if (currentSource === "browser-speech" && currentTranscript.trim() && currentTranscript.trim() !== scriptText.trim()) return undefined;
+  if (buffer.length > 25 * 1024 * 1024) return undefined;
+  const apiKey = openAiTranscriptionApiKey(data);
+  if (!apiKey) return undefined;
+  try {
+    const formData = new FormData();
+    formData.append("model", "whisper-1");
+    formData.append("language", "zh");
+    formData.append("response_format", "json");
+    formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), `talk.${videoExtensionForContentType(contentType)}`);
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) return undefined;
+    const text = typeof payload.text === "string" ? marketingCompliantText(payload.text, "", 3000) : "";
+    return text.trim() ? { text } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function openAiTranscriptionApiKey(data: AppData) {
+  const config = aiGenerationConfigFromData(data);
+  if (config.copy.provider === "openai" && config.copy.apiKey.trim()) return config.copy.apiKey.trim();
+  if (config.image.apiKey.trim()) return config.image.apiKey.trim();
+  return "";
+}
+
+function talkSilenceReportFromBody(body: JsonBody): NonNullable<MarketingAiRecord["talkOptimization"]>["silenceTrim"] | undefined {
+  const value = body.silenceReport;
+  if (!value || typeof value !== "object") return undefined;
+  const source = value as Record<string, unknown>;
+  const status = typeof source.status === "string" ? marketingCompliantText(source.status, "", 40) : "已检测";
+  const method = typeof source.method === "string" ? marketingCompliantText(source.method, "", 80) : "browser-audio-rms";
+  const detectedSegments = Number.isFinite(Number(source.detectedSegments)) ? Math.max(0, Math.round(Number(source.detectedSegments))) : undefined;
+  const silentSeconds = Number.isFinite(Number(source.silentSeconds)) ? Math.max(0, Math.round(Number(source.silentSeconds) * 10) / 10) : undefined;
+  const sampleWindowMs = Number.isFinite(Number(source.sampleWindowMs)) ? Math.max(0, Math.round(Number(source.sampleWindowMs))) : undefined;
+  const note = typeof source.note === "string" ? marketingCompliantText(source.note, "", 120) : undefined;
+  return { status, method, detectedSegments, silentSeconds, sampleWindowMs, note };
+}
+
+function talkVideoRecordText(input: {
+  transcriptText: string;
+  transcriptSource: "browser-speech" | "openai-transcription" | "script-fallback";
+  scriptText: string;
+  ratio: "9:16" | "16:9";
+  durationSeconds: number;
+  optimization?: MarketingAiRecord["talkOptimization"];
+}) {
+  const silence = input.optimization?.silenceTrim;
+  const noise = input.optimization?.noiseReduction;
+  return [
+    "【口播字幕】",
+    input.transcriptText,
+    "",
+    "【提词脚本】",
+    input.scriptText,
+    "",
+    "【AI优化】",
+    `自动字幕：${input.transcriptSource === "browser-speech" ? "已识别语音生成" : input.transcriptSource === "openai-transcription" ? "已由后端转写生成" : "使用提词脚本生成"}`,
+    `口播降噪：${noise?.status ?? "已处理"}（${noise?.method ?? "browser getUserMedia audio constraints"}）`,
+    `剪掉停顿：${silence?.status ?? "已检测"}${typeof silence?.detectedSegments === "number" ? `，检测到 ${silence.detectedSegments} 段停顿` : ""}${typeof silence?.silentSeconds === "number" ? `，约 ${silence.silentSeconds} 秒` : ""}`,
+    `视频尺寸：${input.ratio}`,
+    input.durationSeconds ? `视频时长：${input.durationSeconds}秒` : "",
+  ].filter(Boolean).join("\n");
+}
+
+async function optimizeLocalTalkVideo(key: string, contentType: string): Promise<{
+  optimizedKey?: string;
+  noiseReduction?: NonNullable<MarketingAiRecord["talkOptimization"]>["noiseReduction"];
+  silenceTrim?: NonNullable<MarketingAiRecord["talkOptimization"]>["silenceTrim"];
+}> {
+  const ffmpeg = await findLocalFfmpeg();
+  if (!ffmpeg) {
+    return {
+      noiseReduction: {
+        status: "采集时已启用",
+        method: "browser getUserMedia audio constraints",
+        optimizedBy: "browser",
+      },
+    };
+  }
+  const extension = videoExtensionForContentType(contentType);
+  const optimizedKey = key.replace(new RegExp(`\\.${extension}$`), `-optimized.${extension}`);
+  const inputPath = localAssetPath(key);
+  const outputPath = localAssetPath(optimizedKey);
+  const silenceAnalysis = await detectLocalTalkSilenceDetails(inputPath, ffmpeg);
+  try {
+    const trimCommand = buildTalkTrimFfmpegArgs(inputPath, outputPath, extension, silenceAnalysis.keepSegments);
+    if (trimCommand) {
+      await execFile(ffmpeg, trimCommand, { timeout: 180_000, maxBuffer: 1024 * 1024 * 8 });
+    } else {
+      await execFile(ffmpeg, [
+        "-y",
+        "-i",
+        inputPath,
+        "-c:v",
+        "copy",
+        "-af",
+        "afftdn,loudnorm=I=-16:TP=-1.5:LRA=11",
+        outputPath,
+      ], { timeout: 120_000, maxBuffer: 1024 * 1024 * 4 });
+    }
+    return {
+      optimizedKey,
+      noiseReduction: {
+        status: "已优化",
+        method: trimCommand ? "ffmpeg trim/concat + afftdn + loudnorm" : "ffmpeg afftdn + loudnorm",
+        optimizedBy: "ffmpeg",
+      },
+      silenceTrim: silenceAnalysis.report,
+    };
+  } catch {
+    return {
+      noiseReduction: {
+        status: "采集时已启用",
+        method: "browser getUserMedia audio constraints",
+        optimizedBy: "browser",
+      },
+      silenceTrim: silenceAnalysis.report,
+    };
+  }
+}
+
+type TalkSilenceInterval = { start: number; end: number; duration: number };
+type TalkKeepSegment = { start: number; end: number };
+
+async function detectLocalTalkSilenceDetails(filePath: string, ffmpeg: string): Promise<{
+  intervals: TalkSilenceInterval[];
+  keepSegments: TalkKeepSegment[];
+  report: NonNullable<MarketingAiRecord["talkOptimization"]>["silenceTrim"];
+}> {
+  try {
+    const result = await execFile(ffmpeg, [
+      "-hide_banner",
+      "-nostats",
+      "-i",
+      filePath,
+      "-af",
+      "silencedetect=n=-35dB:d=0.45",
+      "-f",
+      "null",
+      "-",
+    ], { timeout: 120_000, maxBuffer: 1024 * 1024 * 4 });
+    const stderr = result.stderr ?? "";
+    const duration = parseFfmpegDuration(stderr);
+    const intervals = parseSilenceIntervals(stderr).filter((item) => item.duration >= 0.45);
+    const keepSegments = duration ? keepSegmentsFromSilence(intervals, duration) : [];
+    const silentSeconds = Math.round(intervals.reduce((sum, value) => sum + value.duration, 0) * 10) / 10;
+    return {
+      intervals,
+      keepSegments,
+      report: {
+        status: intervals.length > 0 && keepSegments.length > 0 ? "已剪掉停顿" : "未发现明显停顿",
+        method: intervals.length > 0 && keepSegments.length > 0 ? "ffmpeg silencedetect + trim/concat" : "ffmpeg silencedetect",
+        detectedSegments: intervals.length,
+        silentSeconds,
+        sampleWindowMs: 450,
+        note: intervals.length > 0 && keepSegments.length > 0 ? "已生成去停顿后的优化视频" : "录制节奏较连续，无需剪掉停顿",
+      },
+    };
+  } catch {
+    return {
+      intervals: [],
+      keepSegments: [],
+      report: {
+        status: "未检测",
+        method: "ffmpeg silencedetect",
+        detectedSegments: 0,
+        silentSeconds: 0,
+        sampleWindowMs: 450,
+        note: "服务端未能完成停顿检测",
+      },
+    };
+  }
+}
+
+function parseFfmpegDuration(stderr: string) {
+  const match = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
+  if (!match) return 0;
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+function parseSilenceIntervals(stderr: string): TalkSilenceInterval[] {
+  const intervals: TalkSilenceInterval[] = [];
+  let currentStart: number | undefined;
+  for (const line of stderr.split("\n")) {
+    const startMatch = /silence_start:\s*([0-9.]+)/.exec(line);
+    if (startMatch) currentStart = Number(startMatch[1]);
+    const endMatch = /silence_end:\s*([0-9.]+)\s*\|\s*silence_duration:\s*([0-9.]+)/.exec(line);
+    if (endMatch && currentStart !== undefined) {
+      const end = Number(endMatch[1]);
+      const duration = Number(endMatch[2]);
+      if (Number.isFinite(currentStart) && Number.isFinite(end) && Number.isFinite(duration)) intervals.push({ start: currentStart, end, duration });
+      currentStart = undefined;
+    }
+  }
+  return intervals;
+}
+
+function keepSegmentsFromSilence(intervals: TalkSilenceInterval[], duration: number): TalkKeepSegment[] {
+  const segments: TalkKeepSegment[] = [];
+  let cursor = 0;
+  for (const interval of intervals) {
+    const start = Math.max(0, Math.min(duration, interval.start));
+    const end = Math.max(0, Math.min(duration, interval.end));
+    if (start - cursor > 0.08) segments.push({ start: cursor, end: start });
+    cursor = Math.max(cursor, end);
+  }
+  if (duration - cursor > 0.08) segments.push({ start: cursor, end: duration });
+  const removedAll = segments.length === 0 || segments.reduce((sum, item) => sum + (item.end - item.start), 0) < 0.2;
+  return removedAll ? [{ start: 0, end: duration }] : segments.slice(0, 12);
+}
+
+function buildTalkTrimFfmpegArgs(inputPath: string, outputPath: string, extension: string, keepSegments: TalkKeepSegment[]) {
+  if (keepSegments.length < 1) return undefined;
+  const keepsWholeVideo = keepSegments.length === 1 && keepSegments[0].start <= 0.01;
+  if (keepsWholeVideo) return undefined;
+  const filterParts: string[] = [];
+  const concatInputs: string[] = [];
+  keepSegments.forEach((segment, index) => {
+    filterParts.push(`[0:v]trim=start=${segment.start.toFixed(3)}:end=${segment.end.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`);
+    filterParts.push(`[0:a]atrim=start=${segment.start.toFixed(3)}:end=${segment.end.toFixed(3)},asetpts=PTS-STARTPTS,afftdn,loudnorm=I=-16:TP=-1.5:LRA=11[a${index}]`);
+    concatInputs.push(`[v${index}][a${index}]`);
+  });
+  filterParts.push(`${concatInputs.join("")}concat=n=${keepSegments.length}:v=1:a=1[outv][outa]`);
+  const isWebm = extension === "webm" || extension === "ogv";
+  return [
+    "-y",
+    "-i",
+    inputPath,
+    "-filter_complex",
+    filterParts.join(";"),
+    "-map",
+    "[outv]",
+    "-map",
+    "[outa]",
+    ...(isWebm ? ["-c:v", "libvpx-vp9", "-b:v", "1M", "-c:a", "libopus"] : ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac"]),
+    outputPath,
+  ];
+}
+
+async function detectLocalTalkSilence(filePath: string): Promise<NonNullable<MarketingAiRecord["talkOptimization"]>["silenceTrim"] | undefined> {
+  const ffmpeg = await findLocalFfmpeg();
+  if (!ffmpeg) return undefined;
+  try {
+    const result = await execFile(ffmpeg, [
+      "-hide_banner",
+      "-nostats",
+      "-i",
+      filePath,
+      "-af",
+      "silencedetect=n=-35dB:d=0.45",
+      "-f",
+      "null",
+      "-",
+    ], { timeout: 120_000, maxBuffer: 1024 * 1024 * 4 });
+    const stderr = result.stderr ?? "";
+    const durations = Array.from(stderr.matchAll(/silence_duration:\s*([0-9.]+)/g)).map((match) => Number(match[1])).filter(Number.isFinite);
+    const silentSeconds = Math.round(durations.reduce((sum, value) => sum + value, 0) * 10) / 10;
+    return {
+      status: durations.length > 0 ? "已生成剪辑点" : "未发现明显停顿",
+      method: "ffmpeg silencedetect",
+      detectedSegments: durations.length,
+      silentSeconds,
+      sampleWindowMs: 450,
+      note: durations.length > 0 ? "已记录可剪掉的停顿片段，用于后续自动剪辑或人工复核" : "录制节奏较连续，无需剪掉停顿",
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+let cachedLocalFfmpeg: string | undefined | null;
+async function findLocalFfmpeg() {
+  if (cachedLocalFfmpeg !== undefined) return cachedLocalFfmpeg ?? undefined;
+  const candidates = [process.env.FFMPEG_PATH, "ffmpeg", "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    try {
+      await execFile(candidate, ["-version"], { timeout: 5000, maxBuffer: 1024 * 256 });
+      cachedLocalFfmpeg = candidate;
+      return candidate;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  cachedLocalFfmpeg = null;
+  return undefined;
+}
+
+function videoDataUrlToBuffer(dataUrl: string) {
+  const match = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(dataUrl);
+  if (!match) throw new Error("口播视频格式不正确");
+  const contentType = match[1].toLowerCase();
+  if (!contentType.startsWith("video/")) throw new Error("请上传视频格式的口播素材");
+  const body = match[3];
+  const buffer = match[2] ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body));
+  return { contentType, buffer };
+}
+
+function videoExtensionForContentType(contentType: string) {
+  if (contentType.includes("mp4")) return "mp4";
+  if (contentType.includes("quicktime")) return "mov";
+  if (contentType.includes("ogg")) return "ogv";
+  return "webm";
+}
+
 async function readLocalR2Usage(): Promise<R2UsageSnapshot> {
   const limitBytes = 10 * 1024 * 1024 * 1024;
   const prefixMap = new Map<string, { objectCount: number; bytes: number }>();
@@ -3091,10 +3552,15 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   text?: string;
   imageDataUrl?: string;
   videoUrl?: string;
+  originalVideoUrl?: string;
+  optimizedVideoUrl?: string;
+  talkOptimization?: MarketingAiRecord["talkOptimization"];
   taskId?: string;
   status?: string;
   errorMessage?: string;
   elapsedMs?: number;
+  materialKey?: string;
+  videoResolution?: string;
   cost?: MarketingAiRecord["cost"];
   costBreakdown?: MarketingAiRecord["costBreakdown"];
   billing?: MarketingAiRecord["billing"];
@@ -3125,10 +3591,15 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     text: result.text ? marketingCompliantText(result.text, "", 6000) : result.text,
     imageDataUrl: result.imageDataUrl,
     videoUrl: result.videoUrl,
+    originalVideoUrl: result.originalVideoUrl,
+    optimizedVideoUrl: result.optimizedVideoUrl,
+    talkOptimization: result.talkOptimization,
     taskId: result.taskId,
     status: result.status,
     errorMessage: result.errorMessage,
     elapsedMs: result.elapsedMs,
+    materialKey: result.materialKey,
+    videoResolution: result.videoResolution,
     cost: result.cost,
     costBreakdown: result.costBreakdown,
     billing: result.billing,
@@ -3435,6 +3906,10 @@ function assetUrlForKey(key: string) {
 function contentTypeForAsset(key: string) {
   if (key.endsWith(".png")) return "image/png";
   if (key.endsWith(".webp")) return "image/webp";
+  if (key.endsWith(".webm")) return "video/webm";
+  if (key.endsWith(".mp4")) return "video/mp4";
+  if (key.endsWith(".mov")) return "video/quicktime";
+  if (key.endsWith(".ogv")) return "video/ogg";
   return "image/jpeg";
 }
 

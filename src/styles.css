@@ -28452,6 +28452,933 @@ textarea,
   color: #92400e !important;
 }
 
+.marketing-talk-entry-layout .marketing-form-panel {
+  padding: 0;
+  border: 0 !important;
+  border-left: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.marketing-talk-entry-layout {
+  gap: 10px;
+}
+
+.marketing-talk-entry-layout .page-hero {
+  min-height: 118px;
+  padding: 14px 18px;
+}
+
+.marketing-talk-entry-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.marketing-talk-entry-hero {
+  min-height: 118px;
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 18px 18px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(111, 66, 193, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(250, 247, 255, 0.92));
+  box-shadow: 0 14px 34px rgba(62, 38, 117, 0.08);
+}
+
+.marketing-talk-entry-hero > span {
+  width: 58px;
+  height: 58px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.42), transparent 36%),
+    linear-gradient(145deg, #6f42c1, #7c3aed);
+  color: #ffffff;
+  box-shadow: 0 13px 26px rgba(111, 66, 193, 0.18);
+}
+
+.marketing-talk-entry-hero svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-entry-hero strong {
+  display: block;
+  color: #241653 !important;
+  font-size: 22px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.marketing-talk-entry-hero p {
+  margin: 8px 0 0;
+  color: rgba(36, 22, 83, 0.68) !important;
+  font-size: 14px;
+  font-weight: 820;
+}
+
+.marketing-talk-entry-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.marketing-talk-entry-action {
+  min-width: 0;
+  min-height: 120px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 9px;
+  padding: 15px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(62, 38, 117, 0.06);
+}
+
+.marketing-talk-entry-action.hot {
+  border-color: rgba(216, 90, 133, 0.18);
+  background: linear-gradient(145deg, rgba(255, 245, 248, 0.96), rgba(255, 255, 255, 0.9));
+}
+
+.marketing-talk-entry-action.draft {
+  border-color: rgba(111, 66, 193, 0.18);
+  background: linear-gradient(145deg, rgba(250, 247, 255, 0.98), rgba(255, 255, 255, 0.9));
+}
+
+.marketing-talk-entry-action > span {
+  width: 42px;
+  height: 42px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 15px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #d84f78, #ef6f91);
+}
+
+.marketing-talk-entry-action.draft > span {
+  background: linear-gradient(145deg, #6f42c1, #7c3aed);
+}
+
+.marketing-talk-entry-action svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-entry-action strong {
+  color: #241653 !important;
+  font-size: 17px;
+  font-weight: 940;
+}
+
+.marketing-talk-entry-action small {
+  color: rgba(36, 22, 83, 0.62) !important;
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.marketing-talk-flow {
+  position: fixed;
+  inset: 0;
+  z-index: 6500;
+  overflow: auto;
+  min-height: var(--yich-visual-viewport-height, 100dvh);
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  width: min(100%, 430px);
+  margin: 0 auto;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  background:
+    radial-gradient(circle at 18% 0%, rgba(111, 66, 193, 0.08), transparent 34%),
+    linear-gradient(180deg, #fbf8ff 0%, #f8f4ff 58%, #fbf9ff 100%);
+  color: #241653;
+  box-shadow: 0 0 0 9999px rgba(19, 15, 32, 0.28);
+}
+
+.marketing-talk-flow-head {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.marketing-talk-flow-head button {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #241653;
+  box-shadow: 0 8px 18px rgba(62, 38, 117, 0.08);
+}
+
+.marketing-talk-flow-head button svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-flow-head > strong {
+  justify-self: center;
+  color: #241653 !important;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.marketing-talk-credit-pill {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.marketing-talk-head-spacer {
+  width: 38px;
+}
+
+.marketing-talk-tabs {
+  position: relative;
+  z-index: 3;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 2px 0 8px;
+  scrollbar-width: none;
+}
+
+.marketing-talk-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.marketing-talk-tabs button {
+  flex: 0 0 auto;
+  height: 34px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  color: rgba(36, 22, 83, 0.66) !important;
+  -webkit-text-fill-color: rgba(36, 22, 83, 0.66);
+  font-size: 13px;
+  font-weight: 880;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.marketing-talk-tabs button.active {
+  border-color: #6f42c1;
+  background: rgba(111, 66, 193, 0.08);
+  color: #5b2fb7 !important;
+  -webkit-text-fill-color: #5b2fb7;
+  box-shadow: inset 0 0 0 1px rgba(111, 66, 193, 0.08);
+}
+
+.marketing-talk-topic-list {
+  display: grid;
+  gap: 12px;
+}
+
+.marketing-talk-topic-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 28px rgba(62, 38, 117, 0.06);
+}
+
+.marketing-talk-topic-title {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.marketing-talk-topic-title > span {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #168575, #26a69a);
+  color: #ffffff;
+}
+
+.marketing-talk-topic-card[data-tone="amber"] .marketing-talk-topic-title > span {
+  background: linear-gradient(145deg, #c47f1b, #e59a25);
+}
+
+.marketing-talk-topic-card[data-tone="blue"] .marketing-talk-topic-title > span {
+  background: linear-gradient(145deg, #2563eb, #4f7df3);
+}
+
+.marketing-talk-topic-title svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-topic-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #241653 !important;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketing-talk-topic-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.marketing-talk-topic-tags em {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #6f42c1 !important;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 840;
+}
+
+.marketing-talk-topic-card p {
+  margin: 0;
+  color: rgba(36, 22, 83, 0.66) !important;
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.55;
+}
+
+.marketing-talk-topic-card > button,
+.marketing-talk-outline-action {
+  min-height: 44px;
+  border: 1px solid rgba(111, 66, 193, 0.42);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #5b2fb7;
+  font-size: 15px;
+  font-weight: 920;
+}
+
+.marketing-talk-outline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.marketing-talk-outline-action svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-shoot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 7000;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: min(100%, 430px);
+  margin: 0 auto;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: #1f1a18;
+  color: #ffffff;
+  box-shadow: 0 0 0 9999px rgba(19, 15, 32, 0.42);
+}
+
+.marketing-talk-camera-video,
+.marketing-talk-camera-fallback,
+.marketing-talk-shoot-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.marketing-talk-camera-video {
+  z-index: 0;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.marketing-talk-camera-fallback {
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 34%, rgba(255, 255, 255, 0.24), transparent 15%),
+    linear-gradient(145deg, #8b755c, #3f342c 62%, #251f1b);
+}
+
+.marketing-talk-camera-fallback.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.marketing-talk-salon-bg {
+  position: absolute;
+  inset: 0;
+  opacity: 0.72;
+  filter: blur(2px);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0 1px, transparent 1px 68px),
+    radial-gradient(circle at 32% 22%, rgba(245, 221, 174, 0.32), transparent 18%),
+    radial-gradient(circle at 80% 26%, rgba(246, 231, 206, 0.22), transparent 20%);
+}
+
+.marketing-talk-person {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  width: 210px;
+  height: 360px;
+  transform: translateX(-50%);
+  filter: blur(1.4px);
+}
+
+.marketing-talk-face {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  width: 112px;
+  height: 142px;
+  border-radius: 46% 46% 44% 44%;
+  background: linear-gradient(180deg, #d9b494, #b7896e);
+  transform: translateX(-50%);
+}
+
+.marketing-talk-body {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 210px;
+  height: 235px;
+  border-radius: 48px 48px 20px 20px;
+  background: linear-gradient(180deg, #25201d, #151412);
+  transform: translateX(-50%);
+}
+
+.marketing-talk-shoot-shade {
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 24%, transparent 62%, rgba(0, 0, 0, 0.48)),
+    radial-gradient(circle at 50% 52%, transparent 0 22%, rgba(0, 0, 0, 0.12) 48%, rgba(0, 0, 0, 0.22) 100%);
+}
+
+.marketing-talk-shoot-head,
+.marketing-talk-prompter,
+.marketing-talk-frame-guide,
+.marketing-talk-ratio-chip,
+.marketing-talk-recording-status,
+.marketing-talk-camera-note,
+.marketing-talk-shoot-controls {
+  position: relative;
+  z-index: 2;
+}
+
+.marketing-talk-shoot-head {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.marketing-talk-shoot-head > button {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  color: #ffffff;
+}
+
+.marketing-talk-shoot-head svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-shoot-head strong {
+  justify-self: center;
+  color: #ffffff !important;
+  font-size: 16px;
+  font-weight: 920;
+}
+
+.marketing-talk-shoot-head > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.marketing-talk-shoot-head span,
+.marketing-talk-shoot-head div button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.38);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 840;
+}
+
+.marketing-talk-shoot-head div button.active {
+  background: linear-gradient(135deg, #6f42c1, #7c3aed);
+}
+
+.marketing-talk-prompter {
+  align-self: start;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.48);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+}
+
+.marketing-talk-prompter p {
+  margin: 0;
+  color: #ffffff !important;
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 930;
+  line-height: 1.48;
+  letter-spacing: 0;
+}
+
+.marketing-talk-prompter mark,
+.marketing-talk-result-video mark {
+  padding: 0;
+  background: transparent;
+  color: #22c3ad;
+  font-weight: 950;
+}
+
+.marketing-talk-prompter mark.orange,
+.marketing-talk-result-video mark:first-of-type {
+  color: #f59e0b;
+}
+
+.marketing-talk-frame-guide {
+  position: absolute;
+  left: 50%;
+  top: 41%;
+  width: 214px;
+  height: 286px;
+  border: 3px dashed rgba(255, 255, 255, 0.86);
+  border-bottom-color: transparent;
+  border-radius: 50% 50% 28% 28%;
+  transform: translate(-50%, -50%);
+}
+
+.marketing-talk-ratio-chip {
+  position: absolute;
+  right: 16px;
+  top: 48%;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 880;
+}
+
+.marketing-talk-recording-status {
+  align-self: end;
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  margin-bottom: 96px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.48);
+  color: #ffffff;
+}
+
+.marketing-talk-recording-status span {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.16);
+}
+
+.marketing-talk-recording-status strong {
+  color: #ffffff !important;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.marketing-talk-recording-status em {
+  color: rgba(255, 255, 255, 0.86) !important;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 820;
+}
+
+.marketing-talk-camera-note {
+  align-self: end;
+  justify-self: center;
+  margin: 0 0 72px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.44);
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.marketing-talk-shoot-controls {
+  align-self: end;
+  display: grid;
+  grid-template-columns: 70px 1fr 70px;
+  align-items: center;
+  justify-items: center;
+  gap: 10px;
+}
+
+.marketing-talk-shoot-controls button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 860;
+}
+
+.marketing-talk-shoot-controls button svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-record-button {
+  width: 82px;
+  height: 82px;
+  display: inline-grid !important;
+  place-items: center;
+  border: 4px solid rgba(255, 255, 255, 0.92) !important;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.marketing-talk-record-button svg {
+  width: 40px;
+  height: 40px;
+  padding: 9px;
+  border-radius: 14px;
+  background: #ef4444;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.marketing-talk-result-preview {
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 28px rgba(62, 38, 117, 0.08);
+}
+
+.marketing-talk-result-video {
+  position: relative;
+  height: 214px;
+  min-height: 214px;
+  overflow: hidden;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 82% 24%, rgba(255, 255, 255, 0.4), transparent 18%),
+    linear-gradient(145deg, #9b8266, #594739 58%, #302721);
+}
+
+.marketing-talk-result-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.marketing-talk-result-person {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 154px;
+  height: 190px;
+  border-radius: 58px 58px 0 0;
+  background:
+    radial-gradient(circle at 50% 34%, #c89b7d 0 32px, transparent 34px),
+    linear-gradient(180deg, transparent 0 64px, #201c1a 66px 100%);
+  filter: blur(1.1px);
+  transform: translateX(-50%);
+}
+
+.marketing-talk-result-video > button {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 58px;
+  height: 58px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.46);
+  color: #ffffff;
+  transform: translate(-50%, -50%);
+}
+
+.marketing-talk-video-badge,
+.marketing-talk-topic-badge {
+  position: absolute;
+  top: 12px;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.46);
+  color: #ffffff !important;
+  font-size: 12px;
+  font-weight: 860;
+}
+
+.marketing-talk-video-badge {
+  left: 12px;
+}
+
+.marketing-talk-topic-badge {
+  right: 12px;
+  background: linear-gradient(135deg, #6f42c1, #7c3aed);
+}
+
+.marketing-talk-topic-badge svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-result-video p {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 18px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #ffffff !important;
+  font-size: 16px;
+  font-weight: 880;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.marketing-talk-result-list {
+  display: grid;
+  gap: 10px;
+}
+
+.marketing-talk-result-row {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 22px rgba(62, 38, 117, 0.05);
+}
+
+.marketing-talk-result-row > span {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.marketing-talk-result-row[data-tone="teal"] > span,
+.marketing-talk-result-row[data-tone="green"] > span {
+  background: rgba(22, 133, 117, 0.1);
+  color: #168575;
+}
+
+.marketing-talk-result-row[data-tone="purple"] > span {
+  background: rgba(111, 66, 193, 0.1);
+  color: #6f42c1;
+}
+
+.marketing-talk-result-row[data-tone="rose"] > span {
+  background: rgba(213, 45, 111, 0.1);
+  color: #d52d6f;
+}
+
+.marketing-talk-result-row svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.marketing-talk-result-row div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.marketing-talk-result-row strong {
+  overflow: hidden;
+  color: #241653 !important;
+  font-size: 15px;
+  font-weight: 940;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketing-talk-result-row small {
+  overflow: hidden;
+  color: rgba(36, 22, 83, 0.62) !important;
+  font-size: 12px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketing-talk-result-row em {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(22, 133, 117, 0.1);
+  color: #168575 !important;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 860;
+  white-space: nowrap;
+}
+
+.marketing-talk-result-generate-row button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.3);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #6f42c1;
+  font-size: 12px;
+  font-weight: 880;
+}
+
+.marketing-talk-result-actions {
+  position: sticky;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  padding-top: 8px;
+  background: linear-gradient(180deg, rgba(250, 247, 255, 0), rgba(250, 247, 255, 0.96) 32%, #fbf8ff);
+}
+
+.marketing-talk-result-actions button {
+  min-height: 54px;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 920;
+}
+
+.marketing-talk-save-error,
+.marketing-talk-save-success {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 860;
+  line-height: 1.45;
+}
+
+.marketing-talk-save-error {
+  border: 1px solid rgba(190, 18, 60, 0.16);
+  background: rgba(255, 241, 242, 0.92);
+  color: #be123c !important;
+}
+
+.marketing-talk-save-success {
+  border: 1px solid rgba(22, 133, 117, 0.16);
+  background: rgba(236, 253, 245, 0.92);
+  color: #168575 !important;
+}
+
+.marketing-talk-optimization-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.marketing-talk-optimization-details article {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 10px;
+  background: rgba(248, 245, 255, 0.76);
+}
+
+.marketing-talk-optimization-details span {
+  color: rgba(36, 22, 83, 0.58) !important;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.marketing-talk-optimization-details strong {
+  overflow: hidden;
+  color: #241653 !important;
+  font-size: 13px;
+  font-weight: 920;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .marketing-type-credit-pill {
   margin-left: auto;
   min-height: 32px;
@@ -34202,5 +35129,41 @@ img.brand-icon-mark {
     font-size: 12px !important;
     text-align: left !important;
     letter-spacing: 0 !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .marketing-center-page.marketing-talk-entry-layout {
+    gap: 8px !important;
+  }
+
+  .marketing-center-page.marketing-talk-entry-layout .page-hero {
+    height: 108px !important;
+    min-height: 108px !important;
+    padding: 10px 16px !important;
+  }
+
+  .marketing-center-page.marketing-talk-entry-layout .page-hero h2 {
+    font-size: 24px !important;
+  }
+
+  .marketing-center-page.marketing-talk-entry-layout > .marketing-type-panel .marketing-output-mode-grid {
+    gap: 8px !important;
+  }
+
+  .marketing-center-page.marketing-talk-entry-layout > .marketing-type-panel .marketing-output-mode-grid button {
+    height: 74px !important;
+    min-height: 74px !important;
+    padding: 9px 10px !important;
+  }
+
+  .marketing-center-page.marketing-talk-entry-layout .marketing-talk-entry-hero {
+    min-height: 104px !important;
+    padding: 14px 16px !important;
+  }
+
+  .marketing-center-page.marketing-talk-entry-layout .marketing-talk-entry-action {
+    min-height: 104px !important;
+    padding: 13px !important;
   }
 }

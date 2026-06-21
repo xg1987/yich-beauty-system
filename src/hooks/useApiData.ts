@@ -226,6 +226,21 @@ export function useApiData() {
       }
       return result;
     },
+    saveMarketingTalkVideo: async (...args: Parameters<typeof client.saveMarketingTalkVideo>) => {
+      const result = await client.saveMarketingTalkVideo(...args);
+      if (result.record) {
+        setData((current) => current
+          ? {
+              ...current,
+              marketingAiRecords: [
+                result.record!,
+                ...(current.marketingAiRecords ?? []).filter((record) => record.id !== result.record!.id),
+              ],
+            }
+          : current);
+      }
+      return result;
+    },
   }), [client]);
 
   return {

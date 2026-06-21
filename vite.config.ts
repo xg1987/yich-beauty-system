@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf-8"));
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? "http://localhost:8787";
 
 export default defineConfig({
   plugins: [react()],
@@ -31,7 +32,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://localhost:8787",
+      "/api": apiProxyTarget,
     },
   },
 });

@@ -581,6 +581,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(200, { kind: "video", ...result, record: nextRecord });
     }
 
+    if (context.request.method === "POST" && pathname === "/api/marketing-ai/talk-video") {
+      requirePermission(session, "marketing:manage");
+      const body = await readJson(context.request);
+      const currentData = await database.readData();
+      const result = await saveMarketingTalkVideoRecord(context.env, currentData, session, body);
+      await database.appendMarketingAiResult({
+        record: result.record,
+        log: marketingAiOperationLog(session, result.record),
+      });
+      return sendJson(200, result);
+    }
+
     if (context.request.method === "POST" && pathname === "/api/data-quality/cleanup") {
       requirePermission(session, "settings:view");
       if (session.user.role !== "owner") {
@@ -2164,6 +2176,234 @@ async function uploadAccountAvatar(request: Request, env: Env, session: UserSess
   };
 }
 
+async function saveMarketingTalkVideoRecord(env: Env, data: AppData, session: UserSession, body: JsonBody) {
+  const bucket = getR2Bucket(env);
+  if (!bucket) throw new Error("当前项目未绑定 R2 Bucket，无法保存口播视频");
+  const videoDataUrl = requiredString(body, "videoDataUrl");
+  const parsed = await videoDataUrlToBlob(videoDataUrl);
+  const maxVideoBytes = 60 * 1024 * 1024;
+  if (parsed.blob.size > maxVideoBytes) throw new Error("口播视频不能超过 60MB，请缩短录制后再保存");
+  const ratio = optionalString(body, "ratio") === "16:9" ? "16:9" : "9:16";
+  const durationSeconds = Math.max(0, Math.round(Number(body.durationSeconds ?? 0) || 0));
+  const topicTitle = marketingCompliantText(optionalString(body, "topicTitle") || "真人口播");
+  const scriptText = marketingCompliantText(requiredTrimmedText(body, "scriptText", 2000));
+  let transcriptText = marketingCompliantText(optionalString(body, "transcriptText") || scriptText, "", 3000);
+  let transcriptSource: NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["transcriptSource"]> = optionalString(body, "transcriptSource") === "browser-speech" ? "browser-speech" : "script-fallback";
+  const backendTranscript = await transcribeTalkVideoIfUseful(data, parsed.blob, parsed.contentType, transcriptText, transcriptSource, scriptText);
+  if (backendTranscript) {
+    transcriptText = backendTranscript.text;
+    transcriptSource = "openai-transcription";
+  }
+  const audioEnhancements = talkAudioEnhancementsFromBody(body);
+  const silenceTrim = talkSilenceReportFromBody(body) ?? {
+    status: "已保存待复核",
+    method: "browser media capture",
+    note: "部署端已保存口播素材；如浏览器未返回检测报告，可后续进入剪辑复核",
+  };
+  const extension = videoExtensionForContentType(parsed.contentType);
+  let record = marketingAiRecord(data, session, {
+    ...body,
+    channel: "真人口播",
+    marketingNode: topicTitle,
+    marketingGoal: "看词自拍",
+    serviceName: "补水修护",
+  }, {
+    kind: "talk",
+    provider: "local",
+    model: "browser-media-recorder",
+    status: "已完成",
+    elapsedMs: 0,
+    materialKey: `talk:${Date.now()}:${parsed.blob.size}`,
+  });
+  const key = `marketing-talk/${record.storeId ?? "platform"}/${record.id}.${extension}`;
+  await bucket.put(key, parsed.blob, {
+    httpMetadata: { contentType: parsed.contentType },
+    customMetadata: {
+      recordId: record.id,
+      userId: record.createdBy,
+      storeId: record.storeId ?? "",
+      ratio,
+      uploadedAt: nowIso(),
+    },
+  });
+  const originalVideoUrl = assetUrlForKey(key);
+  let optimizedVideoUrl: string | undefined;
+  let noiseReduction: NonNullable<MarketingAiRecord["talkOptimization"]>["noiseReduction"] = {
+    status: audioEnhancements.noiseSuppression ? "采集时已启用" : "未启用",
+    method: "browser getUserMedia audio constraints",
+    optimizedBy: "browser",
+  };
+  const uploadedOptimizedDataUrl = optionalString(body, "optimizedVideoDataUrl");
+  if (uploadedOptimizedDataUrl) {
+    const optimized = await videoDataUrlToBlob(uploadedOptimizedDataUrl);
+    if (optimized.blob.size > maxVideoBytes) throw new Error("优化后口播视频不能超过 60MB");
+    const optimizedExtension = videoExtensionForContentType(optimized.contentType);
+    const optimizedKey = `marketing-talk/${record.storeId ?? "platform"}/${record.id}-optimized.${optimizedExtension}`;
+    await bucket.put(optimizedKey, optimized.blob, {
+      httpMetadata: { contentType: optimized.contentType },
+      customMetadata: {
+        recordId: record.id,
+        userId: record.createdBy,
+        storeId: record.storeId ?? "",
+        ratio,
+        optimized: "true",
+        uploadedAt: nowIso(),
+      },
+    });
+    optimizedVideoUrl = assetUrlForKey(optimizedKey);
+    noiseReduction = {
+      status: "已优化",
+      method: "client optimized upload",
+      optimizedBy: "uploaded",
+    };
+  }
+  const talkOptimization: MarketingAiRecord["talkOptimization"] = {
+    transcriptText,
+    transcriptSource,
+    audioEnhancements,
+    noiseReduction,
+    silenceTrim,
+    originalVideoUrl,
+    optimizedVideoUrl,
+    durationSeconds,
+    ratio,
+  };
+  const text = talkVideoRecordText({
+    transcriptText,
+    transcriptSource,
+    scriptText,
+    ratio,
+    durationSeconds,
+    optimization: talkOptimization,
+  });
+  record = {
+    ...record,
+    title: "真人口播",
+    text,
+    videoUrl: optimizedVideoUrl ?? originalVideoUrl,
+    originalVideoUrl,
+    optimizedVideoUrl,
+    videoResolution: ratio,
+    talkOptimization,
+  };
+  return {
+    kind: "talk" as const,
+    provider: "local" as const,
+    model: "browser-media-recorder",
+    text: record.text,
+    videoUrl: record.videoUrl,
+    status: record.status,
+    elapsedMs: 0,
+    record,
+  };
+}
+
+function talkAudioEnhancementsFromBody(body: JsonBody): NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["audioEnhancements"]> {
+  const value = body.audioEnhancements;
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    echoCancellation: source.echoCancellation === true,
+    noiseSuppression: source.noiseSuppression === true,
+    autoGainControl: source.autoGainControl === true,
+  };
+}
+
+async function transcribeTalkVideoIfUseful(
+  data: AppData,
+  blob: Blob,
+  contentType: string,
+  currentTranscript: string,
+  currentSource: NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["transcriptSource"]>,
+  scriptText: string,
+) {
+  if (currentSource === "browser-speech" && currentTranscript.trim() && currentTranscript.trim() !== scriptText.trim()) return undefined;
+  if (blob.size > 25 * 1024 * 1024) return undefined;
+  const apiKey = openAiTranscriptionApiKey(data);
+  if (!apiKey) return undefined;
+  try {
+    const formData = new FormData();
+    formData.append("model", "whisper-1");
+    formData.append("language", "zh");
+    formData.append("response_format", "json");
+    formData.append("file", blob, `talk.${videoExtensionForContentType(contentType)}`);
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+    if (!response.ok) return undefined;
+    const text = typeof payload.text === "string" ? marketingCompliantText(payload.text, "", 3000) : "";
+    return text.trim() ? { text } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function openAiTranscriptionApiKey(data: AppData) {
+  const config = aiGenerationConfigFromData(data);
+  if (config.copy.provider === "openai" && config.copy.apiKey.trim()) return config.copy.apiKey.trim();
+  if (config.image.apiKey.trim()) return config.image.apiKey.trim();
+  return "";
+}
+
+function talkSilenceReportFromBody(body: JsonBody): NonNullable<MarketingAiRecord["talkOptimization"]>["silenceTrim"] | undefined {
+  const value = body.silenceReport;
+  if (!value || typeof value !== "object") return undefined;
+  const source = value as Record<string, unknown>;
+  const status = typeof source.status === "string" ? marketingCompliantText(source.status, "", 40) : "已检测";
+  const method = typeof source.method === "string" ? marketingCompliantText(source.method, "", 80) : "browser-audio-rms";
+  const detectedSegments = Number.isFinite(Number(source.detectedSegments)) ? Math.max(0, Math.round(Number(source.detectedSegments))) : undefined;
+  const silentSeconds = Number.isFinite(Number(source.silentSeconds)) ? Math.max(0, Math.round(Number(source.silentSeconds) * 10) / 10) : undefined;
+  const sampleWindowMs = Number.isFinite(Number(source.sampleWindowMs)) ? Math.max(0, Math.round(Number(source.sampleWindowMs))) : undefined;
+  const note = typeof source.note === "string" ? marketingCompliantText(source.note, "", 120) : undefined;
+  return { status, method, detectedSegments, silentSeconds, sampleWindowMs, note };
+}
+
+function talkVideoRecordText(input: {
+  transcriptText: string;
+  transcriptSource: "browser-speech" | "openai-transcription" | "script-fallback";
+  scriptText: string;
+  ratio: "9:16" | "16:9";
+  durationSeconds: number;
+  optimization?: MarketingAiRecord["talkOptimization"];
+}) {
+  const silence = input.optimization?.silenceTrim;
+  const noise = input.optimization?.noiseReduction;
+  return [
+    "【口播字幕】",
+    input.transcriptText,
+    "",
+    "【提词脚本】",
+    input.scriptText,
+    "",
+    "【AI优化】",
+    `自动字幕：${input.transcriptSource === "browser-speech" ? "已识别语音生成" : input.transcriptSource === "openai-transcription" ? "已由后端转写生成" : "使用提词脚本生成"}`,
+    `口播降噪：${noise?.status ?? "已处理"}（${noise?.method ?? "browser getUserMedia audio constraints"}）`,
+    `剪掉停顿：${silence?.status ?? "已检测"}${typeof silence?.detectedSegments === "number" ? `，检测到 ${silence.detectedSegments} 段停顿` : ""}${typeof silence?.silentSeconds === "number" ? `，约 ${silence.silentSeconds} 秒` : ""}`,
+    `视频尺寸：${input.ratio}`,
+    input.durationSeconds ? `视频时长：${input.durationSeconds}秒` : "",
+  ].filter(Boolean).join("\n");
+}
+
+async function videoDataUrlToBlob(dataUrl: string) {
+  const match = /^data:([^;,]+)(;base64)?,/s.exec(dataUrl);
+  if (!match) throw new Error("口播视频格式不正确");
+  const contentType = match[1].toLowerCase();
+  if (!contentType.startsWith("video/")) throw new Error("请上传视频格式的口播素材");
+  const response = await fetch(dataUrl);
+  if (!response.ok) throw new Error("口播视频读取失败");
+  const blob = await response.blob();
+  return { contentType: blob.type || contentType, blob };
+}
+
+function videoExtensionForContentType(contentType: string) {
+  if (contentType.includes("mp4")) return "mp4";
+  if (contentType.includes("quicktime")) return "mov";
+  if (contentType.includes("ogg")) return "ogv";
+  return "webm";
+}
+
 async function readR2Usage(env: Env): Promise<R2UsageSnapshot> {
   const bucket = getR2Bucket(env);
   const limitBytes = 10 * 1024 * 1024 * 1024;
@@ -3396,6 +3636,9 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   text?: string;
   imageDataUrl?: string;
   videoUrl?: string;
+  originalVideoUrl?: string;
+  optimizedVideoUrl?: string;
+  talkOptimization?: MarketingAiRecord["talkOptimization"];
   taskId?: string;
   status?: string;
   errorMessage?: string;
@@ -3417,10 +3660,10 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     return value ? marketingCompliantText(value) : undefined;
   };
   const isProductImageRecord = result.kind === "image";
-  const materialKey = marketingMaterialKey(body, result.kind);
-  const videoResolution = result.kind === "video" && aiVideoResolutions.includes(body.videoResolution as AiVideoResolution)
+  const materialKey = result.materialKey ?? marketingMaterialKey(body, result.kind);
+  const videoResolution = result.videoResolution ?? (result.kind === "video" && aiVideoResolutions.includes(body.videoResolution as AiVideoResolution)
     ? body.videoResolution as string
-    : undefined;
+    : undefined);
   return {
     id: makeId("mar"),
     storeId: sessionStoreId(data, session),
@@ -3437,6 +3680,9 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     text: result.text ? marketingCompliantText(result.text, "", 6000) : result.text,
     imageDataUrl: result.imageDataUrl,
     videoUrl: result.videoUrl,
+    originalVideoUrl: result.originalVideoUrl,
+    optimizedVideoUrl: result.optimizedVideoUrl,
+    talkOptimization: result.talkOptimization,
     taskId: result.taskId,
     status: result.status,
     errorMessage: result.errorMessage,

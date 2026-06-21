@@ -91,7 +91,7 @@ export type AiTestVideoResult = {
 export type MarketingAiGenerateKind = "copy" | "image" | "video" | "talk";
 export type MarketingAiGenerateResult = {
   kind: MarketingAiGenerateKind;
-  provider: "openai" | "deepseek" | AiVideoProviderKey;
+  provider: "openai" | "deepseek" | AiVideoProviderKey | "local";
   model: string;
   text?: string;
   usage?: unknown;
@@ -179,6 +179,36 @@ export function createApiClient(getToken: () => string | undefined) {
       token: getToken(),
       timeoutMs: REQUEST_TIMEOUT_MS,
       timeoutMessage: "产品图识别超时，请手动填写产品详情或稍后重试",
+    }),
+    saveMarketingTalkVideo: (body: {
+      videoDataUrl: string;
+      optimizedVideoDataUrl?: string;
+      mimeType: string;
+      ratio: "9:16" | "16:9";
+      durationSeconds: number;
+      topicTitle: string;
+      scriptText: string;
+      transcriptText?: string;
+      transcriptSource?: "browser-speech" | "openai-transcription" | "script-fallback";
+      audioEnhancements?: {
+        echoCancellation?: boolean;
+        noiseSuppression?: boolean;
+        autoGainControl?: boolean;
+      };
+      silenceReport?: {
+        status: string;
+        method: string;
+        detectedSegments?: number;
+        silentSeconds?: number;
+        sampleWindowMs?: number;
+        note?: string;
+      };
+    }) => request<MarketingAiGenerateResult>("/api/marketing-ai/talk-video", {
+      method: "POST",
+      body,
+      token: getToken(),
+      timeoutMs: AI_GENERATION_TIMEOUT_MS,
+      timeoutMessage: "口播视频保存时间较长，请稍后到生成记录查看",
     }),
     generateMarketingAi: (body: {
       kind: MarketingAiGenerateKind;

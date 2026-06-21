@@ -45,6 +45,33 @@ export type MarketingAiCost = {
 
 export type MarketingAiCostBreakdown = Partial<Record<"text" | "image" | "video", MarketingAiCost>>;
 
+export type MarketingTalkOptimization = {
+  transcriptText?: string;
+  transcriptSource?: "browser-speech" | "openai-transcription" | "script-fallback";
+  audioEnhancements?: {
+    echoCancellation?: boolean;
+    noiseSuppression?: boolean;
+    autoGainControl?: boolean;
+  };
+  noiseReduction?: {
+    status: string;
+    method: string;
+    optimizedBy?: "browser" | "ffmpeg" | "uploaded";
+  };
+  silenceTrim?: {
+    status: string;
+    method: string;
+    detectedSegments?: number;
+    silentSeconds?: number;
+    sampleWindowMs?: number;
+    note?: string;
+  };
+  originalVideoUrl?: string;
+  optimizedVideoUrl?: string;
+  durationSeconds?: number;
+  ratio?: "9:16" | "16:9";
+};
+
 export type MarketingAiRecord = {
   id: string;
   storeId?: string;
@@ -61,6 +88,9 @@ export type MarketingAiRecord = {
   text?: string;
   imageDataUrl?: string;
   videoUrl?: string;
+  originalVideoUrl?: string;
+  optimizedVideoUrl?: string;
+  talkOptimization?: MarketingTalkOptimization;
   taskId?: string;
   status?: string;
   errorMessage?: string;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, CakeSlice, CalendarCheck, Copy, Download, Eye, Gem, Gift, Hand, Image as ImageIcon, ImagePlus, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, Package, PartyPopper, Plus, Scissors, ShieldCheck, Sparkles, Store, UserRound, Video, X } from "lucide-react";
+import { ArrowLeft, AudioLines, BookOpen, CakeSlice, CalendarCheck, Camera, Captions, CheckCircle2, Copy, Download, Eye, Flame, Gem, Gift, Hand, Image as ImageIcon, ImagePlus, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, Package, PartyPopper, PenLine, Play, Plus, RotateCcw, Save, Scissors, ShieldCheck, Sparkles, Square, Store, UserRound, Video, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -19,6 +19,24 @@ import {
 type MarketingViewKey = "content" | "records";
 type MarketingGenerationKind = "copy" | "image" | "video" | "talk";
 type MarketingCopyOutputMode = "text" | "image" | "poster";
+type TalkFlowStep = "entry" | "script" | "shoot" | "result";
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: { results: ArrayLike<{ 0?: { transcript?: string }; isFinal?: boolean }> }) => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type TalkSilenceReport = {
+  status: string;
+  method: string;
+  detectedSegments?: number;
+  silentSeconds?: number;
+  sampleWindowMs?: number;
+  note?: string;
+};
 type MarketingNode = { title: string; badge: string; description: string; hint?: string; dateLabel?: string };
 type BirthdayMarketingTask = {
   id: string;
@@ -148,7 +166,7 @@ const generationModes: Array<{ kind: MarketingGenerationKind; title: string; ico
   { kind: "copy", title: "获客图文案", icon: MessageSquarePlus },
   { kind: "image", title: "产品海报", icon: ImagePlus },
   { kind: "video", title: "产品视频", icon: Video },
-  { kind: "talk", title: "口播脚本", icon: MicVocal, locked: true, status: "调试中" },
+  { kind: "talk", title: "真人口播", icon: MicVocal, status: "出镜+提词" },
 ];
 const posterStyles = ["东方美学风", "节气设计图", "轻奢护理风", "小红书种草", "医美极简风", "国潮草本风", "香氛生活风", "高端沙龙风"];
 const posterStyleTones: Record<string, MarketingStyleTone> = {
@@ -299,6 +317,40 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     icon: Scissors,
   },
 };
+const talkTopicTabs = ["热门选题", "产品介绍", "项目科普", "客户关怀", "活动说明"];
+const talkTopics: Array<{ id: string; title: string; description: string; tags: string[]; icon: typeof Sparkles; tone: "teal" | "amber" | "blue" }> = [
+  {
+    id: "season-dry",
+    title: "为什么换季脸干、泛红？",
+    description: "从原因、表现到护理建议，顾客更容易理解。",
+    tags: ["适合真人讲解", "皮肤管理"],
+    icon: MessageCircle,
+    tone: "teal",
+  },
+  {
+    id: "first-repair",
+    title: "第一次做补水修护要注意什么？",
+    description: "流程、感受、频次建议，帮新客建立信任。",
+    tags: ["适合新客", "项目科普"],
+    icon: Sparkles,
+    tone: "amber",
+  },
+  {
+    id: "home-care",
+    title: "在家护肤最容易踩的3个坑",
+    description: "常见误区加正确做法，实用干货更易传播。",
+    tags: ["适合客户关怀", "口播干货"],
+    icon: ShieldCheck,
+    tone: "blue",
+  },
+];
+const talkResultItems: Array<{ title: string; subtitle: string; status: string; icon: typeof Sparkles; tone: "blue" | "teal" | "green" | "purple" | "rose" }> = [
+  { title: "自动字幕", subtitle: "识别语音，生成同步字幕", status: "已生成", icon: Captions, tone: "blue" },
+  { title: "口播降噪", subtitle: "去除背景杂音，提升音质", status: "已优化", icon: AudioLines, tone: "teal" },
+  { title: "剪掉停顿", subtitle: "智能剪辑停顿和冗余片段", status: "已处理", icon: Scissors, tone: "green" },
+  { title: "封面标题", subtitle: "生成吸引封面标题", status: "3个", icon: ImageIcon, tone: "purple" },
+  { title: "发布文案", subtitle: "适配朋友圈/小红书文案", status: "朋友圈/小红书", icon: MessageSquarePlus, tone: "rose" },
+];
 const MAX_MARKETING_ASSET_BYTES = 8 * 1024 * 1024;
 const USD_TO_CNY_DISPLAY_RATE = AI_CREDIT_CNY_PER_USD;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -331,6 +383,83 @@ function readMarketingImageFile(file: File): Promise<string> {
   });
 }
 
+function readBlobAsDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("视频读取失败"));
+    };
+    reader.onerror = () => reject(new Error("视频读取失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function preferredTalkVideoMimeType() {
+  const candidates = [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+    "video/mp4",
+  ];
+  return candidates.find((item) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(item)) || "";
+}
+
+function talkTranscriptSourceLabel(source?: "browser-speech" | "openai-transcription" | "script-fallback") {
+  if (source === "browser-speech") return "语音识别";
+  if (source === "openai-transcription") return "后端转写";
+  return "提词脚本";
+}
+
+async function analyzeTalkAudioSilence(blob: Blob): Promise<TalkSilenceReport> {
+  const AudioContextCtor = (window as typeof window & {
+    AudioContext?: typeof AudioContext;
+    webkitAudioContext?: typeof AudioContext;
+  }).AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextCtor) {
+    return { status: "未检测", method: "browser-audio-rms", note: "当前浏览器不支持音频分析" };
+  }
+  const context = new AudioContextCtor();
+  try {
+    const audioBuffer = await context.decodeAudioData(await blob.arrayBuffer());
+    const sampleRate = audioBuffer.sampleRate;
+    const windowSamples = Math.max(1, Math.round(sampleRate * 0.1));
+    const minSilentWindows = 5;
+    const threshold = 0.018;
+    const channelData = audioBuffer.getChannelData(0);
+    let silentWindows = 0;
+    let currentSilentWindows = 0;
+    let detectedSegments = 0;
+    for (let start = 0; start < channelData.length; start += windowSamples) {
+      let sum = 0;
+      const end = Math.min(channelData.length, start + windowSamples);
+      for (let index = start; index < end; index += 1) sum += channelData[index] * channelData[index];
+      const rms = Math.sqrt(sum / Math.max(1, end - start));
+      if (rms < threshold) {
+        silentWindows += 1;
+        currentSilentWindows += 1;
+      } else {
+        if (currentSilentWindows >= minSilentWindows) detectedSegments += 1;
+        currentSilentWindows = 0;
+      }
+    }
+    if (currentSilentWindows >= minSilentWindows) detectedSegments += 1;
+    const silentSeconds = Math.round(silentWindows * 0.1 * 10) / 10;
+    return {
+      status: detectedSegments > 0 ? "已生成剪辑点" : "未发现明显停顿",
+      method: "browser-audio-rms",
+      detectedSegments,
+      silentSeconds,
+      sampleWindowMs: 100,
+      note: detectedSegments > 0 ? "已记录停顿位置，保存后可用于后续剪辑复核" : "录制节奏较连续",
+    };
+  } catch {
+    return { status: "未检测", method: "browser-audio-rms", note: "当前视频格式暂不能在浏览器内解码音轨" };
+  } finally {
+    await context.close().catch(() => undefined);
+  }
+}
+
 function readMarketingImageDimensions(dataUrl: string): Promise<{ width: number; height: number } | undefined> {
   return new Promise((resolve) => {
     const image = new Image();
@@ -338,6 +467,16 @@ function readMarketingImageDimensions(dataUrl: string): Promise<{ width: number;
     image.onerror = () => resolve(undefined);
     image.src = dataUrl;
   });
+}
+
+function marketingMaterialKeyFromDataUrl(dataUrl: string) {
+  if (!dataUrl) return "";
+  let hash = 2166136261;
+  for (let index = 0; index < dataUrl.length; index += 1) {
+    hash ^= dataUrl.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `image:${(hash >>> 0).toString(16)}:${dataUrl.length}`;
 }
 
 function productVideoDraftFromImage(input: {
@@ -363,23 +502,12 @@ function productVideoDraftFromImage(input: {
         : input.template.includes("快节奏")
           ? "包装、细节和使用氛围快切"
           : "产品静物特写和柔光质感";
-
   return [
     fileLabel && !/^产品\d*$/i.test(fileLabel) ? `产品：${fileLabel}` : "以上传产品图为准",
     ratioHint,
     templateHint,
     `${input.pace}镜头，保留产品外观、颜色、材质和包装识别点`,
   ].join("；").slice(0, 200);
-}
-
-function marketingMaterialKeyFromDataUrl(dataUrl: string) {
-  if (!dataUrl) return "";
-  let hash = 2166136261;
-  for (let index = 0; index < dataUrl.length; index += 1) {
-    hash ^= dataUrl.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `image:${(hash >>> 0).toString(16)}:${dataUrl.length}`;
 }
 
 function marketingNodeTimingLabel(daysUntil: number) {
@@ -757,6 +885,21 @@ export function MarketingCenter({
   const [videoScript, setVideoScript] = useState("");
   const [videoScriptAutoFilled, setVideoScriptAutoFilled] = useState(false);
   const [productImageAnalysisStatus, setProductImageAnalysisStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [talkStep, setTalkStep] = useState<TalkFlowStep>("entry");
+  const [activeTalkTab, setActiveTalkTab] = useState(talkTopicTabs[0]);
+  const [selectedTalkTopicId, setSelectedTalkTopicId] = useState(talkTopics[0].id);
+  const [talkRatio, setTalkRatio] = useState<"9:16" | "16:9">("9:16");
+  const [talkRecording, setTalkRecording] = useState(false);
+  const [talkElapsed, setTalkElapsed] = useState(0);
+  const [talkCameraReady, setTalkCameraReady] = useState(false);
+  const [talkCameraError, setTalkCameraError] = useState("");
+  const [talkRecordedBlob, setTalkRecordedBlob] = useState<Blob | null>(null);
+  const [talkRecordedVideoUrl, setTalkRecordedVideoUrl] = useState("");
+  const [talkTranscriptText, setTalkTranscriptText] = useState("");
+  const [talkSilenceReport, setTalkSilenceReport] = useState<TalkSilenceReport | null>(null);
+  const [talkSaveBusy, setTalkSaveBusy] = useState(false);
+  const [talkSaveError, setTalkSaveError] = useState("");
+  const [talkSavedRecordId, setTalkSavedRecordId] = useState("");
   const [customRequirement, setCustomRequirement] = useState("");
   const [productImageName, setProductImageName] = useState("");
   const [productImageDataUrl, setProductImageDataUrl] = useState("");
@@ -779,6 +922,11 @@ export function MarketingCenter({
   const videoScriptAutoFilledRef = useRef(false);
   const productImageAnalysisCacheRef = useRef(new Map<string, string>());
   const productImageAnalysisRequestRef = useRef("");
+  const talkVideoRef = useRef<HTMLVideoElement | null>(null);
+  const talkStreamRef = useRef<MediaStream | null>(null);
+  const talkMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const talkRecordedChunksRef = useRef<BlobPart[]>([]);
+  const talkRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const product = data.products[0];
   const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
@@ -878,6 +1026,7 @@ export function MarketingCenter({
   const selectedModeLocked = Boolean(selectedGenerationMode.locked);
   const isPosterMode = generationKind === "image";
   const isVideoMode = generationKind === "video";
+  const isTalkMode = generationKind === "talk";
   const isProductMediaMode = isPosterMode || isVideoMode;
   const isCopyMode = generationKind === "copy";
   const copyGenerateTitle = copyOutputMode === "text" ? "生成文案" : copyOutputMode === "image" ? "生成图片" : "生成图文";
@@ -967,18 +1116,136 @@ export function MarketingCenter({
   const dialogCost = dialogRecord?.cost ?? generationResult?.cost;
   const dialogProvider = dialogRecord?.provider ?? generationResult?.provider;
   const dialogModel = dialogRecord?.model ?? generationResult?.model;
+  const dialogTalkOptimization = dialogRecord?.talkOptimization ?? generationResultRecord?.talkOptimization ?? generationResult?.record?.talkOptimization;
   const dialogSummaryItems = dialogRecord
     ? [dialogRecord.marketingNode, dialogRecord.channel, dialogRecord.marketingGoal].map((item) => item ? marketingCompliantText(item) : item).filter(Boolean)
     : previewSummaryItems;
   const showDialogSummary = dialogKind !== "image" && dialogKind !== "video" && dialogSummaryItems.length > 0;
   const showGenerationDialog = Boolean(selectedMarketingRecord || (!generationDialogDismissed && (generationBusy || generationError || generationResult)));
   const showAiTechnicalDetails = session.user.role === "superadmin";
+  const selectedTalkTopic = talkTopics.find((topic) => topic.id === selectedTalkTopicId) ?? talkTopics[0];
+  const talkServiceName = "补水修护";
+  const talkScriptLines = [
+    "大家好，我是店里的护理师",
+    "最近很多顾客说脸干、泛红",
+    `先做${talkServiceName}会更稳`,
+  ];
+  const formattedTalkElapsed = `${String(Math.floor(talkElapsed / 60)).padStart(2, "0")}:${String(talkElapsed % 60).padStart(2, "0")}`;
+  const talkResultDisplayItems = talkResultItems.map((item) => {
+    if (item.title === "自动字幕") {
+      return {
+        ...item,
+        status: talkTranscriptText ? "已识别" : "脚本字幕",
+        subtitle: talkTranscriptText ? "识别语音，生成同步字幕" : "未识别到语音时使用提词脚本",
+      };
+    }
+    if (item.title === "口播降噪") {
+      return {
+        ...item,
+        status: "采集中启用",
+        subtitle: "已开启回声消除、噪声抑制、自动增益",
+      };
+    }
+    if (item.title === "剪掉停顿") {
+      const detectedSegments = talkSilenceReport?.detectedSegments;
+      return {
+        ...item,
+        status: typeof detectedSegments === "number" ? `${detectedSegments}段` : talkSilenceReport?.status ?? "检测中",
+        subtitle: talkSilenceReport?.note ?? "分析录制音轨，生成可剪辑停顿点",
+      };
+    }
+    return item;
+  });
   const permissionStateKey = JSON.stringify({ role: session.user.role, permissions: aiPermissions, config: aiConfig });
   const unavailableMessage = () => {
     const label = selectedGenerationMode.title;
     if (contentState.label === "未开通") return `当前门店未开放 ${label} 权限`;
     if (contentState.label === "平台未启用") return `${label} 平台未启用`;
     return `${label} 暂不可用`;
+  };
+
+  const stopTalkSpeechRecognition = () => {
+    try {
+      talkRecognitionRef.current?.stop();
+    } catch {
+      // Ignore browser speech-recognition shutdown races.
+    }
+    talkRecognitionRef.current = null;
+  };
+
+  const startTalkSpeechRecognition = () => {
+    const SpeechRecognitionCtor = (window as typeof window & {
+      SpeechRecognition?: new () => BrowserSpeechRecognition;
+      webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+    }).SpeechRecognition ?? (window as typeof window & {
+      webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+    }).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) return;
+    try {
+      const recognition = new SpeechRecognitionCtor();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "zh-CN";
+      recognition.onresult = (event) => {
+        const text = Array.from(event.results)
+          .map((result) => result[0]?.transcript ?? "")
+          .join("")
+          .trim();
+        if (text) setTalkTranscriptText(marketingCompliantText(text).slice(0, 3000));
+      };
+      recognition.onerror = () => undefined;
+      recognition.start();
+      talkRecognitionRef.current = recognition;
+    } catch {
+      talkRecognitionRef.current = null;
+    }
+  };
+
+  const stopTalkRecorder = () => {
+    const recorder = talkMediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    stopTalkSpeechRecognition();
+  };
+
+  const startTalkRecorder = (stream: MediaStream) => {
+    if (typeof MediaRecorder === "undefined") {
+      setTalkCameraError("当前浏览器暂不支持视频录制，已显示拍摄示意");
+      return;
+    }
+    const current = talkMediaRecorderRef.current;
+    if (current && current.state !== "inactive") return;
+    talkRecordedChunksRef.current = [];
+    setTalkRecordedBlob(null);
+    setTalkSilenceReport(null);
+    setTalkRecordedVideoUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return "";
+    });
+    setTalkSavedRecordId("");
+    setTalkSaveError("");
+    const mimeType = preferredTalkVideoMimeType();
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) talkRecordedChunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => {
+      const recordedMimeType = recorder.mimeType || mimeType || "video/webm";
+      const blob = new Blob(talkRecordedChunksRef.current, { type: recordedMimeType });
+      talkMediaRecorderRef.current = null;
+      if (blob.size > 0) {
+        setTalkRecordedBlob(blob);
+        setTalkRecordedVideoUrl((currentUrl) => {
+          if (currentUrl) URL.revokeObjectURL(currentUrl);
+          return URL.createObjectURL(blob);
+        });
+        void analyzeTalkAudioSilence(blob).then(setTalkSilenceReport);
+      }
+    };
+    talkMediaRecorderRef.current = recorder;
+    recorder.start(1000);
+    startTalkSpeechRecognition();
   };
 
   const handleMarketingImageChange = async (
@@ -1102,6 +1369,28 @@ export function MarketingCenter({
   }, [activeView, generationKind]);
 
   useEffect(() => {
+    if (!isTalkMode) {
+      setTalkStep("entry");
+      setTalkRecording(false);
+      setTalkElapsed(0);
+      stopTalkRecorder();
+      talkStreamRef.current?.getTracks().forEach((track) => track.stop());
+      talkStreamRef.current = null;
+    }
+  }, [isTalkMode]);
+
+  useEffect(() => () => {
+    stopTalkRecorder();
+    talkStreamRef.current?.getTracks().forEach((track) => track.stop());
+    talkStreamRef.current = null;
+    if (talkVideoRef.current) talkVideoRef.current.srcObject = null;
+  }, []);
+
+  useEffect(() => () => {
+    if (talkRecordedVideoUrl) URL.revokeObjectURL(talkRecordedVideoUrl);
+  }, [talkRecordedVideoUrl]);
+
+  useEffect(() => {
     if (selectedBirthdayTaskId && !birthdayTasks.some((item) => item.id === selectedBirthdayTaskId)) {
       setSelectedBirthdayTaskId("");
     }
@@ -1142,6 +1431,71 @@ export function MarketingCenter({
     }, 5000);
     return () => window.clearInterval(intervalId);
   }, [hasPendingGenerationResult, hasPendingMarketingAiRecords, refreshMarketingData]);
+
+  useEffect(() => {
+    if (talkStep !== "shoot" || !talkRecording) return undefined;
+    const intervalId = window.setInterval(() => {
+      setTalkElapsed((value) => value + 1);
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [talkRecording, talkStep]);
+
+  useEffect(() => {
+    if (talkStep !== "shoot") return undefined;
+    let stream: MediaStream | undefined;
+    let cancelled = false;
+    setTalkCameraReady(false);
+    setTalkCameraError("");
+    const startCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setTalkCameraError("当前浏览器暂不支持相机预览");
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            aspectRatio: talkRatio === "16:9" ? 16 / 9 : 9 / 16,
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        talkStreamRef.current = stream;
+        if (talkVideoRef.current) {
+          talkVideoRef.current.srcObject = stream;
+          await talkVideoRef.current.play().catch(() => undefined);
+        }
+        setTalkCameraReady(true);
+        if (talkRecording) startTalkRecorder(stream);
+      } catch {
+        setTalkCameraError("未开启相机权限，已显示拍摄示意");
+      }
+    };
+    void startCamera();
+    return () => {
+      cancelled = true;
+      stopTalkRecorder();
+      stream?.getTracks().forEach((track) => track.stop());
+      if (talkStreamRef.current === stream) talkStreamRef.current = null;
+      if (talkVideoRef.current) talkVideoRef.current.srcObject = null;
+    };
+  }, [talkRatio, talkStep]);
+
+  useEffect(() => {
+    if (talkStep !== "shoot") return;
+    if (talkRecording) {
+      if (talkStreamRef.current) startTalkRecorder(talkStreamRef.current);
+      return;
+    }
+    stopTalkRecorder();
+  }, [talkRecording, talkStep]);
 
   const generate = async () => {
     if (generationInFlightRef.current) return;
@@ -1352,8 +1706,280 @@ export function MarketingCenter({
     setSelectedRecordId(recordId);
   };
 
+  const openTalkScript = () => {
+    setGenerationKind("talk");
+    setTalkStep("script");
+    setTalkRecording(false);
+    setTalkElapsed(0);
+  };
+
+  const startTalkShoot = (topicId = selectedTalkTopicId) => {
+    setGenerationKind("talk");
+    setSelectedTalkTopicId(topicId);
+    setTalkStep("shoot");
+    setTalkSaveError("");
+    setTalkSavedRecordId("");
+    setTalkTranscriptText("");
+    setTalkSilenceReport(null);
+    setTalkRecording(true);
+    setTalkElapsed(0);
+  };
+
+  const finishTalkShoot = () => {
+    setTalkRecording(false);
+    stopTalkRecorder();
+    setTalkStep("result");
+  };
+
+  const resetTalkRecording = () => {
+    stopTalkRecorder();
+    setTalkElapsed(0);
+    setTalkTranscriptText("");
+    setTalkSilenceReport(null);
+    setTalkSavedRecordId("");
+    setTalkSaveError("");
+    setTalkRecordedBlob(null);
+    setTalkRecordedVideoUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return "";
+    });
+    if (talkStreamRef.current) {
+      setTalkRecording(true);
+      startTalkRecorder(talkStreamRef.current);
+    }
+  };
+
+  const saveTalkMaterial = async () => {
+    if (!talkRecordedBlob) {
+      setTalkSaveError("请先完成录制，视频生成后再保存素材");
+      return;
+    }
+    setTalkSaveBusy(true);
+    setTalkSaveError("");
+    try {
+      const videoDataUrl = await readBlobAsDataUrl(talkRecordedBlob);
+      const silenceReport = talkSilenceReport ?? await analyzeTalkAudioSilence(talkRecordedBlob);
+      setTalkSilenceReport(silenceReport);
+      const scriptText = talkScriptLines.join("\n");
+      const result = await actions.saveMarketingTalkVideo({
+        videoDataUrl,
+        mimeType: talkRecordedBlob.type || "video/webm",
+        ratio: talkRatio,
+        durationSeconds: talkElapsed,
+        topicTitle: selectedTalkTopic.title,
+        scriptText,
+        transcriptText: talkTranscriptText || scriptText,
+        transcriptSource: talkTranscriptText ? "browser-speech" : "script-fallback",
+        audioEnhancements: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        silenceReport,
+      });
+      setTalkSavedRecordId(result.record?.id ?? "");
+      if (result.record?.id) setSelectedRecordId(result.record.id);
+    } catch (caught) {
+      setTalkSaveError(caught instanceof Error ? caught.message : "口播素材保存失败");
+    } finally {
+      setTalkSaveBusy(false);
+    }
+  };
+
+  if (isTalkMode && talkStep !== "entry") {
+    if (talkStep === "script") {
+      return (
+        <section className="marketing-talk-flow marketing-talk-script-screen" aria-label="真人口播脚本">
+          <header className="marketing-talk-flow-head">
+            <button type="button" aria-label="返回口播入口" onClick={() => setTalkStep("entry")}>
+              <ArrowLeft size={20} />
+            </button>
+            <strong>真人口播脚本</strong>
+            <span className="marketing-task-credit-pill marketing-talk-credit-pill">
+              <Sparkles size={13} aria-hidden="true" />
+              {marketingCreditStatus}
+            </span>
+          </header>
+
+          <div className="marketing-talk-tabs" aria-label="口播选题分类">
+            {talkTopicTabs.map((tab) => (
+              <button
+                type="button"
+                key={tab}
+                className={activeTalkTab === tab ? "active" : ""}
+                aria-pressed={activeTalkTab === tab}
+                onClick={() => setActiveTalkTab(tab)}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <div className="marketing-talk-topic-list">
+            {talkTopics.map((topic) => {
+              const TopicIcon = topic.icon;
+              return (
+                <article key={topic.id} className="marketing-talk-topic-card" data-tone={topic.tone}>
+                  <div className="marketing-talk-topic-title">
+                    <span aria-hidden="true"><TopicIcon size={18} strokeWidth={2.45} /></span>
+                    <strong>{topic.title}</strong>
+                  </div>
+                  <div className="marketing-talk-topic-tags">
+                    {topic.tags.map((tag) => <em key={tag}>{tag}</em>)}
+                  </div>
+                  <p>{topic.description}</p>
+                  <button type="button" onClick={() => startTalkShoot(topic.id)}>
+                    生成我的口播稿
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+
+          <button type="button" className="marketing-talk-outline-action" onClick={() => startTalkShoot("home-care")}>
+            <PenLine size={17} />
+            自己输入主题
+          </button>
+        </section>
+      );
+    }
+
+    if (talkStep === "shoot") {
+      return (
+        <section className="marketing-talk-shoot-screen" aria-label="真人口播拍摄">
+          <video ref={talkVideoRef} className="marketing-talk-camera-video" muted playsInline autoPlay aria-hidden={!talkCameraReady} />
+          <div className={`marketing-talk-camera-fallback ${talkCameraReady ? "hidden" : ""}`} aria-hidden="true">
+            <div className="marketing-talk-salon-bg" />
+            <div className="marketing-talk-person">
+              <span className="marketing-talk-face" />
+              <span className="marketing-talk-body" />
+            </div>
+          </div>
+          <div className="marketing-talk-shoot-shade" aria-hidden="true" />
+
+          <header className="marketing-talk-shoot-head">
+            <button type="button" aria-label="返回选题脚本" onClick={() => setTalkStep("script")}>
+              <ArrowLeft size={20} />
+            </button>
+            <strong>真人口播 · {talkRatio}</strong>
+            <div>
+              <span>语速 正常</span>
+              <button type="button" className="active">镜像</button>
+            </div>
+          </header>
+
+          <article className="marketing-talk-prompter" aria-label="提词器">
+            <p>{talkScriptLines[0]}</p>
+            <p>最近很多顾客说<mark className="orange">脸干、泛红</mark></p>
+            <p>先做<mark className="teal">{talkServiceName}</mark>会更稳</p>
+          </article>
+
+          <div className="marketing-talk-frame-guide" aria-hidden="true" />
+          <button
+            type="button"
+            className="marketing-talk-ratio-chip"
+            onClick={() => setTalkRatio((value) => value === "9:16" ? "16:9" : "9:16")}
+          >
+            切换 {talkRatio === "9:16" ? "16:9" : "9:16"}
+          </button>
+
+          <div className="marketing-talk-recording-status">
+            <span />
+            <strong>{formattedTalkElapsed}</strong>
+            <em>{talkRecording ? "提词中" : "已暂停"}</em>
+          </div>
+          {talkCameraError && <p className="marketing-talk-camera-note">{talkCameraError}</p>}
+
+          <footer className="marketing-talk-shoot-controls">
+            <button type="button" onClick={resetTalkRecording}>
+              <RotateCcw size={19} />
+              重拍
+            </button>
+            <button
+              type="button"
+              className="marketing-talk-record-button"
+              aria-label={talkRecording ? "暂停录制" : "开始录制"}
+              onClick={() => setTalkRecording((value) => !value)}
+            >
+              {talkRecording ? <Square size={26} fill="currentColor" /> : <Play size={28} fill="currentColor" />}
+            </button>
+            <button type="button" onClick={finishTalkShoot}>
+              <CheckCircle2 size={20} />
+              完成
+            </button>
+          </footer>
+        </section>
+      );
+    }
+
+    return (
+      <section className="marketing-talk-flow marketing-talk-result-screen" aria-label="口播优化结果">
+        <header className="marketing-talk-flow-head">
+          <button type="button" aria-label="返回真人拍摄" onClick={() => setTalkStep("shoot")}>
+            <ArrowLeft size={20} />
+          </button>
+          <strong>口播优化结果</strong>
+          <span className="marketing-talk-head-spacer" />
+        </header>
+
+        <article className="marketing-talk-result-preview">
+          <div className="marketing-talk-result-video">
+            {talkRecordedVideoUrl ? (
+              <video src={talkRecordedVideoUrl} controls playsInline />
+            ) : (
+              <div className="marketing-talk-result-person" aria-hidden="true" />
+            )}
+            {!talkRecordedVideoUrl && (
+              <button type="button" aria-label="预览口播视频">
+                <Play size={26} fill="currentColor" />
+              </button>
+            )}
+            <span className="marketing-talk-video-badge">{talkRatio} 真人口播</span>
+            <span className="marketing-talk-topic-badge" title={selectedTalkTopic.title}><Flame size={13} /> 热点选题</span>
+            <p>最近很多顾客说<mark>脸干、泛红</mark><br />先做<mark>{talkServiceName}</mark>会更稳</p>
+          </div>
+        </article>
+
+        <div className="marketing-talk-result-list">
+          {talkResultDisplayItems.map((item) => {
+            const ResultIcon = item.icon;
+            return (
+              <article key={item.title} className="marketing-talk-result-row" data-tone={item.tone}>
+                <span aria-hidden="true"><ResultIcon size={21} strokeWidth={2.4} /></span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>{item.subtitle}</small>
+                </div>
+                <em>{item.status}</em>
+              </article>
+            );
+          })}
+          <article className="marketing-talk-result-row marketing-talk-result-generate-row">
+            <span aria-hidden="true"><Video size={20} strokeWidth={2.4} /></span>
+            <div>
+              <strong>可生成 16:9 横屏版</strong>
+              <small>适合门店大屏和横版宣传</small>
+            </div>
+            <button type="button" onClick={() => setTalkRatio("16:9")}>生成</button>
+          </article>
+        </div>
+        {talkSaveError && <p className="marketing-talk-save-error">{talkSaveError}</p>}
+        {talkSavedRecordId && <p className="marketing-talk-save-success">口播素材已保存到生成记录</p>}
+
+        <footer className="marketing-talk-result-actions">
+          <button type="button" className="secondary-button" onClick={() => setTalkStep("shoot")}>
+            <RotateCcw size={16} /> 重新拍摄
+          </button>
+          <button type="button" className="primary-button" disabled={!talkRecordedBlob || talkSaveBusy} onClick={() => void saveTalkMaterial()}>
+            <Save size={16} /> {talkSavedRecordId ? "已保存" : talkSaveBusy ? "保存中..." : "保存素材"}
+          </button>
+        </footer>
+      </section>
+    );
+  }
+
   return (
-    <div className={`page-stack marketing-center-page ${!isProductMediaMode ? "marketing-copy-layout" : ""}`}>
+    <div className={`page-stack marketing-center-page ${isCopyMode ? "marketing-copy-layout" : ""} ${isTalkMode ? "marketing-talk-entry-layout" : ""}`}>
       <PageHero
         icon={<Megaphone size={18} />}
         eyebrow="AI智能营销"
@@ -1385,6 +2011,7 @@ export function MarketingCenter({
                   disabled={item.locked}
                   onClick={() => {
                     setGenerationKind(item.kind);
+                    if (item.kind === "talk") setTalkStep("entry");
                   }}
                 >
                   <span className="marketing-mode-icon" aria-hidden="true">
@@ -1411,7 +2038,7 @@ export function MarketingCenter({
                 </div>
               </header>
             )}
-            {!isProductMediaMode && (
+            {isCopyMode && (
               <div className="marketing-copy-stage marketing-birthday-workflow">
                 <section className="marketing-birthday-panel" aria-label="今日营销任务">
                   <header className="marketing-task-head">
@@ -1590,6 +2217,30 @@ export function MarketingCenter({
                   )}
                 </section>
               </div>
+            )}
+
+            {isTalkMode && (
+              <section className="marketing-talk-entry-panel" aria-label="真人口播入口">
+                <article className="marketing-talk-entry-hero">
+                  <span aria-hidden="true"><MicVocal size={34} strokeWidth={2.4} /></span>
+                  <div>
+                    <strong>今天拍一条真人口播</strong>
+                    <p>选题脚本 · 看词自拍 · 自动字幕</p>
+                  </div>
+                </article>
+                <div className="marketing-talk-entry-actions">
+                  <button type="button" className="marketing-talk-entry-action hot" onClick={openTalkScript}>
+                    <span aria-hidden="true"><Flame size={24} strokeWidth={2.4} /></span>
+                    <strong>从热点选题开始</strong>
+                    <small>智能推荐热门话题</small>
+                  </button>
+                  <button type="button" className="marketing-talk-entry-action draft" onClick={() => startTalkShoot("home-care")}>
+                    <span aria-hidden="true"><PenLine size={24} strokeWidth={2.4} /></span>
+                    <strong>直接写口播稿</strong>
+                    <small>自己输入内容</small>
+                  </button>
+                </div>
+              </section>
             )}
 
             {isProductMediaMode ? (
@@ -1779,6 +2430,9 @@ export function MarketingCenter({
                             </p>
                           )}
                         </label>
+                        {videoScriptAutoFilled && productImageAnalysisStatus === "idle" && (
+                          <p className="marketing-video-auto-note">已根据上传产品图生成草稿，可直接修改后再生成。</p>
+                        )}
                         {duplicateVideoRecord && (
                           <p className="marketing-video-duplicate-note">这张产品图已提交过视频生成，请到生成记录查看结果，不能重复提交同一素材。</p>
                         )}
@@ -1799,7 +2453,8 @@ export function MarketingCenter({
                 </div>
               </div>
             ) : null}
-            <div className={`marketing-form-actions ${!isProductMediaMode ? "marketing-copy-actions" : "single"}`}>
+            {!isTalkMode && (
+            <div className={`marketing-form-actions ${isCopyMode ? "marketing-copy-actions" : "single"}`}>
               <button type="button" className="primary-button marketing-copy-action" disabled={!contentState.enabled || generationBusy} onClick={generate}>
                 <Sparkles size={16} /> {generationBusy ? "生成中..." : selectedBirthdayTask && !isProductMediaMode ? (copyOutputMode === "text" ? "生成生日文案" : copyOutputMode === "image" ? "生成生日图片" : "生成生日图文") : isCopyMode ? copyGenerateTitle : `生成${selectedGenerationMode.title}`}
               </button>
@@ -1813,6 +2468,7 @@ export function MarketingCenter({
                 <em>{typedMarketingAiRecords.length}</em>
               </button>
             </div>
+            )}
           </div>
         </section>
       ) : (
@@ -1829,8 +2485,8 @@ export function MarketingCenter({
           <div className="marketing-record-list">
             {typedMarketingAiRecords.slice(0, 12).map((record) => {
               const recordPending = isMarketingAiRecordPending(record);
-              const recordDownloadLabel = isPreviewablePngSource(record.imageDataUrl) ? "下载PNG" : record.kind === "video" ? "下载视频" : "下载文案";
-              const recordDownloadDisabled = recordPending || (record.kind === "video" && !record.videoUrl);
+              const recordDownloadLabel = isPreviewablePngSource(record.imageDataUrl) ? "下载PNG" : record.videoUrl ? "下载视频" : "下载文案";
+              const recordDownloadDisabled = recordPending || ((record.kind === "video" || record.kind === "talk") && !record.videoUrl && !record.text);
               return (
                 <article
                   key={record.id}
@@ -2015,6 +2671,26 @@ export function MarketingCenter({
                               <p>{section.body}</p>
                             </article>
                           ))}
+                        </div>
+                      )}
+                      {dialogKind === "talk" && dialogTalkOptimization && (
+                        <div className="marketing-talk-optimization-details" aria-label="口播优化详情">
+                          <article>
+                            <span>字幕</span>
+                            <strong>{talkTranscriptSourceLabel(dialogTalkOptimization.transcriptSource)}</strong>
+                          </article>
+                          <article>
+                            <span>降噪</span>
+                            <strong>{dialogTalkOptimization.noiseReduction?.status ?? "已处理"}</strong>
+                          </article>
+                          <article>
+                            <span>停顿</span>
+                            <strong>{dialogTalkOptimization.silenceTrim?.status ?? "已检测"}</strong>
+                          </article>
+                          <article>
+                            <span>尺寸</span>
+                            <strong>{dialogTalkOptimization.ratio ?? dialogRecord?.videoResolution ?? "9:16"}</strong>
+                          </article>
                         </div>
                       )}
                       {!dialogText && dialogKind === "image" && (
