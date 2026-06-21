@@ -74,7 +74,7 @@ export const DEFAULT_STORE_OPERATIONAL_PERMISSIONS: StoreOperationalPermissions 
 };
 export const MARKETING_AI_PENDING_TIMEOUT_MS = 10 * 60 * 1000;
 
-const MARKETING_AI_PENDING_TIMEOUT_MESSAGE = "后台生成任务超过10分钟仍未完成，可能已被服务重启、供应商超时或网络中断终止。请重新生成。";
+const MARKETING_AI_PENDING_TIMEOUT_MESSAGE = "后台生成任务超过10分钟仍未拿到视频任务编号，可能提交阶段被服务重启、供应商超时或网络中断终止，无法继续刷新。请重新生成。";
 
 function normalizeCashPayMethod(payMethod: CashPayMethod | undefined): CashPayMethod {
   return payMethod && CASH_PAY_METHODS.has(payMethod) ? payMethod : "微信";

@@ -370,7 +370,7 @@ const talkResultItems: Array<{ title: string; subtitle: string; status: string; 
 const MAX_MARKETING_ASSET_BYTES = 8 * 1024 * 1024;
 const USD_TO_CNY_DISPLAY_RATE = AI_CREDIT_CNY_PER_USD;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const MARKETING_PENDING_LOST_MESSAGE = "后台生成任务超过10分钟仍未返回结果，可能已被服务重启、供应商超时或网络中断终止。请重新生成。";
+const MARKETING_PENDING_LOST_MESSAGE = "后台生成任务超过10分钟仍未拿到视频任务编号，可能提交阶段被服务重启、供应商超时或网络中断终止，无法继续刷新。请重新生成。";
 
 function localDateOnly(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());

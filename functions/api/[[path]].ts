@@ -68,6 +68,7 @@ import {
   updateSystemConfig,
   updateMemberCardStatus,
   platformInviteIssuerId,
+  isStaleMarketingAiRecord,
   storeIdForUser,
 } from "../../src/domain/business";
 import { hashPassword } from "../../src/lib/password";
@@ -2615,7 +2616,7 @@ type AiGenerationConfig = {
 type AiChatMessage = { role: "user" | "assistant"; content: string };
 type MarketingAiKind = "copy" | "image" | "video" | "talk";
 
-const providerFetchTimeoutMs = 95_000;
+const providerFetchTimeoutMs = 25_000;
 const aiVideoDurations = [5, 10, 15];
 const aiVideoResolutions: AiVideoResolution[] = ["480p", "720p", "1080p"];
 const aiVideoAspectRatios: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
@@ -3137,7 +3138,8 @@ function findDuplicateMarketingVideoRecord(data: AppData, session: UserSession, 
       record.materialKey === materialKey
       || (templateKey === "产品质感展示" && !record.videoTemplate && record.materialKey === legacyMaterialKey)
     )
-    && record.status !== "生成失败",
+    && record.status !== "生成失败"
+    && !isStaleMarketingAiRecord(record)
   );
 }
 
