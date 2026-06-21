@@ -37,6 +37,15 @@ type TalkSilenceReport = {
   sampleWindowMs?: number;
   note?: string;
 };
+type TalkRecordedMetrics = {
+  startedAt: number;
+  lastVoiceAt: number;
+  pauseStartedAt: number;
+  pausedMs: number;
+  trimSegments: number;
+  trimMs: number;
+  isTrimming: boolean;
+};
 type MarketingNode = { title: string; badge: string; description: string; hint?: string; dateLabel?: string };
 type BirthdayMarketingTask = {
   id: string;
@@ -429,6 +438,92 @@ function preferredTalkVideoMimeType() {
     "video/webm",
   ];
   return candidates.find((item) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(item)) || "";
+}
+
+function talkCanvasSize(ratio: "9:16" | "16:9") {
+  return ratio === "16:9" ? { width: 1280, height: 720 } : { width: 720, height: 1280 };
+}
+
+function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const output: string[] = [];
+  let line = "";
+  Array.from(text).forEach((char) => {
+    const nextLine = `${line}${char}`;
+    if (context.measureText(nextLine).width > maxWidth && line) {
+      output.push(line);
+      line = char;
+      return;
+    }
+    line = nextLine;
+  });
+  if (line) output.push(line);
+  return output;
+}
+
+function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
+  const sourceWidth = video.videoWidth || width;
+  const sourceHeight = video.videoHeight || height;
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const drawX = (width - drawWidth) / 2;
+  const drawY = (height - drawHeight) / 2;
+  context.save();
+  context.translate(width, 0);
+  context.scale(-1, 1);
+  context.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+  context.restore();
+}
+
+function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
+  const segments = Array.from(text).map((char) => ({
+    char,
+    color: /[脸干泛红卡粉]/.test(char) ? "#f59e0b" : /[补水修护稳]/.test(char) ? "#22c3ad" : "#ffffff",
+  }));
+  const totalWidth = Math.min(maxWidth, segments.reduce((sum, item) => sum + context.measureText(item.char).width, 0));
+  let x = centerX - totalWidth / 2;
+  segments.forEach((item) => {
+    context.fillStyle = item.color;
+    context.fillText(item.char, x, baselineY);
+    x += context.measureText(item.char).width;
+  });
+}
+
+function drawTalkVideoOverlay(
+  context: CanvasRenderingContext2D,
+  options: { width: number; height: number; ratio: "9:16" | "16:9"; scriptLines: string[]; recordedSeconds: number; serviceName: string },
+) {
+  const { width, height, ratio, scriptLines, recordedSeconds, serviceName } = options;
+  const safeLines = scriptLines.length ? scriptLines : [`先做一次${serviceName}，把皮肤状态稳下来`];
+  const lineIndex = Math.min(safeLines.length - 1, Math.max(0, Math.floor(recordedSeconds / 4)));
+  const captionText = safeLines[lineIndex] ?? safeLines[0];
+  const nextText = safeLines[lineIndex + 1] ?? "";
+  context.save();
+  const pad = Math.round(width * 0.045);
+  const badgeHeight = Math.round(height * 0.034);
+  context.fillStyle = "rgba(0, 0, 0, 0.5)";
+  context.fillRect(pad, pad, Math.round(width * 0.23), badgeHeight);
+  context.fillStyle = "#ffffff";
+  context.font = `800 ${Math.round(height * 0.016)}px system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
+  context.textBaseline = "middle";
+  context.fillText(`${ratio} 真人口播`, pad + 12, pad + badgeHeight / 2);
+
+  const captionFont = Math.round(height * (ratio === "16:9" ? 0.043 : 0.031));
+  context.font = `900 ${captionFont}px system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
+  context.textBaseline = "alphabetic";
+  const maxTextWidth = width - pad * 2;
+  const captionLines = wrapCanvasText(context, captionText, maxTextWidth);
+  if (nextText && captionLines.length < 2) captionLines.push(...wrapCanvasText(context, nextText, maxTextWidth).slice(0, 1));
+  const visibleLines = captionLines.slice(0, 2);
+  const lineHeight = Math.round(captionFont * 1.35);
+  const boxHeight = visibleLines.length * lineHeight + Math.round(height * 0.025);
+  const boxY = Math.round(height * 0.72);
+  context.fillStyle = "rgba(0, 0, 0, 0.58)";
+  context.fillRect(pad, boxY, width - pad * 2, boxHeight);
+  visibleLines.forEach((line, index) => {
+    drawTalkCaptionLine(context, line, width / 2, boxY + Math.round(height * 0.024) + lineHeight * index, maxTextWidth);
+  });
+  context.restore();
 }
 
 function talkTranscriptSourceLabel(source?: "browser-speech" | "openai-transcription" | "script-fallback") {
@@ -961,6 +1056,8 @@ export function MarketingCenter({
   const talkStreamRef = useRef<MediaStream | null>(null);
   const talkMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const talkRecordedChunksRef = useRef<BlobPart[]>([]);
+  const talkRecorderCleanupRef = useRef<() => void>(() => undefined);
+  const talkRecordedMetricsRef = useRef<TalkRecordedMetrics | null>(null);
   const talkRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const product = data.products[0];
   const service = data.services[0];
@@ -1203,8 +1300,8 @@ export function MarketingCenter({
     if (item.title === "口播降噪") {
       return {
         ...item,
-        status: "采集中启用",
-        subtitle: "已开启回声消除、噪声抑制、自动增益",
+        status: "已写入成片",
+        subtitle: "录制时启用降噪、高通滤波和动态压缩",
       };
     }
     if (item.title === "剪掉停顿") {
@@ -1212,7 +1309,7 @@ export function MarketingCenter({
       return {
         ...item,
         status: typeof detectedSegments === "number" ? `${detectedSegments}段` : talkSilenceReport?.status ?? "检测中",
-        subtitle: talkSilenceReport?.note ?? "分析录制音轨，生成可剪辑停顿点",
+        subtitle: talkSilenceReport?.note ?? "录制时自动跳过明显无声停顿",
       };
     }
     return item;
@@ -1266,6 +1363,9 @@ export function MarketingCenter({
     const recorder = talkMediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       recorder.stop();
+    } else {
+      talkRecorderCleanupRef.current();
+      talkRecorderCleanupRef.current = () => undefined;
     }
     stopTalkSpeechRecognition();
   };
@@ -1276,9 +1376,16 @@ export function MarketingCenter({
       setTalkFinalizing(false);
       return;
     }
+    if (!HTMLCanvasElement.prototype.captureStream) {
+      setTalkCameraError("当前浏览器暂不支持合成视频录制，请换新版浏览器后再拍");
+      setTalkFinalizing(false);
+      return;
+    }
     const current = talkMediaRecorderRef.current;
     if (current && current.state !== "inactive") return;
     talkRecordedChunksRef.current = [];
+    talkRecorderCleanupRef.current();
+    talkRecorderCleanupRef.current = () => undefined;
     setTalkFinalizing(false);
     setTalkPhoneSaveBusy(false);
     setTalkPhoneSaveMessage("");
@@ -1292,12 +1399,106 @@ export function MarketingCenter({
     setTalkSaveError("");
     setTalkPhoneSaveBusy(false);
     setTalkPhoneSaveMessage("");
+
+    const { width, height } = talkCanvasSize(talkRatio);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) {
+      setTalkCameraError("当前浏览器暂不支持视频画布合成");
+      setTalkFinalizing(false);
+      return;
+    }
+
+    const canvasStream = canvas.captureStream(30);
+    const AudioContextCtor = (window as typeof window & {
+      AudioContext?: typeof AudioContext;
+      webkitAudioContext?: typeof AudioContext;
+    }).AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    let audioContext: AudioContext | undefined;
+    let analyser: AnalyserNode | undefined;
+    try {
+      if (AudioContextCtor && stream.getAudioTracks().length > 0) {
+        audioContext = new AudioContextCtor();
+        void audioContext.resume().catch(() => undefined);
+        const source = audioContext.createMediaStreamSource(stream);
+        const highpass = audioContext.createBiquadFilter();
+        highpass.type = "highpass";
+        highpass.frequency.value = 90;
+        const compressor = audioContext.createDynamicsCompressor();
+        compressor.threshold.value = -32;
+        compressor.knee.value = 22;
+        compressor.ratio.value = 6;
+        compressor.attack.value = 0.006;
+        compressor.release.value = 0.24;
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 1024;
+        const destination = audioContext.createMediaStreamDestination();
+        source.connect(highpass);
+        highpass.connect(compressor);
+        compressor.connect(analyser);
+        compressor.connect(destination);
+        destination.stream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+      } else {
+        stream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+      }
+    } catch {
+      stream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+    }
+
+    const metrics: TalkRecordedMetrics = {
+      startedAt: performance.now(),
+      lastVoiceAt: performance.now(),
+      pauseStartedAt: 0,
+      pausedMs: 0,
+      trimSegments: 0,
+      trimMs: 0,
+      isTrimming: false,
+    };
+    talkRecordedMetricsRef.current = metrics;
+
+    let animationFrameId = 0;
+    const drawFrame = () => {
+      const now = performance.now();
+      const currentPauseMs = metrics.isTrimming && metrics.pauseStartedAt ? now - metrics.pauseStartedAt : 0;
+      const recordedSeconds = Math.max(0, (now - metrics.startedAt - metrics.pausedMs - currentPauseMs) / 1000);
+      context.fillStyle = "#111111";
+      context.fillRect(0, 0, width, height);
+      const videoElement = talkVideoRef.current;
+      if (videoElement && videoElement.readyState >= 2 && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+        drawTalkVideoCover(context, videoElement, width, height);
+      } else {
+        const gradient = context.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, "#8b755c");
+        gradient.addColorStop(0.65, "#3f342c");
+        gradient.addColorStop(1, "#201b18");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, width, height);
+      }
+      drawTalkVideoOverlay(context, { width, height, ratio: talkRatio, scriptLines: talkScriptLines, recordedSeconds, serviceName: talkServiceName });
+      animationFrameId = window.requestAnimationFrame(drawFrame);
+    };
+    drawFrame();
+
     const mimeType = preferredTalkVideoMimeType();
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    const recorder = new MediaRecorder(canvasStream, mimeType ? { mimeType } : undefined);
+    let silenceIntervalId = 0;
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) talkRecordedChunksRef.current.push(event.data);
     };
     recorder.onstop = () => {
+      if (metrics.isTrimming && metrics.pauseStartedAt) {
+        const trimmedMs = performance.now() - metrics.pauseStartedAt;
+        metrics.trimMs += trimmedMs;
+        metrics.pausedMs += trimmedMs;
+        metrics.isTrimming = false;
+      }
+      window.cancelAnimationFrame(animationFrameId);
+      if (silenceIntervalId) window.clearInterval(silenceIntervalId);
+      canvasStream.getTracks().forEach((track) => track.stop());
+      void audioContext?.close().catch(() => undefined);
+      talkRecorderCleanupRef.current = () => undefined;
       const recordedMimeType = recorder.mimeType || mimeType || "video/webm";
       const blob = new Blob(talkRecordedChunksRef.current, { type: recordedMimeType });
       talkMediaRecorderRef.current = null;
@@ -1307,12 +1508,60 @@ export function MarketingCenter({
           if (currentUrl) URL.revokeObjectURL(currentUrl);
           return URL.createObjectURL(blob);
         });
-        void analyzeTalkAudioSilence(blob).then(setTalkSilenceReport);
+        const trimmedSeconds = Math.round((metrics.trimMs / 1000) * 10) / 10;
+        setTalkSilenceReport({
+          status: metrics.trimSegments > 0 ? "已实剪" : "未发现明显停顿",
+          method: "live-audio-rms-trim",
+          detectedSegments: metrics.trimSegments,
+          silentSeconds: trimmedSeconds,
+          sampleWindowMs: 120,
+          note: metrics.trimSegments > 0 ? `录制时已跳过 ${metrics.trimSegments} 段无声停顿，约 ${trimmedSeconds} 秒` : "录制节奏较连续，未触发停顿裁剪",
+        });
       }
       setTalkFinalizing(false);
     };
     talkMediaRecorderRef.current = recorder;
     recorder.start(1000);
+    if (analyser) {
+      const buffer = new Uint8Array(analyser.fftSize);
+      const silenceThreshold = 0.026;
+      silenceIntervalId = window.setInterval(() => {
+        if (recorder.state === "inactive" || !analyser) return;
+        analyser.getByteTimeDomainData(buffer);
+        let sum = 0;
+        for (let index = 0; index < buffer.length; index += 1) {
+          const normalized = (buffer[index] - 128) / 128;
+          sum += normalized * normalized;
+        }
+        const rms = Math.sqrt(sum / buffer.length);
+        const now = performance.now();
+        if (rms > silenceThreshold) {
+          metrics.lastVoiceAt = now;
+          if (metrics.isTrimming && metrics.pauseStartedAt) {
+            const trimmedMs = now - metrics.pauseStartedAt;
+            metrics.trimMs += trimmedMs;
+            metrics.pausedMs += trimmedMs;
+            metrics.isTrimming = false;
+            metrics.pauseStartedAt = 0;
+          }
+          if (recorder.state === "paused") recorder.resume();
+          return;
+        }
+        const canTrim = now - metrics.startedAt > 1800 && now - metrics.lastVoiceAt > 900;
+        if (canTrim && recorder.state === "recording") {
+          recorder.pause();
+          metrics.isTrimming = true;
+          metrics.pauseStartedAt = now;
+          metrics.trimSegments += 1;
+        }
+      }, 120);
+    }
+    talkRecorderCleanupRef.current = () => {
+      window.cancelAnimationFrame(animationFrameId);
+      if (silenceIntervalId) window.clearInterval(silenceIntervalId);
+      canvasStream.getTracks().forEach((track) => track.stop());
+      void audioContext?.close().catch(() => undefined);
+    };
     startTalkSpeechRecognition();
   };
 
@@ -1805,6 +2054,7 @@ export function MarketingCenter({
     setTalkSavedRecordId("");
     setTalkTranscriptText("");
     setTalkSilenceReport(null);
+    talkRecordedMetricsRef.current = null;
     setTalkFinalizing(false);
     setTalkPhoneSaveBusy(false);
     setTalkPhoneSaveMessage("");
@@ -1826,6 +2076,7 @@ export function MarketingCenter({
     setTalkElapsed(0);
     setTalkTranscriptText("");
     setTalkSilenceReport(null);
+    talkRecordedMetricsRef.current = null;
     setTalkFinalizing(false);
     setTalkSavedRecordId("");
     setTalkSaveError("");
