@@ -328,7 +328,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示包装、质地、使用和氛围快速切换的镜头感觉。",
     cues: ["多镜头快切", "发布感", "节奏更快"],
     previewSrc: "/marketing-video-template-previews/social-cut.jpg",
-    previewVideoSrc: "/marketing-video-template-previews/social-cut.mp4",
+    previewVideoSrc: "/marketing-video-template-previews/social-cut-generated-20260621.mp4",
     previewAlt: "社媒快节奏切片视频模板示例",
     icon: Scissors,
   },
