@@ -379,6 +379,14 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/api/marketing-ai/analyze-product-image") {
+        requirePermission(session, "marketing:manage");
+        const currentData = database.readData();
+        assertMarketingAiAllowed(currentData, session, "video");
+        sendJson(response, 200, await runMarketingProductImageAnalysis(currentData, await readJson(request)));
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/api/marketing-ai/generate") {
         requirePermission(session, "marketing:manage");
         const body = await readJson(request);
@@ -2444,6 +2452,91 @@ async function runAiTextCompletion(data: AppData, prompt: string, options: { his
     raw: compactAiRawPayload(payload),
     elapsedMs,
   };
+}
+
+function compactProductVideoAnalysisText(value: unknown) {
+  const raw = typeof value === "string" ? value : "";
+  return marketingCompliantText(
+    raw
+      .replace(/^["“”'`]+|["“”'`]+$/g, "")
+      .replace(/^镜头要求[：:]\s*/g, "")
+      .replace(/\n+/g, "；")
+      .replace(/\s*；\s*/g, "；"),
+    "",
+    200,
+  );
+}
+
+async function runMarketingProductImageAnalysis(data: AppData, body: JsonBody) {
+  const config = aiGenerationConfigFromData(data).image;
+  const model = "gpt-4.1-mini";
+  assertAiCapability(config.enabled, config.apiKey, model, "图片识别");
+  const asset = marketingImageAsset(body, "product", "产品图");
+  if (!asset) throw new Error("请先上传产品图");
+  const videoTemplate = marketingCompliantText(optionalString(body, "videoTemplate"), "产品质感展示", 80);
+  const videoPace = marketingCompliantText(optionalString(body, "videoPace"), "慢推", 40);
+  const fallbackDraft = productVideoDraftFromAsset(asset, videoTemplate, videoPace);
+  const { payload, elapsedMs } = await fetchProviderJson("OpenAI", "https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      temperature: 0.2,
+      max_tokens: 180,
+      messages: [
+        {
+          role: "system",
+          content: "你是美业短视频产品图识别助手。只根据用户上传图片识别产品，不要编造节日、护理项目、药品功效或医疗描述。输出一段可直接放入“镜头要求/产品详情”的中文短句，200字以内，必须包含产品品类、颜色/材质/包装特征、适合的视频镜头建议。",
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `请识别这张产品图，并结合视频模板“${videoTemplate}”和镜头节奏“${videoPace}”写成可编辑的镜头要求。不要写标题，不要换行，不要加入图片里没有的品牌名或功效。`,
+            },
+            { type: "image_url", image_url: { url: asset.dataUrl } },
+          ],
+        },
+      ],
+    }),
+  });
+  const choices = Array.isArray(payload.choices) ? payload.choices : [];
+  const message = choices[0] && typeof choices[0] === "object" ? (choices[0] as { message?: { content?: unknown } }).message : undefined;
+  const text = compactProductVideoAnalysisText(message?.content) || fallbackDraft;
+  return {
+    provider: "openai" as const,
+    model,
+    text,
+    usage: payload.usage,
+    elapsedMs,
+  };
+}
+
+function productVideoDraftFromAsset(asset: MarketingImageAsset, videoTemplate: string, videoPace: string) {
+  const fileLabel = asset.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
+  const templateHint = videoTemplate.includes("人物")
+    ? "真人自然手持或近景展示"
+    : videoTemplate.includes("手持")
+      ? "手部拿起、展示和轻微转动"
+      : videoTemplate.includes("门店")
+        ? "门店空间中产品清晰入镜"
+        : videoTemplate.includes("快节奏")
+          ? "包装、细节和使用氛围快切"
+          : "产品静物特写和柔光质感";
+  return marketingCompliantText(
+    [
+      fileLabel && !/^产品\d*$/i.test(fileLabel) ? `产品：${fileLabel}` : "以上传产品图为准",
+      templateHint,
+      `${videoPace}镜头，保留产品外观、颜色、材质和包装识别点`,
+    ].join("；"),
+    "",
+    200,
+  );
 }
 
 function marketingRoleGroup(role: UserRole): "owner" | "staff" {

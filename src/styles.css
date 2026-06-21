@@ -29784,6 +29784,18 @@ textarea,
   line-height: 1.45;
 }
 
+.marketing-video-auto-note[data-status="loading"] {
+  border-color: rgba(111, 66, 193, 0.2);
+  background: rgba(111, 66, 193, 0.08);
+  color: #5b2fb7 !important;
+}
+
+.marketing-video-auto-note[data-status="failed"] {
+  border-color: rgba(213, 45, 111, 0.22);
+  background: rgba(213, 45, 111, 0.08);
+  color: #8f1744 !important;
+}
+
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button[data-style-tone] strong,
 .app-shell.theme-night .marketing-center-page .marketing-style-grid button[data-style-tone] strong {
   color: var(--poster-style-text) !important;

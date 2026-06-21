@@ -108,6 +108,13 @@ export type MarketingAiGenerateResult = {
   elapsedMs: number;
   record?: MarketingAiRecord;
 };
+export type MarketingProductImageAnalysisResult = {
+  provider: "openai";
+  model: string;
+  text: string;
+  usage?: unknown;
+  elapsedMs: number;
+};
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 export type JoinInviteResult =
@@ -161,6 +168,18 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AiTestVideoResult>("/api/ai-test/video-status", { method: "POST", body, token: getToken() }),
     refreshMarketingVideoStatus: (recordId: string) =>
       request<MarketingAiGenerateResult>("/api/marketing-ai/video-status", { method: "POST", body: { recordId }, token: getToken() }),
+    analyzeMarketingProductImage: (body: {
+      productImageName?: string;
+      productImageDataUrl: string;
+      videoTemplate?: string;
+      videoPace?: string;
+    }) => request<MarketingProductImageAnalysisResult>("/api/marketing-ai/analyze-product-image", {
+      method: "POST",
+      body,
+      token: getToken(),
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      timeoutMessage: "产品图识别超时，请手动填写产品详情或稍后重试",
+    }),
     generateMarketingAi: (body: {
       kind: MarketingAiGenerateKind;
       storeName?: string;

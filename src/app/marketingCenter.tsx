@@ -756,6 +756,7 @@ export function MarketingCenter({
   const [videoPace, setVideoPace] = useState("慢推");
   const [videoScript, setVideoScript] = useState("");
   const [videoScriptAutoFilled, setVideoScriptAutoFilled] = useState(false);
+  const [productImageAnalysisStatus, setProductImageAnalysisStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
   const [customRequirement, setCustomRequirement] = useState("");
   const [productImageName, setProductImageName] = useState("");
   const [productImageDataUrl, setProductImageDataUrl] = useState("");
@@ -775,6 +776,9 @@ export function MarketingCenter({
   const [manualCopyText, setManualCopyText] = useState("");
   const generationInFlightRef = useRef(false);
   const generationDialogDismissedRef = useRef(false);
+  const videoScriptAutoFilledRef = useRef(false);
+  const productImageAnalysisCacheRef = useRef(new Map<string, string>());
+  const productImageAnalysisRequestRef = useRef("");
   const product = data.products[0];
   const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
@@ -1003,6 +1007,9 @@ export function MarketingCenter({
       setProductImageName("");
       setProductImageDataUrl("");
       setVideoScriptAutoFilled(false);
+      videoScriptAutoFilledRef.current = false;
+      setProductImageAnalysisStatus("idle");
+      productImageAnalysisRequestRef.current = "";
       return;
     }
     try {
@@ -1010,7 +1017,9 @@ export function MarketingCenter({
       setProductImageName(file.name);
       const dataUrl = await readMarketingImageFile(file);
       setProductImageDataUrl(dataUrl);
-      if (isVideoMode && !videoScript.trim()) {
+      const materialKey = marketingMaterialKeyFromDataUrl(dataUrl);
+      const canAutoFillVideoScript = isVideoMode && (!videoScript.trim() || videoScriptAutoFilledRef.current);
+      if (canAutoFillVideoScript) {
         const dimensions = await readMarketingImageDimensions(dataUrl);
         const draft = productVideoDraftFromImage({
           fileName: file.name,
@@ -1020,11 +1029,43 @@ export function MarketingCenter({
         });
         setVideoScript(draft);
         setVideoScriptAutoFilled(true);
+        videoScriptAutoFilledRef.current = true;
+        const cachedAnalysis = productImageAnalysisCacheRef.current.get(materialKey);
+        if (cachedAnalysis) {
+          setVideoScript(cachedAnalysis);
+          setProductImageAnalysisStatus("ready");
+          return;
+        }
+        setProductImageAnalysisStatus("loading");
+        productImageAnalysisRequestRef.current = materialKey;
+        try {
+          const analysis = await actions.analyzeMarketingProductImage({
+            productImageName: file.name,
+            productImageDataUrl: dataUrl,
+            videoTemplate,
+            videoPace,
+          });
+          const analysisText = marketingCompliantText(analysis.text).slice(0, 200);
+          if (analysisText) productImageAnalysisCacheRef.current.set(materialKey, analysisText);
+          if (productImageAnalysisRequestRef.current === materialKey && videoScriptAutoFilledRef.current) {
+            if (analysisText) setVideoScript(analysisText);
+            setProductImageAnalysisStatus(analysisText ? "ready" : "failed");
+          }
+        } catch (analysisError) {
+          if (productImageAnalysisRequestRef.current === materialKey && videoScriptAutoFilledRef.current) {
+            setProductImageAnalysisStatus("failed");
+          }
+        }
+      } else {
+        setProductImageAnalysisStatus("idle");
       }
     } catch (caught) {
       setProductImageName("");
       setProductImageDataUrl("");
       setVideoScriptAutoFilled(false);
+      videoScriptAutoFilledRef.current = false;
+      setProductImageAnalysisStatus("idle");
+      productImageAnalysisRequestRef.current = "";
       setGenerationError(caught instanceof Error ? caught.message : "图片读取失败");
     }
   };
@@ -1719,6 +1760,8 @@ export function MarketingCenter({
                               onChange={(event) => {
                                 setVideoScript(event.target.value);
                                 setVideoScriptAutoFilled(false);
+                                videoScriptAutoFilledRef.current = false;
+                                setProductImageAnalysisStatus("idle");
                               }}
                               maxLength={200}
                               placeholder="必填：请输入产品成分、质地、香味、适合场景、卖点或镜头要求，未填写不会提交生成..."
@@ -1726,8 +1769,14 @@ export function MarketingCenter({
                             />
                             <em>{videoScript.length} / 200</em>
                           </div>
-                          {videoScriptAutoFilled && (
-                            <p className="marketing-video-auto-note">已根据上传产品图生成草稿，可直接修改后再生成。</p>
+                          {videoScriptAutoFilled && productImageAnalysisStatus !== "idle" && (
+                            <p className="marketing-video-auto-note" data-status={productImageAnalysisStatus}>
+                              {productImageAnalysisStatus === "loading"
+                                ? "正在识别上传产品图，识别完成后会自动填入这里。"
+                                : productImageAnalysisStatus === "failed"
+                                  ? "图片识别失败，已先填入基础草稿；请手动补充产品名称、材质和卖点。"
+                                  : "已根据上传产品图识别并生成草稿，可直接修改后再生成。"}
+                            </p>
                           )}
                         </label>
                         {duplicateVideoRecord && (
