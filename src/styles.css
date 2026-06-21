@@ -2474,6 +2474,20 @@ td {
   display: none !important;
 }
 
+.yich-talk-overlay-active .app-shell > .topbar,
+.yich-talk-overlay-active .app-shell > .workbar,
+body:has(.marketing-talk-shoot-screen) .app-shell > .topbar,
+body:has(.marketing-talk-shoot-screen) .app-shell > .workbar,
+body:has(.marketing-talk-flow) .app-shell > .topbar,
+body:has(.marketing-talk-flow) .app-shell > .workbar,
+.app-shell:has(.marketing-talk-shoot-screen) > .topbar,
+.app-shell:has(.marketing-talk-shoot-screen) > .workbar,
+.app-shell:has(.marketing-talk-flow) > .topbar,
+.app-shell:has(.marketing-talk-flow) > .workbar {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .yich-talk-overlay-active .app-shell {
   padding-bottom: 0 !important;
 }
@@ -28602,8 +28616,9 @@ textarea,
   display: grid;
   align-content: start;
   gap: 14px;
-  width: min(100%, 430px);
-  margin: 0 auto;
+  width: 100vw;
+  max-width: none;
+  margin: 0;
   padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(18px + env(safe-area-inset-bottom, 0px));
   background:
     radial-gradient(circle at 18% 0%, rgba(111, 66, 193, 0.08), transparent 34%),
@@ -28814,8 +28829,9 @@ textarea,
   overflow: hidden;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  width: min(100%, 430px);
-  margin: 0 auto;
+  width: 100vw;
+  max-width: none;
+  margin: 0;
   min-height: var(--yich-visual-viewport-height, 100dvh);
   padding: calc(14px + env(safe-area-inset-top, 0px)) 14px calc(104px + env(safe-area-inset-bottom, 0px));
   background: #1f1a18;
