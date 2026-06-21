@@ -1237,8 +1237,7 @@ export function MarketingCenter({
   const hasPendingGenerationResult = Boolean(generationResultRecord && isMarketingAiRecordPending(generationResultRecord) && !isStaleMarketingAiRecord(generationResultRecord));
   const selectedMarketingRecord = marketingAiRecords.find((record) => record.id === selectedRecordId);
   const dialogRecord = selectedMarketingRecord ?? generationResultRecord;
-  const rawDialogText = dialogRecord?.text ?? generationResult?.text;
-  const dialogText = rawDialogText ? marketingCompliantText(rawDialogText) : rawDialogText;
+  const dialogKind = dialogRecord?.kind ?? generationResult?.kind ?? generationKind;
   const dialogImageDataUrl = dialogRecord?.imageDataUrl ?? generationResult?.imageDataUrl;
   const dialogPngSource = isPreviewablePngSource(dialogImageDataUrl) ? dialogImageDataUrl : "";
   const dialogHasInvalidImageSource = Boolean(dialogImageDataUrl && !dialogPngSource);
@@ -1246,8 +1245,10 @@ export function MarketingCenter({
   const dialogVideoTaskId = dialogRecord?.taskId ?? generationResult?.taskId;
   const dialogVideoStatus = dialogRecord?.status ?? generationResult?.status;
   const dialogErrorMessage = dialogRecord?.errorMessage ?? generationResult?.errorMessage;
+  const dialogVideoFailed = dialogKind === "video" && dialogVideoStatus === "生成失败";
+  const rawDialogText = dialogRecord?.text ?? generationResult?.text;
+  const dialogText = rawDialogText && !dialogVideoFailed ? marketingCompliantText(rawDialogText) : rawDialogText && dialogKind !== "video" ? marketingCompliantText(rawDialogText) : undefined;
   const dialogPending = dialogVideoStatus === "生成中";
-  const dialogKind = dialogRecord?.kind ?? generationResult?.kind ?? generationKind;
   const dialogKindTitle = dialogKind === "image" ? "AI产品设计图" : dialogKind === "video" ? "AI产品视频" : dialogKind === "talk" ? "AI口播" : "AI获客图文案";
   const dialogCost = dialogRecord?.cost ?? generationResult?.cost;
   const dialogProvider = dialogRecord?.provider ?? generationResult?.provider;
@@ -1936,6 +1937,7 @@ export function MarketingCenter({
   };
 
   const dialogCopyText = () => {
+    if (dialogVideoFailed && dialogErrorMessage) return dialogErrorMessage;
     if (dialogText) return dialogText;
     if (dialogVideoUrl) return dialogVideoUrl;
     if (dialogVideoTaskId) return `视频任务：${dialogVideoTaskId}${dialogVideoStatus ? `\n状态：${dialogVideoStatus}` : ""}`;
@@ -3017,7 +3019,7 @@ export function MarketingCenter({
                     </div>
                   </div>
                 )}
-                {!dialogPending && (dialogText || dialogImageDataUrl || dialogVideoUrl || dialogVideoTaskId) && (
+                {!dialogPending && (dialogText || dialogImageDataUrl || dialogVideoUrl || dialogVideoTaskId || dialogErrorMessage) && (
                   <div className="marketing-content-result-grid">
                     <article className="marketing-poster-card">
                       <div className="marketing-result-head">
@@ -3062,7 +3064,7 @@ export function MarketingCenter({
                     <article className="marketing-result-copy">
                       <div className="marketing-result-head">
                         <div>
-                          <strong>{dialogText ? "配套文案" : "生成信息"}</strong>
+                          <strong>{dialogVideoFailed ? "失败原因" : dialogText ? "配套文案" : "生成信息"}</strong>
                           <span>{showAiTechnicalDetails && dialogProvider && dialogModel ? `${AI_PROVIDER_LABELS[dialogProvider as keyof typeof AI_PROVIDER_LABELS] ?? dialogProvider} · ${dialogModel}` : "本次生成"}</span>
                         </div>
                         <div className="marketing-cost-pill">
@@ -3079,6 +3081,18 @@ export function MarketingCenter({
                               <p>{section.body}</p>
                             </article>
                           ))}
+                        </div>
+                      )}
+                      {dialogVideoFailed && dialogErrorMessage && (
+                        <div className="marketing-copy-sections">
+                          <article>
+                            <span>失败原因</span>
+                            <p>{dialogErrorMessage}</p>
+                          </article>
+                          <article>
+                            <span>处理建议</span>
+                            <p>请换成只包含产品、包装、护理场景的图片；如果图片里有真人或脸部，先裁掉人物后重新生成。</p>
+                          </article>
                         </div>
                       )}
                       {dialogKind === "talk" && dialogTalkOptimization && (
@@ -3107,7 +3121,7 @@ export function MarketingCenter({
                       {dialogText && dialogErrorMessage && (
                         <p className="marketing-result-note">{dialogErrorMessage}</p>
                       )}
-                      {!dialogText && dialogKind === "video" && (
+                      {!dialogText && dialogKind === "video" && !dialogVideoFailed && (
                         <p className="marketing-result-note">{dialogVideoUrl ? "产品视频已返回，可在线播放或下载。" : "产品视频任务已提交，稍后可在生成记录里查看状态。"}</p>
                       )}
                       <div className="marketing-result-actions">
@@ -3120,7 +3134,7 @@ export function MarketingCenter({
                           <Copy size={16} /> {copyResultStatus === "copied" ? "已复制" : copyResultStatus === "failed" ? "已显示内容" : "复制内容"}
                         </button>
                         <button type="button" className="secondary-button" onClick={downloadPoster} disabled={(dialogKind === "image" && !dialogPngSource && !dialogText && !dialogVideoUrl) || (dialogKind === "video" && !dialogVideoUrl)}>
-                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogVideoUrl ? "下载视频" : dialogPngSource ? "下载PNG" : "下载文案"}
+                          <Download size={16} /> {downloadResultStatus === "downloaded" ? "已下载" : downloadResultStatus === "failed" ? "下载失败" : dialogVideoUrl ? "下载视频" : dialogPngSource ? "下载PNG" : dialogVideoFailed ? "暂无可下载" : "下载文案"}
                         </button>
                         <button type="button" className="secondary-button" onClick={returnToRecords}>
                           <Eye size={16} /> 返回记录

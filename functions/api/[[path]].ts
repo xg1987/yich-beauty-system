@@ -523,7 +523,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const failureRecord = marketingAiRecord(currentData, session, body, {
           kind,
           ...marketingAiPendingProvider(currentData, kind, body),
-          text: message,
+          text: kind === "video" ? undefined : message,
           status: "生成失败",
           errorMessage: message,
           elapsedMs: Date.now() - startedAt,
@@ -542,7 +542,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           kind,
           provider: failureRecord.provider,
           model: failureRecord.model,
-          text: message,
+          text: kind === "video" ? undefined : message,
           status: "生成失败",
           errorMessage: message,
           cost: failureRecord.cost,
@@ -2783,13 +2783,26 @@ async function readProviderJson(response: Response) {
 
 function providerErrorMessage(provider: string, status: number, payload: Record<string, unknown>) {
   const error = payload.error;
-  if (typeof error === "string") return `${provider} 返回错误(${status})：${error}`;
+  if (typeof error === "string") return friendlyProviderErrorMessage(provider, status, error);
   if (error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string") {
-    return `${provider} 返回错误(${status})：${(error as { message: string }).message}`;
+    return friendlyProviderErrorMessage(provider, status, (error as { message: string }).message);
   }
-  if (typeof payload.message === "string") return `${provider} 返回错误(${status})：${payload.message}`;
-  if (typeof payload.status_msg === "string") return `${provider} 返回错误(${status})：${payload.status_msg}`;
+  if (typeof payload.message === "string") return friendlyProviderErrorMessage(provider, status, payload.message);
+  if (typeof payload.status_msg === "string") return friendlyProviderErrorMessage(provider, status, payload.status_msg);
   return `${provider} 返回错误(${status})`;
+}
+
+function friendlyProviderErrorMessage(provider: string, status: number, message: string) {
+  const normalized = message.toLowerCase();
+  const requestId = message.match(/request id:\s*([a-z0-9-]+)/i)?.[1];
+  if (provider === "Seedance" && normalized.includes("input image") && normalized.includes("real person")) {
+    return [
+      `Seedance 返回错误(${status})：上传图片可能包含真人/人脸，当前产品视频接口不支持用真人照片做参考图。`,
+      "请换成只包含产品、包装、护理场景的图片，或先裁掉人物脸部后重新生成。",
+      requestId ? `请求ID：${requestId}` : "",
+    ].filter(Boolean).join(" ");
+  }
+  return `${provider} 返回错误(${status})：${message}`;
 }
 
 async function fetchProviderJson(provider: string, url: string, init: RequestInit) {
