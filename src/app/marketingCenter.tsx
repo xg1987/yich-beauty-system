@@ -505,35 +505,40 @@ function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidt
 function drawMirroredTalkVideo(
   context: CanvasRenderingContext2D,
   video: HTMLVideoElement,
-  drawX: number,
-  drawY: number,
-  drawWidth: number,
-  drawHeight: number,
+  sourceX: number,
+  sourceY: number,
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number,
   canvasWidth: number,
 ) {
   context.save();
   context.translate(canvasWidth, 0);
   context.scale(-1, 1);
-  context.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+  context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
   context.restore();
 }
 
 function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
   const sourceWidth = video.videoWidth || width;
   const sourceHeight = video.videoHeight || height;
-  const coverScale = Math.max(width / sourceWidth, height / sourceHeight);
-  const coverWidth = sourceWidth * coverScale;
-  const coverHeight = sourceHeight * coverScale;
-  context.save();
-  context.globalAlpha = 0.42;
-  context.filter = "blur(18px)";
-  drawMirroredTalkVideo(context, video, (width - coverWidth) / 2, (height - coverHeight) / 2, coverWidth, coverHeight, width);
-  context.restore();
+  const targetRatio = width / height;
+  const sourceRatio = sourceWidth / sourceHeight;
+  let cropX = 0;
+  let cropY = 0;
+  let cropWidth = sourceWidth;
+  let cropHeight = sourceHeight;
 
-  const fitScale = Math.min(width / sourceWidth, height / sourceHeight);
-  const drawWidth = sourceWidth * fitScale;
-  const drawHeight = sourceHeight * fitScale;
-  drawMirroredTalkVideo(context, video, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight, width);
+  if (sourceRatio > targetRatio) {
+    cropWidth = sourceHeight * targetRatio;
+    cropX = (sourceWidth - cropWidth) / 2;
+  } else if (sourceRatio < targetRatio) {
+    cropHeight = sourceWidth / targetRatio;
+    cropY = (sourceHeight - cropHeight) / 2;
+  }
+
+  drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, width, height, width);
 }
 
 function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
@@ -1873,6 +1878,15 @@ export function MarketingCenter({
         if (talkVideoRef.current) {
           talkVideoRef.current.srcObject = stream;
           await talkVideoRef.current.play().catch(() => undefined);
+        }
+        const videoSettings = stream.getVideoTracks()[0]?.getSettings();
+        const actualWidth = Number(videoSettings?.width);
+        const actualHeight = Number(videoSettings?.height);
+        if (actualWidth > 0 && actualHeight > 0) {
+          const actualRatio = actualWidth / actualHeight;
+          const targetRatio = talkRatio === "16:9" ? 16 / 9 : 9 / 16;
+          const ratioDelta = Math.abs(actualRatio - targetRatio);
+          setTalkCameraError(ratioDelta > 0.28 ? `当前相机返回${actualRatio > 1 ? "横屏" : "竖屏"}画面，系统会按 ${talkRatio} 裁切成片` : "");
         }
         setTalkCameraReady(true);
         if (talkRecording) startTalkRecorder(stream);

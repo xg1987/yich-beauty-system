@@ -28851,7 +28851,7 @@ textarea,
 .marketing-talk-camera-video {
   z-index: 0;
   background: #111111;
-  object-fit: contain;
+  object-fit: cover;
   transform: scaleX(-1);
 }
 
