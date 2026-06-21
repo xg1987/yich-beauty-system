@@ -37,7 +37,6 @@ import {
   Search,
   Settings,
   Share2,
-  ShoppingBag,
   ShieldCheck,
   Sparkles,
   Crown,
@@ -149,7 +148,7 @@ type AiGenerationConfig = {
 type LoadingGateStage = "connecting" | "slow" | "stalled";
 type EditableNumber = number | "";
 
-const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", "supplier", "purchase", "stocktake", "list", "batches", "logs"];
+const inventoryModuleKeys: InventoryModuleKey[] = ["stockIn", "loss", "adjust", "stocktake", "list", "batches", "logs"];
 
 const THEME_KEY = "yich-system-theme";
 const APP_VERSION = packageJson.version;
@@ -1515,7 +1514,6 @@ function ManagementCenter({
   ];
   const storeManagementCards: ManagementCard[] = [
     { title: "账号管理", desc: "员工审核 / 密码重置", icon: UserCog, tone: "violet", view: "accounts" },
-    { title: "供应商采购", desc: "供应商 / 采购入库", icon: ShoppingBag, tone: "amber", view: "inventory", inventoryModule: "purchase" },
     { title: "商品入库", desc: "新增商品 / 已有补货", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackageOpen, tone: "teal", view: "catalog" },
     { title: "商品档案", desc: "商品资料 / 编码规格", icon: FileBox, tone: "teal", view: "catalog", catalogModule: "productList" },
@@ -6735,24 +6733,12 @@ function Inventory({
   const [lossSaveMessage, setLossSaveMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [quantity, setQuantity] = useState(1);
   const [type, setType] = useState<InventoryLog["type"]>("入库");
-  const [supplierName, setSupplierName] = useState("");
-  const [supplierPhone, setSupplierPhone] = useState("");
   const [supplierId, setSupplierId] = useState(data.suppliers[0]?.id ?? "");
-  const [purchaseSupplierName, setPurchaseSupplierName] = useState(data.suppliers[0]?.name ?? "");
-  const [purchaseProductId, setPurchaseProductId] = useState(data.products[0]?.id ?? "");
-  const [purchaseProductName, setPurchaseProductName] = useState(data.products[0]?.name ?? "");
-  const [purchaseQuantity, setPurchaseQuantity] = useState(5);
-  const [unitCost, setUnitCost] = useState(68);
-  const [purchaseProductPrice, setPurchaseProductPrice] = useState("");
-  const [purchaseProductCategory, setPurchaseProductCategory] = useState("面护类");
-  const [purchaseProductSubcategory, setPurchaseProductSubcategory] = useState("膏霜");
-  const [purchaseWarningStock, setPurchaseWarningStock] = useState("5");
-  const [purchaseShelfLifeMonths, setPurchaseShelfLifeMonths] = useState("3");
-  const [purchaseServiceUnitsPerStockUnit, setPurchaseServiceUnitsPerStockUnit] = useState(String(productServiceUnitsPerStockUnit({ name: "", category: "面护类", subcategory: "膏霜", unit: "件" })));
-  const [purchaseMessage, setPurchaseMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [manualRestockProductId, setManualRestockProductId] = useState(data.products[0]?.id ?? "");
   const [manualRestockQuantity, setManualRestockQuantity] = useState(1);
   const [manualRestockExpiryAt, setManualRestockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
+  const [manualRestockSupplierName, setManualRestockSupplierName] = useState("");
+  const [manualRestockUnitCost, setManualRestockUnitCost] = useState("");
   const [manualRestockNote, setManualRestockNote] = useState("");
   const [manualRestockMessage, setManualRestockMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [inventoryIntakeMode, setInventoryIntakeMode] = useState<"new" | "restock">("new");
@@ -6769,6 +6755,8 @@ function Inventory({
   const [newInventoryServiceUnitsPerStockUnit, setNewInventoryServiceUnitsPerStockUnit] = useState(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
   const [newInventoryProductPrice, setNewInventoryProductPrice] = useState("");
   const [newInventoryProductStock, setNewInventoryProductStock] = useState("");
+  const [newInventorySupplierName, setNewInventorySupplierName] = useState("");
+  const [newInventoryUnitCost, setNewInventoryUnitCost] = useState("");
   const [newInventoryWarningStock, setNewInventoryWarningStock] = useState("5");
   const [newInventoryShelfLifeMonths, setNewInventoryShelfLifeMonths] = useState("3");
   const [newInventoryExpiryAt, setNewInventoryExpiryAt] = useState(addMonthsInputValue(3));
@@ -6786,7 +6774,6 @@ function Inventory({
   const [editProductStatus, setEditProductStatus] = useState<"启用" | "停用">("启用");
   const [editProductReason, setEditProductReason] = useState("");
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
-  const [purchaseExpiryAt, setPurchaseExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [activeModule, setActiveModule] = useState<InventoryModuleKey>(initialModule ?? "stockIn");
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("全部");
   const [inventorySubcategoryFilter, setInventorySubcategoryFilter] = useState("全部");
@@ -6804,8 +6791,6 @@ function Inventory({
   const lookupText = (value: string) => value.trim().toLowerCase();
   const findPurchaseSupplierByName = (name: string) => data.suppliers.find((item) => lookupText(item.name) === lookupText(name));
   const findPurchaseProductByName = (name: string) => data.products.find((item) => lookupText(item.name) === lookupText(name));
-  const purchaseProduct = findPurchaseProductByName(purchaseProductName);
-  const isNewPurchaseProduct = Boolean(purchaseProductName.trim()) && !purchaseProduct;
 
   const inventoryProductServiceDraft = (input: { name?: string; category?: string; subcategory?: string; unit?: string }) => ({
     name: input.name ?? newInventoryProductName,
@@ -6871,29 +6856,61 @@ function Inventory({
     const stock = numberFromInput(newInventoryProductStock, 0);
     const warningStock = numberFromInput(newInventoryWarningStock, 0);
     const shelfLifeMonths = optionalNumberFromInput(newInventoryShelfLifeMonths);
+    const supplierLabel = newInventorySupplierName.trim();
+    const unitCostValue = optionalNumberFromInput(newInventoryUnitCost);
     const serviceUnitsPerStockUnit = normalizeProductServiceUnitsPerStockUnit(optionalNumberFromInput(newInventoryServiceUnitsPerStockUnit));
     setInventoryProductSaveMessage(undefined);
+    if (findPurchaseProductByName(newInventoryProductName)) {
+      setInventoryProductSaveMessage({ type: "error", text: "商品已存在，请切换到补商品入库。" });
+      return;
+    }
     if (!newInventoryProductSubcategory.trim()) {
       setInventoryProductSaveMessage({ type: "error", text: "请选择小类" });
       return;
     }
-    void runMutation(() =>
-      actions.addProduct({
-        name: newInventoryProductName,
-        stock,
-        type: "sale",
-        category: newInventoryProductCategory.trim() || "面护类",
-        subcategory: newInventoryProductSubcategory.trim(),
-        unit: newInventoryProductUnit,
-        price,
-        warningStock,
-        shelfLifeMonths,
-        expiryAt: newInventoryExpiryAt || undefined,
-        serviceStockDeductible: true,
-        serviceUnit: productServiceUnit(inventoryProductServiceDraft({})),
-        serviceUnitsPerStockUnit,
-      }),
-    )
+    if (supplierLabel && stock <= 0) {
+      setInventoryProductSaveMessage({ type: "error", text: "有供应商来货时，请填写初始库存数量。" });
+      return;
+    }
+    if (supplierLabel && unitCostValue === undefined) {
+      setInventoryProductSaveMessage({ type: "error", text: "有供应商来货时，请填写采购单价。" });
+      return;
+    }
+    const mutation = supplierLabel
+      ? () => actions.receivePurchaseOrder({
+          supplierName: supplierLabel,
+          supplierContact: "采购联系人",
+          productName: newInventoryProductName,
+          productPrice: price,
+          productCategory: newInventoryProductCategory.trim() || "面护类",
+          productSubcategory: newInventoryProductSubcategory.trim(),
+          productUnit: newInventoryProductUnit,
+          warningStock,
+          shelfLifeMonths,
+          serviceStockDeductible: true,
+          serviceUnit: productServiceUnit(inventoryProductServiceDraft({})),
+          serviceUnitsPerStockUnit,
+          quantity: stock,
+          unitCost: unitCostValue ?? 0,
+          expiryAt: newInventoryExpiryAt || undefined,
+        })
+      : () => actions.addProduct({
+          name: newInventoryProductName,
+          stock,
+          type: "sale",
+          category: newInventoryProductCategory.trim() || "面护类",
+          subcategory: newInventoryProductSubcategory.trim(),
+          unit: newInventoryProductUnit,
+          price,
+          cost: unitCostValue,
+          warningStock,
+          shelfLifeMonths,
+          expiryAt: newInventoryExpiryAt || undefined,
+          serviceStockDeductible: true,
+          serviceUnit: productServiceUnit(inventoryProductServiceDraft({})),
+          serviceUnitsPerStockUnit,
+        });
+    void runMutation(mutation)
       .then(() => {
         setNewInventoryProductName("");
         setNewInventoryProductCategory("面护类");
@@ -6901,10 +6918,12 @@ function Inventory({
         setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
         setNewInventoryProductPrice("");
         setNewInventoryProductStock("");
+        setNewInventorySupplierName("");
+        setNewInventoryUnitCost("");
         setNewInventoryWarningStock("5");
         setNewInventoryShelfLifeMonths("3");
         setNewInventoryExpiryAt(addMonthsInputValue(3));
-        setInventoryProductSaveMessage({ type: "success", text: "商品已保存，首批库存已同步入库。" });
+        setInventoryProductSaveMessage({ type: "success", text: supplierLabel ? "商品已保存，供应商来货已同步入库。" : "商品已保存，首批库存已同步入库。" });
       })
       .catch((caught) => {
         const message = caught instanceof Error ? caught.message : "商品保存失败，请检查后再试。";
@@ -6972,78 +6991,6 @@ function Inventory({
     setInventoryCategoryMessage({ type: "success", text: "大类已加入，可在新增商品里填写小类。" });
   };
 
-  const addSupplier = (event: FormEvent) => {
-    event.preventDefault();
-    void runMutation(() => actions.addSupplier({ name: supplierName, phone: supplierPhone, contact: "采购联系人" }));
-  };
-
-  const receivePurchase = (event: FormEvent) => {
-    event.preventDefault();
-    const supplierLabel = purchaseSupplierName.trim();
-    const productLabel = purchaseProductName.trim();
-    const product = findPurchaseProductByName(productLabel);
-    const existingSupplier = findPurchaseSupplierByName(supplierLabel);
-    const productPrice = optionalNumberFromInput(purchaseProductPrice);
-    const warningStock = optionalNumberFromInput(purchaseWarningStock);
-    const shelfLifeMonths = optionalNumberFromInput(purchaseShelfLifeMonths);
-    const serviceUnitsPerStockUnit = normalizeProductServiceUnitsPerStockUnit(optionalNumberFromInput(purchaseServiceUnitsPerStockUnit));
-    setPurchaseMessage(undefined);
-    if (!supplierLabel) {
-      setPurchaseMessage({ type: "error", text: "请输入供应商名称" });
-      return;
-    }
-    if (!productLabel) {
-      setPurchaseMessage({ type: "error", text: "请输入商品名称" });
-      return;
-    }
-    if (!product && productPrice === undefined) {
-      setPurchaseMessage({ type: "error", text: "新商品请填写销售价" });
-      return;
-    }
-    if (!product && !purchaseProductSubcategory.trim()) {
-      setPurchaseMessage({ type: "error", text: "新商品请选择小类" });
-      return;
-    }
-    if (purchaseQuantity <= 0) {
-      setPurchaseMessage({ type: "error", text: "请输入入库数量" });
-      return;
-    }
-    if (unitCost < 0) {
-      setPurchaseMessage({ type: "error", text: "采购单价不能为负数" });
-      return;
-    }
-    void runMutation(() => actions.receivePurchaseOrder({
-      supplierId: existingSupplier?.id,
-      supplierName: supplierLabel,
-      supplierContact: "采购联系人",
-      productId: product?.id,
-      productName: productLabel,
-      productPrice,
-      productCategory: purchaseProductCategory.trim() || "面护类",
-      productSubcategory: purchaseProductSubcategory.trim(),
-      productUnit: "件",
-      warningStock,
-      shelfLifeMonths,
-      serviceStockDeductible: true,
-      serviceUnit: productServiceUnit({ name: productLabel, category: purchaseProductCategory, subcategory: purchaseProductSubcategory, unit: "件" }),
-      serviceUnitsPerStockUnit,
-      quantity: purchaseQuantity,
-      unitCost,
-      expiryAt: purchaseExpiryAt || undefined,
-    }))
-      .then(() => {
-        if (existingSupplier) setSupplierId(existingSupplier.id);
-        if (product) setPurchaseProductId(product.id);
-        setPurchaseSupplierName(supplierLabel);
-        setPurchaseProductName(productLabel);
-        setPurchaseMessage({ type: "success", text: "采购入库已保存" });
-      })
-      .catch((caught) => {
-        const message = caught instanceof Error ? caught.message : "采购入库失败，请检查后再试。";
-        setPurchaseMessage({ type: "error", text: message });
-      });
-  };
-
   const chooseManualRestockProduct = (nextProductId: string) => {
     setManualRestockProductId(nextProductId);
     setManualRestockExpiryAt(defaultExpiryForProduct(nextProductId));
@@ -7053,6 +7000,8 @@ function Inventory({
   const openManualRestockProduct = (product: Product) => {
     chooseManualRestockProduct(product.id);
     setManualRestockQuantity(1);
+    setManualRestockSupplierName("");
+    setManualRestockUnitCost("");
     setManualRestockNote("");
     setInventoryIntakeMode("restock");
     setActiveModule("stockIn");
@@ -7070,16 +7019,36 @@ function Inventory({
       setManualRestockMessage({ type: "error", text: "请输入入库数量" });
       return;
     }
-    void runMutation(() => actions.adjustInventory({
-      productId: product.id,
-      type: "入库",
-      quantity: manualRestockQuantity,
-      expiryAt: manualRestockExpiryAt || undefined,
-      note: manualRestockNote.trim() || "手动补货入库",
-    }))
+    const supplierLabel = manualRestockSupplierName.trim();
+    const unitCostValue = optionalNumberFromInput(manualRestockUnitCost);
+    if (supplierLabel && unitCostValue === undefined) {
+      setManualRestockMessage({ type: "error", text: "有供应商来货时，请填写采购单价。" });
+      return;
+    }
+    void runMutation(() => supplierLabel
+      ? actions.receivePurchaseOrder({
+          supplierId: findPurchaseSupplierByName(supplierLabel)?.id,
+          supplierName: supplierLabel,
+          supplierContact: "采购联系人",
+          productId: product.id,
+          productName: product.name,
+          quantity: manualRestockQuantity,
+          unitCost: unitCostValue ?? 0,
+          expiryAt: manualRestockExpiryAt || undefined,
+        })
+      : actions.adjustInventory({
+          productId: product.id,
+          type: "入库",
+          quantity: manualRestockQuantity,
+          expiryAt: manualRestockExpiryAt || undefined,
+          note: manualRestockNote.trim() || "手动补货入库",
+        }))
       .then(() => {
         setManualRestockQuantity(1);
-        setManualRestockMessage({ type: "success", text: "补货入库已保存，库存和批次已更新。" });
+        setManualRestockSupplierName("");
+        setManualRestockUnitCost("");
+        setManualRestockNote("");
+        setManualRestockMessage({ type: "success", text: supplierLabel ? "供应商补货入库已保存，库存和批次已更新。" : "补货入库已保存，库存和批次已更新。" });
       })
       .catch((caught) => {
         const message = caught instanceof Error ? caught.message : "补货入库失败，请检查后再试。";
@@ -7110,10 +7079,6 @@ function Inventory({
   useEffect(() => {
     if (!manualRestockProductId && data.products[0]) chooseManualRestockProduct(data.products[0].id);
   }, [data.products, manualRestockProductId]);
-
-  useEffect(() => {
-    setPurchaseExpiryAt(defaultExpiryForProduct(purchaseProductId));
-  }, [purchaseProductId]);
 
   useEffect(() => {
     setActiveModule(initialModule ?? "stockIn");
@@ -7222,11 +7187,9 @@ function Inventory({
     setInventoryExportMessage("库存已导出");
   };
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
-    { key: "purchase", title: "采购入库", desc: "供应商采购和入库记录", icon: PackagePlus, tone: "jade", meta: "补货" },
     { key: "stockIn", title: "商品入库", desc: "新增商品和已有商品补货", icon: PackagePlus, tone: "teal", meta: "入库" },
     { key: "loss", title: "商品损耗", desc: "损耗登记和库存扣减", icon: PackageMinus, tone: "rose", meta: "报损" },
     { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
-    { key: "supplier", title: "供应商", desc: "维护采购基础资料", icon: Building2, tone: "amber", meta: `${data.suppliers.length} 家` },
     { key: "stocktake", title: "库存盘点", desc: "账实差异和盘点记录", icon: ClipboardList, tone: "violet", meta: `${data.stocktakes.length} 条` },
     { key: "batches", title: "库存批次", desc: "入库批次、成本和效期", icon: Boxes, tone: "teal", meta: `${data.inventoryBatches.length} 批` },
     { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
@@ -7251,7 +7214,7 @@ function Inventory({
         stats={[
           { label: "库存品项", value: `${data.products.length} 个`, hint: `合计库存 ${stockValue}`, icon: <Boxes size={18} /> },
           { label: "低库存", value: `${lowStock} 项`, hint: "低于预警值 - 已增强提醒", icon: <PackagePlus size={18} /> },
-          { label: "供应商", value: `${data.suppliers.length} 家`, hint: "采购基础资料", icon: <Building2 size={18} /> },
+          { label: "库存批次", value: `${data.inventoryBatches.length} 批`, hint: "成本和效期追踪", icon: <ClipboardList size={18} /> },
         ]}
       />
       <Modal
@@ -7307,107 +7270,6 @@ function Inventory({
         </form>
         </section>
         )}
-        {activeModule === "supplier" && (
-        <section className="panel">
-        <PanelTitle icon={<Boxes size={18} />} title="供应商" action="采购基础资料" />
-        <form className="form" onSubmit={addSupplier}>
-          <label>供应商名称<input value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label>
-          <label>联系电话<input value={supplierPhone} onChange={(event) => setSupplierPhone(event.target.value)} /></label>
-          <SubmitStatusButton idleText="新增供应商" busyText="保存中..." />
-        </form>
-        </section>
-        )}
-        {activeModule === "purchase" && (
-        <section className="panel">
-        <PanelTitle icon={<PackagePlus size={18} />} title="采购入库" action="生成采购单" />
-        <form className="form" onSubmit={receivePurchase}>
-          <label>
-            供应商
-            <input
-              list="purchase-supplier-options"
-              value={purchaseSupplierName}
-              onChange={(event) => {
-                const nextName = event.target.value;
-                const supplier = findPurchaseSupplierByName(nextName);
-                setPurchaseSupplierName(nextName);
-                setSupplierId(supplier?.id ?? "");
-                setPurchaseMessage(undefined);
-              }}
-              placeholder="输入供应商名称"
-            />
-            <datalist id="purchase-supplier-options">
-              {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}
-            </datalist>
-          </label>
-          <label>
-            物品
-            <input
-              list="purchase-product-options"
-              value={purchaseProductName}
-              onChange={(event) => {
-                const nextName = event.target.value;
-                const product = findPurchaseProductByName(nextName);
-                setPurchaseProductName(nextName);
-                setPurchaseProductId(product?.id ?? "");
-                if (product) setPurchaseExpiryAt(defaultExpiryForProduct(product.id));
-                setPurchaseMessage(undefined);
-              }}
-              placeholder="输入商品名称"
-            />
-            <datalist id="purchase-product-options">
-              {data.products.map((product) => <option key={product.id} value={product.name} />)}
-            </datalist>
-          </label>
-          {purchaseProduct ? (
-            <div className="inventory-purchase-summary">
-              <strong>已有商品</strong>
-              <span>当前库存 {formatStockQuantity(purchaseProduct.stock)}{purchaseProduct.unit || "件"} · 销售价 {money(purchaseProduct.price)} 不修改</span>
-            </div>
-          ) : isNewPurchaseProduct ? (
-            <div className="inventory-purchase-new-product">
-              <div className="inventory-inline-header">
-                <strong>新商品资料</strong>
-                <span>采购价是成本价，销售价在这里补齐后才能销售</span>
-              </div>
-              <div className="inventory-product-form-row inventory-product-form-stock">
-                <label>销售价格<input value={purchaseProductPrice} onChange={(event) => setPurchaseProductPrice(event.target.value)} inputMode="decimal" placeholder="卖给客户的价格" /></label>
-                <Select
-                  label="大类"
-                  value={purchaseProductCategory}
-                  onChange={(value) => {
-                    setPurchaseProductCategory(value);
-                    const nextSubcategories = inventorySubcategoryNames(data.products, value, inventoryCategoryPresets);
-                    const nextSubcategory = nextSubcategories[0] ?? "";
-                    setPurchaseProductSubcategory(nextSubcategory);
-                    setPurchaseServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit({ name: purchaseProductName, category: value, subcategory: nextSubcategory, unit: "件" })));
-                  }}
-                  options={inventoryCategoryOptions}
-                />
-                <Select
-                  label="小类"
-                  value={purchaseProductSubcategory}
-                  onChange={(value) => {
-                    setPurchaseProductSubcategory(value);
-                    setPurchaseServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit({ name: purchaseProductName, category: purchaseProductCategory, subcategory: value, unit: "件" })));
-                  }}
-                  options={(inventorySubcategoryNames(data.products, purchaseProductCategory, inventoryCategoryPresets).length
-                    ? inventorySubcategoryNames(data.products, purchaseProductCategory, inventoryCategoryPresets).map((subcategory) => ({ value: subcategory, label: subcategory }))
-                    : [{ value: "", label: "暂无小类", disabled: true }])}
-                />
-                <label>预警库存<input value={purchaseWarningStock} onChange={(event) => setPurchaseWarningStock(event.target.value)} inputMode="numeric" /></label>
-                <label>保质期(月)<input value={purchaseShelfLifeMonths} onChange={(event) => setPurchaseShelfLifeMonths(event.target.value)} inputMode="numeric" /></label>
-                <label>每件数量<input value={purchaseServiceUnitsPerStockUnit} onChange={(event) => setPurchaseServiceUnitsPerStockUnit(event.target.value)} inputMode="decimal" /></label>
-              </div>
-            </div>
-          ) : null}
-          <label>入库数量<input type="number" value={purchaseQuantity} onChange={(event) => setPurchaseQuantity(Number(event.target.value))} /></label>
-          <label>采购单价<input type="number" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label>
-          <label>到期日期<input type="date" value={purchaseExpiryAt} onChange={(event) => setPurchaseExpiryAt(event.target.value)} /></label>
-          {purchaseMessage && <p className={purchaseMessage.type === "error" ? "form-error" : "form-success"}>{purchaseMessage.text}</p>}
-          <SubmitStatusButton idleText="确认入库" busyText="入库中..." />
-        </form>
-        </section>
-        )}
                 {activeModule === "stocktake" && (
                 <section className="panel">
                 <PanelTitle icon={<ClipboardList size={18} />} title="库存盘点" action="调整账实差异" />
@@ -7444,7 +7306,7 @@ function Inventory({
                   <div className="inventory-inline-header">
                     <div className="inventory-inline-title">
                       <strong>已有商品补货</strong>
-                      <span>不走供应商，直接给同一个商品增加库存；销售价只展示不修改</span>
+                      <span>给同一个商品增加库存；可填写供应商和采购价，销售价只展示不修改</span>
                     </div>
                   </div>
                   <form className="form catalog-inline-form inventory-restock-form" onSubmit={submitManualRestock}>
@@ -7463,6 +7325,11 @@ function Inventory({
                     </div>
                     <div className="inventory-product-form-row inventory-product-form-stock">
                       <label>入库数量<input type="number" min={0.001} step="0.001" value={manualRestockQuantity} onChange={(event) => setManualRestockQuantity(Number(event.target.value))} /></label>
+                      <label>供应商名称<input list="inventory-restock-supplier-options" value={manualRestockSupplierName} onChange={(event) => setManualRestockSupplierName(event.target.value)} placeholder="可选" /></label>
+                      <datalist id="inventory-restock-supplier-options">
+                        {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}
+                      </datalist>
+                      <label>采购单价<input type="number" min={0} step="0.01" value={manualRestockUnitCost} onChange={(event) => setManualRestockUnitCost(event.target.value)} placeholder="成本价" /></label>
                       <label>到期日期<input type="date" value={manualRestockExpiryAt} onChange={(event) => setManualRestockExpiryAt(event.target.value)} /></label>
                       <label>备注<input value={manualRestockNote} onChange={(event) => setManualRestockNote(event.target.value)} placeholder="线下补货 / 老板自采" /></label>
                       <div className="form-submit-row">
@@ -7482,7 +7349,7 @@ function Inventory({
                   <div className="inventory-inline-header">
                     <div className="inventory-inline-title">
                       <strong>新增商品</strong>
-                      <span>录入分类、库存、保质期和包装扣减数量</span>
+                      <span>录入分类、销售价、库存；有供应商时同步生成采购记录</span>
                     </div>
                     <button className="inventory-category-manage-button" type="button" onClick={openInventoryCategoryManager}>
                       <Settings size={16} />
@@ -7522,6 +7389,11 @@ function Inventory({
                     <div className="inventory-product-form-row inventory-product-form-stock">
                       <label>销售价格<input type="number" min={0} step="0.01" value={newInventoryProductPrice} onChange={(event) => setNewInventoryProductPrice(event.target.value)} placeholder="卖给客户的价格" /></label>
                       <label>初始库存<input type="number" min={0} value={newInventoryProductStock} onChange={(event) => setNewInventoryProductStock(event.target.value)} /></label>
+                      <label>供应商名称<input list="inventory-new-supplier-options" value={newInventorySupplierName} onChange={(event) => setNewInventorySupplierName(event.target.value)} placeholder="可选" /></label>
+                      <datalist id="inventory-new-supplier-options">
+                        {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}
+                      </datalist>
+                      <label>采购单价<input type="number" min={0} step="0.01" value={newInventoryUnitCost} onChange={(event) => setNewInventoryUnitCost(event.target.value)} placeholder="成本价" /></label>
                       <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
                       <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
                         const nextValue = event.target.value;
