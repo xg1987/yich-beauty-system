@@ -6872,10 +6872,6 @@ function Inventory({
       setInventoryProductSaveMessage({ type: "error", text: "有供应商来货时，请填写初始库存数量。" });
       return;
     }
-    if (supplierLabel && unitCostValue === undefined) {
-      setInventoryProductSaveMessage({ type: "error", text: "有供应商来货时，请填写采购单价。" });
-      return;
-    }
     const mutation = supplierLabel
       ? () => actions.receivePurchaseOrder({
           supplierName: supplierLabel,
@@ -7021,10 +7017,6 @@ function Inventory({
     }
     const supplierLabel = manualRestockSupplierName.trim();
     const unitCostValue = optionalNumberFromInput(manualRestockUnitCost);
-    if (supplierLabel && unitCostValue === undefined) {
-      setManualRestockMessage({ type: "error", text: "有供应商来货时，请填写采购单价。" });
-      return;
-    }
     void runMutation(() => supplierLabel
       ? actions.receivePurchaseOrder({
           supplierId: findPurchaseSupplierByName(supplierLabel)?.id,
@@ -7329,7 +7321,7 @@ function Inventory({
                       <datalist id="inventory-restock-supplier-options">
                         {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}
                       </datalist>
-                      <label>采购单价<input type="number" min={0} step="0.01" value={manualRestockUnitCost} onChange={(event) => setManualRestockUnitCost(event.target.value)} placeholder="成本价" /></label>
+                      <label>采购单价（可选）<input type="number" min={0} step="0.01" value={manualRestockUnitCost} onChange={(event) => setManualRestockUnitCost(event.target.value)} placeholder="成本价，可后补" /></label>
                       <label>到期日期<input type="date" value={manualRestockExpiryAt} onChange={(event) => setManualRestockExpiryAt(event.target.value)} /></label>
                       <label>备注<input value={manualRestockNote} onChange={(event) => setManualRestockNote(event.target.value)} placeholder="线下补货 / 老板自采" /></label>
                       <div className="form-submit-row">
@@ -7393,7 +7385,7 @@ function Inventory({
                       <datalist id="inventory-new-supplier-options">
                         {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}
                       </datalist>
-                      <label>采购单价<input type="number" min={0} step="0.01" value={newInventoryUnitCost} onChange={(event) => setNewInventoryUnitCost(event.target.value)} placeholder="成本价" /></label>
+                      <label>采购单价（可选）<input type="number" min={0} step="0.01" value={newInventoryUnitCost} onChange={(event) => setNewInventoryUnitCost(event.target.value)} placeholder="成本价，可后补" /></label>
                       <label>预警库存<input type="number" min={0} value={newInventoryWarningStock} onChange={(event) => setNewInventoryWarningStock(event.target.value)} /></label>
                       <label>保质期(月)<input type="number" min={0} value={newInventoryShelfLifeMonths} onChange={(event) => {
                         const nextValue = event.target.value;
