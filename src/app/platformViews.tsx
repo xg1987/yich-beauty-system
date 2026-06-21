@@ -74,21 +74,21 @@ import {
 import { permissionLabels, permissionOptions, roleScopeLabels } from "./permissionDisplay";
 
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
-type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
+type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo" | "grok";
 type AiVideoResolution = "480p" | "720p" | "1080p";
 type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
 type AiTextModelConfig = { enabled: boolean; provider: Extract<AiProviderKey, "openai" | "deepseek">; model: string; apiKey: string; inputTokenUsdPerMillion: number; outputTokenUsdPerMillion: number };
 const OPENAI_IMAGE_MODEL_OPTIONS = ["gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
 type OpenAiImageModel = typeof OPENAI_IMAGE_MODEL_OPTIONS[number];
 type AiImageModelConfig = { enabled: boolean; provider: "openai"; model: OpenAiImageModel; apiKey: string; defaultSize: "1024x1024" | "1024x1536" | "1536x1024"; defaultQuality: "standard" | "high"; maxImagesPerRequest: number; textInputUsdPerMillion: number; imageInputUsdPerMillion: number; imageOutputUsdPerMillion: number };
-type AiVideoProviderConfig = { provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo">; enabled: boolean; model: string; apiKey: string; defaultDurationSeconds: number; defaultResolution: AiVideoResolution; defaultAspectRatio: AiVideoAspectRatio; priceUsdBySpec: Record<string, number> };
+type AiVideoProviderConfig = { provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo" | "grok">; enabled: boolean; model: string; apiKey: string; defaultDurationSeconds: number; defaultResolution: AiVideoResolution; defaultAspectRatio: AiVideoAspectRatio; priceUsdBySpec: Record<string, number> };
 type AiGenerationConfig = { copy: AiTextModelConfig; image: AiImageModelConfig; video: { defaultProvider: AiVideoProviderConfig["provider"]; providers: AiVideoProviderConfig[] } };
 
 const AI_VIDEO_DURATIONS = [5, 10, 15];
 const AI_VIDEO_RESOLUTIONS: AiVideoResolution[] = ["480p", "720p", "1080p"];
 const AI_VIDEO_ASPECT_RATIOS: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
 const DEFAULT_SEEDANCE_MODEL = "doubao-seedance-2-0-fast-260128";
-const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = { openai: "OpenAI", deepseek: "DeepSeek", seedance: "Seedance", kling: "Kling", hailuo: "海螺" };
+const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = { openai: "OpenAI", deepseek: "DeepSeek", seedance: "Seedance", kling: "Kling", hailuo: "海螺", grok: "Grok Imagine" };
 const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = { copy: "AI 写文案", image: "AI 做产品设计图", video: "AI 做产品视频" };
 const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = { owner: { copy: true, image: true, video: true }, staff: { copy: true, image: true, video: false } };
 const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
@@ -98,6 +98,7 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
     { provider: "seedance", enabled: true, model: DEFAULT_SEEDANCE_MODEL, apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.3408, "5s:720p": 0.7332, "5s:1080p": 1.8279, "10s:480p": 0.6816, "10s:720p": 1.4665, "10s:1080p": 3.6558, "15s:480p": 1.0224, "15s:720p": 2.1997, "15s:1080p": 5.4837 } },
     { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0, "5s:720p": 0.42, "5s:1080p": 0.56, "10s:480p": 0, "10s:720p": 0.84, "10s:1080p": 1.12, "15s:480p": 0, "15s:720p": 1.26, "15s:1080p": 1.68 } },
     { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.1, "5s:720p": 0.28, "5s:1080p": 0.49, "10s:480p": 0.15, "10s:720p": 0.56, "10s:1080p": 0, "15s:480p": 0, "15s:720p": 0, "15s:1080p": 0 } },
+    { provider: "grok", enabled: false, model: "grok-imagine-video-1.5", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: { "5s:480p": 0.4, "5s:720p": 0.4, "5s:1080p": 0, "10s:480p": 0.8, "10s:720p": 0.8, "10s:1080p": 0, "15s:480p": 1.2, "15s:720p": 1.2, "15s:1080p": 0 } },
   ] },
 };
 

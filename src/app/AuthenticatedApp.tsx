@@ -97,7 +97,7 @@ type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; posSignatureId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
-type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
+type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo" | "grok";
 type AiVideoResolution = "480p" | "720p" | "1080p";
 type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
 
@@ -129,7 +129,7 @@ type AiImageModelConfig = {
   imageOutputUsdPerMillion: number;
 };
 type AiVideoProviderConfig = {
-  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo">;
+  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo" | "grok">;
   enabled: boolean;
   model: string;
   apiKey: string;
@@ -171,6 +171,7 @@ export const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = {
   seedance: "Seedance",
   kling: "Kling",
   hailuo: "海螺",
+  grok: "Grok Imagine",
 };
 const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = {
   copy: "AI 写文案",
@@ -265,6 +266,26 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
           "10s:1080p": 0,
           "15s:480p": 0,
           "15s:720p": 0,
+          "15s:1080p": 0,
+        },
+      },
+      {
+        provider: "grok",
+        enabled: false,
+        model: "grok-imagine-video-1.5",
+        apiKey: "",
+        defaultDurationSeconds: 5,
+        defaultResolution: "480p",
+        defaultAspectRatio: "9:16",
+        priceUsdBySpec: {
+          "5s:480p": 0.4,
+          "5s:720p": 0.4,
+          "5s:1080p": 0,
+          "10s:480p": 0.8,
+          "10s:720p": 0.8,
+          "10s:1080p": 0,
+          "15s:480p": 1.2,
+          "15s:720p": 1.2,
           "15s:1080p": 0,
         },
       },

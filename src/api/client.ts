@@ -51,7 +51,7 @@ export type PublicCustomerSignaturePayload = {
     staffName: string;
   };
 };
-export type AiVideoProviderKey = "seedance" | "kling" | "hailuo";
+export type AiVideoProviderKey = "seedance" | "kling" | "hailuo" | "grok";
 export type AiTestChatMessage = { role: "user" | "assistant"; content: string };
 export type AiTestChatResult = {
   provider: "openai" | "deepseek";

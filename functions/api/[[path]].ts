@@ -566,7 +566,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         throw new Error("只能刷新本门店的视频记录");
       }
       if (!record.taskId) throw new Error("这条视频记录没有任务 ID，无法刷新状态");
-      const provider = record.provider === "seedance" || record.provider === "kling" || record.provider === "hailuo" ? record.provider : undefined;
+      const provider = record.provider === "seedance" || record.provider === "kling" || record.provider === "hailuo" || record.provider === "grok" ? record.provider : undefined;
       if (!provider) throw new Error("视频供应商信息不完整，无法刷新状态");
       const result = await runAiVideoStatusTest(currentData, { provider, taskId: record.taskId });
       const nextRecord: MarketingAiRecord = {
@@ -2570,7 +2570,7 @@ async function readWorkerUsage(env: Env): Promise<WorkerUsageSnapshot> {
   }
 }
 
-type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
+type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo" | "grok";
 type AiVideoResolution = "480p" | "720p" | "1080p";
 type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
 type AiTextModelConfig = {
@@ -2596,7 +2596,7 @@ type AiImageModelConfig = {
   imageOutputUsdPerMillion: number;
 };
 type AiVideoProviderConfig = {
-  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo">;
+  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo" | "grok">;
   enabled: boolean;
   model: string;
   apiKey: string;
@@ -2648,6 +2648,7 @@ const defaultAiGenerationConfig: AiGenerationConfig = {
       { provider: "seedance", enabled: true, model: defaultSeedanceModel, apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
       { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
       { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "grok", enabled: false, model: "grok-imagine-video-1.5", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
     ],
   },
 };
@@ -3949,6 +3950,9 @@ async function runAiVideoTest(data: AppData, body: JsonBody) {
   if (activeProvider.provider === "hailuo") {
     return createHailuoVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
   }
+  if (activeProvider.provider === "grok") {
+    return createGrokVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
+  }
   if (activeProvider.provider === "kling") {
     return createKlingVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
   }
@@ -3963,6 +3967,7 @@ async function runAiVideoStatusTest(data: AppData, body: JsonBody) {
   assertAiCapability(activeProvider.enabled, activeProvider.apiKey, activeProvider.model, `${providerLabel(activeProvider.provider)}视频`);
   const taskId = requiredTrimmedText(body, "taskId", 200);
   if (activeProvider.provider === "hailuo") return queryHailuoVideoTask(activeProvider, taskId);
+  if (activeProvider.provider === "grok") return queryGrokVideoTask(activeProvider, taskId);
   if (activeProvider.provider === "kling") return queryKlingVideoTask(activeProvider, taskId);
   return querySeedanceVideoTask(activeProvider, taskId);
 }
@@ -4079,11 +4084,59 @@ async function queryHailuoVideoTask(config: AiVideoProviderConfig, taskId: strin
     method: "GET",
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
+  const fileId = readFirstString(payload, ["file_id", "fileId"]);
+  const retrievedVideoUrl = fileId ? await retrieveHailuoVideoUrl(config, fileId) : undefined;
   return videoResult(config, elapsedMs, payload, {
     taskId,
     status: readFirstString(payload, ["status"]),
-    fileId: readFirstString(payload, ["file_id", "fileId"]),
-    videoUrl: readFirstString(payload, ["video_url", "videoURL"]),
+    fileId,
+    videoUrl: retrievedVideoUrl ?? readFirstString(payload, ["video_url", "videoURL"]),
+  });
+}
+
+async function retrieveHailuoVideoUrl(config: AiVideoProviderConfig, fileId: string) {
+  const { payload } = await fetchProviderJson("MiniMax", `https://api.minimax.io/v1/files/retrieve?file_id=${encodeURIComponent(fileId)}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+  });
+  return readNestedString(payload, [["file", "download_url"], ["file", "downloadUrl"], ["download_url"], ["downloadUrl"], ["data", "file", "download_url"], ["data", "download_url"]]);
+}
+
+async function createGrokVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio, assets: MarketingImageAsset[] = []) {
+  const firstAsset = assets[0];
+  const normalizedResolution = resolution === "1080p" ? "720p" : resolution;
+  const normalizedRequest = { duration: durationSeconds, resolution: normalizedResolution, aspectRatio, referenceImages: assets.map((asset) => asset.label) };
+  const { payload, elapsedMs } = await fetchProviderJson("Grok Imagine", "https://api.x.ai/v1/videos/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      prompt,
+      ...(firstAsset ? { image: { url: firstAsset.dataUrl } } : {}),
+      duration: durationSeconds,
+      resolution: normalizedResolution,
+      aspect_ratio: aspectRatio,
+    }),
+  });
+  return videoResult(config, elapsedMs, payload, {
+    taskId: readFirstString(payload, ["request_id", "requestId", "id"]),
+    status: readFirstString(payload, ["status"]),
+    normalizedRequest,
+  });
+}
+
+async function queryGrokVideoTask(config: AiVideoProviderConfig, taskId: string) {
+  const { payload, elapsedMs } = await fetchProviderJson("Grok Imagine", `https://api.x.ai/v1/videos/${encodeURIComponent(taskId)}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+  });
+  return videoResult(config, elapsedMs, payload, {
+    taskId,
+    status: readFirstString(payload, ["status"]),
+    videoUrl: readNestedString(payload, [["video", "url"], ["data", "video", "url"], ["result", "video", "url"], ["url"], ["video_url"], ["videoURL"]]),
   });
 }
 
@@ -4100,6 +4153,7 @@ function videoResult(config: AiVideoProviderConfig, elapsedMs: number, raw: Reco
 function providerLabel(provider: AiVideoProviderConfig["provider"]) {
   if (provider === "seedance") return "Seedance";
   if (provider === "kling") return "Kling";
+  if (provider === "grok") return "Grok Imagine";
   return "海螺";
 }
 

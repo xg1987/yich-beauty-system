@@ -2666,7 +2666,7 @@ async function readLocalWorkerUsage(): Promise<WorkerUsageSnapshot> {
   }
 }
 
-type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo";
+type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo" | "grok";
 type AiVideoResolution = "480p" | "720p" | "1080p";
 type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
 type AiTextModelConfig = {
@@ -2690,7 +2690,7 @@ type AiImageModelConfig = {
   imageOutputUsdPerMillion: number;
 };
 type AiVideoProviderConfig = {
-  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo">;
+  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo" | "grok">;
   enabled: boolean;
   model: string;
   apiKey: string;
@@ -2741,6 +2741,7 @@ const defaultAiGenerationConfig: AiGenerationConfig = {
       { provider: "seedance", enabled: true, model: defaultSeedanceModel, apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
       { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
       { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "grok", enabled: false, model: "grok-imagine-video-1.5", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
     ],
   },
 };
@@ -3739,6 +3740,9 @@ async function runAiVideoTest(data: AppData, body: JsonBody) {
   if (activeProvider.provider === "hailuo") {
     return createHailuoVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
   }
+  if (activeProvider.provider === "grok") {
+    return createGrokVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
+  }
   if (activeProvider.provider === "kling") {
     return createKlingVideoTask(activeProvider, prompt, durationSeconds, resolution, aspectRatio, assets);
   }
@@ -3828,6 +3832,32 @@ async function createHailuoVideoTask(config: AiVideoProviderConfig, prompt: stri
   });
 }
 
+async function createGrokVideoTask(config: AiVideoProviderConfig, prompt: string, durationSeconds: number, resolution: AiVideoResolution, aspectRatio: AiVideoAspectRatio, assets: MarketingImageAsset[] = []) {
+  const firstAsset = assets[0];
+  const normalizedResolution = resolution === "1080p" ? "720p" : resolution;
+  const normalizedRequest = { duration: durationSeconds, resolution: normalizedResolution, aspectRatio, referenceImages: assets.map((asset) => asset.label) };
+  const { payload, elapsedMs } = await fetchProviderJson("Grok Imagine", "https://api.x.ai/v1/videos/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      prompt,
+      ...(firstAsset ? { image: { url: firstAsset.dataUrl } } : {}),
+      duration: durationSeconds,
+      resolution: normalizedResolution,
+      aspect_ratio: aspectRatio,
+    }),
+  });
+  return videoResult(config, elapsedMs, payload, {
+    taskId: readFirstString(payload, ["request_id", "requestId", "id"]),
+    status: readFirstString(payload, ["status"]),
+    normalizedRequest,
+  });
+}
+
 function videoResult(config: AiVideoProviderConfig, elapsedMs: number, raw: Record<string, unknown>, extras: Partial<{ taskId: string; status: string; videoUrl: string; fileId: string; normalizedRequest: Record<string, unknown> }>) {
   return {
     provider: config.provider,
@@ -3841,6 +3871,7 @@ function videoResult(config: AiVideoProviderConfig, elapsedMs: number, raw: Reco
 function providerLabel(provider: AiVideoProviderConfig["provider"]) {
   if (provider === "seedance") return "Seedance";
   if (provider === "kling") return "Kling";
+  if (provider === "grok") return "Grok Imagine";
   return "海螺";
 }
 
