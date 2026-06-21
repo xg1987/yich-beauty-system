@@ -962,7 +962,7 @@ const workbarItems: WorkbarItem[] = [
   { key: "admin", label: "管理中心", icon: UserRound, view: "settings" },
 ];
 
-const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiCredits", "aiUsage", "storeCustomerDetails", "logs", "usage", "settings"]);
+const platformAdminAllowedViews = new Set<ViewKey>(["dashboard", "reports", "accounts", "permissions", "platformConfig", "aiConfig", "aiCredits", "aiTest", "aiUsage", "storeCustomerDetails", "logs", "usage", "settings"]);
 
 const employeeWorkbarItems: WorkbarItem[] = [
   { key: "workbench", label: "工作", icon: LayoutDashboard, view: "dashboard" },
@@ -1504,7 +1504,9 @@ function ManagementCenter({
     { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
     { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
     { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
+    { title: "AI 能力配置", desc: "模型 / API Key / 成本规则", icon: Sparkles, tone: "plum", view: "aiConfig" },
     { title: "AI积分充值", desc: "给账号充值积分", icon: CreditCard, tone: "plum", view: "aiCredits" },
+    { title: "AI 测试中心", desc: "验证模型 / Key / 视频任务", icon: Megaphone, tone: "plum", view: "aiTest" },
     { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
     { title: "AI费用统计", desc: "文案 / 图片 / 视频费用", icon: BadgeCent, tone: "plum", view: "aiUsage" },
     { title: "分店客户明细", desc: "客户业务 / 消费明细", icon: UsersRound, tone: "violet", view: "storeCustomerDetails" },
