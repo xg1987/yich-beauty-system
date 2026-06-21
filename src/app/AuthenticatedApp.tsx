@@ -164,6 +164,7 @@ const normalizeMobilePhoneDraft = (value: string) => value.replace(/\D/g, "").sl
 const AI_VIDEO_DURATIONS = [5, 10, 15];
 const AI_VIDEO_RESOLUTIONS: AiVideoResolution[] = ["480p", "720p", "1080p"];
 export const AI_VIDEO_ASPECT_RATIOS: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
+const DEFAULT_SEEDANCE_MODEL = "doubao-seedance-2-0-fast-260128";
 export const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = {
   openai: "OpenAI",
   deepseek: "DeepSeek",
@@ -210,7 +211,7 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
       {
         provider: "seedance",
         enabled: true,
-        model: "seedance-2.0",
+        model: DEFAULT_SEEDANCE_MODEL,
         apiKey: "",
         defaultDurationSeconds: 5,
         defaultResolution: "480p",
@@ -780,6 +781,23 @@ function normalizeOpenAiImageModel(value: unknown, fallback: OpenAiImageModel): 
   return OPENAI_IMAGE_MODELS.includes(model as OpenAiImageModel) ? model as OpenAiImageModel : fallback;
 }
 
+function normalizeSeedanceModel(value: unknown, fallback = DEFAULT_SEEDANCE_MODEL) {
+  if (typeof value !== "string") return fallback;
+  const model = value.trim();
+  const normalized = model.toLowerCase();
+  if (!normalized) return fallback;
+  if (normalized === "seedance-2.0" || normalized === "doubao-seedance-2.0" || normalized === "doubao-seedance-2-0") {
+    return "doubao-seedance-2-0-260128";
+  }
+  if (normalized === "seedance-2.0-fast" || normalized === "doubao-seedance-2.0-fast" || normalized === "doubao-seedance-2-0-fast") {
+    return DEFAULT_SEEDANCE_MODEL;
+  }
+  if (normalized === "seedance-1.5-pro" || normalized === "doubao-seedance-1.5-pro" || normalized === "doubao-seedance-1-5-pro") {
+    return "doubao-seedance-1-5-pro-250728";
+  }
+  return model;
+}
+
 function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
   const fallback = cloneAiGenerationConfig();
   if (!input || typeof input !== "object") return fallback;
@@ -795,7 +813,9 @@ function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
       ...incoming,
       enabled: typeof incoming?.enabled === "boolean" ? incoming.enabled : defaultProvider.enabled,
       apiKey: typeof incoming?.apiKey === "string" ? incoming.apiKey : defaultProvider.apiKey,
-      model: typeof incoming?.model === "string" ? incoming.model : defaultProvider.model,
+      model: defaultProvider.provider === "seedance"
+        ? normalizeSeedanceModel(incoming?.model, defaultProvider.model)
+        : typeof incoming?.model === "string" ? incoming.model : defaultProvider.model,
       defaultDurationSeconds: AI_VIDEO_DURATIONS.includes(Number(incoming?.defaultDurationSeconds)) ? Number(incoming?.defaultDurationSeconds) : defaultProvider.defaultDurationSeconds,
       defaultResolution: AI_VIDEO_RESOLUTIONS.includes(incoming?.defaultResolution as AiVideoResolution) ? incoming?.defaultResolution as AiVideoResolution : defaultProvider.defaultResolution,
       defaultAspectRatio: AI_VIDEO_ASPECT_RATIOS.includes(incoming?.defaultAspectRatio as AiVideoAspectRatio) ? incoming?.defaultAspectRatio as AiVideoAspectRatio : defaultProvider.defaultAspectRatio,
