@@ -4058,7 +4058,7 @@ async function createHailuoVideoTask(config: AiVideoProviderConfig, prompt: stri
   const normalizedResolution = resolution === "1080p" && normalizedDuration === 6 ? "1080P" : "768P";
   const firstAsset = assets[0];
   const normalizedRequest = { duration: normalizedDuration, resolution: normalizedResolution, aspectRatio, referenceImages: assets.map((asset) => asset.label) };
-  const { payload, elapsedMs } = await fetchProviderJson("MiniMax", "https://api.minimax.io/v1/video_generation", {
+  const { payload, elapsedMs } = await fetchProviderJson("MiniMax", "https://api.minimaxi.com/v1/video_generation", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
@@ -4080,7 +4080,7 @@ async function createHailuoVideoTask(config: AiVideoProviderConfig, prompt: stri
 }
 
 async function queryHailuoVideoTask(config: AiVideoProviderConfig, taskId: string) {
-  const { payload, elapsedMs } = await fetchProviderJson("MiniMax", `https://api.minimax.io/v1/query/video_generation?task_id=${encodeURIComponent(taskId)}`, {
+  const { payload, elapsedMs } = await fetchProviderJson("MiniMax", `https://api.minimaxi.com/v1/query/video_generation?task_id=${encodeURIComponent(taskId)}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
@@ -4095,7 +4095,7 @@ async function queryHailuoVideoTask(config: AiVideoProviderConfig, taskId: strin
 }
 
 async function retrieveHailuoVideoUrl(config: AiVideoProviderConfig, fileId: string) {
-  const { payload } = await fetchProviderJson("MiniMax", `https://api.minimax.io/v1/files/retrieve?file_id=${encodeURIComponent(fileId)}`, {
+  const { payload } = await fetchProviderJson("MiniMax", `https://api.minimaxi.com/v1/files/retrieve?file_id=${encodeURIComponent(fileId)}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
