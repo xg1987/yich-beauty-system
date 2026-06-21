@@ -289,7 +289,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示人物手持产品、自拍感和生活化分享的镜头感觉。",
     cues: ["真人分享", "生活场景", "社媒种草"],
     previewSrc: "/marketing-video-template-previews/social-person.jpg",
-    previewVideoSrc: "/marketing-video-template-previews/social-person.mp4",
+    previewVideoSrc: "/marketing-video-template-previews/social-person-real-20260621.mp4",
     previewAlt: "人物场景种草视频模板示例",
     icon: UserRound,
   },
