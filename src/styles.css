@@ -20701,21 +20701,58 @@ textarea,
 }
 
 .inventory-restock-form .inventory-product-form-main {
-  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.8fr);
+  grid-column: 1 / -1;
+  width: 100%;
+  grid-template-columns: minmax(0, 1.35fr) minmax(210px, 0.65fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+.inventory-restock-form .inventory-product-form-main > label {
+  min-height: 88px;
+  padding: 12px 14px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(251, 249, 255, 0.72));
+  box-shadow: 0 12px 28px rgba(75, 55, 130, 0.06);
+  align-content: center;
+}
+
+.inventory-restock-form .inventory-product-form-main > label select {
+  min-height: 46px;
+  border-radius: 12px;
 }
 
 .inventory-restock-form .inventory-product-form-stock {
+  grid-column: 1 / -1;
+  width: 100%;
   grid-template-columns: minmax(110px, 0.8fr) minmax(150px, 1fr) minmax(180px, 1.3fr) minmax(150px, 0.9fr);
 }
 
 .inventory-restock-current {
+  position: relative;
+  overflow: hidden;
   display: grid;
-  gap: 5px;
-  min-height: 64px;
-  padding: 10px 12px;
-  border: 1px solid rgba(42, 143, 125, 0.16);
-  border-radius: 12px;
-  background: rgba(42, 143, 125, 0.08);
+  align-content: center;
+  gap: 6px;
+  min-height: 88px;
+  padding: 13px 15px;
+  border: 1px solid rgba(42, 143, 125, 0.14);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 88% 4%, rgba(42, 143, 125, 0.14), transparent 42%),
+    linear-gradient(145deg, rgba(242, 255, 251, 0.9), rgba(255, 255, 255, 0.76));
+  box-shadow: 0 12px 28px rgba(42, 143, 125, 0.07);
+}
+
+.inventory-restock-current::before {
+  content: "";
+  position: absolute;
+  inset: 12px auto 12px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(180deg, rgba(42, 143, 125, 0.75), rgba(111, 66, 193, 0.48));
 }
 
 .inventory-restock-current span,
@@ -20728,7 +20765,7 @@ textarea,
 
 .inventory-restock-current strong {
   color: #1f5f55;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 950;
   line-height: 1.2;
 }
