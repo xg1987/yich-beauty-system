@@ -600,10 +600,14 @@ function marketingMaterialKeyFromDataUrl(dataUrl: string) {
   return `image:${(hash >>> 0).toString(16)}:${dataUrl.length}`;
 }
 
-function marketingVideoMaterialKey(dataUrl: string, template: string) {
+function marketingVideoMaterialKey(dataUrl: string, template: string, ratio = "9:16", duration = 5, resolution = "480p", pace = "慢推") {
   const imageKey = marketingMaterialKeyFromDataUrl(dataUrl);
   const safeTemplate = marketingCompliantText(template || "产品质感展示").slice(0, 80);
-  return imageKey ? `${imageKey}:template:${safeTemplate}` : "";
+  const safeRatio = marketingCompliantText(ratio || "9:16").slice(0, 12);
+  const safeDuration = Number.isFinite(Number(duration)) ? Number(duration) : 5;
+  const safeResolution = marketingCompliantText(resolution || "480p").slice(0, 20);
+  const safePace = marketingCompliantText(pace || "慢推").slice(0, 40);
+  return imageKey ? `${imageKey}:template:${safeTemplate}:ratio:${safeRatio}:duration:${safeDuration}:resolution:${safeResolution}:pace:${safePace}` : "";
 }
 
 function productVideoDraftFromImage(input: {
@@ -1219,14 +1223,16 @@ export function MarketingCenter({
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
   const productImageBaseMaterialKey = marketingMaterialKeyFromDataUrl(productImageDataUrl);
-  const productImageMaterialKey = marketingVideoMaterialKey(productImageDataUrl, safeVideoTemplate);
+  const productImageMaterialKey = marketingVideoMaterialKey(productImageDataUrl, safeVideoTemplate, videoRatio, videoDuration, videoResolution, videoPace);
+  const legacyProductImageTemplateKey = productImageDataUrl ? `${productImageBaseMaterialKey}:template:${safeVideoTemplate}` : "";
   const duplicateVideoRecord = productImageMaterialKey
     ? marketingAiRecords.find((record) =>
       record.kind === "video"
       && record.createdBy === session.user.id
       && (
         record.materialKey === productImageMaterialKey
-        || (safeVideoTemplate === "产品质感展示" && !record.videoTemplate && record.materialKey === productImageBaseMaterialKey)
+        || (!record.videoResolution && record.materialKey === legacyProductImageTemplateKey && videoRatio === "9:16" && videoDuration === 5 && videoResolution === "480p" && videoPace === "慢推")
+        || (safeVideoTemplate === "产品质感展示" && !record.videoTemplate && record.materialKey === productImageBaseMaterialKey && videoRatio === "9:16" && videoDuration === 5 && videoResolution === "480p" && videoPace === "慢推")
       )
       && record.status !== "生成失败",
     )
@@ -1869,7 +1875,7 @@ export function MarketingCenter({
       setGenerationBusy(false);
       setGenerationResult(null);
       setCopyResultStatus("idle");
-      setGenerationError(`同一账号已经用这张产品图生成过「${safeVideoTemplate}」模式，请到生成记录查看结果；换其他视频模板可以继续生成。`);
+      setGenerationError(`同一账号已经用这张产品图提交过相同参数：${safeVideoTemplate} · ${videoRatio} · ${videoDuration}秒 · ${videoResolution} · ${videoPace}。换尺寸、时长、清晰度或镜头节奏后可以重新生成。`);
       generationInFlightRef.current = false;
       return;
     }
@@ -1919,6 +1925,7 @@ export function MarketingCenter({
         videoRatio,
         videoDuration,
         videoResolution,
+        videoPace,
         videoScript: isVideoMode ? [`镜头节奏：${videoPace}`, marketingCompliantText(videoScript)].filter(Boolean).join("\n") : marketingCompliantText(videoScript),
         talkScene: `${safeMarketingNode} · ${safeMarketingGoal} · ${channel}`,
       });
@@ -2844,7 +2851,7 @@ export function MarketingCenter({
                           <p className="marketing-video-auto-note">已根据上传产品图生成草稿，可直接修改后再生成。</p>
                         )}
                         {duplicateVideoRecord && (
-                          <p className="marketing-video-duplicate-note">{`这张产品图已提交过「${safeVideoTemplate}」模式，请到生成记录查看结果；换其他视频模板可以继续生成。`}</p>
+                          <p className="marketing-video-duplicate-note">{`这张产品图已提交过相同参数：${safeVideoTemplate} · ${videoRatio} · ${videoDuration}秒 · ${videoResolution} · ${videoPace}。换尺寸、时长、清晰度或镜头节奏后可以重新生成。`}</p>
                         )}
                       </div>
                     </article>

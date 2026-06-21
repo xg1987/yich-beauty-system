@@ -3119,10 +3119,18 @@ function marketingVideoTemplateKey(body: JsonBody) {
   return marketingCompliantText(optionalString(body, "posterStyle") || optionalString(body, "videoTemplate"), "产品质感展示", 80);
 }
 
+function marketingVideoParameterKey(body: JsonBody) {
+  const ratio = marketingCompliantText(optionalString(body, "videoRatio"), "9:16", 12);
+  const duration = aiVideoDurations.includes(Number(body.videoDuration)) ? Number(body.videoDuration) : 5;
+  const resolution = aiVideoResolutions.includes(body.videoResolution as AiVideoResolution) ? body.videoResolution as string : "480p";
+  const pace = marketingCompliantText(optionalString(body, "videoPace"), "慢推", 40);
+  return `ratio:${ratio}:duration:${duration}:resolution:${resolution}:pace:${pace}`;
+}
+
 function marketingMaterialKey(body: JsonBody, kind: MarketingAiKind) {
   if (kind !== "video") return undefined;
   const productImageDataUrl = optionalString(body, "productImageDataUrl");
-  return productImageDataUrl ? `${marketingMaterialKeyFromDataUrl(productImageDataUrl)}:template:${marketingVideoTemplateKey(body)}` : undefined;
+  return productImageDataUrl ? `${marketingMaterialKeyFromDataUrl(productImageDataUrl)}:template:${marketingVideoTemplateKey(body)}:${marketingVideoParameterKey(body)}` : undefined;
 }
 
 function findDuplicateMarketingVideoRecord(data: AppData, session: UserSession, body: JsonBody) {
@@ -3130,13 +3138,16 @@ function findDuplicateMarketingVideoRecord(data: AppData, session: UserSession, 
   const productImageDataUrl = optionalString(body, "productImageDataUrl");
   const legacyMaterialKey = productImageDataUrl ? marketingMaterialKeyFromDataUrl(productImageDataUrl) : undefined;
   const templateKey = marketingVideoTemplateKey(body);
+  const legacyTemplateMaterialKey = legacyMaterialKey ? `${legacyMaterialKey}:template:${templateKey}` : undefined;
+  const legacyDefaultParameterKey = marketingVideoParameterKey(body) === "ratio:9:16:duration:5:resolution:480p:pace:慢推";
   if (!materialKey) return undefined;
   return (data.marketingAiRecords ?? []).find((record) =>
     record.kind === "video"
     && record.createdBy === session.user.id
     && (
       record.materialKey === materialKey
-      || (templateKey === "产品质感展示" && !record.videoTemplate && record.materialKey === legacyMaterialKey)
+      || (legacyDefaultParameterKey && record.materialKey === legacyTemplateMaterialKey && !record.videoResolution)
+      || (legacyDefaultParameterKey && templateKey === "产品质感展示" && !record.videoTemplate && record.materialKey === legacyMaterialKey)
     )
     && record.status !== "生成失败"
     && !isStaleMarketingAiRecord(record)
