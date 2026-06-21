@@ -483,8 +483,8 @@ function preferredTalkVideoMimeType() {
   return candidates.find((item) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(item)) || "";
 }
 
-function talkCanvasSize(ratio: "9:16" | "16:9") {
-  return ratio === "16:9" ? { width: 1280, height: 720 } : { width: 720, height: 1280 };
+function talkCanvasSize() {
+  return { width: 720, height: 1280 };
 }
 
 function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -523,7 +523,7 @@ function drawMirroredTalkVideo(
   context.restore();
 }
 
-function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number, alpha = 1) {
+function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
   const sourceWidth = video.videoWidth || width;
   const sourceHeight = video.videoHeight || height;
   const targetRatio = width / height;
@@ -541,10 +541,7 @@ function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoE
     cropY = (sourceHeight - cropHeight) / 2;
   }
 
-  context.save();
-  context.globalAlpha = alpha;
   drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height, width);
-  context.restore();
 }
 
 function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
@@ -559,14 +556,8 @@ function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVide
     return;
   }
 
-  context.save();
-  context.filter = "blur(22px)";
-  drawTalkVideoCover(context, video, width, height, 0.56);
-  context.restore();
-
   const containScale = Math.min(width / sourceWidth, height / sourceHeight);
-  const coverScale = Math.max(width / sourceWidth, height / sourceHeight);
-  const safeScale = Math.min(coverScale, containScale * 1.65);
+  const safeScale = containScale;
   const targetWidth = sourceWidth * safeScale;
   const targetHeight = sourceHeight * safeScale;
   const targetX = (width - targetWidth) / 2;
@@ -590,9 +581,9 @@ function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, ce
 
 function drawTalkVideoOverlay(
   context: CanvasRenderingContext2D,
-  options: { width: number; height: number; ratio: "9:16" | "16:9"; captionText?: string },
+  options: { width: number; height: number; captionText?: string },
 ) {
-  const { width, height, ratio } = options;
+  const { width, height } = options;
   const captionText = (options.captionText ?? "").trim();
   context.save();
   const pad = Math.round(width * 0.045);
@@ -602,14 +593,14 @@ function drawTalkVideoOverlay(
   context.fillStyle = "#ffffff";
   context.font = `800 ${Math.round(height * 0.016)}px system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
   context.textBaseline = "middle";
-  context.fillText(`${ratio} 真人口播`, pad + 12, pad + badgeHeight / 2);
+  context.fillText("9:16 真人口播", pad + 12, pad + badgeHeight / 2);
 
   if (!captionText) {
     context.restore();
     return;
   }
 
-  const captionFont = Math.round(height * (ratio === "16:9" ? 0.043 : 0.031));
+  const captionFont = Math.round(height * 0.031);
   context.font = `900 ${captionFont}px system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
   context.textBaseline = "alphabetic";
   const maxTextWidth = width - pad * 2;
@@ -1127,7 +1118,6 @@ export function MarketingCenter({
   const [talkStep, setTalkStep] = useState<TalkFlowStep>("entry");
   const [activeTalkTab, setActiveTalkTab] = useState(talkTopicTabs[0]);
   const [selectedTalkTopicId, setSelectedTalkTopicId] = useState(talkTopics[0].id);
-  const [talkRatio, setTalkRatio] = useState<"9:16" | "16:9">("9:16");
   const [talkRecording, setTalkRecording] = useState(false);
   const [talkElapsed, setTalkElapsed] = useState(0);
   const [talkCameraReady, setTalkCameraReady] = useState(false);
@@ -1530,7 +1520,7 @@ export function MarketingCenter({
     setTalkPhoneSaveBusy(false);
     setTalkPhoneSaveMessage("");
 
-    const { width, height } = talkCanvasSize(talkRatio);
+    const { width, height } = talkCanvasSize();
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -1607,7 +1597,7 @@ export function MarketingCenter({
         context.fillRect(0, 0, width, height);
       }
       const liveCaption = now - talkLiveCaptionUpdatedAtRef.current <= 4200 ? talkLiveCaptionRef.current : "";
-      drawTalkVideoOverlay(context, { width, height, ratio: talkRatio, captionText: liveCaption });
+      drawTalkVideoOverlay(context, { width, height, captionText: liveCaption });
       animationFrameId = window.requestAnimationFrame(drawFrame);
     };
     drawFrame();
@@ -1918,9 +1908,9 @@ export function MarketingCenter({
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: "user",
-            width: { ideal: talkRatio === "16:9" ? 1280 : 720 },
-            height: { ideal: talkRatio === "16:9" ? 720 : 1280 },
-            aspectRatio: talkRatio === "16:9" ? 16 / 9 : 9 / 16,
+            width: { ideal: 720 },
+            height: { ideal: 1280 },
+            aspectRatio: 9 / 16,
           },
           audio: {
             echoCancellation: true,
@@ -1942,11 +1932,11 @@ export function MarketingCenter({
         const actualHeight = Number(videoSettings?.height);
         if (actualWidth > 0 && actualHeight > 0) {
           const actualRatio = actualWidth / actualHeight;
-          const targetRatio = talkRatio === "16:9" ? 16 / 9 : 9 / 16;
+          const targetRatio = 9 / 16;
           const ratioDelta = Math.abs(actualRatio - targetRatio);
           const shouldUseSafeFraming = ratioDelta > 0.28;
           setTalkCameraFraming(shouldUseSafeFraming ? "safe" : "native");
-          setTalkCameraError(shouldUseSafeFraming ? `当前相机返回${actualRatio > 1 ? "横屏" : "竖屏"}画面，已启用 ${talkRatio} 安全取景` : "");
+          setTalkCameraError(shouldUseSafeFraming ? "当前相机画面比例不一致，已启用竖屏安全取景" : "");
         }
         setTalkCameraReady(true);
         if (talkRecording) startTalkRecorder(stream);
@@ -1962,7 +1952,7 @@ export function MarketingCenter({
       if (talkStreamRef.current === stream) talkStreamRef.current = null;
       if (talkVideoRef.current) talkVideoRef.current.srcObject = null;
     };
-  }, [talkRatio, talkStep]);
+  }, [talkStep]);
 
   useEffect(() => {
     if (talkStep !== "shoot") return;
@@ -2307,7 +2297,7 @@ export function MarketingCenter({
       const result = await actions.saveMarketingTalkVideo({
         videoDataUrl,
         mimeType: talkVideoMimeType(talkRecordedBlob),
-        ratio: talkRatio,
+        ratio: "9:16",
         durationSeconds: talkElapsed,
         topicTitle: selectedTalkTopic.title,
         scriptText,
@@ -2404,7 +2394,7 @@ export function MarketingCenter({
             <button type="button" aria-label="返回选题脚本" onClick={() => setTalkStep("script")}>
               <ArrowLeft size={20} />
             </button>
-            <strong>真人口播 · {talkRatio}</strong>
+            <strong>真人口播</strong>
             <div>
               <span>语速 正常</span>
               <button type="button" className="active">镜像</button>
@@ -2421,14 +2411,6 @@ export function MarketingCenter({
           <div className="marketing-talk-frame-guide" aria-hidden="true">
             <span>脸部放在虚线内</span>
           </div>
-          <button
-            type="button"
-            className="marketing-talk-ratio-chip"
-            onClick={() => setTalkRatio((value) => value === "9:16" ? "16:9" : "9:16")}
-          >
-            切换 {talkRatio === "9:16" ? "16:9" : "9:16"}
-          </button>
-
           <div className="marketing-talk-recording-status">
             <span />
             <strong>{formattedTalkElapsed}</strong>
@@ -2469,7 +2451,7 @@ export function MarketingCenter({
         </header>
 
         <article className="marketing-talk-result-preview">
-          <div className="marketing-talk-result-video" data-ratio={talkRatio}>
+          <div className="marketing-talk-result-video">
             {talkRecordedVideoUrl ? (
               <video src={talkRecordedVideoUrl} controls playsInline />
             ) : (
@@ -2480,7 +2462,7 @@ export function MarketingCenter({
                 <Play size={26} fill="currentColor" />
               </button>
             )}
-            <span className="marketing-talk-video-badge">{talkRatio} 原片</span>
+            <span className="marketing-talk-video-badge">9:16 原片</span>
             <button
               type="button"
               className="marketing-talk-optimization-toggle"
@@ -2530,13 +2512,6 @@ export function MarketingCenter({
                     <small>适配朋友圈 / 小红书，可复制再编辑</small>
                   </div>
                   <em>已收纳</em>
-                </article>
-                <article>
-                  <div>
-                    <strong>16:9 横屏版</strong>
-                    <small>适合门店大屏和横版宣传</small>
-                  </div>
-                  <button type="button" onClick={() => setTalkRatio("16:9")}>生成</button>
                 </article>
               </div>
             </section>

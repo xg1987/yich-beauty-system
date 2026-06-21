@@ -29407,12 +29407,6 @@ textarea,
     0 0 0 7px rgba(255, 255, 255, 0.58);
 }
 
-.marketing-talk-result-video[data-ratio="16:9"] {
-  width: min(100%, 620px);
-  height: auto;
-  aspect-ratio: 16 / 9;
-}
-
 .marketing-talk-result-video video {
   position: absolute;
   inset: 0;

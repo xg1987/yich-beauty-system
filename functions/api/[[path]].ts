@@ -2198,7 +2198,7 @@ async function saveMarketingTalkVideoRecord(env: Env, data: AppData, session: Us
   const parsed = await videoDataUrlToBlob(videoDataUrl);
   const maxVideoBytes = 60 * 1024 * 1024;
   if (parsed.blob.size > maxVideoBytes) throw new Error("口播视频不能超过 60MB，请缩短录制后再保存");
-  const ratio = optionalString(body, "ratio") === "16:9" ? "16:9" : "9:16";
+  const ratio = "9:16";
   const durationSeconds = Math.max(0, Math.round(Number(body.durationSeconds ?? 0) || 0));
   const topicTitle = marketingCompliantText(optionalString(body, "topicTitle") || "真人口播");
   const scriptText = marketingCompliantText(requiredTrimmedText(body, "scriptText", 2000));
@@ -2379,7 +2379,7 @@ function talkVideoRecordText(input: {
   transcriptText: string;
   transcriptSource: "browser-speech" | "openai-transcription" | "script-fallback";
   scriptText: string;
-  ratio: "9:16" | "16:9";
+  ratio: "9:16";
   durationSeconds: number;
   optimization?: MarketingAiRecord["talkOptimization"];
 }) {

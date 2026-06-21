@@ -184,7 +184,7 @@ export function createApiClient(getToken: () => string | undefined) {
       videoDataUrl: string;
       optimizedVideoDataUrl?: string;
       mimeType: string;
-      ratio: "9:16" | "16:9";
+      ratio: "9:16";
       durationSeconds: number;
       topicTitle: string;
       scriptText: string;
