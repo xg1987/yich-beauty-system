@@ -3101,10 +3101,14 @@ function marketingMaterialKeyFromDataUrl(dataUrl: string) {
   return `image:${(hash >>> 0).toString(16)}:${dataUrl.length}`;
 }
 
+function marketingVideoTemplateKey(body: JsonBody) {
+  return marketingCompliantText(optionalString(body, "posterStyle") || optionalString(body, "videoTemplate"), "产品质感展示", 80);
+}
+
 function marketingMaterialKey(body: JsonBody, kind: MarketingAiKind) {
   if (kind !== "video") return undefined;
   const productImageDataUrl = optionalString(body, "productImageDataUrl");
-  return productImageDataUrl ? marketingMaterialKeyFromDataUrl(productImageDataUrl) : undefined;
+  return productImageDataUrl ? `${marketingMaterialKeyFromDataUrl(productImageDataUrl)}:template:${marketingVideoTemplateKey(body)}` : undefined;
 }
 
 function findDuplicateMarketingVideoRecord(data: AppData, session: UserSession, body: JsonBody) {
@@ -3681,6 +3685,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
   };
   const isProductImageRecord = result.kind === "image";
   const materialKey = result.materialKey ?? marketingMaterialKey(body, result.kind);
+  const videoTemplate = result.kind === "video" ? marketingVideoTemplateKey(body) : undefined;
   const videoResolution = result.videoResolution ?? (result.kind === "video" && aiVideoResolutions.includes(body.videoResolution as AiVideoResolution)
     ? body.videoResolution as string
     : undefined);
@@ -3708,6 +3713,7 @@ function marketingAiRecord(data: AppData, session: UserSession, body: JsonBody, 
     errorMessage: result.errorMessage,
     elapsedMs: result.elapsedMs,
     materialKey,
+    videoTemplate,
     videoResolution,
     cost: result.cost,
     costBreakdown: result.costBreakdown,

@@ -479,6 +479,12 @@ function marketingMaterialKeyFromDataUrl(dataUrl: string) {
   return `image:${(hash >>> 0).toString(16)}:${dataUrl.length}`;
 }
 
+function marketingVideoMaterialKey(dataUrl: string, template: string) {
+  const imageKey = marketingMaterialKeyFromDataUrl(dataUrl);
+  const safeTemplate = marketingCompliantText(template || "产品质感展示").slice(0, 80);
+  return imageKey ? `${imageKey}:template:${safeTemplate}` : "";
+}
+
 function productVideoDraftFromImage(input: {
   fileName: string;
   dimensions?: { width: number; height: number };
@@ -1087,7 +1093,7 @@ export function MarketingCenter({
     ].filter(Boolean).map(marketingCompliantText).join("\n");
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
-  const productImageMaterialKey = marketingMaterialKeyFromDataUrl(productImageDataUrl);
+  const productImageMaterialKey = marketingVideoMaterialKey(productImageDataUrl, safeVideoTemplate);
   const duplicateVideoRecord = productImageMaterialKey
     ? marketingAiRecords.find((record) =>
       record.kind === "video"
@@ -1575,7 +1581,7 @@ export function MarketingCenter({
       setGenerationBusy(false);
       setGenerationResult(null);
       setCopyResultStatus("idle");
-      setGenerationError("同一账号已经用这张产品图提交过视频生成，请到生成记录查看，不能重复发起以免重复扣积分");
+      setGenerationError(`同一账号已经用这张产品图生成过「${safeVideoTemplate}」模式，请到生成记录查看结果；换其他视频模板可以继续生成。`);
       generationInFlightRef.current = false;
       return;
     }
@@ -2483,7 +2489,7 @@ export function MarketingCenter({
                           <p className="marketing-video-auto-note">已根据上传产品图生成草稿，可直接修改后再生成。</p>
                         )}
                         {duplicateVideoRecord && (
-                          <p className="marketing-video-duplicate-note">这张产品图已提交过视频生成，请到生成记录查看结果，不能重复提交同一素材。</p>
+                          <p className="marketing-video-duplicate-note">{`这张产品图已提交过「${safeVideoTemplate}」模式，请到生成记录查看结果；换其他视频模板可以继续生成。`}</p>
                         )}
                       </div>
                     </article>
