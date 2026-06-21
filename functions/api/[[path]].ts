@@ -2202,8 +2202,8 @@ async function saveMarketingTalkVideoRecord(env: Env, data: AppData, session: Us
   const durationSeconds = Math.max(0, Math.round(Number(body.durationSeconds ?? 0) || 0));
   const topicTitle = marketingCompliantText(optionalString(body, "topicTitle") || "真人口播");
   const scriptText = marketingCompliantText(requiredTrimmedText(body, "scriptText", 2000));
-  let transcriptText = marketingCompliantText(optionalString(body, "transcriptText") || scriptText, "", 3000);
-  let transcriptSource: NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["transcriptSource"]> = optionalString(body, "transcriptSource") === "browser-speech" ? "browser-speech" : "script-fallback";
+  let transcriptText = marketingCompliantText(optionalString(body, "transcriptText"), "", 3000).trim();
+  let transcriptSource: NonNullable<NonNullable<MarketingAiRecord["talkOptimization"]>["transcriptSource"]> = transcriptText && optionalString(body, "transcriptSource") === "browser-speech" ? "browser-speech" : "script-fallback";
   const backendTranscript = await transcribeTalkVideoIfUseful(data, parsed.blob, parsed.contentType, transcriptText, transcriptSource, scriptText);
   if (backendTranscript) {
     transcriptText = backendTranscript.text;
@@ -2385,15 +2385,21 @@ function talkVideoRecordText(input: {
 }) {
   const silence = input.optimization?.silenceTrim;
   const noise = input.optimization?.noiseReduction;
+  const transcriptText = input.transcriptText.trim() || "未识别到语音，未生成字幕";
+  const subtitleStatus = input.transcriptSource === "browser-speech"
+    ? "已识别语音生成"
+    : input.transcriptSource === "openai-transcription"
+      ? "已由后端转写生成"
+      : "未识别到语音，未生成字幕";
   return [
     "【口播字幕】",
-    input.transcriptText,
+    transcriptText,
     "",
     "【提词脚本】",
     input.scriptText,
     "",
     "【AI优化】",
-    `自动字幕：${input.transcriptSource === "browser-speech" ? "已识别语音生成" : input.transcriptSource === "openai-transcription" ? "已由后端转写生成" : "使用提词脚本生成"}`,
+    `自动字幕：${subtitleStatus}`,
     `口播降噪：${noise?.status ?? "已处理"}（${noise?.method ?? "browser getUserMedia audio constraints"}）`,
     `剪掉停顿：${silence?.status ?? "已检测"}${typeof silence?.detectedSegments === "number" ? `，检测到 ${silence.detectedSegments} 段停顿` : ""}${typeof silence?.silentSeconds === "number" ? `，约 ${silence.silentSeconds} 秒` : ""}`,
     `视频尺寸：${input.ratio}`,

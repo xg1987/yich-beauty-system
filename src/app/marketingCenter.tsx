@@ -20,6 +20,7 @@ type MarketingViewKey = "content" | "records";
 type MarketingGenerationKind = "copy" | "image" | "video" | "talk";
 type MarketingCopyOutputMode = "text" | "image" | "poster";
 type TalkFlowStep = "entry" | "script" | "shoot" | "result";
+type TalkCameraFraming = "native" | "safe";
 type BrowserSpeechRecognition = {
   continuous: boolean;
   interimResults: boolean;
@@ -509,6 +510,8 @@ function drawMirroredTalkVideo(
   sourceY: number,
   sourceWidth: number,
   sourceHeight: number,
+  targetX: number,
+  targetY: number,
   targetWidth: number,
   targetHeight: number,
   canvasWidth: number,
@@ -516,11 +519,11 @@ function drawMirroredTalkVideo(
   context.save();
   context.translate(canvasWidth, 0);
   context.scale(-1, 1);
-  context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
+  context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, canvasWidth - targetX - targetWidth, targetY, targetWidth, targetHeight);
   context.restore();
 }
 
-function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
+function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number, alpha = 1) {
   const sourceWidth = video.videoWidth || width;
   const sourceHeight = video.videoHeight || height;
   const targetRatio = width / height;
@@ -538,7 +541,37 @@ function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVide
     cropY = (sourceHeight - cropHeight) / 2;
   }
 
-  drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, width, height, width);
+  context.save();
+  context.globalAlpha = alpha;
+  drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height, width);
+  context.restore();
+}
+
+function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
+  const sourceWidth = video.videoWidth || width;
+  const sourceHeight = video.videoHeight || height;
+  const targetRatio = width / height;
+  const sourceRatio = sourceWidth / sourceHeight;
+  const ratioDelta = Math.abs(sourceRatio - targetRatio);
+
+  if (ratioDelta <= 0.22) {
+    drawTalkVideoCover(context, video, width, height);
+    return;
+  }
+
+  context.save();
+  context.filter = "blur(22px)";
+  drawTalkVideoCover(context, video, width, height, 0.56);
+  context.restore();
+
+  const containScale = Math.min(width / sourceWidth, height / sourceHeight);
+  const coverScale = Math.max(width / sourceWidth, height / sourceHeight);
+  const safeScale = Math.min(coverScale, containScale * 1.65);
+  const targetWidth = sourceWidth * safeScale;
+  const targetHeight = sourceHeight * safeScale;
+  const targetX = (width - targetWidth) / 2;
+  const targetY = (height - targetHeight) / 2;
+  drawMirroredTalkVideo(context, video, 0, 0, sourceWidth, sourceHeight, targetX, targetY, targetWidth, targetHeight, width);
 }
 
 function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
@@ -557,13 +590,10 @@ function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, ce
 
 function drawTalkVideoOverlay(
   context: CanvasRenderingContext2D,
-  options: { width: number; height: number; ratio: "9:16" | "16:9"; scriptLines: string[]; recordedSeconds: number; serviceName: string },
+  options: { width: number; height: number; ratio: "9:16" | "16:9"; captionText?: string },
 ) {
-  const { width, height, ratio, scriptLines, recordedSeconds, serviceName } = options;
-  const safeLines = scriptLines.length ? scriptLines : [`先做一次${serviceName}，把皮肤状态稳下来`];
-  const lineIndex = Math.min(safeLines.length - 1, Math.max(0, Math.floor(recordedSeconds / 4)));
-  const captionText = safeLines[lineIndex] ?? safeLines[0];
-  const nextText = safeLines[lineIndex + 1] ?? "";
+  const { width, height, ratio } = options;
+  const captionText = (options.captionText ?? "").trim();
   context.save();
   const pad = Math.round(width * 0.045);
   const badgeHeight = Math.round(height * 0.034);
@@ -574,12 +604,16 @@ function drawTalkVideoOverlay(
   context.textBaseline = "middle";
   context.fillText(`${ratio} 真人口播`, pad + 12, pad + badgeHeight / 2);
 
+  if (!captionText) {
+    context.restore();
+    return;
+  }
+
   const captionFont = Math.round(height * (ratio === "16:9" ? 0.043 : 0.031));
   context.font = `900 ${captionFont}px system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
   context.textBaseline = "alphabetic";
   const maxTextWidth = width - pad * 2;
   const captionLines = wrapCanvasText(context, captionText, maxTextWidth);
-  if (nextText && captionLines.length < 2) captionLines.push(...wrapCanvasText(context, nextText, maxTextWidth).slice(0, 1));
   const visibleLines = captionLines.slice(0, 2);
   const lineHeight = Math.round(captionFont * 1.35);
   const boxHeight = visibleLines.length * lineHeight + Math.round(height * 0.025);
@@ -590,6 +624,14 @@ function drawTalkVideoOverlay(
     drawTalkCaptionLine(context, line, width / 2, boxY + Math.round(height * 0.024) + lineHeight * index, maxTextWidth);
   });
   context.restore();
+}
+
+function latestTalkCaptionText(text: string) {
+  const compact = marketingCompliantText(text).replace(/\s+/g, " ").trim();
+  if (!compact) return "";
+  const parts = compact.split(/[。！？!?]/).map((item) => item.trim()).filter(Boolean);
+  const latest = parts[parts.length - 1] || compact;
+  return latest.slice(-36);
 }
 
 function talkTranscriptSourceLabel(source?: "browser-speech" | "openai-transcription" | "script-fallback") {
@@ -1090,6 +1132,7 @@ export function MarketingCenter({
   const [talkElapsed, setTalkElapsed] = useState(0);
   const [talkCameraReady, setTalkCameraReady] = useState(false);
   const [talkCameraError, setTalkCameraError] = useState("");
+  const [talkCameraFraming, setTalkCameraFraming] = useState<TalkCameraFraming>("native");
   const [talkFinalizing, setTalkFinalizing] = useState(false);
   const [talkRecordedBlob, setTalkRecordedBlob] = useState<Blob | null>(null);
   const [talkRecordedVideoUrl, setTalkRecordedVideoUrl] = useState("");
@@ -1130,6 +1173,9 @@ export function MarketingCenter({
   const talkRecorderCleanupRef = useRef<() => void>(() => undefined);
   const talkRecordedMetricsRef = useRef<TalkRecordedMetrics | null>(null);
   const talkRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const talkTranscriptTextRef = useRef("");
+  const talkLiveCaptionRef = useRef("");
+  const talkLiveCaptionUpdatedAtRef = useRef(0);
   const product = data.products[0];
   const service = data.services[0];
   const storeName = primaryStoreName(data) || "门店";
@@ -1367,8 +1413,8 @@ export function MarketingCenter({
     if (item.title === "自动字幕") {
       return {
         ...item,
-        status: talkTranscriptText ? "已识别" : "脚本字幕",
-        subtitle: talkTranscriptText ? "识别语音，生成同步字幕" : "未识别到语音时使用提词脚本",
+        status: talkTranscriptText ? "已识别" : "未生成",
+        subtitle: talkTranscriptText ? "识别语音，生成同步字幕" : "未识别到语音，不使用提词稿冒充字幕",
       };
     }
     if (item.title === "口播降噪") {
@@ -1423,7 +1469,13 @@ export function MarketingCenter({
           .map((result) => result[0]?.transcript ?? "")
           .join("")
           .trim();
-        if (text) setTalkTranscriptText(marketingCompliantText(text).slice(0, 3000));
+        if (text) {
+          const safeText = marketingCompliantText(text).slice(0, 3000);
+          talkTranscriptTextRef.current = safeText;
+          talkLiveCaptionRef.current = latestTalkCaptionText(safeText);
+          talkLiveCaptionUpdatedAtRef.current = performance.now();
+          setTalkTranscriptText(safeText);
+        }
       };
       recognition.onerror = () => undefined;
       recognition.start();
@@ -1464,6 +1516,10 @@ export function MarketingCenter({
     setTalkPhoneSaveBusy(false);
     setTalkPhoneSaveMessage("");
     setTalkRecordedBlob(null);
+    setTalkTranscriptText("");
+    talkTranscriptTextRef.current = "";
+    talkLiveCaptionRef.current = "";
+    talkLiveCaptionUpdatedAtRef.current = 0;
     setTalkSilenceReport(null);
     setTalkRecordedVideoUrl((currentUrl) => {
       if (currentUrl) URL.revokeObjectURL(currentUrl);
@@ -1550,7 +1606,8 @@ export function MarketingCenter({
         context.fillStyle = gradient;
         context.fillRect(0, 0, width, height);
       }
-      drawTalkVideoOverlay(context, { width, height, ratio: talkRatio, scriptLines: talkScriptLines, recordedSeconds, serviceName: talkServiceName });
+      const liveCaption = now - talkLiveCaptionUpdatedAtRef.current <= 4200 ? talkLiveCaptionRef.current : "";
+      drawTalkVideoOverlay(context, { width, height, ratio: talkRatio, captionText: liveCaption });
       animationFrameId = window.requestAnimationFrame(drawFrame);
     };
     drawFrame();
@@ -1851,6 +1908,7 @@ export function MarketingCenter({
     let cancelled = false;
     setTalkCameraReady(false);
     setTalkCameraError("");
+    setTalkCameraFraming("native");
     const startCamera = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setTalkCameraError("当前浏览器暂不支持相机预览");
@@ -1886,7 +1944,9 @@ export function MarketingCenter({
           const actualRatio = actualWidth / actualHeight;
           const targetRatio = talkRatio === "16:9" ? 16 / 9 : 9 / 16;
           const ratioDelta = Math.abs(actualRatio - targetRatio);
-          setTalkCameraError(ratioDelta > 0.28 ? `当前相机返回${actualRatio > 1 ? "横屏" : "竖屏"}画面，系统会按 ${talkRatio} 裁切成片` : "");
+          const shouldUseSafeFraming = ratioDelta > 0.28;
+          setTalkCameraFraming(shouldUseSafeFraming ? "safe" : "native");
+          setTalkCameraError(shouldUseSafeFraming ? `当前相机返回${actualRatio > 1 ? "横屏" : "竖屏"}画面，已启用 ${talkRatio} 安全取景` : "");
         }
         setTalkCameraReady(true);
         if (talkRecording) startTalkRecorder(stream);
@@ -2142,6 +2202,9 @@ export function MarketingCenter({
     setTalkSaveError("");
     setTalkSavedRecordId("");
     setTalkTranscriptText("");
+    talkTranscriptTextRef.current = "";
+    talkLiveCaptionRef.current = "";
+    talkLiveCaptionUpdatedAtRef.current = 0;
     setTalkSilenceReport(null);
     talkRecordedMetricsRef.current = null;
     setTalkFinalizing(false);
@@ -2166,6 +2229,9 @@ export function MarketingCenter({
     stopTalkRecorder();
     setTalkElapsed(0);
     setTalkTranscriptText("");
+    talkTranscriptTextRef.current = "";
+    talkLiveCaptionRef.current = "";
+    talkLiveCaptionUpdatedAtRef.current = 0;
     setTalkSilenceReport(null);
     talkRecordedMetricsRef.current = null;
     setTalkFinalizing(false);
@@ -2245,7 +2311,7 @@ export function MarketingCenter({
         durationSeconds: talkElapsed,
         topicTitle: selectedTalkTopic.title,
         scriptText,
-        transcriptText: talkTranscriptText || scriptText,
+        transcriptText: talkTranscriptText,
         transcriptSource: talkTranscriptText ? "browser-speech" : "script-fallback",
         audioEnhancements: {
           echoCancellation: true,
@@ -2323,7 +2389,7 @@ export function MarketingCenter({
 
     if (talkStep === "shoot") {
       return (
-        <section className="marketing-talk-shoot-screen" aria-label="真人口播拍摄">
+        <section className="marketing-talk-shoot-screen" data-framing={talkCameraFraming} aria-label="真人口播拍摄">
           <video ref={talkVideoRef} className="marketing-talk-camera-video" muted playsInline autoPlay aria-hidden={!talkCameraReady} />
           <div className={`marketing-talk-camera-fallback ${talkCameraReady ? "hidden" : ""}`} aria-hidden="true">
             <div className="marketing-talk-salon-bg" />
@@ -2429,7 +2495,7 @@ export function MarketingCenter({
 
         <div className="marketing-talk-result-hint">
           <strong>视频内容优先</strong>
-          <span>右上角查看字幕、降噪、剪停顿和发布文案</span>
+          <span>右上角查看语音字幕、降噪、剪停顿和发布文案</span>
         </div>
 
         {talkOptimizationOpen && (

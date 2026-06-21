@@ -29031,6 +29031,10 @@ textarea,
   transform: scaleX(-1);
 }
 
+.marketing-talk-shoot-screen[data-framing="safe"] .marketing-talk-camera-video {
+  object-fit: contain;
+}
+
 .marketing-talk-camera-fallback {
   z-index: 0;
   overflow: hidden;
