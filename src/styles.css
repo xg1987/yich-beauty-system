@@ -29724,17 +29724,33 @@ textarea,
   font-weight: 850;
 }
 
-.marketing-video-detail-field {
+.marketing-video-detail-editor {
   position: relative;
+  display: block;
+  min-width: 0;
 }
 
-.marketing-video-detail-field textarea {
-  min-height: 84px;
-  padding-bottom: 24px;
+.marketing-video-detail-editor textarea {
+  width: 100%;
+  min-height: 138px;
+  padding: 12px 14px 30px;
+  border: 1px solid rgba(111, 66, 193, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f255f;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.65;
   resize: vertical;
 }
 
-.marketing-video-detail-field em {
+.marketing-video-detail-editor textarea:focus {
+  border-color: rgba(111, 66, 193, 0.62);
+  box-shadow: 0 0 0 3px rgba(111, 66, 193, 0.12);
+  outline: none;
+}
+
+.marketing-video-detail-editor em {
   position: absolute;
   right: 12px;
   bottom: 8px;

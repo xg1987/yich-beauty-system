@@ -1713,17 +1713,19 @@ export function MarketingCenter({
                         </div>
                         <label className="marketing-video-detail-field">
                           <span>镜头要求 / 产品详情（必填）</span>
-                          <textarea
-                            value={videoScript}
-                            onChange={(event) => {
-                              setVideoScript(event.target.value);
-                              setVideoScriptAutoFilled(false);
-                            }}
-                            maxLength={200}
-                            placeholder="必填：请输入产品成分、质地、香味、适合场景、卖点或镜头要求，未填写不会提交生成..."
-                            rows={3}
-                          />
-                          <em>{videoScript.length} / 200</em>
+                          <div className="marketing-video-detail-editor">
+                            <textarea
+                              value={videoScript}
+                              onChange={(event) => {
+                                setVideoScript(event.target.value);
+                                setVideoScriptAutoFilled(false);
+                              }}
+                              maxLength={200}
+                              placeholder="必填：请输入产品成分、质地、香味、适合场景、卖点或镜头要求，未填写不会提交生成..."
+                              rows={5}
+                            />
+                            <em>{videoScript.length} / 200</em>
+                          </div>
                           {videoScriptAutoFilled && (
                             <p className="marketing-video-auto-note">已根据上传产品图生成草稿，可直接修改后再生成。</p>
                           )}
