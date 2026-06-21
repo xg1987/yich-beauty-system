@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, AudioLines, BookOpen, CakeSlice, CalendarCheck, Camera, Captions, CheckCircle2, Copy, Download, Eye, Flame, Gem, Gift, Hand, Image as ImageIcon, ImagePlus, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, Package, PartyPopper, PenLine, Play, Plus, RotateCcw, Save, Scissors, ShieldCheck, Sparkles, Square, Store, UserRound, Video, X } from "lucide-react";
+import { ArrowLeft, AudioLines, BookOpen, CakeSlice, CalendarCheck, Camera, Captions, CheckCircle2, Copy, Download, Eye, Flame, Gem, Gift, Hand, Image as ImageIcon, ImagePlus, ListFilter, Megaphone, MessageCircle, MessageSquarePlus, MicVocal, Package, PartyPopper, PenLine, Play, Plus, RotateCcw, Save, Scissors, ShieldCheck, Sparkles, Square, Store, UserRound, Video, X } from "lucide-react";
 import { PageHero } from "../components/layout/PageHero";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
@@ -308,7 +308,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示产品出现在护理床、护理师动作或门店空间里的镜头感觉。",
     cues: ["门店空间", "护理动作", "产品入镜"],
     previewSrc: "/marketing-video-template-previews/salon-care.jpg",
-    previewVideoSrc: "/marketing-video-template-previews/salon-care.mp4",
+    previewVideoSrc: "/marketing-video-template-previews/salon-care-generated-20260621.mp4",
     previewAlt: "门店护理场景视频模板示例",
     icon: Store,
   },
@@ -460,19 +460,38 @@ function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidt
   return output;
 }
 
-function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
-  const sourceWidth = video.videoWidth || width;
-  const sourceHeight = video.videoHeight || height;
-  const scale = Math.max(width / sourceWidth, height / sourceHeight);
-  const drawWidth = sourceWidth * scale;
-  const drawHeight = sourceHeight * scale;
-  const drawX = (width - drawWidth) / 2;
-  const drawY = (height - drawHeight) / 2;
+function drawMirroredTalkVideo(
+  context: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  drawX: number,
+  drawY: number,
+  drawWidth: number,
+  drawHeight: number,
+  canvasWidth: number,
+) {
   context.save();
-  context.translate(width, 0);
+  context.translate(canvasWidth, 0);
   context.scale(-1, 1);
   context.drawImage(video, drawX, drawY, drawWidth, drawHeight);
   context.restore();
+}
+
+function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
+  const sourceWidth = video.videoWidth || width;
+  const sourceHeight = video.videoHeight || height;
+  const coverScale = Math.max(width / sourceWidth, height / sourceHeight);
+  const coverWidth = sourceWidth * coverScale;
+  const coverHeight = sourceHeight * coverScale;
+  context.save();
+  context.globalAlpha = 0.42;
+  context.filter = "blur(18px)";
+  drawMirroredTalkVideo(context, video, (width - coverWidth) / 2, (height - coverHeight) / 2, coverWidth, coverHeight, width);
+  context.restore();
+
+  const fitScale = Math.min(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * fitScale;
+  const drawHeight = sourceHeight * fitScale;
+  drawMirroredTalkVideo(context, video, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight, width);
 }
 
 function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
@@ -1034,6 +1053,7 @@ export function MarketingCenter({
   const [talkSavedRecordId, setTalkSavedRecordId] = useState("");
   const [talkPhoneSaveBusy, setTalkPhoneSaveBusy] = useState(false);
   const [talkPhoneSaveMessage, setTalkPhoneSaveMessage] = useState("");
+  const [talkOptimizationOpen, setTalkOptimizationOpen] = useState(false);
   const [customRequirement, setCustomRequirement] = useState("");
   const [productImageName, setProductImageName] = useState("");
   const [productImageDataUrl, setProductImageDataUrl] = useState("");
@@ -1474,7 +1494,7 @@ export function MarketingCenter({
       context.fillRect(0, 0, width, height);
       const videoElement = talkVideoRef.current;
       if (videoElement && videoElement.readyState >= 2 && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-        drawTalkVideoCover(context, videoElement, width, height);
+        drawTalkVideoSafeFit(context, videoElement, width, height);
       } else {
         const gradient = context.createLinearGradient(0, 0, width, height);
         gradient.addColorStop(0, "#8b755c");
@@ -2053,6 +2073,7 @@ export function MarketingCenter({
     setTalkStep("script");
     setTalkRecording(false);
     setTalkElapsed(0);
+    setTalkOptimizationOpen(false);
   };
 
   const startTalkShoot = (topicId = selectedTalkTopicId) => {
@@ -2065,6 +2086,7 @@ export function MarketingCenter({
     setTalkSilenceReport(null);
     talkRecordedMetricsRef.current = null;
     setTalkFinalizing(false);
+    setTalkOptimizationOpen(false);
     setTalkPhoneSaveBusy(false);
     setTalkPhoneSaveMessage("");
     setTalkRecording(true);
@@ -2078,6 +2100,7 @@ export function MarketingCenter({
     }
     stopTalkRecorder();
     setTalkStep("result");
+    setTalkOptimizationOpen(false);
   };
 
   const resetTalkRecording = () => {
@@ -2311,17 +2334,17 @@ export function MarketingCenter({
     }
 
     return (
-      <section className="marketing-talk-flow marketing-talk-result-screen" aria-label="口播优化结果">
+      <section className={`marketing-talk-flow marketing-talk-result-screen ${talkOptimizationOpen ? "optimization-open" : ""}`} aria-label="口播优化结果">
         <header className="marketing-talk-flow-head">
           <button type="button" aria-label="返回真人拍摄" onClick={() => setTalkStep("shoot")}>
             <ArrowLeft size={20} />
           </button>
-          <strong>口播优化结果</strong>
+          <strong>口播成片预览</strong>
           <span className="marketing-talk-head-spacer" />
         </header>
 
         <article className="marketing-talk-result-preview">
-          <div className="marketing-talk-result-video">
+          <div className="marketing-talk-result-video" data-ratio={talkRatio}>
             {talkRecordedVideoUrl ? (
               <video src={talkRecordedVideoUrl} controls playsInline />
             ) : (
@@ -2332,35 +2355,68 @@ export function MarketingCenter({
                 <Play size={26} fill="currentColor" />
               </button>
             )}
-            <span className="marketing-talk-video-badge">{talkRatio} 真人口播</span>
-            <span className="marketing-talk-topic-badge" title={selectedTalkTopic.title}><Flame size={13} /> 热点选题</span>
-            <p>最近很多顾客说<mark>脸干、泛红</mark><br />先做<mark>{talkServiceName}</mark>会更稳</p>
+            <span className="marketing-talk-video-badge">{talkRatio} 原片</span>
+            <button
+              type="button"
+              className="marketing-talk-optimization-toggle"
+              aria-label={talkOptimizationOpen ? "收起优化信息" : "查看优化信息"}
+              aria-expanded={talkOptimizationOpen}
+              onClick={() => setTalkOptimizationOpen((value) => !value)}
+            >
+              <ListFilter size={18} />
+            </button>
           </div>
         </article>
 
-        <div className="marketing-talk-result-list">
-          {talkResultDisplayItems.map((item) => {
-            const ResultIcon = item.icon;
-            return (
-              <article key={item.title} className="marketing-talk-result-row" data-tone={item.tone}>
-                <span aria-hidden="true"><ResultIcon size={21} strokeWidth={2.4} /></span>
-                <div>
-                  <strong>{item.title}</strong>
-                  <small>{item.subtitle}</small>
-                </div>
-                <em>{item.status}</em>
-              </article>
-            );
-          })}
-          <article className="marketing-talk-result-row marketing-talk-result-generate-row">
-            <span aria-hidden="true"><Video size={20} strokeWidth={2.4} /></span>
-            <div>
-              <strong>可生成 16:9 横屏版</strong>
-              <small>适合门店大屏和横版宣传</small>
-            </div>
-            <button type="button" onClick={() => setTalkRatio("16:9")}>生成</button>
-          </article>
+        <div className="marketing-talk-result-hint">
+          <strong>视频内容优先</strong>
+          <span>右上角查看字幕、降噪、剪停顿和发布文案</span>
         </div>
+
+        {talkOptimizationOpen && (
+          <>
+            <button
+              type="button"
+              className="marketing-talk-sheet-backdrop"
+              aria-label="收起优化信息"
+              onClick={() => setTalkOptimizationOpen(false)}
+            />
+            <section className="marketing-talk-optimization-sheet" aria-label="优化信息">
+              <span className="marketing-talk-sheet-grabber" aria-hidden="true" />
+              <header>
+                <div>
+                  <strong>优化信息</strong>
+                  <small>这些文字默认隐藏，不遮挡视频</small>
+                </div>
+                <button type="button" onClick={() => setTalkOptimizationOpen(false)}>收起</button>
+              </header>
+              <div className="marketing-talk-optimization-chips">
+                {talkResultDisplayItems.slice(0, 4).map((item) => (
+                  <article key={item.title} data-tone={item.tone}>
+                    <span>{item.title.replace("自动", "").replace("口播", "").replace("剪掉", "")}</span>
+                    <strong>{item.status}</strong>
+                  </article>
+                ))}
+              </div>
+              <div className="marketing-talk-optimization-rows">
+                <article>
+                  <div>
+                    <strong>发布文案</strong>
+                    <small>适配朋友圈 / 小红书，可复制再编辑</small>
+                  </div>
+                  <em>已收纳</em>
+                </article>
+                <article>
+                  <div>
+                    <strong>16:9 横屏版</strong>
+                    <small>适合门店大屏和横版宣传</small>
+                  </div>
+                  <button type="button" onClick={() => setTalkRatio("16:9")}>生成</button>
+                </article>
+              </div>
+            </section>
+          </>
+        )}
         {talkSaveError && <p className="marketing-talk-save-error">{talkSaveError}</p>}
         {talkPhoneSaveMessage && <p className="marketing-talk-save-success">{talkPhoneSaveMessage}</p>}
         {talkSavedRecordId && <p className="marketing-talk-save-success">口播素材已保存到生成记录</p>}
