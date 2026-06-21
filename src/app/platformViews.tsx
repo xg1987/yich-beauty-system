@@ -87,6 +87,7 @@ type AiGenerationConfig = { copy: AiTextModelConfig; image: AiImageModelConfig; 
 const AI_VIDEO_DURATIONS = [5, 10, 15];
 const AI_VIDEO_RESOLUTIONS: AiVideoResolution[] = ["480p", "720p", "1080p"];
 const AI_VIDEO_ASPECT_RATIOS: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
+const AI_TEST_REFERENCE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const DEFAULT_SEEDANCE_MODEL = "doubao-seedance-2-0-fast-260128";
 const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = { openai: "OpenAI", deepseek: "DeepSeek", seedance: "Seedance", kling: "Kling", hailuo: "海螺", grok: "Grok Imagine" };
 const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = { copy: "AI 写文案", image: "AI 做产品设计图", video: "AI 做产品视频" };
@@ -104,6 +105,20 @@ const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
 
 function DashboardMetric({ icon, label, value, hint }: { icon: ReactNode; label: string; value: string; hint: string }) {
   return <article className="metric-card">{icon}<span>{label}</span><strong>{value}</strong><small>{hint}</small></article>;
+}
+
+function readAiTestReferenceImage(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) return Promise.reject(new Error("请上传图片文件"));
+  if (file.size > AI_TEST_REFERENCE_IMAGE_MAX_BYTES) return Promise.reject(new Error("参考图不能超过 8MB"));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("图片读取失败"));
+    };
+    reader.onerror = () => reject(new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
 }
 
 export function PlatformSystemConfigPanel({ data, actions, runMutation }: { data: AppData; actions: ApiActions; runMutation: RunMutation }) {
@@ -898,6 +913,8 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
   const [videoResolution, setVideoResolution] = useState<AiVideoResolution>(activeVideoConfig?.defaultResolution ?? "480p");
   const [videoAspectRatio, setVideoAspectRatio] = useState<AiVideoAspectRatio>(activeVideoConfig?.defaultAspectRatio ?? "9:16");
   const [videoTaskId, setVideoTaskId] = useState("");
+  const [videoReferenceImage, setVideoReferenceImage] = useState<{ name: string; dataUrl: string } | null>(null);
+  const [videoReferenceError, setVideoReferenceError] = useState("");
   const [chatResult, setChatResult] = useState<Awaited<ReturnType<ApiActions["testAiChat"]>> | null>(null);
   const [imageResult, setImageResult] = useState<Awaited<ReturnType<ApiActions["testAiImage"]>> | null>(null);
   const [videoResult, setVideoResult] = useState<Awaited<ReturnType<ApiActions["testAiVideo"]>> | null>(null);
@@ -918,6 +935,17 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
       setVideoResolution(providerConfig.defaultResolution);
       setVideoAspectRatio(providerConfig.defaultAspectRatio);
     }
+  };
+
+  const uploadVideoReferenceImage = (file: File | undefined) => {
+    if (!file) return;
+    setVideoReferenceError("");
+    readAiTestReferenceImage(file).then((dataUrl) => {
+      setVideoReferenceImage({ name: file.name, dataUrl });
+    }).catch((caught: unknown) => {
+      setVideoReferenceImage(null);
+      setVideoReferenceError(caught instanceof Error ? caught.message : "参考图读取失败");
+    });
   };
 
   const submitChatTest = (event: FormEvent<HTMLFormElement>) => {
@@ -946,6 +974,8 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
       durationSeconds: videoDuration,
       resolution: videoResolution,
       aspectRatio: videoAspectRatio,
+      productImageName: videoReferenceImage?.name,
+      productImageDataUrl: videoReferenceImage?.dataUrl,
     }).then((result) => {
       setVideoResult(result);
       if (result.taskId) setVideoTaskId(result.taskId);
@@ -1080,6 +1110,41 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
               <span className="field-label">视频提示词</span>
               <textarea value={videoPrompt} onChange={(event) => setVideoPrompt(event.target.value)} rows={5} />
             </label>
+            <div className="ai-test-reference-upload">
+              <label className={`ai-test-reference-box ${videoReferenceImage ? "has-preview" : ""}`}>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => {
+                    uploadVideoReferenceImage(event.target.files?.[0]);
+                    event.currentTarget.value = "";
+                  }}
+                />
+                {videoReferenceImage ? (
+                  <>
+                    <img src={videoReferenceImage.dataUrl} alt="视频测试参考图" />
+                    <span>{videoReferenceImage.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={22} />
+                    <strong>上传参考图</strong>
+                    <span>产品图 / 门店图 / 人物图，最多 8MB</span>
+                  </>
+                )}
+              </label>
+              <div className="ai-test-reference-copy">
+                <strong>参考图会传给当前视频模型</strong>
+                <p>海螺会把这张图作为首帧参考，用于测试产品图生视频；不上传时就是纯文本生成。</p>
+                {videoReferenceImage && (
+                  <button type="button" onClick={() => setVideoReferenceImage(null)} disabled={busy !== null}>
+                    <Minus size={15} />
+                    清除参考图
+                  </button>
+                )}
+                {videoReferenceError && <p className="form-error">{videoReferenceError}</p>}
+              </div>
+            </div>
             <div className="ai-test-actions">
               <button type="submit" className="primary-button" disabled={busy !== null}>{busy === "video" ? "创建中..." : "创建视频任务"}</button>
               <label>

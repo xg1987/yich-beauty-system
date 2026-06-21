@@ -33421,6 +33421,108 @@ textarea,
   padding: 0 12px;
 }
 
+.ai-test-reference-upload {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.45fr) minmax(0, 0.55fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.ai-test-reference-box {
+  position: relative;
+  min-height: 154px;
+  padding: 14px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  text-align: center;
+  border: 1px dashed rgba(111, 66, 193, 0.34);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 86% 8%, rgba(42, 143, 125, 0.13), transparent 34%),
+    rgba(255, 255, 255, 0.66);
+  color: #2f255f;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ai-test-reference-box input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ai-test-reference-box svg {
+  color: #6f42c1;
+}
+
+.ai-test-reference-box strong {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ai-test-reference-box span,
+.ai-test-reference-copy p {
+  margin: 0;
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.55;
+}
+
+.ai-test-reference-box.has-preview {
+  padding: 8px;
+}
+
+.ai-test-reference-box.has-preview img {
+  width: 100%;
+  max-height: 190px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(47, 37, 95, 0.06);
+}
+
+.ai-test-reference-box.has-preview span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-test-reference-copy {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  border: 1px solid rgba(42, 143, 125, 0.16);
+  border-radius: 16px;
+  background: rgba(238, 251, 248, 0.62);
+}
+
+.ai-test-reference-copy strong {
+  color: #1f6f65;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.ai-test-reference-copy button {
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #6f42c1;
+  cursor: pointer;
+  font-weight: 900;
+}
+
 .ai-test-settings {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -33552,6 +33654,8 @@ textarea,
 .app-shell.theme-night .ai-capability-card,
 .app-shell.theme-night .ai-modal-summary,
 .app-shell.theme-night .ai-price-matrix,
+.app-shell.theme-night .ai-test-reference-box,
+.app-shell.theme-night .ai-test-reference-copy,
 .app-shell.theme-night .ai-test-output,
 .app-shell.theme-night .ai-test-image-output {
   border-color: var(--night-app-line);
@@ -33574,6 +33678,8 @@ textarea,
 .app-shell.theme-night .ai-config-footer span,
 .app-shell.theme-night .ai-modal-summary span,
 .app-shell.theme-night .ai-price-matrix-head span,
+.app-shell.theme-night .ai-test-reference-box span,
+.app-shell.theme-night .ai-test-reference-copy p,
 .app-shell.theme-night .ai-capability-card small,
 .app-shell.theme-night .ai-capability-card em,
 .app-shell.theme-night .ai-capability-card > span:last-child,
@@ -33609,6 +33715,7 @@ textarea,
   .ai-config-footer,
   .ai-test-settings,
   .ai-test-actions,
+  .ai-test-reference-upload,
   .ai-test-result-grid {
     grid-template-columns: 1fr;
   }

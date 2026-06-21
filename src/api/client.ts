@@ -162,7 +162,7 @@ export function createApiClient(getToken: () => string | undefined) {
         timeoutMs: AI_GENERATION_TIMEOUT_MS,
         timeoutMessage: AI_IMAGE_TEST_TIMEOUT_MESSAGE,
       }),
-    testAiVideo: (body: { prompt: string; provider?: AiVideoProviderKey; durationSeconds?: number; resolution?: string; aspectRatio?: string }) =>
+    testAiVideo: (body: { prompt: string; provider?: AiVideoProviderKey; durationSeconds?: number; resolution?: string; aspectRatio?: string; productImageName?: string; productImageDataUrl?: string }) =>
       request<AiTestVideoResult>("/api/ai-test/video", { method: "POST", body, token: getToken() }),
     queryAiVideo: (body: { provider: AiVideoProviderKey; taskId: string }) =>
       request<AiTestVideoResult>("/api/ai-test/video-status", { method: "POST", body, token: getToken() }),
