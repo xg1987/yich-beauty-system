@@ -2387,9 +2387,9 @@ function talkVideoRecordText(input: {
 }
 
 async function videoDataUrlToBlob(dataUrl: string) {
-  const match = /^data:([^;,]+)(;base64)?,/s.exec(dataUrl);
+  const match = /^data:([^,]*),(.*)$/s.exec(dataUrl);
   if (!match) throw new Error("口播视频格式不正确");
-  const contentType = match[1].toLowerCase();
+  const contentType = (match[1].split(";")[0] || "").toLowerCase();
   if (!contentType.startsWith("video/")) throw new Error("请上传视频格式的口播素材");
   const response = await fetch(dataUrl);
   if (!response.ok) throw new Error("口播视频读取失败");

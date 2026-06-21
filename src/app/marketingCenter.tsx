@@ -395,12 +395,31 @@ function readBlobAsDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function talkVideoMimeType(blob: Blob) {
+  return (blob.type || "video/mp4").split(";")[0].trim().toLowerCase() || "video/mp4";
+}
+
+function talkVideoExtension(blob: Blob) {
+  const mimeType = talkVideoMimeType(blob);
+  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("quicktime")) return "mov";
+  if (mimeType.includes("ogg")) return "ogv";
+  return "webm";
+}
+
+function talkVideoFileName(blob: Blob) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `真人口播-${timestamp}.${talkVideoExtension(blob)}`;
+}
+
 function preferredTalkVideoMimeType() {
   const candidates = [
+    "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+    "video/mp4;codecs=avc1.64003E,mp4a.40.2",
+    "video/mp4",
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",
     "video/webm",
-    "video/mp4",
   ];
   return candidates.find((item) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(item)) || "";
 }
@@ -907,6 +926,8 @@ export function MarketingCenter({
   const [talkSaveBusy, setTalkSaveBusy] = useState(false);
   const [talkSaveError, setTalkSaveError] = useState("");
   const [talkSavedRecordId, setTalkSavedRecordId] = useState("");
+  const [talkPhoneSaveBusy, setTalkPhoneSaveBusy] = useState(false);
+  const [talkPhoneSaveMessage, setTalkPhoneSaveMessage] = useState("");
   const [customRequirement, setCustomRequirement] = useState("");
   const [productImageName, setProductImageName] = useState("");
   const [productImageDataUrl, setProductImageDataUrl] = useState("");
@@ -1252,6 +1273,8 @@ export function MarketingCenter({
     if (current && current.state !== "inactive") return;
     talkRecordedChunksRef.current = [];
     setTalkFinalizing(false);
+    setTalkPhoneSaveBusy(false);
+    setTalkPhoneSaveMessage("");
     setTalkRecordedBlob(null);
     setTalkSilenceReport(null);
     setTalkRecordedVideoUrl((currentUrl) => {
@@ -1260,6 +1283,8 @@ export function MarketingCenter({
     });
     setTalkSavedRecordId("");
     setTalkSaveError("");
+    setTalkPhoneSaveBusy(false);
+    setTalkPhoneSaveMessage("");
     const mimeType = preferredTalkVideoMimeType();
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     recorder.ondataavailable = (event) => {
@@ -1410,6 +1435,8 @@ export function MarketingCenter({
       setTalkRecording(false);
       setTalkElapsed(0);
       setTalkFinalizing(false);
+      setTalkPhoneSaveBusy(false);
+      setTalkPhoneSaveMessage("");
       stopTalkRecorder();
       talkStreamRef.current?.getTracks().forEach((track) => track.stop());
       talkStreamRef.current = null;
@@ -1772,6 +1799,8 @@ export function MarketingCenter({
     setTalkTranscriptText("");
     setTalkSilenceReport(null);
     setTalkFinalizing(false);
+    setTalkPhoneSaveBusy(false);
+    setTalkPhoneSaveMessage("");
     setTalkRecording(true);
     setTalkElapsed(0);
   };
@@ -1793,6 +1822,8 @@ export function MarketingCenter({
     setTalkFinalizing(false);
     setTalkSavedRecordId("");
     setTalkSaveError("");
+    setTalkPhoneSaveBusy(false);
+    setTalkPhoneSaveMessage("");
     setTalkRecordedBlob(null);
     setTalkRecordedVideoUrl((currentUrl) => {
       if (currentUrl) URL.revokeObjectURL(currentUrl);
@@ -1801,6 +1832,48 @@ export function MarketingCenter({
     if (talkStreamRef.current) {
       setTalkRecording(true);
       startTalkRecorder(talkStreamRef.current);
+    }
+  };
+
+  const saveTalkToPhone = async () => {
+    if (!talkRecordedBlob) {
+      setTalkSaveError("请先完成录制，视频生成后再保存到手机");
+      return;
+    }
+    setTalkPhoneSaveBusy(true);
+    setTalkSaveError("");
+    setTalkPhoneSaveMessage("");
+    const mimeType = talkVideoMimeType(talkRecordedBlob);
+    const fileName = talkVideoFileName(talkRecordedBlob);
+    const file = new File([talkRecordedBlob], fileName, { type: mimeType });
+    try {
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        await navigator.share({
+          files: [file],
+          title: "真人口播视频",
+          text: "保存真人口播视频",
+        });
+        setTalkPhoneSaveMessage("已打开系统保存面板，请选择存储视频或保存到相册");
+        return;
+      }
+      const url = URL.createObjectURL(talkRecordedBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+      setTalkPhoneSaveMessage("已开始下载视频，请在下载内容中保存到相册");
+    } catch (caught) {
+      if (caught instanceof DOMException && caught.name === "AbortError") {
+        setTalkPhoneSaveMessage("已取消保存");
+        return;
+      }
+      setTalkSaveError(caught instanceof Error ? caught.message : "保存到手机失败，请重试");
+    } finally {
+      setTalkPhoneSaveBusy(false);
     }
   };
 
@@ -1818,7 +1891,7 @@ export function MarketingCenter({
       const scriptText = talkScriptLines.join("\n");
       const result = await actions.saveMarketingTalkVideo({
         videoDataUrl,
-        mimeType: talkRecordedBlob.type || "video/webm",
+        mimeType: talkVideoMimeType(talkRecordedBlob),
         ratio: talkRatio,
         durationSeconds: talkElapsed,
         topicTitle: selectedTalkTopic.title,
@@ -2022,6 +2095,7 @@ export function MarketingCenter({
           </article>
         </div>
         {talkSaveError && <p className="marketing-talk-save-error">{talkSaveError}</p>}
+        {talkPhoneSaveMessage && <p className="marketing-talk-save-success">{talkPhoneSaveMessage}</p>}
         {talkSavedRecordId && <p className="marketing-talk-save-success">口播素材已保存到生成记录</p>}
         {talkFinalizing && <p className="marketing-talk-save-success">视频正在生成预览，请稍等几秒后保存</p>}
 
@@ -2029,8 +2103,11 @@ export function MarketingCenter({
           <button type="button" className="secondary-button" onClick={() => setTalkStep("shoot")}>
             <RotateCcw size={16} /> 重新拍摄
           </button>
-          <button type="button" className="primary-button" disabled={!talkRecordedBlob || talkFinalizing || talkSaveBusy} onClick={() => void saveTalkMaterial()}>
-            <Save size={16} /> {talkSavedRecordId ? "已保存" : talkSaveBusy ? "保存中..." : talkFinalizing ? "生成中..." : "保存素材"}
+          <button type="button" className="primary-button" disabled={!talkRecordedBlob || talkFinalizing || talkPhoneSaveBusy} onClick={() => void saveTalkToPhone()}>
+            <Download size={16} /> {talkPhoneSaveBusy ? "打开中..." : talkFinalizing ? "生成中..." : "保存到手机相册"}
+          </button>
+          <button type="button" className="marketing-talk-system-save" disabled={!talkRecordedBlob || talkFinalizing || talkSaveBusy} onClick={() => void saveTalkMaterial()}>
+            <Save size={15} /> {talkSavedRecordId ? "已保存到系统素材" : talkSaveBusy ? "系统保存中..." : "另存到系统素材"}
           </button>
         </footer>
       </section>

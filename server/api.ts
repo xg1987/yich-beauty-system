@@ -2501,12 +2501,13 @@ async function findLocalFfmpeg() {
 }
 
 function videoDataUrlToBuffer(dataUrl: string) {
-  const match = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(dataUrl);
+  const match = /^data:([^,]*),(.*)$/s.exec(dataUrl);
   if (!match) throw new Error("口播视频格式不正确");
-  const contentType = match[1].toLowerCase();
+  const contentType = (match[1].split(";")[0] || "").toLowerCase();
   if (!contentType.startsWith("video/")) throw new Error("请上传视频格式的口播素材");
-  const body = match[3];
-  const buffer = match[2] ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body));
+  const body = match[2];
+  const isBase64 = match[1].toLowerCase().split(";").includes("base64");
+  const buffer = isBase64 ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body));
   return { contentType, buffer };
 }
 
