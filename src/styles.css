@@ -33790,6 +33790,24 @@ textarea,
   box-shadow: 0 14px 28px rgba(111, 66, 193, 0.22);
 }
 
+.ai-test-polling-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(42, 143, 125, 0.18);
+  border-radius: 14px;
+  background: rgba(238, 251, 248, 0.72);
+  color: #1f6f65;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+.ai-test-polling-status svg {
+  animation: spin 1.2s linear infinite;
+}
+
 .ai-test-result-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
@@ -33830,6 +33848,13 @@ textarea,
 .ai-test-output a {
   color: #6f42c1;
   font-weight: 900;
+}
+
+.ai-test-output video {
+  width: 100%;
+  max-height: 520px;
+  border-radius: 14px;
+  background: rgba(47, 37, 95, 0.08);
 }
 
 .ai-test-image-output img {

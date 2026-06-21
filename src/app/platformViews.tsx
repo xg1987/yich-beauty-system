@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowLeft,
   BadgeCent,
@@ -118,6 +118,48 @@ function readAiTestReferenceImage(file: File): Promise<string> {
     };
     reader.onerror = () => reject(new Error("图片读取失败"));
     reader.readAsDataURL(file);
+  });
+}
+
+function aiTestVideoFrameSize(aspectRatio: AiVideoAspectRatio) {
+  if (aspectRatio === "16:9") return { width: 1364, height: 768 };
+  if (aspectRatio === "1:1") return { width: 1024, height: 1024 };
+  return { width: 768, height: 1364 };
+}
+
+function frameAiTestReferenceImage(dataUrl: string, aspectRatio: AiVideoAspectRatio): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const { width, height } = aiTestVideoFrameSize(aspectRatio);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("参考图处理失败"));
+        return;
+      }
+      context.fillStyle = "#f7f3ff";
+      context.fillRect(0, 0, width, height);
+
+      const coverScale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+      const coverWidth = image.naturalWidth * coverScale;
+      const coverHeight = image.naturalHeight * coverScale;
+      context.save();
+      context.globalAlpha = 0.24;
+      context.filter = "blur(18px)";
+      context.drawImage(image, (width - coverWidth) / 2, (height - coverHeight) / 2, coverWidth, coverHeight);
+      context.restore();
+
+      const containScale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+      const containWidth = image.naturalWidth * containScale;
+      const containHeight = image.naturalHeight * containScale;
+      context.drawImage(image, (width - containWidth) / 2, (height - containHeight) / 2, containWidth, containHeight);
+      resolve(canvas.toDataURL("image/jpeg", 0.9));
+    };
+    image.onerror = () => reject(new Error("参考图处理失败"));
+    image.src = dataUrl;
   });
 }
 
@@ -919,7 +961,9 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
   const [imageResult, setImageResult] = useState<Awaited<ReturnType<ApiActions["testAiImage"]>> | null>(null);
   const [videoResult, setVideoResult] = useState<Awaited<ReturnType<ApiActions["testAiVideo"]>> | null>(null);
   const [busy, setBusy] = useState<AiTestTab | "video-status" | null>(null);
+  const [videoAutoPolling, setVideoAutoPolling] = useState(false);
   const [error, setError] = useState("");
+  const videoPollTimerRef = useRef<number | undefined>(undefined);
   const chatMessages = chatResult
     ? [
       { role: "user" as const, content: chatPrompt },
@@ -927,7 +971,22 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
     ]
     : [];
 
+  const clearVideoPollTimer = () => {
+    if (videoPollTimerRef.current) {
+      window.clearTimeout(videoPollTimerRef.current);
+      videoPollTimerRef.current = undefined;
+    }
+  };
+
+  const isVideoDone = (result: Awaited<ReturnType<ApiActions["testAiVideo"]>>) => Boolean(result.videoUrl);
+  const isVideoFailed = (result: Awaited<ReturnType<ApiActions["testAiVideo"]>>) =>
+    result.status === "生成失败" || Boolean(result.errorMessage);
+
+  useEffect(() => () => clearVideoPollTimer(), []);
+
   const selectVideoProvider = (provider: AiVideoProviderConfig["provider"]) => {
+    clearVideoPollTimer();
+    setVideoAutoPolling(false);
     const providerConfig = aiConfig.video.providers.find((item) => item.provider === provider);
     setVideoProvider(provider);
     if (providerConfig) {
@@ -935,6 +994,31 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
       setVideoResolution(providerConfig.defaultResolution);
       setVideoAspectRatio(providerConfig.defaultAspectRatio);
     }
+  };
+
+  const scheduleVideoStatusPoll = (provider: AiVideoProviderConfig["provider"], taskId: string, attempt = 0) => {
+    clearVideoPollTimer();
+    if (attempt >= 30) {
+      setVideoAutoPolling(false);
+      setError("视频还在生成中，已停止自动查询。可以稍后继续点击查询状态。");
+      return;
+    }
+    setVideoAutoPolling(true);
+    videoPollTimerRef.current = window.setTimeout(() => {
+      actions.queryAiVideo({ provider, taskId }).then((result) => {
+        setVideoResult(result);
+        if (result.taskId) setVideoTaskId(result.taskId);
+        if (isVideoDone(result) || isVideoFailed(result)) {
+          setVideoAutoPolling(false);
+          clearVideoPollTimer();
+          return;
+        }
+        scheduleVideoStatusPoll(provider, taskId, attempt + 1);
+      }).catch((caught: unknown) => {
+        setVideoAutoPolling(false);
+        setError(caught instanceof Error ? caught.message : "查询视频任务失败");
+      });
+    }, 8000);
   };
 
   const uploadVideoReferenceImage = (file: File | undefined) => {
@@ -964,33 +1048,49 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
       setError(caught instanceof Error ? caught.message : "图片生成测试失败");
     }).finally(() => setBusy(null));
   };
-  const submitVideoTest = (event: FormEvent<HTMLFormElement>) => {
+  const submitVideoTest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    clearVideoPollTimer();
+    setVideoAutoPolling(false);
     setBusy("video");
     setError("");
-    actions.testAiVideo({
-      prompt: videoPrompt,
-      provider: videoProvider,
-      durationSeconds: videoDuration,
-      resolution: videoResolution,
-      aspectRatio: videoAspectRatio,
-      productImageName: videoReferenceImage?.name,
-      productImageDataUrl: videoReferenceImage?.dataUrl,
-    }).then((result) => {
+    try {
+      const framedReferenceImage = videoReferenceImage
+        ? await frameAiTestReferenceImage(videoReferenceImage.dataUrl, videoAspectRatio)
+        : undefined;
+      const result = await actions.testAiVideo({
+        prompt: videoPrompt,
+        provider: videoProvider,
+        durationSeconds: videoDuration,
+        resolution: videoResolution,
+        aspectRatio: videoAspectRatio,
+        productImageName: videoReferenceImage?.name,
+        productImageDataUrl: framedReferenceImage,
+      });
       setVideoResult(result);
-      if (result.taskId) setVideoTaskId(result.taskId);
-    }).catch((caught: unknown) => {
+      if (result.taskId) {
+        setVideoTaskId(result.taskId);
+        if (!isVideoDone(result) && !isVideoFailed(result)) scheduleVideoStatusPoll(videoProvider, result.taskId);
+      }
+    } catch (caught) {
       setError(caught instanceof Error ? caught.message : "视频任务测试失败");
-    }).finally(() => setBusy(null));
+    } finally {
+      setBusy(null);
+    }
   };
   const queryVideoStatus = () => {
     if (!videoTaskId.trim()) {
       setError("请输入视频任务 ID");
       return;
     }
+    clearVideoPollTimer();
+    setVideoAutoPolling(false);
     setBusy("video-status");
     setError("");
-    actions.queryAiVideo({ provider: videoProvider, taskId: videoTaskId.trim() }).then(setVideoResult).catch((caught: unknown) => {
+    actions.queryAiVideo({ provider: videoProvider, taskId: videoTaskId.trim() }).then((result) => {
+      setVideoResult(result);
+      if (!isVideoDone(result) && !isVideoFailed(result)) scheduleVideoStatusPoll(videoProvider, videoTaskId.trim(), 1);
+    }).catch((caught: unknown) => {
       setError(caught instanceof Error ? caught.message : "查询视频任务失败");
     }).finally(() => setBusy(null));
   };
@@ -1153,17 +1253,28 @@ export function PlatformAiTestCenterView({ data, setView, actions }: { data: App
               </label>
               <button type="button" disabled={busy !== null} onClick={queryVideoStatus}>
                 <RefreshCw size={16} />
-                {busy === "video-status" ? "查询中..." : "查询状态"}
+                {busy === "video-status" ? "查询中..." : videoAutoPolling ? "自动查询中" : "查询状态"}
               </button>
             </div>
           </form>
+          {videoAutoPolling && (
+            <div className="ai-test-polling-status" role="status">
+              <RefreshCw size={16} />
+              视频任务已提交，系统正在每 8 秒自动查询一次。海螺生成完成后这里会显示视频。
+            </div>
+          )}
           {videoResult && (
             <div className="ai-test-result-grid">
               <article className="ai-test-output">
                 <small>{videoResult.provider} · {videoResult.model} · {videoResult.elapsedMs}ms</small>
-                <p>状态：{videoResult.status ?? "已返回"}</p>
+                {videoResult.videoUrl ? (
+                  <video src={videoResult.videoUrl} controls playsInline />
+                ) : (
+                  <p>状态：{videoResult.errorMessage ? "生成失败" : videoAutoPolling ? "生成中，等待视频返回" : "任务已提交，等待查询结果"}</p>
+                )}
                 {videoResult.taskId && <p>任务 ID：{videoResult.taskId}</p>}
                 {videoResult.fileId && <p>文件 ID：{videoResult.fileId}</p>}
+                {videoResult.errorMessage && <p className="form-error">{videoResult.errorMessage}</p>}
                 {videoResult.videoUrl && <a href={videoResult.videoUrl} target="_blank" rel="noreferrer">打开视频结果</a>}
               </article>
               <pre>{formatAiTestJson({ normalizedRequest: videoResult.normalizedRequest, raw: videoResult.raw })}</pre>

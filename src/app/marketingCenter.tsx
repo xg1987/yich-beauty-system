@@ -411,6 +411,48 @@ function readBlobAsDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+function marketingVideoFrameSize(ratio: string) {
+  if (ratio === "16:9") return { width: 1364, height: 768 };
+  if (ratio === "1:1") return { width: 1024, height: 1024 };
+  return { width: 768, height: 1364 };
+}
+
+function frameMarketingImageForVideoRatio(dataUrl: string, ratio: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const { width, height } = marketingVideoFrameSize(ratio);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("产品图比例处理失败"));
+        return;
+      }
+      context.fillStyle = "#f7f3ff";
+      context.fillRect(0, 0, width, height);
+
+      const coverScale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+      const coverWidth = image.naturalWidth * coverScale;
+      const coverHeight = image.naturalHeight * coverScale;
+      context.save();
+      context.globalAlpha = 0.24;
+      context.filter = "blur(18px)";
+      context.drawImage(image, (width - coverWidth) / 2, (height - coverHeight) / 2, coverWidth, coverHeight);
+      context.restore();
+
+      const containScale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+      const containWidth = image.naturalWidth * containScale;
+      const containHeight = image.naturalHeight * containScale;
+      context.drawImage(image, (width - containWidth) / 2, (height - containHeight) / 2, containWidth, containHeight);
+      resolve(canvas.toDataURL("image/jpeg", 0.9));
+    };
+    image.onerror = () => reject(new Error("产品图比例处理失败"));
+    image.src = dataUrl;
+  });
+}
+
 function talkVideoMimeType(blob: Blob) {
   return (blob.type || "video/mp4").split(";")[0].trim().toLowerCase() || "video/mp4";
 }
@@ -1918,6 +1960,9 @@ export function MarketingCenter({
     try {
       const usesProductPosterContext = generationKind === "image" || generationKind === "video";
       const productMediaRequirement = isVideoMode ? marketingCompliantText(videoScript) : productPosterRequirement;
+      const videoProductImageDataUrl = isVideoMode && productImageDataUrl
+        ? await frameMarketingImageForVideoRatio(productImageDataUrl, videoRatio)
+        : productImageDataUrl;
       const result = await actions.generateMarketingAi({
         kind: generationKind,
         storeName: marketingCompliantText(storeName),
@@ -1935,7 +1980,7 @@ export function MarketingCenter({
         posterTitle: usesProductPosterContext ? undefined : safeMarketingNode,
         posterOffer: usesProductPosterContext ? undefined : safeMarketingGoal,
         productImageName,
-        productImageDataUrl,
+        productImageDataUrl: videoProductImageDataUrl,
         modelImageName,
         modelImageDataUrl,
         sceneImageName,
