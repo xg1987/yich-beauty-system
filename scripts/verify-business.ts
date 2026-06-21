@@ -35,6 +35,7 @@ import {
   platformInviteCodeForUser,
   previewFormalDataCleanup,
   receivePurchaseOrder,
+  receiveSupplierPurchase,
   rechargeMemberCard,
   registerStore,
   refundMemberCard,
@@ -2504,6 +2505,33 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(purchased.inventoryLogs[0].type, "采购入库", "purchase order should log inbound stock");
   assert.equal(purchased.inventoryLogs[0].expiryAt, "2027-12-31", "purchase inventory log should persist expiry date");
   assert.equal(purchased.purchaseOrders[0].expiryAt, "2027-12-31", "purchase order should persist expiry date");
+
+  const newPurchase = receiveSupplierPurchase(
+    cloneSeed(),
+    {
+      supplierName: "来货供应商",
+      productName: "新采购面霜",
+      productPrice: 198,
+      productCategory: "面护类",
+      productSubcategory: "膏霜",
+      quantity: 7,
+      unitCost: 55,
+      expiryAt: "2028-06-30",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const newProduct = newPurchase.products.find((product) => product.name === "新采购面霜");
+  assert.ok(newProduct, "supplier purchase should create missing product");
+  assert.equal(newProduct.stock, 7, "new supplier purchase product stock should equal purchase quantity");
+  assert.equal(newProduct.price, 198, "new supplier purchase should persist sales price separately");
+  assert.equal(newProduct.cost, 55, "new supplier purchase should persist purchase cost");
+  assert.equal(newPurchase.suppliers[0].name, "来货供应商", "new supplier purchase should create missing supplier");
+  assert.equal(newPurchase.purchaseOrders[0].quantity, 7, "new supplier purchase order quantity should match inbound quantity");
+  assert.equal(newPurchase.inventoryBatches[0].quantityIn, 7, "new supplier purchase batch quantity should match inbound quantity");
+  assert.equal(newPurchase.inventoryBatches[0].remainingQuantity, 7, "new supplier purchase batch remaining should match inbound quantity");
+  assert.equal(newPurchase.inventoryLogs[0].delta, 7, "new supplier purchase log delta should match inbound quantity");
+  assert.equal(newPurchase.inventoryLogs[0].stockAfter, 7, "new supplier purchase stockAfter should match initial stock");
 
   const lowStockData = {
     ...cloneSeed(),

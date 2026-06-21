@@ -1397,6 +1397,28 @@ try {
   });
   assert.equal(afterPurchase.inventoryLogs[0].type, "采购入库", "purchase API should create inbound inventory log");
   assert.equal(afterPurchase.inventoryLogs[0].expiryAt, "2028-01-31", "purchase API should persist expiry date");
+  const afterSupplierNewProductPurchase = await request<AppData>(baseUrl, "/api/purchase-orders", {
+    method: "POST",
+    token: session.token,
+    body: {
+      supplierName: "API 新供应商",
+      productName: "API 采购新面霜",
+      productPrice: 188,
+      productCategory: "面护类",
+      productSubcategory: "膏霜",
+      quantity: 6,
+      unitCost: 52,
+      expiryAt: "2028-03-31",
+    },
+  });
+  const apiPurchaseProduct = afterSupplierNewProductPurchase.products.find((product) => product.name === "API 采购新面霜");
+  assert.ok(apiPurchaseProduct, "purchase API should create a missing product when productName is new");
+  assert.equal(apiPurchaseProduct.stock, 6, "purchase API new product stock should equal purchase quantity");
+  assert.equal(apiPurchaseProduct.price, 188, "purchase API new product should persist sales price");
+  assert.equal(apiPurchaseProduct.cost, 52, "purchase API new product should persist purchase cost");
+  assert.equal(afterSupplierNewProductPurchase.purchaseOrders[0].quantity, 6, "purchase API order quantity should match inbound quantity");
+  assert.equal(afterSupplierNewProductPurchase.inventoryBatches[0].quantityIn, 6, "purchase API batch quantity should match inbound quantity");
+  assert.equal(afterSupplierNewProductPurchase.inventoryLogs[0].delta, 6, "purchase API log delta should match inbound quantity");
   const afterManualRestock = await request<AppData>(baseUrl, "/api/inventory/adjust", {
     method: "POST",
     token: session.token,

@@ -27,7 +27,7 @@ import {
   decideStoreOwnerApplication,
   deleteStaffMember,
   extendMemberCard,
-  receivePurchaseOrder,
+  receiveSupplierPurchase,
   rechargeMemberCard,
   refundMemberCard,
   refundOrder,
@@ -1733,10 +1733,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requirePermission(session, "inventory:manage");
       const body = await readJson(context.request);
       const currentData = await database.readData();
-      const nextData = receivePurchaseOrder(currentData, {
+      const nextData = receiveSupplierPurchase(currentData, {
         storeId: sessionStoreId(currentData, session),
-        supplierId: requiredString(body, "supplierId"),
-        productId: requiredString(body, "productId"),
+        supplierId: optionalString(body, "supplierId"),
+        supplierName: optionalString(body, "supplierName"),
+        supplierPhone: optionalString(body, "supplierPhone"),
+        supplierContact: optionalString(body, "supplierContact"),
+        productId: optionalString(body, "productId"),
+        productName: optionalString(body, "productName"),
+        productPrice: optionalNumber(body, "productPrice"),
+        productCategory: optionalString(body, "productCategory"),
+        productSubcategory: optionalString(body, "productSubcategory"),
+        productUnit: optionalString(body, "productUnit"),
+        warningStock: optionalNumber(body, "warningStock"),
+        shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
+        serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
+        serviceUnit: optionalString(body, "serviceUnit"),
+        serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit"),
         quantity: requiredNumber(body, "quantity"),
         unitCost: requiredNumber(body, "unitCost"),
         expiryAt: optionalString(body, "expiryAt"),

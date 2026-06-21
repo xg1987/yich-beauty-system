@@ -20708,6 +20708,30 @@ textarea,
   grid-template-columns: minmax(110px, 0.8fr) minmax(150px, 1fr) minmax(180px, 1.3fr) minmax(150px, 0.9fr);
 }
 
+.inventory-purchase-summary,
+.inventory-purchase-new-product {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(42, 143, 125, 0.16);
+  background: rgba(42, 143, 125, 0.08);
+}
+
+.inventory-purchase-summary strong,
+.inventory-purchase-new-product strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.inventory-purchase-summary span,
+.inventory-purchase-new-product span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 .inventory-restock-current {
   display: grid;
   gap: 5px;

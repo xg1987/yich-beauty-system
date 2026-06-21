@@ -456,7 +456,26 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AppData>(`/api/products/${encodeURIComponent(productId)}`, { method: "PATCH", body, token: getToken() }),
     addSupplier: (body: { name: string; phone?: string; contact?: string }) =>
       request<AppData>("/api/suppliers", { method: "POST", body, token: getToken() }),
-    receivePurchaseOrder: (body: { supplierId: string; productId: string; quantity: number; unitCost: number; expiryAt?: string }) =>
+    receivePurchaseOrder: (body: {
+      supplierId?: string;
+      supplierName?: string;
+      supplierPhone?: string;
+      supplierContact?: string;
+      productId?: string;
+      productName?: string;
+      productPrice?: number;
+      productCategory?: string;
+      productSubcategory?: string;
+      productUnit?: string;
+      warningStock?: number;
+      shelfLifeMonths?: number;
+      serviceStockDeductible?: boolean;
+      serviceUnit?: string;
+      serviceUnitsPerStockUnit?: number;
+      quantity: number;
+      unitCost: number;
+      expiryAt?: string;
+    }) =>
       request<AppData>("/api/purchase-orders", { method: "POST", body, token: getToken() }),
     restockLowInventory: (supplierId?: string) =>
       request<AppData>("/api/inventory/restock-low", { method: "POST", body: { supplierId }, token: getToken() }),

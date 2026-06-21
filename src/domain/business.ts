@@ -1038,6 +1038,29 @@ export type PurchaseOrderInput = {
   userId: string;
 };
 
+export type SupplierPurchaseInput = {
+  storeId?: string;
+  supplierId?: string;
+  supplierName?: string;
+  supplierPhone?: string;
+  supplierContact?: string;
+  productId?: string;
+  productName?: string;
+  productPrice?: number;
+  productCategory?: string;
+  productSubcategory?: string;
+  productUnit?: string;
+  warningStock?: number;
+  shelfLifeMonths?: number;
+  serviceStockDeductible?: boolean;
+  serviceUnit?: string;
+  serviceUnitsPerStockUnit?: number;
+  quantity: number;
+  unitCost: number;
+  expiryAt?: string;
+  userId: string;
+};
+
 export type RestockLowInventoryInput = {
   storeId?: string;
   supplierId?: string;
@@ -4927,6 +4950,122 @@ export function receivePurchaseOrder(
         id: idFactory("il"),
         storeId,
         productId: product.id,
+        type: "采购入库",
+        delta: input.quantity,
+        stockAfter,
+        note: purchaseOrder.id,
+        expiryAt,
+        createdAt,
+      },
+      ...data.inventoryLogs,
+    ],
+  };
+}
+
+export function receiveSupplierPurchase(
+  data: AppData,
+  input: SupplierPurchaseInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  const storeId = scopedStoreId(data, input.storeId);
+  const normalizedSupplierName = trimText(input.supplierName);
+  const supplier = input.supplierId
+    ? data.suppliers.find((item) => item.id === input.supplierId)
+    : data.suppliers.find((item) => item.storeId === storeId && item.name.trim().toLowerCase() === normalizedSupplierName.toLowerCase());
+  if (input.supplierId && !supplier) throw new Error("供应商不存在");
+  if (!supplier && !normalizedSupplierName) throw new Error("请输入供应商名称");
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) throw new Error("请输入入库数量");
+  if (!Number.isFinite(input.unitCost) || input.unitCost < 0) throw new Error("采购单价不能为负数");
+
+  const nextSupplier: Supplier | undefined = supplier ?? {
+    id: idFactory("sp"),
+    storeId,
+    name: normalizedSupplierName,
+    phone: input.supplierPhone ?? "",
+    contact: input.supplierContact ?? "",
+    status: "active",
+  };
+  const supplierId = nextSupplier.id;
+
+  const normalizedProductName = trimText(input.productName);
+  const existingProduct = input.productId
+    ? data.products.find((item) => item.id === input.productId)
+    : data.products.find((item) => item.storeId === storeId && item.name.trim().toLowerCase() === normalizedProductName.toLowerCase());
+  if (input.productId && !existingProduct) throw new Error("商品不存在");
+  if (!existingProduct && !normalizedProductName) throw new Error("请输入商品名称");
+  if (!existingProduct && (!Number.isFinite(input.productPrice) || input.productPrice === undefined)) throw new Error("新商品请填写销售价");
+
+  const productId = existingProduct?.id ?? idFactory("p");
+  const category = input.productCategory?.trim() || existingProduct?.category || "面护类";
+  const subcategory = input.productSubcategory?.trim() || existingProduct?.subcategory || "";
+  const unit = input.productUnit?.trim() || existingProduct?.unit || "件";
+  const serviceStockDeductible = input.serviceStockDeductible ?? (existingProduct ? productServiceStockDeductible(existingProduct) : true);
+  const serviceUnitsPerStockUnit = serviceStockDeductible
+    ? normalizeProductServiceUnitsPerStockUnit(input.serviceUnitsPerStockUnit ?? (existingProduct ? productServiceUnitsPerStockUnit(existingProduct) : undefined))
+    : undefined;
+  const newProduct: Product | undefined = existingProduct ? undefined : {
+    id: productId,
+    storeId,
+    name: normalizedProductName,
+    type: "sale",
+    category,
+    subcategory,
+    unit,
+    price: input.productPrice ?? 0,
+    cost: input.unitCost,
+    stock: input.quantity,
+    warningStock: input.warningStock ?? 5,
+    shelfLifeMonths: input.shelfLifeMonths,
+    expiryAt: input.expiryAt,
+    serviceStockDeductible,
+    serviceUnit: serviceStockDeductible ? productServiceUnit({ name: normalizedProductName, category, subcategory, unit, serviceStockDeductible, serviceUnit: input.serviceUnit }) : undefined,
+    serviceUnitsPerStockUnit,
+    serviceUsesPerUnit: serviceUnitsPerStockUnit,
+  };
+  const productForExpiry = existingProduct ?? newProduct;
+  if (!productForExpiry) throw new Error("商品不存在");
+  const stockAfter = existingProduct ? existingProduct.stock + input.quantity : input.quantity;
+  const expiryAt = stockInExpiryAt(productForExpiry, createdAt, input.expiryAt);
+  const purchaseOrder: PurchaseOrder = {
+    id: idFactory("po"),
+    storeId,
+    supplierId,
+    productId,
+    quantity: input.quantity,
+    unitCost: input.unitCost,
+    expiryAt,
+    status: "已入库",
+    createdBy: input.userId,
+    createdAt,
+  };
+  const batch = inventoryBatchRecord(idFactory, {
+    storeId,
+    productId,
+    source: "采购入库",
+    quantity: input.quantity,
+    unitCost: input.unitCost,
+    expiryAt,
+    supplierId,
+    purchaseOrderId: purchaseOrder.id,
+    createdAt,
+  });
+
+  return {
+    ...data,
+    suppliers: supplier ? data.suppliers : [nextSupplier!, ...data.suppliers],
+    products: existingProduct
+      ? data.products.map((item) => (item.id === existingProduct.id ? { ...item, stock: stockAfter, cost: input.unitCost, expiryAt: earlierExpiryAt(item.expiryAt, expiryAt) } : item))
+      : [newProduct!, ...data.products],
+    inventoryBatches: batch ? [batch, ...(data.inventoryBatches ?? [])] : (data.inventoryBatches ?? []),
+    purchaseOrders: [purchaseOrder, ...data.purchaseOrders],
+    inventoryLogs: [
+      {
+        id: idFactory("il"),
+        storeId,
+        productId,
         type: "采购入库",
         delta: input.quantity,
         stockAfter,
