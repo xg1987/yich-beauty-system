@@ -329,7 +329,7 @@ export function createApiClient(getToken: () => string | undefined) {
         body: { reason, amount, approvalId },
         token: getToken(),
       }),
-    adjustInventory: (body: { productId: string; type: InventoryLog["type"]; quantity: number; note?: string; expiryAt?: string }) =>
+    adjustInventory: (body: { productId: string; type: InventoryLog["type"]; quantity: number; unitCost?: number; note?: string; expiryAt?: string }) =>
       request<AppData>("/api/inventory/adjust", { method: "POST", body, token: getToken() }),
     addAppointment: (body: { customerId: string; staffId: string; serviceId: string; serviceIds?: string[]; startAt: string; endAt: string; roomName: string; note: string }) =>
       request<AppData>("/api/appointments", { method: "POST", body, token: getToken() }),

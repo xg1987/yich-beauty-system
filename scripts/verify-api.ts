@@ -1397,6 +1397,15 @@ try {
   });
   assert.equal(afterPurchase.inventoryLogs[0].type, "采购入库", "purchase API should create inbound inventory log");
   assert.equal(afterPurchase.inventoryLogs[0].expiryAt, "2028-01-31", "purchase API should persist expiry date");
+  const afterManualRestock = await request<AppData>(baseUrl, "/api/inventory/adjust", {
+    method: "POST",
+    token: session.token,
+    body: { productId: "p1", type: "入库", quantity: 2, unitCost: 51, note: "API 手动补货", expiryAt: "2028-02-29" },
+  });
+  assert.equal(afterManualRestock.inventoryLogs[0].note, "API 手动补货", "manual restock API should create inbound inventory log");
+  assert.equal(afterManualRestock.inventoryBatches[0].source, "手动入库", "manual restock API should create manual inbound batch");
+  assert.equal(afterManualRestock.inventoryBatches[0].unitCost, 51, "manual restock API should persist this inbound unit cost");
+  assert.equal(afterManualRestock.products.find((product) => product.id === "p1")?.cost, 51, "manual restock API should update current product cost");
   const afterLowStockProduct = await request<AppData>(baseUrl, "/api/products", {
     method: "POST",
     token: session.token,

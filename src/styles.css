@@ -20573,7 +20573,8 @@ textarea,
 }
 
 .catalog-edit-button,
-.inventory-product-edit-button {
+.inventory-product-edit-button,
+.inventory-product-restock-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -20594,7 +20595,9 @@ textarea,
 .catalog-edit-button:hover,
 .catalog-edit-button:focus-visible,
 .inventory-product-edit-button:hover,
-.inventory-product-edit-button:focus-visible {
+.inventory-product-edit-button:focus-visible,
+.inventory-product-restock-button:hover,
+.inventory-product-restock-button:focus-visible {
   border-color: rgba(111, 66, 193, 0.32);
   background: rgba(255, 255, 255, 0.94);
   outline: none;
@@ -20655,6 +20658,50 @@ textarea,
 .catalog-inline-form {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
+}
+
+.inventory-restock-control {
+  border-color: rgba(42, 143, 125, 0.18);
+  background:
+    radial-gradient(circle at 92% 6%, rgba(42, 143, 125, 0.09), transparent 34%),
+    rgba(255, 255, 255, 0.76);
+}
+
+.inventory-restock-form {
+  grid-template-columns: 1fr;
+}
+
+.inventory-restock-form .inventory-product-form-main {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.8fr);
+}
+
+.inventory-restock-form .inventory-product-form-stock {
+  grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 0.9fr) minmax(150px, 1fr) minmax(180px, 1.3fr) minmax(150px, 0.9fr);
+}
+
+.inventory-restock-current {
+  display: grid;
+  gap: 5px;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid rgba(42, 143, 125, 0.16);
+  border-radius: 12px;
+  background: rgba(42, 143, 125, 0.08);
+}
+
+.inventory-restock-current span,
+.inventory-restock-current small {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.inventory-restock-current strong {
+  color: #1f5f55;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.2;
 }
 
 .theme-day .system-modal .catalog-inline-form label,
@@ -21185,10 +21232,18 @@ textarea,
   min-width: 0;
 }
 
-.inventory-product-edit-button {
+.inventory-product-edit-button,
+.inventory-product-restock-button {
   align-self: flex-start;
   min-height: 32px;
   padding: 7px 10px;
+}
+
+.inventory-product-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .inventory-product-card-head strong {
@@ -21301,6 +21356,11 @@ textarea,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .inventory-restock-form .inventory-product-form-main,
+  .inventory-restock-form .inventory-product-form-stock {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .inventory-category-manager-form {
     grid-template-columns: 1fr;
   }
@@ -21340,6 +21400,17 @@ textarea,
 
   .inventory-product-card-foot {
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .inventory-restock-form .inventory-product-form-main,
+  .inventory-restock-form .inventory-product-form-stock {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-product-card-actions {
+    width: 100%;
   }
 }
 
@@ -32916,6 +32987,7 @@ textarea,
 .theme-night .system-modal .inventory-product-card,
 .theme-night .system-modal .inventory-empty-state,
 .theme-night .system-modal .inventory-loss-current,
+.theme-night .system-modal .inventory-restock-current,
 .theme-night .system-modal .catalog-product-result,
 .theme-night .system-modal .catalog-product-result.create,
 .theme-night .system-modal .catalog-product-tags,
@@ -32939,7 +33011,9 @@ textarea,
 .theme-night .system-modal .catalog-product-result button,
 .theme-night .system-modal .module-panel-actions button,
 .theme-night .system-modal .inventory-row-actions button,
-.theme-night .system-modal .inventory-warning-row button {
+.theme-night .system-modal .inventory-warning-row button,
+.theme-night .system-modal .inventory-product-restock-button,
+.theme-night .system-modal .inventory-product-edit-button {
   border-color: var(--night-modal-border) !important;
   background: var(--night-modal-panel-strong) !important;
   color: var(--night-modal-text) !important;
@@ -32965,6 +33039,7 @@ textarea,
 .theme-night .system-modal .inventory-summary-strip strong,
 .theme-night .system-modal .inventory-empty-state strong,
 .theme-night .system-modal .inventory-loss-current strong,
+.theme-night .system-modal .inventory-restock-current strong,
 .theme-night .system-modal .inventory-warning-row strong,
 .theme-night .system-modal .catalog-product-result strong,
 .theme-night .system-modal .catalog-product-usage-chip strong,
@@ -32982,6 +33057,8 @@ textarea,
 .theme-night .system-modal .inventory-summary-strip span,
 .theme-night .system-modal .inventory-empty-state span,
 .theme-night .system-modal .inventory-loss-current span,
+.theme-night .system-modal .inventory-restock-current span,
+.theme-night .system-modal .inventory-restock-current small,
 .theme-night .system-modal .inventory-filter-row > span,
 .theme-night .system-modal .inventory-warning-row span,
 .theme-night .system-modal .inventory-intake-record small,
@@ -32994,7 +33071,8 @@ textarea,
 }
 
 .theme-night .system-modal .catalog-edit-button,
-.theme-night .system-modal .inventory-product-edit-button {
+.theme-night .system-modal .inventory-product-edit-button,
+.theme-night .system-modal .inventory-product-restock-button {
   border-color: var(--night-modal-line) !important;
   background: rgba(255, 255, 255, 0.1) !important;
   color: var(--night-modal-text) !important;

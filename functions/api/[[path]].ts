@@ -963,6 +963,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           productId: requiredString(body, "productId"),
           type: requiredString(body, "type") as InventoryLog["type"],
           quantity: requiredNumber(body, "quantity"),
+          unitCost: optionalNumber(body, "unitCost"),
           note: optionalString(body, "note"),
           expiryAt: optionalString(body, "expiryAt"),
         }),

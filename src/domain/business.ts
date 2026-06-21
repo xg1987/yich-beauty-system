@@ -785,6 +785,7 @@ export type InventoryAdjustmentInput = {
   productId: string;
   type: InventoryLog["type"];
   quantity: number;
+  unitCost?: number;
   note?: string;
   expiryAt?: string;
 };
@@ -4820,11 +4821,19 @@ export function adjustInventory(
   }
   const storeId = scopedStoreId(data, input.storeId ?? targetProduct.storeId);
   const expiryAt = input.type === "入库" ? stockInExpiryAt(targetProduct, createdAt, input.expiryAt) : undefined;
+  const inboundUnitCost = input.type === "入库" && typeof input.unitCost === "number" && Number.isFinite(input.unitCost) && input.unitCost >= 0
+    ? input.unitCost
+    : targetProduct.cost;
   let stockAfter = 0;
   const products = data.products.map((product) => {
     if (product.id !== input.productId) return product;
     stockAfter = Math.max(0, product.stock + input.quantity * direction);
-    return { ...product, stock: stockAfter, expiryAt: earlierExpiryAt(product.expiryAt, expiryAt) };
+    return {
+      ...product,
+      stock: stockAfter,
+      cost: input.type === "入库" ? inboundUnitCost : product.cost,
+      expiryAt: earlierExpiryAt(product.expiryAt, expiryAt),
+    };
   });
   const newBatch = input.type === "入库"
     ? inventoryBatchRecord(idFactory, {
@@ -4832,7 +4841,7 @@ export function adjustInventory(
         productId: input.productId,
         source: "手动入库",
         quantity: input.quantity,
-        unitCost: targetProduct.cost,
+        unitCost: inboundUnitCost,
         expiryAt,
         createdAt,
       })

@@ -1515,7 +1515,7 @@ function ManagementCenter({
   ];
   const storeManagementCards: ManagementCard[] = [
     { title: "账号管理", desc: "员工审核 / 密码重置", icon: UserCog, tone: "violet", view: "accounts" },
-    { title: "商品入库", desc: "新增商品 / 首批库存", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "商品入库", desc: "新增商品 / 已有补货", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackageOpen, tone: "teal", view: "catalog" },
     { title: "商品档案", desc: "商品资料 / 编码规格", icon: FileBox, tone: "teal", view: "catalog", catalogModule: "productList" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Warehouse, tone: "teal", view: "inventory", inventoryModule: "list" },
@@ -6741,6 +6741,12 @@ function Inventory({
   const [purchaseProductId, setPurchaseProductId] = useState(data.products[0]?.id ?? "");
   const [purchaseQuantity, setPurchaseQuantity] = useState(5);
   const [unitCost, setUnitCost] = useState(68);
+  const [manualRestockProductId, setManualRestockProductId] = useState(data.products[0]?.id ?? "");
+  const [manualRestockQuantity, setManualRestockQuantity] = useState(1);
+  const [manualRestockUnitCost, setManualRestockUnitCost] = useState(data.products[0]?.cost ? String(data.products[0].cost) : "");
+  const [manualRestockExpiryAt, setManualRestockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
+  const [manualRestockNote, setManualRestockNote] = useState("");
+  const [manualRestockMessage, setManualRestockMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
   const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
   const [inventoryCategoryPresets, setInventoryCategoryPresets] = useState<Record<string, string[]>>(INVENTORY_CATEGORY_PRESETS);
@@ -6962,6 +6968,56 @@ function Inventory({
     void runMutation(() => actions.receivePurchaseOrder({ supplierId, productId: purchaseProductId, quantity: purchaseQuantity, unitCost, expiryAt: purchaseExpiryAt || undefined }));
   };
 
+  const chooseManualRestockProduct = (nextProductId: string) => {
+    const product = data.products.find((item) => item.id === nextProductId);
+    setManualRestockProductId(nextProductId);
+    setManualRestockUnitCost(product?.cost ? String(product.cost) : "");
+    setManualRestockExpiryAt(defaultExpiryForProduct(nextProductId));
+    setManualRestockMessage(undefined);
+  };
+
+  const openManualRestockProduct = (product: Product) => {
+    chooseManualRestockProduct(product.id);
+    setManualRestockQuantity(1);
+    setManualRestockNote("");
+    setActiveModule("stockIn");
+  };
+
+  const submitManualRestock = (event: FormEvent) => {
+    event.preventDefault();
+    const product = data.products.find((item) => item.id === manualRestockProductId);
+    const manualUnitCost = optionalNumberFromInput(manualRestockUnitCost);
+    setManualRestockMessage(undefined);
+    if (!product) {
+      setManualRestockMessage({ type: "error", text: "请选择补货商品" });
+      return;
+    }
+    if (!Number.isFinite(manualRestockQuantity) || manualRestockQuantity <= 0) {
+      setManualRestockMessage({ type: "error", text: "请输入入库数量" });
+      return;
+    }
+    if (manualUnitCost === undefined || manualUnitCost < 0) {
+      setManualRestockMessage({ type: "error", text: "请输入本次进货价" });
+      return;
+    }
+    void runMutation(() => actions.adjustInventory({
+      productId: product.id,
+      type: "入库",
+      quantity: manualRestockQuantity,
+      unitCost: manualUnitCost,
+      expiryAt: manualRestockExpiryAt || undefined,
+      note: manualRestockNote.trim() || "手动补货入库",
+    }))
+      .then(() => {
+        setManualRestockQuantity(1);
+        setManualRestockMessage({ type: "success", text: "补货入库已保存，库存和批次已更新。" });
+      })
+      .catch((caught) => {
+        const message = caught instanceof Error ? caught.message : "补货入库失败，请检查后再试。";
+        setManualRestockMessage({ type: "error", text: message });
+      });
+  };
+
   const createStocktake = (event: FormEvent) => {
     event.preventDefault();
     void runMutation(() => actions.createStocktake({ productId: stocktakeProductId, actualStock, reason: "门店盘点" }));
@@ -6971,6 +7027,7 @@ function Inventory({
   const lowStock = lowStockItems.length;
   const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
   const selectedLossProduct = data.products.find((item) => item.id === lossProductId);
+  const selectedManualRestockProduct = data.products.find((item) => item.id === manualRestockProductId);
   const recentLossLogs = data.inventoryLogs.filter((log) => log.type === "报损").slice(0, 8);
 
   useEffect(() => {
@@ -6980,6 +7037,10 @@ function Inventory({
   useEffect(() => {
     if (!lossProductId && data.products[0]) setLossProductId(data.products[0].id);
   }, [data.products, lossProductId]);
+
+  useEffect(() => {
+    if (!manualRestockProductId && data.products[0]) chooseManualRestockProduct(data.products[0].id);
+  }, [data.products, manualRestockProductId]);
 
   useEffect(() => {
     setPurchaseExpiryAt(defaultExpiryForProduct(purchaseProductId));
@@ -7091,7 +7152,7 @@ function Inventory({
     setInventoryExportMessage("库存已导出");
   };
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
-    { key: "stockIn", title: "商品入库", desc: "新增商品和首批库存", icon: PackagePlus, tone: "teal", meta: "新增商品" },
+    { key: "stockIn", title: "商品入库", desc: "新增商品和已有商品补货", icon: PackagePlus, tone: "teal", meta: "入库" },
     { key: "loss", title: "商品损耗", desc: "损耗登记和库存扣减", icon: PackageMinus, tone: "rose", meta: "报损" },
     { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
     { key: "supplier", title: "供应商", desc: "维护采购基础资料", icon: Building2, tone: "amber", meta: `${data.suppliers.length} 家` },
@@ -7211,7 +7272,44 @@ function Inventory({
                 )}
                 {activeModule === "stockIn" && (
                 <section className="panel">
-                <PanelTitle icon={<PackagePlus size={18} />} title="商品入库" action="新增商品" />
+                <PanelTitle icon={<PackagePlus size={18} />} title="商品入库" action="新增 / 补货" />
+                <div className="catalog-inline-control inventory-inline-control inventory-restock-control">
+                  <div className="inventory-inline-header">
+                    <div className="inventory-inline-title">
+                      <strong>已有商品补货</strong>
+                      <span>不走供应商，直接给同一个商品增加库存并记录本次进货价</span>
+                    </div>
+                  </div>
+                  <form className="form catalog-inline-form inventory-restock-form" onSubmit={submitManualRestock}>
+                    <div className="inventory-product-form-row inventory-product-form-main">
+                      <Select
+                        label="补货商品"
+                        value={manualRestockProductId}
+                        onChange={chooseManualRestockProduct}
+                        options={data.products.map(optionOf)}
+                      />
+                      <div className="inventory-restock-current">
+                        <span>当前库存</span>
+                        <strong>{selectedManualRestockProduct ? formatProductStockWithServiceUnits(selectedManualRestockProduct, selectedManualRestockProduct.stock) : "-"}</strong>
+                        <small>{selectedManualRestockProduct ? `销售价 ${selectedManualRestockProduct.price > 0 ? money(selectedManualRestockProduct.price) : "未设置"}` : "请选择商品"}</small>
+                      </div>
+                    </div>
+                    <div className="inventory-product-form-row inventory-product-form-stock">
+                      <label>入库数量<input type="number" min={0.001} step="0.001" value={manualRestockQuantity} onChange={(event) => setManualRestockQuantity(Number(event.target.value))} /></label>
+                      <label>本次进货价<input type="number" min={0} step="0.01" value={manualRestockUnitCost} onChange={(event) => setManualRestockUnitCost(event.target.value)} placeholder="不是销售价" /></label>
+                      <label>到期日期<input type="date" value={manualRestockExpiryAt} onChange={(event) => setManualRestockExpiryAt(event.target.value)} /></label>
+                      <label>备注<input value={manualRestockNote} onChange={(event) => setManualRestockNote(event.target.value)} placeholder="线下补货 / 老板自采" /></label>
+                      <div className="form-submit-row">
+                        <SubmitStatusButton idleText="保存补货入库" busyText="保存中..." disabled={!manualRestockProductId || !manualRestockUnitCost.trim()} />
+                      </div>
+                    </div>
+                  </form>
+                  {manualRestockMessage && (
+                    <p className={manualRestockMessage.type === "success" ? "form-success" : "form-error"}>
+                      {manualRestockMessage.text}
+                    </p>
+                  )}
+                </div>
                 <div className="catalog-inline-control inventory-inline-control">
                   <div className="inventory-inline-header">
                     <div className="inventory-inline-title">
@@ -7295,6 +7393,9 @@ function Inventory({
                               <span><small>当前</small>{formatProductStockWithServiceUnits(product, product.stock)}</span>
                               <Badge text={productServiceStockDeductible(product) ? "扣库存" : "不计项目"} tone={productServiceStockDeductible(product) ? "ok" : undefined} />
                               <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
+                              <button type="button" className="inventory-intake-edit-button" onClick={() => openManualRestockProduct(product)}>
+                                补货
+                              </button>
                               <button type="button" className="inventory-intake-edit-button" onClick={() => openProductEdit(product)}>
                                 编辑
                               </button>
@@ -7394,10 +7495,16 @@ function Inventory({
                               <strong>{item.name}</strong>
                               <small>{[item.category ?? "面护类", item.subcategory].filter(Boolean).join(" / ")}</small>
                             </span>
-                            <button type="button" className="inventory-product-edit-button" onClick={() => openProductEdit(item)}>
-                              <Pencil size={14} />
-                              编辑商品
-                            </button>
+                            <span className="inventory-product-card-actions">
+                              <button type="button" className="inventory-product-restock-button" onClick={() => openManualRestockProduct(item)}>
+                                <PackagePlus size={14} />
+                                补货
+                              </button>
+                              <button type="button" className="inventory-product-edit-button" onClick={() => openProductEdit(item)}>
+                                <Pencil size={14} />
+                                编辑商品
+                              </button>
+                            </span>
                           </span>
                                   <span className="inventory-product-card-metrics">
                                     <span>

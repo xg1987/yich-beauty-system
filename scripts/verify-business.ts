@@ -2188,11 +2188,13 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 {
   const data = adjustInventory(
     cloneSeed(),
-    { productId: "p1", type: "入库", quantity: 4, note: "采购入库" },
+    { productId: "p1", type: "入库", quantity: 4, unitCost: 58, note: "采购入库" },
     { idFactory: testId, now: fixedNow },
   );
 
   assert.equal(productStock(data, "p1"), 22, "inbound stock should increase inventory");
+  assert.equal(data.products.find((product) => product.id === "p1")?.cost, 58, "manual inbound should update current product cost");
+  assert.equal(data.inventoryBatches[0].unitCost, 58, "manual inbound batch should preserve this inbound unit cost");
   assert.equal(data.inventoryLogs[0].delta, 4, "inbound adjustment should log positive delta");
   assert.equal(data.inventoryLogs[0].note, "采购入库", "inventory note should be preserved");
   assert.equal(data.inventoryLogs[0].expiryAt, "2028-05-24", "inbound adjustment should derive expiry from product shelf life");
