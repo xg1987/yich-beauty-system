@@ -331,6 +331,47 @@ function readMarketingImageFile(file: File): Promise<string> {
   });
 }
 
+function readMarketingImageDimensions(dataUrl: string): Promise<{ width: number; height: number } | undefined> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => resolve(undefined);
+    image.src = dataUrl;
+  });
+}
+
+function productVideoDraftFromImage(input: {
+  fileName: string;
+  dimensions?: { width: number; height: number };
+  template: string;
+  pace: string;
+}) {
+  const fileLabel = input.fileName.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
+  const ratioHint = input.dimensions
+    ? input.dimensions.height > input.dimensions.width * 1.15
+      ? "竖图构图"
+      : input.dimensions.width > input.dimensions.height * 1.15
+        ? "横图构图"
+        : "方图构图"
+    : "上传产品图";
+  const templateHint = input.template.includes("人物")
+    ? "真人自然手持或近景展示"
+    : input.template.includes("手持")
+      ? "手部拿起、展示和轻微转动"
+      : input.template.includes("门店")
+        ? "门店空间中产品清晰入镜"
+        : input.template.includes("快节奏")
+          ? "包装、细节和使用氛围快切"
+          : "产品静物特写和柔光质感";
+
+  return [
+    fileLabel && !/^产品\d*$/i.test(fileLabel) ? `产品：${fileLabel}` : "以上传产品图为准",
+    ratioHint,
+    templateHint,
+    `${input.pace}镜头，保留产品外观、颜色、材质和包装识别点`,
+  ].join("；").slice(0, 200);
+}
+
 function marketingMaterialKeyFromDataUrl(dataUrl: string) {
   if (!dataUrl) return "";
   let hash = 2166136261;
@@ -714,6 +755,7 @@ export function MarketingCenter({
   const [videoResolution, setVideoResolution] = useState("480p");
   const [videoPace, setVideoPace] = useState("慢推");
   const [videoScript, setVideoScript] = useState("");
+  const [videoScriptAutoFilled, setVideoScriptAutoFilled] = useState(false);
   const [customRequirement, setCustomRequirement] = useState("");
   const [productImageName, setProductImageName] = useState("");
   const [productImageDataUrl, setProductImageDataUrl] = useState("");
@@ -952,6 +994,37 @@ export function MarketingCenter({
     } catch (caught) {
       setName("");
       setDataUrl("");
+      setGenerationError(caught instanceof Error ? caught.message : "图片读取失败");
+    }
+  };
+
+  const handleProductImageChange = async (file: File | undefined) => {
+    if (!file) {
+      setProductImageName("");
+      setProductImageDataUrl("");
+      setVideoScriptAutoFilled(false);
+      return;
+    }
+    try {
+      setGenerationError("");
+      setProductImageName(file.name);
+      const dataUrl = await readMarketingImageFile(file);
+      setProductImageDataUrl(dataUrl);
+      if (isVideoMode && !videoScript.trim()) {
+        const dimensions = await readMarketingImageDimensions(dataUrl);
+        const draft = productVideoDraftFromImage({
+          fileName: file.name,
+          dimensions,
+          template: videoTemplate,
+          pace: videoPace,
+        });
+        setVideoScript(draft);
+        setVideoScriptAutoFilled(true);
+      }
+    } catch (caught) {
+      setProductImageName("");
+      setProductImageDataUrl("");
+      setVideoScriptAutoFilled(false);
       setGenerationError(caught instanceof Error ? caught.message : "图片读取失败");
     }
   };
@@ -1499,7 +1572,7 @@ export function MarketingCenter({
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
-                      onChange={(event) => void handleMarketingImageChange(event.target.files?.[0], setProductImageName, setProductImageDataUrl)}
+                      onChange={(event) => void handleProductImageChange(event.target.files?.[0])}
                     />
                   </label>
                   <label className={`marketing-upload-box ${modelImageDataUrl ? "has-preview" : ""}`}>
@@ -1642,12 +1715,18 @@ export function MarketingCenter({
                           <span>镜头要求 / 产品详情（必填）</span>
                           <textarea
                             value={videoScript}
-                            onChange={(event) => setVideoScript(event.target.value)}
+                            onChange={(event) => {
+                              setVideoScript(event.target.value);
+                              setVideoScriptAutoFilled(false);
+                            }}
                             maxLength={200}
                             placeholder="必填：请输入产品成分、质地、香味、适合场景、卖点或镜头要求，未填写不会提交生成..."
                             rows={3}
                           />
                           <em>{videoScript.length} / 200</em>
+                          {videoScriptAutoFilled && (
+                            <p className="marketing-video-auto-note">已根据上传产品图生成草稿，可直接修改后再生成。</p>
+                          )}
                         </label>
                         {duplicateVideoRecord && (
                           <p className="marketing-video-duplicate-note">这张产品图已提交过视频生成，请到生成记录查看结果，不能重复提交同一素材。</p>

@@ -29756,6 +29756,18 @@ textarea,
   line-height: 1.45;
 }
 
+.marketing-video-auto-note {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(22, 133, 117, 0.18);
+  border-radius: 10px;
+  background: rgba(22, 133, 117, 0.08);
+  color: #0f766e !important;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+
 .app-shell.theme-day .marketing-center-page .marketing-style-grid button[data-style-tone] strong,
 .app-shell.theme-night .marketing-center-page .marketing-style-grid button[data-style-tone] strong {
   color: var(--poster-style-text) !important;
