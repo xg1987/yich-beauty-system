@@ -307,7 +307,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     summary: "空间服务",
     description: "展示产品出现在护理床、护理师动作或门店空间里的镜头感觉。",
     cues: ["门店空间", "护理动作", "产品入镜"],
-    previewSrc: "/marketing-video-template-previews/salon-care.jpg",
+    previewSrc: "/marketing-video-template-previews/salon-care-generated-20260621.jpg",
     previewVideoSrc: "/marketing-video-template-previews/salon-care-generated-20260621.mp4",
     previewAlt: "门店护理场景视频模板示例",
     icon: Store,
