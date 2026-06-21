@@ -30656,11 +30656,16 @@ textarea,
   box-shadow: inset 0 0 0 1px rgba(111, 66, 193, 0.1);
 }
 
-.marketing-video-template-media img {
+.marketing-video-template-media img,
+.marketing-video-template-media video {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
+}
+
+.marketing-video-template-media video {
+  pointer-events: none;
 }
 
 .marketing-video-template-media > span {

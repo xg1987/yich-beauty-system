@@ -2940,7 +2940,7 @@ async function runMarketingProductImageAnalysis(data: AppData, body: JsonBody) {
 function productVideoDraftFromAsset(asset: MarketingImageAsset, videoTemplate: string, videoPace: string) {
   const fileLabel = asset.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
   const templateHint = videoTemplate.includes("人物")
-    ? "真人自然手持或近景展示"
+    ? "人物自然出镜，手持或使用上传产品，产品和人物动作融合且清晰可辨"
     : videoTemplate.includes("手持")
       ? "手部拿起、展示和轻微转动"
       : videoTemplate.includes("门店")
@@ -3331,7 +3331,7 @@ function marketingVideoTemplateDirective(template: string, hasModelAsset: boolea
     return "视频模板：手持试用展示。生成自然手部动作，例如拿起产品、打开包装、挤出质地、涂抹或放回台面；手部动作必须服务产品展示，产品始终清楚。";
   }
   if (template.includes("人物") || template.includes("种草")) {
-    return `${hasModelAsset ? "视频模板：人物场景种草。优先使用上传模特图的人物特征" : "视频模板：人物场景种草。可以自动生成自然真实的人物"}，画面像社媒真实分享，包含手持产品、自拍感、局部试用或生活化陈列；不要变成项目服务广告。`;
+    return `${hasModelAsset ? "视频模板：人物场景种草。优先使用上传模特图的人物特征" : "视频模板：人物场景种草。必须自动生成自然真实的人物"}，人物要手持、试用或近景展示上传产品，产品必须和人物动作融合且清晰可辨；画面像社媒真实分享，包含自拍感、局部试用或生活化陈列；不要变成项目服务广告。`;
   }
   if (template.includes("门店") || template.includes("护理")) {
     return "视频模板：门店护理场景。产品出现在护理床、护理师动作、前台陈列或门店空间中，镜头围绕产品和门店质感展开；不能把产品改成护理项目本身。";

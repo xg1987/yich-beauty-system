@@ -64,6 +64,7 @@ type VideoTemplateExample = {
   description: string;
   cues: string[];
   previewSrc: string;
+  previewVideoSrc?: string;
   previewAlt: string;
   icon: typeof Video;
 };
@@ -268,6 +269,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示包装、材质、光影和陈列质感的镜头感觉。",
     cues: ["静物光影", "材质特写", "产品清晰"],
     previewSrc: "/marketing-video-template-previews/product-texture.jpg",
+    previewVideoSrc: "/marketing-video-template-previews/product-texture.mp4",
     previewAlt: "产品质感展示视频模板示例",
     icon: Package,
   },
@@ -277,6 +279,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示拿起、打开、涂抹或展示质地的镜头感觉。",
     cues: ["手部动作", "真实试用", "产品清晰"],
     previewSrc: "/marketing-video-template-previews/hand-demo.jpg",
+    previewVideoSrc: "/marketing-video-template-previews/hand-demo.mp4",
     previewAlt: "手持试用展示视频模板示例",
     icon: Hand,
   },
@@ -286,6 +289,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示人物手持产品、自拍感和生活化分享的镜头感觉。",
     cues: ["真人分享", "生活场景", "社媒种草"],
     previewSrc: "/marketing-video-template-previews/social-person.jpg",
+    previewVideoSrc: "/marketing-video-template-previews/social-person.mp4",
     previewAlt: "人物场景种草视频模板示例",
     icon: UserRound,
   },
@@ -295,6 +299,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示产品出现在护理床、护理师动作或门店空间里的镜头感觉。",
     cues: ["门店空间", "护理动作", "产品入镜"],
     previewSrc: "/marketing-video-template-previews/salon-care.jpg",
+    previewVideoSrc: "/marketing-video-template-previews/salon-care.mp4",
     previewAlt: "门店护理场景视频模板示例",
     icon: Store,
   },
@@ -304,6 +309,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示微距、柔光、包装特写和高级品牌感的镜头感觉。",
     cues: ["品牌大片", "柔光微距", "高级质感"],
     previewSrc: "/marketing-video-template-previews/brand-ad.jpg",
+    previewVideoSrc: "/marketing-video-template-previews/brand-ad.mp4",
     previewAlt: "高端品牌广告视频模板示例",
     icon: Gem,
   },
@@ -313,6 +319,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
     description: "展示包装、质地、使用和氛围快速切换的镜头感觉。",
     cues: ["多镜头快切", "发布感", "节奏更快"],
     previewSrc: "/marketing-video-template-previews/social-cut.jpg",
+    previewVideoSrc: "/marketing-video-template-previews/social-cut.mp4",
     previewAlt: "社媒快节奏切片视频模板示例",
     icon: Scissors,
   },
@@ -519,7 +526,7 @@ function productVideoDraftFromImage(input: {
         : "方图构图"
     : "上传产品图";
   const templateHint = input.template.includes("人物")
-    ? "真人自然手持或近景展示"
+    ? "人物自然出镜，手持或使用上传产品，产品和人物动作融合且清晰可辨"
     : input.template.includes("手持")
       ? "手部拿起、展示和轻微转动"
       : input.template.includes("门店")
@@ -2502,7 +2509,21 @@ export function MarketingCenter({
                   {isVideoMode && (
                     <article className="marketing-video-template-preview" data-style-tone={videoTemplateTones[activeVideoTemplateExample.title]}>
                       <div className="marketing-video-template-media">
-                        <img src={activeVideoTemplateExample.previewSrc} alt={activeVideoTemplateExample.previewAlt} />
+                        {activeVideoTemplateExample.previewVideoSrc ? (
+                          <video
+                            key={activeVideoTemplateExample.previewVideoSrc}
+                            src={activeVideoTemplateExample.previewVideoSrc}
+                            poster={activeVideoTemplateExample.previewSrc}
+                            aria-label={activeVideoTemplateExample.previewAlt}
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img src={activeVideoTemplateExample.previewSrc} alt={activeVideoTemplateExample.previewAlt} />
+                        )}
                         <span>当前示例</span>
                       </div>
                       <div className="marketing-video-template-detail">
