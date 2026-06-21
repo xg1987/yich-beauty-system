@@ -1093,12 +1093,16 @@ export function MarketingCenter({
     ].filter(Boolean).map(marketingCompliantText).join("\n");
   const marketingAiRecords = [...(data.marketingAiRecords ?? [])].map(staleMarketingAiRecord).sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt));
   const typedMarketingAiRecords = marketingAiRecords.filter((record) => record.kind === generationKind);
+  const productImageBaseMaterialKey = marketingMaterialKeyFromDataUrl(productImageDataUrl);
   const productImageMaterialKey = marketingVideoMaterialKey(productImageDataUrl, safeVideoTemplate);
   const duplicateVideoRecord = productImageMaterialKey
     ? marketingAiRecords.find((record) =>
       record.kind === "video"
       && record.createdBy === session.user.id
-      && record.materialKey === productImageMaterialKey
+      && (
+        record.materialKey === productImageMaterialKey
+        || (safeVideoTemplate === "产品质感展示" && !record.videoTemplate && record.materialKey === productImageBaseMaterialKey)
+      )
       && record.status !== "生成失败",
     )
     : undefined;

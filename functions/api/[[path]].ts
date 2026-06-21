@@ -3113,11 +3113,17 @@ function marketingMaterialKey(body: JsonBody, kind: MarketingAiKind) {
 
 function findDuplicateMarketingVideoRecord(data: AppData, session: UserSession, body: JsonBody) {
   const materialKey = marketingMaterialKey(body, "video");
+  const productImageDataUrl = optionalString(body, "productImageDataUrl");
+  const legacyMaterialKey = productImageDataUrl ? marketingMaterialKeyFromDataUrl(productImageDataUrl) : undefined;
+  const templateKey = marketingVideoTemplateKey(body);
   if (!materialKey) return undefined;
   return (data.marketingAiRecords ?? []).find((record) =>
     record.kind === "video"
     && record.createdBy === session.user.id
-    && record.materialKey === materialKey
+    && (
+      record.materialKey === materialKey
+      || (templateKey === "产品质感展示" && !record.videoTemplate && record.materialKey === legacyMaterialKey)
+    )
     && record.status !== "生成失败",
   );
 }
