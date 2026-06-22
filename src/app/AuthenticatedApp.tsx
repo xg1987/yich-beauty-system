@@ -1518,6 +1518,7 @@ function ManagementCenter({
     { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackageOpen, tone: "teal", view: "catalog" },
     { title: "商品档案", desc: "商品资料 / 编码规格", icon: FileBox, tone: "teal", view: "catalog", catalogModule: "productList" },
     { title: "库存列表", desc: "库存状态 / 预警查看", icon: Warehouse, tone: "teal", view: "inventory", inventoryModule: "list" },
+    { title: "库存流水", desc: "入库出库 / 盘点历史", icon: ClipboardList, tone: "plum", view: "inventory", inventoryModule: "logs" },
     { title: "销售业绩", desc: "经营数据 / 员工业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "营销中心", desc: "生日祝福 / 引流文案", icon: Camera, tone: "plum", view: "marketing" },
     { title: "客户退费", desc: "会员卡退费 / 退卡记录", icon: CreditCard, tone: "rose", onClick: () => setCustomerRefundOpen(true) },
