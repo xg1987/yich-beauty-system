@@ -486,6 +486,94 @@ function talkCanvasSize() {
   return { width: 720, height: 1280 };
 }
 
+const TALK_TARGET_RATIO = 9 / 16;
+const TALK_NATIVE_RATIO_TOLERANCE = 0.08;
+
+type TalkCameraFramingMode = "native-portrait" | "safe-portrait";
+
+type TalkCameraStreamResult = {
+  stream: MediaStream;
+  mode: TalkCameraFramingMode;
+  actualWidth: number;
+  actualHeight: number;
+};
+
+function talkFrameRatio(width: number, height: number) {
+  return width > 0 && height > 0 ? width / height : TALK_TARGET_RATIO;
+}
+
+function talkRatioDelta(width: number, height: number) {
+  return Math.abs(talkFrameRatio(width, height) - TALK_TARGET_RATIO);
+}
+
+function isNativeTalkPortraitFrame(width: number, height: number) {
+  return height > width && talkRatioDelta(width, height) <= TALK_NATIVE_RATIO_TOLERANCE;
+}
+
+function talkCameraVideoConstraints(): MediaTrackConstraints[] {
+  return [
+    {
+      facingMode: { ideal: "user" },
+      width: { ideal: 720 },
+      height: { ideal: 1280 },
+      aspectRatio: { exact: TALK_TARGET_RATIO },
+    },
+    {
+      facingMode: { ideal: "user" },
+      width: { ideal: 1080 },
+      height: { ideal: 1920 },
+      aspectRatio: { ideal: TALK_TARGET_RATIO },
+    },
+    {
+      facingMode: "user",
+      width: { ideal: 720 },
+      height: { ideal: 1280 },
+      aspectRatio: TALK_TARGET_RATIO,
+    },
+    {
+      facingMode: "user",
+    },
+  ];
+}
+
+function talkAudioConstraints(): MediaTrackConstraints {
+  return {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  };
+}
+
+function talkStreamDimensions(stream: MediaStream) {
+  const settings = stream.getVideoTracks()[0]?.getSettings();
+  return {
+    width: Number(settings?.width) || 0,
+    height: Number(settings?.height) || 0,
+  };
+}
+
+async function acquireTalkCameraStream(): Promise<TalkCameraStreamResult> {
+  let lastError: unknown;
+  const videoAttempts = talkCameraVideoConstraints();
+  for (let index = 0; index < videoAttempts.length; index += 1) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: videoAttempts[index],
+        audio: talkAudioConstraints(),
+      });
+      const { width, height } = talkStreamDimensions(stream);
+      const hasKnownDimensions = width > 0 && height > 0;
+      const mode: TalkCameraFramingMode = hasKnownDimensions && isNativeTalkPortraitFrame(width, height) ? "native-portrait" : "safe-portrait";
+      const result = { stream, mode, actualWidth: width, actualHeight: height };
+      if (!hasKnownDimensions || mode === "native-portrait" || index === videoAttempts.length - 1) return result;
+      stream.getTracks().forEach((track) => track.stop());
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error("无法打开相机");
+}
+
 function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
   const output: string[] = [];
   let line = "";
@@ -525,7 +613,7 @@ function drawMirroredTalkVideo(
 function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
   const sourceWidth = video.videoWidth || width;
   const sourceHeight = video.videoHeight || height;
-  const targetRatio = width / height;
+  const targetRatio = TALK_TARGET_RATIO;
   const sourceRatio = sourceWidth / sourceHeight;
   let cropX = 0;
   let cropY = 0;
@@ -543,39 +631,42 @@ function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoE
   drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height, width);
 }
 
-function drawTalkPortraitBackdrop(context: CanvasRenderingContext2D, width: number, height: number) {
-  const gradient = context.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#151111");
-  gradient.addColorStop(0.38, "#241c1a");
-  gradient.addColorStop(1, "#0d0c0d");
+function drawTalkVideoSoftBackdrop(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
+  context.save();
+  context.filter = "blur(22px)";
+  context.globalAlpha = 0.68;
+  drawTalkVideoCover(context, video, width, height);
+  context.restore();
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "rgba(0, 0, 0, 0.5)");
+  gradient.addColorStop(0.44, "rgba(0, 0, 0, 0.2)");
+  gradient.addColorStop(1, "rgba(0, 0, 0, 0.58)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
-  context.fillStyle = "rgba(255, 255, 255, 0.045)";
-  context.beginPath();
-  context.ellipse(width * 0.5, height * 0.43, width * 0.62, height * 0.24, 0, 0, Math.PI * 2);
-  context.fill();
 }
 
 function drawTalkVideoPortraitFrame(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
   const sourceWidth = video.videoWidth || width;
   const sourceHeight = video.videoHeight || height;
-  const targetRatio = width / height;
-  const sourceRatio = sourceWidth / sourceHeight;
-  const ratioDelta = Math.abs(sourceRatio - targetRatio);
-  if (ratioDelta <= 0.22) {
+  if (isNativeTalkPortraitFrame(sourceWidth, sourceHeight)) {
     drawTalkVideoCover(context, video, width, height);
     return;
   }
 
-  drawTalkPortraitBackdrop(context, width, height);
-  const containScale = Math.min(width / sourceWidth, height / sourceHeight);
-  const coverScale = Math.max(width / sourceWidth, height / sourceHeight);
-  const balancedScale = Math.min(coverScale, containScale * 1.72);
-  const targetWidth = sourceWidth * balancedScale;
-  const targetHeight = sourceHeight * balancedScale;
+  drawTalkVideoSoftBackdrop(context, video, width, height);
+  const maxWidth = Math.round(width * 0.94);
+  const maxHeight = Math.round(height * 0.68);
+  const containScale = Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight);
+  const targetWidth = Math.round(sourceWidth * containScale);
+  const targetHeight = Math.round(sourceHeight * containScale);
   const targetX = (width - targetWidth) / 2;
-  const targetY = Math.round(height * 0.5 - targetHeight * 0.53);
+  const targetY = Math.round(height * 0.48 - targetHeight / 2);
+  context.save();
+  context.shadowColor = "rgba(0, 0, 0, 0.36)";
+  context.shadowBlur = Math.round(height * 0.018);
+  context.shadowOffsetY = Math.round(height * 0.01);
   drawMirroredTalkVideo(context, video, 0, 0, sourceWidth, sourceHeight, targetX, targetY, targetWidth, targetHeight, width);
+  context.restore();
 }
 
 function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
@@ -1917,19 +2008,8 @@ export function MarketingCenter({
         return;
       }
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-            width: { ideal: 720 },
-            height: { ideal: 1280 },
-            aspectRatio: 9 / 16,
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+        const camera = await acquireTalkCameraStream();
+        stream = camera.stream;
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
@@ -1939,14 +2019,14 @@ export function MarketingCenter({
           talkVideoRef.current.srcObject = stream;
           await talkVideoRef.current.play().catch(() => undefined);
         }
-        const videoSettings = stream.getVideoTracks()[0]?.getSettings();
-        const actualWidth = Number(videoSettings?.width);
-        const actualHeight = Number(videoSettings?.height);
+        const videoElement = talkVideoRef.current;
+        const actualWidth = Number(videoElement?.videoWidth) || camera.actualWidth;
+        const actualHeight = Number(videoElement?.videoHeight) || camera.actualHeight;
         if (actualWidth > 0 && actualHeight > 0) {
-          const actualRatio = actualWidth / actualHeight;
-          const targetRatio = 9 / 16;
-          const ratioDelta = Math.abs(actualRatio - targetRatio);
-          setTalkCameraError(ratioDelta > 0.28 ? "当前相机画面比例不一致，已启用竖屏人物取景，请后退半步让肩部入框" : "");
+          const isNativePortrait = isNativeTalkPortraitFrame(actualWidth, actualHeight);
+          setTalkCameraError(isNativePortrait ? "" : "当前浏览器没有给到原生 9:16 相机流，已转为 9:16 安全构图，不裁脸不加黑边");
+        } else if (camera.mode === "safe-portrait") {
+          setTalkCameraError("当前浏览器没有给到原生 9:16 相机流，已转为 9:16 安全构图，不裁脸不加黑边");
         }
         setTalkCameraReady(true);
         if (talkRecording) startTalkRecorder(stream);
