@@ -98,6 +98,14 @@ type Env = {
 };
 
 type JsonBody = Record<string, unknown>;
+type MarketingTalkTopic = {
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  source?: string;
+  publishedAt?: string;
+};
 type R2ObjectLike = { key: string; size?: number };
 type R2StoredObjectLike = {
   body: ReadableStream;
@@ -468,6 +476,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const data = await database.readData();
       assertMarketingAiAllowed(data, session, "video");
       return sendJson(200, await runMarketingProductImageAnalysis(data, await readJson(context.request)));
+    }
+
+    if (context.request.method === "GET" && pathname === "/api/marketing-ai/talk-topics") {
+      requirePermission(session, "marketing:manage");
+      return sendJson(200, await fetchMarketingTalkTopics());
     }
 
     if (context.request.method === "POST" && pathname === "/api/marketing-ai/generate") {
@@ -3402,6 +3415,109 @@ function videoGenerationCost(config: AiVideoProviderConfig, durationSeconds: num
     priceConfigured: amountUsd > 0,
     estimated: false,
   };
+}
+
+const marketingTalkNewsQuery = "护肤 OR 美容 OR 皮肤管理 OR 防晒 OR 抗老 OR 面部护理 when:2d";
+
+function xmlTagValue(xml: string, tag: string) {
+  const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i").exec(xml);
+  return match ? decodeXmlText(match[1]) : "";
+}
+
+function decodeXmlText(value: string) {
+  const withoutCdata = value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+  return withoutCdata
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function talkTopicIdFromTitle(title: string, index: number) {
+  const slug = title
+    .replace(/[^\p{Script=Han}\p{Letter}\p{Number}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 36);
+  return `news-${slug || index}`;
+}
+
+function newsTitleToTalkTopicTitle(title: string) {
+  const compact = title.replace(/\s+-\s+[^-]+$/g, "").replace(/^[\s【】]+|[\s【】]+$/g, "");
+  if (!compact) return "今日美业热点怎么跟顾客讲？";
+  if (compact.length <= 22) return compact;
+  return `${compact.slice(0, 22)}…`;
+}
+
+function fallbackTalkTopics(errorMessage?: string) {
+  const topics: MarketingTalkTopic[] = [
+    {
+      id: "fallback-season-care",
+      title: "今天顾客问得最多的换季护理",
+      description: "结合当天门店咨询，把脸干、泛红、卡粉讲成顾客听得懂的护理建议。",
+      tags: ["本地兜底", "门店常见问题"],
+    },
+    {
+      id: "fallback-sunscreen",
+      title: "防晒和补水为什么要一起讲？",
+      description: "适合把日常护理、防晒习惯和到店补水修护串成短视频口播。",
+      tags: ["本地兜底", "日常护理"],
+    },
+    {
+      id: "fallback-home-care",
+      title: "在家护肤别踩这3个坑",
+      description: "用顾客容易遇到的误区做开场，再自然引导到门店护理建议。",
+      tags: ["本地兜底", "口播干货"],
+    },
+  ];
+  return { topics, source: "fallback" as const, fetchedAt: new Date().toISOString(), query: marketingTalkNewsQuery, ...(errorMessage ? { errorMessage } : {}) };
+}
+
+async function fetchMarketingTalkTopics() {
+  const fetchedAt = new Date().toISOString();
+  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(marketingTalkNewsQuery)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
+  try {
+    const response = await fetch(rssUrl, {
+      headers: {
+        "user-agent": "YiCh Beauty System/1.0 (+https://yich-beauty-system-22u.pages.dev)",
+        accept: "application/rss+xml, application/xml, text/xml",
+      },
+    });
+    if (!response.ok) throw new Error(`新闻源返回 ${response.status}`);
+    const xml = await response.text();
+    const seen = new Set<string>();
+    const topics: MarketingTalkTopic[] = [];
+    const itemMatches = xml.matchAll(/<item\b[\s\S]*?<\/item>/gi);
+    for (const [index, match] of Array.from(itemMatches).entries()) {
+      const itemXml = match[0];
+      const rawTitle = xmlTagValue(itemXml, "title");
+      const title = newsTitleToTalkTopicTitle(rawTitle);
+      if (!title || seen.has(title)) continue;
+      seen.add(title);
+      const source = xmlTagValue(itemXml, "source") || "Google News";
+      const published = xmlTagValue(itemXml, "pubDate");
+      const publishedDate = published ? new Date(published) : undefined;
+      const publishedAt = publishedDate && !Number.isNaN(publishedDate.getTime()) ? publishedDate.toISOString() : undefined;
+      topics.push({
+        id: talkTopicIdFromTitle(title, index),
+        title,
+        description: `来自${source}的近两天新闻线索，适合转成顾客听得懂的护理建议。`,
+        tags: ["今日新闻", source.slice(0, 10)],
+        source,
+        publishedAt,
+      });
+      if (topics.length >= 5) break;
+    }
+    if (!topics.length) return fallbackTalkTopics("新闻源暂时没有返回可用选题");
+    return { topics, source: "news-rss" as const, fetchedAt, query: marketingTalkNewsQuery };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "新闻抓取失败";
+    return fallbackTalkTopics(message);
+  }
 }
 
 function marketingPrompt(body: JsonBody, kind: MarketingAiKind) {

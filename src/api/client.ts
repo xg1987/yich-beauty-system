@@ -108,6 +108,21 @@ export type MarketingAiGenerateResult = {
   elapsedMs: number;
   record?: MarketingAiRecord;
 };
+export type MarketingTalkTopic = {
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  source?: string;
+  publishedAt?: string;
+};
+export type MarketingTalkTopicsResult = {
+  topics: MarketingTalkTopic[];
+  source: "news-rss" | "fallback";
+  fetchedAt: string;
+  query: string;
+  errorMessage?: string;
+};
 export type MarketingProductImageAnalysisResult = {
   provider: "openai";
   model: string;
@@ -168,6 +183,12 @@ export function createApiClient(getToken: () => string | undefined) {
       request<AiTestVideoResult>("/api/ai-test/video-status", { method: "POST", body, token: getToken() }),
     refreshMarketingVideoStatus: (recordId: string) =>
       request<MarketingAiGenerateResult>("/api/marketing-ai/video-status", { method: "POST", body: { recordId }, token: getToken() }),
+    fetchMarketingTalkTopics: () =>
+      request<MarketingTalkTopicsResult>("/api/marketing-ai/talk-topics", {
+        token: getToken(),
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        timeoutMessage: "今日热点抓取超时，已使用本地选题兜底",
+      }),
     analyzeMarketingProductImage: (body: {
       productImageName?: string;
       productImageDataUrl: string;

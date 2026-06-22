@@ -6,6 +6,7 @@ import type { UserSession } from "../domain/auth";
 import { AI_CREDIT_CNY_PER_USD, aiFreeQuotaState } from "../domain/aiBilling";
 import { isMarketingAiRecordPending, isStaleMarketingAiRecord } from "../domain/business";
 import type { AppData, MarketingAiRecord } from "../domain/types";
+import type { MarketingTalkTopic, MarketingTalkTopicsResult } from "../api/client";
 import type { ApiActions } from "../hooks/useApiData";
 import {
   AI_PROVIDER_LABELS,
@@ -67,6 +68,7 @@ type MarketingCalendarNode = {
 };
 type MarketingTaskCategory = "birthday" | "festival" | "wellness" | "repurchase";
 type MarketingStyleTone = "oriental" | "season" | "luxury" | "social" | "medical" | "herbal" | "aroma" | "salon";
+type TalkTopicCard = MarketingTalkTopic & { icon: typeof Sparkles; tone: "teal" | "amber" | "blue" };
 type VideoTemplateExample = {
   title: string;
   summary: string;
@@ -334,7 +336,7 @@ const videoTemplateExamples: Record<string, VideoTemplateExample> = {
   },
 };
 const talkTopicTabs = ["热门选题", "产品介绍", "项目科普", "客户关怀", "活动说明"];
-const talkTopics: Array<{ id: string; title: string; description: string; tags: string[]; icon: typeof Sparkles; tone: "teal" | "amber" | "blue" }> = [
+const talkTopics: TalkTopicCard[] = [
   {
     id: "season-dry",
     title: "为什么换季脸干、泛红？",
@@ -360,6 +362,15 @@ const talkTopics: Array<{ id: string; title: string; description: string; tags: 
     tone: "blue",
   },
 ];
+const talkTopicDecorations: Array<Pick<TalkTopicCard, "icon" | "tone">> = [
+  { icon: MessageCircle, tone: "teal" },
+  { icon: Sparkles, tone: "amber" },
+  { icon: ShieldCheck, tone: "blue" },
+];
+function decorateTalkTopic(topic: MarketingTalkTopic, index: number): TalkTopicCard {
+  const decoration = talkTopicDecorations[index % talkTopicDecorations.length] ?? talkTopicDecorations[0];
+  return { ...topic, ...decoration };
+}
 const talkResultItems: Array<{ title: string; subtitle: string; status: string; icon: typeof Sparkles; tone: "blue" | "teal" | "green" | "purple" | "rose" }> = [
   { title: "自动字幕", subtitle: "识别语音，生成同步字幕", status: "已生成", icon: Captions, tone: "blue" },
   { title: "口播降噪", subtitle: "去除背景杂音，提升音质", status: "已优化", icon: AudioLines, tone: "teal" },
@@ -1230,6 +1241,9 @@ export function MarketingCenter({
   const [talkStep, setTalkStep] = useState<TalkFlowStep>("entry");
   const [activeTalkTab, setActiveTalkTab] = useState(talkTopicTabs[0]);
   const [selectedTalkTopicId, setSelectedTalkTopicId] = useState(talkTopics[0].id);
+  const [talkTopicResult, setTalkTopicResult] = useState<MarketingTalkTopicsResult | null>(null);
+  const [talkTopicLoading, setTalkTopicLoading] = useState(false);
+  const [talkTopicError, setTalkTopicError] = useState("");
   const [talkRecording, setTalkRecording] = useState(false);
   const [talkElapsed, setTalkElapsed] = useState(0);
   const [talkCameraReady, setTalkCameraReady] = useState(false);
@@ -1481,9 +1495,27 @@ export function MarketingCenter({
   const showDialogSummary = dialogKind !== "image" && dialogKind !== "video" && dialogSummaryItems.length > 0;
   const showGenerationDialog = Boolean(selectedMarketingRecord || (!generationDialogDismissed && (generationBusy || generationError || generationResult)));
   const showAiTechnicalDetails = session.user.role === "superadmin";
-  const selectedTalkTopic = talkTopics.find((topic) => topic.id === selectedTalkTopicId) ?? talkTopics[0];
+  const dynamicTalkTopics = useMemo(() => (talkTopicResult?.topics ?? []).map(decorateTalkTopic), [talkTopicResult]);
+  const displayTalkTopics = dynamicTalkTopics.length ? dynamicTalkTopics : talkTopics;
+  const selectedTalkTopic = displayTalkTopics.find((topic) => topic.id === selectedTalkTopicId) ?? displayTalkTopics[0] ?? talkTopics[0];
+  const talkTopicSourceLabel = talkTopicLoading
+    ? "正在抓取今日新闻..."
+    : talkTopicResult?.source === "news-rss"
+      ? `今日新闻已更新 · ${new Date(talkTopicResult.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
+      : talkTopicResult?.source === "fallback"
+        ? "新闻抓取失败，已使用本地兜底"
+        : "打开后自动抓取今日新闻";
   const talkServiceName = "补水修护";
   const talkScriptLines = (() => {
+    if (selectedTalkTopic.id.startsWith("news-")) {
+      return [
+        "大家好，我是店里的护理师",
+        `今天看到一个很多人关注的话题：${selectedTalkTopic.title}`,
+        "其实顾客最关心的不是概念，而是自己的皮肤状态怎么稳下来",
+        `如果最近脸干、泛红或者上妆不服帖，可以先做一次${talkServiceName}`,
+        "再配合日常保湿和防晒，把护理节奏调整得更稳定",
+      ];
+    }
     if (selectedTalkTopic.id === "first-repair") {
       return [
         "大家好，我是店里的护理师",
@@ -2306,12 +2338,30 @@ export function MarketingCenter({
     setSelectedRecordId(recordId);
   };
 
+  const refreshTalkTopics = async () => {
+    if (talkTopicLoading) return;
+    setTalkTopicLoading(true);
+    setTalkTopicError("");
+    try {
+      const result = await actions.fetchMarketingTalkTopics();
+      setTalkTopicResult(result);
+      if (result.topics[0]) setSelectedTalkTopicId(result.topics[0].id);
+      if (result.errorMessage) setTalkTopicError(result.errorMessage);
+    } catch (error) {
+      setTalkTopicError(error instanceof Error ? error.message : "今日热点抓取失败");
+      setTalkTopicResult(null);
+    } finally {
+      setTalkTopicLoading(false);
+    }
+  };
+
   const openTalkScript = () => {
     setGenerationKind("talk");
     setTalkStep("script");
     setTalkRecording(false);
     setTalkElapsed(0);
     setTalkOptimizationOpen(false);
+    void refreshTalkTopics();
   };
 
   const startTalkShoot = (topicId = selectedTalkTopicId) => {
@@ -2477,8 +2527,17 @@ export function MarketingCenter({
             ))}
           </div>
 
+          {activeTalkTab === "热门选题" && (
+            <div className="marketing-talk-news-status" data-status={talkTopicResult?.source ?? "idle"}>
+              <span>{talkTopicSourceLabel}</span>
+              <button type="button" onClick={() => void refreshTalkTopics()} disabled={talkTopicLoading}>
+                {talkTopicLoading ? "抓取中" : "刷新热点"}
+              </button>
+            </div>
+          )}
+
           <div className="marketing-talk-topic-list">
-            {talkTopics.map((topic) => {
+            {displayTalkTopics.map((topic) => {
               const TopicIcon = topic.icon;
               return (
                 <article key={topic.id} className="marketing-talk-topic-card" data-tone={topic.tone}>
@@ -2490,6 +2549,7 @@ export function MarketingCenter({
                     {topic.tags.map((tag) => <em key={tag}>{tag}</em>)}
                   </div>
                   <p>{topic.description}</p>
+                  {topic.source && <small className="marketing-talk-topic-source">{topic.source}{topic.publishedAt ? ` · ${new Date(topic.publishedAt).toLocaleDateString("zh-CN")}` : ""}</small>}
                   <button type="button" onClick={() => startTalkShoot(topic.id)}>
                     生成我的口播稿
                   </button>
