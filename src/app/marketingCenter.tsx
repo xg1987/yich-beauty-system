@@ -488,14 +488,16 @@ function talkCanvasSize() {
 
 const TALK_TARGET_RATIO = 9 / 16;
 const TALK_NATIVE_RATIO_TOLERANCE = 0.08;
-
-type TalkCameraFramingMode = "native-portrait" | "safe-portrait";
+const TALK_CAMERA_PROBE_TIMEOUT_MS = 1600;
 
 type TalkCameraStreamResult = {
   stream: MediaStream;
-  mode: TalkCameraFramingMode;
   actualWidth: number;
   actualHeight: number;
+};
+
+type TalkCameraVideoConstraints = MediaTrackConstraints & {
+  resizeMode?: string;
 };
 
 function talkFrameRatio(width: number, height: number) {
@@ -510,28 +512,34 @@ function isNativeTalkPortraitFrame(width: number, height: number) {
   return height > width && talkRatioDelta(width, height) <= TALK_NATIVE_RATIO_TOLERANCE;
 }
 
-function talkCameraVideoConstraints(): MediaTrackConstraints[] {
+function talkCameraVideoConstraints(): TalkCameraVideoConstraints[] {
   return [
     {
       facingMode: { ideal: "user" },
-      width: { ideal: 720 },
-      height: { ideal: 1280 },
+      width: { exact: 720 },
+      height: { exact: 1280 },
       aspectRatio: { exact: TALK_TARGET_RATIO },
+      resizeMode: "crop-and-scale",
+    },
+    {
+      facingMode: { ideal: "user" },
+      width: { exact: 1080 },
+      height: { exact: 1920 },
+      aspectRatio: { exact: TALK_TARGET_RATIO },
+      resizeMode: "crop-and-scale",
+    },
+    {
+      facingMode: { ideal: "user" },
+      width: { ideal: 720, min: 540 },
+      height: { ideal: 1280, min: 960 },
+      aspectRatio: { ideal: TALK_TARGET_RATIO },
+      resizeMode: "crop-and-scale",
     },
     {
       facingMode: { ideal: "user" },
       width: { ideal: 1080 },
       height: { ideal: 1920 },
       aspectRatio: { ideal: TALK_TARGET_RATIO },
-    },
-    {
-      facingMode: "user",
-      width: { ideal: 720 },
-      height: { ideal: 1280 },
-      aspectRatio: TALK_TARGET_RATIO,
-    },
-    {
-      facingMode: "user",
     },
   ];
 }
@@ -552,26 +560,60 @@ function talkStreamDimensions(stream: MediaStream) {
   };
 }
 
+function waitForTalkVideoMetadata(video: HTMLVideoElement) {
+  if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      video.removeEventListener("loadedmetadata", finish);
+      video.removeEventListener("resize", finish);
+      resolve();
+    };
+    const timeoutId = window.setTimeout(finish, TALK_CAMERA_PROBE_TIMEOUT_MS);
+    video.addEventListener("loadedmetadata", finish, { once: true });
+    video.addEventListener("resize", finish, { once: true });
+  });
+}
+
+async function readTalkStreamDimensionsFromVideo(stream: MediaStream) {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = stream;
+  await video.play().catch(() => undefined);
+  await waitForTalkVideoMetadata(video);
+  const settingsDimensions = talkStreamDimensions(stream);
+  const dimensions = {
+    width: Number(video.videoWidth) || settingsDimensions.width,
+    height: Number(video.videoHeight) || settingsDimensions.height,
+  };
+  video.pause();
+  video.srcObject = null;
+  return dimensions;
+}
+
 async function acquireTalkCameraStream(): Promise<TalkCameraStreamResult> {
   let lastError: unknown;
   const videoAttempts = talkCameraVideoConstraints();
   for (let index = 0; index < videoAttempts.length; index += 1) {
+    let stream: MediaStream | undefined;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: videoAttempts[index],
         audio: talkAudioConstraints(),
       });
-      const { width, height } = talkStreamDimensions(stream);
-      const hasKnownDimensions = width > 0 && height > 0;
-      const mode: TalkCameraFramingMode = hasKnownDimensions && isNativeTalkPortraitFrame(width, height) ? "native-portrait" : "safe-portrait";
-      const result = { stream, mode, actualWidth: width, actualHeight: height };
-      if (!hasKnownDimensions || mode === "native-portrait" || index === videoAttempts.length - 1) return result;
+      const { width, height } = await readTalkStreamDimensionsFromVideo(stream);
+      if (isNativeTalkPortraitFrame(width, height)) return { stream, actualWidth: width, actualHeight: height };
       stream.getTracks().forEach((track) => track.stop());
     } catch (error) {
       lastError = error;
+      stream?.getTracks().forEach((track) => track.stop());
     }
   }
-  throw lastError ?? new Error("无法打开相机");
+  throw lastError ?? new Error("当前浏览器没有提供原生 9:16 相机流");
 }
 
 function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -631,42 +673,8 @@ function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoE
   drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height, width);
 }
 
-function drawTalkVideoSoftBackdrop(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
-  context.save();
-  context.filter = "blur(22px)";
-  context.globalAlpha = 0.68;
-  drawTalkVideoCover(context, video, width, height);
-  context.restore();
-  const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "rgba(0, 0, 0, 0.5)");
-  gradient.addColorStop(0.44, "rgba(0, 0, 0, 0.2)");
-  gradient.addColorStop(1, "rgba(0, 0, 0, 0.58)");
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, width, height);
-}
-
 function drawTalkVideoPortraitFrame(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
-  const sourceWidth = video.videoWidth || width;
-  const sourceHeight = video.videoHeight || height;
-  if (isNativeTalkPortraitFrame(sourceWidth, sourceHeight)) {
-    drawTalkVideoCover(context, video, width, height);
-    return;
-  }
-
-  drawTalkVideoSoftBackdrop(context, video, width, height);
-  const maxWidth = Math.round(width * 0.94);
-  const maxHeight = Math.round(height * 0.68);
-  const containScale = Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight);
-  const targetWidth = Math.round(sourceWidth * containScale);
-  const targetHeight = Math.round(sourceHeight * containScale);
-  const targetX = (width - targetWidth) / 2;
-  const targetY = Math.round(height * 0.48 - targetHeight / 2);
-  context.save();
-  context.shadowColor = "rgba(0, 0, 0, 0.36)";
-  context.shadowBlur = Math.round(height * 0.018);
-  context.shadowOffsetY = Math.round(height * 0.01);
-  drawMirroredTalkVideo(context, video, 0, 0, sourceWidth, sourceHeight, targetX, targetY, targetWidth, targetHeight, width);
-  context.restore();
+  drawTalkVideoCover(context, video, width, height);
 }
 
 function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
@@ -2022,16 +2030,24 @@ export function MarketingCenter({
         const videoElement = talkVideoRef.current;
         const actualWidth = Number(videoElement?.videoWidth) || camera.actualWidth;
         const actualHeight = Number(videoElement?.videoHeight) || camera.actualHeight;
-        if (actualWidth > 0 && actualHeight > 0) {
-          const isNativePortrait = isNativeTalkPortraitFrame(actualWidth, actualHeight);
-          setTalkCameraError(isNativePortrait ? "" : "当前浏览器没有给到原生 9:16 相机流，已转为 9:16 安全构图，不裁脸不加黑边");
-        } else if (camera.mode === "safe-portrait") {
-          setTalkCameraError("当前浏览器没有给到原生 9:16 相机流，已转为 9:16 安全构图，不裁脸不加黑边");
+        if (!isNativeTalkPortraitFrame(actualWidth, actualHeight)) {
+          stream.getTracks().forEach((track) => track.stop());
+          talkStreamRef.current = null;
+          if (talkVideoRef.current) talkVideoRef.current.srcObject = null;
+          stopTalkRecorder();
+          setTalkRecording(false);
+          setTalkCameraReady(false);
+          setTalkCameraError("当前浏览器返回横屏相机流，已停止录制。请退出后重新授权相机，或用 Safari/系统浏览器打开后再拍 9:16。");
+          return;
         }
+        setTalkCameraError("");
         setTalkCameraReady(true);
         if (talkRecording) startTalkRecorder(stream);
       } catch {
-        setTalkCameraError("未开启相机权限，已显示拍摄示意");
+        stopTalkRecorder();
+        setTalkRecording(false);
+        setTalkCameraReady(false);
+        setTalkCameraError("未拿到原生 9:16 相机流，已停止录制。请重新授权相机，或用 Safari/系统浏览器打开后再拍。");
       }
     };
     void startCamera();
