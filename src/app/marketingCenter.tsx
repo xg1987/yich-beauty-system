@@ -543,6 +543,41 @@ function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoE
   drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height, width);
 }
 
+function drawTalkPortraitBackdrop(context: CanvasRenderingContext2D, width: number, height: number) {
+  const gradient = context.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#151111");
+  gradient.addColorStop(0.38, "#241c1a");
+  gradient.addColorStop(1, "#0d0c0d");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+  context.fillStyle = "rgba(255, 255, 255, 0.045)";
+  context.beginPath();
+  context.ellipse(width * 0.5, height * 0.43, width * 0.62, height * 0.24, 0, 0, Math.PI * 2);
+  context.fill();
+}
+
+function drawTalkVideoPortraitFrame(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
+  const sourceWidth = video.videoWidth || width;
+  const sourceHeight = video.videoHeight || height;
+  const targetRatio = width / height;
+  const sourceRatio = sourceWidth / sourceHeight;
+  const ratioDelta = Math.abs(sourceRatio - targetRatio);
+  if (ratioDelta <= 0.22) {
+    drawTalkVideoCover(context, video, width, height);
+    return;
+  }
+
+  drawTalkPortraitBackdrop(context, width, height);
+  const containScale = Math.min(width / sourceWidth, height / sourceHeight);
+  const coverScale = Math.max(width / sourceWidth, height / sourceHeight);
+  const balancedScale = Math.min(coverScale, containScale * 1.72);
+  const targetWidth = sourceWidth * balancedScale;
+  const targetHeight = sourceHeight * balancedScale;
+  const targetX = (width - targetWidth) / 2;
+  const targetY = Math.round(height * 0.5 - targetHeight * 0.53);
+  drawMirroredTalkVideo(context, video, 0, 0, sourceWidth, sourceHeight, targetX, targetY, targetWidth, targetHeight, width);
+}
+
 function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
   const segments = Array.from(text).map((char) => ({
     char,
@@ -1140,6 +1175,7 @@ export function MarketingCenter({
   const talkRecorderCleanupRef = useRef<() => void>(() => undefined);
   const talkRecordedMetricsRef = useRef<TalkRecordedMetrics | null>(null);
   const talkRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const talkPreviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const talkTranscriptTextRef = useRef("");
   const talkLiveCaptionRef = useRef("");
   const talkLiveCaptionUpdatedAtRef = useRef(0);
@@ -1564,7 +1600,7 @@ export function MarketingCenter({
       context.fillRect(0, 0, width, height);
       const videoElement = talkVideoRef.current;
       if (videoElement && videoElement.readyState >= 2 && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-        drawTalkVideoCover(context, videoElement, width, height);
+        drawTalkVideoPortraitFrame(context, videoElement, width, height);
       } else {
         const gradient = context.createLinearGradient(0, 0, width, height);
         gradient.addColorStop(0, "#8b755c");
@@ -1910,7 +1946,7 @@ export function MarketingCenter({
           const actualRatio = actualWidth / actualHeight;
           const targetRatio = 9 / 16;
           const ratioDelta = Math.abs(actualRatio - targetRatio);
-          setTalkCameraError(ratioDelta > 0.28 ? "当前相机画面比例不一致，已按 9:16 竖屏裁切成片" : "");
+          setTalkCameraError(ratioDelta > 0.28 ? "当前相机画面比例不一致，已启用竖屏人物取景，请后退半步让肩部入框" : "");
         }
         setTalkCameraReady(true);
         if (talkRecording) startTalkRecorder(stream);
@@ -1927,6 +1963,29 @@ export function MarketingCenter({
       if (talkVideoRef.current) talkVideoRef.current.srcObject = null;
     };
   }, [talkStep]);
+
+  useEffect(() => {
+    if (talkStep !== "shoot" || !talkCameraReady) return undefined;
+    const canvas = talkPreviewCanvasRef.current;
+    const videoElement = talkVideoRef.current;
+    if (!canvas || !videoElement) return undefined;
+    const { width, height } = talkCanvasSize();
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) return undefined;
+    let animationFrameId = 0;
+    const drawPreview = () => {
+      context.fillStyle = "#111111";
+      context.fillRect(0, 0, width, height);
+      if (videoElement.readyState >= 2 && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+        drawTalkVideoPortraitFrame(context, videoElement, width, height);
+      }
+      animationFrameId = window.requestAnimationFrame(drawPreview);
+    };
+    drawPreview();
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [talkCameraReady, talkStep]);
 
   useEffect(() => {
     if (talkStep !== "shoot") return;
@@ -2355,6 +2414,7 @@ export function MarketingCenter({
       return (
         <section className="marketing-talk-shoot-screen" aria-label="真人口播拍摄">
           <video ref={talkVideoRef} className="marketing-talk-camera-video" muted playsInline autoPlay aria-hidden={!talkCameraReady} />
+          <canvas ref={talkPreviewCanvasRef} className="marketing-talk-preview-canvas" aria-hidden="true" />
           <div className={`marketing-talk-camera-fallback ${talkCameraReady ? "hidden" : ""}`} aria-hidden="true">
             <div className="marketing-talk-salon-bg" />
             <div className="marketing-talk-person">

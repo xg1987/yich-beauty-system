@@ -29016,6 +29016,7 @@ textarea,
 }
 
 .marketing-talk-camera-video,
+.marketing-talk-preview-canvas,
 .marketing-talk-camera-fallback,
 .marketing-talk-shoot-shade {
   position: absolute;
@@ -29029,6 +29030,15 @@ textarea,
   background: #111111;
   object-fit: cover;
   transform: scaleX(-1);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.marketing-talk-preview-canvas {
+  z-index: 0;
+  display: block;
+  background: #111111;
+  object-fit: cover;
 }
 
 .marketing-talk-camera-fallback {
