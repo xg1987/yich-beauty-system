@@ -20,7 +20,6 @@ type MarketingViewKey = "content" | "records";
 type MarketingGenerationKind = "copy" | "image" | "video" | "talk";
 type MarketingCopyOutputMode = "text" | "image" | "poster";
 type TalkFlowStep = "entry" | "script" | "shoot" | "result";
-type TalkCameraFraming = "native" | "safe";
 type BrowserSpeechRecognition = {
   continuous: boolean;
   interimResults: boolean;
@@ -542,27 +541,6 @@ function drawTalkVideoCover(context: CanvasRenderingContext2D, video: HTMLVideoE
   }
 
   drawMirroredTalkVideo(context, video, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height, width);
-}
-
-function drawTalkVideoSafeFit(context: CanvasRenderingContext2D, video: HTMLVideoElement, width: number, height: number) {
-  const sourceWidth = video.videoWidth || width;
-  const sourceHeight = video.videoHeight || height;
-  const targetRatio = width / height;
-  const sourceRatio = sourceWidth / sourceHeight;
-  const ratioDelta = Math.abs(sourceRatio - targetRatio);
-
-  if (ratioDelta <= 0.22) {
-    drawTalkVideoCover(context, video, width, height);
-    return;
-  }
-
-  const containScale = Math.min(width / sourceWidth, height / sourceHeight);
-  const safeScale = containScale;
-  const targetWidth = sourceWidth * safeScale;
-  const targetHeight = sourceHeight * safeScale;
-  const targetX = (width - targetWidth) / 2;
-  const targetY = (height - targetHeight) / 2;
-  drawMirroredTalkVideo(context, video, 0, 0, sourceWidth, sourceHeight, targetX, targetY, targetWidth, targetHeight, width);
 }
 
 function drawTalkCaptionLine(context: CanvasRenderingContext2D, text: string, centerX: number, baselineY: number, maxWidth: number) {
@@ -1122,7 +1100,6 @@ export function MarketingCenter({
   const [talkElapsed, setTalkElapsed] = useState(0);
   const [talkCameraReady, setTalkCameraReady] = useState(false);
   const [talkCameraError, setTalkCameraError] = useState("");
-  const [talkCameraFraming, setTalkCameraFraming] = useState<TalkCameraFraming>("native");
   const [talkFinalizing, setTalkFinalizing] = useState(false);
   const [talkRecordedBlob, setTalkRecordedBlob] = useState<Blob | null>(null);
   const [talkRecordedVideoUrl, setTalkRecordedVideoUrl] = useState("");
@@ -1587,7 +1564,7 @@ export function MarketingCenter({
       context.fillRect(0, 0, width, height);
       const videoElement = talkVideoRef.current;
       if (videoElement && videoElement.readyState >= 2 && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-        drawTalkVideoSafeFit(context, videoElement, width, height);
+        drawTalkVideoCover(context, videoElement, width, height);
       } else {
         const gradient = context.createLinearGradient(0, 0, width, height);
         gradient.addColorStop(0, "#8b755c");
@@ -1898,7 +1875,6 @@ export function MarketingCenter({
     let cancelled = false;
     setTalkCameraReady(false);
     setTalkCameraError("");
-    setTalkCameraFraming("native");
     const startCamera = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setTalkCameraError("当前浏览器暂不支持相机预览");
@@ -1934,9 +1910,7 @@ export function MarketingCenter({
           const actualRatio = actualWidth / actualHeight;
           const targetRatio = 9 / 16;
           const ratioDelta = Math.abs(actualRatio - targetRatio);
-          const shouldUseSafeFraming = ratioDelta > 0.28;
-          setTalkCameraFraming(shouldUseSafeFraming ? "safe" : "native");
-          setTalkCameraError(shouldUseSafeFraming ? "当前相机画面比例不一致，已启用竖屏安全取景" : "");
+          setTalkCameraError(ratioDelta > 0.28 ? "当前相机画面比例不一致，已按 9:16 竖屏裁切成片" : "");
         }
         setTalkCameraReady(true);
         if (talkRecording) startTalkRecorder(stream);
@@ -2379,7 +2353,7 @@ export function MarketingCenter({
 
     if (talkStep === "shoot") {
       return (
-        <section className="marketing-talk-shoot-screen" data-framing={talkCameraFraming} aria-label="真人口播拍摄">
+        <section className="marketing-talk-shoot-screen" aria-label="真人口播拍摄">
           <video ref={talkVideoRef} className="marketing-talk-camera-video" muted playsInline autoPlay aria-hidden={!talkCameraReady} />
           <div className={`marketing-talk-camera-fallback ${talkCameraReady ? "hidden" : ""}`} aria-hidden="true">
             <div className="marketing-talk-salon-bg" />
