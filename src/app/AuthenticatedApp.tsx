@@ -6745,6 +6745,15 @@ function Inventory({
   const [inventoryIntakeMode, setInventoryIntakeMode] = useState<"new" | "restock">("new");
   const [stocktakeProductId, setStocktakeProductId] = useState(data.products[0]?.id ?? "");
   const [actualStock, setActualStock] = useState(data.products[0]?.stock ?? 0);
+  const [inventoryCorrectionLogId, setInventoryCorrectionLogId] = useState("");
+  const [inventoryCorrectionProductId, setInventoryCorrectionProductId] = useState("");
+  const [inventoryCorrectionEntryDelta, setInventoryCorrectionEntryDelta] = useState("");
+  const [inventoryCorrectionActualStock, setInventoryCorrectionActualStock] = useState("");
+  const [inventoryCorrectionSupplierName, setInventoryCorrectionSupplierName] = useState("");
+  const [inventoryCorrectionUnitCost, setInventoryCorrectionUnitCost] = useState("");
+  const [inventoryCorrectionExpiryAt, setInventoryCorrectionExpiryAt] = useState("");
+  const [inventoryCorrectionReason, setInventoryCorrectionReason] = useState("");
+  const [inventoryCorrectionMessage, setInventoryCorrectionMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [inventoryCategoryPresets, setInventoryCategoryPresets] = useState<Record<string, string[]>>(INVENTORY_CATEGORY_PRESETS);
   const [newInventoryProductName, setNewInventoryProductName] = useState("");
   const [newInventoryProductCategory, setNewInventoryProductCategory] = useState("面护类");
@@ -7054,11 +7063,164 @@ function Inventory({
     void runMutation(() => actions.createStocktake({ productId: stocktakeProductId, actualStock, reason: "门店盘点" }));
   };
 
+  const purchaseOrderForInventoryLog = (log?: InventoryLog) => (log?.note
+    ? data.purchaseOrders.find((order) => order.id === log.note)
+    : undefined);
+
+  const supplierNameForPurchaseOrder = (supplierId?: string) => (
+    supplierId ? nameOf(data.suppliers, supplierId) : ""
+  );
+
+  const formatCorrectionNumber = (value: number) => {
+    if (!Number.isFinite(value)) return "";
+    return String(Number(value.toFixed(3)));
+  };
+
+  const openInventoryCorrection = (log: InventoryLog) => {
+    const product = data.products.find((item) => item.id === log.productId);
+    const purchaseOrder = purchaseOrderForInventoryLog(log);
+    setInventoryCorrectionLogId(log.id);
+    setInventoryCorrectionProductId(log.productId);
+    setInventoryCorrectionEntryDelta(String(log.delta));
+    setInventoryCorrectionActualStock(String(product?.stock ?? log.stockAfter));
+    setInventoryCorrectionSupplierName(supplierNameForPurchaseOrder(purchaseOrder?.supplierId));
+    setInventoryCorrectionUnitCost(purchaseOrder ? String(purchaseOrder.unitCost) : "");
+    setInventoryCorrectionExpiryAt(log.expiryAt ?? purchaseOrder?.expiryAt ?? "");
+    setInventoryCorrectionReason("");
+    setInventoryCorrectionMessage(undefined);
+  };
+
+  const openManualInventoryCorrection = () => {
+    const product = data.products[0];
+    setInventoryCorrectionLogId("");
+    setInventoryCorrectionProductId(product?.id ?? "");
+    setInventoryCorrectionEntryDelta("");
+    setInventoryCorrectionActualStock(product ? String(product.stock) : "");
+    setInventoryCorrectionSupplierName("");
+    setInventoryCorrectionUnitCost("");
+    setInventoryCorrectionExpiryAt("");
+    setInventoryCorrectionReason("");
+    setInventoryCorrectionMessage(undefined);
+  };
+
+  const chooseInventoryCorrectionProduct = (nextProductId: string) => {
+    const product = data.products.find((item) => item.id === nextProductId);
+    setInventoryCorrectionLogId("");
+    setInventoryCorrectionProductId(nextProductId);
+    setInventoryCorrectionEntryDelta("");
+    setInventoryCorrectionActualStock(product ? String(product.stock) : "");
+    setInventoryCorrectionSupplierName("");
+    setInventoryCorrectionUnitCost("");
+    setInventoryCorrectionExpiryAt("");
+    setInventoryCorrectionMessage(undefined);
+  };
+
+  const changeInventoryCorrectionEntryDelta = (value: string) => {
+    setInventoryCorrectionEntryDelta(value);
+    const log = data.inventoryLogs.find((item) => item.id === inventoryCorrectionLogId);
+    const product = data.products.find((item) => item.id === inventoryCorrectionProductId);
+    const correctedDelta = numberFromInput(value, Number.NaN);
+    if (!log || !product || !Number.isFinite(correctedDelta)) return;
+    setInventoryCorrectionActualStock(formatCorrectionNumber(product.stock + (correctedDelta - log.delta)));
+  };
+
+  const closeInventoryCorrection = () => {
+    setInventoryCorrectionLogId("");
+    setInventoryCorrectionProductId("");
+    setInventoryCorrectionEntryDelta("");
+    setInventoryCorrectionActualStock("");
+    setInventoryCorrectionSupplierName("");
+    setInventoryCorrectionUnitCost("");
+    setInventoryCorrectionExpiryAt("");
+    setInventoryCorrectionReason("");
+  };
+
+  const submitInventoryCorrection = (event?: FormEvent) => {
+    event?.preventDefault();
+    const log = data.inventoryLogs.find((item) => item.id === inventoryCorrectionLogId);
+    const product = data.products.find((item) => item.id === inventoryCorrectionProductId);
+    const purchaseOrder = purchaseOrderForInventoryLog(log);
+    if (!product) {
+      setInventoryCorrectionMessage({ type: "error", text: "请选择要纠错的商品。" });
+      return;
+    }
+    const actualStockValue = numberFromInput(inventoryCorrectionActualStock, Number.NaN);
+    if (!Number.isFinite(actualStockValue) || actualStockValue < 0) {
+      setInventoryCorrectionMessage({ type: "error", text: "请输入正确的当前库存。" });
+      return;
+    }
+    const correctedEntryDelta = inventoryCorrectionEntryDelta.trim() === ""
+      ? undefined
+      : numberFromInput(inventoryCorrectionEntryDelta, Number.NaN);
+    if (correctedEntryDelta !== undefined && !Number.isFinite(correctedEntryDelta)) {
+      setInventoryCorrectionMessage({ type: "error", text: "请输入正确的本次变动数量。" });
+      return;
+    }
+    const unitCostValue = optionalNumberFromInput(inventoryCorrectionUnitCost);
+    if (inventoryCorrectionUnitCost.trim() && unitCostValue === undefined) {
+      setInventoryCorrectionMessage({ type: "error", text: "请输入正确的采购单价。" });
+      return;
+    }
+    const oldSupplierName = supplierNameForPurchaseOrder(purchaseOrder?.supplierId);
+    const nextSupplierName = inventoryCorrectionSupplierName.trim();
+    const nextExpiryAt = inventoryCorrectionExpiryAt.trim();
+    const nextReason = inventoryCorrectionReason.trim();
+    const changeLines = [
+      log && correctedEntryDelta !== undefined && correctedEntryDelta !== log.delta
+        ? `本次变动 ${log.delta} -> ${correctedEntryDelta}`
+        : "",
+      actualStockValue !== product.stock
+        ? `当前库存 ${formatStockQuantity(product.stock)} -> ${formatStockQuantity(actualStockValue)}`
+        : "",
+      purchaseOrder && unitCostValue !== undefined && unitCostValue !== purchaseOrder.unitCost
+        ? `采购单价 ${money(purchaseOrder.unitCost)} -> ${money(unitCostValue)}`
+        : "",
+      !purchaseOrder && unitCostValue !== undefined
+        ? `采购单价 ${money(unitCostValue)}`
+        : "",
+      nextSupplierName && nextSupplierName !== oldSupplierName
+        ? `供应商 ${oldSupplierName || "未填"} -> ${nextSupplierName}`
+        : "",
+      nextExpiryAt && nextExpiryAt !== (log?.expiryAt ?? purchaseOrder?.expiryAt ?? "")
+        ? `到期日期 ${(log?.expiryAt ?? purchaseOrder?.expiryAt) || "未填"} -> ${nextExpiryAt}`
+        : "",
+      nextReason ? `备注 ${nextReason}` : "",
+    ].filter(Boolean);
+    if (changeLines.length === 0) {
+      setInventoryCorrectionMessage({ type: "error", text: "请至少填写一个需要纠正的内容。" });
+      return;
+    }
+    const reason = [
+      log
+        ? `库存纠错：原流水${shortDate(log.createdAt)} ${log.type} ${log.delta > 0 ? "+" : ""}${log.delta}`
+        : "库存纠错：更正当前库存或入库资料",
+      ...changeLines,
+    ].join("；");
+    void runMutation(() => actions.createStocktake({ productId: product.id, actualStock: actualStockValue, reason }))
+      .then(() => {
+        setInventoryCorrectionMessage({ type: "success", text: "库存纠错已保存，系统已生成盘点调整流水。" });
+        closeInventoryCorrection();
+      })
+      .catch((caught) => {
+        const message = caught instanceof Error ? caught.message : "库存纠错失败，请检查后再试。";
+        setInventoryCorrectionMessage({ type: "error", text: message });
+      });
+  };
+
   const lowStockItems = data.products.filter((item) => item.stock <= item.warningStock);
   const lowStock = lowStockItems.length;
   const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
   const selectedLossProduct = data.products.find((item) => item.id === lossProductId);
   const selectedManualRestockProduct = data.products.find((item) => item.id === manualRestockProductId);
+  const inventoryCorrectionLog = data.inventoryLogs.find((item) => item.id === inventoryCorrectionLogId);
+  const inventoryCorrectionProduct = data.products.find((item) => item.id === inventoryCorrectionProductId);
+  const inventoryCorrectionPurchaseOrder = purchaseOrderForInventoryLog(inventoryCorrectionLog);
+  const inventoryCorrectionOriginalSupplierName = supplierNameForPurchaseOrder(inventoryCorrectionPurchaseOrder?.supplierId);
+  const inventoryCorrectionOriginalExpiryAt = inventoryCorrectionLog?.expiryAt ?? inventoryCorrectionPurchaseOrder?.expiryAt;
+  const inventoryCorrectionActualStockValue = numberFromInput(inventoryCorrectionActualStock, Number.NaN);
+  const inventoryCorrectionDelta = inventoryCorrectionProduct && Number.isFinite(inventoryCorrectionActualStockValue)
+    ? inventoryCorrectionActualStockValue - inventoryCorrectionProduct.stock
+    : undefined;
   const recentLossLogs = data.inventoryLogs.filter((log) => log.type === "报损").slice(0, 8);
 
   useEffect(() => {
@@ -7608,7 +7770,90 @@ function Inventory({
         {activeModule === "logs" && (
         <section className="panel">
         <PanelTitle icon={<ClipboardList size={18} />} title="库存流水" action="自动记录" />
-        <DataTable columns={["商品", "类型", "变动", "结余", "备注", "到期", "时间"]} rows={data.inventoryLogs.map((log) => [nameOf(data.products, log.productId), log.type, log.delta, log.stockAfter, log.note, log.expiryAt ? shortDate(log.expiryAt) : "-", shortDate(log.createdAt)])} />
+        {inventoryCorrectionMessage && (
+          <p className={inventoryCorrectionMessage.type === "success" ? "form-success" : "form-error"}>{inventoryCorrectionMessage.text}</p>
+        )}
+        <div className="inventory-log-toolbar">
+          <div>
+            <strong>库存填错了？</strong>
+            <span>选择商品和正确信息，系统会生成一条纠错流水</span>
+          </div>
+          <button type="button" disabled={!data.products.length || mutationPending} onClick={openManualInventoryCorrection}>库存纠错</button>
+        </div>
+        {inventoryCorrectionProduct && (
+          <form className="inventory-correction-panel" onSubmit={submitInventoryCorrection}>
+            <div className="inventory-correction-head">
+              <div>
+                <strong>库存纠错</strong>
+                <span>原流水保留，保存后新增一条盘点调整记录</span>
+              </div>
+            </div>
+            {inventoryCorrectionLog ? (
+              <div className="inventory-correction-context">
+                <span>原记录</span>
+                <strong>{inventoryCorrectionProduct.name}</strong>
+                <small>
+                  {inventoryCorrectionLog.type} {inventoryCorrectionLog.delta > 0 ? "+" : ""}{inventoryCorrectionLog.delta}
+                  {" · "}当时结余 {inventoryCorrectionLog.stockAfter}
+                  {" · "}到期 {inventoryCorrectionOriginalExpiryAt ? shortDate(inventoryCorrectionOriginalExpiryAt) : "未填"}
+                  {inventoryCorrectionPurchaseOrder ? ` · 采购价 ${money(inventoryCorrectionPurchaseOrder.unitCost)} · 供应商 ${inventoryCorrectionOriginalSupplierName || "未填"}` : ""}
+                  {" · "}{shortDate(inventoryCorrectionLog.createdAt)}
+                </small>
+              </div>
+            ) : (
+              <div className="inventory-correction-context">
+                <span>手动纠错</span>
+                <strong>{inventoryCorrectionProduct.name}</strong>
+                <small>适合员工库存、采购价、供应商、到期日或备注填错后补充说明</small>
+              </div>
+            )}
+            <div className="inventory-correction-grid">
+              <Select label="纠错商品" value={inventoryCorrectionProductId} onChange={chooseInventoryCorrectionProduct} options={data.products.map(optionOf)} />
+              {inventoryCorrectionLog && (
+                <label>正确本次变动<input type="number" step="0.001" value={inventoryCorrectionEntryDelta} onChange={(event) => changeInventoryCorrectionEntryDelta(event.target.value)} placeholder="例如 5 或 -1" /></label>
+              )}
+              <div className="inventory-correction-context">
+                <span>当前账面库存</span>
+                <strong>{formatProductStockWithServiceUnits(inventoryCorrectionProduct, inventoryCorrectionProduct.stock)}</strong>
+              </div>
+              <label>正确当前库存<input type="number" min={0} step="0.001" value={inventoryCorrectionActualStock} onChange={(event) => setInventoryCorrectionActualStock(event.target.value)} /></label>
+              <label>供应商名称<input list="inventory-correction-supplier-options" value={inventoryCorrectionSupplierName} onChange={(event) => setInventoryCorrectionSupplierName(event.target.value)} placeholder="可选" /></label>
+              <datalist id="inventory-correction-supplier-options">
+                {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.name} />)}
+              </datalist>
+              <label>采购单价<input type="number" min={0} step="0.01" value={inventoryCorrectionUnitCost} onChange={(event) => setInventoryCorrectionUnitCost(event.target.value)} placeholder="可选" /></label>
+              <label>到期日期<input type="date" value={inventoryCorrectionExpiryAt} onChange={(event) => setInventoryCorrectionExpiryAt(event.target.value)} /></label>
+              <label className="inventory-correction-wide">更正原因 / 备注<input value={inventoryCorrectionReason} onChange={(event) => setInventoryCorrectionReason(event.target.value)} placeholder="员工入库数量填错 / 采购价补录 / 到期日更正" /></label>
+              <div className="inventory-correction-delta">
+                <span>本次差额</span>
+                <strong>{inventoryCorrectionDelta === undefined ? "-" : `${inventoryCorrectionDelta > 0 ? "+" : ""}${inventoryCorrectionDelta}`}</strong>
+              </div>
+              <div className="inventory-correction-actions">
+                <button type="button" disabled={mutationPending} onClick={closeInventoryCorrection}>取消</button>
+                <button className="primary-button" type="button" disabled={mutationPending} onClick={() => submitInventoryCorrection()}>
+                  {mutationPending ? "保存中..." : "保存纠错记录"}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+        <DataTable columns={["商品", "类型", "变动", "结余", "备注", "到期", "时间", "操作"]} rows={data.inventoryLogs.map((log) => [
+          nameOf(data.products, log.productId),
+          log.type,
+          log.delta,
+          log.stockAfter,
+          log.note,
+          log.expiryAt ? shortDate(log.expiryAt) : "-",
+          shortDate(log.createdAt),
+          <button
+            className="inventory-log-correct-button"
+            type="button"
+            disabled={mutationPending || !data.products.some((product) => product.id === log.productId)}
+            onClick={() => openInventoryCorrection(log)}
+          >
+            纠错
+          </button>,
+        ])} />
         <div className="divider" />
         <PanelTitle icon={<PackagePlus size={18} />} title="采购与盘点记录" action="P1 门店进销存" />
         <div className="split-list">
