@@ -35889,6 +35889,70 @@ img.brand-icon-mark {
 }
 
 @media (max-width: 430px) {
+  .cashier-work-modal,
+  .cashier-work-modal.large,
+  .customer-work-modal,
+  .customer-work-modal.large {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  .cashier-work-modal .system-modal-body,
+  .customer-work-modal .system-modal-body {
+    overflow-x: hidden !important;
+    padding-right: 12px !important;
+    padding-left: 12px !important;
+  }
+
+  .cashier-modal-detail,
+  .customer-modal-detail,
+  .cashier-modal-detail > .panel,
+  .customer-modal-detail > .panel,
+  .member-card-open-form,
+  .member-card-open-form > *,
+  .member-card-open-form label,
+  .member-card-open-form input,
+  .member-card-open-form select,
+  .member-card-open-form textarea,
+  .member-card-open-form button,
+  .member-card-open-form .field,
+  .member-card-open-form .select-field,
+  .member-card-open-form .card-entitlement-group,
+  .member-card-open-form .card-entitlement-row {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .member-card-open-form {
+    width: 100% !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow-x: hidden !important;
+  }
+
+  .member-card-open-form > * {
+    grid-column: 1 / -1 !important;
+  }
+
+  .member-card-open-form label,
+  .member-card-open-form .field,
+  .member-card-open-form .select-field {
+    width: 100% !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .member-card-open-form input,
+  .member-card-open-form select,
+  .member-card-open-form textarea {
+    width: 100% !important;
+  }
+
+  .member-card-open-form > .primary-button,
+  .member-card-open-form button.primary-button {
+    width: 100% !important;
+    min-height: 48px !important;
+  }
+
   .cashier-orbit {
     grid-template-columns: minmax(0, 1fr) minmax(0, 0.96fr) minmax(0, 1fr) !important;
     align-items: stretch !important;

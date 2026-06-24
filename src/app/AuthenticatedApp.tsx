@@ -4301,13 +4301,14 @@ function Pos({
         open={Boolean(activeModule)}
         title={activeModuleTitle || "开单收银"}
         size="large"
+        className="cashier-work-modal"
         onClose={closeModule}
       >
       <div className="module-detail-stack cashier-modal-detail">
         {activeModule === "card" && (
         <section className="panel sg">
         <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
-        <form className="form" onSubmit={openCard}>
+        <form className="form member-card-open-form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
             <Select
@@ -5891,6 +5892,7 @@ function Customers({
         title={activeModuleTitle || "客户档案"}
         subtitle={activeModuleSubtitle}
         size="large"
+        className="customer-work-modal"
         onClose={closeModule}
       >
       <div className="module-detail-stack customer-modal-detail">
@@ -5909,7 +5911,7 @@ function Customers({
         {activeModule === "cards" && (
         <>
         <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
-        <form className="form" onSubmit={openCard}>
+        <form className="form member-card-open-form" onSubmit={openCard}>
           <Select label="客户登记" value={cardCustomerMode} onChange={(value) => changeCardCustomerMode(value as CardCustomerMode)} options={[{ value: "new", label: "新客户登记" }, { value: "existing", label: "已有客户" }]} />
           {cardCustomerMode === "existing" ? (
             <Select
