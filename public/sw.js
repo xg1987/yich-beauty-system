@@ -13,6 +13,7 @@ const APP_SHELL_ASSETS = [
   `/ios-splash/splash-1080x2340.png?v=${ICON_VERSION}`,
   `/ios-splash/splash-640x1136.png?v=${ICON_VERSION}`,
   `/ios-splash/splash-750x1334.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-750x1624.png?v=${ICON_VERSION}`,
   `/ios-splash/splash-1125x2436.png?v=${ICON_VERSION}`,
   `/ios-splash/splash-828x1792.png?v=${ICON_VERSION}`,
   `/ios-splash/splash-1242x2208.png?v=${ICON_VERSION}`,
@@ -57,7 +58,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => caches.match("/")));
+    event.respondWith(navigationShell(request));
     return;
   }
 
@@ -70,6 +71,31 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(cacheFirst(request));
   }
 });
+
+async function navigationShell(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cachedShell = await cache.match("/");
+  const networkUpdate = fetch(request, { cache: "no-store" })
+    .then((response) => {
+      if (response.ok) {
+        cache.put("/", response.clone()).catch(() => undefined);
+      }
+      return response;
+    });
+
+  if (cachedShell) {
+    networkUpdate.catch(() => undefined);
+    return cachedShell;
+  }
+
+  try {
+    return await networkUpdate;
+  } catch {
+    const fallbackShell = await cache.match("/");
+    if (fallbackShell) return fallbackShell;
+    throw new Error("Navigation request failed");
+  }
+}
 
 async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
