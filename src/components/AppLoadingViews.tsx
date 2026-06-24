@@ -1,17 +1,42 @@
 import { useEffect, useState } from "react";
 
-function NeutralLoading({ message, canRetry = false, onRetry }: { message: string; canRetry?: boolean; onRetry?: () => void }) {
+export function BrandedLoading({
+  message,
+  detail = "正在准备页面",
+  canRetry = false,
+  onRetry,
+  primaryLabel = "重新进入",
+  secondaryLabel,
+  onSecondary,
+}: {
+  message: string;
+  detail?: string;
+  canRetry?: boolean;
+  onRetry?: () => void;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
   return (
-    <div className="app-route-loading" aria-live="polite">
-      <section className="app-route-loading-card" aria-busy={!canRetry}>
-        <span className="app-route-loading-mark" aria-hidden="true" />
+    <div className="loading-page" aria-live="polite">
+      <section className="loading-minimal app-data-loading-card" aria-busy={!canRetry}>
+        <div className="loading-brand">
+          <strong>祝融｜坤锋美业门店系统</strong>
+          <small>门店经营管理平台</small>
+        </div>
+        <div className="loading-progress" aria-hidden="true"><i /></div>
         <strong>{message}</strong>
-        <small>正在准备页面</small>
+        <small>{detail}</small>
         {canRetry && (
           <div className="app-route-loading-actions">
             <button className="app-route-loading-primary" type="button" onClick={onRetry ?? (() => window.location.reload())}>
-              重新进入
+              {primaryLabel}
             </button>
+            {secondaryLabel && onSecondary && (
+              <button className="app-route-loading-secondary" type="button" onClick={onSecondary}>
+                {secondaryLabel}
+              </button>
+            )}
           </div>
         )}
       </section>
@@ -27,9 +52,9 @@ export function StartupRecovery({ message = "正在更新应用", onRecover }: {
     return () => window.clearTimeout(timer);
   }, [onRecover]);
 
-  return <NeutralLoading message={message} canRetry={canRetry} onRetry={onRecover} />;
+  return <BrandedLoading message={message} canRetry={canRetry} onRetry={onRecover} />;
 }
 
 export function RouteFallback() {
-  return <NeutralLoading message="请稍候" />;
+  return <BrandedLoading message="请稍候" />;
 }

@@ -82,6 +82,7 @@ import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import { canvasToSignatureDataUrl } from "../lib/signatureImage";
 import { writeCachedStoreName } from "../lib/storeNameCache";
 import packageJson from "../../package.json";
+import { BrandedLoading } from "../components/AppLoadingViews";
 import { displayRoleName } from "./accountDisplay";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
 
@@ -956,26 +957,18 @@ function LoadingGate({
   const isError = Boolean(error);
   const showActions = isError || stage === "stalled";
   const title = isError ? "连接失败" : stage === "stalled" ? "连接较慢" : "正在进入系统";
-  const hint = isError ? "请检查网络后重试" : stage === "stalled" ? "数据加载时间较长，可以重试或退出后重新登录" : "正在准备业务数据";
+  const hint = isError ? "请检查网络后重试" : stage === "stalled" ? "加载较慢，可重试或退出" : "正在准备数据";
 
   return (
-    <div className={`app-route-loading app-data-loading ${isError ? "is-error" : ""}`} aria-live="polite">
-      <section className="app-route-loading-card" aria-busy={!isError && !showActions}>
-        <span className="app-route-loading-mark" aria-hidden="true" />
-        <strong>{title}</strong>
-        <small>{hint}</small>
-        {showActions && (
-          <div className="app-route-loading-actions">
-            <button type="button" className="app-route-loading-primary" disabled={loading && !isError && stage !== "stalled"} onClick={() => void refreshData()}>
-              {loading && !isError && stage !== "stalled" ? "连接中" : "重试"}
-            </button>
-            <button type="button" className="app-route-loading-secondary" onClick={logout}>
-              退出
-            </button>
-          </div>
-        )}
-      </section>
-    </div>
+    <BrandedLoading
+      message={title}
+      detail={hint}
+      canRetry={showActions}
+      onRetry={() => void refreshData()}
+      primaryLabel={loading && !isError && stage !== "stalled" ? "连接中" : "重试"}
+      secondaryLabel="退出"
+      onSecondary={logout}
+    />
   );
 }
 

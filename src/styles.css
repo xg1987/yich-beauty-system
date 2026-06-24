@@ -594,14 +594,12 @@ button[aria-busy="true"] {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: auto auto auto;
   justify-items: center;
   align-items: center;
-  column-gap: 16px;
-  row-gap: 10px;
+  gap: 8px;
   color: #f7efff;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .loading-brand span {
@@ -614,9 +612,11 @@ button[aria-busy="true"] {
 
 .loading-brand strong {
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
-  font-size: clamp(30px, 3vw, 48px);
+  max-width: min(680px, calc(100vw - 44px));
+  font-size: clamp(26px, 4vw, 46px);
   font-weight: 900;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
+  line-height: 1.18;
   color: #d7ad55;
   background: linear-gradient(180deg, #fff0bc 0%, #d3a64e 48%, #9d722f 100%);
   -webkit-background-clip: text;
@@ -626,11 +626,10 @@ button[aria-busy="true"] {
 }
 
 .loading-brand small {
-  grid-column: 1 / -1;
   color: rgba(245, 233, 255, 0.72);
   font-size: clamp(13px, 1.05vw, 17px);
   font-weight: 760;
-  letter-spacing: 0.42em;
+  letter-spacing: 0.2em;
 }
 
 .loading-panel,
@@ -646,6 +645,20 @@ button[aria-busy="true"] {
   padding: 0;
   transform: translate(-50%, -50%);
   text-align: center;
+}
+
+.app-data-loading-card > strong {
+  color: #fff6d5;
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1.35;
+}
+
+.app-data-loading-card > small {
+  color: rgba(247, 239, 255, 0.68);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.5;
 }
 
 .loading-error-copy {
@@ -834,17 +847,17 @@ button[aria-busy="true"] {
 
 @media (max-width: 620px) {
   .loading-brand {
-    column-gap: 12px;
-    row-gap: 8px;
+    gap: 8px;
   }
 
   .loading-brand strong {
-    font-size: clamp(18px, 6vw, 24px);
+    font-size: clamp(24px, 7vw, 30px);
+    letter-spacing: 0.04em;
   }
 
   .loading-brand small {
     font-size: 11px;
-    letter-spacing: 0.28em;
+    letter-spacing: 0.18em;
   }
 
   .loading-panel,

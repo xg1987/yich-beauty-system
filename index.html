@@ -26,38 +26,78 @@
         min-height: 100dvh;
         display: grid;
         place-items: center;
+        padding: 28px;
+        box-sizing: border-box;
         overflow: hidden;
-        background: #f8fbfa;
-        color: #2f244f;
+        background:
+          radial-gradient(circle at 50% 38%, rgba(255, 241, 196, 0.24) 0%, rgba(183, 133, 235, 0.18) 30%, transparent 62%),
+          linear-gradient(145deg, #7d43c6 0%, #5b2aa3 48%, #321052 100%);
+        color: #f7efff;
       }
 
       .startup-loading__inner {
-        width: min(340px, calc(100vw - 36px));
+        width: min(560px, calc(100vw - 42px));
         display: grid;
         justify-items: center;
-        gap: 15px;
+        gap: 16px;
         text-align: center;
       }
 
+      .startup-loading__brand {
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+      }
+
+      .startup-loading__brand strong {
+        font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif;
+        font-size: clamp(24px, 7vw, 44px);
+        font-weight: 900;
+        line-height: 1.18;
+        letter-spacing: 0.08em;
+        color: #fff0bc;
+        text-shadow: 0 12px 30px rgba(17, 0, 35, 0.34);
+      }
+
+      .startup-loading__brand span {
+        color: rgba(245, 233, 255, 0.72);
+        font-size: clamp(12px, 3.5vw, 16px);
+        font-weight: 760;
+        letter-spacing: 0.2em;
+      }
+
       .startup-loading small {
-        color: #81779a;
+        color: rgba(247, 239, 255, 0.62);
         font-size: 13px;
         font-weight: 650;
         letter-spacing: 0;
       }
 
-      .startup-loading__mark {
-        width: 26px;
-        height: 26px;
-        border: 3px solid rgba(93, 75, 128, 0.14);
-        border-top-color: #2f9d86;
+      .startup-loading__progress {
+        width: min(300px, 72vw);
+        height: 4px;
+        overflow: hidden;
         border-radius: 999px;
-        animation: startup-loading-spin 0.9s linear infinite;
+        background: rgba(28, 0, 58, 0.42);
       }
 
-      @keyframes startup-loading-spin {
-        to {
-          transform: rotate(360deg);
+      .startup-loading__progress i {
+        display: block;
+        width: 78%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #fff0b6 0%, #d7ad55 56%, #f2e6ff 100%);
+        animation: startup-loading-flow 1.8s ease-in-out infinite;
+      }
+
+      @keyframes startup-loading-flow {
+        0%,
+        100% {
+          transform: translateX(-18%) scaleX(0.72);
+        }
+
+        50% {
+          transform: translateX(34%) scaleX(0.96);
         }
       }
     </style>
@@ -71,8 +111,12 @@
     <div id="root">
       <div class="startup-loading" role="status" aria-live="polite">
         <div class="startup-loading__inner">
-          <span class="startup-loading__mark" aria-hidden="true"></span>
-          <small>正在打开</small>
+          <div class="startup-loading__brand">
+            <strong>祝融｜坤锋美业门店系统</strong>
+            <span>门店经营管理平台</span>
+          </div>
+          <div class="startup-loading__progress" aria-hidden="true"><i></i></div>
+          <small>正在打开系统</small>
         </div>
       </div>
     </div>

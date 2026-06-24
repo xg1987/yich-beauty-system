@@ -1,34 +1,16 @@
 import { lazy, Suspense } from "react";
+import { BrandedLoading } from "../components/AppLoadingViews";
 import { useApiData } from "../hooks/useApiData";
 
 const AuthenticatedApp = lazy(() => import("./AuthenticatedApp"));
 const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
 
 function LoginRouteFallback() {
-  return (
-    <div className="loading-page">
-      <section className="loading-minimal">
-        <div className="loading-brand">
-          <strong>祝融坤锋美业</strong>
-          <small>美业门店管理系统</small>
-        </div>
-        <div className="loading-progress" aria-hidden="true"><i /></div>
-        <small>请稍候</small>
-      </section>
-    </div>
-  );
+  return <BrandedLoading message="正在打开系统" detail="请稍候" />;
 }
 
 function AppRouteFallback() {
-  return (
-    <div className="app-route-loading" aria-live="polite">
-      <section className="app-route-loading-card" aria-busy="true">
-        <span className="app-route-loading-mark" aria-hidden="true" />
-        <strong>正在进入系统</strong>
-        <small>正在准备业务页面</small>
-      </section>
-    </div>
-  );
+  return <BrandedLoading message="正在进入系统" detail="正在准备业务页面" />;
 }
 
 export default function AuthRuntime() {
