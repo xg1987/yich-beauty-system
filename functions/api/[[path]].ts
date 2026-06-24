@@ -83,7 +83,7 @@ import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
-import { D1BeautyDatabase } from "../../src/cloudflare/d1Database";
+import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
 import type { D1DatabaseBinding } from "../../src/cloudflare/d1Types";
 
@@ -135,6 +135,7 @@ const publicSignatureDataKeys = [
   "orders",
   "services",
   "staff",
+  "appointments",
   "memberCards",
   "memberCardTransactions",
   "customerServiceRecords",
@@ -1047,7 +1048,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
         staffId: appointment.staffId,
       });
-      await persistData(database, session, nextData);
+      await persistDataTables(database, session, nextData, ["appointments", "operationLogs", "notifications"]);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1106,7 +1107,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           note: optionalString(body, "note"),
         }),
       );
-      await persistData(database, session, nextData);
+      await persistDataTables(database, session, nextData, ["appointments", "operationLogs"]);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1121,7 +1122,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetId: appointmentId,
         summary: `${session.user.name} 将预约状态改为 ${status}`,
       }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
-      await persistData(database, session, nextData);
+      await persistDataTables(database, session, nextData, ["appointments", "operationLogs"]);
       return sendScopedData(context.request, 200, nextData, session);
     }
 
@@ -1425,7 +1426,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         requestedBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });
-      await persistData(database, session, nextData);
+      await persistDataTables(database, session, nextData, ["customerSignatures"]);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1441,7 +1442,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         signerName: requiredString(body, "signerName"),
         signatureText: requiredString(body, "signatureText"),
       });
-      await persistData(database, session, nextData);
+      await persistDataTables(database, session, nextData, ["appointments", "orders", "memberCards", "memberCardTransactions", "customerSignatures"]);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1857,6 +1858,13 @@ function updateData(
 function persistData(database: D1BeautyDatabase, session: UserSession, nextData: AppData) {
   if (session.user.role !== "superadmin" && session.user.storeId) {
     return database.replaceStoreData(session.user.storeId, nextData);
+  }
+  return database.replaceData(nextData);
+}
+
+function persistDataTables(database: D1BeautyDatabase, session: UserSession, nextData: AppData, keys: readonly D1DataTableName[]) {
+  if (session.user.role !== "superadmin" && session.user.storeId) {
+    return database.replaceStoreTables(session.user.storeId, nextData, keys);
   }
   return database.replaceData(nextData);
 }
@@ -4380,9 +4388,17 @@ function sendScopedData(request: Request, statusCode: number, data: AppData, ses
   const scopedData = scopeDataForSession(data, session);
   const requestedView = requestedDataView(request);
   if (isSliceRequest(request) && requestedView) {
-    return sendJson(statusCode, makeAppDataSlice(scopedData, requestedView));
+    const responseData = requestedView === "dashboard" ? withoutSignatureImages(scopedData) : scopedData;
+    return sendJson(statusCode, makeAppDataSlice(responseData, requestedView));
   }
   return sendJson(statusCode, scopedData);
+}
+
+function withoutSignatureImages(data: AppData): AppData {
+  return {
+    ...data,
+    customerSignatures: (data.customerSignatures ?? []).map(({ signatureText: _signatureText, ...signature }) => signature),
+  };
 }
 
 function handleCors(request: Request) {

@@ -262,14 +262,18 @@ export class D1BeautyDatabase {
   async replacePublicSignatureData(data: AppData) {
     const statements: D1PreparedStatement[] = [
       this.db.prepare("DELETE FROM customerSignatures"),
+      this.db.prepare("DELETE FROM appointments"),
       this.db.prepare("DELETE FROM orders"),
       this.db.prepare("DELETE FROM memberCards"),
       this.db.prepare("DELETE FROM memberCardTransactions"),
     ];
-    this.writeJsonTable(statements, "customerSignatures", data.customerSignatures ?? []);
-    this.writeOrderStatements(statements, data.orders ?? []);
-    this.writeMemberCardStatements(statements, data.memberCards ?? []);
-    this.writeMemberCardTransactionStatements(statements, data.memberCardTransactions ?? []);
+    statements.push(...this.writeDataStatements(pickDataTables(data, [
+      "appointments",
+      "orders",
+      "memberCards",
+      "memberCardTransactions",
+      "customerSignatures",
+    ])));
     await this.db.batch(statements);
   }
 
@@ -286,6 +290,14 @@ export class D1BeautyDatabase {
     const statements: D1PreparedStatement[] = [];
     this.deleteStoreDataStatements(statements, storeId);
     statements.push(...this.writeDataStatements(dataForStoreWrite(data, storeId)));
+    await this.db.batch(statements);
+  }
+
+  async replaceStoreTables(storeId: string, data: AppData, keys: readonly D1DataTableName[]) {
+    const uniqueKeys = Array.from(new Set(keys));
+    const statements: D1PreparedStatement[] = [];
+    this.deleteStoreTableStatements(statements, storeId, uniqueKeys);
+    statements.push(...this.writeDataStatements(pickDataTables(dataForStoreWrite(data, storeId), uniqueKeys)));
     await this.db.batch(statements);
   }
 
@@ -1118,6 +1130,76 @@ export class D1BeautyDatabase {
     statements.push(this.statement("DELETE FROM storeProfiles WHERE id = ?", [storeId]));
   }
 
+  private deleteStoreTableStatements(statements: D1PreparedStatement[], storeId: string, keys: readonly D1DataTableName[]) {
+    const deleteJsonStoreRows = (tableName: string) => {
+      statements.push(this.statement(`DELETE FROM ${tableName} WHERE json_extract(payload_json, '$.storeId') = ?`, [storeId]));
+    };
+    const deleteTableStoreRows = (tableName: string) => {
+      statements.push(this.statement(`DELETE FROM ${tableName} WHERE storeId = ?`, [storeId]));
+    };
+
+    for (const key of keys) {
+      switch (key) {
+        case "storeProfiles":
+          statements.push(this.statement("DELETE FROM storeProfiles WHERE id = ?", [storeId]));
+          break;
+        case "onlineStorefronts":
+        case "staffInvites":
+        case "storeOwnerApplications":
+        case "tagDefinitions":
+        case "inventoryBatches":
+        case "onlineBookingRequests":
+        case "staffShifts":
+        case "distributionCommissions":
+        case "referralRelations":
+        case "commissionSettlements":
+        case "marketingAiRecords":
+        case "notifications":
+        case "approvalRequests":
+        case "customerServiceRecords":
+        case "customerSignatures":
+        case "customerFollowUps":
+        case "suppliers":
+        case "purchaseOrders":
+        case "stocktakes":
+          deleteJsonStoreRows(key);
+          break;
+        case "authUsers":
+          statements.push(this.statement("DELETE FROM authUsers WHERE json_extract(payload_json, '$.storeId') = ?", [storeId]));
+          break;
+        case "systemConfigs":
+        case "storeOwnerInvites":
+          break;
+        case "staff":
+        case "customers":
+        case "services":
+        case "products":
+        case "appointments":
+        case "staffUnavailableSlots":
+        case "memberCards":
+        case "orders":
+        case "refunds":
+        case "commissions":
+        case "inventoryLogs":
+        case "memberCardTransactions":
+        case "operationLogs":
+        case "dailyCloses":
+          deleteTableStoreRows(key);
+          break;
+        case "distributors":
+          statements.push(
+            this.statement(
+              `DELETE FROM distributors
+               WHERE json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                  OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)`,
+              [storeId, storeId],
+            ),
+          );
+          break;
+      }
+    }
+  }
+
   private async ensureDefaultSuperadmin() {
     const data = await this.readData();
     if (data.authUsers.some((user) => user.role === "superadmin")) return;
@@ -1250,6 +1332,14 @@ function dataForStoreWrite(data: AppData, storeId: string): AppData {
     purchaseOrders: data.purchaseOrders.filter(belongsToStore),
     stocktakes: data.stocktakes.filter(belongsToStore),
   };
+}
+
+function pickDataTables(data: AppData, keys: readonly D1DataTableName[]): AppData {
+  const picked = emptyData();
+  for (const key of keys) {
+    picked[key] = data[key] as never;
+  }
+  return picked;
 }
 
 function mapStaff(row: unknown): Staff {

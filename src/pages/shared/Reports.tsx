@@ -371,13 +371,13 @@ export default function Reports({
   ]));
   type ReportsModuleKey = NonNullable<typeof activeModule>;
   const reportModules: Array<FeatureModule<ReportsModuleKey>> = [
-    { key: "summary", title: "经营总览", desc: "客单价、预约转化和库存风险", icon: ChartNoAxesColumnIncreasing, tone: "violet", meta: money(summary.revenue) },
-    { key: "trend", title: "经营趋势", desc: "近 14 天实收、订单和预约", icon: ChartNoAxesColumnIncreasing, tone: "teal", meta: `${dailyTrend.length} 天` },
-    { key: "payments", title: "收银流水", desc: "支付方式和实收结构", icon: CreditCard, tone: "rose", meta: `${data.orders.length} 单` },
-    { key: "daily", title: "财务日结", desc: "营业日锁定和反结记录", icon: ClipboardList, tone: "amber", meta: `${data.dailyCloses.length} 天` },
-    { key: "staff", title: "员工业绩", desc: "员工订单、实收和提成排行", icon: BadgeCent, tone: "jade", meta: `${staffPerformance.length} 人` },
-    { key: "members", title: "会员资产", desc: "会员卡余额和客户规模", icon: UsersRound, tone: "teal", meta: `${activeMembers} 张` },
-    { key: "services", title: "项目排行", desc: "热门项目和项目实收", icon: Sparkles, tone: "plum", meta: `${serviceRevenue.length} 项` },
+    { key: "summary", title: "经营总览", icon: ChartNoAxesColumnIncreasing, tone: "violet", meta: money(summary.revenue) },
+    { key: "trend", title: "经营趋势", icon: ChartNoAxesColumnIncreasing, tone: "teal", meta: `${dailyTrend.length} 天` },
+    { key: "payments", title: "收银流水", icon: CreditCard, tone: "rose", meta: `${data.orders.length} 单` },
+    { key: "daily", title: "财务日结", icon: ClipboardList, tone: "amber", meta: `${data.dailyCloses.length} 天` },
+    { key: "staff", title: "员工业绩", icon: BadgeCent, tone: "jade", meta: `${staffPerformance.length} 人` },
+    { key: "members", title: "会员资产", icon: UsersRound, tone: "teal", meta: `${activeMembers} 张` },
+    { key: "services", title: "项目排行", icon: Sparkles, tone: "plum", meta: `${serviceRevenue.length} 项` },
   ];
   const activeModuleTitle = activeModule ? reportModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const closeModule = () => {

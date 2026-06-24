@@ -88,13 +88,31 @@ import type { CheckoutProductItemInput } from "../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
 import { getSession, login, refreshSessionUser } from "./auth";
-import { BeautyDatabase } from "./database";
+import { BeautyDatabase, type TableName } from "./database";
 
 type JsonBody = Record<string, unknown>;
 const execFile = promisify(execFileCallback);
 const aiImageGenerationMaxGlobalSlots = 4;
 const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
 const providerFetchTimeoutMs = 260_000;
+const publicSignatureDataKeys = [
+  "customers",
+  "orders",
+  "services",
+  "staff",
+  "appointments",
+  "memberCards",
+  "memberCardTransactions",
+  "customerServiceRecords",
+  "customerSignatures",
+] as const satisfies readonly TableName[];
+const publicSignatureWriteKeys = [
+  "appointments",
+  "orders",
+  "memberCards",
+  "memberCardTransactions",
+  "customerSignatures",
+] as const satisfies readonly TableName[];
 type LocalAvatarUpload = {
   buffer: Buffer;
   contentType: string;
@@ -255,19 +273,19 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "GET" && url.pathname.startsWith("/api/public/customer-signatures/")) {
         const token = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
-        sendJson(response, 200, publicSignaturePayload(database.readData(), token));
+        sendJson(response, 200, publicSignaturePayload(database.readDataTables(publicSignatureDataKeys), token));
         return;
       }
 
       if (request.method === "POST" && url.pathname.startsWith("/api/public/customer-signatures/") && url.pathname.endsWith("/sign")) {
         const token = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = signCustomerSignature(database.readData(), {
+        const nextData = signCustomerSignature(database.readDataTables(publicSignatureDataKeys), {
           token,
           signerName: requiredString(body, "signerName"),
           signatureText: requiredString(body, "signatureText"),
         });
-        database.replaceData(nextData);
+        database.replaceDataTables(nextData, publicSignatureWriteKeys);
         sendJson(response, 201, publicSignaturePayload(nextData, token));
         return;
       }
@@ -938,7 +956,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
           staffId: appointment.staffId,
         });
-        persistData(database, session, nextData);
+        persistDataTables(database, session, nextData, ["appointments", "operationLogs", "notifications"]);
         sendScopedData(request, response, 201, nextData, session);
         return;
       }
@@ -982,7 +1000,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
         const requestedStaffId = optionalString(body, "staffId");
-        const nextData = updateData(database, session, {
+        const nextData = updateDataTables(database, session, ["appointments", "operationLogs"], {
           action: "改约",
           targetType: "appointment",
           targetId: appointmentId,
@@ -1008,7 +1026,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const body = await readJson(request);
         const status = requiredString(body, "status") as Appointment["status"];
-        const nextData = updateData(database, session, {
+        const nextData = updateDataTables(database, session, ["appointments", "operationLogs"], {
           action: "更新预约状态",
           targetType: "appointment",
           targetId: appointmentId,
@@ -1346,7 +1364,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           requestedBy: session.user.id,
           validDays: optionalNumber(body, "validDays"),
         });
-        persistData(database, session, nextData);
+        persistDataTables(database, session, nextData, ["customerSignatures"]);
         sendScopedData(request, response, 201, nextData, session);
         return;
       }
@@ -1363,7 +1381,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           signerName: requiredString(body, "signerName"),
           signatureText: requiredString(body, "signatureText"),
         });
-        persistData(database, session, nextData);
+        persistDataTables(database, session, nextData, ["appointments", "orders", "memberCards", "memberCardTransactions", "customerSignatures"]);
         sendScopedData(request, response, 201, nextData, session);
         return;
       }
@@ -1778,9 +1796,29 @@ function updateData(
   return nextData;
 }
 
+function updateDataTables(
+  database: BeautyDatabase,
+  session: UserSession,
+  keys: readonly TableName[],
+  log: { action: string; targetType: string; targetId: string; summary: string },
+  updater: (data: AppData) => AppData,
+) {
+  const nextData = addOperationLog(updater(database.readData()), { userId: session.user.id, ...log });
+  persistDataTables(database, session, nextData, keys);
+  return nextData;
+}
+
 function persistData(database: BeautyDatabase, session: UserSession, nextData: AppData) {
   if (session.user.role !== "superadmin" && session.user.storeId) {
     database.replaceStoreData(session.user.storeId, nextData);
+    return;
+  }
+  database.replaceData(nextData);
+}
+
+function persistDataTables(database: BeautyDatabase, session: UserSession, nextData: AppData, keys: readonly TableName[]) {
+  if (session.user.role !== "superadmin" && session.user.storeId) {
+    database.replaceStoreTables(session.user.storeId, nextData, keys);
     return;
   }
   database.replaceData(nextData);
@@ -4027,11 +4065,19 @@ function sendScopedData(request: IncomingMessage, response: ServerResponse, stat
   if (isSliceRequest(request)) {
     const requestedView = requestedDataView(request);
     if (requestedView) {
-      sendJson(response, statusCode, makeAppDataSlice(scopedData, requestedView));
+      const responseData = requestedView === "dashboard" ? withoutSignatureImages(scopedData) : scopedData;
+      sendJson(response, statusCode, makeAppDataSlice(responseData, requestedView));
       return;
     }
   }
   sendJson(response, statusCode, scopedData);
+}
+
+function withoutSignatureImages(data: AppData): AppData {
+  return {
+    ...data,
+    customerSignatures: (data.customerSignatures ?? []).map(({ signatureText: _signatureText, ...signature }) => signature),
+  };
 }
 
 function isSliceRequest(request: IncomingMessage) {

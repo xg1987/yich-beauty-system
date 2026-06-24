@@ -53,12 +53,12 @@ export function ApprovalsView({
   const refundApprovals = data.approvalRequests.filter((item) => item.type === "订单退款").length;
   type ApprovalModuleKey = NonNullable<typeof activeModule>;
   const approvalModules: Array<FeatureModule<ApprovalModuleKey>> = [
-    { key: "submit", title: "提交审批", desc: "改价、退款和门店例外处理", icon: ShieldCheck, tone: "violet", meta: "申请入口" },
-    { key: "pending", title: "待审批", desc: "需要处理的风险单据", icon: ClipboardList, tone: "rose", meta: `${pendingApprovals} 单` },
-    { key: "refund", title: "退款审批", desc: "订单退款申请和处理记录", icon: RefreshCw, tone: "jade", meta: `${refundApprovals} 单` },
-    { key: "passed", title: "已通过", desc: "已批准可用于业务", icon: ShieldCheck, tone: "teal", meta: `${passedApprovals} 单` },
-    { key: "rejected", title: "已拒绝", desc: "已拦截的异常申请", icon: LockKeyhole, tone: "amber", meta: `${rejectedApprovals} 单` },
-    { key: "all", title: "全部记录", desc: "查看完整审批流水", icon: ClipboardList, tone: "plum", meta: `${data.approvalRequests.length} 条` },
+    { key: "submit", title: "提交审批", icon: ShieldCheck, tone: "violet", meta: "申请入口" },
+    { key: "pending", title: "待审批", icon: ClipboardList, tone: "rose", meta: `${pendingApprovals} 单` },
+    { key: "refund", title: "退款审批", icon: RefreshCw, tone: "jade", meta: `${refundApprovals} 单` },
+    { key: "passed", title: "已通过", icon: ShieldCheck, tone: "teal", meta: `${passedApprovals} 单` },
+    { key: "rejected", title: "已拒绝", icon: LockKeyhole, tone: "amber", meta: `${rejectedApprovals} 单` },
+    { key: "all", title: "全部记录", icon: ClipboardList, tone: "plum", meta: `${data.approvalRequests.length} 条` },
   ];
   const activeModuleTitle = activeModule ? approvalModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const closeModule = () => {

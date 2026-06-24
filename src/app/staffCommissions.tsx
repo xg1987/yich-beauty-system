@@ -13,12 +13,10 @@ import type { AppData, Staff, UserRole } from "../domain/types";
 import { money, shortDate } from "../domain/utils";
 import type { ApiActions } from "../hooks/useApiData";
 import { SubmitStatusButton, useMutationPending } from "./mutationPending";
+import { displayRoleName, displayStaffRole, displayUserRole } from "./accountDisplay";
 import {
   businessStaffOf,
   copyTextToClipboard,
-  displayRoleName,
-  displayStaffRole,
-  displayUserRole,
   nameOf,
   optionOf,
 } from "./AuthenticatedApp";
@@ -172,11 +170,11 @@ export function StaffCommissions({
   });
   type StaffModuleKey = NonNullable<typeof activeModule>;
   const staffModules: Array<FeatureModule<StaffModuleKey>> = [
-    { key: "profile", title: "员工档案", desc: "建档、岗位、底薪和状态", icon: UsersRound, tone: "violet", meta: `${staffRows.length} 人` },
-    { key: "invite", title: "员工邀请码", desc: "创建一次性邀请，员工自行加入", icon: LockKeyhole, tone: "rose", meta: `${pendingInvites} 个待加入` },
-    { key: "salary", title: "薪资汇总", desc: "底薪、项目提成和预计薪资", icon: HeartHandshake, tone: "teal", meta: money(pendingCommission) },
-    { key: "settlements", title: "结算流水", desc: "批量结算记录和操作人", icon: ClipboardList, tone: "amber", meta: `${data.commissionSettlements.length} 批` },
-    { key: "commissions", title: "提成记录", desc: "订单提成、比例和状态", icon: BadgeCent, tone: "violet", meta: `${data.commissions.filter((item) => staffIds.has(item.staffId)).length} 条` },
+    { key: "profile", title: "员工档案", icon: UsersRound, tone: "violet", meta: `${staffRows.length} 人` },
+    { key: "invite", title: "员工邀请码", icon: LockKeyhole, tone: "rose", meta: `${pendingInvites} 个待加入` },
+    { key: "salary", title: "薪资汇总", icon: HeartHandshake, tone: "teal", meta: money(pendingCommission) },
+    { key: "settlements", title: "结算流水", icon: ClipboardList, tone: "amber", meta: `${data.commissionSettlements.length} 批` },
+    { key: "commissions", title: "提成记录", icon: BadgeCent, tone: "violet", meta: `${data.commissions.filter((item) => staffIds.has(item.staffId)).length} 条` },
   ];
   const activeModuleTitle = activeModule ? staffModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const closeModule = () => {

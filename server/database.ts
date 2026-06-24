@@ -49,7 +49,7 @@ import type {
 
 const DEFAULT_DB_PATH = resolve("data/yich-system.sqlite");
 
-type TableName = keyof AppData;
+export type TableName = keyof AppData;
 
 const tableNames: TableName[] = [
   "storeProfiles",
@@ -215,11 +215,39 @@ export class BeautyDatabase {
     }
   }
 
+  replaceDataTables(data: AppData, keys: readonly TableName[]) {
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const uniqueKeys = Array.from(new Set(keys));
+      for (const key of [...uniqueKeys].reverse()) {
+        this.db.prepare(`DELETE FROM ${key}`).run();
+      }
+      this.writeData(pickDataTables(data, uniqueKeys));
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
   replaceStoreData(storeId: string, data: AppData) {
     this.db.exec("BEGIN IMMEDIATE;");
     try {
       this.deleteStoreData(storeId);
       this.writeData(dataForStoreWrite(data, storeId));
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  replaceStoreTables(storeId: string, data: AppData, keys: readonly TableName[]) {
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const uniqueKeys = Array.from(new Set(keys));
+      this.deleteStoreTables(storeId, uniqueKeys);
+      this.writeData(pickDataTables(dataForStoreWrite(data, storeId), uniqueKeys));
       this.db.exec("COMMIT;");
     } catch (error) {
       this.db.exec("ROLLBACK;");
@@ -684,6 +712,75 @@ export class BeautyDatabase {
     deleteJsonStoreRows("onlineStorefronts");
     this.db.prepare("DELETE FROM authUsers WHERE json_extract(payload_json, '$.storeId') = ?").run(storeId);
     this.db.prepare("DELETE FROM storeProfiles WHERE id = ?").run(storeId);
+  }
+
+  private deleteStoreTables(storeId: string, keys: readonly TableName[]) {
+    const deleteJsonStoreRows = (tableName: string) => {
+      this.db.prepare(`DELETE FROM ${tableName} WHERE json_extract(payload_json, '$.storeId') = ?`).run(storeId);
+    };
+    const deleteTableStoreRows = (tableName: string) => {
+      this.db.prepare(`DELETE FROM ${tableName} WHERE storeId = ?`).run(storeId);
+    };
+
+    for (const key of keys) {
+      switch (key) {
+        case "storeProfiles":
+          this.db.prepare("DELETE FROM storeProfiles WHERE id = ?").run(storeId);
+          break;
+        case "onlineStorefronts":
+        case "staffInvites":
+        case "storeOwnerApplications":
+        case "tagDefinitions":
+        case "inventoryBatches":
+        case "onlineBookingRequests":
+        case "staffShifts":
+        case "distributionCommissions":
+        case "referralRelations":
+        case "commissionSettlements":
+        case "marketingAiRecords":
+        case "notifications":
+        case "approvalRequests":
+        case "customerServiceRecords":
+        case "customerSignatures":
+        case "customerFollowUps":
+        case "suppliers":
+        case "purchaseOrders":
+        case "stocktakes":
+          deleteJsonStoreRows(key);
+          break;
+        case "authUsers":
+          this.db.prepare("DELETE FROM authUsers WHERE json_extract(payload_json, '$.storeId') = ?").run(storeId);
+          break;
+        case "systemConfigs":
+        case "storeOwnerInvites":
+          break;
+        case "staff":
+        case "customers":
+        case "services":
+        case "products":
+        case "appointments":
+        case "staffUnavailableSlots":
+        case "memberCards":
+        case "orders":
+        case "refunds":
+        case "commissions":
+        case "inventoryLogs":
+        case "memberCardTransactions":
+        case "operationLogs":
+        case "dailyCloses":
+          deleteTableStoreRows(key);
+          break;
+        case "distributors":
+          this.db
+            .prepare(
+              `DELETE FROM distributors
+               WHERE json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                  OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)`,
+            )
+            .run(storeId, storeId);
+          break;
+      }
+    }
   }
 
   private all<T>(query: string, mapper: (row: unknown) => T, values: Array<string | number | null> = []) {
@@ -1552,6 +1649,14 @@ function dataForStoreWrite(data: AppData, storeId: string): AppData {
     purchaseOrders: data.purchaseOrders.filter(belongsToStore),
     stocktakes: data.stocktakes.filter(belongsToStore),
   };
+}
+
+function pickDataTables(data: AppData, keys: readonly TableName[]): AppData {
+  const picked = emptyData();
+  for (const key of keys) {
+    picked[key] = data[key] as never;
+  }
+  return picked;
 }
 
 function mapStaff(row: unknown): Staff {

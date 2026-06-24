@@ -5,7 +5,6 @@ export type ModuleTone = "rose" | "violet" | "teal" | "amber" | "jade" | "plum";
 export type FeatureModule<Key extends string> = {
   key: Key;
   title: string;
-  desc: string;
   icon: LucideIcon;
   tone: ModuleTone;
   meta?: string;

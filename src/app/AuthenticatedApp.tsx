@@ -82,6 +82,7 @@ import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import { canvasToSignatureDataUrl } from "../lib/signatureImage";
 import { writeCachedStoreName } from "../lib/storeNameCache";
 import packageJson from "../../package.json";
+import { displayRoleName } from "./accountDisplay";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "card" | "customers" | "marketing" | "reports" | "accounts" | "logs" | "admin";
@@ -461,9 +462,6 @@ export function downloadCsvFile(filename: string, columns: Array<string | number
   }, 0);
 }
 
-const HIDDEN_ACCOUNT_LIST_ACCOUNTS = new Set(["admin@yich.local"]);
-const VISIBLE_PLATFORM_ADMIN_ACCOUNT = "13827445244";
-
 function dateInputValue(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -588,58 +586,11 @@ export function primaryStoreName(data: AppData) {
   return data.storeProfiles[0]?.name?.trim() || "";
 }
 
-function normalizedAccount(account: string) {
-  return account.trim().toLowerCase();
-}
-
-export function isVisibleAccount(user: { account: string }) {
-  return !HIDDEN_ACCOUNT_LIST_ACCOUNTS.has(normalizedAccount(user.account));
-}
-
-export function isVisiblePlatformAdmin(user: { account: string; role: UserRole }) {
-  return normalizedAccount(user.account) === VISIBLE_PLATFORM_ADMIN_ACCOUNT || user.role === "superadmin";
-}
-
-export function displayRoleName(user: { account: string; role: UserRole; roleName: string }) {
-  if (isVisiblePlatformAdmin(user)) return "系统管理员";
-  if (user.role === "owner" || user.role === "manager") return "店长";
-  if (user.role === "therapist") return "服务人员";
-  return user.roleName === "老板" || user.roleName === "主管" ? "店长" : user.roleName;
-}
-
-export function displayStaffRole(role: string) {
-  return role === "老板" || role === "主管" ? "店长" : role;
-}
-
 function userRoleForStaffRole(role: string): UserRole {
   if (role === "店长" || role === "主管") return "manager";
   if (role === "前台") return "frontdesk";
   if (role === "财务") return "finance";
   return "therapist";
-}
-
-export function displayUserRole(role: UserRole) {
-  const labels: Record<UserRole, string> = {
-    superadmin: "系统管理员",
-    owner: "店长",
-    manager: "店长",
-    frontdesk: "前台",
-    therapist: "服务人员",
-    finance: "财务",
-  };
-  return labels[role];
-}
-
-export function displayAuthUserStatus(status: AuthUser["status"]) {
-  if (status === "active") return "启用";
-  if (status === "pending") return "待审核";
-  return "停用";
-}
-
-export function authUserStatusTone(status: AuthUser["status"]) {
-  if (status === "active") return "ok" as const;
-  if (status === "pending") return undefined;
-  return "warn" as const;
 }
 
 export function roomNamesOf(data: AppData) {
@@ -1495,7 +1446,6 @@ function ManagementCenter({
 
   type ManagementCard = {
     title: string;
-    desc: string;
     icon: typeof LayoutDashboard;
     tone: ModuleTone;
     view?: ViewKey;
@@ -1505,52 +1455,52 @@ function ManagementCenter({
   };
 
   const platformManagementCards: ManagementCard[] = [
-    { title: "平台总览", desc: "门店数据 / 经营汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
-    { title: "经营数据", desc: "经营报表 / 门店汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "账号管理", desc: "账号状态 / 角色权限", icon: UsersRound, tone: "violet", view: "accounts" },
-    { title: "门店开通审核", desc: "门店申请 / 授权审批", icon: ShieldCheck, tone: "violet", view: "permissions" },
-    { title: "平台配置", desc: "邀请码 / 注册 / 维护 / 公告", icon: Settings, tone: "violet", view: "platformConfig" },
-    { title: "预约权限", desc: "员工查看全店预约开关", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
-    { title: "AI 能力配置", desc: "模型 / API Key / 成本规则", icon: Sparkles, tone: "plum", view: "aiConfig" },
-    { title: "AI积分充值", desc: "给账号充值积分", icon: CreditCard, tone: "plum", view: "aiCredits" },
-    { title: "AI 测试中心", desc: "验证模型 / Key / 视频任务", icon: Megaphone, tone: "plum", view: "aiTest" },
-    { title: "AI 使用权限", desc: "门店店长 / 员工功能开关", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
-    { title: "AI费用统计", desc: "文案 / 图片 / 视频费用", icon: BadgeCent, tone: "plum", view: "aiUsage" },
-    { title: "分店客户明细", desc: "客户业务 / 消费明细", icon: UsersRound, tone: "violet", view: "storeCustomerDetails" },
-    { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
-    { title: "服务器用量", desc: "D1 / R2 / Worker / 免费额度", icon: Database, tone: "teal", view: "usage" },
+    { title: "平台总览", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "dashboard" },
+    { title: "经营数据", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "账号管理", icon: UsersRound, tone: "violet", view: "accounts" },
+    { title: "门店开通审核", icon: ShieldCheck, tone: "violet", view: "permissions" },
+    { title: "平台配置", icon: Settings, tone: "violet", view: "platformConfig" },
+    { title: "预约权限", icon: CalendarDays, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
+    { title: "AI 能力配置", icon: Sparkles, tone: "plum", view: "aiConfig" },
+    { title: "AI积分充值", icon: CreditCard, tone: "plum", view: "aiCredits" },
+    { title: "AI 测试中心", icon: Megaphone, tone: "plum", view: "aiTest" },
+    { title: "AI 使用权限", icon: Sparkles, tone: "plum", onClick: () => setAiUsagePermissionsOpen(true) },
+    { title: "AI费用统计", icon: BadgeCent, tone: "plum", view: "aiUsage" },
+    { title: "分店客户明细", icon: UsersRound, tone: "violet", view: "storeCustomerDetails" },
+    { title: "操作日志", icon: ClipboardList, tone: "amber", view: "logs" },
+    { title: "服务器用量", icon: Database, tone: "teal", view: "usage" },
   ];
   const storeManagementCards: ManagementCard[] = [
-    { title: "账号管理", desc: "员工审核 / 密码重置", icon: UserCog, tone: "violet", view: "accounts" },
-    { title: "商品入库", desc: "新增商品 / 已有补货", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
-    { title: "项目商品", desc: "服务项目 / 商品资料", icon: PackageOpen, tone: "teal", view: "catalog" },
-    { title: "商品档案", desc: "商品资料 / 编码规格", icon: FileBox, tone: "teal", view: "catalog", catalogModule: "productList" },
-    { title: "库存列表", desc: "库存状态 / 预警查看", icon: Warehouse, tone: "teal", view: "inventory", inventoryModule: "list" },
-    { title: "库存流水", desc: "入库出库 / 盘点历史", icon: ClipboardList, tone: "plum", view: "inventory", inventoryModule: "logs" },
-    { title: "销售业绩", desc: "经营数据 / 员工业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "营销中心", desc: "生日祝福 / 引流文案", icon: Camera, tone: "plum", view: "marketing" },
-    { title: "客户退费", desc: "会员卡退费 / 退卡记录", icon: CreditCard, tone: "rose", onClick: () => setCustomerRefundOpen(true) },
-    { title: "商品损耗", desc: "损耗登记 / 库存扣减", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
-    { title: "员工管理", desc: "员工档案 / 权限状态", icon: UserCheck, tone: "violet", view: "staff" },
-    { title: "员工排班", desc: "班次查看 / 不可预约时间", icon: CalendarClock, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
-    { title: "预约权限", desc: "员工查看全店预约开关", icon: LockKeyhole, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
-    { title: "员工提成", desc: "员工提成 / 结算记录", icon: ReceiptText, tone: "amber", view: "staff" },
-    { title: "房间设置", desc: "房间数量 / 房名维护", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
-    { title: "库存盘点", desc: "账实差异 / 盘点记录", icon: ClipboardCheck, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
-    { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
-    { title: "操作日志", desc: "登录记录 / 操作轨迹", icon: ClipboardList, tone: "amber", view: "logs" },
+    { title: "账号管理", icon: UserCog, tone: "violet", view: "accounts" },
+    { title: "商品入库", icon: PackagePlus, tone: "teal", view: "inventory", inventoryModule: "stockIn" },
+    { title: "项目商品", icon: PackageOpen, tone: "teal", view: "catalog" },
+    { title: "商品档案", icon: FileBox, tone: "teal", view: "catalog", catalogModule: "productList" },
+    { title: "库存列表", icon: Warehouse, tone: "teal", view: "inventory", inventoryModule: "list" },
+    { title: "库存流水", icon: ClipboardList, tone: "plum", view: "inventory", inventoryModule: "logs" },
+    { title: "销售业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "营销中心", icon: Camera, tone: "plum", view: "marketing" },
+    { title: "客户退费", icon: CreditCard, tone: "rose", onClick: () => setCustomerRefundOpen(true) },
+    { title: "商品损耗", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
+    { title: "员工管理", icon: UserCheck, tone: "violet", view: "staff" },
+    { title: "员工排班", icon: CalendarClock, tone: "teal", onClick: () => setStaffScheduleOpen(true) },
+    { title: "预约权限", icon: LockKeyhole, tone: "teal", onClick: () => setOperationalPermissionsOpen(true) },
+    { title: "员工提成", icon: ReceiptText, tone: "amber", view: "staff" },
+    { title: "房间设置", icon: Building2, tone: "teal", onClick: () => setRoomSettingsOpen(true) },
+    { title: "库存盘点", icon: ClipboardCheck, tone: "violet", view: "inventory", inventoryModule: "stocktake" },
+    { title: "审批中心", icon: ShieldCheck, tone: "rose", view: "approvals" },
+    { title: "操作日志", icon: ClipboardList, tone: "amber", view: "logs" },
   ];
   const staffManagementCards: ManagementCard[] = [
-    { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "我的提成", desc: "提成明细 / 结算记录", icon: CreditCard, tone: "amber", view: "staff" },
-    { title: "外观通知", desc: "日间 / 夜间 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
+    { title: "个人资料", icon: UserRound, tone: "violet", onClick: openAccountSettings },
+    { title: "我的提成", icon: CreditCard, tone: "amber", view: "staff" },
+    { title: "外观通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
   const financeManagementCards: ManagementCard[] = [
-    { title: "个人资料", desc: "头像 / 姓名 / 账号设置", icon: UserRound, tone: "violet", onClick: openAccountSettings },
-    { title: "员工提成", desc: "提成明细 / 结算记录", icon: CreditCard, tone: "amber", view: "staff" },
-    { title: "销售业绩", desc: "经营数据 / 财务汇总", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
-    { title: "审批中心", desc: "退款改价 / 异常审批", icon: ShieldCheck, tone: "rose", view: "approvals" },
-    { title: "外观通知", desc: "日间 / 夜间 / 推送通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
+    { title: "个人资料", icon: UserRound, tone: "violet", onClick: openAccountSettings },
+    { title: "员工提成", icon: CreditCard, tone: "amber", view: "staff" },
+    { title: "销售业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
+    { title: "审批中心", icon: ShieldCheck, tone: "rose", view: "approvals" },
+    { title: "外观通知", icon: Bell, tone: "rose", onClick: openAccountSettings },
   ];
   const managementCards = session.user.role === "superadmin"
     ? platformManagementCards
@@ -1626,7 +1576,7 @@ function ManagementCenter({
       <Modal
         open={roomSettingsOpen}
         title="房间设置"
-        subtitle="设置房间数量、房间名称和指定房间维护状态"
+        subtitle="设置房间和维护状态"
         size="large"
         onClose={() => setRoomSettingsOpen(false)}
       >
@@ -1635,7 +1585,7 @@ function ManagementCenter({
       <Modal
         open={aiUsagePermissionsOpen}
         title="AI 使用权限"
-        subtitle="设置店长和员工可使用的 AI 写文案、AI 做产品设计图和 AI 做产品视频能力"
+        subtitle="设置门店 AI 权限"
         size="large"
         onClose={() => setAiUsagePermissionsOpen(false)}
       >
@@ -1644,7 +1594,7 @@ function ManagementCenter({
       <Modal
         open={operationalPermissionsOpen}
         title="预约权限"
-        subtitle="设置服务人员是否可以查看本门店全店预约"
+        subtitle="设置员工预约可见范围"
         size="large"
         onClose={() => setOperationalPermissionsOpen(false)}
       >
@@ -1664,7 +1614,7 @@ function ManagementCenter({
       <Modal
         open={staffScheduleOpen}
         title="员工排班"
-        subtitle="查看每位员工班次和不可预约时间，预约会按这里判断"
+        subtitle="查看班次和不可预约时间"
         size="large"
         onClose={() => setStaffScheduleOpen(false)}
       >
@@ -2281,7 +2231,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
     if (!hasConfiguredRooms || !roomNames.includes(roomName) || nextStartAt < new Date()) return;
     if (!appointmentCustomerId || currentCustomerUnresolved) {
       void runMutation(() => {
-        throw new Error("请先输入完整姓名/手机号，或从客户搜索结果中点选客户后再保存预约。");
+        throw new Error("请选择客户后再保存预约。");
       });
       return;
     }
@@ -2883,7 +2833,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
       <Modal
         open={showAppointmentForm}
         title="新增预约"
-        subtitle="选择预约时间后，系统会自动筛选可用房间"
+        subtitle="选择时间和房间"
         size="large"
         className="appointment-create-modal"
         onClose={() => setShowAppointmentForm(false)}
@@ -2975,7 +2925,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
             </div>
             <label>
               备注
-              <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好、到店提醒等" />
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好" />
             </label>
             {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
             {selectedTimeInPast && <p className="form-warning">预约时间不能早于当前时间，请重新选择。</p>}
@@ -3020,7 +2970,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
           <Select label="房间" value={rescheduleRoomName} onChange={setRescheduleRoomName} options={roomNames.length ? roomNames.map((name) => ({ value: name, label: name })) : [{ value: "", label: "请先到房间管理配置预约房间" }]} />
           <label>
             备注
-            <textarea value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="改约原因或客户偏好" />
+            <textarea value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="改约原因" />
           </label>
           {rescheduleTimeRangeInvalid && <p className="form-warning">改约结束时间必须晚于开始时间。</p>}
           {rescheduleTimeInPast && <p className="form-warning">改约时间不能早于当前时间，请重新选择。</p>}
@@ -3040,7 +2990,7 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
         <form className="form appointment-action-form" onSubmit={submitCancel}>
           <label>
             取消原因
-            <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="如客户临时取消、改期未定等" />
+            <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="取消原因" />
           </label>
           <div className="row-actions">
             <SubmitStatusButton idleText="确认取消" busyText="处理中..." disabled={!cancelReason.trim()} />
@@ -3493,10 +3443,10 @@ function Pos({
   );
   const selectedSignatureBlockMessage = selectedSignature && selectedSignature.status === "待签名" && !selectedSignatureCanComplete
     ? selectedSignatureExpired
-      ? "签名链接已过期，请重新生成签名后再让客户确认。"
+      ? "签名已过期，请重新生成。"
       : selectedSignatureCardBlocked
         ? `会员卡项目次数不足，不能完成签名扣卡：${selectedSignatureCardBlockedRows.map((row) => `${row.serviceName} 剩 ${row.beforeText}，本次用 ${row.usedText}`).join("；")}`
-        : "这条签名未关联收银订单，不能作为收银确认签名。"
+        : "签名未关联订单。"
     : undefined;
   useEffect(() => {
     if (!usesCustomer || !usesService || selectedServiceRows.length === 0) return;
@@ -4005,10 +3955,10 @@ function Pos({
     if (checkoutSubmittingRef.current || checkoutSubmitting) return;
     const messages: string[] = [];
     if (!staffId) {
-      messages.push(usesProduct && !usesService ? "请选择收银人员。商品开单可以选择店长/老板或服务人员。" : "请选择服务人员。");
+      messages.push(usesProduct && !usesService ? "请选择收银人员。" : "请选择服务人员。");
     }
     if (usesService && selectedServices.length === 0) {
-      messages.push(selectedCheckoutAppointmentNeedsServiceSelection ? "这条预约没有绑定服务项目，请先选择实际服务项目后再收银。" : "请选择服务项目。");
+      messages.push(selectedCheckoutAppointmentNeedsServiceSelection ? "请先选择服务项目后再收银。" : "请选择服务项目。");
     }
     if (usesProduct && checkoutProductItems.length === 0) messages.push("请选择销售商品。");
     if (usesProduct && checkoutProductRows.some((item) => item.product.price <= 0)) {
@@ -4017,9 +3967,9 @@ function Pos({
     }
     if (usesCustomer && !customerId) messages.push("请选择会员客户，或把开单对象切换为新客。");
     if (customerSearchUnresolved) messages.push("请先从客户搜索结果中选择客户，确认后再收银。");
-    if (!usesCustomer && !guestName.trim()) messages.push("请填写客户姓名，收银完成后需要客户签名。");
+    if (!usesCustomer && !guestName.trim()) messages.push("请填写客户姓名。");
     if (!usesCustomer && !guestPhone.trim()) {
-      messages.push("请填写客户手机号，收银完成后需要客户签名。");
+      messages.push("请填写客户手机号。");
     } else if (!usesCustomer && guestPhone.length !== 11) {
       messages.push("客户电话必须为 11 位数字。");
     }
@@ -4190,7 +4140,7 @@ function Pos({
           <div className="checkout-guest-grid">
             <label>
               {usesProduct && !usesService ? "新客姓名" : "客户姓名"}
-              <input value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" placeholder="用于客户签名和流水追溯" />
+              <input value={guestName} onChange={(event) => setGuestName(event.target.value)} autoComplete="name" placeholder="客户姓名" />
             </label>
             <label>
               {usesProduct && !usesService ? "联系电话" : "客户电话"}
@@ -4379,7 +4329,7 @@ function Pos({
               <label>客户姓名<input ref={cardCustomerNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
               <label>客户手机号<input ref={cardCustomerPhoneInputRef} type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} /></label>
               <label>客户生日（选填）<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
-              <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
+              <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="护理偏好" /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
@@ -4594,8 +4544,8 @@ function Pos({
               {appointmentId && (
                 <p className="form-note">
                   {selectedCheckoutAppointmentNeedsServiceSelection
-                    ? "这条预约是到店确认项目，请在上方选择实际服务项目；收银后将生成客户签名，客户签名后预约才会标记为已完成。"
-                    : "已带入预约信息，收银后将生成客户签名，客户签名后预约才会标记为已完成。"}
+                    ? "到店确认项目，请选择实际服务；签完才完成。"
+                    : "已带入预约信息，签完才完成。"}
                 </p>
               )}
             </>
@@ -4962,7 +4912,7 @@ function Pos({
       <Modal
         open={checkoutValidationMessages.length > 0}
         title="请补全开单信息"
-        subtitle="确认收银前需要先处理下面的问题"
+        subtitle="请先处理以下问题"
         onClose={() => setCheckoutValidationMessages([])}
       >
         <div className="checkout-validation-modal" role="alert" aria-live="assertive">
@@ -5049,7 +4999,7 @@ function Customers({
   const [signatureRecordId, setSignatureRecordId] = useState("");
   const [signatureOrderId, setSignatureOrderId] = useState("");
   const [signatureTitle, setSignatureTitle] = useState("服务完成确认签名");
-  const [signatureContent, setSignatureContent] = useState("本人确认本次到店服务已完成，服务项目、项目卡核销和服务档案内容无误。");
+  const [signatureContent, setSignatureContent] = useState("本人确认本次服务已完成，项目卡核销无误。");
   const [signatureValidDays, setSignatureValidDays] = useState(7);
   const [followUpCustomerId, setFollowUpCustomerId] = useState(data.customers[0]?.id ?? "");
   const [followUpStaffId, setFollowUpStaffId] = useState(serviceStaff[0]?.id ?? "");
@@ -5553,10 +5503,10 @@ function Customers({
   const showEmptyCustomerDetail = !selectedCustomer;
   type CustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
-    { key: "profile", title: "客户档案", desc: "客户资料和客户列表", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
-    { key: "cards", title: "项目次数卡", desc: "开项目卡、充值次数和核销记录", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
-    { key: "followup", title: "新增跟进计划", desc: "回访、护理提醒、会员关怀", icon: MessageCircle, tone: "jade", meta: `${pendingFollowUps} 位` },
-    { key: "signature", title: "服务确认签名", desc: "", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
+    { key: "profile", title: "客户档案", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
+    { key: "cards", title: "项目次数卡", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
+    { key: "followup", title: "新增跟进计划", icon: MessageCircle, tone: "jade", meta: `${pendingFollowUps} 位` },
+    { key: "signature", title: "服务确认签名", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const activeModuleSubtitle = activeModule === "followup" ? "为当前客户设置回访、护理提醒或会员关怀任务" : "客户资料、项目卡和服务确认记录";
@@ -5773,7 +5723,7 @@ function Customers({
                     <div className="customer-section-title">
                       <strong>{selectedCustomer.note ? "客户备注" : "下次建议"}</strong>
                     </div>
-                    <p>{selectedCustomer.note || lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议，可在跟进计划中补充客户状态和下次建议。"}</p>
+                    <p>{selectedCustomer.note || lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议。"}</p>
                   </section>
                 </div>
               )}
@@ -5903,7 +5853,7 @@ function Customers({
       <Modal
         open={customerEditOpen && Boolean(selectedCustomer)}
         title="编辑客户资料"
-        subtitle="姓名、手机号、来源、标签、生日和备注"
+        subtitle="客户基础资料"
         size="large"
         onClose={() => setCustomerEditOpen(false)}
       >
@@ -5912,10 +5862,10 @@ function Customers({
           <label>手机号<input type="tel" inputMode="numeric" maxLength={11} value={editCustomerPhone} onChange={(event) => setEditCustomerPhone(normalizeMobilePhoneDraft(event.target.value))} autoComplete="tel" required /></label>
           <label>会员等级<input value={editCustomerLevel} onChange={(event) => setEditCustomerLevel(event.target.value)} placeholder="普通会员" /></label>
           <label>生日<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={editCustomerBirthday} onChange={(event) => setEditCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setEditCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
-          <label>来源<input value={editCustomerSource} onChange={(event) => setEditCustomerSource(event.target.value)} placeholder="门店登记 / 开卡登记 / 老客转介绍" /></label>
+          <label>来源<input value={editCustomerSource} onChange={(event) => setEditCustomerSource(event.target.value)} placeholder="门店登记" /></label>
           <label>标签<input value={editCustomerTags} onChange={(event) => setEditCustomerTags(event.target.value)} placeholder="多个标签用逗号分隔" /></label>
-          <label className="span-2">客户备注<textarea value={editCustomerNote} onChange={(event) => setEditCustomerNote(event.target.value)} placeholder="客户皮肤状态、偏好、禁忌、沟通注意事项等" /></label>
-          <label className="span-2">修改说明<textarea value={editCustomerReason} onChange={(event) => setEditCustomerReason(event.target.value)} placeholder="例如：手机号录入错误，已核对客户本人。普通小改可简写。" /></label>
+          <label className="span-2">客户备注<textarea value={editCustomerNote} onChange={(event) => setEditCustomerNote(event.target.value)} placeholder="皮肤状态、偏好" /></label>
+          <label className="span-2">修改说明<textarea value={editCustomerReason} onChange={(event) => setEditCustomerReason(event.target.value)} placeholder="例如：手机号录错" /></label>
           <p className="form-note span-2">保存后会记录修改人、时间、改动字段和修改说明。</p>
           <div className="form-submit-row span-2">
             <button type="button" onClick={() => setCustomerEditOpen(false)}>取消</button>
@@ -5935,7 +5885,7 @@ function Customers({
           <Select label="跟进方式" value={editFollowUpMethod} onChange={(value) => setEditFollowUpMethod(value as "电话" | "微信" | "到店")} options={["微信", "电话", "到店"].map((item) => ({ value: item, label: item }))} />
           <DateTimeInput label="计划跟进时间" value={editFollowUpDueAt} onChange={setEditFollowUpDueAt} />
           <label>跟进内容<textarea value={editFollowUpNote} onChange={(event) => setEditFollowUpNote(event.target.value)} /></label>
-          <label className="span-2">修改说明<textarea value={editFollowUpReason} onChange={(event) => setEditFollowUpReason(event.target.value)} placeholder="例如：客户改约，跟进时间顺延。" /></label>
+          <label className="span-2">修改说明<textarea value={editFollowUpReason} onChange={(event) => setEditFollowUpReason(event.target.value)} placeholder="例如：客户改约" /></label>
           <p className="form-note span-2">保存后会记录修改人、时间、改动字段和修改说明。</p>
           <div className="form-submit-row span-2">
             <button type="button" onClick={() => setEditingFollowUpId("")}>取消</button>
@@ -5981,7 +5931,7 @@ function Customers({
               <label>客户姓名<input ref={customerCardNameInputRef} defaultValue={cardCustomerName} onInput={(event) => updateCardCustomerName(event.currentTarget.value)} onBlur={(event) => updateCardCustomerName(event.currentTarget.value)} onCompositionEnd={(event) => updateCardCustomerName(event.currentTarget.value)} autoComplete="name" /></label>
               <label>客户手机号<input ref={customerCardPhoneInputRef} type="tel" inputMode="numeric" autoComplete="tel" maxLength={11} defaultValue={cardCustomerPhone} onInput={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} onBlur={(event) => updateCardCustomerPhone(event.currentTarget.value, event.currentTarget)} /></label>
               <label>客户生日（选填）<input type="text" inputMode="numeric" autoComplete="bday" placeholder="1998-06-12" maxLength={10} value={cardCustomerBirthday} onChange={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} onBlur={(event) => setCardCustomerBirthday(formatBirthdayDraft(event.currentTarget.value))} /></label>
-              <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="如护理偏好、禁忌、沟通注意事项" /></label>
+              <label>客户备注（选填）<input value={cardCustomerNote} onChange={(event) => setCardCustomerNote(event.target.value)} placeholder="护理偏好" /></label>
             </>
           )}
           <Select label="卡类型" value={cardType} onChange={(value) => setCardType(value as CardType)} options={["储值卡", "次数卡", "套餐卡", "折扣卡"].map((item) => ({ value: item, label: item }))} />
@@ -6073,7 +6023,7 @@ function Customers({
           <Select label="跟进类型" value={followUpType} onChange={(value) => setFollowUpType(value as CustomerFollowUpType)} options={customerFollowUpTypeOptions} />
           <Select label="跟进方式" value={followUpMethod} onChange={(value) => setFollowUpMethod(value as "电话" | "微信" | "到店")} options={["微信", "电话", "到店"].map((item) => ({ value: item, label: item }))} />
           <DateTimeInput label="计划跟进时间" value={followUpDueAt} onChange={setFollowUpDueAt} />
-          <label>跟进内容<textarea value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} placeholder="例如：提醒客户 7 天后复查皮肤状态，确认下次护理时间。" /></label>
+          <label>跟进内容<textarea value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} placeholder="例如：提醒复查皮肤状态" /></label>
           <SubmitStatusButton idleText="保存跟进" busyText="保存中..." disabled={!followUpCustomerId || !followUpStaffId || !followUpDueAt || !followUpNote.trim()} />
         </form>
         </>
@@ -6368,12 +6318,12 @@ function Catalog({
     setProductName("");
   };
   const catalogModules: Array<FeatureModule<CatalogModuleKey>> = [
-    { key: "service", title: "新增项目", desc: "服务名称、价格、时长和次数", icon: Sparkles, tone: "violet", meta: "服务目录" },
-    { key: "recipe", title: "商品耗材", desc: "配置服务使用商品", icon: PackagePlus, tone: "jade", meta: "使用商品" },
-    { key: "product", title: "新增商品", desc: "新增商品和初始库存", icon: Boxes, tone: "teal", meta: "库存资料" },
-    { key: "serviceList", title: "项目目录", desc: "查看服务项目、价格和时长", icon: ClipboardList, tone: "rose", meta: `${data.services.length} 个` },
-    { key: "productList", title: "商品列表", desc: "查看商品库存和库存预警", icon: Boxes, tone: "amber", meta: `${data.products.length} 个` },
-    { key: "formulaList", title: "使用商品总览", desc: "查看项目对应使用商品", icon: PackagePlus, tone: "plum", meta: "商品耗材" },
+    { key: "service", title: "新增项目", icon: Sparkles, tone: "violet", meta: "服务目录" },
+    { key: "recipe", title: "商品耗材", icon: PackagePlus, tone: "jade", meta: "使用商品" },
+    { key: "product", title: "新增商品", icon: Boxes, tone: "teal", meta: "库存资料" },
+    { key: "serviceList", title: "项目目录", icon: ClipboardList, tone: "rose", meta: `${data.services.length} 个` },
+    { key: "productList", title: "商品列表", icon: Boxes, tone: "amber", meta: `${data.products.length} 个` },
+    { key: "formulaList", title: "使用商品总览", icon: PackagePlus, tone: "plum", meta: "商品耗材" },
   ];
   const catalogOverviewModules = catalogModules.filter((item) => item.key !== "recipe" && item.key !== "formulaList");
   const activeModuleTitle = activeModule ? catalogModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
@@ -6532,7 +6482,7 @@ function Catalog({
       <Modal
         open={Boolean(editingServiceId)}
         title="编辑项目"
-        subtitle="项目基础资料和绑定耗材"
+        subtitle="项目资料和耗材"
         size="large"
         onClose={() => setEditingServiceId("")}
       >
@@ -6562,7 +6512,7 @@ function Catalog({
             onRemove={removeEditServiceConsumable}
             onQuantityChange={updateEditServiceConsumableQuantity}
           />
-          <label>修改说明<textarea value={editServiceReason} onChange={(event) => setEditServiceReason(event.target.value)} placeholder="例如：项目价格录错，修正为当前价格" /></label>
+          <label>修改说明<textarea value={editServiceReason} onChange={(event) => setEditServiceReason(event.target.value)} placeholder="例如：价格录错" /></label>
           <p className="catalog-edit-note">保存后只影响以后开单/开卡；历史订单会保留当时的项目名称和金额。</p>
           <div className="form-submit-row">
             <button type="button" onClick={() => setEditingServiceId("")}>取消</button>
@@ -6937,7 +6887,7 @@ function Inventory({
         setNewInventoryWarningStock("5");
         setNewInventoryShelfLifeMonths("3");
         setNewInventoryExpiryAt(addMonthsInputValue(3));
-        setInventoryProductSaveMessage({ type: "success", text: supplierLabel ? "商品已保存，供应商来货已同步入库。" : "商品已保存，首批库存已同步入库。" });
+        setInventoryProductSaveMessage({ type: "success", text: supplierLabel ? "商品已保存，来货已入库。" : "商品已保存。" });
       })
       .catch((caught) => {
         const message = caught instanceof Error ? caught.message : "商品保存失败，请检查后再试。";
@@ -7058,7 +7008,7 @@ function Inventory({
         setManualRestockSupplierName("");
         setManualRestockUnitCost("");
         setManualRestockNote("");
-        setManualRestockMessage({ type: "success", text: supplierLabel ? "供应商补货入库已保存，库存和批次已更新。" : "补货入库已保存，库存和批次已更新。" });
+        setManualRestockMessage({ type: "success", text: supplierLabel ? "供应商补货已保存。" : "补货入库已保存。" });
       })
       .catch((caught) => {
         const message = caught instanceof Error ? caught.message : "补货入库失败，请检查后再试。";
@@ -7206,7 +7156,7 @@ function Inventory({
     ].join("；");
     void runMutation(() => actions.createStocktake({ productId: product.id, actualStock: actualStockValue, reason }))
       .then(() => {
-        setInventoryCorrectionMessage({ type: "success", text: "库存纠错已保存，系统已生成盘点调整流水。" });
+        setInventoryCorrectionMessage({ type: "success", text: "库存纠错已保存。" });
         closeInventoryCorrection();
       })
       .catch((caught) => {
@@ -7350,12 +7300,12 @@ function Inventory({
     setInventoryExportMessage("库存已导出");
   };
   const inventoryModules: Array<FeatureModule<InventoryModuleKey>> = [
-    { key: "stockIn", title: "商品入库", desc: "新增商品和已有商品补货", icon: PackagePlus, tone: "teal", meta: "入库" },
-    { key: "loss", title: "商品损耗", desc: "损耗登记和库存扣减", icon: PackageMinus, tone: "rose", meta: "报损" },
-    { key: "list", title: "库存列表", desc: "库存状态、预警和到期查看", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
-    { key: "stocktake", title: "库存盘点", desc: "账实差异和盘点记录", icon: ClipboardList, tone: "violet", meta: `${data.stocktakes.length} 条` },
-    { key: "batches", title: "库存批次", desc: "入库批次、成本和效期", icon: Boxes, tone: "teal", meta: `${data.inventoryBatches.length} 批` },
-    { key: "logs", title: "库存流水", desc: "出入库、采购和盘点历史", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
+    { key: "stockIn", title: "商品入库", icon: PackagePlus, tone: "teal", meta: "入库" },
+    { key: "loss", title: "商品损耗", icon: PackageMinus, tone: "rose", meta: "报损" },
+    { key: "list", title: "库存列表", icon: Boxes, tone: "rose", meta: `${lowStock} 项低库存` },
+    { key: "stocktake", title: "库存盘点", icon: ClipboardList, tone: "violet", meta: `${data.stocktakes.length} 条` },
+    { key: "batches", title: "库存批次", icon: Boxes, tone: "teal", meta: `${data.inventoryBatches.length} 批` },
+    { key: "logs", title: "库存流水", icon: ClipboardList, tone: "plum", meta: `${data.inventoryLogs.length} 条` },
   ];
   const activeModuleTitle = activeModule ? inventoryModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
   const editingProduct = data.products.find((item) => item.id === editingProductId);
@@ -7383,7 +7333,7 @@ function Inventory({
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "库存管理"}
-        subtitle="库存预警、出入库流水和采购记录"
+        subtitle="预警、流水和采购记录"
         size="large"
         onClose={closeModule}
       >
@@ -7494,7 +7444,7 @@ function Inventory({
                       </datalist>
                       <label>采购单价（可选）<input type="number" min={0} step="0.01" value={manualRestockUnitCost} onChange={(event) => setManualRestockUnitCost(event.target.value)} placeholder="成本价，可后补" /></label>
                       <label>到期日期<input type="date" value={manualRestockExpiryAt} onChange={(event) => setManualRestockExpiryAt(event.target.value)} /></label>
-                      <label>备注<input value={manualRestockNote} onChange={(event) => setManualRestockNote(event.target.value)} placeholder="线下补货 / 老板自采" /></label>
+                      <label>备注<input value={manualRestockNote} onChange={(event) => setManualRestockNote(event.target.value)} placeholder="线下补货" /></label>
                       <div className="form-submit-row">
                         <SubmitStatusButton idleText="保存补货入库" busyText="保存中..." disabled={!manualRestockProductId} />
                       </div>
@@ -7831,7 +7781,7 @@ function Inventory({
               </datalist>
               <label>采购单价<input type="number" min={0} step="0.01" value={inventoryCorrectionUnitCost} onChange={(event) => setInventoryCorrectionUnitCost(event.target.value)} placeholder="可选" /></label>
               <label>到期日期<input type="date" value={inventoryCorrectionExpiryAt} onChange={(event) => setInventoryCorrectionExpiryAt(event.target.value)} /></label>
-              <label className="inventory-correction-wide">更正原因 / 备注<input value={inventoryCorrectionReason} onChange={(event) => setInventoryCorrectionReason(event.target.value)} placeholder="员工入库数量填错 / 采购价补录 / 到期日更正" /></label>
+              <label className="inventory-correction-wide">更正原因 / 备注<input value={inventoryCorrectionReason} onChange={(event) => setInventoryCorrectionReason(event.target.value)} placeholder="数量填错 / 采购价补录" /></label>
               <div className="inventory-correction-delta">
                 <span>本次差额</span>
                 <strong>{inventoryCorrectionDelta === undefined ? "-" : `${inventoryCorrectionDelta > 0 ? "+" : ""}${inventoryCorrectionDelta}`}</strong>
@@ -7965,7 +7915,7 @@ function Inventory({
             <strong>{editingProduct ? formatProductStockWithServiceUnits(editingProduct, editingProduct.stock) : "-"}</strong>
             <small>库存数量不能在这里直接修改，请通过入库、损耗或盘点调整。</small>
           </div>
-          <label>修改说明<textarea value={editProductReason} onChange={(event) => setEditProductReason(event.target.value)} placeholder="例如：录入时分类选错，修正为当前分类" /></label>
+          <label>修改说明<textarea value={editProductReason} onChange={(event) => setEditProductReason(event.target.value)} placeholder="例如：分类选错" /></label>
           <div className="form-submit-row">
             <button type="button" onClick={() => setEditingProductId("")}>取消</button>
             <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editProductName.trim() || !editProductUnit.trim()} />
@@ -7981,7 +7931,7 @@ function AdminCenterCard({
   item,
   onClick,
 }: {
-  item: { title: string; desc: string; metric?: string; icon: typeof LayoutDashboard; tone: ModuleTone };
+  item: { title: string; metric?: string; icon: typeof LayoutDashboard; tone: ModuleTone };
   onClick: () => void;
 }) {
   const Icon = item.icon;
