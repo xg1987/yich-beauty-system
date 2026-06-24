@@ -1084,14 +1084,22 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [inventoryEntryModule, setInventoryEntryModule] = useState<InventoryModuleKey | undefined>(() => initialViewFromUrl() === "inventory" ? initialInventoryModuleFromUrl() : undefined);
   const [catalogEntryModule, setCatalogEntryModule] = useState<CatalogModuleKey | undefined>();
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    const savedThemeMode = localStorage.getItem(THEME_KEY);
-    return isThemeMode(savedThemeMode) ? savedThemeMode : "day";
+    try {
+      const savedThemeMode = localStorage.getItem(THEME_KEY);
+      return isThemeMode(savedThemeMode) ? savedThemeMode : "day";
+    } catch {
+      return "day";
+    }
   });
   const [loadingGateStage, setLoadingGateStage] = useState<LoadingGateStage>("connecting");
   const topbarActionsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(THEME_KEY, themeMode);
+    try {
+      localStorage.setItem(THEME_KEY, themeMode);
+    } catch {
+      // Theme persistence is optional; keep rendering even when Web Storage is full.
+    }
     document.documentElement.dataset.themePreference = themeMode;
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);

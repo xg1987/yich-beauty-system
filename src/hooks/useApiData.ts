@@ -7,6 +7,7 @@ import type { AppData, ViewKey } from "../domain/types";
 import { clearCachedStoreName } from "../lib/storeNameCache";
 
 const SESSION_KEY = "yich-system-session";
+let fallbackSession: UserSession | undefined;
 
 function initialDataView(): ViewKey {
   const requestedView = new URLSearchParams(window.location.search).get("view");
@@ -14,20 +15,48 @@ function initialDataView(): ViewKey {
 }
 
 function readSavedSession() {
-  const savedSession = localStorage.getItem(SESSION_KEY);
+  let savedSession: string | null = null;
+  try {
+    savedSession = localStorage.getItem(SESSION_KEY);
+  } catch {
+    return fallbackSession;
+  }
   if (!savedSession) return undefined;
   try {
-    return normalizeUserSession(JSON.parse(savedSession) as UserSession);
+    fallbackSession = normalizeUserSession(JSON.parse(savedSession) as UserSession);
+    return fallbackSession;
   } catch {
-    localStorage.removeItem(SESSION_KEY);
+    safeRemoveSavedSession();
     return undefined;
   }
 }
 
 function saveSession(session: UserSession) {
   const normalized = normalizeUserSession(session);
-  localStorage.setItem(SESSION_KEY, JSON.stringify(normalized));
+  fallbackSession = normalized;
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(normalized));
+  } catch {
+    // Some tablets can exhaust or disable Web Storage. Keep the login usable
+    // for the current app session instead of blocking a valid login.
+  }
   return normalized;
+}
+
+function safeRemoveSavedSession() {
+  fallbackSession = undefined;
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Ignore storage cleanup failures; session state is already cleared in memory.
+  }
+}
+
+function userFacingAuthError(caught: unknown, fallback: string) {
+  const message = caught instanceof Error ? caught.message : fallback;
+  return /quota.*exceeded|exceeded.*quota|存储|storage/i.test(message)
+    ? "平板本地缓存空间已满或被系统限制，请清理浏览器缓存后再试。"
+    : message;
 }
 
 export function useApiData() {
@@ -59,7 +88,7 @@ export function useApiData() {
       const nextData = await createApiClient(() => nextSession.token).fetchDataSlice(initialDataView());
       setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "登录失败");
+      setError(userFacingAuthError(caught, "登录失败"));
     } finally {
       setLoading(false);
     }
@@ -74,7 +103,7 @@ export function useApiData() {
       const nextData = await createApiClient(() => nextSession.token).fetchDataSlice(initialDataView());
       setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "认证失败");
+      setError(userFacingAuthError(caught, "认证失败"));
     } finally {
       setLoading(false);
     }
@@ -94,7 +123,7 @@ export function useApiData() {
   };
 
   const logout = () => {
-    localStorage.removeItem(SESSION_KEY);
+    safeRemoveSavedSession();
     clearCachedStoreName(session);
     setSession(undefined);
     setData(undefined);
@@ -114,7 +143,7 @@ export function useApiData() {
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "加载数据失败";
       if (message.includes("请先登录")) {
-        localStorage.removeItem(SESSION_KEY);
+        safeRemoveSavedSession();
         clearCachedStoreName(session);
         setSession(undefined);
         setData(undefined);
