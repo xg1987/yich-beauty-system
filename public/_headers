@@ -26,6 +26,9 @@
 /apple-touch-icon.png
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 
+/ios-splash/*
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
 /app-icon-192.png
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 

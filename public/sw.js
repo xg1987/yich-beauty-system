@@ -10,6 +10,17 @@ const APP_SHELL_ASSETS = [
   `/app-icon-512.png?v=${ICON_VERSION}`,
   `/maskable-icon-512.png?v=${ICON_VERSION}`,
   `/apple-touch-icon.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-640x1136.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-750x1334.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-1125x2436.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-828x1792.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-1242x2688.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-1170x2532.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-1179x2556.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-1290x2796.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-1536x2048.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-1668x2388.png?v=${ICON_VERSION}`,
+  `/ios-splash/splash-2048x2732.png?v=${ICON_VERSION}`,
 ];
 
 self.addEventListener("install", (event) => {
