@@ -286,6 +286,18 @@ export class D1BeautyDatabase {
     await this.db.batch(statements);
   }
 
+  async replaceTables(data: AppData, keys: readonly D1DataTableName[]) {
+    const uniqueKeys = Array.from(new Set(keys));
+    const statements: D1PreparedStatement[] = [];
+    for (const tableName of [...tableNames].reverse()) {
+      if (uniqueKeys.includes(tableName)) {
+        statements.push(this.db.prepare(`DELETE FROM ${tableName}`));
+      }
+    }
+    statements.push(...this.writeDataStatements(pickDataTables(data, uniqueKeys)));
+    await this.db.batch(statements);
+  }
+
   async replaceStoreData(storeId: string, data: AppData) {
     const statements: D1PreparedStatement[] = [];
     this.deleteStoreDataStatements(statements, storeId);

@@ -142,6 +142,37 @@ const publicSignatureDataKeys = [
   "customerSignatures",
 ] as const;
 
+const customerSignatureWriteKeys = [
+  "appointments",
+  "orders",
+  "memberCards",
+  "memberCardTransactions",
+  "customerSignatures",
+] as const;
+
+const customerSignatureMutationKeys = [
+  "customers",
+  "services",
+  "appointments",
+  "orders",
+  "memberCards",
+  "memberCardTransactions",
+  "customerServiceRecords",
+  "customerSignatures",
+] as const;
+
+const appointmentMutationKeys = [
+  "storeProfiles",
+  "customers",
+  "services",
+  "staff",
+  "appointments",
+  "staffUnavailableSlots",
+  "staffShifts",
+  "operationLogs",
+  "notifications",
+] as const;
+
 export const onRequest: PagesFunction<Env> = async (context) => {
   const database = new D1BeautyDatabase(context.env.DB);
 
@@ -283,18 +314,24 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "GET" && pathname.startsWith("/api/public/customer-signatures/")) {
       const token = decodeURIComponent(pathname.split("/").at(-1) ?? "");
-      return sendJson(200, publicSignaturePayload(await database.readDataTables(publicSignatureDataKeys), token));
+      return sendJson(200, publicSignaturePayload(await readPublicSignatureData(database, token), token));
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/public/customer-signatures/") && pathname.endsWith("/sign")) {
       const token = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = signCustomerSignature(await database.readDataTables(publicSignatureDataKeys), {
+      const currentData = await readPublicSignatureData(database, token);
+      const nextData = signCustomerSignature(currentData, {
         token,
         signerName: requiredString(body, "signerName"),
         signatureText: requiredString(body, "signatureText"),
       });
-      await database.replacePublicSignatureData(nextData);
+      const signedSignature = nextData.customerSignatures.find((item) => item.token === token);
+      if (signedSignature?.storeId) {
+        await database.replaceStoreTables(signedSignature.storeId, nextData, customerSignatureWriteKeys);
+      } else {
+        await database.replacePublicSignatureData(nextData);
+      }
       return sendJson(201, publicSignaturePayload(nextData, token));
     }
 
@@ -1009,7 +1046,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requirePermission(session, "appointments:manage");
       const body = await readJson(context.request);
       const requestedStaffId = requiredString(body, "staffId");
-      const baseData = await database.readData();
+      const baseData = await readMutationDataForRequest(database, context.request, session, appointmentMutationKeys);
       let appointedData = createAppointment(
         baseData,
         {
@@ -1417,7 +1454,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/customer-signatures") {
       requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const body = await readJson(context.request);
-      const nextData = createCustomerSignature(await database.readData(), {
+      const nextData = createCustomerSignature(await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys), {
         customerId: requiredString(body, "customerId"),
         serviceRecordId: optionalString(body, "serviceRecordId"),
         orderId: optionalString(body, "orderId"),
@@ -1434,7 +1471,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const signatureId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys);
       const signature = currentData.customerSignatures.find((item) => item.id === signatureId);
       if (!signature) throw new Error("签名记录不存在");
       const nextData = signCustomerSignature(currentData, {
@@ -1442,7 +1479,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         signerName: requiredString(body, "signerName"),
         signatureText: requiredString(body, "signatureText"),
       });
-      await persistDataTables(database, session, nextData, ["appointments", "orders", "memberCards", "memberCardTransactions", "customerSignatures"]);
+      await persistDataTables(database, session, nextData, customerSignatureWriteKeys);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -1863,10 +1900,12 @@ function persistData(database: D1BeautyDatabase, session: UserSession, nextData:
 }
 
 function persistDataTables(database: D1BeautyDatabase, session: UserSession, nextData: AppData, keys: readonly D1DataTableName[]) {
-  if (session.user.role !== "superadmin" && session.user.storeId) {
-    return database.replaceStoreTables(session.user.storeId, nextData, keys);
+  if (session.user.role !== "superadmin") {
+    const storeId = session.user.storeId ?? sessionStoreId(nextData, session);
+    if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+    return database.replaceStoreTables(storeId, nextData, keys);
   }
-  return database.replaceData(nextData);
+  return database.replaceTables(nextData, keys);
 }
 
 function hasBodyKey(body: JsonBody, key: string) {
@@ -4382,6 +4421,38 @@ async function readDataForRequest(database: D1BeautyDatabase, request: Request, 
     data = await database.readData();
   }
   return expireStaleMarketingAiRecords(data);
+}
+
+async function readMutationDataForRequest(
+  database: D1BeautyDatabase,
+  request: Request,
+  session: UserSession,
+  requiredKeys: readonly D1DataTableName[],
+) {
+  const requestedView = requestedDataView(request);
+  if (!isSliceRequest(request) || !requestedView) {
+    return database.readData();
+  }
+  const keys = uniqueDataTableKeys([...requiredKeys, ...dataKeysForView(requestedView)]);
+  if (session.user.role !== "superadmin") {
+    const storeId = session.user.storeId ?? sessionStoreId(await database.readDataTables(["storeProfiles", "authUsers", "staff"]), session);
+    if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+    return database.readDataTablesForStore(keys, storeId);
+  }
+  return database.readDataTables(keys);
+}
+
+async function readPublicSignatureData(database: D1BeautyDatabase, token: string) {
+  const signatureIndexData = await database.readDataTables(["customerSignatures"]);
+  const signature = signatureIndexData.customerSignatures.find((item) => item.token === token);
+  if (signature?.storeId) {
+    return database.readDataTablesForStore(publicSignatureDataKeys, signature.storeId);
+  }
+  return database.readDataTables(publicSignatureDataKeys);
+}
+
+function uniqueDataTableKeys(keys: readonly D1DataTableName[]) {
+  return Array.from(new Set(keys));
 }
 
 function sendScopedData(request: Request, statusCode: number, data: AppData, session: UserSession) {
