@@ -163,6 +163,7 @@ const customerSignatureMutationKeys = [
 
 const appointmentMutationKeys = [
   "storeProfiles",
+  "authUsers",
   "customers",
   "services",
   "staff",
@@ -285,6 +286,400 @@ const memberCardRefundMutationKeys = [
 const memberCardRefundWriteKeys = [
   "memberCards",
   "memberCardTransactions",
+  "operationLogs",
+] as const;
+
+const customerMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "customers",
+  "operationLogs",
+] as const;
+
+const customerWriteKeys = [
+  "customers",
+  "operationLogs",
+] as const;
+
+const tagMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "customers",
+  "tagDefinitions",
+  "operationLogs",
+] as const;
+
+const tagWriteKeys = [
+  "customers",
+  "tagDefinitions",
+  "operationLogs",
+] as const;
+
+const serviceRecordMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "customers",
+  "staff",
+  "services",
+  "products",
+  "orders",
+  "memberCardTransactions",
+  "customerServiceRecords",
+  "customerFollowUps",
+  "notifications",
+] as const;
+
+const serviceRecordWriteKeys = [
+  "customers",
+  "customerServiceRecords",
+  "customerFollowUps",
+  "notifications",
+] as const;
+
+const followUpMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "customers",
+  "staff",
+  "customerFollowUps",
+  "operationLogs",
+] as const;
+
+const followUpWriteKeys = [
+  "customerFollowUps",
+  "operationLogs",
+] as const;
+
+const serviceCatalogMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "services",
+  "products",
+  "orders",
+  "operationLogs",
+] as const;
+
+const serviceCatalogWriteKeys = [
+  "services",
+  "orders",
+  "operationLogs",
+] as const;
+
+const productCatalogMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "services",
+  "products",
+  "orders",
+  "inventoryBatches",
+  "inventoryLogs",
+  "operationLogs",
+] as const;
+
+const productCatalogWriteKeys = [
+  "products",
+  "orders",
+  "inventoryBatches",
+  "inventoryLogs",
+  "operationLogs",
+] as const;
+
+const supplierMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "suppliers",
+] as const;
+
+const supplierWriteKeys = [
+  "suppliers",
+] as const;
+
+const purchaseMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "suppliers",
+  "products",
+  "inventoryBatches",
+  "purchaseOrders",
+  "inventoryLogs",
+  "dailyCloses",
+] as const;
+
+const purchaseWriteKeys = [
+  "suppliers",
+  "products",
+  "inventoryBatches",
+  "purchaseOrders",
+  "inventoryLogs",
+] as const;
+
+const stocktakeMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "products",
+  "inventoryBatches",
+  "stocktakes",
+  "inventoryLogs",
+  "dailyCloses",
+] as const;
+
+const stocktakeWriteKeys = [
+  "products",
+  "inventoryBatches",
+  "stocktakes",
+  "inventoryLogs",
+] as const;
+
+const restockLowMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "suppliers",
+  "products",
+  "inventoryBatches",
+  "purchaseOrders",
+  "inventoryLogs",
+  "operationLogs",
+  "dailyCloses",
+] as const;
+
+const restockLowWriteKeys = [
+  "suppliers",
+  "products",
+  "inventoryBatches",
+  "purchaseOrders",
+  "inventoryLogs",
+  "operationLogs",
+] as const;
+
+const notificationMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "notifications",
+] as const;
+
+const notificationWriteKeys = [
+  "notifications",
+] as const;
+
+const accountProfileMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "systemConfigs",
+  "operationLogs",
+] as const;
+
+const accountProfileWriteKeys = [
+  "authUsers",
+  "staff",
+  "operationLogs",
+] as const;
+
+const authUserMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "operationLogs",
+] as const;
+
+const authUserWriteKeys = [
+  "authUsers",
+  "operationLogs",
+] as const;
+
+const systemConfigMutationKeys = [
+  "systemConfigs",
+  "operationLogs",
+] as const;
+
+const systemConfigWriteKeys = [
+  "systemConfigs",
+  "operationLogs",
+] as const;
+
+const storeStatusMutationKeys = [
+  "storeProfiles",
+  "operationLogs",
+] as const;
+
+const storeStatusWriteKeys = [
+  "storeProfiles",
+  "operationLogs",
+] as const;
+
+const storeProfileMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "operationLogs",
+] as const;
+
+const storeProfileWriteKeys = [
+  "storeProfiles",
+  "operationLogs",
+] as const;
+
+const onlineStorefrontMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "services",
+  "onlineStorefronts",
+  "operationLogs",
+] as const;
+
+const onlineStorefrontWriteKeys = [
+  "onlineStorefronts",
+  "operationLogs",
+] as const;
+
+const staffMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "operationLogs",
+] as const;
+
+const staffWriteKeys = [
+  "staff",
+  "operationLogs",
+] as const;
+
+const staffDeleteMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staffInvites",
+  "staff",
+  "appointments",
+  "orders",
+  "commissions",
+  "staffShifts",
+  "staffUnavailableSlots",
+  "customerServiceRecords",
+  "customerFollowUps",
+  "operationLogs",
+] as const;
+
+const staffDeleteWriteKeys = [
+  "authUsers",
+  "staffInvites",
+  "staff",
+  "operationLogs",
+] as const;
+
+const staffInviteMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "staffInvites",
+  "systemConfigs",
+] as const;
+
+const staffInviteWriteKeys = [
+  "staffInvites",
+] as const;
+
+const storeOwnerInviteMutationKeys = [
+  "authUsers",
+  "storeOwnerInvites",
+  "systemConfigs",
+] as const;
+
+const storeOwnerInviteWriteKeys = [
+  "storeOwnerInvites",
+] as const;
+
+const staffScheduleMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "services",
+  "appointments",
+  "staffUnavailableSlots",
+  "staffShifts",
+  "operationLogs",
+] as const;
+
+const staffUnavailableWriteKeys = [
+  "staffUnavailableSlots",
+  "operationLogs",
+] as const;
+
+const staffShiftWriteKeys = [
+  "staffShifts",
+] as const;
+
+const onlineBookingConvertMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "customers",
+  "services",
+  "staff",
+  "appointments",
+  "onlineBookingRequests",
+  "staffUnavailableSlots",
+  "staffShifts",
+  "operationLogs",
+] as const;
+
+const onlineBookingConvertWriteKeys = [
+  "customers",
+  "appointments",
+  "onlineBookingRequests",
+  "operationLogs",
+] as const;
+
+const approvalMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "approvalRequests",
+  "notifications",
+  "operationLogs",
+] as const;
+
+const approvalCreateWriteKeys = [
+  "approvalRequests",
+  "notifications",
+  "operationLogs",
+] as const;
+
+const approvalDecisionWriteKeys = [
+  "approvalRequests",
+  "operationLogs",
+] as const;
+
+const dailyCloseMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "orders",
+  "refunds",
+  "commissions",
+  "memberCardTransactions",
+  "dailyCloses",
+  "operationLogs",
+] as const;
+
+const dailyCloseWriteKeys = [
+  "dailyCloses",
+  "operationLogs",
+] as const;
+
+const commissionSettleMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "commissions",
+  "commissionSettlements",
+  "operationLogs",
+] as const;
+
+const commissionSettleWriteKeys = [
+  "commissions",
+  "commissionSettlements",
   "operationLogs",
 ] as const;
 
@@ -465,8 +860,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (context.request.method === "PATCH" && pathname === "/api/account-profile") {
+      const timing = startMutationTiming("account-profile-update");
       const body = await readJson(context.request);
-      const updatedData = updateAccountProfile(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, accountProfileMutationKeys);
+      markMutationRead(timing);
+      const updatedData = updateAccountProfile(currentData, {
         userId: session.user.id,
         name: requiredString(body, "name"),
         avatarUrl: optionalString(body, "avatarUrl"),
@@ -478,55 +876,69 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetId: session.user.id,
         summary: `${requiredString(body, "name")} 更新账号资料`,
       });
-      await persistData(database, session, nextData);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, accountProfileWriteKeys);
+      markMutationWrite(timing);
       const updatedUser = nextData.authUsers.find((user) => user.id === session.user.id);
       if (!updatedUser) throw new Error("账号不存在");
       const nextSession = buildSession(session.token, updatedUser, nextData.systemConfigs);
-      return sendJson(200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) });
+      return withMutationTiming(sendJson(200, { session: nextSession, data: scopeDataForSession(nextData, nextSession) }), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/status")) {
       requirePermission(session, "staff:manage");
+      const timing = startMutationTiming("auth-user-status-update");
       const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, authUserMutationKeys);
+      markMutationRead(timing);
       assertCanManageAuthUser(currentData, session, userId);
       const nextData = updateAuthUserStatus(currentData, {
         userId,
         status: requiredString(body, "status") as "active" | "disabled" | "pending",
         operatedBy: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, authUserWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/password")) {
       requirePermission(session, "staff:manage");
+      const timing = startMutationTiming("auth-user-password-reset");
       const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, authUserMutationKeys);
+      markMutationRead(timing);
       assertCanManageAuthUser(currentData, session, userId);
       const nextData = resetAuthUserPassword(currentData, {
         userId,
         password: await hashPassword(requiredString(body, "password")),
         operatedBy: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, authUserWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/auth-users/") && pathname.endsWith("/ai-credits")) {
       if (session.user.role !== "superadmin") throw new Error("只有系统管理员可以调整 AI 积分");
+      const timing = startMutationTiming("auth-user-ai-credits-update");
       const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, authUserMutationKeys);
+      markMutationRead(timing);
       const nextData = updateAuthUserAiCredits(currentData, {
         userId,
         credits: optionalNumber(body, "credits") ?? 0,
         operatedBy: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, authUserWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "GET" && pathname === "/api/data") {
@@ -782,37 +1194,55 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/read")) {
+      const timing = startMutationTiming("notification-read");
       const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
-      const nextData = markNotificationRead(await database.readData(), { notificationId, userId: session.user.id });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      const currentData = await readMutationDataForRequest(database, context.request, session, notificationMutationKeys);
+      markMutationRead(timing);
+      const nextData = markNotificationRead(currentData, { notificationId, userId: session.user.id });
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, notificationWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/notifications/") && pathname.endsWith("/archive")) {
+      const timing = startMutationTiming("notification-archive");
       const notificationId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
-      const nextData = archiveNotification(await database.readData(), { notificationId, userId: session.user.id });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      const currentData = await readMutationDataForRequest(database, context.request, session, notificationMutationKeys);
+      markMutationRead(timing);
+      const nextData = archiveNotification(currentData, { notificationId, userId: session.user.id });
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, notificationWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/notifications/read-all") {
-      const nextData = markAllVisibleNotificationsRead(await database.readData(), {
+      const timing = startMutationTiming("notification-read-all");
+      const currentData = await readMutationDataForRequest(database, context.request, session, notificationMutationKeys);
+      markMutationRead(timing);
+      const nextData = markAllVisibleNotificationsRead(currentData, {
         userId: session.user.id,
         role: session.user.role,
         staffId: session.user.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, notificationWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/system-configs/")) {
       if (session.user.role !== "superadmin") {
         throw new Error("只有平台 Admin 可以修改系统配置");
       }
+      const timing = startMutationTiming("system-config-update");
       const key = decodeURIComponent(pathname.split("/").at(-1) ?? "") as SystemConfigKey;
       const body = await readJson(context.request);
+      const currentData = await readMutationDataForRequest(database, context.request, session, systemConfigMutationKeys);
+      markMutationRead(timing);
       const nextData = updateData(
-        await database.readData(),
+        currentData,
         session,
         {
           action: "更新系统配置",
@@ -822,29 +1252,38 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         },
         (data) => updateSystemConfig(data, { key, value: requiredString(body, "value"), updatedBy: session.user.id }),
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, systemConfigWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/stores/") && pathname.endsWith("/status")) {
       if (session.user.role !== "superadmin") {
         throw new Error("只有平台 Admin 可以管理门店状态");
       }
+      const timing = startMutationTiming("store-status-update");
       const storeId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = updateStoreStatus(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, storeStatusMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateStoreStatus(currentData, {
         storeId,
         status: requiredString(body, "status") as "active" | "disabled",
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, storeStatusWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname === "/api/ai-usage-permissions") {
       requirePermission(session, "settings:view");
+      const timing = startMutationTiming("ai-usage-permissions-update");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, storeProfileMutationKeys);
+      markMutationRead(timing);
       const targetStoreId = session.user.role === "superadmin" ? requiredString(body, "storeId") : sessionStoreId(currentData, session);
       const nextData = addOperationLog(
         updateStoreAiUsagePermissions(currentData, {
@@ -859,14 +1298,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新门店 AI 使用权限`,
         },
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, storeProfileWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname === "/api/operational-permissions") {
       requirePermission(session, "settings:view");
+      const timing = startMutationTiming("operational-permissions-update");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, storeProfileMutationKeys);
+      markMutationRead(timing);
       const targetStoreId = session.user.role === "superadmin" ? requiredString(body, "storeId") : sessionStoreId(currentData, session);
       const permissions = normalizeStoreOperationalPermissions(body.permissions);
       const nextData = addOperationLog(
@@ -882,14 +1325,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新预约可见范围`,
         },
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, storeProfileWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname === "/api/store-profile") {
       requirePermission(session, "settings:view");
+      const timing = startMutationTiming("store-profile-update");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, storeProfileMutationKeys);
+      markMutationRead(timing);
       const nextData = addOperationLog(
         updateStoreProfile(currentData, {
           storeId: sessionStoreId(currentData, session),
@@ -909,14 +1356,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新门店基础资料`,
         },
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, storeProfileWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff") {
       requirePermission(session, "staff:manage");
+      const timing = startMutationTiming("staff-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, staffMutationKeys);
+      markMutationRead(timing);
       const nextData = addOperationLog(
         addStaffMember(currentData, {
           storeId: sessionStoreId(currentData, session),
@@ -934,16 +1385,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 新增员工 ${requiredString(body, "name")}`,
         },
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, staffWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/staff/")) {
       requirePermission(session, "staff:manage");
+      const timing = startMutationTiming("staff-update");
       const staffId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
+      const currentData = await readMutationDataForRequest(database, context.request, session, staffMutationKeys);
+      markMutationRead(timing);
       const nextData = addOperationLog(
-        updateStaffMember(await database.readData(), {
+        updateStaffMember(currentData, {
           staffId,
           name: optionalString(body, "name"),
           phone: optionalString(body, "phone"),
@@ -960,43 +1416,57 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 更新员工资料`,
         },
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, staffWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "DELETE" && pathname.startsWith("/api/staff/")) {
       requirePermission(session, "staff:manage");
+      const timing = startMutationTiming("staff-delete");
       const staffId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, staffDeleteMutationKeys);
+      markMutationRead(timing);
       assertCanManageStaff(currentData, session, staffId);
       const nextData = deleteStaffMember(currentData, {
         staffId,
         operatedBy: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, staffDeleteWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff-invites") {
       requirePermission(session, "staff:manage");
+      const timing = startMutationTiming("staff-invite-create");
       const body = await readJson(context.request);
-      const nextData = createStaffInvite(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, staffInviteMutationKeys);
+      markMutationRead(timing);
+      const nextData = createStaffInvite(currentData, {
         staffId: requiredString(body, "staffId"),
         account: requiredString(body, "account"),
         role: requiredString(body, "role") as UserRole,
         createdBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, staffInviteWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/store-owner-invites") {
       if (session.user.role !== "superadmin") {
         throw new Error("只有平台 Admin 可以邀请门店老板");
       }
+      const timing = startMutationTiming("store-owner-invite-create");
       const body = await readJson(context.request);
-      const nextData = createStoreOwnerInvite(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, storeOwnerInviteMutationKeys);
+      markMutationRead(timing);
+      const nextData = createStoreOwnerInvite(currentData, {
         storeName: requiredString(body, "storeName"),
         ownerName: requiredString(body, "ownerName"),
         phone: requiredString(body, "phone"),
@@ -1005,8 +1475,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         createdBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, storeOwnerInviteWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/store-owner-applications/")) {
@@ -1027,19 +1499,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/staff-invites/")) {
       requirePermission(session, "staff:manage");
+      const timing = startMutationTiming("staff-invite-revoke");
       const inviteId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
-      const nextData = revokeStaffInvite(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, staffInviteMutationKeys);
+      markMutationRead(timing);
+      const nextData = revokeStaffInvite(currentData, {
         inviteId,
         revokedBy: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, staffInviteWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/online-storefront") {
       requirePermission(session, "settings:view");
+      const timing = startMutationTiming("online-storefront-update");
       const body = await readJson(context.request);
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, onlineStorefrontMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "更新线上店铺",
         targetType: "onlineStorefront",
         targetId: "current",
@@ -1054,8 +1534,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           enabledServiceIds: optionalStringArray(body, "enabledServiceIds") ?? [],
         }),
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, onlineStorefrontWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/checkout") {
@@ -1218,8 +1700,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/staff-unavailable-slots") {
       requirePermission(session, "appointments:manage");
+      const timing = startMutationTiming("staff-unavailable-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, staffScheduleMutationKeys);
+      markMutationRead(timing);
       const nextData = createStaffUnavailableSlot(currentData, {
         storeId: sessionStoreId(currentData, session),
         staffId: requiredString(body, "staffId"),
@@ -1228,14 +1712,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         reason: optionalString(body, "reason") ?? "不可预约",
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, staffUnavailableWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff-shifts") {
       requirePermission(session, "appointments:manage");
+      const timing = startMutationTiming("staff-shift-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, staffScheduleMutationKeys);
+      markMutationRead(timing);
       const nextData = createStaffShift(currentData, {
         storeId: sessionStoreId(currentData, session),
         staffId: requiredString(body, "staffId"),
@@ -1244,16 +1732,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         note: optionalString(body, "note") ?? "门店班次",
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, staffShiftWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/appointments/") && pathname.endsWith("/reschedule")) {
       requirePermission(session, "appointments:manage");
+      const timing = startMutationTiming("appointment-reschedule");
       const appointmentId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
       const requestedStaffId = optionalString(body, "staffId");
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, appointmentMutationKeys);
+      markMutationRead(timing);
       const nextData = updateData(currentData, session, {
         action: "改约",
         targetType: "appointment",
@@ -1271,43 +1763,58 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           note: optionalString(body, "note"),
         }),
       );
+      startMutationWrite(timing);
       await persistDataTables(database, session, nextData, ["appointments", "operationLogs"]);
-      return sendScopedData(context.request, 200, nextData, session);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/appointments/")) {
       requirePermission(session, "appointments:manage");
+      const timing = startMutationTiming("appointment-status-update");
       const appointmentId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
       const status = requiredString(body, "status") as Appointment["status"];
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, appointmentMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "更新预约状态",
         targetType: "appointment",
         targetId: appointmentId,
         summary: `${session.user.name} 将预约状态改为 ${status}`,
       }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
+      startMutationWrite(timing);
       await persistDataTables(database, session, nextData, ["appointments", "operationLogs"]);
-      return sendScopedData(context.request, 200, nextData, session);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/online-booking-requests/") && pathname.endsWith("/convert")) {
       requirePermission(session, "appointments:manage");
+      const timing = startMutationTiming("online-booking-convert");
       const requestId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = convertOnlineBookingRequest(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, onlineBookingConvertMutationKeys);
+      markMutationRead(timing);
+      const nextData = convertOnlineBookingRequest(currentData, {
         requestId,
         staffId: requiredString(body, "staffId"),
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, onlineBookingConvertWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/customers") {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("customer-create");
       const body = await readJson(context.request);
       const customerPhone = requireMobilePhone(requiredString(body, "phone"));
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, customerMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "新增客户",
         targetType: "customer",
         targetId: "latest",
@@ -1328,15 +1835,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ...data.customers,
         ],
       }));
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, customerWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/customers/")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("customer-update");
       const customerId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, customerMutationKeys);
+      markMutationRead(timing);
       const currentCustomer = currentData.customers.find((customer) => customer.id === customerId);
       if (!currentCustomer) throw new Error("客户不存在");
       const rawPhone = optionalString(body, "phone");
@@ -1366,14 +1877,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ),
         };
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, customerWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/tags") {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("tag-create");
       const body = await readJson(context.request);
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, tagMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "新增标签",
         targetType: "tag",
         targetId: "latest",
@@ -1386,15 +1902,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           color: optionalString(body, "color"),
         }),
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, tagWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/tags/")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("tag-update");
       const tagId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, tagMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "更新标签",
         targetType: "tag",
         targetId: tagId,
@@ -1407,8 +1928,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           status: optionalString(body, "status") as "启用" | "停用" | undefined,
         }),
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, tagWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/member-cards") {
@@ -1533,8 +2056,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/approvals") {
       requirePermission(session, "pos:manage");
+      const timing = startMutationTiming("approval-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, approvalMutationKeys);
+      markMutationRead(timing);
       const approvalData = createApprovalRequest(currentData, {
         storeId: sessionStoreId(currentData, session),
         type: requiredString(body, "type") as "改价折扣" | "订单退款",
@@ -1553,27 +2078,37 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         storeId: approval.storeId,
         audienceRoles: ["owner", "manager", "finance"],
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, approvalCreateWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/approvals/")) {
       requirePermission(session, "approvals:manage");
+      const timing = startMutationTiming("approval-decision");
       const approvalId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
-      const nextData = decideApprovalRequest(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, approvalMutationKeys);
+      markMutationRead(timing);
+      const nextData = decideApprovalRequest(currentData, {
         approvalId,
         userId: session.user.id,
         approved: optionalBoolean(body, "approved") ?? true,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, approvalDecisionWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/service-records") {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("service-record-create");
       const body = await readJson(context.request);
-      const recordData = addCustomerServiceRecord(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, serviceRecordMutationKeys);
+      markMutationRead(timing);
+      const recordData = addCustomerServiceRecord(currentData, {
         customerId: requiredString(body, "customerId"),
         staffId: requiredString(body, "staffId"),
         serviceId: requiredString(body, "serviceId"),
@@ -1598,8 +2133,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
         staffId: followUp.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, serviceRecordWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/customer-signatures") {
@@ -1636,23 +2173,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/follow-ups") {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("follow-up-create");
       const body = await readJson(context.request);
-      const nextData = addCustomerFollowUp(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, followUpMutationKeys);
+      markMutationRead(timing);
+      const nextData = addCustomerFollowUp(currentData, {
         customerId: requiredString(body, "customerId"),
         staffId: requiredString(body, "staffId"),
         dueAt: requiredString(body, "dueAt"),
         method: requiredString(body, "method") as "电话" | "微信" | "到店",
         note: optionalString(body, "note") ?? "",
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, followUpWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/follow-ups/")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("follow-up-update");
       const followUpId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, followUpMutationKeys);
+      markMutationRead(timing);
       const currentFollowUp = currentData.customerFollowUps.find((item) => item.id === followUpId);
       if (!currentFollowUp) throw new Error("跟进记录不存在");
       const hasEditFields = ["staffId", "dueAt", "method", "note", "reason"].some((key) => hasBodyKey(body, key));
@@ -1672,8 +2216,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             targetId: followUpId,
             summary: followUpUpdateSummary(session.user.name, currentFollowUp, body),
           });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, followUpWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/refund")) {
@@ -1700,9 +2246,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/services") {
       requirePermission(session, "catalog:manage");
+      const timing = startMutationTiming("service-create");
       const body = await readJson(context.request);
       const consumables = optionalConsumables(body);
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, serviceCatalogMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "新增服务项目",
         targetType: "service",
         targetId: "latest",
@@ -1733,16 +2282,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ],
         };
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, serviceCatalogWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/services/") && pathname.endsWith("/consumables")) {
       requirePermission(session, "catalog:manage");
+      const timing = startMutationTiming("service-consumables-update");
       const serviceId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
       const consumables = optionalConsumables(body);
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, serviceCatalogMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "更新商品耗材",
         targetType: "service",
         targetId: serviceId,
@@ -1768,15 +2322,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           ),
         };
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, serviceCatalogWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/services/")) {
       requirePermission(session, "catalog:manage");
+      const timing = startMutationTiming("service-update");
       const serviceId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, serviceCatalogMutationKeys);
+      markMutationRead(timing);
       const service = currentData.services.find((item) => item.id === serviceId);
       if (!service) throw new Error("服务项目不存在");
       const nextData = updateData(currentData, session, {
@@ -1795,12 +2353,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         consumables: hasBodyKey(body, "consumables") ? optionalConsumables(body) : undefined,
         status: optionalString(body, "status") as "启用" | "停用" | undefined,
       }));
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, serviceCatalogWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/products") {
       requireAnyPermission(session, ["catalog:manage", "inventory:manage"]);
+      const timing = startMutationTiming("product-create");
       const body = await readJson(context.request);
       const productId = makeId("p");
       const createdAt = nowIso();
@@ -1825,7 +2386,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const serviceUnitsPerStockUnit = serviceStockDeductible
         ? normalizeProductServiceUnitsPerStockUnit(optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"))
         : undefined;
-      const nextData = updateData(await database.readData(), session, {
+      const currentData = await readMutationDataForRequest(database, context.request, session, productCatalogMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "新增商品",
         targetType: "product",
         targetId: productId,
@@ -1887,15 +2450,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             ]
           : (data.inventoryBatches ?? []),
       }));
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, productCatalogWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/products/")) {
       requireAnyPermission(session, ["catalog:manage", "inventory:manage"]);
+      const timing = startMutationTiming("product-update");
       const productId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, productCatalogMutationKeys);
+      markMutationRead(timing);
       const product = currentData.products.find((item) => item.id === productId);
       if (!product) throw new Error("商品不存在");
       const nextData = updateData(currentData, session, {
@@ -1918,28 +2485,36 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit"),
         status: optionalString(body, "status") as "启用" | "停用" | undefined,
       }));
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, productCatalogWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/suppliers") {
       requirePermission(session, "inventory:manage");
+      const timing = startMutationTiming("supplier-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, supplierMutationKeys);
+      markMutationRead(timing);
       const nextData = addSupplier(currentData, {
         storeId: sessionStoreId(currentData, session),
         name: requiredString(body, "name"),
         phone: optionalString(body, "phone") ?? "",
         contact: optionalString(body, "contact") ?? "",
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, supplierWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/purchase-orders") {
       requirePermission(session, "inventory:manage");
+      const timing = startMutationTiming("purchase-order-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, purchaseMutationKeys);
+      markMutationRead(timing);
       const nextData = receiveSupplierPurchase(currentData, {
         storeId: sessionStoreId(currentData, session),
         supplierId: optionalString(body, "supplierId"),
@@ -1962,27 +2537,35 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         expiryAt: optionalString(body, "expiryAt"),
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, purchaseWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/inventory/restock-low") {
       requirePermission(session, "inventory:manage");
+      const timing = startMutationTiming("inventory-restock-low");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, restockLowMutationKeys);
+      markMutationRead(timing);
       const nextData = restockLowInventory(currentData, {
         storeId: sessionStoreId(currentData, session),
         supplierId: optionalString(body, "supplierId"),
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, restockLowWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/stocktakes") {
       requirePermission(session, "inventory:manage");
+      const timing = startMutationTiming("stocktake-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, stocktakeMutationKeys);
+      markMutationRead(timing);
       const nextData = createStocktake(currentData, {
         storeId: sessionStoreId(currentData, session),
         productId: requiredString(body, "productId"),
@@ -1990,46 +2573,61 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         reason: optionalString(body, "reason") ?? "库存盘点",
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, stocktakeWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/commissions/settle") {
       requirePermission(session, "commissions:settle");
-      const nextData = updateData(await database.readData(), session, {
+      const timing = startMutationTiming("commission-settle");
+      const currentData = await readMutationDataForRequest(database, context.request, session, commissionSettleMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateData(currentData, session, {
         action: "结算提成",
         targetType: "commission",
         targetId: "all",
         summary: `${session.user.name} 结算全部待结算提成`,
       }, (data) => settleCommissions(data, { userId: session.user.id }));
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, commissionSettleWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/daily-close") {
       requirePermission(session, "reports:view");
+      const timing = startMutationTiming("daily-close-create");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, dailyCloseMutationKeys);
+      markMutationRead(timing);
       const nextData = createDailyClose(currentData, {
         storeId: sessionStoreId(currentData, session),
         businessDate: optionalString(body, "businessDate") ?? new Date().toISOString().slice(0, 10),
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, dailyCloseWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/daily-close/reverse") {
       requirePermission(session, "reports:view");
+      const timing = startMutationTiming("daily-close-reverse");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, dailyCloseMutationKeys);
+      markMutationRead(timing);
       const nextData = reverseDailyClose(currentData, {
         storeId: sessionStoreId(currentData, session),
         businessDate: requiredString(body, "businessDate"),
         userId: session.user.id,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, dailyCloseWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     return sendJson(404, { error: "Not found" });
