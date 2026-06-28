@@ -27,7 +27,7 @@
     "d1:migrate:local": "wrangler d1 migrations apply yich-beauty-db --local",
     "d1:migrate:remote": "wrangler d1 migrations apply yich-beauty-db --remote",
     "dev:cloudflare": "npm run build && wrangler pages dev dist --compatibility-date=2026-05-24",
-    "deploy:pages": "npm run android:apk && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true",
+    "deploy:pages": "npm run android:apk && wrangler r2 object put yich-beauty-system-assets/releases/zhurongkftech-app.apk --file public/zhurongkftech-app.apk --content-type application/vnd.android.package-archive && rm -f dist/zhurongkftech-app.apk && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true",
     "verify:pwa-version": "tsx scripts/verify-pwa-version.ts"
   },
   "dependencies": {

@@ -129,6 +129,7 @@ type PagesFunction<Bindings> = (context: {
 
 const aiImageGenerationMaxGlobalSlots = 4;
 const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
+const androidApkR2Key = "releases/zhurongkftech-app.apk";
 
 const publicSignatureDataKeys = [
   "customers",
@@ -818,6 +819,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if ((context.request.method === "GET" || context.request.method === "HEAD") && pathname.startsWith("/api/assets/")) {
       return serveR2Asset(context.env, pathname, context.request.method);
+    }
+
+    if ((context.request.method === "GET" || context.request.method === "HEAD") && pathname === "/zhurongkftech-app.apk") {
+      return serveAndroidApk(context.env, context.request.method);
     }
 
     if (context.request.method === "GET" && pathname === "/api/health") {
@@ -3114,6 +3119,27 @@ async function serveR2Asset(env: Env, pathname: string, method = "GET") {
   } else {
     headers.set("Content-Type", "application/octet-stream");
   }
+
+  return new Response(method === "HEAD" ? null : object.body, { headers });
+}
+
+async function serveAndroidApk(env: Env, method = "GET") {
+  const bucket = getR2Bucket(env);
+  if (!bucket) return sendJson(404, { error: "安装包暂不可用" });
+
+  const object = await bucket.get(androidApkR2Key);
+  if (!object) return sendJson(404, { error: "安装包暂不可用" });
+
+  const headers = new Headers({
+    "Content-Type": object.httpMetadata?.contentType ?? "application/vnd.android.package-archive",
+    "Content-Disposition": 'attachment; filename="zhurongkftech-app.apk"',
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "X-Content-Type-Options": "nosniff",
+    ...corsHeaders(),
+  });
+  object.writeHttpMetadata?.(headers);
+  headers.set("Content-Type", "application/vnd.android.package-archive");
+  headers.set("Content-Disposition", 'attachment; filename="zhurongkftech-app.apk"');
 
   return new Response(method === "HEAD" ? null : object.body, { headers });
 }
