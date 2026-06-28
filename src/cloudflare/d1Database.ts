@@ -89,6 +89,49 @@ const tableNames: D1DataTableName[] = [
   "stocktakes",
 ];
 
+const storeScopedDeleteOrder: D1DataTableName[] = [
+  "commissionSettlements",
+  "commissions",
+  "distributionCommissions",
+  "referralRelations",
+  "distributors",
+  "refunds",
+  "memberCardTransactions",
+  "inventoryLogs",
+  "operationLogs",
+  "dailyCloses",
+  "approvalRequests",
+  "customerServiceRecords",
+  "customerSignatures",
+  "customerFollowUps",
+  "stocktakes",
+  "purchaseOrders",
+  "suppliers",
+  "notifications",
+  "marketingAiRecords",
+  "staffShifts",
+  "staffUnavailableSlots",
+  "onlineBookingRequests",
+  "appointments",
+  "inventoryBatches",
+  "orders",
+  "memberCards",
+  "products",
+  "services",
+  "tagDefinitions",
+  "customers",
+  "authUsers",
+  "staffInvites",
+  "storeOwnerApplications",
+  "storeOwnerInvites",
+  "systemConfigs",
+  "onlineStorefronts",
+  "staff",
+  "storeProfiles",
+];
+
+const storeScopedDeleteRank = new Map(storeScopedDeleteOrder.map((key, index) => [key, index]));
+
 export class D1BeautyDatabase {
   constructor(private readonly db: D1DatabaseBinding) {}
 
@@ -259,22 +302,31 @@ export class D1BeautyDatabase {
     return data;
   }
 
-  async replacePublicSignatureData(data: AppData) {
-    const statements: D1PreparedStatement[] = [
-      this.db.prepare("DELETE FROM customerSignatures"),
-      this.db.prepare("DELETE FROM appointments"),
-      this.db.prepare("DELETE FROM orders"),
-      this.db.prepare("DELETE FROM memberCards"),
-      this.db.prepare("DELETE FROM memberCardTransactions"),
-    ];
-    statements.push(...this.writeDataStatements(pickDataTables(data, [
-      "appointments",
-      "orders",
-      "memberCards",
-      "memberCardTransactions",
-      "customerSignatures",
-    ])));
-    await this.db.batch(statements);
+  async readCustomerSignatureByToken(token: string): Promise<CustomerSignature | undefined> {
+    const rows = await this.all(
+      "SELECT payload_json FROM customerSignatures WHERE json_extract(payload_json, '$.token') = ? ORDER BY rowid DESC LIMIT 1",
+      mapJsonPayload<CustomerSignature>,
+      [token],
+    );
+    return rows[0];
+  }
+
+  async resolveCustomerSignatureStoreId(signature: CustomerSignature): Promise<string | undefined> {
+    if (signature.storeId) return signature.storeId;
+    const rows = await this.all(
+      `SELECT storeId FROM (
+         SELECT storeId FROM customers WHERE id = ?
+         UNION ALL
+         SELECT storeId FROM orders WHERE id = ?
+         UNION ALL
+         SELECT json_extract(payload_json, '$.storeId') AS storeId FROM customerServiceRecords WHERE id = ?
+       )
+       WHERE storeId IS NOT NULL AND storeId <> ''
+       LIMIT 1`,
+      (row) => (row as { storeId?: string | null }).storeId ?? undefined,
+      [signature.customerId, signature.orderId ?? "", signature.serviceRecordId ?? ""],
+    );
+    return rows.find(Boolean);
   }
 
   async replaceData(data: AppData) {
@@ -485,9 +537,13 @@ export class D1BeautyDatabase {
         return jsonStoreRows("onlineStorefronts", mapJsonPayload<OnlineStorefront>, "rowid ASC");
       case "authUsers":
         return this.all(
-          "SELECT payload_json FROM authUsers WHERE json_extract(payload_json, '$.role') = 'superadmin' OR json_extract(payload_json, '$.storeId') = ? ORDER BY rowid ASC",
+          `SELECT payload_json FROM authUsers
+           WHERE json_extract(payload_json, '$.role') = 'superadmin'
+              OR json_extract(payload_json, '$.storeId') = ?
+              OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+           ORDER BY rowid ASC`,
           mapJsonPayload<AuthUser>,
-          [storeId],
+          [storeId, storeId],
         );
       case "systemConfigs":
         return this.readTable(key);
@@ -545,7 +601,11 @@ export class D1BeautyDatabase {
       case "orders":
         return tableStoreRows("orders", mapOrder);
       case "refunds":
-        return tableStoreRows("refunds", mapRefund);
+        return this.all(
+          "SELECT * FROM refunds WHERE storeId = ? OR orderId IN (SELECT id FROM orders WHERE storeId = ?) ORDER BY rowid DESC",
+          mapRefund,
+          [storeId, storeId],
+        );
       case "commissions":
         return this.all(
           "SELECT commissions.* FROM commissions JOIN staff ON staff.id = commissions.staffId WHERE staff.storeId = ? ORDER BY commissions.rowid DESC",
@@ -590,9 +650,21 @@ export class D1BeautyDatabase {
           [storeId, storeId, storeId, storeId, storeId, storeId],
         );
       case "inventoryLogs":
-        return tableStoreRows("inventoryLogs", mapInventoryLog);
+        return this.all(
+          "SELECT * FROM inventoryLogs WHERE storeId = ? OR productId IN (SELECT id FROM products WHERE storeId = ?) ORDER BY rowid DESC",
+          mapInventoryLog,
+          [storeId, storeId],
+        );
       case "memberCardTransactions":
-        return tableStoreRows("memberCardTransactions", mapMemberCardTransaction);
+        return this.all(
+          `SELECT * FROM memberCardTransactions
+           WHERE storeId = ?
+              OR memberCardId IN (SELECT id FROM memberCards WHERE storeId = ?)
+              OR orderId IN (SELECT id FROM orders WHERE storeId = ?)
+           ORDER BY rowid DESC`,
+          mapMemberCardTransaction,
+          [storeId, storeId, storeId],
+        );
       case "operationLogs":
         return this.all("SELECT * FROM operationLogs WHERE storeId = ? OR userId = 'system' ORDER BY rowid DESC", mapOperationLog, [storeId]);
       case "marketingAiRecords":
@@ -608,11 +680,43 @@ export class D1BeautyDatabase {
       case "approvalRequests":
         return jsonStoreRows("approvalRequests", mapJsonPayload<ApprovalRequest>);
       case "customerServiceRecords":
-        return jsonStoreRows("customerServiceRecords", mapJsonPayload<CustomerServiceRecord>);
+        return this.all(
+          `SELECT payload_json FROM customerServiceRecords
+           WHERE json_extract(payload_json, '$.storeId') = ?
+              OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+              OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+           ORDER BY rowid DESC`,
+          mapJsonPayload<CustomerServiceRecord>,
+          [storeId, storeId, storeId, storeId],
+        );
       case "customerSignatures":
-        return jsonStoreRows("customerSignatures", mapJsonPayload<CustomerSignature>);
+        return this.all(
+          `SELECT payload_json FROM customerSignatures
+           WHERE json_extract(payload_json, '$.storeId') = ?
+              OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+              OR json_extract(payload_json, '$.serviceRecordId') IN (
+                SELECT id FROM customerServiceRecords
+                WHERE json_extract(payload_json, '$.storeId') = ?
+                   OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                   OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+                   OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+              )
+           ORDER BY rowid DESC`,
+          mapJsonPayload<CustomerSignature>,
+          [storeId, storeId, storeId, storeId, storeId, storeId, storeId],
+        );
       case "customerFollowUps":
-        return jsonStoreRows("customerFollowUps", mapJsonPayload<CustomerFollowUp>);
+        return this.all(
+          `SELECT payload_json FROM customerFollowUps
+           WHERE json_extract(payload_json, '$.storeId') = ?
+              OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+           ORDER BY rowid DESC`,
+          mapJsonPayload<CustomerFollowUp>,
+          [storeId, storeId, storeId],
+        );
       case "suppliers":
         return jsonStoreRows("suppliers", mapJsonPayload<Supplier>);
       case "purchaseOrders":
@@ -1112,17 +1216,57 @@ export class D1BeautyDatabase {
     deleteJsonStoreRows("stocktakes");
     deleteJsonStoreRows("purchaseOrders");
     deleteJsonStoreRows("suppliers");
-    deleteJsonStoreRows("customerFollowUps");
     deleteJsonStoreRows("marketingAiRecords");
-    deleteJsonStoreRows("customerSignatures");
-    deleteJsonStoreRows("customerServiceRecords");
+    statements.push(
+      this.statement(
+        `DELETE FROM customerFollowUps
+         WHERE json_extract(payload_json, '$.storeId') = ?
+            OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+            OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)`,
+        [storeId, storeId, storeId],
+      ),
+    );
+    statements.push(
+      this.statement(
+        `DELETE FROM customerSignatures
+         WHERE json_extract(payload_json, '$.storeId') = ?
+            OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+            OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+            OR json_extract(payload_json, '$.serviceRecordId') IN (
+              SELECT id FROM customerServiceRecords
+              WHERE json_extract(payload_json, '$.storeId') = ?
+                 OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                 OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+                 OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+            )`,
+        [storeId, storeId, storeId, storeId, storeId, storeId, storeId],
+      ),
+    );
+    statements.push(
+      this.statement(
+        `DELETE FROM customerServiceRecords
+         WHERE json_extract(payload_json, '$.storeId') = ?
+            OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+            OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+            OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)`,
+        [storeId, storeId, storeId, storeId],
+      ),
+    );
     deleteJsonStoreRows("approvalRequests");
     deleteTableStoreRows("dailyCloses");
     deleteJsonStoreRows("notifications");
     deleteTableStoreRows("operationLogs");
-    deleteTableStoreRows("memberCardTransactions");
-    deleteTableStoreRows("inventoryLogs");
-    deleteTableStoreRows("refunds");
+    statements.push(
+      this.statement(
+        `DELETE FROM memberCardTransactions
+         WHERE storeId = ?
+            OR memberCardId IN (SELECT id FROM memberCards WHERE storeId = ?)
+            OR orderId IN (SELECT id FROM orders WHERE storeId = ?)`,
+        [storeId, storeId, storeId],
+      ),
+    );
+    statements.push(this.statement("DELETE FROM inventoryLogs WHERE storeId = ? OR productId IN (SELECT id FROM products WHERE storeId = ?)", [storeId, storeId]));
+    statements.push(this.statement("DELETE FROM refunds WHERE storeId = ? OR orderId IN (SELECT id FROM orders WHERE storeId = ?)", [storeId, storeId]));
     deleteTableStoreRows("orders");
     deleteTableStoreRows("memberCards");
     deleteJsonStoreRows("staffShifts");
@@ -1134,11 +1278,18 @@ export class D1BeautyDatabase {
     deleteTableStoreRows("services");
     deleteJsonStoreRows("tagDefinitions");
     deleteTableStoreRows("customers");
+    statements.push(
+      this.statement(
+        `DELETE FROM authUsers
+         WHERE json_extract(payload_json, '$.storeId') = ?
+            OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)`,
+        [storeId, storeId],
+      ),
+    );
     deleteTableStoreRows("staff");
     deleteJsonStoreRows("staffInvites");
     deleteJsonStoreRows("storeOwnerApplications");
     deleteJsonStoreRows("onlineStorefronts");
-    statements.push(this.statement("DELETE FROM authUsers WHERE json_extract(payload_json, '$.storeId') = ?", [storeId]));
     statements.push(this.statement("DELETE FROM storeProfiles WHERE id = ?", [storeId]));
   }
 
@@ -1150,7 +1301,11 @@ export class D1BeautyDatabase {
       statements.push(this.statement(`DELETE FROM ${tableName} WHERE storeId = ?`, [storeId]));
     };
 
-    for (const key of keys) {
+    const orderedKeys = Array.from(new Set(keys)).sort(
+      (left, right) => (storeScopedDeleteRank.get(left) ?? Number.MAX_SAFE_INTEGER) - (storeScopedDeleteRank.get(right) ?? Number.MAX_SAFE_INTEGER),
+    );
+
+    for (const key of orderedKeys) {
       switch (key) {
         case "storeProfiles":
           statements.push(this.statement("DELETE FROM storeProfiles WHERE id = ?", [storeId]));
@@ -1168,16 +1323,61 @@ export class D1BeautyDatabase {
         case "marketingAiRecords":
         case "notifications":
         case "approvalRequests":
-        case "customerServiceRecords":
-        case "customerSignatures":
-        case "customerFollowUps":
         case "suppliers":
         case "purchaseOrders":
         case "stocktakes":
           deleteJsonStoreRows(key);
           break;
+        case "customerServiceRecords":
+          statements.push(
+            this.statement(
+              `DELETE FROM customerServiceRecords
+               WHERE json_extract(payload_json, '$.storeId') = ?
+                  OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                  OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+                  OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)`,
+              [storeId, storeId, storeId, storeId],
+            ),
+          );
+          break;
+        case "customerSignatures":
+          statements.push(
+            this.statement(
+              `DELETE FROM customerSignatures
+               WHERE json_extract(payload_json, '$.storeId') = ?
+                  OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                  OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+                  OR json_extract(payload_json, '$.serviceRecordId') IN (
+                    SELECT id FROM customerServiceRecords
+                    WHERE json_extract(payload_json, '$.storeId') = ?
+                       OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                       OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)
+                       OR json_extract(payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+                  )`,
+              [storeId, storeId, storeId, storeId, storeId, storeId, storeId],
+            ),
+          );
+          break;
+        case "customerFollowUps":
+          statements.push(
+            this.statement(
+              `DELETE FROM customerFollowUps
+               WHERE json_extract(payload_json, '$.storeId') = ?
+                  OR json_extract(payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+                  OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)`,
+              [storeId, storeId, storeId],
+            ),
+          );
+          break;
         case "authUsers":
-          statements.push(this.statement("DELETE FROM authUsers WHERE json_extract(payload_json, '$.storeId') = ?", [storeId]));
+          statements.push(
+            this.statement(
+              `DELETE FROM authUsers
+               WHERE json_extract(payload_json, '$.storeId') = ?
+                  OR json_extract(payload_json, '$.staffId') IN (SELECT id FROM staff WHERE storeId = ?)`,
+              [storeId, storeId],
+            ),
+          );
           break;
         case "systemConfigs":
         case "storeOwnerInvites":
@@ -1190,9 +1390,29 @@ export class D1BeautyDatabase {
         case "staffUnavailableSlots":
         case "memberCards":
         case "orders":
+          deleteTableStoreRows(key);
+          break;
         case "refunds":
+          statements.push(
+            this.statement("DELETE FROM refunds WHERE storeId = ? OR orderId IN (SELECT id FROM orders WHERE storeId = ?)", [storeId, storeId]),
+          );
+          break;
         case "inventoryLogs":
+          statements.push(
+            this.statement("DELETE FROM inventoryLogs WHERE storeId = ? OR productId IN (SELECT id FROM products WHERE storeId = ?)", [storeId, storeId]),
+          );
+          break;
         case "memberCardTransactions":
+          statements.push(
+            this.statement(
+              `DELETE FROM memberCardTransactions
+               WHERE storeId = ?
+                  OR memberCardId IN (SELECT id FROM memberCards WHERE storeId = ?)
+                  OR orderId IN (SELECT id FROM orders WHERE storeId = ?)`,
+              [storeId, storeId, storeId],
+            ),
+          );
+          break;
         case "operationLogs":
         case "dailyCloses":
           deleteTableStoreRows(key);
@@ -1295,10 +1515,13 @@ function emptyData(): AppData {
 
 function dataForStoreWrite(data: AppData, storeId: string): AppData {
   const belongsToStore = (item: { storeId?: string }) => item.storeId === storeId;
+  const ensureStoreId = <T extends { storeId?: string }>(item: T): T => item.storeId === storeId ? item : { ...item, storeId };
   const staff = data.staff.filter(belongsToStore);
   const staffIds = new Set(staff.map((item) => item.id));
   const customers = data.customers.filter(belongsToStore);
   const customerIds = new Set(customers.map((item) => item.id));
+  const products = data.products.filter(belongsToStore);
+  const productIds = new Set(products.map((item) => item.id));
   const orders = data.orders.filter(belongsToStore);
   const orderIds = new Set(orders.map((item) => item.id));
   const cards = data.memberCards.filter(belongsToStore);
@@ -1309,19 +1532,39 @@ function dataForStoreWrite(data: AppData, storeId: string): AppData {
   const distributorIds = new Set(distributors.map((item) => item.id));
   const commissions = data.commissions.filter((item) => staffIds.has(item.staffId) || orderIds.has(item.orderId));
   const commissionIds = new Set(commissions.map((item) => item.id));
+  const customerServiceRecords = data.customerServiceRecords
+    .filter((item) =>
+      item.storeId === storeId
+        || customerIds.has(item.customerId)
+        || staffIds.has(item.staffId)
+        || Boolean(item.orderId && orderIds.has(item.orderId)),
+    )
+    .map(ensureStoreId);
+  const customerServiceRecordIds = new Set(customerServiceRecords.map((item) => item.id));
+  const customerSignatures = data.customerSignatures
+    .filter((item) =>
+      item.storeId === storeId
+        || customerIds.has(item.customerId)
+        || Boolean(item.orderId && orderIds.has(item.orderId))
+        || Boolean(item.serviceRecordId && customerServiceRecordIds.has(item.serviceRecordId)),
+    )
+    .map(ensureStoreId);
+  const customerFollowUps = data.customerFollowUps
+    .filter((item) => item.storeId === storeId || customerIds.has(item.customerId) || staffIds.has(item.staffId))
+    .map(ensureStoreId);
 
   return {
     ...emptyData(),
     storeProfiles: data.storeProfiles.filter((item) => item.id === storeId),
     onlineStorefronts: data.onlineStorefronts.filter(belongsToStore),
-    authUsers: data.authUsers.filter((item) => item.storeId === storeId),
+    authUsers: data.authUsers.filter((item) => item.storeId === storeId || Boolean(item.staffId && staffIds.has(item.staffId))),
     staffInvites: data.staffInvites.filter(belongsToStore),
     storeOwnerApplications: data.storeOwnerApplications.filter(belongsToStore),
     staff,
     customers,
     tagDefinitions: data.tagDefinitions.filter(belongsToStore),
     services: data.services.filter(belongsToStore),
-    products: data.products.filter(belongsToStore),
+    products,
     inventoryBatches: data.inventoryBatches.filter(belongsToStore),
     appointments: data.appointments.filter(belongsToStore),
     onlineBookingRequests: data.onlineBookingRequests.filter(belongsToStore),
@@ -1331,22 +1574,24 @@ function dataForStoreWrite(data: AppData, storeId: string): AppData {
     distributors,
     referralRelations: data.referralRelations.filter((item) => distributorIds.has(item.distributorId) && customerIds.has(item.customerId)),
     orders,
-    refunds: data.refunds.filter((item) => item.storeId === storeId || orderIds.has(item.orderId)),
+    refunds: data.refunds.filter((item) => item.storeId === storeId || orderIds.has(item.orderId)).map(ensureStoreId),
     commissions,
     distributionCommissions: data.distributionCommissions.filter((item) =>
       distributorIds.has(item.distributorId) || customerIds.has(item.customerId) || orderIds.has(item.orderId),
     ),
     commissionSettlements: data.commissionSettlements.filter((item) => item.commissionIds.some((commissionId) => commissionIds.has(commissionId))),
-    inventoryLogs: data.inventoryLogs.filter(belongsToStore),
-    memberCardTransactions: data.memberCardTransactions.filter((item) => item.storeId === storeId || cardIds.has(item.memberCardId)),
+    inventoryLogs: data.inventoryLogs.filter((item) => item.storeId === storeId || productIds.has(item.productId)).map(ensureStoreId),
+    memberCardTransactions: data.memberCardTransactions.filter((item) =>
+      item.storeId === storeId || cardIds.has(item.memberCardId) || Boolean(item.orderId && orderIds.has(item.orderId)),
+    ).map(ensureStoreId),
     operationLogs: data.operationLogs.filter(belongsToStore),
     marketingAiRecords: (data.marketingAiRecords ?? []).filter(belongsToStore),
     notifications: data.notifications.filter(belongsToStore),
     dailyCloses: data.dailyCloses.filter(belongsToStore),
     approvalRequests: data.approvalRequests.filter(belongsToStore),
-    customerServiceRecords: data.customerServiceRecords.filter(belongsToStore),
-    customerSignatures: data.customerSignatures.filter(belongsToStore),
-    customerFollowUps: data.customerFollowUps.filter(belongsToStore),
+    customerServiceRecords,
+    customerSignatures,
+    customerFollowUps,
     suppliers: data.suppliers.filter(belongsToStore),
     purchaseOrders: data.purchaseOrders.filter(belongsToStore),
     stocktakes: data.stocktakes.filter(belongsToStore),

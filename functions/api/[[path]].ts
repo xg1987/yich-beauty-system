@@ -80,7 +80,7 @@ import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
-import { dataKeysForView, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
+import { dataKeysForView, emptyAppData, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
@@ -756,6 +756,56 @@ const storeOwnerApplicationDecisionWriteKeys = [
   "operationLogs",
 ] as const;
 
+const allDataKeys = [
+  "storeProfiles",
+  "onlineStorefronts",
+  "authUsers",
+  "systemConfigs",
+  "staffInvites",
+  "storeOwnerInvites",
+  "storeOwnerApplications",
+  "staff",
+  "customers",
+  "tagDefinitions",
+  "services",
+  "products",
+  "inventoryBatches",
+  "appointments",
+  "onlineBookingRequests",
+  "staffUnavailableSlots",
+  "staffShifts",
+  "memberCards",
+  "distributors",
+  "referralRelations",
+  "orders",
+  "refunds",
+  "commissions",
+  "distributionCommissions",
+  "commissionSettlements",
+  "inventoryLogs",
+  "memberCardTransactions",
+  "operationLogs",
+  "marketingAiRecords",
+  "notifications",
+  "dailyCloses",
+  "approvalRequests",
+  "customerServiceRecords",
+  "customerSignatures",
+  "customerFollowUps",
+  "suppliers",
+  "purchaseOrders",
+  "stocktakes",
+] as const satisfies readonly D1DataTableName[];
+
+const marketingAiDataKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "systemConfigs",
+  "marketingAiRecords",
+  "operationLogs",
+] as const;
+
 export const onRequest: PagesFunction<Env> = async (context) => {
   const database = new D1BeautyDatabase(context.env.DB);
 
@@ -928,10 +978,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         signatureText: requiredString(body, "signatureText"),
       });
       const signedSignature = nextData.customerSignatures.find((item) => item.token === token);
-      if (signedSignature?.storeId) {
-        await database.replaceStoreTables(signedSignature.storeId, nextData, customerSignatureWriteKeys);
+      const signedSignatureStoreId = signedSignature ? publicSignatureStoreId(nextData, signedSignature) : undefined;
+      if (signedSignatureStoreId) {
+        await database.replaceStoreTables(signedSignatureStoreId, nextData, customerSignatureWriteKeys);
       } else {
-        await database.replacePublicSignatureData(nextData);
+        throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
       }
       return sendJson(201, publicSignaturePayload(nextData, token));
     }
@@ -1055,7 +1106,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/ai-test/chat") {
       assertSuperadminAiTester(session);
       const body = await readJson(context.request);
-      const data = await database.readData();
+      const data = await readMarketingAiData(database, session);
       const result = await runAiChatTest(data, body);
       const config = aiGenerationConfigFromData(data).copy;
       const cost = textGenerationCost(config, result.usage);
@@ -1076,7 +1127,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/ai-test/image") {
       assertSuperadminAiTester(session);
       const body = await readJson(context.request);
-      const data = await database.readData();
+      const data = await readMarketingAiData(database, session);
       const startedAt = Date.now();
       try {
         const result = await runAiImageTest(data, body);
@@ -1119,17 +1170,17 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/ai-test/video") {
       assertSuperadminAiTester(session);
-      return sendJson(200, await runAiVideoTest(await database.readData(), await readJson(context.request)));
+      return sendJson(200, await runAiVideoTest(await readMarketingAiData(database, session), await readJson(context.request)));
     }
 
     if (context.request.method === "POST" && pathname === "/api/ai-test/video-status") {
       assertSuperadminAiTester(session);
-      return sendJson(200, await runAiVideoStatusTest(await database.readData(), await readJson(context.request)));
+      return sendJson(200, await runAiVideoStatusTest(await readMarketingAiData(database, session), await readJson(context.request)));
     }
 
     if (context.request.method === "POST" && pathname === "/api/marketing-ai/analyze-product-image") {
       requirePermission(session, "marketing:manage");
-      const data = await database.readData();
+      const data = await readMarketingAiData(database, session);
       assertMarketingAiAllowed(data, session, "video");
       return sendJson(200, await runMarketingProductImageAnalysis(data, await readJson(context.request)));
     }
@@ -1145,7 +1196,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const kind = requiredString(rawBody, "kind") as MarketingAiKind;
       const body = normalizeMarketingAiGenerateBody(rawBody, kind);
       const startedAt = Date.now();
-      let currentData = await database.readData();
+      let currentData = await readMarketingAiData(database, session);
       assertMarketingAiGeneratePreflight(currentData, session, kind);
       assertMarketingAiGenerateBodyReady(body, kind);
       const duplicateVideoRecord = findDuplicateMarketingVideoRecord(currentData, session, body);
@@ -1153,7 +1204,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const locks = await acquireAiGenerationLocks(database, session, kind);
       let pendingRecord: MarketingAiRecord | undefined;
       try {
-        currentData = await database.readData();
+        currentData = await readMarketingAiData(database, session);
         const lockedDuplicateVideoRecord = findDuplicateMarketingVideoRecord(currentData, session, body);
         if (lockedDuplicateVideoRecord) throw new Error("同一账号已经用这张产品图提交过视频生成，请到生成记录查看，不能重复发起以免重复扣积分");
         pendingRecord = marketingAiRecord(currentData, session, body, {
@@ -1187,7 +1238,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return sendJson(200, { ...result, ...(responseImageDataUrl ? { imageDataUrl: responseImageDataUrl } : {}), record });
         } catch (error) {
           if (!pendingRecord) throw error;
-        const currentData = await database.readData();
+        const currentData = await readMarketingAiData(database, session);
         const message = error instanceof Error ? error.message : "AI 生成失败";
         const failureCost = marketingAiFailureCost(currentData, body, kind, error);
         const failureRecord = marketingAiRecord(currentData, session, body, {
@@ -1228,7 +1279,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requirePermission(session, "marketing:manage");
       const body = await readJson(context.request);
       const recordId = requiredTrimmedText(body, "recordId", 120);
-      const currentData = await database.readData();
+      const currentData = await readMarketingAiData(database, session);
       const record = currentData.marketingAiRecords.find((item) => item.id === recordId);
       if (!record || record.kind !== "video") throw new Error("视频生成记录不存在");
       if (session.user.role !== "superadmin" && record.storeId !== sessionStoreId(currentData, session)) {
@@ -1254,7 +1305,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/marketing-ai/talk-video") {
       requirePermission(session, "marketing:manage");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMarketingAiData(database, session);
       const result = await saveMarketingTalkVideoRecord(context.env, currentData, session, body);
       await database.appendMarketingAiResult({
         record: result.record,
@@ -2742,9 +2793,10 @@ function updateData(
   return addOperationLog(updater(data), { userId: session.user.id, ...log });
 }
 
-function persistData(database: D1BeautyDatabase, session: UserSession, nextData: AppData) {
-  if (session.user.role !== "superadmin" && session.user.storeId) {
-    return database.replaceStoreData(session.user.storeId, nextData);
+async function persistData(database: D1BeautyDatabase, session: UserSession, nextData: AppData) {
+  if (session.user.role !== "superadmin") {
+    const storeId = await resolveSessionStoreId(database, session);
+    return database.replaceStoreData(storeId, nextData);
   }
   return database.replaceData(nextData);
 }
@@ -4551,7 +4603,7 @@ async function runMarketingAiBackgroundTask(
   startedAt: number,
 ) {
   try {
-    const currentData = await database.readData();
+    const currentData = await readMarketingAiData(database, session);
     const result = await runMarketingAiGenerate(currentData, session, body);
     const resultVideoUrl = kind === "video" && "videoUrl" in result ? result.videoUrl : undefined;
     const resultProviderStatus = kind === "video" && "status" in result ? result.status : undefined;
@@ -4572,7 +4624,7 @@ async function runMarketingAiBackgroundTask(
       consumeCreditAmount: result.billing?.source === "credit" ? result.billing.creditsCharged : undefined,
     });
   } catch (error) {
-    const currentData = await database.readData();
+    const currentData = await readMarketingAiData(database, session);
     const message = error instanceof Error ? error.message : "AI 生成失败";
     const failureCost = marketingAiFailureCost(currentData, body, kind, error);
     const failureRecord = {
@@ -5300,11 +5352,15 @@ async function readDataForRequest(database: D1BeautyDatabase, request: Request, 
   const requestedView = requestedDataView(request);
   let data: AppData;
   if (isSliceRequest(request) && requestedView) {
-    if (session.user.role !== "superadmin" && session.user.storeId) {
-      data = await database.readDataTablesForStore(dataKeysForView(requestedView), session.user.storeId);
+    if (session.user.role !== "superadmin") {
+      const storeId = await resolveSessionStoreId(database, session);
+      data = await database.readDataTablesForStore(dataKeysForView(requestedView), storeId);
     } else {
       data = await database.readDataTables(dataKeysForView(requestedView));
     }
+  } else if (session.user.role !== "superadmin") {
+    const storeId = await resolveSessionStoreId(database, session);
+    data = await database.readDataTablesForStore(allDataKeys, storeId);
   } else {
     data = await database.readData();
   }
@@ -5319,24 +5375,53 @@ async function readMutationDataForRequest(
 ) {
   const requestedView = requestedDataView(request);
   if (!isSliceRequest(request) || !requestedView) {
-    return database.readData();
+    if (session.user.role === "superadmin") {
+      return database.readData();
+    }
+    const storeId = await resolveSessionStoreId(database, session);
+    return database.readDataTablesForStore(allDataKeys, storeId);
   }
   const keys = uniqueDataTableKeys([...requiredKeys, ...dataKeysForView(requestedView)]);
   if (session.user.role !== "superadmin") {
-    const storeId = session.user.storeId ?? sessionStoreId(await database.readDataTables(["storeProfiles", "authUsers", "staff"]), session);
-    if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+    const storeId = await resolveSessionStoreId(database, session);
     return database.readDataTablesForStore(keys, storeId);
   }
   return database.readDataTables(keys);
 }
 
-async function readPublicSignatureData(database: D1BeautyDatabase, token: string) {
-  const signatureIndexData = await database.readDataTables(["customerSignatures"]);
-  const signature = signatureIndexData.customerSignatures.find((item) => item.token === token);
-  if (signature?.storeId) {
-    return database.readDataTablesForStore(publicSignatureDataKeys, signature.storeId);
+async function readMarketingAiData(database: D1BeautyDatabase, session: UserSession) {
+  if (session.user.role === "superadmin") {
+    return database.readDataTables(marketingAiDataKeys);
   }
-  return database.readDataTables(publicSignatureDataKeys);
+  const storeId = await resolveSessionStoreId(database, session);
+  return database.readDataTablesForStore(marketingAiDataKeys, storeId);
+}
+
+async function resolveSessionStoreId(database: D1BeautyDatabase, session: UserSession) {
+  if (session.user.storeId) return session.user.storeId;
+  const identityData = await database.readDataTables(["storeProfiles", "authUsers", "staff"]);
+  const storeId = sessionStoreId(identityData, session);
+  if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+  return storeId;
+}
+
+async function readPublicSignatureData(database: D1BeautyDatabase, token: string) {
+  const signature = await database.readCustomerSignatureByToken(token);
+  if (!signature) return emptyAppData();
+  const signatureStoreId = signature ? await database.resolveCustomerSignatureStoreId(signature) : undefined;
+  if (signatureStoreId) {
+    return database.readDataTablesForStore(publicSignatureDataKeys, signatureStoreId);
+  }
+  return emptyAppData();
+}
+
+function publicSignatureStoreId(data: AppData, signature: CustomerSignature) {
+  if (signature.storeId) return signature.storeId;
+  const customerStoreId = data.customers.find((item) => item.id === signature.customerId)?.storeId;
+  if (customerStoreId) return customerStoreId;
+  const orderStoreId = signature.orderId ? data.orders.find((item) => item.id === signature.orderId)?.storeId : undefined;
+  if (orderStoreId) return orderStoreId;
+  return signature.serviceRecordId ? data.customerServiceRecords.find((item) => item.id === signature.serviceRecordId)?.storeId : undefined;
 }
 
 async function readPublicStorefrontData(
