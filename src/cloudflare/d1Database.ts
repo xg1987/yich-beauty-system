@@ -1191,12 +1191,19 @@ export class D1BeautyDatabase {
         case "memberCards":
         case "orders":
         case "refunds":
-        case "commissions":
         case "inventoryLogs":
         case "memberCardTransactions":
         case "operationLogs":
         case "dailyCloses":
           deleteTableStoreRows(key);
+          break;
+        case "commissions":
+          statements.push(
+            this.statement(
+              "DELETE FROM commissions WHERE staffId IN (SELECT id FROM staff WHERE storeId = ?) OR orderId IN (SELECT id FROM orders WHERE storeId = ?)",
+              [storeId, storeId],
+            ),
+          );
           break;
         case "distributors":
           statements.push(

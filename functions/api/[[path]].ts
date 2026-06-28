@@ -173,6 +173,121 @@ const appointmentMutationKeys = [
   "notifications",
 ] as const;
 
+const checkoutMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "customers",
+  "services",
+  "products",
+  "inventoryBatches",
+  "appointments",
+  "orders",
+  "memberCards",
+  "inventoryLogs",
+  "memberCardTransactions",
+  "commissions",
+  "dailyCloses",
+  "approvalRequests",
+  "customerSignatures",
+  "operationLogs",
+] as const;
+
+const checkoutWriteKeys = [
+  "customers",
+  "products",
+  "inventoryBatches",
+  "appointments",
+  "orders",
+  "memberCards",
+  "inventoryLogs",
+  "memberCardTransactions",
+  "commissions",
+  "customerSignatures",
+  "operationLogs",
+] as const;
+
+const orderRefundMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "services",
+  "products",
+  "inventoryBatches",
+  "orders",
+  "refunds",
+  "memberCards",
+  "memberCardTransactions",
+  "inventoryLogs",
+  "commissions",
+  "dailyCloses",
+  "approvalRequests",
+  "operationLogs",
+] as const;
+
+const orderRefundWriteKeys = [
+  "products",
+  "inventoryBatches",
+  "orders",
+  "refunds",
+  "memberCards",
+  "memberCardTransactions",
+  "inventoryLogs",
+  "commissions",
+  "operationLogs",
+] as const;
+
+const inventoryAdjustmentMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "products",
+  "inventoryBatches",
+  "inventoryLogs",
+  "dailyCloses",
+  "operationLogs",
+  "notifications",
+] as const;
+
+const inventoryAdjustmentWriteKeys = [
+  "products",
+  "inventoryBatches",
+  "inventoryLogs",
+  "operationLogs",
+  "notifications",
+] as const;
+
+const memberCardMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "customers",
+  "services",
+  "memberCards",
+  "memberCardTransactions",
+  "dailyCloses",
+  "operationLogs",
+] as const;
+
+const memberCardWriteKeys = [
+  "customers",
+  "memberCards",
+  "memberCardTransactions",
+  "operationLogs",
+] as const;
+
+const memberCardRefundMutationKeys = [
+  "storeProfiles",
+  "customers",
+  "memberCards",
+  "memberCardTransactions",
+  "customerSignatures",
+  "operationLogs",
+] as const;
+
+const memberCardRefundWriteKeys = [
+  "memberCards",
+  "memberCardTransactions",
+  "operationLogs",
+] as const;
+
 export const onRequest: PagesFunction<Env> = async (context) => {
   const database = new D1BeautyDatabase(context.env.DB);
 
@@ -945,9 +1060,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/checkout") {
       requirePermission(session, "pos:manage");
+      const timing = startMutationTiming("checkout");
       const body = await readJson(context.request);
       const checkoutRequestId = optionalString(body, "checkoutRequestId");
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, checkoutMutationKeys);
+      markMutationRead(timing);
       const checkedOutData = checkoutOrder(currentData, {
         storeId: sessionStoreId(currentData, session),
         customerId: optionalString(body, "customerId"),
@@ -983,15 +1100,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 完成开单收银`,
         },
       );
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, checkoutWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/orders/") && pathname.endsWith("/refund")) {
       requirePermission(session, "pos:manage");
+      const timing = startMutationTiming("order-refund");
       const orderId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, orderRefundMutationKeys);
+      markMutationRead(timing);
       const nextData = refundOrder(currentData, {
         storeId: sessionStoreId(currentData, session),
         orderId,
@@ -1000,14 +1121,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         amount: optionalNumber(body, "amount"),
         approvalId: optionalString(body, "approvalId"),
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, orderRefundWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/inventory/adjust") {
       requirePermission(session, "inventory:manage");
+      const timing = startMutationTiming("inventory-adjust");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, inventoryAdjustmentMutationKeys);
+      markMutationRead(timing);
       const adjustedData = addOperationLog(
         adjustInventory(currentData, {
           storeId: sessionStoreId(currentData, session),
@@ -1038,8 +1163,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             audienceRoles: ["owner", "manager"],
           })
         : adjustedData;
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, inventoryAdjustmentWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/appointments") {
@@ -1286,8 +1413,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/member-cards") {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("member-card-open");
       const body = await readJson(context.request);
-      const currentData = await database.readData();
+      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      markMutationRead(timing);
       const nextData = openMemberCard(currentData, {
         storeId: sessionStoreId(currentData, session),
         customerId: optionalString(body, "customerId"),
@@ -1311,15 +1440,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/recharge")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("member-card-recharge");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = rechargeMemberCard(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      markMutationRead(timing);
+      const nextData = rechargeMemberCard(currentData, {
         memberCardId,
         amount: optionalNumber(body, "amount") ?? 0,
         giftAmount: optionalNumber(body, "giftAmount"),
@@ -1331,53 +1465,70 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/status")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("member-card-status");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = updateMemberCardStatus(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      markMutationRead(timing);
+      const nextData = updateMemberCardStatus(currentData, {
         memberCardId,
         status: requiredString(body, "status") as "正常" | "冻结",
         reason: optionalString(body, "reason") ?? "门店操作",
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/extend")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("member-card-extend");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = extendMemberCard(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      markMutationRead(timing);
+      const nextData = extendMemberCard(currentData, {
         memberCardId,
         expiresAt: requiredString(body, "expiresAt"),
         reason: optionalString(body, "reason") ?? "会员卡延期",
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/transfer")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("member-card-transfer");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = transferMemberCard(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      markMutationRead(timing);
+      const nextData = transferMemberCard(currentData, {
         memberCardId,
         toCustomerId: requiredString(body, "toCustomerId"),
         reason: optionalString(body, "reason") ?? "会员转卡",
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/approvals") {
@@ -1527,9 +1678,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/refund")) {
       requirePermission(session, "customers:manage");
+      const timing = startMutationTiming("member-card-refund");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const nextData = refundMemberCard(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardRefundMutationKeys);
+      markMutationRead(timing);
+      const nextData = refundMemberCard(currentData, {
         memberCardId,
         reason: optionalString(body, "reason") ?? "客户退卡",
         refundAmount: optionalNumber(body, "refundAmount"),
@@ -1538,8 +1692,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, memberCardRefundWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/services") {
@@ -4397,6 +4553,44 @@ function sendJson(statusCode: number, payload: unknown) {
       ...corsHeaders(),
     },
   });
+}
+
+type MutationTiming = {
+  label: string;
+  startedAt: number;
+  readMs?: number;
+  writeStartedAt?: number;
+  writeMs?: number;
+};
+
+function startMutationTiming(label: string): MutationTiming {
+  return { label, startedAt: Date.now() };
+}
+
+function markMutationRead(timing: MutationTiming) {
+  timing.readMs = Date.now() - timing.startedAt;
+}
+
+function startMutationWrite(timing: MutationTiming) {
+  timing.writeStartedAt = Date.now();
+}
+
+function markMutationWrite(timing: MutationTiming) {
+  if (typeof timing.writeStartedAt === "number") {
+    timing.writeMs = Date.now() - timing.writeStartedAt;
+  }
+}
+
+function withMutationTiming(response: Response, timing: MutationTiming, mode: "full" | "scoped") {
+  const totalMs = Date.now() - timing.startedAt;
+  const serverTiming = [
+    `yich-total;dur=${totalMs}`,
+    typeof timing.readMs === "number" ? `yich-read;dur=${timing.readMs}` : "",
+    typeof timing.writeMs === "number" ? `yich-write;dur=${timing.writeMs}` : "",
+  ].filter(Boolean).join(", ");
+  response.headers.set("Server-Timing", serverTiming);
+  response.headers.set("X-Yich-Mutation", `${timing.label};mode=${mode};total=${totalMs}`);
+  return response;
 }
 
 function requestedDataView(request: Request) {
