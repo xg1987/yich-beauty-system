@@ -1,4 +1,4 @@
-const ICON_VERSION = "0.1.313";
+const ICON_VERSION = "0.1.314";
 const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}`;
 const APP_SHELL_ASSETS = [
   "/",
@@ -74,27 +74,19 @@ self.addEventListener("fetch", (event) => {
 
 async function navigationShell(request) {
   const cache = await caches.open(CACHE_NAME);
-  const cachedShell = await cache.match("/");
-  const networkUpdate = fetch(request, { cache: "no-store" })
-    .then((response) => {
-      if (response.ok) {
-        cache.put("/", response.clone()).catch(() => undefined);
-      }
-      return response;
-    });
-
-  if (cachedShell) {
-    networkUpdate.catch(() => undefined);
-    return cachedShell;
-  }
-
   try {
-    return await networkUpdate;
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok && isHtmlResponse(response)) {
+      cache.put("/", response.clone()).catch(() => undefined);
+      return response;
+    }
   } catch {
-    const fallbackShell = await cache.match("/");
-    if (fallbackShell) return fallbackShell;
-    throw new Error("Navigation request failed");
+    // Fall through to the cached shell for offline use.
   }
+
+  const fallbackShell = await cache.match("/");
+  if (fallbackShell) return fallbackShell;
+  throw new Error("Navigation request failed");
 }
 
 async function networkFirst(request) {
@@ -122,4 +114,8 @@ async function cacheFirst(request) {
     cache.put(request, response.clone()).catch(() => undefined);
   }
   return response;
+}
+
+function isHtmlResponse(response) {
+  return response.headers.get("content-type")?.includes("text/html") ?? false;
 }

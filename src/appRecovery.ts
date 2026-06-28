@@ -8,6 +8,7 @@ export function isRecoverableLoadError(reason: unknown) {
 }
 
 export async function recoverFromStaleAssets() {
+  if (typeof window === "undefined") return false;
   if (recentlyRecovered()) return false;
   window.sessionStorage.setItem(RECOVERY_RELOAD_KEY, `${Date.now()}`);
   await clearAppCaches();

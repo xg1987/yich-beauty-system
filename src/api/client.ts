@@ -1,6 +1,7 @@
 import type { UserSession } from "../domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiCost, MarketingAiCostBreakdown, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import type { AppDataSlice } from "../domain/dataSlices";
+import { recoverFromStaleAssets } from "../appRecovery";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const DATA_CACHE_TTL_MS = 30_000;
@@ -629,7 +630,8 @@ function parseJson<T>(text: string): T {
   } catch {
     const preview = text.trim().replace(/\s+/g, " ").slice(0, 120);
     if (/^<!doctype html|^<html/i.test(preview)) {
-      throw new Error("服务返回异常：接口请求拿到了页面内容。请关闭当前页面重新打开后再试；如果仍出现，请联系管理员检查发布入口");
+      void recoverFromStaleAssets();
+      throw new Error("服务返回异常：接口请求拿到了页面内容，系统正在刷新到最新版本");
     }
     if (preview) {
       throw new Error(`服务返回异常：接口返回格式不正确（${preview}）`);

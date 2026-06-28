@@ -4,6 +4,7 @@ import { cleanUpdateRecoveryQuery, isRecoverableLoadError, recoverFromStaleAsset
 import AuthGate from "./app/AuthGate";
 import { RouteFallback, StartupRecovery } from "./components/AppLoadingViews";
 
+const AppUpdateLayer = lazy(() => import("./components/AppUpdateLayer").then((module) => ({ default: module.AppUpdateLayer })));
 const DownloadGuidePage = lazy(() => import("./pages/public/DownloadGuidePage"));
 const PublicStoreRoute = lazy(() => import("./pages/public/PublicStoreRoute"));
 const PublicSignatureRoute = lazy(() => import("./pages/public/PublicSignatureRoute"));
@@ -54,6 +55,9 @@ export default function App() {
   return (
     <AppErrorBoundary>
       <AppRoutes />
+      <Suspense fallback={null}>
+        <AppUpdateLayer />
+      </Suspense>
     </AppErrorBoundary>
   );
 }

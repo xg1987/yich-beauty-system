@@ -48,9 +48,17 @@ export function installAppUpdateChecker() {
 }
 
 async function checkForAppUpdate({ allowAutoPrompt }: { allowAutoPrompt: boolean }) {
-  void allowAutoPrompt;
   try {
-    await checkAppUpdateStatus({ manual: false });
+    const status = await checkAppUpdateStatus({ manual: false });
+    if (status.updateAvailable && status.serverVersion) {
+      window.dispatchEvent(new CustomEvent(APP_UPDATE_AVAILABLE_EVENT, {
+        detail: {
+          currentVersion: status.currentVersion,
+          serverVersion: status.serverVersion,
+          autoPrompt: allowAutoPrompt,
+        },
+      }));
+    }
   } catch {
     // Network failures should not interrupt daily store operations.
   }
