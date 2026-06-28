@@ -683,6 +683,79 @@ const commissionSettleWriteKeys = [
   "operationLogs",
 ] as const;
 
+const authPasswordMigrationKeys = [
+  "authUsers",
+] as const;
+
+const registerStoreMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "operationLogs",
+] as const;
+
+const registerStoreWriteKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "operationLogs",
+] as const;
+
+const joinInviteMutationKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "staffInvites",
+  "storeOwnerInvites",
+  "storeOwnerApplications",
+  "operationLogs",
+  "notifications",
+] as const;
+
+const joinInviteWriteKeys = [
+  "authUsers",
+  "staff",
+  "staffInvites",
+  "storeOwnerApplications",
+  "operationLogs",
+  "notifications",
+] as const;
+
+const publicOnlineBookingReadKeys = [
+  "storeProfiles",
+  "onlineStorefronts",
+  "services",
+  "staff",
+  "appointments",
+  "staffUnavailableSlots",
+  "staffShifts",
+  "onlineBookingRequests",
+  "notifications",
+] as const;
+
+const publicOnlineBookingWriteKeys = [
+  "onlineBookingRequests",
+  "notifications",
+] as const;
+
+const storeOwnerApplicationDecisionKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "storeOwnerApplications",
+  "storeOwnerInvites",
+  "operationLogs",
+] as const;
+
+const storeOwnerApplicationDecisionWriteKeys = [
+  "storeProfiles",
+  "authUsers",
+  "staff",
+  "storeOwnerApplications",
+  "storeOwnerInvites",
+  "operationLogs",
+] as const;
+
 export const onRequest: PagesFunction<Env> = async (context) => {
   const database = new D1BeautyDatabase(context.env.DB);
 
@@ -721,12 +794,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // Auto-migrate legacy plaintext password to secure hash
       if (loginResult.needsPasswordMigration && loginResult.userIdNeedingMigration) {
-        const currentData = await database.readData();
+        const currentData = await database.readDataTables(authPasswordMigrationKeys);
         const hashed = await hashPassword(plainPassword);
         const migratedUsers = currentData.authUsers.map((u) =>
           u.id === loginResult.userIdNeedingMigration ? { ...u, password: hashed } : u
         );
-        await database.replaceData({ ...currentData, authUsers: migratedUsers });
+        await database.replaceTables({ ...currentData, authUsers: migratedUsers }, authPasswordMigrationKeys);
       }
 
       return sendJson(200, loginResult.session);
@@ -737,7 +810,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const plainPassword = requiredString(body, "password");
       const hashedPassword = await hashPassword(plainPassword);
 
-      const nextData = registerStore(await database.readData(), {
+      const timing = startMutationTiming("register-store");
+      const currentData = await database.readDataTables(registerStoreMutationKeys);
+      markMutationRead(timing);
+      const nextData = registerStore(currentData, {
         storeName: requiredString(body, "storeName"),
         ownerName: requiredStringAny(body, ["ownerName", "name"]),
         phone: requiredString(body, "phone"),
@@ -745,10 +821,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         account: requiredString(body, "account"),
         password: hashedPassword,
       });
-      await database.replaceData(nextData);
+      startMutationWrite(timing);
+      await database.replaceTables(nextData, registerStoreWriteKeys);
+      markMutationWrite(timing);
 
       const loginResult = await loginWithD1(context.env.DB, requiredString(body, "account"), plainPassword);
-      return sendJson(201, loginResult.session);
+      return withMutationTiming(sendJson(201, loginResult.session), timing, "full");
     }
 
     if (context.request.method === "POST" && pathname === "/api/auth/join-invite") {
@@ -757,7 +835,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const hashedPassword = await hashPassword(plainPassword);
       const inviteCode = requiredString(body, "inviteCode");
 
-      const currentData = await database.readData();
+      const timing = startMutationTiming("join-invite");
+      const currentData = await database.readDataTables(joinInviteMutationKeys);
+      markMutationRead(timing);
       const isStoreOwnerInvite = isStoreOwnerInviteCode(currentData, inviteCode);
       const nextData = joinInviteByCode(currentData, {
         inviteCode,
@@ -768,7 +848,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         address: optionalString(body, "address"),
         account: optionalString(body, "account"),
       });
-      await database.replaceData(nextData);
+      startMutationWrite(timing);
+      await database.replaceTables(nextData, joinInviteWriteKeys);
+      markMutationWrite(timing);
 
       if (isStoreOwnerInvite) {
         const account = optionalString(body, "account");
@@ -777,30 +859,33 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           if (item.inviteCode.trim().toUpperCase() !== inviteCode.trim().toUpperCase()) return false;
           return account ? item.account === account : true;
         });
-        return sendJson(202, {
+        return withMutationTiming(sendJson(202, {
           status: "pending_approval",
           message: "门店申请已提交，请等待管理员审批后再登录。",
           applicationId: application?.id,
-        });
+        }), timing, "full");
       }
 
       const staffInvite = currentData.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === inviteCode.trim().toUpperCase());
       const joinedAccount = staffInvite?.account ?? (isStoreStaffInviteCode(currentData, inviteCode) ? optionalString(body, "account") : undefined);
       if (!joinedAccount) throw new Error("邀请账号不存在");
-      return sendJson(202, {
+      return withMutationTiming(sendJson(202, {
         status: "pending_approval",
         message: "账号已提交，请等待店长审核通过后再登录。",
-      });
+      }), timing, "full");
     }
 
     if (context.request.method === "GET" && pathname.startsWith("/api/public/store/")) {
       const shareCode = decodeURIComponent(pathname.split("/").at(-1) ?? "");
-      return sendJson(200, publicStorePayload(await database.readData(), shareCode));
+      return sendJson(200, publicStorePayload(await readPublicStorefrontData(database, shareCode), shareCode));
     }
 
     if (context.request.method === "POST" && pathname === "/api/public/online-booking-requests") {
+      const timing = startMutationTiming("public-online-booking-create");
       const body = await readJson(context.request);
-      const requestedData = createOnlineBookingRequest(await database.readData(), {
+      const currentData = await readPublicStorefrontData(database, requiredString(body, "shareCode"), publicOnlineBookingReadKeys);
+      markMutationRead(timing);
+      const requestedData = createOnlineBookingRequest(currentData, {
         shareCode: requiredString(body, "shareCode"),
         customerName: requiredString(body, "customerName"),
         phone: requiredString(body, "phone"),
@@ -818,8 +903,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         storeId: bookingRequest.storeId,
         audienceRoles: ["owner", "manager", "frontdesk"],
       });
-      await database.replaceData(nextData);
-      return sendJson(201, { ok: true });
+      startMutationWrite(timing);
+      if (bookingRequest.storeId) {
+        await database.replaceStoreTables(bookingRequest.storeId, nextData, publicOnlineBookingWriteKeys);
+      } else {
+        await database.replaceTables(nextData, publicOnlineBookingWriteKeys);
+      }
+      markMutationWrite(timing);
+      return withMutationTiming(sendJson(201, { ok: true }), timing, "scoped");
     }
 
     if (context.request.method === "GET" && pathname.startsWith("/api/public/customer-signatures/")) {
@@ -1485,16 +1576,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (session.user.role !== "superadmin") {
         throw new Error("只有平台 Admin 可以审批门店申请");
       }
+      const timing = startMutationTiming("store-owner-application-decision");
       const applicationId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
-      const nextData = decideStoreOwnerApplication(await database.readData(), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, storeOwnerApplicationDecisionKeys);
+      markMutationRead(timing);
+      const nextData = decideStoreOwnerApplication(currentData, {
         applicationId,
         userId: session.user.id,
         approved: optionalBoolean(body, "approved") ?? true,
         rejectReason: optionalString(body, "rejectReason"),
       });
-      await persistData(database, session, nextData);
-      return sendScopedData(context.request, 200, nextData, session);
+      startMutationWrite(timing);
+      await persistDataTables(database, session, nextData, storeOwnerApplicationDecisionWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/staff-invites/")) {
@@ -5241,6 +5337,19 @@ async function readPublicSignatureData(database: D1BeautyDatabase, token: string
     return database.readDataTablesForStore(publicSignatureDataKeys, signature.storeId);
   }
   return database.readDataTables(publicSignatureDataKeys);
+}
+
+async function readPublicStorefrontData(
+  database: D1BeautyDatabase,
+  shareCode: string,
+  keys: readonly D1DataTableName[] = ["storeProfiles", "onlineStorefronts", "services"],
+) {
+  const storefrontIndexData = await database.readDataTables(["onlineStorefronts"]);
+  const storefront = storefrontIndexData.onlineStorefronts.find((item) => item.shareCode === shareCode && item.status === "启用");
+  if (storefront?.storeId) {
+    return database.readDataTablesForStore(uniqueDataTableKeys([...keys, "onlineStorefronts"]), storefront.storeId);
+  }
+  return database.readDataTables(keys);
 }
 
 function uniqueDataTableKeys(keys: readonly D1DataTableName[]) {
