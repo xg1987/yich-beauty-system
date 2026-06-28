@@ -1,4 +1,4 @@
-const ICON_VERSION = "0.1.314";
+const ICON_VERSION = "0.1.315";
 const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}`;
 const APP_SHELL_ASSETS = [
   "/",
@@ -63,7 +63,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (["script", "style", "worker"].includes(request.destination)) {
-    event.respondWith(networkFirst(request));
+    event.respondWith(cacheFirst(request));
     return;
   }
 
