@@ -5473,7 +5473,7 @@ function Customers({
   const selectedCardBalance = selectedCustomerActiveCards.reduce((sum, card) => sum + card.balance, 0);
   const selectedRemainingTimes = selectedCustomerActiveCards.reduce((sum, card) => sum + card.remainingTimes, 0);
   const selectedCardTimesSummary = selectedCustomerActiveCards.length
-    ? memberCardTimesText(selectedCustomerActiveCards[0], data.services)
+    ? memberCardAvailableTimesText(selectedCustomerActiveCards[0], data.services)
     : "-";
   const activeCardCustomerCount = new Set(activeCards.map((card) => card.customerId)).size;
   const lastServiceRecord = selectedCustomerRecords[0];
@@ -5689,7 +5689,7 @@ function Customers({
                             <strong>{card.name}</strong>
                             <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
                           </div>
-                          <em>{memberCardTimesText(card, data.services)}</em>
+                          <em>{memberCardAvailableTimesText(card, data.services)}</em>
                         </article>
                       ))}
                       {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">暂无项目卡</p>}
@@ -5730,7 +5730,7 @@ function Customers({
                       card.name,
                       card.type,
                       money(card.balance),
-                      memberCardTimesText(card, data.services),
+                      memberCardAvailableTimesText(card, data.services),
                       memberCardProjectScopeText(card, data.services),
                       shortDate(card.expiresAt),
                       <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "正常" ? "ok" : "warn"} />,
@@ -6050,7 +6050,7 @@ function Customers({
             shortDate(customer.lastVisit),
             data.memberCards
               .filter((card) => card.customerId === customer.id)
-              .map((card) => `${card.name}(${memberCardTimesText(card, data.services)})`)
+              .map((card) => `${card.name}(${memberCardAvailableTimesText(card, data.services)})`)
               .join("，") || "未开卡",
             `${data.customerServiceRecords.filter((record) => record.customerId === customer.id).length} 条`,
             `${data.customerSignatures.filter((signature) => signature.customerId === customer.id).length} 份`,
@@ -6068,7 +6068,7 @@ function Customers({
             card.name,
             card.type,
             money(card.balance),
-            memberCardTimesText(card, data.services),
+            memberCardAvailableTimesText(card, data.services),
             card.benefitText ?? (card.discountRate ? `${Number((card.discountRate * 10).toFixed(1))} 折` : "-"),
             memberCardProjectScopeText(card, data.services),
             shortDate(card.expiresAt),
@@ -8350,19 +8350,35 @@ export function memberCardPurchasedServiceIds(card: AppData["memberCards"][numbe
   return card.serviceId ? [card.serviceId] : [];
 }
 
-export function memberCardTimesText(card: AppData["memberCards"][number], services: AppData["services"], focusedServiceId?: string) {
+export function memberCardTimesText(
+  card: AppData["memberCards"][number],
+  services: AppData["services"],
+  focusedServiceId?: string,
+  options: { hideZeroEntitlements?: boolean; emptyText?: string } = {},
+) {
   if (card.type === "储值卡") return money(card.balance);
   if (card.serviceEntitlements?.length) {
     const entitlements = focusedServiceId
       ? card.serviceEntitlements.filter((item) => item.serviceId === focusedServiceId)
       : card.serviceEntitlements;
     if (entitlements.length === 0 && focusedServiceId) return `${nameOf(services, focusedServiceId)} 0次`;
-    return entitlements
+    const visibleEntitlements = options.hideZeroEntitlements
+      ? entitlements.filter((item) => item.remainingTimes > 0)
+      : entitlements;
+    if (visibleEntitlements.length === 0) return options.emptyText ?? "0次";
+    return visibleEntitlements
       .map((item) => `${nameOf(services, item.serviceId)} ${item.remainingTimes}/${item.totalTimes}次`)
       .join("；");
   }
   if (focusedServiceId) return `${nameOf(services, focusedServiceId)} ${card.remainingTimes}次`;
   return `${memberCardProjectScopeText(card, services)} ${card.remainingTimes}次`;
+}
+
+export function memberCardAvailableTimesText(card: AppData["memberCards"][number], services: AppData["services"]) {
+  return memberCardTimesText(card, services, undefined, {
+    hideZeroEntitlements: true,
+    emptyText: "暂无可用次数",
+  });
 }
 
 export function nameOf(collection: Array<{ id: string; name: string }>, id: string) {

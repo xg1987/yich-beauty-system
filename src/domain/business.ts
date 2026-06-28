@@ -1978,7 +1978,8 @@ export function upsertOnlineStorefront(
     throw new Error("线上项目不存在");
   }
 
-  const current = data.onlineStorefronts[0];
+  const current = data.onlineStorefronts.find((item) => item.storeId === store.id)
+    ?? (data.storeProfiles.length === 1 ? data.onlineStorefronts[0] : undefined);
   const storefront: OnlineStorefront = {
     id: current?.id ?? idFactory("os"),
     storeId: store.id,
@@ -1992,7 +1993,9 @@ export function upsertOnlineStorefront(
   };
   return {
     ...data,
-    onlineStorefronts: [storefront],
+    onlineStorefronts: current
+      ? data.onlineStorefronts.map((item) => (item.id === current.id ? storefront : item))
+      : [storefront, ...data.onlineStorefronts],
   };
 }
 
