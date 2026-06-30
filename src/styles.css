@@ -35896,6 +35896,40 @@ img.brand-icon-mark {
   .cashier-orbit > [data-cashier-action="open-card"] {
     order: 2 !important;
     grid-column: 2 !important;
+    overflow: hidden !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: center !important;
+    align-content: center !important;
+    text-align: center !important;
+  }
+
+  .cashier-orbit > .cashier-orbit-open-card svg,
+  .cashier-orbit > [data-cashier-action="open-card"] svg {
+    grid-row: auto !important;
+  }
+
+  .cashier-orbit > .cashier-orbit-open-card strong,
+  .cashier-orbit > [data-cashier-action="open-card"] strong,
+  .cashier-orbit > .cashier-orbit-open-card em,
+  .cashier-orbit > [data-cashier-action="open-card"] em {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-align: center !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .cashier-orbit > .cashier-orbit-open-card em,
+  .cashier-orbit > [data-cashier-action="open-card"] em {
+    box-sizing: border-box !important;
+    justify-self: center !important;
+    width: fit-content !important;
+    max-width: calc(100% - 8px) !important;
+    padding: 4px 4px !important;
+    font-size: 9px !important;
+    letter-spacing: 0 !important;
   }
 
   .cashier-orbit-side.right {
