@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Server } from "node:http";
 import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
+import pkg from "../package.json" with { type: "json" };
 import { defaultSystemConfigs, platformInviteCodeForUser } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppDataSlice } from "../src/domain/dataSlices";
@@ -23,7 +24,9 @@ try {
   const health = await request<{ ok: boolean }>(baseUrl, "/api/health");
   assert.equal(health.ok, true, "health check should pass");
   const autoVersionHealth = await request<{ version?: string }>(baseUrl, "/api/health?clientVersion=0.1.0");
-  assert.equal(autoVersionHealth.version, undefined, "automatic client version checks should not expose update versions");
+  assert.equal(autoVersionHealth.version, pkg.version, "old clients should receive update versions automatically");
+  const currentVersionHealth = await request<{ version?: string }>(baseUrl, `/api/health?clientVersion=${pkg.version}`);
+  assert.equal(currentVersionHealth.version, undefined, "current clients should not receive update versions automatically");
   const manualVersionHealth = await request<{ version?: string }>(baseUrl, "/api/health?clientVersion=0.1.0&manualUpdateCheck=1");
   assert.ok(manualVersionHealth.version, "manual settings update check should expose the current version");
 

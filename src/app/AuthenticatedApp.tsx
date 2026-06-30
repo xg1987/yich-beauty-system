@@ -3063,6 +3063,7 @@ function Pos({
   const appliedInitialCustomerRef = useRef<string | undefined>(undefined);
   const appliedInitialSignatureRef = useRef<string | undefined>(undefined);
   const cardCustomerDraftTouchedRef = useRef(false);
+  const cardServiceSelectionTouchedRef = useRef(false);
   const cardCustomerNameInputRef = useRef<HTMLInputElement | null>(null);
   const cardCustomerPhoneInputRef = useRef<HTMLInputElement | null>(null);
   const cardNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -3093,6 +3094,19 @@ function Pos({
   const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(() => normalizePosModule(fromManagement ? initialModule ?? "single" : initialModule));
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureDrawingRef = useRef(false);
+
+  useEffect(() => {
+    if (cardServiceSelectionTouchedRef.current) return;
+    if (cardServiceIds.length > 0) return;
+    const firstService = data.services[0];
+    if (!firstService?.id) return;
+    setCardServiceId(firstService.id);
+    setCardServiceIds([firstService.id]);
+    setCardServiceTimes((previous) => ({
+      ...previous,
+      [firstService.id]: previous[firstService.id] ?? firstService.defaultTimes ?? (typeof cardTimes === "number" && cardTimes > 0 ? cardTimes : 10),
+    }));
+  }, [cardServiceIds.length, cardTimes, data.services]);
   const cardAmountValue = editableNumberValue(cardAmount);
   const cardPaidAmountValue = editableNumberValue(cardPaidAmount);
   const cardTimesValue = editableNumberValue(cardTimes);
@@ -3785,6 +3799,7 @@ function Pos({
   };
 
   const updateCardServiceIds = (serviceIds: string[]) => {
+    cardServiceSelectionTouchedRef.current = true;
     const nextServiceIds = Array.from(new Set(serviceIds.filter(Boolean)));
     setCardServiceIds(nextServiceIds);
     setCardServiceId(nextServiceIds[0] ?? "");
@@ -4967,6 +4982,7 @@ function Customers({
   const [cardNote, setCardNote] = useState("");
   const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const customerCardDraftTouchedRef = useRef(false);
+  const customerCardServiceSelectionTouchedRef = useRef(false);
   const customerCardNameInputRef = useRef<HTMLInputElement | null>(null);
   const customerCardPhoneInputRef = useRef<HTMLInputElement | null>(null);
   const customerCardCardNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -5022,6 +5038,19 @@ function Customers({
   const [editFollowUpDueAt, setEditFollowUpDueAt] = useState("");
   const [editFollowUpNote, setEditFollowUpNote] = useState("");
   const [editFollowUpReason, setEditFollowUpReason] = useState("");
+
+  useEffect(() => {
+    if (customerCardServiceSelectionTouchedRef.current) return;
+    if (cardServiceIds.length > 0) return;
+    const firstService = data.services[0];
+    if (!firstService?.id) return;
+    setCardServiceId(firstService.id);
+    setCardServiceIds([firstService.id]);
+    setCardServiceTimes((previous) => ({
+      ...previous,
+      [firstService.id]: previous[firstService.id] ?? firstService.defaultTimes ?? (typeof cardTimes === "number" && cardTimes > 0 ? cardTimes : 10),
+    }));
+  }, [cardServiceIds.length, cardTimes, data.services]);
   const cardAmountValue = editableNumberValue(cardAmount);
   const cardPaidAmountValue = editableNumberValue(cardPaidAmount);
   const cardTimesValue = editableNumberValue(cardTimes);
@@ -5149,6 +5178,7 @@ function Customers({
   };
 
   const updateCardServiceIds = (serviceIds: string[]) => {
+    customerCardServiceSelectionTouchedRef.current = true;
     const nextServiceIds = Array.from(new Set(serviceIds.filter(Boolean)));
     setCardServiceIds(nextServiceIds);
     setCardServiceId(nextServiceIds[0] ?? "");

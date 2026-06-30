@@ -121,6 +121,31 @@ type R2BucketLike = {
     options?: { httpMetadata?: { contentType?: string }; customMetadata?: Record<string, string> },
   ) => Promise<unknown>;
 };
+
+function shouldExposeAppVersion(clientVersion: string | null, manualUpdateCheck: boolean) {
+  return !clientVersion || manualUpdateCheck || isVersionGreater(pkg.version, clientVersion);
+}
+
+function isVersionGreater(nextVersion: string, currentVersion: string) {
+  const nextParts = versionParts(nextVersion);
+  const currentParts = versionParts(currentVersion);
+  const length = Math.max(nextParts.length, currentParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const nextPart = nextParts[index] ?? 0;
+    const currentPart = currentParts[index] ?? 0;
+    if (nextPart > currentPart) return true;
+    if (nextPart < currentPart) return false;
+  }
+  return false;
+}
+
+function versionParts(version: string) {
+  return version
+    .replace(/^v/i, "")
+    .split(".")
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0));
+}
 type PagesFunction<Bindings> = (context: {
   request: Request;
   env: Bindings;
@@ -832,7 +857,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(200, {
         ok: schema.ok,
         service: "yich-system-api",
-        ...(!clientVersion || manualUpdateCheck ? { version: pkg.version } : {}),
+        ...(shouldExposeAppVersion(clientVersion, manualUpdateCheck) ? { version: pkg.version } : {}),
         runtime: "cloudflare-d1",
         schema,
       });

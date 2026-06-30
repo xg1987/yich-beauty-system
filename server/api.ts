@@ -95,6 +95,32 @@ const execFile = promisify(execFileCallback);
 const aiImageGenerationMaxGlobalSlots = 4;
 const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
 const providerFetchTimeoutMs = 260_000;
+
+function shouldExposeAppVersion(clientVersion: string | null, manualUpdateCheck: boolean) {
+  return !clientVersion || manualUpdateCheck || isVersionGreater(pkg.version, clientVersion);
+}
+
+function isVersionGreater(nextVersion: string, currentVersion: string) {
+  const nextParts = versionParts(nextVersion);
+  const currentParts = versionParts(currentVersion);
+  const length = Math.max(nextParts.length, currentParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const nextPart = nextParts[index] ?? 0;
+    const currentPart = currentParts[index] ?? 0;
+    if (nextPart > currentPart) return true;
+    if (nextPart < currentPart) return false;
+  }
+  return false;
+}
+
+function versionParts(version: string) {
+  return version
+    .replace(/^v/i, "")
+    .split(".")
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0));
+}
+
 const publicSignatureDataKeys = [
   "customers",
   "orders",
@@ -142,7 +168,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         sendJson(response, 200, {
           ok: true,
           service: "yich-system-api",
-          ...(!clientVersion || manualUpdateCheck ? { version: pkg.version } : {}),
+          ...(shouldExposeAppVersion(clientVersion, manualUpdateCheck) ? { version: pkg.version } : {}),
         });
         return;
       }

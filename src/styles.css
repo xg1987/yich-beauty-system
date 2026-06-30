@@ -35947,6 +35947,75 @@ img.brand-icon-mark {
     width: 100% !important;
   }
 
+  .member-card-open-form .card-entitlement-group {
+    width: 100% !important;
+    min-inline-size: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+    overflow: visible !important;
+  }
+
+  .member-card-open-form .card-entitlement-group legend {
+    display: block !important;
+    max-width: 100% !important;
+    padding: 0 4px !important;
+    float: none !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    writing-mode: horizontal-tb !important;
+  }
+
+  .member-card-open-form .card-entitlement-row,
+  .member-card-open-form .card-entitlement-row.selected {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    overflow: visible !important;
+  }
+
+  .member-card-open-form .card-entitlement-row > label:first-child {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 18px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .member-card-open-form .card-entitlement-row > label:first-child span {
+    min-width: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+    line-height: 1.35 !important;
+  }
+
+  .member-card-open-form .card-entitlement-row input[type="checkbox"] {
+    width: 18px !important;
+    height: 18px !important;
+    min-height: 18px !important;
+  }
+
+  .member-card-open-form .card-entitlement-times {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    align-items: center !important;
+  }
+
+  .member-card-open-form .card-entitlement-times span {
+    white-space: nowrap !important;
+    writing-mode: horizontal-tb !important;
+  }
+
   .member-card-open-form > .primary-button,
   .member-card-open-form button.primary-button {
     width: 100% !important;
