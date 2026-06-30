@@ -35886,6 +35886,28 @@ img.brand-icon-mark {
     width: 40px !important;
     height: 40px !important;
   }
+
+  .cashier-orbit-side.left {
+    order: 1 !important;
+    grid-column: 1 !important;
+  }
+
+  .cashier-orbit > .cashier-orbit-open-card,
+  .cashier-orbit > [data-cashier-action="open-card"] {
+    order: 2 !important;
+    grid-column: 2 !important;
+  }
+
+  .cashier-orbit-side.right {
+    order: 3 !important;
+    grid-column: 3 !important;
+  }
+
+  .cashier-orbit-side.right .cashier-orbit-flow-card,
+  .cashier-orbit-side.right [data-cashier-action="orders"] {
+    order: initial !important;
+    grid-column: auto !important;
+  }
 }
 
 @media (max-width: 430px) {
