@@ -36044,6 +36044,12 @@ img.brand-icon-mark {
     text-align: center !important;
   }
 
+  .cashier-orbit > .cashier-orbit-open-card,
+  .cashier-orbit > [data-cashier-action="open-card"] {
+    order: 2 !important;
+    grid-column: 2 !important;
+  }
+
   .cashier-orbit-center svg {
     grid-row: auto !important;
     width: 44px !important;
@@ -36067,6 +36073,12 @@ img.brand-icon-mark {
     display: grid !important;
     order: 3 !important;
     grid-column: 3 !important;
+  }
+
+  .cashier-orbit-side.right .cashier-orbit-flow-card,
+  .cashier-orbit-side.right [data-cashier-action="orders"] {
+    order: initial !important;
+    grid-column: auto !important;
   }
 
   .cashier-orbit-card.right.bottom {

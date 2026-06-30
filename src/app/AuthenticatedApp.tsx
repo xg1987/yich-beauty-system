@@ -4288,7 +4288,8 @@ function Pos({
           </div>
           <button
             type="button"
-            className={`cashier-orbit-center ${activeModule === "card" ? "active" : ""}`}
+            className={`cashier-orbit-center cashier-orbit-open-card ${activeModule === "card" ? "active" : ""}`}
+            data-cashier-action="open-card"
             onClick={() => {
               setCardFormMessage(undefined);
               setCheckoutSuccessMessage("");
@@ -4302,7 +4303,8 @@ function Pos({
           <div className="cashier-orbit-side right">
             <button
               type="button"
-              className={`cashier-orbit-card right bottom ${activeModule === "orders" ? "active" : ""}`}
+              className={`cashier-orbit-card cashier-orbit-flow-card right bottom ${activeModule === "orders" ? "active" : ""}`}
+              data-cashier-action="orders"
               onClick={() => setActiveModule("orders")}
             >
               <ClipboardList size={22} />
