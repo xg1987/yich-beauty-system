@@ -30,7 +30,6 @@ const APP_SHELL_ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL_ASSETS))
@@ -46,7 +45,6 @@ self.addEventListener("activate", (event) => {
           .filter((cacheName) => cacheName.startsWith("yich-beauty-pwa-") && cacheName !== CACHE_NAME)
           .map((cacheName) => caches.delete(cacheName)),
       ))
-      .then(() => self.clients.claim()),
   );
 });
 

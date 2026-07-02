@@ -34,7 +34,7 @@ export function AppUpdatePrompt({
           <span>v{info.serverVersion}</span>
         </div>
         <div className="app-update-actions">
-          {!info.autoPrompt && <button type="button" className="secondary-button" disabled={updating} onClick={onDismiss}>稍后</button>}
+          <button type="button" className="secondary-button" disabled={updating} onClick={onDismiss}>稍后</button>
           <button type="button" className="primary-button" disabled={updating} onClick={onUpdate}>{updating ? "更新中..." : "立即更新"}</button>
         </div>
       </section>

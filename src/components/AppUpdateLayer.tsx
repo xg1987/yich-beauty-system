@@ -21,15 +21,6 @@ export function AppUpdateLayer() {
     return () => window.removeEventListener(APP_UPDATE_AVAILABLE_EVENT, handleUpdateAvailable);
   }, []);
 
-  useEffect(() => {
-    if (!updateInfo?.autoPrompt || updating) return;
-    const timer = window.setTimeout(() => {
-      setUpdating(true);
-      void reloadForAppUpdate(updateInfo.serverVersion);
-    }, 1200);
-    return () => window.clearTimeout(timer);
-  }, [updateInfo, updating]);
-
   if (!updateInfo) return null;
 
   const dismiss = () => {
