@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createApiClient, setActiveDataScope, type JoinInviteResult } from "../api/client";
 import { normalizeUserSession, type UserSession } from "../domain/auth";
 import { accountAiCredits, roundAiCreditAmount } from "../domain/aiBilling";
-import { emptyAppData, isAppDataSlice, isViewKey, type AppDataUpdate } from "../domain/dataSlices";
+import { emptyAppData, isAppDataSlice, isViewKey, type AppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
 import type { AppData, ViewKey } from "../domain/types";
 import { clearCachedStoreName } from "../lib/storeNameCache";
 
 const SESSION_KEY = "yich-system-session";
+const INITIAL_DATA_RETRY_DELAYS_MS = [800, 1_800, 3_500, 6_000];
+const INITIAL_DATA_OFFLINE_WAIT_MS = 12_000;
 let fallbackSession: UserSession | undefined;
 
 function initialDataView(): ViewKey {
@@ -59,6 +61,58 @@ function userFacingAuthError(caught: unknown, fallback: string) {
     : message;
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function isTransientInitialLoadError(caught: unknown) {
+  const message = caught instanceof Error ? caught.message : String(caught);
+  if (message.includes("请先登录")) return false;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return /Failed to fetch|Load failed|NetworkError|Network request failed|The Internet connection appears to be offline|超时|timeout|服务暂时不可用|HTTP 5\d\d/i.test(message);
+}
+
+async function waitForNetworkOrDelay(delayMs: number) {
+  if (typeof navigator === "undefined" || navigator.onLine !== false) {
+    await sleep(delayMs);
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      window.removeEventListener("online", finish);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, Math.max(delayMs, INITIAL_DATA_OFFLINE_WAIT_MS));
+    window.addEventListener("online", finish, { once: true });
+  });
+}
+
+async function fetchInitialDataSliceWithRetry(fetchDataSlice: (view: ViewKey) => Promise<AppDataSlice>) {
+  const view = initialDataView();
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= INITIAL_DATA_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await fetchDataSlice(view);
+    } catch (caught) {
+      lastError = caught;
+      if (!isTransientInitialLoadError(caught) || attempt === INITIAL_DATA_RETRY_DELAYS_MS.length) {
+        throw caught;
+      }
+      await waitForNetworkOrDelay(INITIAL_DATA_RETRY_DELAYS_MS[attempt]);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("加载数据失败");
+}
+
 export function useApiData() {
   const [session, setSession] = useState<UserSession | undefined>(readSavedSession);
   const [data, setData] = useState<AppData | undefined>();
@@ -85,7 +139,7 @@ export function useApiData() {
     try {
       const nextSession = saveSession(await client.login(account, password));
       setSession(nextSession);
-      const nextData = await createApiClient(() => nextSession.token).fetchDataSlice(initialDataView());
+      const nextData = await fetchInitialDataSliceWithRetry(createApiClient(() => nextSession.token).fetchDataSlice);
       setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
       setError(userFacingAuthError(caught, "登录失败"));
@@ -100,7 +154,7 @@ export function useApiData() {
     try {
       const nextSession = saveSession(await authAction());
       setSession(nextSession);
-      const nextData = await createApiClient(() => nextSession.token).fetchDataSlice(initialDataView());
+      const nextData = await fetchInitialDataSliceWithRetry(createApiClient(() => nextSession.token).fetchDataSlice);
       setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
       setError(userFacingAuthError(caught, "认证失败"));
@@ -138,7 +192,7 @@ export function useApiData() {
     setLoading(true);
     setError(undefined);
     try {
-      const nextData = await client.fetchDataSlice(initialDataView());
+      const nextData = await fetchInitialDataSliceWithRetry(client.fetchDataSlice);
       setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "加载数据失败";
@@ -155,6 +209,26 @@ export function useApiData() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!session || data || !error || loading) return;
+
+    const recover = () => {
+      void refreshData();
+    };
+    const recoverWhenVisible = () => {
+      if (document.visibilityState === "visible") recover();
+    };
+    const retryTimer = window.setTimeout(recover, 8_000);
+
+    window.addEventListener("online", recover);
+    document.addEventListener("visibilitychange", recoverWhenVisible);
+    return () => {
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("online", recover);
+      document.removeEventListener("visibilitychange", recoverWhenVisible);
+    };
+  }, [session?.token, Boolean(data), error, loading]);
 
   const refreshDataView = async (view: ViewKey) => {
     if (!session || !dataRef.current) return;
