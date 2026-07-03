@@ -2,6 +2,7 @@ package com.zhurongkftech.beauty;
 
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.MotionEvent;
 import android.os.Bundle;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -13,6 +14,20 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         keepContentInsideSystemBars();
         super.onCreate(savedInstanceState);
+        keepContentInsideSystemBars();
+        disableWebViewZoom();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        keepContentInsideSystemBars();
+        disableWebViewZoom();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
         keepContentInsideSystemBars();
         disableWebViewZoom();
     }
@@ -33,5 +48,15 @@ public class MainActivity extends BridgeActivity {
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
+        settings.setTextZoom(100);
+        webView.setInitialScale(100);
+        webView.setOnTouchListener((view, event) -> {
+            if (event.getPointerCount() > 1) {
+                if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN || event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                    return true;
+                }
+            }
+            return false;
+        });
     }
 }
