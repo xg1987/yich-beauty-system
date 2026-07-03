@@ -1,5 +1,6 @@
 const ICON_VERSION = "0.1.325";
-const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}`;
+const CACHE_REVISION = "zoom-lock-20260704";
+const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}-${CACHE_REVISION}`;
 const APP_SHELL_ASSETS = [
   "/",
   `/manifest.webmanifest?v=${ICON_VERSION}`,
@@ -35,6 +36,7 @@ self.addEventListener("install", (event) => {
       .then((cache) => cache.addAll(APP_SHELL_ASSETS))
       .catch(() => undefined),
   );
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -45,6 +47,7 @@ self.addEventListener("activate", (event) => {
           .filter((cacheName) => cacheName.startsWith("yich-beauty-pwa-") && cacheName !== CACHE_NAME)
           .map((cacheName) => caches.delete(cacheName)),
       ))
+      .then(() => self.clients.claim())
   );
 });
 
