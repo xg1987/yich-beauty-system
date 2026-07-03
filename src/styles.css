@@ -36230,3 +36230,35 @@ img.brand-icon-mark {
     padding: 13px !important;
   }
 }
+
+/* Mobile safe-area guard: keep the fixed app header below iOS status bars. */
+@media (max-width: 767px) {
+  :root {
+    --yich-mobile-safe-top: env(safe-area-inset-top, 0px);
+    --yich-mobile-header-content-height: 72px;
+    --yich-global-header-height: calc(var(--yich-mobile-header-content-height) + var(--yich-mobile-safe-top));
+    --yich-topbar-h: var(--yich-global-header-height);
+  }
+
+  .app-shell {
+    padding-top: var(--yich-global-header-height) !important;
+  }
+
+  .app-shell > .topbar,
+  .app-shell .main > .topbar {
+    height: var(--yich-global-header-height) !important;
+    min-height: var(--yich-global-header-height) !important;
+    padding: calc(12px + var(--yich-mobile-safe-top)) var(--yich-safe-x, 14px) 12px !important;
+  }
+
+  .app-shell > .topbar .topbar-actions,
+  .app-shell .main > .topbar .topbar-actions,
+  .app-shell .main:has(> .admin-center-page:not(.platform-admin-page)) > .topbar .topbar-actions {
+    top: calc(var(--yich-mobile-safe-top) + 14px) !important;
+  }
+
+  .app-shell > .topbar .account-menu,
+  .app-shell .main > .topbar .account-menu {
+    top: calc(var(--yich-global-header-height) + 8px) !important;
+  }
+}
