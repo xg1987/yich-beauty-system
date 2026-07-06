@@ -302,6 +302,7 @@ const memberCardMutationKeys = [
   "services",
   "memberCards",
   "memberCardTransactions",
+  "customerSignatures",
   "dailyCloses",
   "operationLogs",
 ] as const;
@@ -310,6 +311,7 @@ const memberCardWriteKeys = [
   "customers",
   "memberCards",
   "memberCardTransactions",
+  "customerSignatures",
   "operationLogs",
 ] as const;
 
