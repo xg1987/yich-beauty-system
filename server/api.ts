@@ -4088,15 +4088,15 @@ function readDataForRequest(database: BeautyDatabase, request: IncomingMessage, 
 
 function sendScopedData(request: IncomingMessage, response: ServerResponse, statusCode: number, data: AppData, session: UserSession) {
   const scopedData = scopeDataForSession(data, session);
+  const responseData = withoutSignatureImages(scopedData);
   if (isSliceRequest(request)) {
     const requestedView = requestedDataView(request);
     if (requestedView) {
-      const responseData = withoutSignatureImages(scopedData);
       sendJson(response, statusCode, makeAppDataSlice(responseData, requestedView));
       return;
     }
   }
-  sendJson(response, statusCode, scopedData);
+  sendJson(response, statusCode, responseData);
 }
 
 function withoutSignatureImages(data: AppData): AppData {

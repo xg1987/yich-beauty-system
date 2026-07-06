@@ -5516,9 +5516,9 @@ function sendScopedData(
   options: { responseKeys?: readonly D1DataTableName[]; keepSignatureTextIds?: readonly string[] } = {},
 ) {
   const scopedData = scopeDataForSession(data, session);
+  const responseData = withoutSignatureImages(scopedData, options.keepSignatureTextIds);
   const requestedView = requestedDataView(request);
   if (isSliceRequest(request) && requestedView) {
-    const responseData = withoutSignatureImages(scopedData, options.keepSignatureTextIds);
     return sendJson(
       statusCode,
       options.responseKeys?.length
@@ -5526,7 +5526,7 @@ function sendScopedData(
         : makeAppDataSlice(responseData, requestedView),
     );
   }
-  return sendJson(statusCode, scopedData);
+  return sendJson(statusCode, responseData);
 }
 
 function makeAppDataSliceWithKeys(data: AppData, view: ViewKey, keys: readonly D1DataTableName[]) {
