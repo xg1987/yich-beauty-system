@@ -1075,6 +1075,9 @@ try {
   assert.equal(afterOpenCard.memberCardTransactions[0].paidAmount, 500, "open card API should persist paid amount");
   assert.equal(afterOpenCard.memberCardTransactions[0].payMethod, "微信", "open card API should persist payment method");
   assert.equal(afterOpenCard.memberCardTransactions[0].staffId, "s1", "open card API should persist current staff");
+  assert.equal(afterOpenCard.customerSignatures[0].title, "开卡确认签名", "open card API should create a customer confirmation signature");
+  assert.equal(afterOpenCard.customerSignatures[0].status, "待签名", "open card API signature should wait for customer signing");
+  assert.equal(afterOpenCard.customerSignatures.some((signature) => Boolean(signature.signatureText)), false, "open card API response should not include signature images");
   const afterOpenNewCustomerCard = await request<AppData>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,

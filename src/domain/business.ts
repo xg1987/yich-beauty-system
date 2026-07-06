@@ -3623,7 +3623,13 @@ export function openMemberCard(
       : customer,
   );
   const cardId = idFactory("m");
+  const signatureId = idFactory("sig");
   const noteText = [cardName, trimText(input.note)].filter(Boolean).join("：");
+  const entitlementText = cardType === "储值卡"
+    ? `到账余额：${money(balance)}`
+    : cardType === "折扣卡"
+      ? `折扣权益：${Number(((discountRate ?? 1) * 10).toFixed(1))} 折`
+      : `可用项目：${serviceIds.map((id) => data.services.find((service) => service.id === id)?.name ?? "项目").join("、") || "未指定"}；总次数：${remainingTimes} 次`;
 
   return {
     ...data,
@@ -3649,6 +3655,21 @@ export function openMemberCard(
           : undefined,
       },
       ...data.memberCards,
+    ],
+    customerSignatures: [
+      {
+        id: signatureId,
+        storeId,
+        token: idFactory("sign"),
+        customerId,
+        title: "开卡确认签名",
+        content: `${taggedCustomers.find((customer) => customer.id === customerId)?.name ?? "客户"} 确认本次开卡内容、支付金额和会员权益无误。卡名称：${cardName}，卡类型：${cardType}，实收：${money(paidAmount)}，支付方式：${payMethod}，${entitlementText}，有效期至：${expiresAt}。`,
+        status: "待签名",
+        requestedBy: input.userId,
+        createdAt,
+        expiresAt: new Date(+new Date(createdAt) + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      ...(data.customerSignatures ?? []),
     ],
     memberCardTransactions: [
       {

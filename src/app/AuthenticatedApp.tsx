@@ -3499,12 +3499,13 @@ function Pos({
   const selectedSignatureCardBlockedRows = selectedSignatureCardUsageRows.filter((row) => row.blocked);
   const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
   const selectedSignatureLinkedToOrder = selectedSignatureContext ? signatureRecordCanCompleteCheckout(selectedSignatureContext) : false;
+  const selectedSignatureStandalone = selectedSignature ? signatureRecordCanCompleteStandalone(selectedSignature) : false;
   const selectedSignatureCardBlocked = selectedSignatureCardBlockedRows.length > 0;
   const selectedSignatureCanComplete = Boolean(
     selectedSignature
     && selectedSignature.status === "待签名"
     && !selectedSignatureExpired
-    && selectedSignatureLinkedToOrder
+    && (selectedSignatureLinkedToOrder || selectedSignatureStandalone)
     && !selectedSignatureCardBlocked,
   );
   const selectedSignatureBlockMessage = selectedSignature && selectedSignature.status === "待签名" && !selectedSignatureCanComplete
@@ -3512,7 +3513,7 @@ function Pos({
       ? "签名已过期，请重新生成。"
       : selectedSignatureCardBlocked
         ? `会员卡项目次数不足，不能完成签名扣卡：${selectedSignatureCardBlockedRows.map((row) => `${row.serviceName} 剩 ${row.beforeText}，本次用 ${row.usedText}`).join("；")}`
-        : "签名未关联订单。"
+        : "签名未关联可确认的业务记录。"
     : undefined;
   const selectedSignatureDisplayImage = selectedSignatureImage && selectedSignatureImage.signatureId === selectedSignature?.id
     ? selectedSignatureImage.signatureText
@@ -3626,6 +3627,9 @@ function Pos({
   const selectedCashierSignature = selectedCashierOrder
     ? data.customerSignatures.find((signature) => signature.orderId === selectedCashierOrder.id)
     : undefined;
+  const selectedCashierSignatureImage = selectedSignatureImage && selectedSignatureImage.signatureId === selectedCashierSignature?.id
+    ? selectedSignatureImage.signatureText
+    : selectedCashierSignature?.signatureText;
   const openCashierSignature = () => {
     if (!selectedCashierSignature) return;
     setSelectedSignatureId(selectedCashierSignature.id);
@@ -3646,6 +3650,11 @@ function Pos({
     const context = canvas?.getContext("2d");
     if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
   }, [data.customers, selectedSignature?.id]);
+  useEffect(() => {
+    if (selectedCashierSignature?.status === "已签名" && selectedCashierSignature.id !== selectedSignatureId) {
+      setSelectedSignatureId(selectedCashierSignature.id);
+    }
+  }, [selectedCashierSignature?.id, selectedCashierSignature?.status, selectedSignatureId]);
 
   const signaturePointFromClient = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
     const rect = canvas.getBoundingClientRect();
@@ -4050,14 +4059,19 @@ function Pos({
         expiresAt: cardExpiresAt,
         note: cardNote.trim() || undefined,
       });
-    }).then(() => {
+    }).then((nextData) => {
+      const pendingSignature = nextData.customerSignatures.find((signature) => signature.title === "开卡确认签名" && signature.status === "待签名");
       clearCardCustomerDraft();
       setCardNote("");
-      setCardFormMessage({ type: "success", text: "开卡成功，已写入收银流水。" });
-      setCheckoutSuccessMessage("开卡成功，已写入收银流水。");
-      if (fromManagement && onReturnManagement) {
+      if (pendingSignature) {
+        setSelectedSignatureId(pendingSignature.id);
+        setActiveModule("signature");
+      }
+      setCardFormMessage({ type: "success", text: pendingSignature ? "开卡成功，请完成客户签名。" : "开卡成功，已写入收银流水。" });
+      setCheckoutSuccessMessage(pendingSignature ? "开卡成功，请在当前窗口完成客户签名。" : "开卡成功，已写入收银流水。");
+      if (!pendingSignature && fromManagement && onReturnManagement) {
         onReturnManagement();
-      } else {
+      } else if (!pendingSignature) {
         window.setTimeout(() => setActiveModule("orders"), 800);
       }
     }).catch((caught) => {
@@ -4809,10 +4823,14 @@ function Pos({
                 </dd>
               </div>
             </dl>
-            {selectedCashierSignature?.signatureText && (
+            {(selectedCashierSignatureImage || (selectedCashierSignature?.status === "已签名" && selectedSignatureImageLoading)) && (
               <div className="cashier-record-signature">
                 <strong>客户签名</strong>
-                <img src={selectedCashierSignature.signatureText} alt="客户签名" />
+                {selectedCashierSignatureImage ? (
+                  <img src={selectedCashierSignatureImage} alt="客户签名" />
+                ) : (
+                  <p>签名图片加载中...</p>
+                )}
               </div>
             )}
           </div>
@@ -8173,7 +8191,7 @@ export function signatureRecordContext(data: AppData, signature: CustomerSignatu
     orderNo: order?.orderNo ?? "-",
     serviceName: serviceRecord?.serviceId
       ? nameOf(data.services, serviceRecord.serviceId)
-      : order?.serviceName || (serviceId ? nameOf(data.services, serviceId) : productLines.join(" + ") || "收银"),
+      : order?.serviceName || (serviceId ? nameOf(data.services, serviceId) : productLines.join(" + ") || signature.title || "收银"),
     serviceRecord,
     staffName: staffId ? nameOf(data.staff, staffId) : "-",
   };
@@ -8406,6 +8424,10 @@ function customerSignatureIsExpired(signature: CustomerSignature, nowMs = Date.n
 
 function signatureRecordCanCompleteCheckout(context: ReturnType<typeof signatureRecordContext>) {
   return Boolean(context.order || context.serviceRecord?.serviceId);
+}
+
+function signatureRecordCanCompleteStandalone(signature: CustomerSignature) {
+  return signature.title === "开卡确认签名";
 }
 
 export function SignatureRecordDetail({

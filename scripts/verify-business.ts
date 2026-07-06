@@ -1630,6 +1630,9 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(opened.memberCardTransactions[0].paidAmount, 2980, "open card should record paid amount");
   assert.equal(opened.memberCardTransactions[0].payMethod, "微信", "open card should record payment method");
   assert.equal(opened.memberCardTransactions[0].staffId, "s2", "open card should record the handling staff");
+  assert.equal(opened.customerSignatures[0].title, "开卡确认签名", "open card should create a customer confirmation signature");
+  assert.equal(opened.customerSignatures[0].status, "待签名", "open card signature should wait for customer signing");
+  assert.ok(opened.customerSignatures[0].content.includes("测试十次卡"), "open card signature should include card details");
   assert.throws(
     () =>
       openMemberCard(
