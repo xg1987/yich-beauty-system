@@ -1263,7 +1263,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
                 <LazyDashboard data={data} session={session} setView={navigate} />
               </Suspense>
             ))}
-            {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} initialAppointmentId={appointmentEntryId} initialAppointmentKey={appointmentEntryKey} />}
+            {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} setView={navigate} initialAppointmentId={appointmentEntryId} initialAppointmentKey={appointmentEntryKey} />}
             {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialSignatureId={posEntrySignatureId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
@@ -2069,7 +2069,7 @@ type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
 
 const APPOINTMENT_WORKFLOW_PREVIEW_LIMIT = 6;
 
-function Appointments({ data, session, actions, runMutation, setView, initialAppointmentId, initialAppointmentKey = 0 }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; setView: NavigateToView; initialAppointmentId?: string; initialAppointmentKey?: number }) {
+function Appointments({ data, session, actions, runMutation, fetchPublicCustomerSignature, setView, initialAppointmentId, initialAppointmentKey = 0 }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; fetchPublicCustomerSignature: UseApiDataResult["fetchPublicCustomerSignature"]; setView: NavigateToView; initialAppointmentId?: string; initialAppointmentKey?: number }) {
   const mutationPending = useMutationPending();
   const serviceStaff = businessStaffOf(data);
   const currentAppointmentStaffId = session.user.staffId ?? "";
@@ -2097,6 +2097,8 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   const [activeAppointmentAction, setActiveAppointmentAction] = useState<"reschedule" | "cancel" | undefined>();
   const [activeAppointmentId, setActiveAppointmentId] = useState("");
   const [selectedAppointmentDetailId, setSelectedAppointmentDetailId] = useState("");
+  const [selectedAppointmentSignatureImage, setSelectedAppointmentSignatureImage] = useState<{ signatureId: string; signatureText: string }>();
+  const [selectedAppointmentSignatureImageLoading, setSelectedAppointmentSignatureImageLoading] = useState(false);
   const [focusedAppointmentId, setFocusedAppointmentId] = useState("");
   const appliedInitialAppointmentIdRef = useRef<string | undefined>(undefined);
   const [rescheduleStaffId, setRescheduleStaffId] = useState(defaultAppointmentStaffId);
@@ -2696,6 +2698,55 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
   const selectedCompletedSignature = selectedCompletedOrder
     ? findAppointmentSignature(selectedCompletedOrder)
     : undefined;
+  const selectedCompletedSignatureImage = selectedAppointmentSignatureImage && selectedAppointmentSignatureImage.signatureId === selectedCompletedSignature?.id
+    ? selectedAppointmentSignatureImage.signatureText
+    : selectedCompletedSignature?.signatureText;
+
+  useEffect(() => {
+    let cancelled = false;
+    const embeddedSignatureImage = selectedCompletedSignature?.signatureText?.startsWith("data:image/") ? selectedCompletedSignature.signatureText : "";
+    if (!selectedCompletedSignature || selectedCompletedSignature.status !== "已签名") {
+      setSelectedAppointmentSignatureImage(undefined);
+      setSelectedAppointmentSignatureImageLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (embeddedSignatureImage) {
+      setSelectedAppointmentSignatureImage({ signatureId: selectedCompletedSignature.id, signatureText: embeddedSignatureImage });
+      setSelectedAppointmentSignatureImageLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!selectedCompletedSignature.token) {
+      setSelectedAppointmentSignatureImage(undefined);
+      setSelectedAppointmentSignatureImageLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setSelectedAppointmentSignatureImageLoading(true);
+    void fetchPublicCustomerSignature(selectedCompletedSignature.token)
+      .then((payload) => {
+        if (cancelled) return;
+        const signatureText = payload.signature.signatureText;
+        setSelectedAppointmentSignatureImage(
+          signatureText?.startsWith("data:image/")
+            ? { signatureId: selectedCompletedSignature.id, signatureText }
+            : undefined,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedAppointmentSignatureImage(undefined);
+      })
+      .finally(() => {
+        if (!cancelled) setSelectedAppointmentSignatureImageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPublicCustomerSignature, selectedCompletedSignature?.id, selectedCompletedSignature?.signatureText, selectedCompletedSignature?.status, selectedCompletedSignature?.token]);
 
   return (
     <div className="page-stack appointment-room-page">
@@ -2812,10 +2863,14 @@ function Appointments({ data, session, actions, runMutation, setView, initialApp
                   <div><dt>实收/扣款</dt><dd>{selectedCompletedOrder ? money(selectedCompletedOrder.paidAmount) : "-"}</dd></div>
                   <div><dt>签名状态</dt><dd>{selectedCompletedSignature?.status ?? "-"}</dd></div>
                 </dl>
-                {selectedCompletedSignature?.signatureText && (
+                {(selectedCompletedSignature?.status === "已签名" || selectedCompletedSignatureImage || selectedAppointmentSignatureImageLoading) && (
                   <div className="appointment-completed-signature">
                     <strong>客户签名</strong>
-                    <img src={selectedCompletedSignature.signatureText} alt="客户签名" />
+                    {selectedCompletedSignatureImage ? (
+                      <img src={selectedCompletedSignatureImage} alt="客户签名" />
+                    ) : (
+                      <p>{selectedAppointmentSignatureImageLoading ? "签名图片加载中..." : "签名图片暂不可用"}</p>
+                    )}
                   </div>
                 )}
               </div>
