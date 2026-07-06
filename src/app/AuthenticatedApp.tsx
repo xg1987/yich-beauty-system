@@ -1264,7 +1264,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               </Suspense>
             ))}
             {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} initialAppointmentId={appointmentEntryId} initialAppointmentKey={appointmentEntryKey} />}
-            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialSignatureId={posEntrySignatureId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
+            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialSignatureId={posEntrySignatureId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
             {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
             {activeView === "marketing" && (
               <Suspense fallback={<ViewFallback title="营销中心" />}>
@@ -3000,6 +3000,7 @@ function Pos({
   session,
   actions,
   runMutation,
+  fetchPublicCustomerSignature,
   fromManagement = false,
   initialModule,
   initialAppointmentId,
@@ -3013,6 +3014,7 @@ function Pos({
   session: UserSession;
   actions: ApiActions;
   runMutation: RunMutation;
+  fetchPublicCustomerSignature: UseApiDataResult["fetchPublicCustomerSignature"];
   fromManagement?: boolean;
   initialModule?: PosModuleKey;
   initialAppointmentId?: string;
@@ -3091,6 +3093,8 @@ function Pos({
   const [signatureMessage, setSignatureMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const [hasSignatureDrawing, setHasSignatureDrawing] = useState(false);
   const [signatureNow, setSignatureNow] = useState(() => Date.now());
+  const [selectedSignatureImage, setSelectedSignatureImage] = useState<{ signatureId: string; signatureText: string }>();
+  const [selectedSignatureImageLoading, setSelectedSignatureImageLoading] = useState(false);
   const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(() => normalizePosModule(fromManagement ? initialModule ?? "single" : initialModule));
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureDrawingRef = useRef(false);
@@ -3455,6 +3459,54 @@ function Pos({
         ? `会员卡项目次数不足，不能完成签名扣卡：${selectedSignatureCardBlockedRows.map((row) => `${row.serviceName} 剩 ${row.beforeText}，本次用 ${row.usedText}`).join("；")}`
         : "签名未关联订单。"
     : undefined;
+  const selectedSignatureDisplayImage = selectedSignatureImage && selectedSignatureImage.signatureId === selectedSignature?.id
+    ? selectedSignatureImage.signatureText
+    : selectedSignature?.signatureText;
+  useEffect(() => {
+    let cancelled = false;
+    const embeddedSignatureImage = selectedSignature?.signatureText?.startsWith("data:image/") ? selectedSignature.signatureText : "";
+    if (!selectedSignature || selectedSignature.status !== "已签名") {
+      setSelectedSignatureImage(undefined);
+      setSelectedSignatureImageLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (embeddedSignatureImage) {
+      setSelectedSignatureImage({ signatureId: selectedSignature.id, signatureText: embeddedSignatureImage });
+      setSelectedSignatureImageLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!selectedSignature.token) {
+      setSelectedSignatureImage(undefined);
+      setSelectedSignatureImageLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setSelectedSignatureImageLoading(true);
+    void fetchPublicCustomerSignature(selectedSignature.token)
+      .then((payload) => {
+        if (cancelled) return;
+        const signatureText = payload.signature.signatureText;
+        setSelectedSignatureImage(
+          signatureText?.startsWith("data:image/")
+            ? { signatureId: selectedSignature.id, signatureText }
+            : undefined,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedSignatureImage(undefined);
+      })
+      .finally(() => {
+        if (!cancelled) setSelectedSignatureImageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPublicCustomerSignature, selectedSignature?.id, selectedSignature?.signatureText, selectedSignature?.status, selectedSignature?.token]);
   useEffect(() => {
     if (!usesCustomer || !usesService || selectedServiceRows.length === 0) return;
     if (serviceAutoDebitActive) {
@@ -4612,7 +4664,12 @@ function Pos({
         <section className="panel sg">
           <PanelTitle icon={<LockKeyhole size={18} />} title="客户确认签名" action={selectedSignature ? "当前服务" : "未选择"} />
           {selectedSignature ? (
-            <SignatureRecordDetail data={data} signature={selectedSignature} />
+            <SignatureRecordDetail
+              data={data}
+              signature={selectedSignature}
+              signatureImageText={selectedSignatureDisplayImage}
+              signatureImageLoading={selectedSignatureImageLoading}
+            />
           ) : (
             <div className="checkout-product-empty">暂无当前服务签名。完成收银后，会在这里显示本次服务确认。</div>
           )}
@@ -8291,11 +8348,22 @@ function signatureRecordCanCompleteCheckout(context: ReturnType<typeof signature
   return Boolean(context.order || context.serviceRecord?.serviceId);
 }
 
-export function SignatureRecordDetail({ data, signature }: { data: AppData; signature: CustomerSignature }) {
+export function SignatureRecordDetail({
+  data,
+  signature,
+  signatureImageText,
+  signatureImageLoading = false,
+}: {
+  data: AppData;
+  signature: CustomerSignature;
+  signatureImageText?: string;
+  signatureImageLoading?: boolean;
+}) {
   const context = signatureRecordContext(data, signature);
   const signedAt = signature.signedAt ? shortDate(signature.signedAt) : "-";
   const cardUsageRows = context.order ? signatureMemberCardUsageRows(data, context.order) : [];
   const serviceUsageRows = context.order ? signatureServiceQuantityRows(data, context.order) : [];
+  const displaySignatureText = signatureImageText ?? signature.signatureText;
   return (
     <section className="signature-record-detail">
       <div className="signature-record-meta">
@@ -8338,10 +8406,12 @@ export function SignatureRecordDetail({ data, signature }: { data: AppData; sign
         </div>
         <div className="signature-record-image-panel">
           <strong>客户签名</strong>
-          {signature.signatureText?.startsWith("data:image/") ? (
-            <img className="signature-record-image" src={signature.signatureText} alt="客户签名" />
+          {displaySignatureText?.startsWith("data:image/") ? (
+            <img className="signature-record-image" src={displaySignatureText} alt="客户签名" />
+          ) : signatureImageLoading ? (
+            <span>签名图片加载中...</span>
           ) : (
-            <span>{signature.signatureText || "未签名"}</span>
+            <span>{displaySignatureText || "未签名"}</span>
           )}
         </div>
       </div>
