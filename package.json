@@ -1,6 +1,6 @@
 {
   "name": "yich-beauty-system",
-  "version": "0.1.326",
+  "version": "0.1.327",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
     "verify:api": "tsx scripts/verify-api.ts",
     "verify:scale": "tsx scripts/verify-scale.ts",
     "verify:cloudflare-api": "tsx scripts/verify-cloudflare-api.ts",
+    "verify:signature-persistence": "tsx scripts/verify-signature-persistence.ts",
     "verify:night-theme": "tsx scripts/verify-night-theme.ts",
     "verify:bundle": "tsx scripts/verify-bundle-budget.ts",
     "android:sync": "sh scripts/build-android-apk.sh sync",

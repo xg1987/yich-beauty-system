@@ -311,6 +311,15 @@ export class D1BeautyDatabase {
     return rows[0];
   }
 
+  async readCustomerSignatureById(id: string): Promise<CustomerSignature | undefined> {
+    const rows = await this.all(
+      "SELECT payload_json FROM customerSignatures WHERE id = ? LIMIT 1",
+      mapJsonPayload<CustomerSignature>,
+      [id],
+    );
+    return rows[0];
+  }
+
   async resolveCustomerSignatureStoreId(signature: CustomerSignature): Promise<string | undefined> {
     if (signature.storeId) return signature.storeId;
     const rows = await this.all(

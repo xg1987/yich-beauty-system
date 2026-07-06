@@ -173,7 +173,6 @@ const customerSignatureWriteKeys = [
   "orders",
   "memberCards",
   "memberCardTransactions",
-  "customerSignatures",
 ] as const;
 
 const customerSignatureMutationKeys = [
@@ -302,7 +301,6 @@ const memberCardMutationKeys = [
   "services",
   "memberCards",
   "memberCardTransactions",
-  "customerSignatures",
   "dailyCloses",
   "operationLogs",
 ] as const;
@@ -311,7 +309,6 @@ const memberCardWriteKeys = [
   "customers",
   "memberCards",
   "memberCardTransactions",
-  "customerSignatures",
   "operationLogs",
 ] as const;
 
@@ -1023,9 +1020,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         signatureText: requiredString(body, "signatureText"),
       });
       const signedSignature = nextData.customerSignatures.find((item) => item.token === token);
+      if (!signedSignature) throw new Error("签名记录更新失败");
       const signedSignatureStoreId = signedSignature ? publicSignatureStoreId(nextData, signedSignature) : undefined;
       if (signedSignatureStoreId) {
         await database.replaceStoreTables(signedSignatureStoreId, nextData, customerSignatureWriteKeys);
+        await database.upsertCustomerSignatures([signedSignature]);
       } else {
         throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
       }
@@ -2158,8 +2157,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
+      const newSignatures = (nextData.customerSignatures ?? []).filter((signature) =>
+        !(currentData.customerSignatures ?? []).some((existingSignature) => existingSignature.id === signature.id),
+      );
       startMutationWrite(timing);
       await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      await database.upsertCustomerSignatures(newSignatures);
       markMutationWrite(timing);
       return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
@@ -2337,7 +2340,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/customer-signatures") {
       requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const body = await readJson(context.request);
-      const nextData = createCustomerSignature(await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys), {
+      const currentData = await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys.filter((key) => key !== "customerSignatures"));
+      const nextData = createCustomerSignature(currentData, {
         customerId: requiredString(body, "customerId"),
         serviceRecordId: optionalString(body, "serviceRecordId"),
         orderId: optionalString(body, "orderId"),
@@ -2346,7 +2350,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         requestedBy: session.user.id,
         validDays: optionalNumber(body, "validDays"),
       });
-      await persistDataTables(database, session, nextData, ["customerSignatures"]);
+      const createdSignature = nextData.customerSignatures[0];
+      if (!createdSignature) throw new Error("签名记录创建失败");
+      await database.upsertCustomerSignatures([createdSignature]);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -2354,15 +2360,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const signatureId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys);
-      const signature = currentData.customerSignatures.find((item) => item.id === signatureId);
+      const currentData = await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys.filter((key) => key !== "customerSignatures"));
+      const signature = await database.readCustomerSignatureById(signatureId);
       if (!signature) throw new Error("签名记录不存在");
-      const nextData = signCustomerSignature(currentData, {
+      const nextData = signCustomerSignature({ ...currentData, customerSignatures: [signature] }, {
         token: signature.token,
         signerName: requiredString(body, "signerName"),
         signatureText: requiredString(body, "signatureText"),
       });
+      const signedSignature = nextData.customerSignatures.find((item) => item.id === signature.id);
+      if (!signedSignature) throw new Error("签名记录更新失败");
       await persistDataTables(database, session, nextData, customerSignatureWriteKeys);
+      await database.upsertCustomerSignatures([signedSignature]);
       return sendScopedData(context.request, 201, nextData, session);
     }
 
@@ -5479,7 +5488,8 @@ async function readPublicSignatureData(database: D1BeautyDatabase, token: string
   if (!signature) return emptyAppData();
   const signatureStoreId = signature ? await database.resolveCustomerSignatureStoreId(signature) : undefined;
   if (signatureStoreId) {
-    return database.readDataTablesForStore(publicSignatureDataKeys, signatureStoreId);
+    const data = await database.readDataTablesForStore(publicSignatureDataKeys.filter((key) => key !== "customerSignatures"), signatureStoreId);
+    return { ...data, customerSignatures: [signature] };
   }
   return emptyAppData();
 }
