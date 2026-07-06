@@ -4741,6 +4741,11 @@ function Pos({
                           让客户签名
                         </button>
                       )}
+                      {selectedCashierSignature.status === "已签名" && (
+                        <button type="button" onClick={openCashierSignature}>
+                          查看签名
+                        </button>
+                      )}
                       {selectedCashierSignature.status === "待签名" && customerSignatureIsExpired(selectedCashierSignature, signatureNow) && (
                         <small>签名已过期，请重新生成</small>
                       )}
