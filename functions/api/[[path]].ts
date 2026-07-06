@@ -78,7 +78,7 @@ import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../../src/dom
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, emptyAppData, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
@@ -230,8 +230,21 @@ const checkoutWriteKeys = [
   "inventoryLogs",
   "memberCardTransactions",
   "commissions",
-  "customerSignatures",
   "operationLogs",
+] as const;
+
+const checkoutResponseKeys = [
+  "customers",
+  "products",
+  "inventoryBatches",
+  "appointments",
+  "orders",
+  "memberCards",
+  "inventoryLogs",
+  "memberCardTransactions",
+  "commissions",
+  "customerSignatures",
+  "dailyCloses",
 ] as const;
 
 const orderRefundMutationKeys = [
@@ -1724,6 +1737,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const checkoutRequestId = optionalString(body, "checkoutRequestId");
       const currentData = await readMutationDataForRequest(database, context.request, session, checkoutMutationKeys);
       markMutationRead(timing);
+      const existingSignatureIds = new Set((currentData.customerSignatures ?? []).map((signature) => signature.id));
       const checkedOutData = checkoutOrder(currentData, {
         storeId: sessionStoreId(currentData, session),
         customerId: optionalString(body, "customerId"),
@@ -1759,10 +1773,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           summary: `${session.user.name} 完成开单收银`,
         },
       );
+      const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
       startMutationWrite(timing);
       await persistDataTables(database, session, nextData, checkoutWriteKeys);
+      await database.upsertCustomerSignatures(newSignatures);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session, { responseKeys: checkoutResponseKeys }), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/orders/") && pathname.endsWith("/refund")) {
@@ -5492,20 +5508,49 @@ function uniqueDataTableKeys(keys: readonly D1DataTableName[]) {
   return Array.from(new Set(keys));
 }
 
-function sendScopedData(request: Request, statusCode: number, data: AppData, session: UserSession) {
+function sendScopedData(
+  request: Request,
+  statusCode: number,
+  data: AppData,
+  session: UserSession,
+  options: { responseKeys?: readonly D1DataTableName[]; keepSignatureTextIds?: readonly string[] } = {},
+) {
   const scopedData = scopeDataForSession(data, session);
   const requestedView = requestedDataView(request);
   if (isSliceRequest(request) && requestedView) {
-    const responseData = requestedView === "dashboard" ? withoutSignatureImages(scopedData) : scopedData;
-    return sendJson(statusCode, makeAppDataSlice(responseData, requestedView));
+    const responseData = withoutSignatureImages(scopedData, options.keepSignatureTextIds);
+    return sendJson(
+      statusCode,
+      options.responseKeys?.length
+        ? makeAppDataSliceWithKeys(responseData, requestedView, options.responseKeys)
+        : makeAppDataSlice(responseData, requestedView),
+    );
   }
   return sendJson(statusCode, scopedData);
 }
 
-function withoutSignatureImages(data: AppData): AppData {
+function makeAppDataSliceWithKeys(data: AppData, view: ViewKey, keys: readonly D1DataTableName[]) {
+  const slice: Partial<AppData> = {};
+  for (const key of uniqueDataTableKeys(keys)) {
+    slice[key] = data[key] as never;
+  }
+  return {
+    kind: "app-data-slice" as const,
+    view,
+    data: slice,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function withoutSignatureImages(data: AppData, keepSignatureTextIds: readonly string[] = []): AppData {
+  const keepIds = new Set(keepSignatureTextIds);
   return {
     ...data,
-    customerSignatures: (data.customerSignatures ?? []).map(({ signatureText: _signatureText, ...signature }) => signature),
+    customerSignatures: (data.customerSignatures ?? []).map((signature) => {
+      if (signature.signatureText && keepIds.has(signature.id)) return signature;
+      const { signatureText: _signatureText, ...lightSignature } = signature;
+      return lightSignature;
+    }),
   };
 }
 

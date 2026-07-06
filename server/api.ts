@@ -4091,7 +4091,7 @@ function sendScopedData(request: IncomingMessage, response: ServerResponse, stat
   if (isSliceRequest(request)) {
     const requestedView = requestedDataView(request);
     if (requestedView) {
-      const responseData = requestedView === "dashboard" ? withoutSignatureImages(scopedData) : scopedData;
+      const responseData = withoutSignatureImages(scopedData);
       sendJson(response, statusCode, makeAppDataSlice(responseData, requestedView));
       return;
     }

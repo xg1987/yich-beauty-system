@@ -365,6 +365,18 @@ export class D1BeautyDatabase {
     await this.db.batch(statements);
   }
 
+  async upsertCustomerSignatures(signatures: readonly CustomerSignature[]) {
+    if (!signatures.length) return;
+    await this.db.batch(
+      signatures.map((signature) =>
+        this.statement("INSERT OR REPLACE INTO customerSignatures (id, payload_json) VALUES (?, ?)", [
+          signature.id,
+          JSON.stringify(signature),
+        ]),
+      ),
+    );
+  }
+
   async reserveCheckoutSubmission(id: string, createdAt: string) {
     await this.db.prepare("CREATE TABLE IF NOT EXISTS checkoutSubmissionLocks (id TEXT PRIMARY KEY, createdAt TEXT NOT NULL)").run();
     const cutoff = new Date(Date.parse(createdAt) - 10 * 60 * 1000).toISOString();
