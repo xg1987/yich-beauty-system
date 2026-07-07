@@ -293,17 +293,11 @@ try {
     method: "POST",
     body: { account: "13827445244", password: "legacy-admin-password" },
   });
-  assert.equal(phoneAdminSession.user.role, "superadmin", "legacy phone admin account should enter platform admin shell");
-  assert.equal(phoneAdminSession.user.roleName, "系统管理员", "legacy phone admin account should show platform admin role name");
-  const afterPhoneAdminAppointment = await request<AppData>(baseUrl, "/api/appointments", {
-    method: "POST",
-    token: phoneAdminSession.token,
-    body: { customerId: "c1", staffId: "s1", serviceId: "v1", startAt: futureIso(3, "10:00"), roomName: "护理房 1", note: "手机号 Admin 代预约" },
-  });
-  assert.ok(
-    afterPhoneAdminAppointment.appointments.some((appointment) => appointment.note === "手机号 Admin 代预约"),
-    "legacy phone admin account should operate business with platform permissions",
-  );
+  // Account-string based elevation was removed (it was a privilege-escalation
+  // hole): a phone account whose stored role is "owner" must stay owner and must
+  // NOT be auto-promoted to platform superadmin.
+  assert.equal(phoneAdminSession.user.role, "owner", "phone account must NOT be auto-elevated to superadmin");
+  assert.equal(phoneAdminSession.user.roleName, "老板", "phone account keeps its stored owner role name");
 
   await assert.rejects(
     () =>

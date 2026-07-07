@@ -2,6 +2,7 @@ import { effectiveRoleForUser, effectiveRoleNameForUser, permissionsForRole, typ
 import type { AuthUser, SystemConfig } from "../domain/types";
 import type { D1DatabaseBinding } from "./d1Types";
 import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../lib/password";
+import { newSessionExpiry, isSessionExpired } from "../lib/session";
 
 export type LoginResult = {
   session: UserSession;
@@ -34,8 +35,8 @@ export async function loginWithD1(db: D1DatabaseBinding, account: string, passwo
   const session = buildSession(token, user, systemConfigs);
 
   await db
-    .prepare("INSERT INTO sessions (token, userId, createdAt) VALUES (?, ?, ?)")
-    .bind(token, user.id, new Date().toISOString())
+    .prepare("INSERT INTO sessions (token, userId, createdAt, expiresAt) VALUES (?, ?, ?, ?)")
+    .bind(token, user.id, new Date().toISOString(), newSessionExpiry())
     .run();
 
   return {
@@ -49,11 +50,25 @@ export async function getSessionFromD1(db: D1DatabaseBinding, authorizationHeade
   const token = authorizationHeader?.replace(/^Bearer\s+/i, "");
   if (!token) return undefined;
 
-  const sessionRow = await db.prepare("SELECT userId FROM sessions WHERE token = ?").bind(token).first<{ userId: string }>();
+  const sessionRow = await db
+    .prepare("SELECT userId, expiresAt FROM sessions WHERE token = ?")
+    .bind(token)
+    .first<{ userId: string; expiresAt: string | null }>();
   if (!sessionRow) return undefined;
+  if (isSessionExpired(sessionRow.expiresAt)) {
+    await db.prepare("DELETE FROM sessions WHERE token = ?").bind(token).run();
+    return undefined;
+  }
 
   const user = (await readAuthUsers(db)).find((item) => item.id === sessionRow.userId && item.status === "active");
   return user ? buildSession(token, user, await readSystemConfigs(db)) : undefined;
+}
+
+/** Server-side logout: remove the session row so the token can no longer be used. */
+export async function destroySessionInD1(db: D1DatabaseBinding, authorizationHeader: string | null): Promise<void> {
+  const token = authorizationHeader?.replace(/^Bearer\s+/i, "");
+  if (!token) return;
+  await db.prepare("DELETE FROM sessions WHERE token = ?").bind(token).run();
 }
 
 async function readAuthUsers(db: D1DatabaseBinding) {

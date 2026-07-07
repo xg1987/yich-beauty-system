@@ -177,6 +177,11 @@ export function useApiData() {
   };
 
   const logout = () => {
+    // Best-effort server-side revocation so the bearer token can't be reused;
+    // never block or fail the local logout on a network error.
+    if (session) {
+      void client.logout().catch(() => {});
+    }
     safeRemoveSavedSession();
     clearCachedStoreName(session);
     setSession(undefined);

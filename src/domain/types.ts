@@ -494,6 +494,7 @@ export type CashPayMethod = Exclude<Order["payMethod"], "会员卡">;
 
 export type Commission = {
   id: string;
+  storeId?: string;
   staffId: string;
   orderId: string;
   type: "服务提成" | "销售提成";

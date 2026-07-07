@@ -1019,6 +1019,7 @@ export type CompleteFollowUpInput = {
 
 export type SettleCommissionInput = {
   userId: string;
+  storeId?: string;
 };
 
 export type SupplierInput = {
@@ -1380,10 +1381,12 @@ function commissionRecord(
   baseAmount: number,
   createdAt: string,
   rate: number,
+  storeId?: string,
 ): Commission | undefined {
   if (baseAmount <= 0 || rate <= 0) return undefined;
   return {
     id: idFactory("cm"),
+    storeId,
     staffId,
     orderId,
     type,
@@ -1460,6 +1463,11 @@ export function registerStore(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
+  // Reject the internal platform namespace so self-registration cannot mint an
+  // account that impersonates platform staff (e.g. "*@yich.local").
+  if (input.account.trim().toLowerCase().endsWith("@yich.local")) {
+    throw new Error("该登录账号为系统保留，请更换");
+  }
   if (data.authUsers.some((user) => user.account === input.account)) {
     throw new Error("登录账号已存在");
   }
@@ -3289,6 +3297,7 @@ export function checkoutOrder(
         serviceCommissionBaseAmounts[index],
         createdAt,
         staffCommissionRate(data, staffId),
+        storeId,
       ),
     )
     .filter((item): item is Commission => Boolean(item));
@@ -3300,6 +3309,7 @@ export function checkoutOrder(
     productCommissionBase,
     createdAt,
     staffCommissionRate(data, input.staffId),
+    storeId,
   );
   const commissions: Commission[] = salesCommission ? [salesCommission, ...serviceCommissions] : serviceCommissions;
   const signatureItems = [
@@ -4674,7 +4684,7 @@ export function createDailyClose(
   const orders = data.orders.filter((order) => order.createdAt.slice(0, 10) === input.businessDate && (order.storeId ?? defaultStoreId(data)) === storeId);
   const orderIds = new Set(orders.map((order) => order.id));
   const refunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === input.businessDate && ((refund.storeId ?? defaultStoreId(data)) === storeId || orderIds.has(refund.orderId)));
-  const commissions = data.commissions.filter((commission) => commission.createdAt.slice(0, 10) === input.businessDate);
+  const commissions = data.commissions.filter((commission) => commission.createdAt.slice(0, 10) === input.businessDate && (commission.storeId ?? defaultStoreId(data)) === storeId);
   const memberCardIncomeTransactions = data.memberCardTransactions.filter(
     (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashIn(transaction) > 0,
   );
@@ -5681,7 +5691,14 @@ export function settleCommissions(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  const pending = data.commissions.filter((item) => item.status === "待结算");
+  // Scope settlement to a single store when the caller is store-bound. A
+  // superadmin has no storeId (undefined) and keeps the "settle all pending"
+  // behaviour. Without this, a store settlement would sweep other stores'
+  // pending commissions into one payout.
+  const scopeStoreId = input.storeId;
+  const isPending = (item: Commission) =>
+    item.status === "待结算" && (scopeStoreId == null || (item.storeId ?? defaultStoreId(data)) === scopeStoreId);
+  const pending = data.commissions.filter(isPending);
   if (!pending.length) throw new Error("暂无待结算提成");
   const settlementId = idFactory("cs");
   const settlement: CommissionSettlement = {
@@ -5696,7 +5713,7 @@ export function settleCommissions(
   return {
     ...data,
     commissions: data.commissions.map((item) =>
-      item.status === "待结算" ? { ...item, status: "已结算", settledAt: createdAt, settlementId } : item,
+      isPending(item) ? { ...item, status: "已结算", settledAt: createdAt, settlementId } : item,
     ),
     commissionSettlements: [settlement, ...data.commissionSettlements],
   };

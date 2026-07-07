@@ -144,6 +144,7 @@ export function createApiClient(getToken: () => string | undefined) {
         method: "POST",
         body: { account, password },
       }),
+    logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST", token: getToken() }),
     registerStore: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; password: string }) =>
       request<UserSession>("/api/auth/register-store", { method: "POST", body }),
     joinInvite: (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }) =>

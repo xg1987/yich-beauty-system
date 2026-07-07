@@ -82,10 +82,14 @@ for (const role of ["owner", "manager"] as UserRole[]) {
   }
 }
 
+// Account-string elevation was removed (privilege-escalation hole): a phone
+// account whose stored role is owner must stay owner and must NOT gain access
+// to platform-only views. Platform superadmin is now determined only by the
+// stored database role.
 const phoneAdminSession = makeSession("owner", "13827445244");
-assert.equal(phoneAdminSession.user.role, "superadmin", "platform admin phone account should normalize to superadmin");
+assert.equal(phoneAdminSession.user.role, "owner", "phone account must NOT normalize to superadmin");
 for (const view of platformOnlyViews) {
-  assert.equal(canAccessView(phoneAdminSession, view), true, `platform admin phone account should access ${view}`);
+  assert.equal(canAccessView(phoneAdminSession, view), false, `owner phone account must NOT access platform-only ${view}`);
 }
 
 console.log("角色页面访问边界验证通过。");

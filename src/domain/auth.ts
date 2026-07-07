@@ -51,14 +51,12 @@ const allPermissions: Permission[] = [
   "settings:view",
 ];
 
-export const platformAdminAccounts = ["admin@yich.local", "13827445244"];
-
-export function isPlatformAdminAccount(account: string) {
-  return platformAdminAccounts.includes(account.trim().toLowerCase());
-}
-
 export function effectiveRoleForUser(user: { account: string; role: UserRole }): UserRole {
-  return user.role === "superadmin" || isPlatformAdminAccount(user.account) ? "superadmin" : user.role;
+  // Superadmin identity is determined ONLY by the stored role in the database.
+  // Elevating by matching an account string (previously a hardcoded list that
+  // included a real phone number) allowed anyone who registered that account
+  // to become platform superadmin. Removed to close that privilege-escalation hole.
+  return user.role;
 }
 
 export function effectiveRoleNameForUser(user: { account: string; role: UserRole; roleName: string }) {

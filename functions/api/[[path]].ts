@@ -84,7 +84,7 @@ import { dataKeysForView, emptyAppData, isViewKey, makeAppDataSlice } from "../.
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
-import { buildSession, getSessionFromD1, loginWithD1 } from "../../src/cloudflare/auth";
+import { buildSession, getSessionFromD1, loginWithD1, destroySessionInD1 } from "../../src/cloudflare/auth";
 import type { D1DatabaseBinding } from "../../src/cloudflare/d1Types";
 
 type Env = {
@@ -895,6 +895,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       return sendJson(200, loginResult.session);
+    }
+
+    if (context.request.method === "POST" && pathname === "/api/auth/logout") {
+      await destroySessionInD1(context.env.DB, context.request.headers.get("Authorization"));
+      return sendJson(200, { ok: true });
     }
 
     if (context.request.method === "POST" && pathname === "/api/auth/register-store") {
@@ -2793,7 +2798,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         targetType: "commission",
         targetId: "all",
         summary: `${session.user.name} 结算全部待结算提成`,
-      }, (data) => settleCommissions(data, { userId: session.user.id }));
+      }, (data) => settleCommissions(data, { userId: session.user.id, storeId: sessionStoreId(data, session) }));
       startMutationWrite(timing);
       await persistDataTables(database, session, nextData, commissionSettleWriteKeys);
       markMutationWrite(timing);

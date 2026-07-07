@@ -87,7 +87,7 @@ import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, 
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { dataKeysForView, isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
-import { getSession, login, refreshSessionUser } from "./auth";
+import { destroySession, getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase, type TableName } from "./database";
 
 type JsonBody = Record<string, unknown>;
@@ -198,6 +198,12 @@ export function createApiServer(database = new BeautyDatabase()) {
         }
 
         sendJson(response, 200, loginResult.session);
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/auth/logout") {
+        destroySession(request.headers.authorization);
+        sendJson(response, 200, { ok: true });
         return;
       }
 
@@ -1763,7 +1769,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           targetType: "commission",
           targetId: "all",
           summary: `${session.user.name} 结算全部待结算提成`,
-        }, (data) => settleCommissions(data, { userId: session.user.id }));
+        }, (data) => settleCommissions(data, { userId: session.user.id, storeId: sessionStoreId(data, session) }));
         sendScopedData(request, response, 200, nextData, session);
         return;
       }

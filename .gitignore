@@ -10,3 +10,5 @@ data/*.sqlite
 data/*.sqlite-*
 .local-r2/
 output/
+# Database backups may contain production data — never commit them.
+backup-*.sql

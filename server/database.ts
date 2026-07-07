@@ -523,10 +523,11 @@ export class BeautyDatabase {
     for (const commission of data.commissions) {
       this.db
         .prepare(
-          "INSERT INTO commissions (id, staffId, orderId, type, baseAmount, rate, amount, status, createdAt, settledAt, settlementId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO commissions (id, storeId, staffId, orderId, type, baseAmount, rate, amount, status, createdAt, settledAt, settlementId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           commission.id,
+          commission.storeId ?? null,
           commission.staffId,
           commission.orderId,
           commission.type,
@@ -1400,6 +1401,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
     this.addColumnIfMissing("commissions", "settledAt", "TEXT");
     this.addColumnIfMissing("commissions", "settlementId", "TEXT");
+    this.addColumnIfMissing("commissions", "storeId", "TEXT");
     this.addColumnIfMissing("appointments", "arrivedAt", "TEXT");
     this.addColumnIfMissing("appointments", "completedAt", "TEXT");
     this.addColumnIfMissing("appointments", "canceledAt", "TEXT");
@@ -1789,7 +1791,7 @@ function mapRefund(row: unknown): Refund {
 
 function mapCommission(row: unknown): Commission {
   const value = row as Commission;
-  return { ...value, rate: value.rate ?? 0, settledAt: value.settledAt ?? undefined, settlementId: value.settlementId ?? undefined };
+  return { ...value, storeId: value.storeId ?? undefined, rate: value.rate ?? 0, settledAt: value.settledAt ?? undefined, settlementId: value.settlementId ?? undefined };
 }
 
 function mapInventoryLog(row: unknown): InventoryLog {

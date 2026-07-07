@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { effectiveRoleForUser, effectiveRoleNameForUser, normalizeUserSession, permissionsForRole, type UserSession } from "../src/domain/auth";
 import type { AuthUser, SystemConfig } from "../src/domain/types";
 import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../src/lib/password";
+import { SESSION_TTL_MS } from "../src/lib/session";
 
-const sessions = new Map<string, UserSession>();
+const sessions = new Map<string, { session: UserSession; expiresAt: number }>();
 
 export type LoginResult = {
   session: UserSession;
@@ -33,7 +34,7 @@ export async function login(account: string, password: string, users: AuthUser[]
 
   const session = buildSession(randomUUID(), user, systemConfigs);
 
-  sessions.set(session.token, session);
+  sessions.set(session.token, { session, expiresAt: Date.now() + SESSION_TTL_MS });
 
   return {
     session,
@@ -44,13 +45,25 @@ export async function login(account: string, password: string, users: AuthUser[]
 
 export function getSession(authorizationHeader: string | undefined): UserSession | undefined {
   const token = authorizationHeader?.replace(/^Bearer\s+/i, "");
-  const session = token ? sessions.get(token) : undefined;
-  return session ? normalizeUserSession(session) : undefined;
+  const entry = token ? sessions.get(token) : undefined;
+  if (!entry) return undefined;
+  if (entry.expiresAt <= Date.now()) {
+    sessions.delete(token!);
+    return undefined;
+  }
+  return normalizeUserSession(entry.session);
+}
+
+/** Server-side logout: forget the token so it can no longer be used. */
+export function destroySession(authorizationHeader: string | undefined): void {
+  const token = authorizationHeader?.replace(/^Bearer\s+/i, "");
+  if (token) sessions.delete(token);
 }
 
 export function refreshSessionUser(token: string, user: AuthUser, systemConfigs?: SystemConfig[]): UserSession {
   const session = buildSession(token, user, systemConfigs);
-  sessions.set(token, session);
+  const existing = sessions.get(token);
+  sessions.set(token, { session, expiresAt: existing?.expiresAt ?? Date.now() + SESSION_TTL_MS });
   return session;
 }
 
