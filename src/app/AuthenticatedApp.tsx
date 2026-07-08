@@ -76,6 +76,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
+import type { AppDataUpdate } from "../domain/dataSlices";
 import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StaffUnavailableSlot, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
@@ -2065,7 +2066,7 @@ function RoomSettingsContent({
   );
 }
 
-type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
+type RunMutation = (mutation: () => Promise<AppDataUpdate>) => Promise<AppData>;
 
 const APPOINTMENT_WORKFLOW_PREVIEW_LIMIT = 6;
 

@@ -1,6 +1,6 @@
 import type { UserSession } from "../domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiCost, MarketingAiCostBreakdown, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
-import type { AppDataSlice } from "../domain/dataSlices";
+import type { AppDataSlice, AppDataUpdate } from "../domain/dataSlices";
 import { recoverFromStaleAssets } from "../appRecovery";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -320,10 +320,12 @@ export function createApiClient(getToken: () => string | undefined) {
     updateOnlineStorefront: (body: { shareCode: string; status?: "启用" | "停用"; headline: string; description: string; enabledServiceIds: string[] }) =>
       request<AppData>("/api/online-storefront", { method: "POST", body, token: getToken() }),
     convertOnlineBookingRequest: (requestId: string, staffId: string) =>
-      request<AppData>(`/api/online-booking-requests/${encodeURIComponent(requestId)}/convert`, {
+      request<AppDataUpdate>(`/api/online-booking-requests/${encodeURIComponent(requestId)}/convert`, {
         method: "POST",
         body: { staffId },
         token: getToken(),
+        dataMode: "slice",
+        dataScope: "appointments",
       }),
     checkout: (body: {
       checkoutRequestId?: string;
@@ -354,22 +356,26 @@ export function createApiClient(getToken: () => string | undefined) {
     adjustInventory: (body: { productId: string; type: InventoryLog["type"]; quantity: number; unitCost?: number; note?: string; expiryAt?: string }) =>
       request<AppData>("/api/inventory/adjust", { method: "POST", body, token: getToken() }),
     addAppointment: (body: { customerId: string; staffId: string; serviceId: string; serviceIds?: string[]; startAt: string; endAt: string; roomName: string; note: string }) =>
-      request<AppData>("/api/appointments", { method: "POST", body, token: getToken() }),
+      request<AppDataUpdate>("/api/appointments", { method: "POST", body, token: getToken(), dataMode: "slice", dataScope: "appointments" }),
     addStaffUnavailableSlot: (body: { staffId: string; startAt: string; endAt: string; reason: string }) =>
       request<AppData>("/api/staff-unavailable-slots", { method: "POST", body, token: getToken() }),
     addStaffShift: (body: { staffId: string; startAt: string; endAt: string; note: string }) =>
       request<AppData>("/api/staff-shifts", { method: "POST", body, token: getToken() }),
     updateAppointmentStatus: (id: string, status: Appointment["status"], reason?: string) =>
-      request<AppData>(`/api/appointments/${encodeURIComponent(id)}`, {
+      request<AppDataUpdate>(`/api/appointments/${encodeURIComponent(id)}`, {
         method: "PATCH",
         body: { status, reason },
         token: getToken(),
+        dataMode: "slice",
+        dataScope: "appointments",
       }),
     rescheduleAppointment: (id: string, body: { staffId?: string; serviceId?: string; serviceIds?: string[]; startAt: string; endAt?: string; roomName?: string; note?: string }) =>
-      request<AppData>(`/api/appointments/${encodeURIComponent(id)}/reschedule`, {
+      request<AppDataUpdate>(`/api/appointments/${encodeURIComponent(id)}/reschedule`, {
         method: "POST",
         body,
         token: getToken(),
+        dataMode: "slice",
+        dataScope: "appointments",
       }),
     addCustomer: (body: { name: string; phone: string }) =>
       request<AppData>("/api/customers", { method: "POST", body, token: getToken() }),
