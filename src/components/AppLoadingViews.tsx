@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import packageJson from "../../package.json";
+
+const BRAND_LOGO_SRC = `/app-icon-192.png?v=${packageJson.version}`;
 
 export function BrandedLoading({
   message,
@@ -20,13 +23,20 @@ export function BrandedLoading({
   return (
     <div className="loading-page" aria-live="polite">
       <section className="loading-minimal app-data-loading-card" aria-busy={!canRetry}>
+        <div className="loading-logo" aria-hidden="true">
+          <span className="loading-logo-halo" />
+          <span className="loading-logo-ring" />
+          <img className="loading-logo-mark" src={BRAND_LOGO_SRC} alt="" draggable={false} />
+        </div>
         <div className="loading-brand">
           <strong>祝融｜坤锋美业门店系统</strong>
           <small>门店经营管理平台</small>
         </div>
+        <div className="loading-status">
+          <strong>{message}</strong>
+          <small>{detail}</small>
+        </div>
         <div className="loading-progress" aria-hidden="true"><i /></div>
-        <strong>{message}</strong>
-        <small>{detail}</small>
         {canRetry && (
           <div className="app-route-loading-actions">
             <button className="app-route-loading-primary" type="button" onClick={onRetry ?? (() => window.location.reload())}>
