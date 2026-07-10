@@ -195,9 +195,11 @@ const appointmentMutationKeys = [
   "appointments",
   "staffUnavailableSlots",
   "staffShifts",
-  "operationLogs",
-  "notifications",
 ] as const;
+
+const appointmentCreateResponseKeys = ["appointments", "notifications"] as const;
+const appointmentUpdateResponseKeys = ["appointments"] as const;
+const onlineBookingConvertResponseKeys = ["customers", "appointments", "onlineBookingRequests"] as const;
 
 const checkoutMutationKeys = [
   "storeProfiles",
@@ -659,14 +661,6 @@ const onlineBookingConvertMutationKeys = [
   "onlineBookingRequests",
   "staffUnavailableSlots",
   "staffShifts",
-  "operationLogs",
-] as const;
-
-const onlineBookingConvertWriteKeys = [
-  "customers",
-  "appointments",
-  "onlineBookingRequests",
-  "operationLogs",
 ] as const;
 
 const approvalMutationKeys = [
@@ -1852,9 +1846,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (context.request.method === "POST" && pathname === "/api/appointments") {
       requirePermission(session, "appointments:manage");
+      const timing = startMutationTiming("appointment-create");
       const body = await readJson(context.request);
       const requestedStaffId = requiredString(body, "staffId");
       const baseData = await readMutationDataForRequest(database, context.request, session, appointmentMutationKeys);
+      markMutationRead(timing);
       let appointedData = createAppointment(
         baseData,
         {
@@ -1893,8 +1889,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
         staffId: appointment.staffId,
       });
-      await persistDataTables(database, session, nextData, ["appointments", "operationLogs", "notifications"]);
-      return sendScopedData(context.request, 201, nextData, session);
+      startMutationWrite(timing);
+      await persistAppointmentMutation(database, baseData, nextData);
+      markMutationWrite(timing);
+      return withMutationTiming(sendScopedData(context.request, 201, nextData, session, { responseKeys: appointmentCreateResponseKeys }), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff-unavailable-slots") {
@@ -1963,9 +1961,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }),
       );
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, ["appointments", "operationLogs"]);
+      await persistAppointmentMutation(database, currentData, nextData);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session, { responseKeys: appointmentUpdateResponseKeys }), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/appointments/")) {
@@ -1983,9 +1981,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         summary: `${session.user.name} 将预约状态改为 ${status}`,
       }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, ["appointments", "operationLogs"]);
+      await persistAppointmentMutation(database, currentData, nextData);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session, { responseKeys: appointmentUpdateResponseKeys }), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/online-booking-requests/") && pathname.endsWith("/convert")) {
@@ -2001,9 +1999,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
       });
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, onlineBookingConvertWriteKeys);
+      await persistAppointmentMutation(database, currentData, nextData);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
+      return withMutationTiming(sendScopedData(context.request, 200, nextData, session, { responseKeys: onlineBookingConvertResponseKeys }), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/customers") {
@@ -2870,6 +2868,26 @@ function persistDataTables(database: D1BeautyDatabase, session: UserSession, nex
     return database.replaceStoreTables(storeId, nextData, keys);
   }
   return database.replaceTables(nextData, keys);
+}
+
+function persistAppointmentMutation(database: D1BeautyDatabase, previousData: AppData, nextData: AppData) {
+  const previousCustomers = new Map(previousData.customers.map((customer) => [customer.id, JSON.stringify(customer)]));
+  const previousAppointments = new Map(previousData.appointments.map((appointment) => [appointment.id, JSON.stringify(appointment)]));
+  const previousOnlineBookingRequests = new Map(previousData.onlineBookingRequests.map((request) => [request.id, JSON.stringify(request)]));
+  const previousLogIds = new Set(previousData.operationLogs.map((log) => log.id));
+  const previousNotificationIds = new Set((previousData.notifications ?? []).map((notification) => notification.id));
+  const changedCustomers = nextData.customers.filter((customer) => previousCustomers.get(customer.id) !== JSON.stringify(customer));
+  const changedAppointments = nextData.appointments.filter((appointment) => previousAppointments.get(appointment.id) !== JSON.stringify(appointment));
+  const changedOnlineBookingRequests = nextData.onlineBookingRequests.filter((request) => previousOnlineBookingRequests.get(request.id) !== JSON.stringify(request));
+  const newOperationLogs = nextData.operationLogs.filter((log) => !previousLogIds.has(log.id));
+  const newNotifications = (nextData.notifications ?? []).filter((notification) => !previousNotificationIds.has(notification.id));
+  return database.upsertAppointmentMutation({
+    customers: changedCustomers,
+    appointments: changedAppointments,
+    onlineBookingRequests: changedOnlineBookingRequests,
+    operationLogs: newOperationLogs,
+    notifications: newNotifications,
+  });
 }
 
 function hasBodyKey(body: JsonBody, key: string) {

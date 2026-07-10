@@ -386,6 +386,33 @@ export class D1BeautyDatabase {
     );
   }
 
+  async upsertAppointmentMutation(input: {
+    customers?: readonly Customer[];
+    appointments?: readonly Appointment[];
+    onlineBookingRequests?: readonly OnlineBookingRequest[];
+    operationLogs?: readonly OperationLog[];
+    notifications?: readonly SystemNotification[];
+  }) {
+    const statements: D1PreparedStatement[] = [];
+    for (const customer of input.customers ?? []) {
+      statements.push(this.customerStatement("INSERT OR REPLACE", customer));
+    }
+    for (const appointment of input.appointments ?? []) {
+      statements.push(this.appointmentStatement("INSERT OR REPLACE", appointment));
+    }
+    for (const request of input.onlineBookingRequests ?? []) {
+      statements.push(this.jsonTableStatement("INSERT OR REPLACE", "onlineBookingRequests", request));
+    }
+    for (const log of input.operationLogs ?? []) {
+      statements.push(this.operationLogStatement("INSERT OR REPLACE", log));
+    }
+    for (const notification of input.notifications ?? []) {
+      statements.push(this.jsonTableStatement("INSERT OR REPLACE", "notifications", notification));
+    }
+    if (!statements.length) return;
+    await this.db.batch(statements);
+  }
+
   async reserveCheckoutSubmission(id: string, createdAt: string) {
     await this.db.prepare("CREATE TABLE IF NOT EXISTS checkoutSubmissionLocks (id TEXT PRIMARY KEY, createdAt TEXT NOT NULL)").run();
     const cutoff = new Date(Date.parse(createdAt) - 10 * 60 * 1000).toISOString();
@@ -866,22 +893,7 @@ export class D1BeautyDatabase {
     }
 
     for (const customer of data.customers) {
-      statements.push(
-        this.statement("INSERT INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, note, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-          customer.id,
-          customer.storeId ?? null,
-          customer.name,
-          customer.phone,
-          customer.level,
-          customer.points ?? 0,
-          customer.birthday ?? null,
-          customer.nextFollowUpAt ?? null,
-          customer.note ?? null,
-          customer.source,
-          JSON.stringify(customer.tags),
-          customer.lastVisit,
-        ]),
-      );
+      statements.push(this.customerStatement("INSERT", customer));
     }
 
     this.writeJsonTable(statements, "tagDefinitions", data.tagDefinitions);
@@ -936,28 +948,7 @@ export class D1BeautyDatabase {
     this.writeJsonTable(statements, "inventoryBatches", data.inventoryBatches ?? []);
 
     for (const appointment of data.appointments) {
-      statements.push(
-        this.statement("INSERT INTO appointments (id, storeId, customerId, staffId, serviceId, serviceIds_json, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
-          appointment.id,
-          appointment.storeId ?? null,
-          appointment.customerId,
-          appointment.staffId,
-          appointment.serviceId,
-          JSON.stringify(appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId]),
-          appointment.startAt,
-          appointment.endAt ?? null,
-          appointment.roomName ?? null,
-          appointment.status,
-          appointment.note,
-          appointment.arrivedAt ?? null,
-          appointment.completedAt ?? null,
-          appointment.canceledAt ?? null,
-          appointment.cancelReason ?? null,
-          appointment.noShowAt ?? null,
-          appointment.rescheduledAt ?? null,
-          appointment.updatedAt ?? null,
-        ]),
-      );
+      statements.push(this.appointmentStatement("INSERT", appointment));
     }
 
     this.writeJsonTable(statements, "onlineBookingRequests", data.onlineBookingRequests);
@@ -1118,12 +1109,7 @@ export class D1BeautyDatabase {
     }
 
     for (const log of data.operationLogs) {
-      statements.push(
-        this.statement(
-          "INSERT INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [log.id, log.storeId ?? null, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt],
-        ),
-      );
+      statements.push(this.operationLogStatement("INSERT", log));
     }
 
     this.writeJsonTable(statements, "notifications", data.notifications ?? []);
@@ -1169,8 +1155,65 @@ export class D1BeautyDatabase {
 
   private writeJsonTable(statements: D1PreparedStatement[], tableName: string, rows: Array<{ id: string }>) {
     for (const row of rows) {
-      statements.push(this.statement(`INSERT INTO ${tableName} (id, payload_json) VALUES (?, ?)`, [row.id, JSON.stringify(row)]));
+      statements.push(this.jsonTableStatement("INSERT", tableName, row));
     }
+  }
+
+  private customerStatement(mode: "INSERT" | "INSERT OR REPLACE", customer: Customer) {
+    return this.statement(
+      `${mode} INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, note, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        customer.id,
+        customer.storeId ?? null,
+        customer.name,
+        customer.phone,
+        customer.level,
+        customer.points ?? 0,
+        customer.birthday ?? null,
+        customer.nextFollowUpAt ?? null,
+        customer.note ?? null,
+        customer.source,
+        JSON.stringify(customer.tags),
+        customer.lastVisit,
+      ],
+    );
+  }
+
+  private appointmentStatement(mode: "INSERT" | "INSERT OR REPLACE", appointment: Appointment) {
+    return this.statement(
+      `${mode} INTO appointments (id, storeId, customerId, staffId, serviceId, serviceIds_json, startAt, endAt, roomName, status, note, arrivedAt, completedAt, canceledAt, cancelReason, noShowAt, rescheduledAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        appointment.id,
+        appointment.storeId ?? null,
+        appointment.customerId,
+        appointment.staffId,
+        appointment.serviceId,
+        JSON.stringify(appointment.serviceIds?.length ? appointment.serviceIds : [appointment.serviceId]),
+        appointment.startAt,
+        appointment.endAt ?? null,
+        appointment.roomName ?? null,
+        appointment.status,
+        appointment.note,
+        appointment.arrivedAt ?? null,
+        appointment.completedAt ?? null,
+        appointment.canceledAt ?? null,
+        appointment.cancelReason ?? null,
+        appointment.noShowAt ?? null,
+        appointment.rescheduledAt ?? null,
+        appointment.updatedAt ?? null,
+      ],
+    );
+  }
+
+  private operationLogStatement(mode: "INSERT" | "INSERT OR REPLACE", log: OperationLog) {
+    return this.statement(
+      `${mode} INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [log.id, log.storeId ?? null, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt],
+    );
+  }
+
+  private jsonTableStatement(mode: "INSERT" | "INSERT OR REPLACE", tableName: string, row: { id: string }) {
+    return this.statement(`${mode} INTO ${tableName} (id, payload_json) VALUES (?, ?)`, [row.id, JSON.stringify(row)]);
   }
 
   private deleteStoreDataStatements(statements: D1PreparedStatement[], storeId: string) {

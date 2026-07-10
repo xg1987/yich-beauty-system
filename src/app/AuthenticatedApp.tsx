@@ -76,6 +76,7 @@ import {
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
+import type { AppDataUpdate } from "../domain/dataSlices";
 import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StaffUnavailableSlot, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
@@ -2065,9 +2066,23 @@ function RoomSettingsContent({
   );
 }
 
-type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
+type RunMutation = (mutation: () => Promise<AppDataUpdate>) => Promise<AppData>;
 
 const APPOINTMENT_WORKFLOW_PREVIEW_LIMIT = 6;
+
+function isSignatureImageDataUrl(value: string | undefined) {
+  return Boolean(value?.startsWith("data:image/"));
+}
+
+async function fetchFreshPublicSignatureImage(token: string) {
+  const response = await fetch(`/api/public/customer-signatures/${encodeURIComponent(token)}?fresh=${Date.now()}`, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json() as { signature?: { signatureText?: string } };
+  return payload.signature?.signatureText;
+}
 
 function Appointments({ data, session, actions, runMutation, fetchPublicCustomerSignature, setView, initialAppointmentId, initialAppointmentKey = 0 }: { data: AppData; session: UserSession; actions: ApiActions; runMutation: RunMutation; fetchPublicCustomerSignature: UseApiDataResult["fetchPublicCustomerSignature"]; setView: NavigateToView; initialAppointmentId?: string; initialAppointmentKey?: number }) {
   const mutationPending = useMutationPending();
@@ -2704,7 +2719,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
 
   useEffect(() => {
     let cancelled = false;
-    const embeddedSignatureImage = selectedCompletedSignature?.signatureText?.startsWith("data:image/") ? selectedCompletedSignature.signatureText : "";
+    const embeddedSignatureImage = isSignatureImageDataUrl(selectedCompletedSignature?.signatureText) ? selectedCompletedSignature?.signatureText ?? "" : "";
     if (!selectedCompletedSignature || selectedCompletedSignature.status !== "已签名") {
       setSelectedAppointmentSignatureImage(undefined);
       setSelectedAppointmentSignatureImageLoading(false);
@@ -2727,15 +2742,15 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
       };
     }
     setSelectedAppointmentSignatureImageLoading(true);
-    void fetchPublicCustomerSignature(selectedCompletedSignature.token)
+    void fetchFreshPublicSignatureImage(selectedCompletedSignature.token)
+      .catch(() => fetchPublicCustomerSignature(selectedCompletedSignature.token).then((payload) => payload.signature.signatureText))
       .then((payload) => {
         if (cancelled) return;
-        const signatureText = payload.signature.signatureText;
-        setSelectedAppointmentSignatureImage(
-          signatureText?.startsWith("data:image/")
-            ? { signatureId: selectedCompletedSignature.id, signatureText }
-            : undefined,
-        );
+        if (isSignatureImageDataUrl(payload) && payload) {
+          setSelectedAppointmentSignatureImage({ signatureId: selectedCompletedSignature.id, signatureText: payload });
+        } else {
+          setSelectedAppointmentSignatureImage(undefined);
+        }
       })
       .catch(() => {
         if (!cancelled) setSelectedAppointmentSignatureImage(undefined);
