@@ -1,4 +1,4 @@
-const ICON_VERSION = "0.1.327";
+const ICON_VERSION = "0.1.328";
 const CACHE_REVISION = "zoom-lock-20260704";
 const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}-${CACHE_REVISION}`;
 const APP_SHELL_ASSETS = [
