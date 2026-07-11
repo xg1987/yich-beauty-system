@@ -25,6 +25,8 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) return "vendor-react";
           if (id.includes("node_modules/lucide-react")) return "vendor-icons";
+          if (id.endsWith("/src/app/authenticatedAppHelpers.ts")) return "authenticated-helpers";
+          if (id.endsWith("/src/domain/cashierFlow.ts")) return "cashier-flow";
         },
       },
     },

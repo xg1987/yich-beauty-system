@@ -86,6 +86,36 @@ import packageJson from "../../package.json";
 import { BrandedLoading } from "../components/AppLoadingViews";
 import { displayRoleName } from "./accountDisplay";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
+import {
+  findCreatedProduct,
+  memberCardAvailableTimesText,
+  memberCardProjectScopeText,
+  memberCardPurchasedServiceIds,
+  memberCardTimesText,
+  mergeUsedProducts,
+  nameOf,
+  normalizeProductName,
+  numberFromInput,
+  optionOf,
+  optionalNumberFromInput,
+  parseTags,
+  productServicePackageText,
+  serviceConsumableDisplay,
+  serviceConsumableModeText,
+  serviceConsumablesOf,
+  serviceFormulaSummary,
+} from "./authenticatedAppHelpers";
+
+export {
+  memberCardAvailableTimesText,
+  memberCardProjectScopeText,
+  memberCardPurchasedServiceIds,
+  memberCardTimesText,
+  nameOf,
+  optionOf,
+  serviceConsumablesOf,
+  serviceFormulaSummary,
+} from "./authenticatedAppHelpers";
 
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "card" | "customers" | "marketing" | "reports" | "accounts" | "logs" | "admin";
 type WorkbarItem = { key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey; options?: NavigateOptions };
@@ -485,10 +515,6 @@ function productExpiryText(product: Product) {
 
 function productShelfLifeText(product: Product) {
   return product.shelfLifeMonths ? `${product.shelfLifeMonths}个月` : "未设置";
-}
-
-function productServicePackageText(product: Product) {
-  return productServiceDeductionLabel(product).replace("扣库存 · ", "");
 }
 
 function productExpiryDaysText(product: Product) {
@@ -8128,72 +8154,6 @@ function AdminCenterCard({
 }
 
 
-function appointmentTone(appointment: Appointment): "ok" | "warn" | undefined {
-  if (appointment.status === "已到店" || appointment.status === "已完成") return "ok";
-  if (appointment.status === "已取消" || appointment.status === "爽约") return "warn";
-  return undefined;
-}
-
-function normalizeProductName(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function findCreatedProduct(products: Product[], name: string, category: string, subcategory: string) {
-  const normalizedName = normalizeProductName(name);
-  return products.find((product) =>
-    normalizeProductName(product.name) === normalizedName &&
-    (product.category ?? "面护类") === category &&
-    (product.subcategory ?? "") === subcategory,
-  ) ?? products.find((product) => normalizeProductName(product.name) === normalizedName);
-}
-
-export function serviceConsumablesOf(service?: Service): ServiceConsumable[] {
-  const consumables = service?.consumables?.filter((item) => item.productId) ?? [];
-  if (consumables.length > 0) return consumables;
-  if (service?.consumableProductId) {
-    return [{ productId: service.consumableProductId, quantity: service.consumableQty ?? 0 }];
-  }
-  return [];
-}
-
-function mergeUsedProducts(consumables: ServiceConsumable[], products?: Product[]) {
-  const merged: ServiceConsumable[] = [];
-  const seen = new Set<string>();
-  consumables.forEach((item) => {
-    if (!item.productId || seen.has(item.productId)) return;
-    const product = products?.find((candidate) => candidate.id === item.productId);
-    if (product && !productServiceStockDeductible(product)) return;
-    seen.add(item.productId);
-    merged.push({ productId: item.productId, quantity: Math.max(0, roundDisplayQuantity(item.quantity)) });
-  });
-  return merged;
-}
-
-function roundDisplayQuantity(value: number) {
-  return Math.round((Number.isFinite(value) ? value : 0) * 1000) / 1000;
-}
-
-function serviceConsumableDisplay(item: ServiceConsumable, products: Product[]) {
-  return nameOf(products, item.productId);
-}
-
-function serviceConsumableModeText(item: ServiceConsumable, products: Product[]) {
-  const product = products.find((candidate) => candidate.id === item.productId);
-  if (!product) return "未配置";
-  if (!productServiceStockDeductible(product)) return "不计项目";
-  if (item.quantity <= 0) return `待填用量 · ${productServicePackageText(product)}`;
-  return `每次${formatStockQuantity(item.quantity)}${productServiceUnit(product)} · 折${formatStockQuantity(serviceStockQuantityForProduct(product, item.quantity))}${product.unit}`;
-}
-
-export function serviceFormulaSummary(service: Service, products: Product[]) {
-  const consumables = serviceConsumablesOf(service).filter((item) => {
-    const product = products.find((candidate) => candidate.id === item.productId);
-    return product ? productServiceStockDeductible(product) : false;
-  });
-  if (consumables.length === 0) return "未配置";
-  return consumables.map((item) => `${serviceConsumableDisplay(item, products)}（${serviceConsumableModeText(item, products)}）`).join(" / ");
-}
-
 export function signatureRecordContext(data: AppData, signature: CustomerSignature) {
   const serviceRecord = signature.serviceRecordId
     ? data.customerServiceRecords.find((record) => record.id === signature.serviceRecordId)
@@ -8522,81 +8482,6 @@ export function SignatureRecordDetail({
   );
 }
 
-export function optionOf(item: { id: string; name: string }) {
-  return { value: item.id, label: item.name };
-}
-
 export function customerOptionOf(customer: AppData["customers"][number]) {
   return { value: customer.id, label: customerDisplayLabel(customer) };
-}
-
-function numberFromInput(value: string, fallback: number) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function optionalNumberFromInput(value: string) {
-  if (value.trim() === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-export function memberCardProjectScopeText(card: AppData["memberCards"][number], services: AppData["services"]) {
-  if (card.serviceEntitlements?.length) {
-    return card.serviceEntitlements.map((item) => nameOf(services, item.serviceId)).join(" / ");
-  }
-  if (card.serviceIds?.length) return card.serviceIds.map((id) => nameOf(services, id)).join(" / ");
-  return card.serviceId ? nameOf(services, card.serviceId) : "通用";
-}
-
-export function memberCardPurchasedServiceIds(card: AppData["memberCards"][number]) {
-  if (card.serviceEntitlements?.length) return card.serviceEntitlements.map((item) => item.serviceId).filter(Boolean);
-  if (card.serviceIds?.length) return card.serviceIds.filter(Boolean);
-  return card.serviceId ? [card.serviceId] : [];
-}
-
-export function memberCardTimesText(
-  card: AppData["memberCards"][number],
-  services: AppData["services"],
-  focusedServiceId?: string,
-  options: { hideZeroEntitlements?: boolean; emptyText?: string } = {},
-) {
-  if (card.type === "储值卡") return money(card.balance);
-  if (card.serviceEntitlements?.length) {
-    const entitlements = focusedServiceId
-      ? card.serviceEntitlements.filter((item) => item.serviceId === focusedServiceId)
-      : card.serviceEntitlements;
-    if (entitlements.length === 0 && focusedServiceId) return `${nameOf(services, focusedServiceId)} 0次`;
-    const visibleEntitlements = options.hideZeroEntitlements
-      ? entitlements.filter((item) => item.remainingTimes > 0)
-      : entitlements;
-    if (visibleEntitlements.length === 0) return options.emptyText ?? "0次";
-    return visibleEntitlements
-      .map((item) => `${nameOf(services, item.serviceId)} ${item.remainingTimes}/${item.totalTimes}次`)
-      .join("；");
-  }
-  if (focusedServiceId) return `${nameOf(services, focusedServiceId)} ${card.remainingTimes}次`;
-  return `${memberCardProjectScopeText(card, services)} ${card.remainingTimes}次`;
-}
-
-export function memberCardAvailableTimesText(card: AppData["memberCards"][number], services: AppData["services"]) {
-  return memberCardTimesText(card, services, undefined, {
-    hideZeroEntitlements: true,
-    emptyText: "暂无可用次数",
-  });
-}
-
-export function nameOf(collection: Array<{ id: string; name: string }>, id: string) {
-  return collection.find((item) => item.id === id)?.name ?? "-";
-}
-
-function parseTags(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(/[,，、/\s]+/)
-        .map((item) => item.trim())
-        .filter(Boolean),
-    ),
-  );
 }

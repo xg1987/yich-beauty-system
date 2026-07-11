@@ -1,18 +1,18 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { installAppUpdateChecker } from "./appUpdate";
-import { disableViewportZoom } from "./disableViewportZoom";
-import { registerServiceWorker } from "./registerServiceWorker";
 import "./styles.css";
 
-disableViewportZoom();
+async function bootstrap() {
+  const { disableViewportZoom } = await import("./disableViewportZoom");
+  disableViewportZoom();
+  createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+  void import("./registerServiceWorker").then(({ registerServiceWorker }) => registerServiceWorker());
+  void import("./appUpdate").then(({ installAppUpdateChecker }) => installAppUpdateChecker());
+}
 
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
-
-registerServiceWorker();
-installAppUpdateChecker();
+void bootstrap();
