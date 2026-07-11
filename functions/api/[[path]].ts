@@ -80,7 +80,7 @@ import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
-import { dataKeysForView, emptyAppData, isViewKey, makeAppDataSlice } from "../../src/domain/dataSlices";
+import { dataKeysForView, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
@@ -2135,10 +2135,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requirePermission(session, "customers:manage");
       const timing = startMutationTiming("member-card-open");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      const openCardRequestId = optionalString(body, "openCardRequestId");
+      const storeId = await resolveSessionStoreId(database, session);
+      if (!storeId) throw new Error("请使用已绑定门店的账号开卡");
+      if (openCardRequestId) {
+        const existingResult = await database.readMemberCardSubmissionResult(openCardRequestId, storeId);
+        if (existingResult) {
+          markMutationRead(timing);
+          return withMutationTiming(sendMemberCardOpenPatch(context.request, 200, existingResult), timing, "scoped");
+        }
+      }
+      const currentData = await database.readMemberCardOpenData(storeId, {
+        customerId: optionalString(body, "customerId"),
+        customerPhone: optionalString(body, "customerPhone"),
+      });
       markMutationRead(timing);
       const nextData = openMemberCard(currentData, {
-        storeId: sessionStoreId(currentData, session),
+        storeId,
         customerId: optionalString(body, "customerId"),
         customerName: optionalString(body, "customerName"),
         customerPhone: optionalString(body, "customerPhone"),
@@ -2160,14 +2173,43 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         userId: session.user.id,
         staffId: session.user.staffId,
       });
-      const newSignatures = (nextData.customerSignatures ?? []).filter((signature) =>
-        !(currentData.customerSignatures ?? []).some((existingSignature) => existingSignature.id === signature.id),
-      );
+      const customer = nextData.customers.find((item) => item.id === nextData.memberCards[0]?.customerId);
+      const memberCard = nextData.memberCards[0];
+      const transaction = nextData.memberCardTransactions[0];
+      const operationLog = nextData.operationLogs[0];
+      const signature = nextData.customerSignatures[0];
+      if (!customer || !memberCard || !transaction || !operationLog || !signature) throw new Error("开卡数据生成失败");
+      const reserved = openCardRequestId
+        ? await database.reserveMemberCardSubmission(openCardRequestId, storeId, nowIso())
+        : true;
+      if (!reserved) {
+        const existingResult = openCardRequestId
+          ? await database.readMemberCardSubmissionResult(openCardRequestId, storeId)
+          : undefined;
+        if (existingResult) return withMutationTiming(sendMemberCardOpenPatch(context.request, 200, existingResult), timing, "scoped");
+        throw new Error("开卡请求正在处理，请稍后重试");
+      }
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, memberCardWriteKeys);
-      await database.upsertCustomerSignatures(newSignatures);
-      markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
+      try {
+        await database.completeMemberCardOpenMutation({
+          requestId: openCardRequestId,
+          storeId,
+          customer,
+          memberCard,
+          transaction,
+          operationLog,
+          signature,
+        });
+        markMutationWrite(timing);
+        if (!openCardRequestId) {
+          const legacyData = await readDataForRequest(database, context.request, session);
+          return withMutationTiming(sendScopedData(context.request, 201, legacyData, session), timing, "scoped");
+        }
+        return withMutationTiming(sendMemberCardOpenPatch(context.request, 201, nextData), timing, "scoped");
+      } catch (error) {
+        if (openCardRequestId) await database.releaseMemberCardSubmission(openCardRequestId, storeId);
+        throw error;
+      }
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/recharge")) {
@@ -5562,6 +5604,17 @@ function sendScopedData(
     );
   }
   return sendJson(statusCode, responseData);
+}
+
+function sendMemberCardOpenPatch(request: Request, statusCode: number, data: AppData) {
+  const view = requestedDataView(request) ?? "pos";
+  return sendJson(statusCode, makeAppDataPatch({
+    customers: data.customers,
+    memberCards: data.memberCards,
+    memberCardTransactions: data.memberCardTransactions,
+    operationLogs: data.operationLogs,
+    customerSignatures: withoutSignatureImages(data).customerSignatures,
+  }, view));
 }
 
 function makeAppDataSliceWithKeys(data: AppData, view: ViewKey, keys: readonly D1DataTableName[]) {

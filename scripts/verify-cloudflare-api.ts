@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { emptyAppData, type AppDataPatch } from "../src/domain/dataSlices";
 import type { AppData } from "../src/domain/types";
 
 const baseUrl = process.env.API_BASE_URL ?? "http://localhost:8788";
@@ -447,18 +448,25 @@ const afterPartialRefund = await request<AppData>(baseUrl, `/api/orders/${orderI
 });
 assert.equal(afterPartialRefund.orders.find((item) => item.id === orderId)?.status, "部分退款", "partial refund should persist order status");
 
-const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
+const openCardRequestId = `cf-open-card-${runId}`;
+const afterOpenCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
   method: "POST",
   token: ownerSession.token,
-  body: { customerId, name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
-});
+  body: { openCardRequestId, customerId, name: "Cloudflare 储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
+}));
 const cardId = afterOpenCard.memberCards[0].id;
 assert.ok(afterOpenCard.memberCardTransactions[0].staffId, "D1 open card should persist current staff");
-const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+const repeatedOpenCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
   method: "POST",
   token: ownerSession.token,
-  body: { customerId, name: "Cloudflare 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: [serviceId], paidAmount: 1200, payMethod: "支付宝", expiresAt: "2027-12-31" },
-});
+  body: { openCardRequestId, customerId, name: "不应重复创建", balance: 999, remainingTimes: 0, paidAmount: 999, payMethod: "现金", expiresAt: "2028-12-31" },
+}));
+assert.equal(repeatedOpenCard.memberCards[0].id, cardId, "D1 duplicate open card request id should return original result");
+const afterOpenPackageCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { openCardRequestId: `cf-open-package-${runId}`, customerId, name: "Cloudflare 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: [serviceId], paidAmount: 1200, payMethod: "支付宝", expiresAt: "2027-12-31" },
+}));
 assert.equal(afterOpenPackageCard.memberCards[0].type, "套餐卡", "D1 should persist package card type");
 assert.deepEqual(afterOpenPackageCard.memberCards[0].serviceIds, [serviceId], "D1 should persist package card services");
 const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/recharge`, {
@@ -602,6 +610,13 @@ assert.ok(therapistData.orders.every((item) => item.staffId === therapistStaffId
 assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
 
 console.log(`Cloudflare Workers + D1 API 验证通过：正式注册、邀请、权限、业务链路与无重置接口边界已覆盖 ${baseUrl}`);
+
+function memberCardPatchData(patch: AppDataPatch): AppData {
+  return {
+    ...emptyAppData(),
+    ...patch.upserts,
+  };
+}
 
 async function request<T>(baseUrl: string, path: string, options: { method?: string; body?: unknown; token?: string } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {

@@ -8,7 +8,7 @@ import { BeautyDatabase } from "../server/database";
 import pkg from "../package.json" with { type: "json" };
 import { defaultSystemConfigs, platformInviteCodeForUser } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
-import type { AppDataSlice } from "../src/domain/dataSlices";
+import { emptyAppData, type AppDataPatch, type AppDataSlice } from "../src/domain/dataSlices";
 import type { AppData, WorkerUsageSnapshot } from "../src/domain/types";
 
 const tempDir = mkdtempSync(join(tmpdir(), "beauty-api-"));
@@ -1059,11 +1059,12 @@ try {
   assert.equal(afterCardCheckout.memberCards.find((item) => item.id === "m1")?.balance, 2202, "member card API should deduct balance");
   assert.equal(afterCardCheckout.memberCardTransactions[0].type, "消费", "member card API should write transaction");
 
-  const afterOpenCard = await request<AppData>(baseUrl, "/api/member-cards", {
+  const openCardRequestId = `verify-open-card-${Date.now()}`;
+  const afterOpenCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
-    body: { customerId: "c2", type: "储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
-  });
+    body: { openCardRequestId, customerId: "c2", type: "储值卡", balance: 500, remainingTimes: 0, paidAmount: 500, payMethod: "微信", expiresAt: "2027-12-31" },
+  }));
   const apiCardId = afterOpenCard.memberCards[0].id;
   assert.equal(afterOpenCard.memberCards[0].name, "储值卡", "open stored-value card API should default card name");
   assert.equal(afterOpenCard.memberCardTransactions[0].paidAmount, 500, "open card API should persist paid amount");
@@ -1072,10 +1073,23 @@ try {
   assert.equal(afterOpenCard.customerSignatures[0].title, "开卡确认签名", "open card API should create a customer confirmation signature");
   assert.equal(afterOpenCard.customerSignatures[0].status, "待签名", "open card API signature should wait for customer signing");
   assert.equal(afterOpenCard.customerSignatures.some((signature) => Boolean(signature.signatureText)), false, "open card API response should not include signature images");
-  const afterOpenNewCustomerCard = await request<AppData>(baseUrl, "/api/member-cards", {
+  const repeatedOpenCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: { openCardRequestId, customerId: "c2", type: "储值卡", balance: 999, remainingTimes: 0, paidAmount: 999, payMethod: "现金", expiresAt: "2028-12-31" },
+  }));
+  assert.equal(repeatedOpenCard.memberCards[0].id, apiCardId, "duplicate open card request id should return the original card");
+  const legacyOpenCardResponse = await request<AppData>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: { customerId: "c2", type: "储值卡", balance: 200, remainingTimes: 0, paidAmount: 200, payMethod: "微信", expiresAt: "2027-12-31" },
+  });
+  assert.ok(legacyOpenCardResponse.memberCards.some((card) => card.balance === 200), "legacy client should continue receiving full AppData after opening a card");
+  const afterOpenNewCustomerCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
     body: {
+      openCardRequestId: `verify-open-new-customer-${Date.now()}`,
       customerName: "API 开卡新客",
       customerPhone: "13600000999",
       customerBirthday: "1995-09-09",
@@ -1087,15 +1101,15 @@ try {
       payMethod: "现金",
       expiresAt: "2027-12-31",
     },
-  });
+  }));
   const openCardCustomer = afterOpenNewCustomerCard.customers.find((customer) => customer.phone === "13600000999");
   assert.equal(openCardCustomer?.birthday, "1995-09-09", "open card API should persist new customer birthday");
   assert.equal(openCardCustomer?.note, "API 开卡登记客户备注", "open card API should persist new customer note");
-  const afterOpenPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+  const afterOpenPackageCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
-    body: { customerId: "c2", name: "API 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: ["v1", "v2"], paidAmount: 1200, payMethod: "支付宝", expiresAt: "2027-12-31" },
-  });
+    body: { openCardRequestId: `verify-open-package-${Date.now()}`, customerId: "c2", name: "API 套餐卡", type: "套餐卡", balance: 0, remainingTimes: 5, serviceIds: ["v1", "v2"], paidAmount: 1200, payMethod: "支付宝", expiresAt: "2027-12-31" },
+  }));
   const packageCard = afterOpenPackageCard.memberCards[0];
   assert.equal(packageCard.type, "套餐卡", "package card API should persist package type");
   assert.deepEqual(packageCard.serviceIds, ["v1", "v2"], "package card API should persist multiple services");
@@ -1127,10 +1141,11 @@ try {
   const afterMultiPackageReload = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   const reloadedMultiPackageOrder = afterMultiPackageReload.orders.find((order) => order.id === afterMultiPackageCheckout.orders[0].id);
   assert.deepEqual(reloadedMultiPackageOrder?.serviceIds, ["v1", "v2"], "checkout API should persist order service ids through database reload");
-  const afterOpenLimitedPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+  const afterOpenLimitedPackageCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
     body: {
+      openCardRequestId: `verify-open-limited-package-${Date.now()}`,
       customerId: "c2",
       name: "API 独立套餐卡",
       type: "套餐卡",
@@ -1142,7 +1157,7 @@ try {
       payMethod: "支付宝",
       expiresAt: "2027-12-31",
     },
-  });
+  }));
   const limitedPackageCard = afterOpenLimitedPackageCard.memberCards[0];
   const afterCrossCardPackageCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     method: "POST",
@@ -1170,10 +1185,11 @@ try {
     2,
     "checkout API should write one transaction per debited package card",
   );
-  const afterOpenInsufficientPackageCard = await request<AppData>(baseUrl, "/api/member-cards", {
+  const afterOpenInsufficientPackageCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
     body: {
+      openCardRequestId: `verify-open-insufficient-package-${Date.now()}`,
       customerName: "API 套餐不足客户",
       customerPhone: "13600000888",
       name: "API 不足套餐卡",
@@ -1185,7 +1201,7 @@ try {
       payMethod: "微信",
       expiresAt: "2027-12-31",
     },
-  });
+  }));
   const insufficientCustomerId = afterOpenInsufficientPackageCard.customers.find((customer) => customer.phone === "13600000888")?.id;
   assert.ok(insufficientCustomerId, "open package card API should create insufficient test customer");
   await assert.rejects(
@@ -1664,6 +1680,13 @@ function close(server: Server) {
   return new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
+}
+
+function memberCardPatchData(patch: AppDataPatch): AppData {
+  return {
+    ...emptyAppData(),
+    ...patch.upserts,
+  };
 }
 
 async function request<T>(baseUrl: string, path: string, options: { method?: string; body?: unknown; token?: string; headers?: Record<string, string> } = {}) {

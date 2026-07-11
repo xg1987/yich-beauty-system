@@ -85,7 +85,7 @@ import { requireMobilePhone } from "../src/domain/phone";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
-import { dataKeysForView, isViewKey, makeAppDataSlice } from "../src/domain/dataSlices";
+import { dataKeysForView, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
 import { destroySession, getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase, type TableName } from "./database";
@@ -1194,9 +1194,23 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/member-cards") {
         requirePermission(session, "customers:manage");
         const body = await readJson(request);
-        const currentData = database.readData();
+        const openCardRequestId = optionalString(body, "openCardRequestId");
+        const identityData = database.readDataTables(["storeProfiles", "authUsers", "staff"]);
+        const storeId = sessionStoreId(identityData, session);
+        if (!storeId) throw new Error("请使用已绑定门店的账号开卡");
+        if (openCardRequestId) {
+          const existingResult = database.readMemberCardSubmissionResult(openCardRequestId, storeId);
+          if (existingResult) {
+            sendMemberCardOpenPatch(request, response, 200, existingResult);
+            return;
+          }
+        }
+        const currentData = database.readMemberCardOpenData(storeId, {
+          customerId: optionalString(body, "customerId"),
+          customerPhone: optionalString(body, "customerPhone"),
+        });
         const nextData = openMemberCard(currentData, {
-          storeId: sessionStoreId(currentData, session),
+          storeId,
           customerId: optionalString(body, "customerId"),
           customerName: optionalString(body, "customerName"),
           customerPhone: optionalString(body, "customerPhone"),
@@ -1218,8 +1232,44 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
           staffId: session.user.staffId,
         });
-        persistData(database, session, nextData);
-        sendScopedData(request, response, 201, nextData, session);
+        const customer = nextData.customers.find((item) => item.id === nextData.memberCards[0]?.customerId);
+        const memberCard = nextData.memberCards[0];
+        const transaction = nextData.memberCardTransactions[0];
+        const operationLog = nextData.operationLogs[0];
+        const signature = nextData.customerSignatures[0];
+        if (!customer || !memberCard || !transaction || !operationLog || !signature) throw new Error("开卡数据生成失败");
+        const reserved = openCardRequestId
+          ? database.reserveMemberCardSubmission(openCardRequestId, storeId, nowIso())
+          : true;
+        if (!reserved) {
+          const existingResult = openCardRequestId
+            ? database.readMemberCardSubmissionResult(openCardRequestId, storeId)
+            : undefined;
+          if (existingResult) {
+            sendMemberCardOpenPatch(request, response, 200, existingResult);
+            return;
+          }
+          throw new Error("开卡请求正在处理，请稍后重试");
+        }
+        try {
+          database.completeMemberCardOpenMutation({
+            requestId: openCardRequestId,
+            storeId,
+            customer,
+            memberCard,
+            transaction,
+            operationLog,
+            signature,
+          });
+          if (!openCardRequestId) {
+            sendScopedData(request, response, 201, readDataForRequest(database, request, session), session);
+            return;
+          }
+          sendMemberCardOpenPatch(request, response, 201, nextData);
+        } catch (error) {
+          if (openCardRequestId) database.releaseMemberCardSubmission(openCardRequestId, storeId);
+          throw error;
+        }
         return;
       }
 
@@ -4103,6 +4153,18 @@ function sendScopedData(request: IncomingMessage, response: ServerResponse, stat
     }
   }
   sendJson(response, statusCode, responseData);
+}
+
+function sendMemberCardOpenPatch(request: IncomingMessage, response: ServerResponse, statusCode: number, data: AppData) {
+  const view = requestedDataView(request) ?? "pos";
+  const responseData = withoutSignatureImages(data);
+  sendJson(response, statusCode, makeAppDataPatch({
+    customers: responseData.customers,
+    memberCards: responseData.memberCards,
+    memberCardTransactions: responseData.memberCardTransactions,
+    operationLogs: responseData.operationLogs,
+    customerSignatures: responseData.customerSignatures,
+  }, view));
 }
 
 function withoutSignatureImages(data: AppData): AppData {

@@ -7,7 +7,14 @@ export type AppDataSlice = {
   generatedAt: string;
 };
 
-export type AppDataUpdate = AppData | AppDataSlice;
+export type AppDataPatch = {
+  kind: "app-data-patch";
+  view: ViewKey;
+  upserts: Partial<AppData>;
+  generatedAt: string;
+};
+
+export type AppDataUpdate = AppData | AppDataSlice | AppDataPatch;
 
 type AppDataKey = keyof AppData;
 
@@ -204,6 +211,14 @@ export function isAppDataSlice(value: unknown): value is AppDataSlice {
     && (value as { data?: unknown }).data !== null;
 }
 
+export function isAppDataPatch(value: unknown): value is AppDataPatch {
+  return typeof value === "object"
+    && value !== null
+    && (value as { kind?: unknown }).kind === "app-data-patch"
+    && typeof (value as { upserts?: unknown }).upserts === "object"
+    && (value as { upserts?: unknown }).upserts !== null;
+}
+
 export function isViewKey(value: string | undefined | null): value is ViewKey {
   return typeof value === "string" && value in viewKeys;
 }
@@ -268,6 +283,15 @@ export function makeAppDataSlice(data: AppData, view: ViewKey): AppDataSlice {
     kind: "app-data-slice",
     view,
     data: dataSliceForView(data, view),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export function makeAppDataPatch(data: Partial<AppData>, view: ViewKey): AppDataPatch {
+  return {
+    kind: "app-data-patch",
+    view,
+    upserts: data,
     generatedAt: new Date().toISOString(),
   };
 }

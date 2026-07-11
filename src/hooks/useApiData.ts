@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createApiClient, setActiveDataScope, type JoinInviteResult } from "../api/client";
 import { normalizeUserSession, type UserSession } from "../domain/auth";
 import { accountAiCredits, roundAiCreditAmount } from "../domain/aiBilling";
-import { emptyAppData, isAppDataSlice, isViewKey, type AppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
+import { emptyAppData, isAppDataPatch, isAppDataSlice, isViewKey, type AppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
 import type { AppData, ViewKey } from "../domain/types";
 import { clearCachedStoreName } from "../lib/storeNameCache";
 
@@ -379,6 +379,24 @@ export type ApiActions = ReturnType<typeof useApiData>["actions"];
 export type UseApiDataResult = ReturnType<typeof useApiData>;
 
 function mergeAppDataUpdate(current: AppData | undefined, update: AppDataUpdate): AppData {
+  if (isAppDataPatch(update)) {
+    const base = current ?? emptyAppData();
+    const next = { ...base };
+    for (const [rawKey, rawRows] of Object.entries(update.upserts)) {
+      const key = rawKey as keyof AppData;
+      if (!Array.isArray(rawRows)) continue;
+      const currentRows = base[key] as Array<{ id: string }>;
+      const patchRows = rawRows as Array<{ id: string }>;
+      const patchById = new Map(patchRows.map((row) => [row.id, row]));
+      const existingIds = new Set(currentRows.map((row) => row.id));
+      const newRows = patchRows.filter((row) => !existingIds.has(row.id));
+      next[key] = [
+        ...newRows,
+        ...currentRows.map((row) => patchById.get(row.id) ?? row),
+      ] as never;
+    }
+    return next;
+  }
   if (!isAppDataSlice(update)) {
     return update;
   }

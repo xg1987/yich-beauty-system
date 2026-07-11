@@ -3131,6 +3131,7 @@ function Pos({
   const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
   const checkoutSubmittingRef = useRef(false);
   const checkoutRequestIdRef = useRef(makeId("checkout"));
+  const openCardRequestIdRef = useRef(makeId("card-open"));
   const appliedInitialAppointmentRef = useRef<string | undefined>(undefined);
   const appliedInitialCustomerRef = useRef<string | undefined>(undefined);
   const appliedInitialSignatureRef = useRef<string | undefined>(undefined);
@@ -4055,6 +4056,7 @@ function Pos({
       if ((cardType === "次数卡" || cardType === "套餐卡") && submittedRemainingTimes <= 0) throw new Error("请填写可用次数");
       if (cardType === "折扣卡" && (!Number.isFinite(cardDiscountRateValue) || cardDiscountRateValue < 1 || cardDiscountRateValue >= 10)) throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
       return actions.openMemberCard({
+        openCardRequestId: openCardRequestIdRef.current,
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? submittedCustomerName : undefined,
         customerPhone: cardCustomerMode === "new" ? submittedCustomerPhone : undefined,
@@ -4075,6 +4077,7 @@ function Pos({
         note: cardNote.trim() || undefined,
       });
     }).then((nextData) => {
+      openCardRequestIdRef.current = makeId("card-open");
       const pendingSignature = nextData.customerSignatures.find((signature) => signature.title === "开卡确认签名" && signature.status === "待签名");
       clearCardCustomerDraft();
       setCardNote("");
@@ -5133,6 +5136,7 @@ function Customers({
   const [cardExpiresAt, setCardExpiresAt] = useState(addMonthsInputValue(12));
   const [cardNote, setCardNote] = useState("");
   const [cardFormMessage, setCardFormMessage] = useState<{ type: "success" | "error"; text: string } | undefined>();
+  const openCardRequestIdRef = useRef(makeId("card-open"));
   const customerCardDraftTouchedRef = useRef(false);
   const customerCardServiceSelectionTouchedRef = useRef(false);
   const customerCardNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -5392,6 +5396,7 @@ function Customers({
         throw new Error("折扣卡折扣必须在 1 折到 9.9 折之间");
       }
       return actions.openMemberCard({
+        openCardRequestId: openCardRequestIdRef.current,
         customerId: cardCustomerMode === "existing" ? customerId : undefined,
         customerName: cardCustomerMode === "new" ? submittedCustomerName : undefined,
         customerPhone: cardCustomerMode === "new" ? submittedCustomerPhone : undefined,
@@ -5412,6 +5417,7 @@ function Customers({
         note: cardNote.trim() || undefined,
       });
     }).then(() => {
+      openCardRequestIdRef.current = makeId("card-open");
       clearCardCustomerDraft();
       setCardNote("");
       setCardFormMessage({ type: "success", text: "开卡成功，已写入收银流水。" });

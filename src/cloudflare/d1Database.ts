@@ -413,6 +413,94 @@ export class D1BeautyDatabase {
     await this.db.batch(statements);
   }
 
+  async readMemberCardOpenData(storeId: string, input: { customerId?: string; customerPhone?: string }) {
+    const data = await this.readDataTablesForStore(["storeProfiles", "authUsers", "staff", "services", "dailyCloses"], storeId);
+    if (input.customerId) {
+      data.customers = await this.all(
+        "SELECT * FROM customers WHERE storeId = ? AND id = ? LIMIT 1",
+        mapCustomer,
+        [storeId, input.customerId],
+      );
+    } else if (input.customerPhone) {
+      data.customers = await this.all(
+        "SELECT * FROM customers WHERE storeId = ? AND phone = ? LIMIT 1",
+        mapCustomer,
+        [storeId, input.customerPhone],
+      );
+    }
+    return data;
+  }
+
+  async reserveMemberCardSubmission(requestId: string, storeId: string, createdAt: string) {
+    const cutoff = new Date(Date.parse(createdAt) - 24 * 60 * 60 * 1000).toISOString();
+    await this.db.prepare("DELETE FROM memberCardSubmissionLocks WHERE createdAt < ?").bind(cutoff).run();
+    const result = await this.db
+      .prepare("INSERT OR IGNORE INTO memberCardSubmissionLocks (id, storeId, memberCardId, signatureId, createdAt) VALUES (?, ?, NULL, NULL, ?)")
+      .bind(requestId, storeId, createdAt)
+      .run();
+    return (result.meta?.changes ?? 0) > 0;
+  }
+
+  async readMemberCardSubmissionResult(requestId: string, storeId: string): Promise<AppData | undefined> {
+    const locks = await this.all(
+      "SELECT memberCardId, signatureId FROM memberCardSubmissionLocks WHERE id = ? AND storeId = ? LIMIT 1",
+      (row) => row as { memberCardId?: string | null; signatureId?: string | null },
+      [requestId, storeId],
+    );
+    const lock = locks[0];
+    if (!lock?.memberCardId) return undefined;
+    const [memberCards, memberCardTransactions, operationLogs, customerSignatures] = await Promise.all([
+      this.all("SELECT * FROM memberCards WHERE id = ? AND storeId = ? LIMIT 1", mapMemberCard, [lock.memberCardId, storeId]),
+      this.all("SELECT * FROM memberCardTransactions WHERE memberCardId = ? AND storeId = ? AND type = '开卡' ORDER BY rowid DESC LIMIT 1", mapMemberCardTransaction, [lock.memberCardId, storeId]),
+      this.all("SELECT * FROM operationLogs WHERE targetType = 'memberCard' AND targetId = ? AND storeId = ? ORDER BY rowid DESC LIMIT 1", mapOperationLog, [lock.memberCardId, storeId]),
+      lock.signatureId
+        ? this.all("SELECT payload_json FROM customerSignatures WHERE id = ? LIMIT 1", mapJsonPayload<CustomerSignature>, [lock.signatureId])
+        : Promise.resolve([]),
+    ]);
+    const card = memberCards[0];
+    if (!card) return undefined;
+    const customers = await this.all("SELECT * FROM customers WHERE id = ? AND storeId = ? LIMIT 1", mapCustomer, [card.customerId, storeId]);
+    return {
+      ...emptyData(),
+      customers,
+      memberCards,
+      memberCardTransactions,
+      operationLogs,
+      customerSignatures,
+    };
+  }
+
+  async completeMemberCardOpenMutation(input: {
+    requestId?: string;
+    storeId: string;
+    customer: Customer;
+    memberCard: MemberCard;
+    transaction: MemberCardTransaction;
+    operationLog: OperationLog;
+    signature: CustomerSignature;
+  }) {
+    const statements: D1PreparedStatement[] = [
+      this.customerStatement("INSERT OR REPLACE", input.customer),
+      this.memberCardStatement("INSERT", input.memberCard),
+      this.memberCardTransactionStatement("INSERT", input.transaction),
+      this.operationLogStatement("INSERT", input.operationLog),
+      this.jsonTableStatement("INSERT", "customerSignatures", input.signature),
+    ];
+    if (input.requestId) {
+      statements.push(
+        this.statement(
+          "UPDATE memberCardSubmissionLocks SET memberCardId = ?, signatureId = ? WHERE id = ? AND storeId = ?",
+          [input.memberCard.id, input.signature.id, input.requestId, input.storeId],
+        ),
+      );
+    }
+    await this.db.batch(statements);
+  }
+
+  async releaseMemberCardSubmission(requestId: string, storeId: string) {
+    await this.db.prepare("DELETE FROM memberCardSubmissionLocks WHERE id = ? AND storeId = ? AND memberCardId IS NULL").bind(requestId, storeId).run();
+  }
+
   async reserveCheckoutSubmission(id: string, createdAt: string) {
     await this.db.prepare("CREATE TABLE IF NOT EXISTS checkoutSubmissionLocks (id TEXT PRIMARY KEY, createdAt TEXT NOT NULL)").run();
     const cutoff = new Date(Date.parse(createdAt) - 10 * 60 * 1000).toISOString();
@@ -815,55 +903,59 @@ export class D1BeautyDatabase {
 
   private writeMemberCardStatements(statements: D1PreparedStatement[], memberCards: MemberCard[]) {
     for (const card of memberCards) {
-      statements.push(
-        this.statement(
-          "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json, serviceEntitlements_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          [
-            card.id,
-            card.storeId ?? null,
-            card.customerId,
-            card.name,
-            card.type,
-            card.balance,
-            card.remainingTimes,
-            card.discountRate ?? null,
-            card.pointsEarned ?? 0,
-            card.benefitText ?? null,
-            card.expiresAt,
-            card.status,
-            card.serviceId ?? null,
-            JSON.stringify(card.serviceIds ?? []),
-            card.serviceEntitlements?.length ? JSON.stringify(card.serviceEntitlements) : null,
-          ],
-        ),
-      );
+      statements.push(this.memberCardStatement("INSERT", card));
     }
   }
 
   private writeMemberCardTransactionStatements(statements: D1PreparedStatement[], transactions: MemberCardTransaction[]) {
     for (const transaction of transactions) {
-      statements.push(
-        this.statement(
-          "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, staffId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          [
-            transaction.id,
-            transaction.storeId ?? null,
-            transaction.memberCardId,
-            transaction.orderId ?? null,
-            transaction.staffId ?? null,
-            transaction.type,
-            transaction.paidAmount ?? null,
-            transaction.payMethod ?? null,
-            transaction.amountDelta,
-            transaction.timesDelta,
-            transaction.balanceAfter,
-            transaction.remainingTimesAfter,
-            transaction.note,
-            transaction.createdAt,
-          ],
-        ),
-      );
+      statements.push(this.memberCardTransactionStatement("INSERT", transaction));
     }
+  }
+
+  private memberCardStatement(mode: "INSERT" | "INSERT OR REPLACE", card: MemberCard) {
+    return this.statement(
+      `${mode} INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json, serviceEntitlements_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        card.id,
+        card.storeId ?? null,
+        card.customerId,
+        card.name,
+        card.type,
+        card.balance,
+        card.remainingTimes,
+        card.discountRate ?? null,
+        card.pointsEarned ?? 0,
+        card.benefitText ?? null,
+        card.expiresAt,
+        card.status,
+        card.serviceId ?? null,
+        JSON.stringify(card.serviceIds ?? []),
+        card.serviceEntitlements?.length ? JSON.stringify(card.serviceEntitlements) : null,
+      ],
+    );
+  }
+
+  private memberCardTransactionStatement(mode: "INSERT" | "INSERT OR REPLACE", transaction: MemberCardTransaction) {
+    return this.statement(
+      `${mode} INTO memberCardTransactions (id, storeId, memberCardId, orderId, staffId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        transaction.id,
+        transaction.storeId ?? null,
+        transaction.memberCardId,
+        transaction.orderId ?? null,
+        transaction.staffId ?? null,
+        transaction.type,
+        transaction.paidAmount ?? null,
+        transaction.payMethod ?? null,
+        transaction.amountDelta,
+        transaction.timesDelta,
+        transaction.balanceAfter,
+        transaction.remainingTimesAfter,
+        transaction.note,
+        transaction.createdAt,
+      ],
+    );
   }
 
   private writeDataStatements(data: AppData) {

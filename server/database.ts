@@ -262,6 +262,99 @@ export class BeautyDatabase {
     return (result.changes ?? 0) > 0;
   }
 
+  readMemberCardOpenData(storeId: string, input: { customerId?: string; customerPhone?: string }) {
+    const data = this.readDataTablesForStore(["storeProfiles", "authUsers", "staff", "services", "dailyCloses"], storeId);
+    if (input.customerId) {
+      const row = this.db.prepare("SELECT * FROM customers WHERE storeId = ? AND id = ? LIMIT 1").get(storeId, input.customerId);
+      data.customers = row ? [mapCustomer(row)] : [];
+    } else if (input.customerPhone) {
+      const row = this.db.prepare("SELECT * FROM customers WHERE storeId = ? AND phone = ? LIMIT 1").get(storeId, input.customerPhone);
+      data.customers = row ? [mapCustomer(row)] : [];
+    }
+    return data;
+  }
+
+  reserveMemberCardSubmission(requestId: string, storeId: string, createdAt: string) {
+    const cutoff = new Date(Date.parse(createdAt) - 24 * 60 * 60 * 1000).toISOString();
+    this.db.prepare("DELETE FROM memberCardSubmissionLocks WHERE createdAt < ?").run(cutoff);
+    const result = this.db
+      .prepare("INSERT OR IGNORE INTO memberCardSubmissionLocks (id, storeId, memberCardId, signatureId, createdAt) VALUES (?, ?, NULL, NULL, ?)")
+      .run(requestId, storeId, createdAt) as { changes?: number };
+    return (result.changes ?? 0) > 0;
+  }
+
+  readMemberCardSubmissionResult(requestId: string, storeId: string): AppData | undefined {
+    const lock = this.db
+      .prepare("SELECT memberCardId, signatureId FROM memberCardSubmissionLocks WHERE id = ? AND storeId = ? LIMIT 1")
+      .get(requestId, storeId) as { memberCardId?: string | null; signatureId?: string | null } | undefined;
+    if (!lock?.memberCardId) return undefined;
+    const cardRow = this.db.prepare("SELECT * FROM memberCards WHERE id = ? AND storeId = ? LIMIT 1").get(lock.memberCardId, storeId);
+    if (!cardRow) return undefined;
+    const card = mapMemberCard(cardRow);
+    const customerRow = this.db.prepare("SELECT * FROM customers WHERE id = ? AND storeId = ? LIMIT 1").get(card.customerId, storeId);
+    const transactionRow = this.db
+      .prepare("SELECT * FROM memberCardTransactions WHERE memberCardId = ? AND storeId = ? AND type = '开卡' ORDER BY rowid DESC LIMIT 1")
+      .get(card.id, storeId);
+    const operationLogRow = this.db
+      .prepare("SELECT * FROM operationLogs WHERE targetType = 'memberCard' AND targetId = ? AND storeId = ? ORDER BY rowid DESC LIMIT 1")
+      .get(card.id, storeId);
+    const signatureRow = lock.signatureId
+      ? this.db.prepare("SELECT payload_json FROM customerSignatures WHERE id = ? LIMIT 1").get(lock.signatureId)
+      : undefined;
+    return {
+      ...emptyData(),
+      customers: customerRow ? [mapCustomer(customerRow)] : [],
+      memberCards: [card],
+      memberCardTransactions: transactionRow ? [mapMemberCardTransaction(transactionRow)] : [],
+      operationLogs: operationLogRow ? [mapOperationLog(operationLogRow)] : [],
+      customerSignatures: signatureRow ? [mapJsonPayload<CustomerSignature>(signatureRow)] : [],
+    };
+  }
+
+  completeMemberCardOpenMutation(input: {
+    requestId?: string;
+    storeId: string;
+    customer: Customer;
+    memberCard: MemberCard;
+    transaction: MemberCardTransaction;
+    operationLog: OperationLog;
+    signature: CustomerSignature;
+  }) {
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const customer = input.customer;
+      this.db.prepare(
+        "INSERT OR REPLACE INTO customers (id, storeId, name, phone, level, points, birthday, nextFollowUpAt, note, source, tags_json, lastVisit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(customer.id, customer.storeId ?? null, customer.name, customer.phone, customer.level, customer.points ?? 0, customer.birthday ?? null, customer.nextFollowUpAt ?? null, customer.note ?? null, customer.source, JSON.stringify(customer.tags), customer.lastVisit);
+      const card = input.memberCard;
+      this.db.prepare(
+        "INSERT INTO memberCards (id, storeId, customerId, name, type, balance, remainingTimes, discountRate, pointsEarned, benefitText, expiresAt, status, serviceId, serviceIds_json, serviceEntitlements_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(card.id, card.storeId ?? null, card.customerId, card.name, card.type, card.balance, card.remainingTimes, card.discountRate ?? null, card.pointsEarned ?? 0, card.benefitText ?? null, card.expiresAt, card.status, card.serviceId ?? null, JSON.stringify(card.serviceIds ?? []), card.serviceEntitlements?.length ? JSON.stringify(card.serviceEntitlements) : null);
+      const transaction = input.transaction;
+      this.db.prepare(
+        "INSERT INTO memberCardTransactions (id, storeId, memberCardId, orderId, staffId, type, paidAmount, payMethod, amountDelta, timesDelta, balanceAfter, remainingTimesAfter, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(transaction.id, transaction.storeId ?? null, transaction.memberCardId, transaction.orderId ?? null, transaction.staffId ?? null, transaction.type, transaction.paidAmount ?? null, transaction.payMethod ?? null, transaction.amountDelta, transaction.timesDelta, transaction.balanceAfter, transaction.remainingTimesAfter, transaction.note, transaction.createdAt);
+      const log = input.operationLog;
+      this.db.prepare(
+        "INSERT INTO operationLogs (id, storeId, userId, action, targetType, targetId, summary, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(log.id, log.storeId ?? null, log.userId, log.action, log.targetType, log.targetId, log.summary, log.createdAt);
+      this.db.prepare("INSERT INTO customerSignatures (id, payload_json) VALUES (?, ?)").run(input.signature.id, JSON.stringify(input.signature));
+      if (input.requestId) {
+        this.db.prepare(
+          "UPDATE memberCardSubmissionLocks SET memberCardId = ?, signatureId = ? WHERE id = ? AND storeId = ?",
+        ).run(card.id, input.signature.id, input.requestId, input.storeId);
+      }
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  releaseMemberCardSubmission(requestId: string, storeId: string) {
+    this.db.prepare("DELETE FROM memberCardSubmissionLocks WHERE id = ? AND storeId = ? AND memberCardId IS NULL").run(requestId, storeId);
+  }
+
   acquireAiGenerationLocks(input: { ownerId: string; kind: string; createdAt: string; expiresAt: string; maxGlobalSlots: number }) {
     this.ensureAiGenerationLocks();
     this.db.prepare("DELETE FROM aiGenerationLocks WHERE expiresAt < ?").run(input.createdAt);
@@ -1352,6 +1445,14 @@ export class BeautyDatabase {
         createdAt TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS memberCardSubmissionLocks (
+        id TEXT PRIMARY KEY,
+        storeId TEXT NOT NULL,
+        memberCardId TEXT,
+        signatureId TEXT,
+        createdAt TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS aiGenerationLocks (
         id TEXT PRIMARY KEY,
         scope TEXT NOT NULL,
@@ -1532,6 +1633,7 @@ export class BeautyDatabase {
       CREATE INDEX IF NOT EXISTS idx_daily_closes_store_date ON dailyCloses(storeId, businessDate);
       CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(userId);
       CREATE INDEX IF NOT EXISTS idx_checkout_locks_created ON checkoutSubmissionLocks(createdAt);
+      CREATE INDEX IF NOT EXISTS idx_member_card_submission_created ON memberCardSubmissionLocks(createdAt);
       CREATE INDEX IF NOT EXISTS idx_auth_users_store_json ON authUsers(json_extract(payload_json, '$.storeId'));
       CREATE INDEX IF NOT EXISTS idx_auth_users_account_json ON authUsers(json_extract(payload_json, '$.account'));
       CREATE INDEX IF NOT EXISTS idx_notifications_store_json ON notifications(json_extract(payload_json, '$.storeId'));

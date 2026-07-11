@@ -387,6 +387,7 @@ export function createApiClient(getToken: () => string | undefined) {
     updateTag: (tagId: string, body: { name?: string; color?: string; status?: TagDefinition["status"] }) =>
       request<AppData>(`/api/tags/${encodeURIComponent(tagId)}`, { method: "PATCH", body, token: getToken() }),
     openMemberCard: (body: {
+      openCardRequestId?: string;
       customerId?: string;
       customerName?: string;
       customerPhone?: string;
@@ -406,7 +407,7 @@ export function createApiClient(getToken: () => string | undefined) {
       expiresAt?: string;
       note?: string;
     }) =>
-      request<AppData>("/api/member-cards", { method: "POST", body, token: getToken() }),
+      request<AppDataUpdate>("/api/member-cards", { method: "POST", body, token: getToken() }),
     refundMemberCard: (memberCardId: string, body: string | { reason: string; refundAmount?: number; payMethod?: CashPayMethod; signatureId?: string }) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/refund`, {
         method: "POST",
