@@ -216,18 +216,9 @@ export class BeautyDatabase {
   }
 
   replaceDataTables(data: AppData, keys: readonly TableName[]) {
-    this.db.exec("BEGIN IMMEDIATE;");
-    try {
-      const uniqueKeys = Array.from(new Set(keys));
-      for (const key of [...uniqueKeys].reverse()) {
-        this.db.prepare(`DELETE FROM ${key}`).run();
-      }
-      this.writeData(pickDataTables(data, uniqueKeys));
-      this.db.exec("COMMIT;");
-    } catch (error) {
-      this.db.exec("ROLLBACK;");
-      throw error;
-    }
+    const uniqueKeys = Array.from(new Set(keys));
+    const previousData = this.readDataTables(uniqueKeys);
+    this.applyTableChanges(previousData, data, uniqueKeys);
   }
 
   replaceStoreData(storeId: string, data: AppData) {
@@ -243,11 +234,63 @@ export class BeautyDatabase {
   }
 
   replaceStoreTables(storeId: string, data: AppData, keys: readonly TableName[]) {
+    const uniqueKeys = Array.from(new Set(keys));
+    const previousData = this.readDataTablesForStore(uniqueKeys, storeId);
+    this.applyStoreTableChanges(storeId, previousData, data, uniqueKeys);
+  }
+
+  applyTableChanges(previousData: AppData, nextData: AppData, keys: readonly TableName[]) {
+    this.applyTableChangesInternal(previousData, nextData, keys);
+  }
+
+  applyStoreTableChanges(storeId: string, previousData: AppData, nextData: AppData, keys: readonly TableName[]) {
+    this.applyTableChangesInternal(
+      dataForStoreWrite(previousData, storeId),
+      dataForStoreWrite(nextData, storeId),
+      keys,
+    );
+  }
+
+  upsertCustomerSignatures(signatures: readonly CustomerSignature[]) {
+    if (!signatures.length) return;
+    const statement = this.db.prepare("INSERT OR REPLACE INTO customerSignatures (id, payload_json) VALUES (?, ?)");
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      signatures.forEach((signature) => statement.run(signature.id, JSON.stringify(signature)));
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  readCustomerSignatureById(id: string) {
+    const row = this.db.prepare("SELECT payload_json FROM customerSignatures WHERE id = ? LIMIT 1").get(id);
+    return row ? mapJsonPayload<CustomerSignature>(row) : undefined;
+  }
+
+  readCustomerSignatureByToken(token: string) {
+    const row = this.db.prepare("SELECT payload_json FROM customerSignatures WHERE json_extract(payload_json, '$.token') = ? ORDER BY rowid DESC LIMIT 1").get(token);
+    return row ? mapJsonPayload<CustomerSignature>(row) : undefined;
+  }
+
+  private applyTableChangesInternal(previousData: AppData, nextData: AppData, keys: readonly TableName[]) {
     this.db.exec("BEGIN IMMEDIATE;");
     try {
       const uniqueKeys = Array.from(new Set(keys));
-      this.deleteStoreTables(storeId, uniqueKeys);
-      this.writeData(pickDataTables(dataForStoreWrite(data, storeId), uniqueKeys));
+      const changedData = emptyData();
+      for (const key of uniqueKeys) {
+        const previousRows = previousData[key] as Array<{ id: string }>;
+        const nextRows = nextData[key] as Array<{ id: string }>;
+        const previousById = new Map(previousRows.map((row) => [row.id, JSON.stringify(row)]));
+        const nextIds = new Set(nextRows.map((row) => row.id));
+        const changedRows = nextRows.filter((row) => previousById.get(row.id) !== JSON.stringify(row));
+        const removedIds = previousRows.filter((row) => !nextIds.has(row.id)).map((row) => row.id);
+        const deleteById = this.db.prepare(`DELETE FROM ${key} WHERE id = ?`);
+        for (const id of [...removedIds, ...changedRows.map((row) => row.id)]) deleteById.run(id);
+        changedData[key] = changedRows as never;
+      }
+      this.writeData(pickDataTables(changedData, uniqueKeys));
       this.db.exec("COMMIT;");
     } catch (error) {
       this.db.exec("ROLLBACK;");
@@ -271,6 +314,55 @@ export class BeautyDatabase {
       const row = this.db.prepare("SELECT * FROM customers WHERE storeId = ? AND phone = ? LIMIT 1").get(storeId, input.customerPhone);
       data.customers = row ? [mapCustomer(row)] : [];
     }
+    return data;
+  }
+
+  readMemberCardMutationData(
+    storeId: string,
+    input: { memberCardId: string; extraCustomerId?: string; signatureId?: string },
+  ) {
+    const data = this.readDataTablesForStore(["storeProfiles", "authUsers", "services", "dailyCloses"], storeId);
+    const cardRow = this.db.prepare("SELECT * FROM memberCards WHERE id = ? AND (storeId = ? OR (storeId IS NULL AND customerId IN (SELECT id FROM customers WHERE storeId = ?))) LIMIT 1").get(input.memberCardId, storeId, storeId);
+    data.memberCards = cardRow ? [mapMemberCard(cardRow)] : [];
+    const customerIds = Array.from(new Set([data.memberCards[0]?.customerId, input.extraCustomerId].filter((id): id is string => Boolean(id))));
+    data.customers = customerIds.flatMap((customerId) => {
+      const row = this.db.prepare("SELECT * FROM customers WHERE storeId = ? AND id = ? LIMIT 1").get(storeId, customerId);
+      return row ? [mapCustomer(row)] : [];
+    });
+    data.memberCardTransactions = data.memberCards[0]
+      ? (this.db.prepare("SELECT * FROM memberCardTransactions WHERE memberCardId = ? ORDER BY rowid DESC").all(data.memberCards[0].id) as unknown[]).map(mapMemberCardTransaction)
+      : [];
+    if (input.signatureId) {
+      const row = this.db.prepare("SELECT payload_json FROM customerSignatures WHERE id = ? LIMIT 1").get(input.signatureId);
+      data.customerSignatures = row ? [mapJsonPayload<CustomerSignature>(row)] : [];
+    }
+    return data;
+  }
+
+  readCustomerSignatureContext(
+    storeId: string,
+    input: { customerId: string; orderId?: string; serviceRecordId?: string },
+  ) {
+    const data = this.readDataTablesForStore(["storeProfiles", "authUsers", "staff", "services"], storeId);
+    const customerRow = this.db.prepare("SELECT * FROM customers WHERE storeId = ? AND id = ? LIMIT 1").get(storeId, input.customerId);
+    data.customers = customerRow ? [mapCustomer(customerRow)] : [];
+    const orderRow = input.orderId
+      ? this.db.prepare("SELECT * FROM orders WHERE storeId = ? AND id = ? LIMIT 1").get(storeId, input.orderId)
+      : undefined;
+    data.orders = orderRow ? [mapOrder(orderRow)] : [];
+    const serviceRecordRow = input.serviceRecordId
+      ? this.db.prepare("SELECT payload_json FROM customerServiceRecords WHERE id = ? AND json_extract(payload_json, '$.storeId') = ? LIMIT 1").get(input.serviceRecordId, storeId)
+      : undefined;
+    data.customerServiceRecords = serviceRecordRow ? [mapJsonPayload<CustomerServiceRecord>(serviceRecordRow)] : [];
+    data.memberCards = (this.db.prepare("SELECT * FROM memberCards WHERE storeId = ? AND customerId = ? ORDER BY rowid ASC").all(storeId, input.customerId) as unknown[]).map(mapMemberCard);
+    const order = data.orders[0];
+    const appointmentRow = order?.appointmentId
+      ? this.db.prepare("SELECT * FROM appointments WHERE storeId = ? AND id = ? LIMIT 1").get(storeId, order.appointmentId)
+      : undefined;
+    data.appointments = appointmentRow ? [mapAppointment(appointmentRow)] : [];
+    data.memberCardTransactions = order
+      ? (this.db.prepare("SELECT * FROM memberCardTransactions WHERE storeId = ? AND orderId = ? ORDER BY rowid DESC").all(storeId, order.id) as unknown[]).map(mapMemberCardTransaction)
+      : [];
     return data;
   }
 
@@ -1008,7 +1100,11 @@ export class BeautyDatabase {
       case "staffShifts":
         return jsonStoreRows("staffShifts", mapJsonPayload<StaffShift>);
       case "memberCards":
-        return tableStoreRows("memberCards", mapMemberCard, "rowid ASC");
+        return this.all(
+          "SELECT * FROM memberCards WHERE storeId = ? OR (storeId IS NULL AND customerId IN (SELECT id FROM customers WHERE storeId = ?)) ORDER BY rowid ASC",
+          mapMemberCard,
+          [storeId, storeId],
+        );
       case "distributors":
         return this.all(
           `SELECT payload_json FROM distributors
@@ -1082,7 +1178,15 @@ export class BeautyDatabase {
       case "inventoryLogs":
         return tableStoreRows("inventoryLogs", mapInventoryLog);
       case "memberCardTransactions":
-        return tableStoreRows("memberCardTransactions", mapMemberCardTransaction);
+        return this.all(
+          `SELECT * FROM memberCardTransactions
+           WHERE storeId = ?
+              OR memberCardId IN (SELECT id FROM memberCards WHERE storeId = ? OR (storeId IS NULL AND customerId IN (SELECT id FROM customers WHERE storeId = ?)))
+              OR orderId IN (SELECT id FROM orders WHERE storeId = ?)
+           ORDER BY rowid DESC`,
+          mapMemberCardTransaction,
+          [storeId, storeId, storeId, storeId],
+        );
       case "operationLogs":
         return this.all("SELECT * FROM operationLogs WHERE storeId = ? OR userId = 'system' ORDER BY rowid DESC", mapOperationLog, [storeId]);
       case "marketingAiRecords":

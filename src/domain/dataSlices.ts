@@ -11,6 +11,7 @@ export type AppDataPatch = {
   kind: "app-data-patch";
   view: ViewKey;
   upserts: Partial<AppData>;
+  deletes?: Partial<Record<keyof AppData, string[]>>;
   generatedAt: string;
 };
 
@@ -287,11 +288,36 @@ export function makeAppDataSlice(data: AppData, view: ViewKey): AppDataSlice {
   };
 }
 
-export function makeAppDataPatch(data: Partial<AppData>, view: ViewKey): AppDataPatch {
+export function makeAppDataPatch(
+  data: Partial<AppData>,
+  view: ViewKey,
+  deletes?: Partial<Record<keyof AppData, string[]>>,
+): AppDataPatch {
   return {
     kind: "app-data-patch",
     view,
     upserts: data,
+    ...(deletes && Object.keys(deletes).length ? { deletes } : {}),
     generatedAt: new Date().toISOString(),
   };
+}
+
+export function diffAppData(
+  previous: AppData,
+  next: AppData,
+  keys: readonly (keyof AppData)[],
+) {
+  const upserts: Partial<AppData> = {};
+  const deletes: Partial<Record<keyof AppData, string[]>> = {};
+  for (const key of Array.from(new Set(keys))) {
+    const previousRows = previous[key] as Array<{ id: string }>;
+    const nextRows = next[key] as Array<{ id: string }>;
+    const previousById = new Map(previousRows.map((row) => [row.id, JSON.stringify(row)]));
+    const nextIds = new Set(nextRows.map((row) => row.id));
+    const changedRows = nextRows.filter((row) => previousById.get(row.id) !== JSON.stringify(row));
+    const deletedIds = previousRows.filter((row) => !nextIds.has(row.id)).map((row) => row.id);
+    if (changedRows.length) upserts[key] = changedRows as never;
+    if (deletedIds.length) deletes[key] = deletedIds;
+  }
+  return { upserts, deletes };
 }

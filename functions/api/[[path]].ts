@@ -80,7 +80,7 @@ import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
-import { dataKeysForView, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../../src/domain/dataSlices";
+import { dataKeysForView, diffAppData, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
@@ -156,34 +156,11 @@ const aiImageGenerationMaxGlobalSlots = 4;
 const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
 const androidApkR2Key = "releases/zhurongkftech-app.apk";
 
-const publicSignatureDataKeys = [
-  "customers",
-  "orders",
-  "services",
-  "staff",
-  "appointments",
-  "memberCards",
-  "memberCardTransactions",
-  "customerServiceRecords",
-  "customerSignatures",
-] as const;
-
 const customerSignatureWriteKeys = [
   "appointments",
   "orders",
   "memberCards",
   "memberCardTransactions",
-] as const;
-
-const customerSignatureMutationKeys = [
-  "customers",
-  "services",
-  "appointments",
-  "orders",
-  "memberCards",
-  "memberCardTransactions",
-  "customerServiceRecords",
-  "customerSignatures",
 ] as const;
 
 const appointmentMutationKeys = [
@@ -217,7 +194,6 @@ const checkoutMutationKeys = [
   "commissions",
   "dailyCloses",
   "approvalRequests",
-  "customerSignatures",
   "operationLogs",
 ] as const;
 
@@ -296,30 +272,10 @@ const inventoryAdjustmentWriteKeys = [
   "notifications",
 ] as const;
 
-const memberCardMutationKeys = [
-  "storeProfiles",
-  "authUsers",
-  "customers",
-  "services",
-  "memberCards",
-  "memberCardTransactions",
-  "dailyCloses",
-  "operationLogs",
-] as const;
-
 const memberCardWriteKeys = [
   "customers",
   "memberCards",
   "memberCardTransactions",
-  "operationLogs",
-] as const;
-
-const memberCardRefundMutationKeys = [
-  "storeProfiles",
-  "customers",
-  "memberCards",
-  "memberCardTransactions",
-  "customerSignatures",
   "operationLogs",
 ] as const;
 
@@ -1022,7 +978,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!signedSignature) throw new Error("签名记录更新失败");
       const signedSignatureStoreId = signedSignature ? publicSignatureStoreId(nextData, signedSignature) : undefined;
       if (signedSignatureStoreId) {
-        await database.replaceStoreTables(signedSignatureStoreId, nextData, customerSignatureWriteKeys);
+        await database.applyStoreTableChanges(signedSignatureStoreId, currentData, nextData, customerSignatureWriteKeys);
         await database.upsertCustomerSignatures([signedSignature]);
       } else {
         throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
@@ -1735,7 +1691,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("checkout");
       const body = await readJson(context.request);
       const checkoutRequestId = optionalString(body, "checkoutRequestId");
-      const currentData = await readMutationDataForRequest(database, context.request, session, checkoutMutationKeys);
+      const currentData = await readRequiredMutationData(database, session, checkoutMutationKeys);
       markMutationRead(timing);
       const existingSignatureIds = new Set((currentData.customerSignatures ?? []).map((signature) => signature.id));
       const checkedOutData = checkoutOrder(currentData, {
@@ -1775,10 +1731,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       );
       const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, checkoutWriteKeys);
+      await persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
       await database.upsertCustomerSignatures(newSignatures);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 201, nextData, session, { responseKeys: checkoutResponseKeys }), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, checkoutResponseKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/orders/") && pathname.endsWith("/refund")) {
@@ -1849,7 +1805,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("appointment-create");
       const body = await readJson(context.request);
       const requestedStaffId = requiredString(body, "staffId");
-      const baseData = await readMutationDataForRequest(database, context.request, session, appointmentMutationKeys);
+      const baseData = await readRequiredMutationData(database, session, appointmentMutationKeys);
       markMutationRead(timing);
       let appointedData = createAppointment(
         baseData,
@@ -1892,7 +1848,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       startMutationWrite(timing);
       await persistAppointmentMutation(database, baseData, nextData);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 201, nextData, session, { responseKeys: appointmentCreateResponseKeys }), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 201, baseData, nextData, session, appointmentCreateResponseKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/staff-unavailable-slots") {
@@ -1941,7 +1897,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const appointmentId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
       const requestedStaffId = optionalString(body, "staffId");
-      const currentData = await readMutationDataForRequest(database, context.request, session, appointmentMutationKeys);
+      const currentData = await readRequiredMutationData(database, session, appointmentMutationKeys);
       markMutationRead(timing);
       const nextData = updateData(currentData, session, {
         action: "改约",
@@ -1963,7 +1919,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       startMutationWrite(timing);
       await persistAppointmentMutation(database, currentData, nextData);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session, { responseKeys: appointmentUpdateResponseKeys }), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 200, currentData, nextData, session, appointmentUpdateResponseKeys), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/appointments/")) {
@@ -1972,7 +1928,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const appointmentId = decodeURIComponent(pathname.split("/").at(-1) ?? "");
       const body = await readJson(context.request);
       const status = requiredString(body, "status") as Appointment["status"];
-      const currentData = await readMutationDataForRequest(database, context.request, session, appointmentMutationKeys);
+      const currentData = await readRequiredMutationData(database, session, appointmentMutationKeys);
       markMutationRead(timing);
       const nextData = updateData(currentData, session, {
         action: "更新预约状态",
@@ -1983,7 +1939,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       startMutationWrite(timing);
       await persistAppointmentMutation(database, currentData, nextData);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session, { responseKeys: appointmentUpdateResponseKeys }), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 200, currentData, nextData, session, appointmentUpdateResponseKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/online-booking-requests/") && pathname.endsWith("/convert")) {
@@ -1991,7 +1947,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("online-booking-convert");
       const requestId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, onlineBookingConvertMutationKeys);
+      const currentData = await readRequiredMutationData(database, session, onlineBookingConvertMutationKeys);
       markMutationRead(timing);
       const nextData = convertOnlineBookingRequest(currentData, {
         requestId,
@@ -2001,7 +1957,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       startMutationWrite(timing);
       await persistAppointmentMutation(database, currentData, nextData);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session, { responseKeys: onlineBookingConvertResponseKeys }), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 200, currentData, nextData, session, onlineBookingConvertResponseKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/customers") {
@@ -2217,7 +2173,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("member-card-recharge");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      const storeId = await resolveSessionStoreId(database, session);
+      const currentData = await database.readMemberCardMutationData(storeId, { memberCardId });
       markMutationRead(timing);
       const nextData = rechargeMemberCard(currentData, {
         memberCardId,
@@ -2232,9 +2189,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: session.user.staffId,
       });
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      await persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, memberCardWriteKeys), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/status")) {
@@ -2242,7 +2199,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("member-card-status");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      const storeId = await resolveSessionStoreId(database, session);
+      const currentData = await database.readMemberCardMutationData(storeId, { memberCardId });
       markMutationRead(timing);
       const nextData = updateMemberCardStatus(currentData, {
         memberCardId,
@@ -2252,9 +2210,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: session.user.staffId,
       });
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      await persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 200, currentData, nextData, session, memberCardWriteKeys), timing, "scoped");
     }
 
     if (context.request.method === "PATCH" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/extend")) {
@@ -2262,7 +2220,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("member-card-extend");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      const storeId = await resolveSessionStoreId(database, session);
+      const currentData = await database.readMemberCardMutationData(storeId, { memberCardId });
       markMutationRead(timing);
       const nextData = extendMemberCard(currentData, {
         memberCardId,
@@ -2272,9 +2231,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         staffId: session.user.staffId,
       });
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      await persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 200, currentData, nextData, session, memberCardWriteKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/transfer")) {
@@ -2282,19 +2241,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("member-card-transfer");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardMutationKeys);
+      const toCustomerId = requiredString(body, "toCustomerId");
+      const storeId = await resolveSessionStoreId(database, session);
+      const currentData = await database.readMemberCardMutationData(storeId, { memberCardId, extraCustomerId: toCustomerId });
       markMutationRead(timing);
       const nextData = transferMemberCard(currentData, {
         memberCardId,
-        toCustomerId: requiredString(body, "toCustomerId"),
+        toCustomerId,
         reason: optionalString(body, "reason") ?? "会员转卡",
         userId: session.user.id,
         staffId: session.user.staffId,
       });
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, memberCardWriteKeys);
+      await persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, memberCardWriteKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/approvals") {
@@ -2385,11 +2346,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname === "/api/customer-signatures") {
       requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys.filter((key) => key !== "customerSignatures"));
+      const customerId = requiredString(body, "customerId");
+      const orderId = optionalString(body, "orderId");
+      const serviceRecordId = optionalString(body, "serviceRecordId");
+      const storeId = await resolveSessionStoreId(database, session);
+      const currentData = await database.readCustomerSignatureContext(storeId, { customerId, orderId, serviceRecordId });
       const nextData = createCustomerSignature(currentData, {
-        customerId: requiredString(body, "customerId"),
-        serviceRecordId: optionalString(body, "serviceRecordId"),
-        orderId: optionalString(body, "orderId"),
+        customerId,
+        serviceRecordId,
+        orderId,
         title: optionalString(body, "title"),
         content: optionalString(body, "content"),
         requestedBy: session.user.id,
@@ -2398,26 +2363,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const createdSignature = nextData.customerSignatures[0];
       if (!createdSignature) throw new Error("签名记录创建失败");
       await database.upsertCustomerSignatures([createdSignature]);
-      return sendScopedData(context.request, 201, nextData, session);
+      return sendMutationPatch(context.request, 201, currentData, nextData, session, ["customerSignatures"]);
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/customer-signatures/") && pathname.endsWith("/sign")) {
       requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const signatureId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, customerSignatureMutationKeys.filter((key) => key !== "customerSignatures"));
       const signature = await database.readCustomerSignatureById(signatureId);
       if (!signature) throw new Error("签名记录不存在");
-      const nextData = signCustomerSignature({ ...currentData, customerSignatures: [signature] }, {
+      const storeId = signature.storeId ?? await resolveSessionStoreId(database, session);
+      const currentData = await database.readCustomerSignatureContext(storeId, signature);
+      const previousData = { ...currentData, customerSignatures: [signature] };
+      const nextData = signCustomerSignature(previousData, {
         token: signature.token,
         signerName: requiredString(body, "signerName"),
         signatureText: requiredString(body, "signatureText"),
       });
       const signedSignature = nextData.customerSignatures.find((item) => item.id === signature.id);
       if (!signedSignature) throw new Error("签名记录更新失败");
-      await persistDataTables(database, session, nextData, customerSignatureWriteKeys);
+      await persistDataTableChanges(database, session, previousData, nextData, customerSignatureWriteKeys);
       await database.upsertCustomerSignatures([signedSignature]);
-      return sendScopedData(context.request, 201, nextData, session);
+      return sendMutationPatch(context.request, 201, previousData, nextData, session, [...customerSignatureWriteKeys, "customerSignatures"]);
     }
 
     if (context.request.method === "POST" && pathname === "/api/follow-ups") {
@@ -2476,21 +2443,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("member-card-refund");
       const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readMutationDataForRequest(database, context.request, session, memberCardRefundMutationKeys);
+      const signatureId = requiredString(body, "signatureId");
+      const storeId = await resolveSessionStoreId(database, session);
+      const currentData = await database.readMemberCardMutationData(storeId, { memberCardId, signatureId });
       markMutationRead(timing);
       const nextData = refundMemberCard(currentData, {
         memberCardId,
         reason: optionalString(body, "reason") ?? "客户退卡",
         refundAmount: optionalNumber(body, "refundAmount"),
         payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
-        signatureId: requiredString(body, "signatureId"),
+        signatureId,
         userId: session.user.id,
         staffId: session.user.staffId,
       });
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, memberCardRefundWriteKeys);
+      await persistDataTableChanges(database, session, currentData, nextData, memberCardRefundWriteKeys);
       markMutationWrite(timing);
-      return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
+      return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, memberCardRefundWriteKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/services") {
@@ -2910,6 +2879,21 @@ function persistDataTables(database: D1BeautyDatabase, session: UserSession, nex
     return database.replaceStoreTables(storeId, nextData, keys);
   }
   return database.replaceTables(nextData, keys);
+}
+
+function persistDataTableChanges(
+  database: D1BeautyDatabase,
+  session: UserSession,
+  previousData: AppData,
+  nextData: AppData,
+  keys: readonly D1DataTableName[],
+) {
+  if (session.user.role !== "superadmin") {
+    const storeId = session.user.storeId ?? sessionStoreId(nextData, session) ?? sessionStoreId(previousData, session);
+    if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+    return database.applyStoreTableChanges(storeId, previousData, nextData, keys);
+  }
+  return database.applyTableChanges(previousData, nextData, keys);
 }
 
 function persistAppointmentMutation(database: D1BeautyDatabase, previousData: AppData, nextData: AppData) {
@@ -5532,6 +5516,18 @@ async function readMutationDataForRequest(
   return database.readDataTables(keys);
 }
 
+async function readRequiredMutationData(
+  database: D1BeautyDatabase,
+  session: UserSession,
+  requiredKeys: readonly D1DataTableName[],
+) {
+  if (session.user.role !== "superadmin") {
+    const storeId = await resolveSessionStoreId(database, session);
+    return database.readDataTablesForStore(requiredKeys, storeId);
+  }
+  return database.readDataTables(requiredKeys);
+}
+
 async function readMarketingAiData(database: D1BeautyDatabase, session: UserSession) {
   if (session.user.role === "superadmin") {
     return database.readDataTables(marketingAiDataKeys);
@@ -5553,7 +5549,7 @@ async function readPublicSignatureData(database: D1BeautyDatabase, token: string
   if (!signature) return emptyAppData();
   const signatureStoreId = signature ? await database.resolveCustomerSignatureStoreId(signature) : undefined;
   if (signatureStoreId) {
-    const data = await database.readDataTablesForStore(publicSignatureDataKeys.filter((key) => key !== "customerSignatures"), signatureStoreId);
+    const data = await database.readCustomerSignatureContext(signatureStoreId, signature);
     return { ...data, customerSignatures: [signature] };
   }
   return emptyAppData();
@@ -5615,6 +5611,21 @@ function sendMemberCardOpenPatch(request: Request, statusCode: number, data: App
     operationLogs: data.operationLogs,
     customerSignatures: withoutSignatureImages(data).customerSignatures,
   }, view));
+}
+
+function sendMutationPatch(
+  request: Request,
+  statusCode: number,
+  previousData: AppData,
+  nextData: AppData,
+  session: UserSession,
+  keys: readonly D1DataTableName[],
+) {
+  if (!isSliceRequest(request)) return sendScopedData(request, statusCode, nextData, session);
+  const previousScoped = withoutSignatureImages(scopeDataForSession(previousData, session));
+  const nextScoped = withoutSignatureImages(scopeDataForSession(nextData, session));
+  const { upserts, deletes } = diffAppData(previousScoped, nextScoped, keys);
+  return sendJson(statusCode, makeAppDataPatch(upserts, requestedDataView(request) ?? "dashboard", deletes));
 }
 
 function makeAppDataSliceWithKeys(data: AppData, view: ViewKey, keys: readonly D1DataTableName[]) {

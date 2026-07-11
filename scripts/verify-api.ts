@@ -135,7 +135,7 @@ try {
   assert.equal(customerMutationSlice.view, "customers", "mutation slice should use active view");
   assert.ok(customerMutationSlice.data.customers?.some((customer) => customer.name === "分片验证客户"), "mutation slice should include updated customers");
   assert.equal("purchaseOrders" in customerMutationSlice.data, false, "customer mutation slice should omit inventory purchase orders");
-  const settingsAppointmentSlice = await request<AppDataSlice>(baseUrl, "/api/appointments", {
+  const settingsAppointmentSlice = await request<AppDataPatch>(baseUrl, "/api/appointments", {
     method: "POST",
     token: session.token,
     headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "settings" },
@@ -149,13 +149,12 @@ try {
       note: "管理中心预约分片验证",
     },
   });
-  assert.equal(settingsAppointmentSlice.kind, "app-data-slice", "settings appointment mutation should return AppData slice");
+  assert.equal(settingsAppointmentSlice.kind, "app-data-patch", "settings appointment mutation should return a lightweight patch");
   assert.equal(settingsAppointmentSlice.view, "settings", "settings mutation slice should use management-center view");
-  assert.equal(settingsAppointmentSlice.data.appointments?.[0]?.status, "已确认", "manual appointments should enter waiting-arrival column after saving");
-  assert.ok(settingsAppointmentSlice.data.staffShifts, "settings slice should include staff shifts for schedule modal");
-  assert.ok(settingsAppointmentSlice.data.customerSignatures, "settings slice should include customer signatures for refund signing");
-  assert.ok(settingsAppointmentSlice.data.memberCards, "settings slice should include member cards for refund card refresh");
-  assert.ok(settingsAppointmentSlice.data.refunds, "settings slice should include refunds for refund record refresh");
+  assert.equal(settingsAppointmentSlice.upserts.appointments?.[0]?.status, "已确认", "manual appointments should enter waiting-arrival column after saving");
+  assert.equal(settingsAppointmentSlice.upserts.appointments?.length, 1, "appointment mutation should return only the changed appointment");
+  assert.equal("customerSignatures" in settingsAppointmentSlice.upserts, false, "appointment mutation should not return historical signatures");
+  assert.equal("memberCards" in settingsAppointmentSlice.upserts, false, "appointment mutation should not return historical cards");
 
   const adminSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
     method: "POST",
@@ -746,9 +745,10 @@ try {
       note: "API 已改约",
     },
   });
-  assert.equal(afterReschedule.appointments[0].serviceId, "v2", "appointment API should reschedule service");
-  assert.equal(afterReschedule.appointments[0].endAt, futureIso(32, "07:00"), "appointment API should reschedule end time");
-  assert.ok(afterReschedule.appointments[0].rescheduledAt, "appointment API should stamp reschedule time");
+  const rescheduledAppointment = afterReschedule.appointments.find((item) => item.id === secondAppointmentId);
+  assert.equal(rescheduledAppointment?.serviceId, "v2", "appointment API should reschedule service");
+  assert.equal(rescheduledAppointment?.endAt, futureIso(32, "07:00"), "appointment API should reschedule end time");
+  assert.ok(rescheduledAppointment?.rescheduledAt, "appointment API should stamp reschedule time");
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(secondAppointmentId)}`, {
@@ -764,7 +764,7 @@ try {
     token: session.token,
     body: { status: "已取消", reason: "客户临时取消" },
   });
-  assert.equal(afterCancel.appointments[0].cancelReason, "客户临时取消", "appointment API should keep cancel reason");
+  assert.equal(afterCancel.appointments.find((item) => item.id === secondAppointmentId)?.cancelReason, "客户临时取消", "appointment API should keep cancel reason");
 
   const afterUnavailableSlot = await request<AppData>(baseUrl, "/api/staff-unavailable-slots", {
     method: "POST",

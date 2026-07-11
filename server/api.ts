@@ -85,7 +85,7 @@ import { requireMobilePhone } from "../src/domain/phone";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
-import { dataKeysForView, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../src/domain/dataSlices";
+import { dataKeysForView, diffAppData, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
 import { destroySession, getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase, type TableName } from "./database";
@@ -95,6 +95,21 @@ const execFile = promisify(execFileCallback);
 const aiImageGenerationMaxGlobalSlots = 4;
 const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
 const providerFetchTimeoutMs = 260_000;
+
+const appointmentMutationKeys = [
+  "storeProfiles", "authUsers", "customers", "services", "staff", "appointments", "staffUnavailableSlots", "staffShifts",
+] as const;
+const checkoutMutationKeys = [
+  "storeProfiles", "authUsers", "staff", "customers", "services", "products", "inventoryBatches", "appointments", "orders",
+  "memberCards", "inventoryLogs", "memberCardTransactions", "commissions", "dailyCloses", "approvalRequests", "operationLogs",
+] as const;
+const checkoutWriteKeys = [
+  "customers", "products", "inventoryBatches", "appointments", "orders", "memberCards", "inventoryLogs", "memberCardTransactions", "commissions", "operationLogs",
+] as const;
+const checkoutResponseKeys = [...checkoutWriteKeys, "customerSignatures", "dailyCloses"] as const;
+const memberCardWriteKeys = ["customers", "memberCards", "memberCardTransactions", "operationLogs"] as const;
+const memberCardRefundWriteKeys = ["memberCards", "memberCardTransactions", "operationLogs"] as const;
+const customerSignatureWriteKeys = ["appointments", "orders", "memberCards", "memberCardTransactions"] as const;
 
 function shouldExposeAppVersion(clientVersion: string | null, manualUpdateCheck: boolean) {
   return !clientVersion || manualUpdateCheck || isVersionGreater(pkg.version, clientVersion);
@@ -121,24 +136,6 @@ function versionParts(version: string) {
     .map((part) => (Number.isFinite(part) ? part : 0));
 }
 
-const publicSignatureDataKeys = [
-  "customers",
-  "orders",
-  "services",
-  "staff",
-  "appointments",
-  "memberCards",
-  "memberCardTransactions",
-  "customerServiceRecords",
-  "customerSignatures",
-] as const satisfies readonly TableName[];
-const publicSignatureWriteKeys = [
-  "appointments",
-  "orders",
-  "memberCards",
-  "memberCardTransactions",
-  "customerSignatures",
-] as const satisfies readonly TableName[];
 type LocalAvatarUpload = {
   buffer: Buffer;
   contentType: string;
@@ -305,19 +302,28 @@ export function createApiServer(database = new BeautyDatabase()) {
 
       if (request.method === "GET" && url.pathname.startsWith("/api/public/customer-signatures/")) {
         const token = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
-        sendJson(response, 200, publicSignaturePayload(database.readDataTables(publicSignatureDataKeys), token));
+        const signature = database.readCustomerSignatureByToken(token);
+        if (!signature?.storeId) throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
+        const data = database.readCustomerSignatureContext(signature.storeId, signature);
+        sendJson(response, 200, publicSignaturePayload({ ...data, customerSignatures: [signature] }, token));
         return;
       }
 
       if (request.method === "POST" && url.pathname.startsWith("/api/public/customer-signatures/") && url.pathname.endsWith("/sign")) {
         const token = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = signCustomerSignature(database.readDataTables(publicSignatureDataKeys), {
+        const signature = database.readCustomerSignatureByToken(token);
+        if (!signature?.storeId) throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
+        const currentData = { ...database.readCustomerSignatureContext(signature.storeId, signature), customerSignatures: [signature] };
+        const nextData = signCustomerSignature(currentData, {
           token,
           signerName: requiredString(body, "signerName"),
           signatureText: requiredString(body, "signatureText"),
         });
-        database.replaceDataTables(nextData, publicSignatureWriteKeys);
+        database.applyStoreTableChanges(signature.storeId, currentData, nextData, customerSignatureWriteKeys);
+        const signedSignature = nextData.customerSignatures.find((item) => item.id === signature.id);
+        if (!signedSignature) throw new Error("签名记录更新失败");
+        database.upsertCustomerSignatures([signedSignature]);
         sendJson(response, 201, publicSignaturePayload(nextData, token));
         return;
       }
@@ -848,7 +854,8 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "pos:manage");
         const body = await readJson(request);
         const checkoutRequestId = optionalString(body, "checkoutRequestId");
-        const currentData = database.readData();
+        const currentData = readRequiredMutationData(database, session, checkoutMutationKeys);
+        const existingSignatureIds = new Set((currentData.customerSignatures ?? []).map((signature) => signature.id));
         const checkedOutData = checkoutOrder(currentData, {
           storeId: sessionStoreId(currentData, session),
           customerId: optionalString(body, "customerId"),
@@ -883,8 +890,10 @@ export function createApiServer(database = new BeautyDatabase()) {
             summary: `${session.user.name} 完成开单收银`,
           },
         );
-        persistData(database, session, nextData);
-        sendScopedData(request, response, 201, nextData, session);
+        const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
+        persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
+        database.upsertCustomerSignatures(newSignatures);
+        sendMutationPatch(request, response, 201, currentData, nextData, session, checkoutResponseKeys);
         return;
       }
 
@@ -949,7 +958,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "appointments:manage");
         const body = await readJson(request);
         const requestedStaffId = requiredString(body, "staffId");
-        const baseData = database.readData();
+        const baseData = readRequiredMutationData(database, session, appointmentMutationKeys);
         let appointedData = createAppointment(
           baseData,
           {
@@ -988,8 +997,8 @@ export function createApiServer(database = new BeautyDatabase()) {
           audienceRoles: ["owner", "manager", "frontdesk", "therapist"],
           staffId: appointment.staffId,
         });
-        persistDataTables(database, session, nextData, ["appointments", "operationLogs", "notifications"]);
-        sendScopedData(request, response, 201, nextData, session);
+        persistDataTableChanges(database, session, baseData, nextData, ["appointments", "operationLogs", "notifications"]);
+        sendMutationPatch(request, response, 201, baseData, nextData, session, ["appointments", "notifications"]);
         return;
       }
 
@@ -1032,13 +1041,9 @@ export function createApiServer(database = new BeautyDatabase()) {
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
         const requestedStaffId = optionalString(body, "staffId");
-        const nextData = updateDataTables(database, session, ["appointments", "operationLogs"], {
-          action: "改约",
-          targetType: "appointment",
-          targetId: appointmentId,
-          summary: `${session.user.name} 调整预约时间`,
-        }, (data) =>
-          rescheduleAppointment(data, {
+        const currentData = readRequiredMutationData(database, session, appointmentMutationKeys);
+        const nextData = addOperationLog(
+          rescheduleAppointment(currentData, {
             appointmentId,
             staffId: requestedStaffId,
             serviceId: optionalString(body, "serviceId"),
@@ -1047,9 +1052,16 @@ export function createApiServer(database = new BeautyDatabase()) {
             endAt: optionalString(body, "endAt"),
             roomName: optionalString(body, "roomName"),
             note: optionalString(body, "note"),
-          }),
+          }), {
+            userId: session.user.id,
+            action: "改约",
+            targetType: "appointment",
+            targetId: appointmentId,
+            summary: `${session.user.name} 调整预约时间`,
+          },
         );
-        sendScopedData(request, response, 200, nextData, session);
+        persistDataTableChanges(database, session, currentData, nextData, ["appointments", "operationLogs"]);
+        sendMutationPatch(request, response, 200, currentData, nextData, session, ["appointments"]);
         return;
       }
 
@@ -1058,13 +1070,19 @@ export function createApiServer(database = new BeautyDatabase()) {
         const appointmentId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const body = await readJson(request);
         const status = requiredString(body, "status") as Appointment["status"];
-        const nextData = updateDataTables(database, session, ["appointments", "operationLogs"], {
-          action: "更新预约状态",
-          targetType: "appointment",
-          targetId: appointmentId,
-          summary: `${session.user.name} 将预约状态改为 ${status}`,
-        }, (data) => updateAppointmentStatus(data, { appointmentId, status, reason: optionalString(body, "reason") }));
-        sendScopedData(request, response, 200, nextData, session);
+        const currentData = readRequiredMutationData(database, session, appointmentMutationKeys);
+        const nextData = addOperationLog(
+          updateAppointmentStatus(currentData, { appointmentId, status, reason: optionalString(body, "reason") }),
+          {
+            userId: session.user.id,
+            action: "更新预约状态",
+            targetType: "appointment",
+            targetId: appointmentId,
+            summary: `${session.user.name} 将预约状态改为 ${status}`,
+          },
+        );
+        persistDataTableChanges(database, session, currentData, nextData, ["appointments", "operationLogs"]);
+        sendMutationPatch(request, response, 200, currentData, nextData, session, ["appointments"]);
         return;
       }
 
@@ -1277,17 +1295,21 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "customers:manage");
         const memberCardId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = refundMemberCard(database.readData(), {
+        const signatureId = requiredString(body, "signatureId");
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readMemberCardMutationData(storeId, { memberCardId, signatureId });
+        const nextData = refundMemberCard(currentData, {
           memberCardId,
           reason: optionalString(body, "reason") ?? "客户退卡",
           refundAmount: optionalNumber(body, "refundAmount"),
           payMethod: optionalString(body, "payMethod") as CashPayMethod | undefined,
-          signatureId: requiredString(body, "signatureId"),
+          signatureId,
           userId: session.user.id,
           staffId: session.user.staffId,
         });
-        persistData(database, session, nextData);
-        sendScopedData(request, response, 201, nextData, session);
+        persistDataTableChanges(database, session, currentData, nextData, memberCardRefundWriteKeys);
+        sendMutationPatch(request, response, 201, currentData, nextData, session, memberCardRefundWriteKeys);
         return;
       }
 
@@ -1295,7 +1317,10 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "customers:manage");
         const memberCardId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = rechargeMemberCard(database.readData(), {
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readMemberCardMutationData(storeId, { memberCardId });
+        const nextData = rechargeMemberCard(currentData, {
           memberCardId,
           amount: optionalNumber(body, "amount") ?? 0,
           giftAmount: optionalNumber(body, "giftAmount"),
@@ -1307,8 +1332,8 @@ export function createApiServer(database = new BeautyDatabase()) {
           userId: session.user.id,
           staffId: session.user.staffId,
         });
-        persistData(database, session, nextData);
-        sendScopedData(request, response, 201, nextData, session);
+        persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
+        sendMutationPatch(request, response, 201, currentData, nextData, session, memberCardWriteKeys);
         return;
       }
 
@@ -1316,15 +1341,18 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "customers:manage");
         const memberCardId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = updateMemberCardStatus(database.readData(), {
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readMemberCardMutationData(storeId, { memberCardId });
+        const nextData = updateMemberCardStatus(currentData, {
           memberCardId,
           status: requiredString(body, "status") as "正常" | "冻结",
           reason: optionalString(body, "reason") ?? "门店操作",
           userId: session.user.id,
           staffId: session.user.staffId,
         });
-        persistData(database, session, nextData);
-        sendScopedData(request, response, 200, nextData, session);
+        persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
+        sendMutationPatch(request, response, 200, currentData, nextData, session, memberCardWriteKeys);
         return;
       }
 
@@ -1332,15 +1360,18 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "customers:manage");
         const memberCardId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = extendMemberCard(database.readData(), {
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readMemberCardMutationData(storeId, { memberCardId });
+        const nextData = extendMemberCard(currentData, {
           memberCardId,
           expiresAt: requiredString(body, "expiresAt"),
           reason: optionalString(body, "reason") ?? "会员卡延期",
           userId: session.user.id,
           staffId: session.user.staffId,
         });
-        persistData(database, session, nextData);
-        sendScopedData(request, response, 200, nextData, session);
+        persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
+        sendMutationPatch(request, response, 200, currentData, nextData, session, memberCardWriteKeys);
         return;
       }
 
@@ -1348,15 +1379,19 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "customers:manage");
         const memberCardId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const nextData = transferMemberCard(database.readData(), {
+        const toCustomerId = requiredString(body, "toCustomerId");
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readMemberCardMutationData(storeId, { memberCardId, extraCustomerId: toCustomerId });
+        const nextData = transferMemberCard(currentData, {
           memberCardId,
-          toCustomerId: requiredString(body, "toCustomerId"),
+          toCustomerId,
           reason: optionalString(body, "reason") ?? "会员转卡",
           userId: session.user.id,
           staffId: session.user.staffId,
         });
-        persistData(database, session, nextData);
-        sendScopedData(request, response, 201, nextData, session);
+        persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
+        sendMutationPatch(request, response, 201, currentData, nextData, session, memberCardWriteKeys);
         return;
       }
 
@@ -1437,17 +1472,26 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname === "/api/customer-signatures") {
         requireAnyPermission(session, ["customers:manage", "pos:manage"]);
         const body = await readJson(request);
-        const nextData = createCustomerSignature(database.readData(), {
-          customerId: requiredString(body, "customerId"),
-          serviceRecordId: optionalString(body, "serviceRecordId"),
-          orderId: optionalString(body, "orderId"),
+        const customerId = requiredString(body, "customerId");
+        const orderId = optionalString(body, "orderId");
+        const serviceRecordId = optionalString(body, "serviceRecordId");
+        const storeId = resolveSessionStoreIdLocal(database, session)
+          ?? database.readDataTables(["customers"]).customers.find((customer) => customer.id === customerId)?.storeId;
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readCustomerSignatureContext(storeId, { customerId, orderId, serviceRecordId });
+        const nextData = createCustomerSignature(currentData, {
+          customerId,
+          serviceRecordId,
+          orderId,
           title: optionalString(body, "title"),
           content: optionalString(body, "content"),
           requestedBy: session.user.id,
           validDays: optionalNumber(body, "validDays"),
         });
-        persistDataTables(database, session, nextData, ["customerSignatures"]);
-        sendScopedData(request, response, 201, nextData, session);
+        const createdSignature = nextData.customerSignatures[0];
+        if (!createdSignature) throw new Error("签名记录创建失败");
+        database.upsertCustomerSignatures([createdSignature]);
+        sendMutationPatch(request, response, 201, currentData, nextData, session, ["customerSignatures"]);
         return;
       }
 
@@ -1455,16 +1499,22 @@ export function createApiServer(database = new BeautyDatabase()) {
         requireAnyPermission(session, ["customers:manage", "pos:manage"]);
         const signatureId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const currentData = database.readData();
-        const signature = currentData.customerSignatures.find((item) => item.id === signatureId);
+        const signature = database.readCustomerSignatureById(signatureId);
         if (!signature) throw new Error("签名记录不存在");
-        const nextData = signCustomerSignature(currentData, {
+        const storeId = signature.storeId ?? resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readCustomerSignatureContext(storeId, signature);
+        const previousData = { ...currentData, customerSignatures: [signature] };
+        const nextData = signCustomerSignature(previousData, {
           token: signature.token,
           signerName: requiredString(body, "signerName"),
           signatureText: requiredString(body, "signatureText"),
         });
-        persistDataTables(database, session, nextData, ["appointments", "orders", "memberCards", "memberCardTransactions", "customerSignatures"]);
-        sendScopedData(request, response, 201, nextData, session);
+        const signedSignature = nextData.customerSignatures.find((item) => item.id === signature.id);
+        if (!signedSignature) throw new Error("签名记录更新失败");
+        persistDataTableChanges(database, session, previousData, nextData, customerSignatureWriteKeys);
+        database.upsertCustomerSignatures([signedSignature]);
+        sendMutationPatch(request, response, 201, previousData, nextData, session, [...customerSignatureWriteKeys, "customerSignatures"]);
         return;
       }
 
@@ -1906,6 +1956,20 @@ function persistDataTables(database: BeautyDatabase, session: UserSession, nextD
   database.replaceData(nextData);
 }
 
+function persistDataTableChanges(
+  database: BeautyDatabase,
+  session: UserSession,
+  previousData: AppData,
+  nextData: AppData,
+  keys: readonly TableName[],
+) {
+  if (session.user.role !== "superadmin" && session.user.storeId) {
+    database.applyStoreTableChanges(session.user.storeId, previousData, nextData, keys);
+    return;
+  }
+  database.applyTableChanges(previousData, nextData, keys);
+}
+
 function hasBodyKey(body: JsonBody, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key);
 }
@@ -1992,6 +2056,15 @@ function sessionStoreId(data: AppData, session: UserSession) {
   const staff = staffId ? data.staff.find((item) => item.id === staffId) : undefined;
   if (storeExists(staff?.storeId)) return staff?.storeId;
   throw new Error("账号未绑定门店，请联系管理员处理");
+}
+
+function resolveSessionStoreIdLocal(database: BeautyDatabase, session: UserSession) {
+  if (session.user.storeId) return session.user.storeId;
+  const identity = database.readDataTables(["authUsers", "staff"]);
+  const authUser = identity.authUsers.find((user) => user.id === session.user.id);
+  if (authUser?.storeId) return authUser.storeId;
+  const staffId = session.user.staffId ?? authUser?.staffId;
+  return staffId ? identity.staff.find((staff) => staff.id === staffId)?.storeId : undefined;
 }
 
 function assertCanManageAuthUser(data: AppData, session: UserSession, userId: string) {
@@ -4142,6 +4215,12 @@ function readDataForRequest(database: BeautyDatabase, request: IncomingMessage, 
   return expireStaleMarketingAiRecords(data);
 }
 
+function readRequiredMutationData(database: BeautyDatabase, session: UserSession, keys: readonly TableName[]) {
+  return session.user.role !== "superadmin" && session.user.storeId
+    ? database.readDataTablesForStore(keys, session.user.storeId)
+    : database.readDataTables(keys);
+}
+
 function sendScopedData(request: IncomingMessage, response: ServerResponse, statusCode: number, data: AppData, session: UserSession) {
   const scopedData = scopeDataForSession(data, session);
   const responseData = withoutSignatureImages(scopedData);
@@ -4165,6 +4244,25 @@ function sendMemberCardOpenPatch(request: IncomingMessage, response: ServerRespo
     operationLogs: responseData.operationLogs,
     customerSignatures: responseData.customerSignatures,
   }, view));
+}
+
+function sendMutationPatch(
+  request: IncomingMessage,
+  response: ServerResponse,
+  statusCode: number,
+  previousData: AppData,
+  nextData: AppData,
+  session: UserSession,
+  keys: readonly TableName[],
+) {
+  if (!isSliceRequest(request)) {
+    sendScopedData(request, response, statusCode, nextData, session);
+    return;
+  }
+  const previousScoped = withoutSignatureImages(scopeDataForSession(previousData, session));
+  const nextScoped = withoutSignatureImages(scopeDataForSession(nextData, session));
+  const { upserts, deletes } = diffAppData(previousScoped, nextScoped, keys);
+  sendJson(response, statusCode, makeAppDataPatch(upserts, requestedDataView(request) ?? "dashboard", deletes));
 }
 
 function withoutSignatureImages(data: AppData): AppData {

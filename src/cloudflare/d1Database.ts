@@ -349,14 +349,8 @@ export class D1BeautyDatabase {
 
   async replaceTables(data: AppData, keys: readonly D1DataTableName[]) {
     const uniqueKeys = Array.from(new Set(keys));
-    const statements: D1PreparedStatement[] = [];
-    for (const tableName of [...tableNames].reverse()) {
-      if (uniqueKeys.includes(tableName)) {
-        statements.push(this.db.prepare(`DELETE FROM ${tableName}`));
-      }
-    }
-    statements.push(...this.writeDataStatements(pickDataTables(data, uniqueKeys)));
-    await this.db.batch(statements);
+    const previousData = await this.readDataTables(uniqueKeys);
+    await this.applyTableChanges(previousData, data, uniqueKeys);
   }
 
   async replaceStoreData(storeId: string, data: AppData) {
@@ -368,10 +362,40 @@ export class D1BeautyDatabase {
 
   async replaceStoreTables(storeId: string, data: AppData, keys: readonly D1DataTableName[]) {
     const uniqueKeys = Array.from(new Set(keys));
+    const previousData = await this.readDataTablesForStore(uniqueKeys, storeId);
+    await this.applyStoreTableChanges(storeId, previousData, data, uniqueKeys);
+  }
+
+  async applyTableChanges(previousData: AppData, nextData: AppData, keys: readonly D1DataTableName[]) {
+    return this.applyTableChangesInternal(previousData, nextData, keys);
+  }
+
+  async applyStoreTableChanges(storeId: string, previousData: AppData, nextData: AppData, keys: readonly D1DataTableName[]) {
+    return this.applyTableChangesInternal(
+      dataForStoreWrite(previousData, storeId),
+      dataForStoreWrite(nextData, storeId),
+      keys,
+    );
+  }
+
+  private async applyTableChangesInternal(previousData: AppData, nextData: AppData, keys: readonly D1DataTableName[]) {
+    const uniqueKeys = Array.from(new Set(keys));
+    const changedData = emptyData();
     const statements: D1PreparedStatement[] = [];
-    this.deleteStoreTableStatements(statements, storeId, uniqueKeys);
-    statements.push(...this.writeDataStatements(pickDataTables(dataForStoreWrite(data, storeId), uniqueKeys)));
-    await this.db.batch(statements);
+    for (const key of uniqueKeys) {
+      const previousRows = previousData[key] as Array<{ id: string }>;
+      const nextRows = nextData[key] as Array<{ id: string }>;
+      const previousById = new Map(previousRows.map((row) => [row.id, JSON.stringify(row)]));
+      const nextIds = new Set(nextRows.map((row) => row.id));
+      const changedRows = nextRows.filter((row) => previousById.get(row.id) !== JSON.stringify(row));
+      const removedIds = previousRows.filter((row) => !nextIds.has(row.id)).map((row) => row.id);
+      for (const id of [...removedIds, ...changedRows.map((row) => row.id)]) {
+        statements.push(this.db.prepare(`DELETE FROM ${key} WHERE id = ?`).bind(id));
+      }
+      changedData[key] = changedRows as never;
+    }
+    statements.push(...this.writeDataStatements(pickDataTables(changedData, uniqueKeys)));
+    if (statements.length) await this.db.batch(statements);
   }
 
   async upsertCustomerSignatures(signatures: readonly CustomerSignature[]) {
@@ -428,6 +452,74 @@ export class D1BeautyDatabase {
         [storeId, input.customerPhone],
       );
     }
+    return data;
+  }
+
+  async readMemberCardMutationData(
+    storeId: string,
+    input: { memberCardId: string; extraCustomerId?: string; signatureId?: string },
+  ) {
+    const data = await this.readDataTablesForStore(["storeProfiles", "authUsers", "services", "dailyCloses"], storeId);
+    data.memberCards = await this.all(
+      "SELECT * FROM memberCards WHERE id = ? AND (storeId = ? OR (storeId IS NULL AND customerId IN (SELECT id FROM customers WHERE storeId = ?))) LIMIT 1",
+      mapMemberCard,
+      [input.memberCardId, storeId, storeId],
+    );
+    const card = data.memberCards[0];
+    const customerIds = Array.from(new Set([card?.customerId, input.extraCustomerId].filter((id): id is string => Boolean(id))));
+    data.customers = (await Promise.all(customerIds.map((customerId) => this.all(
+      "SELECT * FROM customers WHERE storeId = ? AND id = ? LIMIT 1",
+      mapCustomer,
+      [storeId, customerId],
+    )))).flat();
+    data.memberCardTransactions = card
+      ? await this.all(
+          "SELECT * FROM memberCardTransactions WHERE memberCardId = ? ORDER BY rowid DESC",
+          mapMemberCardTransaction,
+          [card.id],
+        )
+      : [];
+    if (input.signatureId) {
+      const signature = await this.readCustomerSignatureById(input.signatureId);
+      data.customerSignatures = signature ? [signature] : [];
+    }
+    return data;
+  }
+
+  async readCustomerSignatureContext(
+    storeId: string,
+    input: { customerId: string; orderId?: string; serviceRecordId?: string },
+  ) {
+    const data = await this.readDataTablesForStore(["storeProfiles", "authUsers", "staff", "services"], storeId);
+    const [customers, orders, serviceRecords, memberCards] = await Promise.all([
+      this.all("SELECT * FROM customers WHERE storeId = ? AND id = ? LIMIT 1", mapCustomer, [storeId, input.customerId]),
+      input.orderId
+        ? this.all("SELECT * FROM orders WHERE storeId = ? AND id = ? LIMIT 1", mapOrder, [storeId, input.orderId])
+        : Promise.resolve([]),
+      input.serviceRecordId
+        ? this.all(
+            "SELECT payload_json FROM customerServiceRecords WHERE id = ? AND json_extract(payload_json, '$.storeId') = ? LIMIT 1",
+            mapJsonPayload<CustomerServiceRecord>,
+            [input.serviceRecordId, storeId],
+          )
+        : Promise.resolve([]),
+      this.all("SELECT * FROM memberCards WHERE storeId = ? AND customerId = ? ORDER BY rowid ASC", mapMemberCard, [storeId, input.customerId]),
+    ]);
+    data.customers = customers;
+    data.orders = orders;
+    data.customerServiceRecords = serviceRecords;
+    data.memberCards = memberCards;
+    const order = orders[0];
+    data.appointments = order?.appointmentId
+      ? await this.all("SELECT * FROM appointments WHERE storeId = ? AND id = ? LIMIT 1", mapAppointment, [storeId, order.appointmentId])
+      : [];
+    data.memberCardTransactions = order
+      ? await this.all(
+          "SELECT * FROM memberCardTransactions WHERE storeId = ? AND orderId = ? ORDER BY rowid DESC",
+          mapMemberCardTransaction,
+          [storeId, order.id],
+        )
+      : [];
     return data;
   }
 
@@ -710,7 +802,11 @@ export class D1BeautyDatabase {
       case "staffShifts":
         return jsonStoreRows("staffShifts", mapJsonPayload<StaffShift>);
       case "memberCards":
-        return tableStoreRows("memberCards", mapMemberCard, "rowid ASC");
+        return this.all(
+          "SELECT * FROM memberCards WHERE storeId = ? OR (storeId IS NULL AND customerId IN (SELECT id FROM customers WHERE storeId = ?)) ORDER BY rowid ASC",
+          mapMemberCard,
+          [storeId, storeId],
+        );
       case "distributors":
         return this.all(
           `SELECT payload_json FROM distributors
@@ -795,11 +891,11 @@ export class D1BeautyDatabase {
         return this.all(
           `SELECT * FROM memberCardTransactions
            WHERE storeId = ?
-              OR memberCardId IN (SELECT id FROM memberCards WHERE storeId = ?)
+              OR memberCardId IN (SELECT id FROM memberCards WHERE storeId = ? OR (storeId IS NULL AND customerId IN (SELECT id FROM customers WHERE storeId = ?)))
               OR orderId IN (SELECT id FROM orders WHERE storeId = ?)
            ORDER BY rowid DESC`,
           mapMemberCardTransaction,
-          [storeId, storeId, storeId],
+          [storeId, storeId, storeId, storeId],
         );
       case "operationLogs":
         return this.all("SELECT * FROM operationLogs WHERE storeId = ? OR userId = 'system' ORDER BY rowid DESC", mapOperationLog, [storeId]);

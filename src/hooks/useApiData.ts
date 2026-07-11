@@ -382,10 +382,19 @@ function mergeAppDataUpdate(current: AppData | undefined, update: AppDataUpdate)
   if (isAppDataPatch(update)) {
     const base = current ?? emptyAppData();
     const next = { ...base };
-    for (const [rawKey, rawRows] of Object.entries(update.upserts)) {
+    const patchKeys = new Set([
+      ...Object.keys(update.upserts),
+      ...Object.keys(update.deletes ?? {}),
+    ]);
+    for (const rawKey of patchKeys) {
       const key = rawKey as keyof AppData;
-      if (!Array.isArray(rawRows)) continue;
-      const currentRows = base[key] as Array<{ id: string }>;
+      const rawRows = update.upserts[key];
+      const deletedIds = new Set(update.deletes?.[key] ?? []);
+      const currentRows = (base[key] as Array<{ id: string }>).filter((row) => !deletedIds.has(row.id));
+      if (!Array.isArray(rawRows)) {
+        next[key] = currentRows as never;
+        continue;
+      }
       const patchRows = rawRows as Array<{ id: string }>;
       const patchById = new Map(patchRows.map((row) => [row.id, row]));
       const existingIds = new Set(currentRows.map((row) => row.id));
