@@ -80,7 +80,7 @@ import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
-import { dataKeysForView, diffAppData, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../../src/domain/dataSlices";
+import { dataKeysForView, diffAppData, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice, POS_REMOTE_PAGING_CAPABILITY } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
 import { makeId, nowIso } from "../../src/domain/utils";
 import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
@@ -1085,6 +1085,39 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "GET" && pathname === "/api/data") {
       requirePermission(session, "dashboard:view");
       return sendScopedData(context.request, 200, await readDataForRequest(database, context.request, session), session);
+    }
+
+    if (context.request.method === "GET" && pathname === "/api/pos/context") {
+      requirePermission(session, "pos:manage");
+      const storeId = await resolveSessionStoreId(database, session);
+      const { dayStart, dayEnd } = requiredPosDayRange(url);
+      return sendJson(200, await database.readPosContext(storeId, {
+        dayStart,
+        dayEnd,
+        appointmentId: url.searchParams.get("appointmentId") || undefined,
+        signatureId: url.searchParams.get("signatureId") || undefined,
+      }));
+    }
+
+    if (context.request.method === "GET" && pathname === "/api/pos/cashier-flow") {
+      requirePermission(session, "pos:manage");
+      const storeId = await resolveSessionStoreId(database, session);
+      return sendJson(200, await database.readCashierFlowPage(
+        storeId,
+        positiveIntegerQuery(url, "page", 1),
+        positiveIntegerQuery(url, "pageSize", 50),
+      ));
+    }
+
+    if (context.request.method === "GET" && pathname.startsWith("/api/pos/cashier-flow/")) {
+      requirePermission(session, "pos:manage");
+      const storeId = await resolveSessionStoreId(database, session);
+      const kind = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const id = decodeURIComponent(pathname.split("/").at(-1) ?? "");
+      if (kind !== "order" && kind !== "memberCard") throw new Error("流水类型不正确");
+      const detail = await database.readCashierFlowDetail(storeId, kind, id);
+      if (!detail) throw new Error("收银流水不存在");
+      return sendJson(200, detail);
     }
 
     if (context.request.method === "GET" && pathname === "/api/usage/r2") {
@@ -2370,9 +2403,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       requireAnyPermission(session, ["customers:manage", "pos:manage"]);
       const signatureId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const signature = await database.readCustomerSignatureById(signatureId);
+      const storeId = await resolveSessionStoreId(database, session);
+      const signature = await database.readCustomerSignatureByIdForStore(signatureId, storeId);
       if (!signature) throw new Error("签名记录不存在");
-      const storeId = signature.storeId ?? await resolveSessionStoreId(database, session);
       const currentData = await database.readCustomerSignatureContext(storeId, signature);
       const previousData = { ...currentData, customerSignatures: [signature] };
       const nextData = signCustomerSignature(previousData, {
@@ -5428,6 +5461,22 @@ function sendJson(statusCode: number, payload: unknown) {
   });
 }
 
+function positiveIntegerQuery(url: URL, key: string, fallback: number) {
+  const value = Number.parseInt(url.searchParams.get(key) ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function requiredPosDayRange(url: URL) {
+  const dayStart = url.searchParams.get("dayStart") ?? "";
+  const dayEnd = url.searchParams.get("dayEnd") ?? "";
+  const startMs = Date.parse(dayStart);
+  const endMs = Date.parse(dayEnd);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || endMs - startMs > 3 * 24 * 60 * 60 * 1000) {
+    throw new Error("收银统计日期范围不正确");
+  }
+  return { dayStart: new Date(startMs).toISOString(), dayEnd: new Date(endMs).toISOString() };
+}
+
 type MutationTiming = {
   label: string;
   startedAt: number;
@@ -5479,11 +5528,12 @@ async function readDataForRequest(database: D1BeautyDatabase, request: Request, 
   const requestedView = requestedDataView(request);
   let data: AppData;
   if (isSliceRequest(request) && requestedView) {
+    const keys = dataKeysForRequest(request, requestedView);
     if (session.user.role !== "superadmin") {
       const storeId = await resolveSessionStoreId(database, session);
-      data = await database.readDataTablesForStore(dataKeysForView(requestedView), storeId);
+      data = await database.readDataTablesForStore(keys, storeId);
     } else {
-      data = await database.readDataTables(dataKeysForView(requestedView));
+      data = await database.readDataTables(keys);
     }
   } else if (session.user.role !== "superadmin") {
     const storeId = await resolveSessionStoreId(database, session);
@@ -5508,7 +5558,7 @@ async function readMutationDataForRequest(
     const storeId = await resolveSessionStoreId(database, session);
     return database.readDataTablesForStore(allDataKeys, storeId);
   }
-  const keys = uniqueDataTableKeys([...requiredKeys, ...dataKeysForView(requestedView)]);
+  const keys = uniqueDataTableKeys([...requiredKeys, ...dataKeysForRequest(request, requestedView)]);
   if (session.user.role !== "superadmin") {
     const storeId = await resolveSessionStoreId(database, session);
     return database.readDataTablesForStore(keys, storeId);
@@ -5596,7 +5646,7 @@ function sendScopedData(
       statusCode,
       options.responseKeys?.length
         ? makeAppDataSliceWithKeys(responseData, requestedView, options.responseKeys)
-        : makeAppDataSlice(responseData, requestedView),
+        : makeAppDataSlice(responseData, requestedView, dataKeysForRequest(request, requestedView)),
     );
   }
   return sendJson(statusCode, responseData);
@@ -5641,6 +5691,19 @@ function makeAppDataSliceWithKeys(data: AppData, view: ViewKey, keys: readonly D
   };
 }
 
+function dataKeysForRequest(request: Request, view: ViewKey) {
+  return dataKeysForView(view, {
+    includeLegacyPosData: view === "pos" && !requestSupportsCapability(request, POS_REMOTE_PAGING_CAPABILITY),
+  });
+}
+
+function requestSupportsCapability(request: Request, capability: string) {
+  return (request.headers.get("X-Yich-Capabilities") ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .includes(capability);
+}
+
 function withoutSignatureImages(data: AppData, keepSignatureTextIds: readonly string[] = []): AppData {
   const keepIds = new Set(keepSignatureTextIds);
   return {
@@ -5662,7 +5725,7 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View, Cache-Control, Pragma",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View, X-Yich-Capabilities, Cache-Control, Pragma",
   };
 }
 

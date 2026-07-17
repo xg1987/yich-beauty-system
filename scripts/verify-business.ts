@@ -68,6 +68,8 @@ import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData, MarketingAiRecord } from "../src/domain/types";
 import { money } from "../src/domain/utils";
 import { isVersionGreater } from "../src/appUpdate";
+import { memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue } from "../src/app/authenticatedAppHelpers";
+import { mergePosRemoteData } from "../src/hooks/usePosRemoteData";
 
 const cloneSeed = (): AppData => structuredClone(testFixtureData);
 const fixedNow = () => "2026-05-24T01:00:00.000Z";
@@ -1654,6 +1656,22 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   );
   assert.equal(buildCashierFlowRecords(opened)[0].staffName, "小雅", "member-card cashier flow should display handling staff");
   assert.equal(memberCardCashIn(opened.memberCardTransactions[0]), 2980, "open card should count as cashier flow income");
+  const remoteSignedSignature = {
+    ...opened.customerSignatures[0],
+    status: "已签名" as const,
+    signerName: "远端客户",
+    signedAt: fixedNow(),
+  };
+  const mergedPosData = mergePosRemoteData(opened, {
+    orders: [],
+    memberCardTransactions: [],
+    customers: [],
+    memberCards: [],
+    appointments: [],
+    customerSignatures: [remoteSignedSignature],
+    customerServiceRecords: [],
+  });
+  assert.equal(mergedPosData.customerSignatures[0].status, "已签名", "fresh POS detail should override a stale retained base signature");
   const closed = createDailyClose(
     opened,
     { businessDate: "2026-05-24", userId: "u_manager" },
@@ -1730,6 +1748,84 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(refundedTwoServices.memberCards[0].remainingTimes, 10, "refund should restore every debited service quantity");
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "用完项目结账客户",
+      customerPhone: "13800008886",
+      name: "单次体验卡",
+      type: "次数卡",
+      serviceEntitlements: [{ serviceId: "v1", totalTimes: 1, remainingTimes: 1 }],
+      paidAmount: 398,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const cardId = opened.memberCards[0].id;
+  const depleted = checkoutOrder(
+    opened,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "会员卡",
+      cardId,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(depleted, cardId).remainingTimes, 0, "single-use card should be depleted after checkout");
+  assert.deepEqual(memberCardAvailableServiceIds(card(depleted, cardId)), [], "depleted service should not remain available in checkout");
+  assert.equal(memberCardHasAvailableValue(card(depleted, cardId)), false, "depleted card should not count as an active customer asset");
+  assert.equal(memberCardDisplayStatus(card(depleted, cardId)), "已用完", "depleted card history should be labeled as used up");
+
+  const cashCheckout = checkoutOrder(
+    depleted,
+    {
+      customerId: opened.customers[0].id,
+      staffId: "s2",
+      serviceId: "v1",
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: () => "2026-05-24T02:00:00.000Z" },
+  );
+  const cashSignature = cashCheckout.customerSignatures.find((signature) => signature.orderId === cashCheckout.orders[0].id);
+  assert.ok(cashSignature, "cash checkout should create a service signature after the project card is depleted");
+  const signedCashCheckout = signCustomerSignature(
+    cashCheckout,
+    {
+      token: cashSignature.token,
+      signerName: "用完项目结账客户",
+      signatureText: "data:image/png;base64,depleted-card-cash-checkout",
+    },
+    { idFactory: testId, now: () => "2026-05-24T02:05:00.000Z" },
+  );
+  assert.equal(
+    signedCashCheckout.customerSignatures.find((signature) => signature.id === cashSignature.id)?.status,
+    "已签名",
+    "depleted project history should not block a later cash checkout signature",
+  );
+  assert.equal(card(signedCashCheckout, cardId).remainingTimes, 0, "cash checkout should not debit the depleted card again");
+
+  const partiallyAvailableCard = {
+    ...card(depleted, cardId),
+    remainingTimes: 2,
+    serviceEntitlements: [
+      { serviceId: "v1", totalTimes: 1, remainingTimes: 0 },
+      { serviceId: "v2", totalTimes: 2, remainingTimes: 2 },
+    ],
+  };
+  assert.deepEqual(
+    memberCardAvailableServiceIds(partiallyAvailableCard),
+    ["v2"],
+    "package card should keep only entitlements that still have available times",
+  );
+  assert.equal(memberCardHasAvailableValue(partiallyAvailableCard), true, "partially available package card should remain an active customer asset");
+  assert.equal(memberCardDisplayStatus(partiallyAvailableCard), "正常", "partially available package card should remain normal");
 }
 
 {

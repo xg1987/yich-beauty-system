@@ -3,6 +3,15 @@ import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { seedData } from "../src/domain/seed";
 import { normalizeSystemConfigs } from "../src/domain/business";
+import {
+  buildCashierFlowListItemsForKeys,
+  type CashierFlowDetailResult,
+  type CashierFlowListItem,
+  type CashierFlowPageResult,
+  type CashierFlowRelatedData,
+  type CashierFlowSourceKey,
+  type PosContextResult,
+} from "../src/domain/cashierFlow";
 import type {
   AppData,
   ApprovalRequest,
@@ -48,6 +57,62 @@ import type {
 } from "../src/domain/types";
 
 const DEFAULT_DB_PATH = resolve("data/yich-system.sqlite");
+const CASHIER_FLOW_MAX_PAGE_SIZE = 50;
+const CASHIER_FLOW_CASH_IN_PREDICATE = `
+  t.type IN ('开卡', '充值')
+  AND CASE WHEN t.paidAmount IS NOT NULL THEN t.paidAmount ELSE t.amountDelta END > 0
+`;
+const CASHIER_FLOW_LEGACY_TRANSACTION_STORE_PREDICATE = `
+  COALESCE(TRIM(t.storeId), '') = ''
+  AND COALESCE(
+    NULLIF(TRIM(linkedOrder.storeId), ''),
+    NULLIF(TRIM(linkedCard.storeId), ''),
+    NULLIF(TRIM(linkedCustomer.storeId), '')
+  ) = ?
+`;
+const CASHIER_FLOW_TRANSACTION_STORE_PREDICATE = `
+  (t.storeId = ? OR (${CASHIER_FLOW_LEGACY_TRANSACTION_STORE_PREDICATE}))
+`;
+const CASHIER_FLOW_SERVICE_RECORD_STORE_PREDICATE = `
+  (json_extract(record.payload_json, '$.storeId') = ? OR (
+    COALESCE(json_extract(record.payload_json, '$.storeId'), '') = ''
+    AND (
+      json_extract(record.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+      OR json_extract(record.payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+    )
+    AND NOT EXISTS (SELECT 1 FROM customers WHERE id = json_extract(record.payload_json, '$.customerId') AND storeId IS NOT NULL AND storeId <> '' AND storeId <> ?)
+    AND NOT EXISTS (SELECT 1 FROM orders WHERE id = json_extract(record.payload_json, '$.orderId') AND storeId IS NOT NULL AND storeId <> '' AND storeId <> ?)
+  ))
+`;
+const CASHIER_FLOW_SIGNATURE_STORE_PREDICATE = `
+  (json_extract(signature.payload_json, '$.storeId') = ? OR (
+    COALESCE(json_extract(signature.payload_json, '$.storeId'), '') = ''
+    AND (
+      json_extract(signature.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+      OR json_extract(signature.payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+      OR json_extract(signature.payload_json, '$.serviceRecordId') IN (
+        SELECT record.id FROM customerServiceRecords record WHERE ${CASHIER_FLOW_SERVICE_RECORD_STORE_PREDICATE}
+      )
+    )
+    AND NOT EXISTS (SELECT 1 FROM customers WHERE id = json_extract(signature.payload_json, '$.customerId') AND storeId IS NOT NULL AND storeId <> '' AND storeId <> ?)
+    AND NOT EXISTS (SELECT 1 FROM orders WHERE id = json_extract(signature.payload_json, '$.orderId') AND storeId IS NOT NULL AND storeId <> '' AND storeId <> ?)
+    AND NOT EXISTS (
+      SELECT 1 FROM customerServiceRecords record
+      WHERE record.id = json_extract(signature.payload_json, '$.serviceRecordId')
+        AND (
+          (COALESCE(json_extract(record.payload_json, '$.storeId'), '') <> '' AND json_extract(record.payload_json, '$.storeId') <> ?)
+          OR (COALESCE(json_extract(record.payload_json, '$.storeId'), '') = '' AND (
+            NOT (
+              json_extract(record.payload_json, '$.customerId') IN (SELECT id FROM customers WHERE storeId = ?)
+              OR json_extract(record.payload_json, '$.orderId') IN (SELECT id FROM orders WHERE storeId = ?)
+            )
+            OR EXISTS (SELECT 1 FROM customers WHERE id = json_extract(record.payload_json, '$.customerId') AND storeId IS NOT NULL AND storeId <> '' AND storeId <> ?)
+            OR EXISTS (SELECT 1 FROM orders WHERE id = json_extract(record.payload_json, '$.orderId') AND storeId IS NOT NULL AND storeId <> '' AND storeId <> ?)
+          ))
+        )
+    )
+  ))
+`;
 
 export type TableName = keyof AppData;
 
@@ -201,6 +266,135 @@ export class BeautyDatabase {
     return data;
   }
 
+  readCashierFlowPage(storeId: string, page: number, pageSize: number): CashierFlowPageResult {
+    const totalCount = this.readCashierFlowTotal(storeId);
+    const normalized = normalizeCashierFlowPage(page, pageSize, totalCount);
+    const keys = this.db.prepare(
+      `WITH flowKeys AS (
+         SELECT 'order' AS kind, orders.id, orders.createdAt, 0 AS kindRank, orders.rowid AS sourceRowId
+         FROM orders
+         WHERE orders.storeId = ?
+         UNION ALL
+         SELECT 'memberCard' AS kind, t.id, t.createdAt, 1 AS kindRank, t.rowid AS sourceRowId
+         FROM memberCardTransactions t
+         WHERE t.storeId = ?
+           AND ${CASHIER_FLOW_CASH_IN_PREDICATE}
+         UNION ALL
+         SELECT 'memberCard' AS kind, t.id, t.createdAt, 1 AS kindRank, t.rowid AS sourceRowId
+         FROM memberCardTransactions t
+         LEFT JOIN orders linkedOrder ON linkedOrder.id = t.orderId
+         LEFT JOIN memberCards linkedCard ON linkedCard.id = t.memberCardId
+         LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+         WHERE ${CASHIER_FLOW_LEGACY_TRANSACTION_STORE_PREDICATE}
+           AND ${CASHIER_FLOW_CASH_IN_PREDICATE}
+       )
+       SELECT kind, id
+       FROM flowKeys
+       ORDER BY createdAt DESC, kindRank ASC, sourceRowId DESC, id DESC
+       LIMIT ? OFFSET ?`,
+    ).all(
+      storeId,
+      storeId,
+      storeId,
+      normalized.pageSize,
+      (normalized.page - 1) * normalized.pageSize,
+    ) as Array<CashierFlowSourceKey>;
+
+    return {
+      items: this.readCashierFlowItemsForKeys(storeId, keys),
+      ...normalized,
+      totalCount,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  readCashierFlowDetail(
+    storeId: string,
+    kind: CashierFlowListItem["kind"],
+    id: string,
+  ): CashierFlowDetailResult | undefined {
+    const key = { kind, id } satisfies CashierFlowSourceKey;
+    const record = this.readCashierFlowItemsForKeys(storeId, [key])[0];
+    if (!record) return undefined;
+
+    const sourceOrder = kind === "order" ? this.readOrderForStore(storeId, id) : undefined;
+    const sourceTransaction = kind === "memberCard" ? this.readMemberCardTransactionForStore(storeId, id) : undefined;
+    if ((kind === "order" && !sourceOrder) || (kind === "memberCard" && !sourceTransaction)) return undefined;
+
+    return {
+      record,
+      data: this.readCashierFlowRelatedData(storeId, {
+        orders: sourceOrder ? [sourceOrder] : [],
+        transactions: sourceTransaction ? [sourceTransaction] : [],
+      }),
+    };
+  }
+
+  readPosContext(
+    storeId: string,
+    input: { dayStart: string; dayEnd: string; appointmentId?: string; signatureId?: string },
+  ): PosContextResult {
+    const todayOrder = this.db.prepare(
+      `SELECT COUNT(*) AS count,
+              COALESCE(SUM(CASE WHEN payMethod <> '会员卡' THEN paidAmount ELSE 0 END), 0) AS paid
+       FROM orders
+       WHERE storeId = ? AND createdAt >= ? AND createdAt < ?`,
+    ).get(storeId, input.dayStart, input.dayEnd) as { count: number; paid: number };
+    const todayMemberCard = this.db.prepare(
+      `WITH memberCardCash AS (
+         SELECT t.paidAmount, t.amountDelta
+         FROM memberCardTransactions t
+         WHERE t.storeId = ?
+           AND ${CASHIER_FLOW_CASH_IN_PREDICATE}
+           AND t.createdAt >= ? AND t.createdAt < ?
+         UNION ALL
+         SELECT t.paidAmount, t.amountDelta
+         FROM memberCardTransactions t
+         LEFT JOIN orders linkedOrder ON linkedOrder.id = t.orderId
+         LEFT JOIN memberCards linkedCard ON linkedCard.id = t.memberCardId
+         LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+         WHERE ${CASHIER_FLOW_LEGACY_TRANSACTION_STORE_PREDICATE}
+           AND ${CASHIER_FLOW_CASH_IN_PREDICATE}
+           AND t.createdAt >= ? AND t.createdAt < ?
+       )
+       SELECT COUNT(*) AS count,
+              COALESCE(SUM(CASE WHEN paidAmount IS NOT NULL THEN paidAmount ELSE amountDelta END), 0) AS paid
+       FROM memberCardCash`,
+    ).get(storeId, input.dayStart, input.dayEnd, storeId, input.dayStart, input.dayEnd) as { count: number; paid: number };
+    const arrivedAppointments = this.db.prepare(
+      `SELECT appointments.*
+       FROM appointments
+       WHERE appointments.storeId = ?
+         AND appointments.status = '已到店'
+         AND NOT EXISTS (
+           SELECT 1 FROM orders
+           WHERE orders.storeId = appointments.storeId
+             AND orders.appointmentId = appointments.id
+             AND orders.status <> '已退款'
+         )
+       ORDER BY appointments.startAt ASC, appointments.rowid ASC`,
+    ).all(storeId).map(mapAppointment);
+
+    const requestedAppointment = input.appointmentId
+      ? this.readAppointmentForStore(storeId, input.appointmentId)
+      : undefined;
+    const requestedSignature = input.signatureId
+      ? this.readCustomerSignatureByIdForStore(input.signatureId, storeId)
+      : undefined;
+
+    return {
+      cashierFlowTotal: this.readCashierFlowTotal(storeId),
+      todayPaid: Number(todayOrder.paid ?? 0) + Number(todayMemberCard.paid ?? 0),
+      todayOrderCount: Number(todayOrder.count ?? 0),
+      todayMemberCardIncomeCount: Number(todayMemberCard.count ?? 0),
+      arrivedAppointments,
+      data: this.readCashierFlowRelatedData(storeId, {
+        appointments: requestedAppointment ? [requestedAppointment] : [],
+        signatures: requestedSignature ? [requestedSignature] : [],
+      }),
+    };
+  }
+
   replaceData(data: AppData) {
     this.db.exec("BEGIN IMMEDIATE;");
     try {
@@ -269,9 +463,372 @@ export class BeautyDatabase {
     return row ? mapJsonPayload<CustomerSignature>(row) : undefined;
   }
 
+  readCustomerSignatureByIdForStore(id: string, storeId: string) {
+    const row = this.db.prepare(
+      `SELECT signature.payload_json
+       FROM customerSignatures signature
+       WHERE signature.id = ?
+         AND ${CASHIER_FLOW_SIGNATURE_STORE_PREDICATE}
+       LIMIT 1`,
+    ).get(id, ...Array<string>(15).fill(storeId));
+    return row ? mapJsonPayload<CustomerSignature>(row) : undefined;
+  }
+
   readCustomerSignatureByToken(token: string) {
     const row = this.db.prepare("SELECT payload_json FROM customerSignatures WHERE json_extract(payload_json, '$.token') = ? ORDER BY rowid DESC LIMIT 1").get(token);
     return row ? mapJsonPayload<CustomerSignature>(row) : undefined;
+  }
+
+  private readCashierFlowTotal(storeId: string) {
+    const row = this.db.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM orders WHERE storeId = ?)
+         +
+         (SELECT COUNT(*)
+          FROM memberCardTransactions t
+          WHERE t.storeId = ?
+            AND ${CASHIER_FLOW_CASH_IN_PREDICATE})
+         +
+         (SELECT COUNT(*)
+          FROM memberCardTransactions t
+          LEFT JOIN orders linkedOrder ON linkedOrder.id = t.orderId
+          LEFT JOIN memberCards linkedCard ON linkedCard.id = t.memberCardId
+          LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+          WHERE ${CASHIER_FLOW_LEGACY_TRANSACTION_STORE_PREDICATE}
+            AND ${CASHIER_FLOW_CASH_IN_PREDICATE}) AS count`,
+    ).get(storeId, storeId, storeId) as { count: number };
+    return Number(row.count ?? 0);
+  }
+
+  private readOrderForStore(storeId: string, id: string) {
+    const row = this.db.prepare("SELECT * FROM orders WHERE storeId = ? AND id = ? LIMIT 1").get(storeId, id);
+    return row ? mapOrder(row) : undefined;
+  }
+
+  private readAppointmentForStore(storeId: string, id: string) {
+    const row = this.db.prepare("SELECT * FROM appointments WHERE storeId = ? AND id = ? LIMIT 1").get(storeId, id);
+    return row ? mapAppointment(row) : undefined;
+  }
+
+  private readMemberCardTransactionForStore(storeId: string, id: string) {
+    const row = this.db.prepare(
+      `SELECT t.*
+       FROM memberCardTransactions t
+       LEFT JOIN orders linkedOrder ON linkedOrder.id = t.orderId
+       LEFT JOIN memberCards linkedCard ON linkedCard.id = t.memberCardId
+       LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+       WHERE t.id = ?
+         AND ${CASHIER_FLOW_TRANSACTION_STORE_PREDICATE}
+         AND ${CASHIER_FLOW_CASH_IN_PREDICATE}
+       LIMIT 1`,
+    ).get(id, storeId, storeId);
+    return row ? mapMemberCardTransaction(row) : undefined;
+  }
+
+  private readCashierFlowItemsForKeys(storeId: string, requestedKeys: readonly CashierFlowSourceKey[]) {
+    const keys = uniqueCashierFlowKeys(requestedKeys).slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
+    if (!keys.length) return [];
+    const orderIds = keys.filter((key) => key.kind === "order").map((key) => key.id);
+    const transactionIds = keys.filter((key) => key.kind === "memberCard").map((key) => key.id);
+    const orders = orderIds.length
+      ? this.all(
+          `SELECT * FROM orders WHERE storeId = ? AND id IN (${sqlPlaceholders(orderIds.length)}) ORDER BY rowid DESC`,
+          mapOrder,
+          [storeId, ...orderIds],
+        )
+      : [];
+    const transactions = transactionIds.length
+      ? this.all(
+          `SELECT t.*
+           FROM memberCardTransactions t
+           LEFT JOIN orders linkedOrder ON linkedOrder.id = t.orderId
+           LEFT JOIN memberCards linkedCard ON linkedCard.id = t.memberCardId
+           LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+           WHERE t.id IN (${sqlPlaceholders(transactionIds.length)})
+             AND ${CASHIER_FLOW_TRANSACTION_STORE_PREDICATE}
+             AND ${CASHIER_FLOW_CASH_IN_PREDICATE}
+           ORDER BY t.rowid DESC`,
+          mapMemberCardTransaction,
+          [...transactionIds, storeId, storeId],
+        )
+      : [];
+    const linkedOrderIds = uniqueStrings(transactions.map((transaction) => transaction.orderId)).filter(
+      (id) => !orders.some((order) => order.id === id),
+    );
+    const linkedOrders = linkedOrderIds.length
+      ? this.all(
+          `SELECT * FROM orders WHERE storeId = ? AND id IN (${sqlPlaceholders(linkedOrderIds.length)}) ORDER BY rowid DESC`,
+          mapOrder,
+          [storeId, ...linkedOrderIds],
+        )
+      : [];
+    const lookupOrders = dedupeById([...orders, ...linkedOrders]);
+    const memberCardIds = uniqueStrings(transactions.map((transaction) => transaction.memberCardId));
+    const memberCards = memberCardIds.length
+      ? this.all(
+          `SELECT linkedCard.*
+           FROM memberCards linkedCard
+           LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+           WHERE linkedCard.id IN (${sqlPlaceholders(memberCardIds.length)})
+             AND (linkedCard.storeId = ? OR (COALESCE(TRIM(linkedCard.storeId), '') = '' AND linkedCustomer.storeId = ?))
+           ORDER BY linkedCard.rowid ASC`,
+          mapMemberCard,
+          [...memberCardIds, storeId, storeId],
+        )
+      : [];
+    const customerIds = uniqueStrings([
+      ...lookupOrders.map((order) => order.customerId),
+      ...memberCards.map((card) => card.customerId),
+    ]);
+    const customers = customerIds.length
+      ? chunksOf(customerIds).flatMap((ids) => this.all(
+          `SELECT * FROM customers WHERE storeId = ? AND id IN (${sqlPlaceholders(ids.length)}) ORDER BY rowid ASC`,
+          mapCustomer,
+          [storeId, ...ids],
+        ))
+      : [];
+    const serviceIds = uniqueStrings(lookupOrders.flatMap((order) => [order.serviceId, ...(order.serviceIds ?? [])]));
+    const services = serviceIds.length
+      ? chunksOf(serviceIds).flatMap((ids) => this.all(
+          `SELECT * FROM services WHERE storeId = ? AND id IN (${sqlPlaceholders(ids.length)}) ORDER BY rowid ASC`,
+          mapService,
+          [storeId, ...ids],
+        ))
+      : [];
+    const productIds = uniqueStrings(lookupOrders.flatMap((order) => [
+      order.productId,
+      order.giftProductId,
+      ...(order.productItems ?? []).map((item) => item.productId),
+      ...(order.giftProductItems ?? []).map((item) => item.productId),
+    ]));
+    const products = productIds.length
+      ? chunksOf(productIds).flatMap((ids) => this.all(
+          `SELECT * FROM products WHERE storeId = ? AND id IN (${sqlPlaceholders(ids.length)}) ORDER BY rowid ASC`,
+          mapProduct,
+          [storeId, ...ids],
+        ))
+      : [];
+    const operationLogs = memberCardIds.length
+      ? this.all(
+          `SELECT * FROM operationLogs
+           WHERE targetType = 'memberCard'
+             AND targetId IN (${sqlPlaceholders(memberCardIds.length)})
+             AND action IN ('开卡', '会员卡充值')
+             AND (storeId = ? OR storeId IS NULL OR storeId = '')
+           ORDER BY rowid DESC`,
+          mapOperationLog,
+          [...memberCardIds, storeId],
+        )
+      : [];
+    const authUserIds = uniqueStrings(operationLogs.map((log) => log.userId));
+    const authUsers = authUserIds.length
+      ? chunksOf(authUserIds).flatMap((ids) => this.all(
+          `SELECT payload_json FROM authUsers WHERE id IN (${sqlPlaceholders(ids.length)}) ORDER BY rowid ASC`,
+          mapJsonPayload<AuthUser>,
+          ids,
+        ))
+      : [];
+    const staffIds = uniqueStrings([
+      ...lookupOrders.map((order) => order.staffId),
+      ...transactions.map((transaction) => transaction.staffId),
+      ...authUsers.map((user) => user.staffId),
+    ]);
+    const staff = staffIds.length
+      ? chunksOf(staffIds).flatMap((ids) => this.all(
+          `SELECT * FROM staff WHERE storeId = ? AND id IN (${sqlPlaceholders(ids.length)}) ORDER BY rowid ASC`,
+          mapStaff,
+          [storeId, ...ids],
+        ))
+      : [];
+    const data = emptyData();
+    data.authUsers = authUsers;
+    data.customers = customers;
+    data.memberCards = memberCards;
+    data.memberCardTransactions = transactions;
+    data.operationLogs = operationLogs;
+    data.orders = lookupOrders;
+    data.products = products;
+    data.services = services;
+    data.staff = staff;
+    return buildCashierFlowListItemsForKeys(data, keys);
+  }
+
+  private readCashierFlowRelatedData(
+    storeId: string,
+    input: {
+      orders?: readonly Order[];
+      transactions?: readonly MemberCardTransaction[];
+      appointments?: readonly Appointment[];
+      signatures?: readonly CustomerSignature[];
+    },
+  ): CashierFlowRelatedData {
+    let appointments = dedupeById(input.appointments ?? []);
+    let signatures = dedupeById(input.signatures ?? []);
+    let serviceRecords: CustomerServiceRecord[] = [];
+    const explicitServiceRecordIds = uniqueStrings(signatures.map((signature) => signature.serviceRecordId));
+    if (explicitServiceRecordIds.length) {
+      serviceRecords = this.all(
+        `SELECT record.payload_json FROM customerServiceRecords record
+         WHERE record.id IN (${sqlPlaceholders(explicitServiceRecordIds.length)})
+           AND ${CASHIER_FLOW_SERVICE_RECORD_STORE_PREDICATE}
+         ORDER BY record.rowid DESC`,
+        mapJsonPayload<CustomerServiceRecord>,
+        [...explicitServiceRecordIds, ...Array<string>(5).fill(storeId)],
+      );
+    }
+    let orders = dedupeById(input.orders ?? []);
+    const linkedOrderIds = uniqueStrings([
+      ...(input.transactions ?? []).map((transaction) => transaction.orderId),
+      ...signatures.map((signature) => signature.orderId),
+      ...serviceRecords.map((record) => record.orderId),
+    ]);
+    if (linkedOrderIds.length) {
+      orders = dedupeById([
+        ...orders,
+        ...this.all(
+          `SELECT * FROM orders WHERE storeId = ? AND id IN (${sqlPlaceholders(linkedOrderIds.length)}) ORDER BY rowid DESC`,
+          mapOrder,
+          [storeId, ...linkedOrderIds],
+        ),
+      ]);
+    }
+    const requestedAppointmentIds = uniqueStrings(appointments.map((appointment) => appointment.id));
+    if (requestedAppointmentIds.length) {
+      orders = dedupeById([
+        ...orders,
+        ...this.all(
+          `SELECT * FROM orders
+           WHERE storeId = ? AND appointmentId IN (${sqlPlaceholders(requestedAppointmentIds.length)})
+           ORDER BY rowid DESC LIMIT 50`,
+          mapOrder,
+          [storeId, ...requestedAppointmentIds],
+        ),
+      ]);
+    }
+    orders = orders.slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
+    const orderIds = uniqueStrings(orders.map((order) => order.id));
+    if (orderIds.length) {
+      serviceRecords = dedupeById([
+        ...serviceRecords,
+        ...this.all(
+          `SELECT record.payload_json FROM customerServiceRecords record
+           WHERE json_extract(record.payload_json, '$.orderId') IN (${sqlPlaceholders(orderIds.length)})
+             AND ${CASHIER_FLOW_SERVICE_RECORD_STORE_PREDICATE}
+           ORDER BY record.rowid DESC LIMIT 50`,
+          mapJsonPayload<CustomerServiceRecord>,
+          [...orderIds, ...Array<string>(5).fill(storeId)],
+        ),
+      ]);
+    }
+    serviceRecords = serviceRecords.slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
+    const serviceRecordIds = uniqueStrings(serviceRecords.map((record) => record.id));
+    const relatedSignatures = [
+      ...(orderIds.length ? this.all(
+        `SELECT signature.payload_json FROM customerSignatures signature
+         WHERE json_extract(signature.payload_json, '$.orderId') IN (${sqlPlaceholders(orderIds.length)})
+           AND ${CASHIER_FLOW_SIGNATURE_STORE_PREDICATE}
+         ORDER BY signature.rowid DESC LIMIT 50`,
+        mapJsonPayload<CustomerSignature>,
+        [...orderIds, ...Array<string>(15).fill(storeId)],
+      ) : []),
+      ...(serviceRecordIds.length ? this.all(
+        `SELECT signature.payload_json FROM customerSignatures signature
+         WHERE json_extract(signature.payload_json, '$.serviceRecordId') IN (${sqlPlaceholders(serviceRecordIds.length)})
+           AND ${CASHIER_FLOW_SIGNATURE_STORE_PREDICATE}
+         ORDER BY signature.rowid DESC LIMIT 50`,
+        mapJsonPayload<CustomerSignature>,
+        [...serviceRecordIds, ...Array<string>(15).fill(storeId)],
+      ) : []),
+    ];
+    signatures = dedupeById([...signatures, ...relatedSignatures]);
+    signatures = signatures.slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
+    let transactions = dedupeById(input.transactions ?? []);
+    if (orderIds.length) {
+      transactions = dedupeById([
+        ...transactions,
+        ...this.all(
+          `SELECT t.*
+           FROM memberCardTransactions t
+           LEFT JOIN orders linkedOrder ON linkedOrder.id = t.orderId
+           LEFT JOIN memberCards linkedCard ON linkedCard.id = t.memberCardId
+           LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+           WHERE t.orderId IN (${sqlPlaceholders(orderIds.length)})
+             AND ${CASHIER_FLOW_TRANSACTION_STORE_PREDICATE}
+           ORDER BY t.rowid DESC LIMIT 50`,
+          mapMemberCardTransaction,
+          [...orderIds, storeId, storeId],
+        ),
+      ]);
+    }
+    transactions = transactions.slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
+    const appointmentIds = uniqueStrings([
+      ...appointments.map((appointment) => appointment.id),
+      ...orders.map((order) => order.appointmentId),
+    ]);
+    if (appointmentIds.length) {
+      appointments = dedupeById([
+        ...appointments,
+        ...this.all(
+          `SELECT * FROM appointments WHERE storeId = ? AND id IN (${sqlPlaceholders(appointmentIds.length)}) ORDER BY rowid ASC`,
+          mapAppointment,
+          [storeId, ...appointmentIds],
+        ),
+      ]);
+    }
+    appointments = appointments.slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
+    const directMemberCardIds = uniqueStrings(transactions.map((transaction) => transaction.memberCardId));
+    let memberCards = directMemberCardIds.length
+      ? this.all(
+          `SELECT linkedCard.*
+           FROM memberCards linkedCard
+           LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+           WHERE linkedCard.id IN (${sqlPlaceholders(directMemberCardIds.length)})
+             AND (linkedCard.storeId = ? OR (COALESCE(TRIM(linkedCard.storeId), '') = '' AND linkedCustomer.storeId = ?))
+           ORDER BY linkedCard.rowid ASC`,
+          mapMemberCard,
+          [...directMemberCardIds, storeId, storeId],
+        )
+      : [];
+    const customerIds = uniqueStrings([
+      ...orders.map((order) => order.customerId),
+      ...appointments.map((appointment) => appointment.customerId),
+      ...signatures.map((signature) => signature.customerId),
+      ...serviceRecords.map((record) => record.customerId),
+      ...memberCards.map((card) => card.customerId),
+    ]);
+    if (customerIds.length) {
+      memberCards = dedupeById([
+        ...memberCards,
+        ...chunksOf(customerIds).flatMap((ids) => this.all(
+            `SELECT linkedCard.*
+             FROM memberCards linkedCard
+             LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+             WHERE linkedCard.customerId IN (${sqlPlaceholders(ids.length)})
+               AND (linkedCard.storeId = ? OR (COALESCE(TRIM(linkedCard.storeId), '') = '' AND linkedCustomer.storeId = ?))
+             ORDER BY linkedCard.rowid ASC`,
+            mapMemberCard,
+            [...ids, storeId, storeId],
+          )),
+      ]);
+    }
+    const allCustomerIds = uniqueStrings([...customerIds, ...memberCards.map((card) => card.customerId)]);
+    const customers = allCustomerIds.length
+      ? chunksOf(allCustomerIds).flatMap((ids) => this.all(
+          `SELECT * FROM customers WHERE storeId = ? AND id IN (${sqlPlaceholders(ids.length)}) ORDER BY rowid ASC`,
+          mapCustomer,
+          [storeId, ...ids],
+        ))
+      : [];
+
+    return {
+      orders,
+      memberCardTransactions: transactions,
+      customers,
+      memberCards,
+      appointments,
+      customerSignatures: signatures.map(withoutSignatureText),
+      customerServiceRecords: serviceRecords,
+    };
   }
 
   private applyTableChangesInternal(previousData: AppData, nextData: AppData, keys: readonly TableName[]) {
@@ -1735,6 +2292,25 @@ export class BeautyDatabase {
       CREATE INDEX IF NOT EXISTS idx_member_card_transactions_store_created ON memberCardTransactions(storeId, createdAt);
       CREATE INDEX IF NOT EXISTS idx_operation_logs_store_created ON operationLogs(storeId, createdAt);
       CREATE INDEX IF NOT EXISTS idx_daily_closes_store_date ON dailyCloses(storeId, businessDate);
+      CREATE INDEX IF NOT EXISTS idx_orders_store_created_id ON orders(storeId, createdAt DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_orders_store_appointment_status ON orders(storeId, appointmentId, status);
+      CREATE INDEX IF NOT EXISTS idx_member_card_tx_store_cash_created ON memberCardTransactions(storeId, createdAt DESC, id DESC)
+        WHERE type IN ('开卡', '充值')
+          AND CASE WHEN paidAmount IS NOT NULL THEN paidAmount ELSE amountDelta END > 0;
+      CREATE INDEX IF NOT EXISTS idx_member_card_tx_order_store ON memberCardTransactions(orderId, storeId);
+      CREATE INDEX IF NOT EXISTS idx_customer_service_records_order ON customerServiceRecords(json_extract(payload_json, '$.orderId'));
+      CREATE INDEX IF NOT EXISTS idx_customer_signatures_order ON customerSignatures(json_extract(payload_json, '$.orderId'));
+      CREATE INDEX IF NOT EXISTS idx_customer_signatures_service_record ON customerSignatures(json_extract(payload_json, '$.serviceRecordId'));
+      CREATE INDEX IF NOT EXISTS idx_operation_logs_member_card_target ON operationLogs(targetType, targetId, action, storeId, createdAt DESC);
+      CREATE INDEX IF NOT EXISTS idx_customer_signatures_store_order ON customerSignatures(
+        json_extract(payload_json, '$.storeId'),
+        json_extract(payload_json, '$.orderId')
+      );
+      CREATE INDEX IF NOT EXISTS idx_customer_signatures_token ON customerSignatures(json_extract(payload_json, '$.token'));
+      CREATE INDEX IF NOT EXISTS idx_customer_service_records_store_order ON customerServiceRecords(
+        json_extract(payload_json, '$.storeId'),
+        json_extract(payload_json, '$.orderId')
+      );
       CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(userId);
       CREATE INDEX IF NOT EXISTS idx_checkout_locks_created ON checkoutSubmissionLocks(createdAt);
       CREATE INDEX IF NOT EXISTS idx_member_card_submission_created ON memberCardSubmissionLocks(createdAt);
@@ -1745,14 +2321,11 @@ export class BeautyDatabase {
   }
 
   private ensureDefaultSuperadmin() {
-    const data = this.readData();
+    const data = this.readDataTables(["authUsers"]);
     if (data.authUsers.some((user) => user.role === "superadmin")) return;
     const admin = seedData.authUsers.find((user) => user.role === "superadmin");
     if (!admin) return;
-    this.replaceData({
-      ...data,
-      authUsers: [admin, ...data.authUsers],
-    });
+    this.replaceDataTables({ ...data, authUsers: [admin, ...data.authUsers] }, ["authUsers"]);
   }
 }
 
@@ -1865,6 +2438,49 @@ function pickDataTables(data: AppData, keys: readonly TableName[]): AppData {
     picked[key] = data[key] as never;
   }
   return picked;
+}
+
+function normalizeCashierFlowPage(page: number, pageSize: number, totalCount: number) {
+  const safePageSize = Math.min(
+    CASHIER_FLOW_MAX_PAGE_SIZE,
+    Math.max(1, Number.isFinite(pageSize) ? Math.trunc(pageSize) : CASHIER_FLOW_MAX_PAGE_SIZE),
+  );
+  const pageCount = Math.max(1, Math.ceil(totalCount / safePageSize));
+  const requestedPage = Math.max(1, Number.isFinite(page) ? Math.trunc(page) : 1);
+  return {
+    page: Math.min(requestedPage, pageCount),
+    pageSize: safePageSize,
+    pageCount,
+  };
+}
+
+function sqlPlaceholders(count: number) {
+  return Array.from({ length: count }, () => "?").join(", ");
+}
+
+function uniqueStrings(values: readonly (string | null | undefined)[]) {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
+function chunksOf<T>(values: readonly T[]) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += CASHIER_FLOW_MAX_PAGE_SIZE) {
+    chunks.push(values.slice(index, index + CASHIER_FLOW_MAX_PAGE_SIZE));
+  }
+  return chunks;
+}
+
+function dedupeById<T extends { id: string }>(values: readonly T[]) {
+  return Array.from(new Map(values.map((value) => [value.id, value])).values());
+}
+
+function uniqueCashierFlowKeys(keys: readonly CashierFlowSourceKey[]) {
+  return Array.from(new Map(keys.map((key) => [`${key.kind}:${key.id}`, key])).values());
+}
+
+function withoutSignatureText(signature: CustomerSignature): CustomerSignature {
+  const { signatureText: _signatureText, ...lightSignature } = signature;
+  return lightSignature;
 }
 
 function mapStaff(row: unknown): Staff {

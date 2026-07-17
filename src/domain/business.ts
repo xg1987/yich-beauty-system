@@ -2897,7 +2897,7 @@ function projectCardsForServices(data: AppData, customerId: string, serviceIds: 
     && card.status === "正常"
     && card.type !== "储值卡"
     && card.type !== "折扣卡"
-    && ids.some((serviceId) => memberCardSupportsService(card, serviceId)),
+    && ids.some((serviceId) => memberCardCanUseForService(card, serviceId)),
   );
 }
 

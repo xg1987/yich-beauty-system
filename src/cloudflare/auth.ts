@@ -13,9 +13,10 @@ export type LoginResult = {
 };
 
 export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<LoginResult> {
-  const users = await readAuthUsers(db);
-  const systemConfigs = await readSystemConfigs(db);
-  const user = users.find((item) => item.account === account);
+  const [user, systemConfigs] = await Promise.all([
+    readAuthUserByAccount(db, account),
+    readSystemConfigs(db),
+  ]);
   if (!user) {
     throw new Error("账号或密码不正确");
   }
@@ -60,8 +61,11 @@ export async function getSessionFromD1(db: D1DatabaseBinding, authorizationHeade
     return undefined;
   }
 
-  const user = (await readAuthUsers(db)).find((item) => item.id === sessionRow.userId && item.status === "active");
-  return user ? buildSession(token, user, await readSystemConfigs(db)) : undefined;
+  const [user, systemConfigs] = await Promise.all([
+    readAuthUserById(db, sessionRow.userId),
+    readSystemConfigs(db),
+  ]);
+  return user?.status === "active" ? buildSession(token, user, systemConfigs) : undefined;
 }
 
 /** Server-side logout: remove the session row so the token can no longer be used. */
@@ -71,9 +75,20 @@ export async function destroySessionInD1(db: D1DatabaseBinding, authorizationHea
   await db.prepare("DELETE FROM sessions WHERE token = ?").bind(token).run();
 }
 
-async function readAuthUsers(db: D1DatabaseBinding) {
-  const result = await db.prepare("SELECT payload_json FROM authUsers ORDER BY rowid ASC").all<{ payload_json: string }>();
-  return (result.results ?? []).map((row) => JSON.parse(row.payload_json) as AuthUser);
+async function readAuthUserByAccount(db: D1DatabaseBinding, account: string) {
+  const row = await db
+    .prepare("SELECT payload_json FROM authUsers WHERE json_extract(payload_json, '$.account') = ? LIMIT 1")
+    .bind(account)
+    .first<{ payload_json: string }>();
+  return row ? JSON.parse(row.payload_json) as AuthUser : undefined;
+}
+
+async function readAuthUserById(db: D1DatabaseBinding, id: string) {
+  const row = await db
+    .prepare("SELECT payload_json FROM authUsers WHERE id = ? LIMIT 1")
+    .bind(id)
+    .first<{ payload_json: string }>();
+  return row ? JSON.parse(row.payload_json) as AuthUser : undefined;
 }
 
 export function buildSession(token: string, user: AuthUser, systemConfigs?: SystemConfig[]): UserSession {
