@@ -7,7 +7,7 @@ assertArrayOmits("customerSignatureWriteKeys", "customerSignatures");
 assertArrayOmits("memberCardWriteKeys", "customerSignatures");
 assertContains("await database.upsertCustomerSignatures(newSignatures);", "开卡应只写新增签名");
 assertContains("await database.upsertCustomerSignatures([signedSignature]);", "签名确认应只写当前签名");
-assertContains("readCustomerSignatureById(signatureId)", "内部签名确认应按 id 读取单条签名");
+assertContains("readCustomerSignatureByIdForStore(signatureId, storeId)", "内部签名确认应按 id 和当前门店读取单条签名");
 assertContains("database.readMemberCardMutationData(storeId", "会员卡操作应使用精准读取方法");
 assertContains("return { ...data, customerSignatures: [signature] };", "公开签名链接应只加载当前签名");
 assertD1Contains("async readCustomerSignatureContext(", "签名流程应使用精准上下文读取");

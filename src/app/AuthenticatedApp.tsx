@@ -48,7 +48,7 @@ import {
   Warehouse,
   X,
 } from "lucide-react";
-import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, lazy, memo, type PointerEvent as ReactPointerEvent, ReactNode, Suspense, type TouchEvent as ReactTouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccountMenu } from "../components/business/AccountMenu";
 import { BrandIcon } from "../components/business/BrandIcon";
 import { UserAvatar } from "../components/business/UserAvatar";
@@ -62,8 +62,7 @@ import { DataTable } from "../components/ui/DataTable";
 import { DateTimeInput } from "../components/ui/DateTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
-import { memberCardCashIn, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
-import { buildCashierFlowRecords } from "../domain/cashierFlow";
+import { platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
 import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, isAppointmentInArrivalConfirmationWindow, appointmentArrivalConfirmationWindow, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import {
@@ -80,6 +79,7 @@ import type { AppDataUpdate } from "../domain/dataSlices";
 import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StaffUnavailableSlot, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
+import { mergePosRemoteData, POS_CASHIER_FLOW_PAGE_SIZE, usePosRemoteData } from "../hooks/usePosRemoteData";
 import { canvasToSignatureDataUrl } from "../lib/signatureImage";
 import { writeCachedStoreName } from "../lib/storeNameCache";
 import packageJson from "../../package.json";
@@ -88,9 +88,12 @@ import { displayRoleName } from "./accountDisplay";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
 import {
   findCreatedProduct,
+  memberCardAvailableProjectScopeText,
+  memberCardAvailableServiceIds,
   memberCardAvailableTimesText,
+  memberCardDisplayStatus,
+  memberCardHasAvailableValue,
   memberCardProjectScopeText,
-  memberCardPurchasedServiceIds,
   memberCardTimesText,
   mergeUsedProducts,
   nameOf,
@@ -107,7 +110,11 @@ import {
 } from "./authenticatedAppHelpers";
 
 export {
+  memberCardAvailableProjectScopeText,
+  memberCardAvailableServiceIds,
   memberCardAvailableTimesText,
+  memberCardDisplayStatus,
+  memberCardHasAvailableValue,
   memberCardProjectScopeText,
   memberCardPurchasedServiceIds,
   memberCardTimesText,
@@ -1000,6 +1007,7 @@ function LoadingGate({
 }
 
 const LazyDashboard = lazy(() => import("./dashboardView").then((module) => ({ default: module.Dashboard })));
+const LazyCashierFlowPanel = lazy(() => import("./CashierFlowPanel").then((module) => ({ default: module.CashierFlowPanel })));
 const MemoAppointments = memo(Appointments);
 const MemoPos = memo(Pos);
 const MemoCustomers = memo(Customers);
@@ -2416,16 +2424,29 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
   const bookedAppointments = confirmationPendingAppointments.filter((appointment) => appointmentArrivalConfirmationWindow(appointment, data.services).opensAt > appointmentNow);
   const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
   const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
+  const appointmentOrderByAppointmentId = useMemo(() => {
+    const result = new Map<string, Order>();
+    data.orders.forEach((order) => {
+      if (order.status === "已退款" || order.appointmentId === undefined || result.has(order.appointmentId)) return;
+      result.set(order.appointmentId, order);
+    });
+    return result;
+  }, [data.orders]);
+  const preferredSignatureByOrderId = useMemo(() => {
+    const result = new Map<string, { signature: CustomerSignature; priority: number }>();
+    data.customerSignatures.forEach((signature) => {
+      if (signature.orderId === undefined) return;
+      const isServiceCompletion = signature.title === "服务完成确认签名";
+      const priority = signature.status === "已签名" ? (isServiceCompletion ? 0 : 1) : (isServiceCompletion ? 2 : 3);
+      const current = result.get(signature.orderId);
+      if (!current || priority < current.priority) result.set(signature.orderId, { signature, priority });
+    });
+    return new Map(Array.from(result, ([orderId, item]) => [orderId, item.signature]));
+  }, [data.customerSignatures]);
   const findAppointmentOrder = (appointment: Appointment) =>
-    data.orders.find((order) => order.status !== "已退款" && order.appointmentId === appointment.id);
-  const findAppointmentSignature = (order: Order | undefined) => {
-    if (!order) return undefined;
-    const signatures = data.customerSignatures.filter((item) => item.orderId === order.id);
-    return signatures.find((item) => item.status === "已签名" && item.title === "服务完成确认签名") ??
-      signatures.find((item) => item.status === "已签名") ??
-      signatures.find((item) => item.title === "服务完成确认签名") ??
-      signatures[0];
-  };
+    appointmentOrderByAppointmentId.get(appointment.id);
+  const findAppointmentSignature = (order: Order | undefined) =>
+    order ? preferredSignatureByOrderId.get(order.id) : undefined;
   const arrivedServiceSignatureTasks = arrivedAppointments.map((appointment) => {
     const order = findAppointmentOrder(appointment);
     const signature = findAppointmentSignature(order);
@@ -3150,7 +3171,6 @@ function Pos({
   const [discountAmount, setDiscountAmount] = useState(0);
   const [checkoutDiscountRateInput, setCheckoutDiscountRateInput] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
-  const [selectedCashierRecordId, setSelectedCashierRecordId] = useState("");
   const [checkoutValidationMessages, setCheckoutValidationMessages] = useState<string[]>([]);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState("");
@@ -3195,6 +3215,18 @@ function Pos({
   const [activeModule, setActiveModule] = useState<PosModuleKey | undefined>(() => normalizePosModule(fromManagement ? initialModule ?? "single" : initialModule));
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureDrawingRef = useRef(false);
+  const posRemote = usePosRemoteData({
+    active: activeModule === "orders",
+    initialAppointmentId,
+    initialSignatureId,
+    fetchPosContext: actions.fetchPosContext,
+    fetchCashierFlowPage: actions.fetchCashierFlowPage,
+    fetchCashierFlowDetail: actions.fetchCashierFlowDetail,
+  });
+  const posData = useMemo(
+    () => mergePosRemoteData(data, posRemote.context?.data, posRemote.detail?.data),
+    [data, posRemote.context?.data, posRemote.detail?.data],
+  );
 
   useEffect(() => {
     if (cardServiceSelectionTouchedRef.current) return;
@@ -3288,7 +3320,8 @@ function Pos({
     ? data.memberCards.filter((item) => {
         if (item.customerId !== customerId || item.status !== "正常") return false;
         if (item.type === "折扣卡") return false;
-        return usesService || item.type === "储值卡";
+        if (!usesService) return item.type === "储值卡";
+        return item.type === "储值卡" || memberCardAvailableServiceIds(item).length > 0;
       })
     : [];
   const checkoutProductRows = checkoutProductItems
@@ -3322,14 +3355,17 @@ function Pos({
   const selectedCustomerCheckoutCards = usesCustomer
     ? data.memberCards.filter((card) => card.customerId === customerId && card.status === "正常")
     : [];
-  const selectedCustomerDebitCards = selectedCustomerCheckoutCards.filter((card) => card.type !== "折扣卡");
-  const selectedCustomerProjectCards = selectedCustomerCheckoutCards.filter((card) => card.type !== "储值卡" && memberCardPurchasedServiceIds(card).length > 0);
+  const selectedCustomerProjectCards = selectedCustomerCheckoutCards.filter((card) =>
+    card.type !== "储值卡"
+    && card.type !== "折扣卡"
+    && memberCardAvailableServiceIds(card).length > 0,
+  );
   const selectedCustomerStoredValueCards = selectedCustomerCheckoutCards.filter((card) => card.type === "储值卡");
   const selectedCustomerStoreServices = data.services.filter((service) =>
     service.status !== "停用"
     && (!selectedCustomer?.storeId || !service.storeId || service.storeId === selectedCustomer.storeId),
   );
-  const selectedCustomerProjectServiceIds = new Set(selectedCustomerProjectCards.flatMap(memberCardPurchasedServiceIds));
+  const selectedCustomerProjectServiceIds = new Set(selectedCustomerProjectCards.flatMap(memberCardAvailableServiceIds));
   const selectedCustomerSelectableServiceIds = new Set(
     selectedCustomerStoredValueCards.length
       ? selectedCustomerStoreServices.map((service) => service.id)
@@ -3360,7 +3396,7 @@ function Pos({
     })
     .filter(Boolean);
   const checkoutCardSelectedServiceText = (card: AppData["memberCards"][number]) => {
-    if (!usesService || selectedServiceRows.length === 0) return memberCardTimesText(card, data.services);
+    if (!usesService || selectedServiceRows.length === 0) return memberCardAvailableTimesText(card, data.services);
     return selectedServiceRows
       .map(({ service, quantity }) => `${service.name} 需${quantity}份 / ${memberCardTimesText(card, data.services, service.id)}`)
       .join("；");
@@ -3378,13 +3414,7 @@ function Pos({
       }];
     }
     const entitlementMap = new Map((card.serviceEntitlements ?? []).map((item) => [item.serviceId, item]));
-    const scopedServiceIds = card.serviceEntitlements?.length
-      ? card.serviceEntitlements.map((item) => item.serviceId)
-      : card.serviceIds?.length
-        ? card.serviceIds
-        : card.serviceId
-          ? [card.serviceId]
-          : [];
+    const scopedServiceIds = memberCardAvailableServiceIds(card);
     const rows = selectedServiceRows.length
       ? selectedServiceRows.map(({ service, quantity }) => {
           const entitlement = entitlementMap.get(service.id);
@@ -3527,17 +3557,13 @@ function Pos({
     && !checkoutAutoDebitCoversOrder,
   );
   const checkoutServiceCardBlockedText = checkoutAutoDebitShortfalls.join("；");
-  const today = new Date();
-  const todayOrders = data.orders.filter((order) => new Date(order.createdAt).toDateString() === today.toDateString());
-  const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashIn(transaction) > 0);
-  const todayPaid = todayOrders
-    .filter((order) => order.payMethod !== "会员卡")
-    .reduce((sum, order) => sum + order.paidAmount, 0)
-    + todayMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
-  const selectedSignature = data.customerSignatures.find((signature) => signature.id === selectedSignatureId);
-  const selectedSignatureContext = selectedSignature ? signatureRecordContext(data, selectedSignature) : undefined;
-  const selectedSignatureCardUsageRows = selectedSignatureContext?.order ? signatureMemberCardUsageRows(data, selectedSignatureContext.order) : [];
-  const selectedSignatureServiceRows = selectedSignatureContext?.order ? signatureServiceQuantityRows(data, selectedSignatureContext.order) : [];
+  const todayPaid = posRemote.context?.todayPaid ?? 0;
+  const todayOrderCount = posRemote.context?.todayOrderCount ?? 0;
+  const todayMemberCardIncomeCount = posRemote.context?.todayMemberCardIncomeCount ?? 0;
+  const selectedSignature = posData.customerSignatures.find((signature) => signature.id === selectedSignatureId);
+  const selectedSignatureContext = selectedSignature ? signatureRecordContext(posData, selectedSignature) : undefined;
+  const selectedSignatureCardUsageRows = selectedSignatureContext?.order ? signatureMemberCardUsageRows(posData, selectedSignatureContext.order) : [];
+  const selectedSignatureServiceRows = selectedSignatureContext?.order ? signatureServiceQuantityRows(posData, selectedSignatureContext.order) : [];
   const selectedSignatureCardBlockedRows = selectedSignatureCardUsageRows.filter((row) => row.blocked);
   const selectedSignatureExpired = selectedSignature ? customerSignatureIsExpired(selectedSignature, signatureNow) : false;
   const selectedSignatureLinkedToOrder = selectedSignatureContext ? signatureRecordCanCompleteCheckout(selectedSignatureContext) : false;
@@ -3619,9 +3645,7 @@ function Pos({
       setCardId(checkoutDebitCandidateCards[0].id);
     }
   }, [cardId, checkoutDebitCandidateIdsKey, selectedServiceRows.length, serviceAutoDebitActive, usesCustomer, usesService]);
-  const arrivedAppointments = data.appointments.filter(
-    (appointment) => appointment.status === "已到店" && !data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款"),
-  );
+  const arrivedAppointments = posRemote.context?.arrivedAppointments ?? [];
   const selectedCheckoutAppointment = appointmentId ? data.appointments.find((appointment) => appointment.id === appointmentId) : undefined;
   const selectedCheckoutAppointmentServiceIds = selectedCheckoutAppointment ? appointmentServiceIds(selectedCheckoutAppointment) : [];
   const selectedCheckoutAppointmentNeedsServiceSelection = Boolean(selectedCheckoutAppointment && selectedCheckoutAppointmentServiceIds.length === 0);
@@ -3651,23 +3675,37 @@ function Pos({
       setCardId("");
     }
   };
-
-  const cashierFlowRecords = buildCashierFlowRecords(data);
-  const selectedCashierRecord = cashierFlowRecords.find((record) => record.id === selectedCashierRecordId);
-  const selectedCashierOrder = selectedCashierRecord?.kind === "order" ? selectedCashierRecord.order : undefined;
-  const selectedCashierTransaction = selectedCashierRecord?.kind === "memberCard" ? selectedCashierRecord.transaction : undefined;
+  const cashierFlowRecordCount = posRemote.context?.cashierFlowTotal ?? posRemote.pageResult?.totalCount ?? 0;
+  const cashierFlowPageTotalCount = posRemote.pageResult?.totalCount ?? cashierFlowRecordCount;
+  const visibleCashierFlowRecords = posRemote.pageResult?.items ?? [];
+  const cashierFlowPageSize = posRemote.pageResult?.pageSize ?? POS_CASHIER_FLOW_PAGE_SIZE;
+  const cashierFlowPageCount = posRemote.pageResult?.pageCount ?? 1;
+  const currentCashierFlowPage = posRemote.pageResult?.page ?? 1;
+  const cashierFlowPageStart = (currentCashierFlowPage - 1) * cashierFlowPageSize;
+  const selectedCashierRecord = posRemote.detail?.record ?? posRemote.selectedRecord;
+  const openCashierFlow = () => {
+    posRemote.changePage(1);
+    posRemote.clearDetail();
+    setActiveModule("orders");
+  };
+  const selectedCashierOrder = selectedCashierRecord?.kind === "order"
+    ? posRemote.detail?.data.orders.find((order) => order.id === selectedCashierRecord.id)
+    : undefined;
+  const selectedCashierTransaction = selectedCashierRecord?.kind === "memberCard"
+    ? posRemote.detail?.data.memberCardTransactions.find((transaction) => transaction.id === selectedCashierRecord.id)
+    : undefined;
   const selectedCashierMemberCard = selectedCashierTransaction
-    ? data.memberCards.find((card) => card.id === selectedCashierTransaction.memberCardId)
+    ? posRemote.detail?.data.memberCards.find((card) => card.id === selectedCashierTransaction.memberCardId)
     : selectedCashierOrder?.cardId
-      ? data.memberCards.find((card) => card.id === selectedCashierOrder.cardId)
+      ? posRemote.detail?.data.memberCards.find((card) => card.id === selectedCashierOrder.cardId)
       : undefined;
   const selectedCashierCustomerId = selectedCashierOrder?.customerId || selectedCashierMemberCard?.customerId || "";
-  const selectedCashierCustomer = data.customers.find((customer) => customer.id === selectedCashierCustomerId);
+  const selectedCashierCustomer = posRemote.detail?.data.customers.find((customer) => customer.id === selectedCashierCustomerId);
   const selectedCashierAppointment = selectedCashierOrder?.appointmentId
-    ? data.appointments.find((appointment) => appointment.id === selectedCashierOrder.appointmentId)
+    ? posRemote.detail?.data.appointments.find((appointment) => appointment.id === selectedCashierOrder.appointmentId)
     : undefined;
   const selectedCashierSignature = selectedCashierOrder
-    ? data.customerSignatures.find((signature) => signature.orderId === selectedCashierOrder.id)
+    ? posRemote.detail?.data.customerSignatures.find((signature) => signature.orderId === selectedCashierOrder.id)
     : undefined;
   const selectedCashierSignatureImage = selectedSignatureImage && selectedSignatureImage.signatureId === selectedCashierSignature?.id
     ? selectedSignatureImage.signatureText
@@ -3684,14 +3722,14 @@ function Pos({
     setHasSignatureDrawing(false);
   };
   useEffect(() => {
-    const customerName = selectedSignature ? nameOf(data.customers, selectedSignature.customerId) : "";
+    const customerName = selectedSignature ? nameOf(posData.customers, selectedSignature.customerId) : "";
     setSignatureSignerName(customerName === "-" ? "" : customerName);
     setSignatureMessage(undefined);
     setHasSignatureDrawing(false);
     const canvas = signatureCanvasRef.current;
     const context = canvas?.getContext("2d");
     if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
-  }, [data.customers, selectedSignature?.id]);
+  }, [posData.customers, selectedSignature?.id]);
   useEffect(() => {
     if (selectedCashierSignature?.status === "已签名" && selectedCashierSignature.id !== selectedSignatureId) {
       setSelectedSignatureId(selectedCashierSignature.id);
@@ -3788,6 +3826,8 @@ function Pos({
         signatureText: canvasToSignatureDataUrl(canvas),
       }),
     ).then((nextData) => {
+      void posRemote.refreshContext();
+      posRemote.invalidatePage();
       const signedSignature = nextData.customerSignatures.find((signature) => signature.id === signatureToSign.id);
       if (signedSignature) setSelectedSignatureId(signedSignature.id);
       setSignatureMessage({ type: "success", text: "客户确认签名已完成。" });
@@ -3799,11 +3839,6 @@ function Pos({
       setSignatureMessage({ type: "error", text: caught instanceof Error ? caught.message : "签名失败" });
     });
   };
-  const cashierPaymentText = (record: ReturnType<typeof buildCashierFlowRecords>[number]) => {
-    if (record.kind === "order" && record.payMethod === "会员卡") return "会员卡扣款";
-    return record.payMethod;
-  };
-
   const useAppointmentForCheckout = (id: string) => {
     setAppointmentId(id);
     if (!id) return;
@@ -4033,12 +4068,12 @@ function Pos({
     }
     const entryId = `${initialEntryKey}:${initialSignatureId}`;
     if (appliedInitialSignatureRef.current === entryId) return;
-    const targetSignature = data.customerSignatures.find((signature) => signature.id === initialSignatureId);
+    const targetSignature = posData.customerSignatures.find((signature) => signature.id === initialSignatureId);
     if (!targetSignature) return;
     appliedInitialSignatureRef.current = entryId;
     setSelectedSignatureId(targetSignature.id);
     setActiveModule("signature");
-  }, [initialSignatureId, initialEntryKey, data.customerSignatures]);
+  }, [initialSignatureId, initialEntryKey, posData.customerSignatures]);
 
   useEffect(() => {
     if (!initialCustomerId) {
@@ -4103,6 +4138,8 @@ function Pos({
         note: cardNote.trim() || undefined,
       });
     }).then((nextData) => {
+      void posRemote.refreshContext();
+      posRemote.invalidatePage();
       openCardRequestIdRef.current = makeId("card-open");
       const pendingSignature = nextData.customerSignatures.find((signature) => signature.title === "开卡确认签名" && signature.status === "待签名");
       clearCardCustomerDraft();
@@ -4116,7 +4153,7 @@ function Pos({
       if (!pendingSignature && fromManagement && onReturnManagement) {
         onReturnManagement();
       } else if (!pendingSignature) {
-        window.setTimeout(() => setActiveModule("orders"), 800);
+        window.setTimeout(openCashierFlow, 800);
       }
     }).catch((caught) => {
       setCardFormMessage({ type: "error", text: caught instanceof Error ? caught.message : "开卡保存失败" });
@@ -4186,6 +4223,8 @@ function Pos({
         cardId: usesCustomer && !serviceAutoDebitActive && (payMethod === "会员卡" || usesService) ? cardId || undefined : undefined,
       }),
     ).then((nextData) => {
+      void posRemote.refreshContext();
+      posRemote.invalidatePage();
       const latestOrder = nextData.orders[0];
       const latestOrderNo = latestOrder?.orderNo;
       const pendingSignature = latestOrder
@@ -4350,7 +4389,7 @@ function Pos({
                   <div className="checkout-customer-card-row" key={card.id}>
                     <div className="checkout-customer-card-title">
                       <strong>{card.name}</strong>
-                      <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
+                      <span>{card.type} · {memberCardAvailableProjectScopeText(card, data.services)}</span>
                     </div>
                     <div className="checkout-customer-card-usage">
                       {usageRows.map((row) => (
@@ -4425,10 +4464,16 @@ function Pos({
         eyebrow="开单收银"
         title="开单收银"
         stats={[
-          { label: "今日收款", value: money(todayPaid), hint: `${todayOrders.length} 笔订单${todayMemberCardIncomeTransactions.length ? ` · 会员${todayMemberCardIncomeTransactions.length} 笔` : ""}`, icon: <ChartNoAxesColumnIncreasing size={18} /> },
-          { label: "今日订单", value: `${todayOrders.length} 单`, hint: "当日收银记录", icon: <ClipboardList size={18} /> },
+          { label: "今日收款", value: money(todayPaid), hint: `${todayOrderCount} 笔订单${todayMemberCardIncomeCount ? ` · 会员${todayMemberCardIncomeCount} 笔` : ""}`, icon: <ChartNoAxesColumnIncreasing size={18} /> },
+          { label: "今日订单", value: `${todayOrderCount} 单`, hint: posRemote.contextLoading ? "统计加载中" : "当日收银记录", icon: <ClipboardList size={18} /> },
         ]}
       />
+      {posRemote.contextError && (
+        <div className="row-actions" role="alert">
+          <span className="form-error">{posRemote.contextError}</span>
+          <button type="button" onClick={() => void posRemote.refreshContext()}>重试收银统计</button>
+        </div>
+      )}
       {!fromManagement && (
         <section className="cashier-orbit" aria-label="收银工作区">
           <div className="cashier-orbit-side left">
@@ -4470,11 +4515,11 @@ function Pos({
               type="button"
               className={`cashier-orbit-card cashier-orbit-flow-card right bottom ${activeModule === "orders" ? "active" : ""}`}
               data-cashier-action="orders"
-              onClick={() => setActiveModule("orders")}
+              onClick={openCashierFlow}
             >
               <ClipboardList size={22} />
               <strong>收银流水</strong>
-              <em>{cashierFlowRecords.length} 笔</em>
+              <em>{cashierFlowRecordCount} 笔</em>
             </button>
           </div>
         </section>
@@ -4778,7 +4823,7 @@ function Pos({
           <PanelTitle icon={<LockKeyhole size={18} />} title="客户确认签名" action={selectedSignature ? "当前服务" : "未选择"} />
           {selectedSignature ? (
             <SignatureRecordDetail
-              data={data}
+              data={posData}
               signature={selectedSignature}
               signatureImageText={selectedSignatureDisplayImage}
               signatureImageLoading={selectedSignatureImageLoading}
@@ -4799,87 +4844,32 @@ function Pos({
         </section>
         )}
         {activeModule === "orders" && (
-        <section className="panel">
-        <PanelTitle
-          icon={<ClipboardList size={18} />}
-          title="收银流水"
-          action={`${cashierFlowRecords.length} 笔`}
-        />
-          <DataTable
-          columns={["客户", "来源", "内容", "服务人员", "支付/扣款", "金额", "状态", "时间", "操作"]}
-          rows={cashierFlowRecords
-            .map((record) => [
-            record.customerName,
-            record.source,
-            record.itemName,
-            record.staffName,
-            cashierPaymentText(record),
-            money(record.paidAmount),
-            <Badge key={`${record.id}-status`} text={record.status} tone={record.status === "已退款" ? "warn" : "ok"} />,
-            shortDate(record.createdAt),
-            <button key={`${record.id}-detail`} type="button" onClick={() => setSelectedCashierRecordId(record.id)}>
-              查看详情
-            </button>,
-          ])}
-        />
-        {selectedCashierRecord && (
-          <div className="cashier-record-detail">
-            <div className="cashier-record-detail-head">
-              <strong>流水详情</strong>
-              <button type="button" onClick={() => setSelectedCashierRecordId("")}>收起</button>
-            </div>
-            <dl>
-              <div><dt>客户</dt><dd>{selectedCashierCustomer ? `${selectedCashierCustomer.name} · ${selectedCashierCustomer.phone || "-"}` : selectedCashierRecord.customerName}</dd></div>
-              <div><dt>来源</dt><dd>{selectedCashierRecord.source}</dd></div>
-              <div><dt>内容</dt><dd>{selectedCashierRecord.itemName}</dd></div>
-              <div><dt>服务人员</dt><dd>{selectedCashierRecord.staffName}</dd></div>
-              <div><dt>支付/扣款</dt><dd>{cashierPaymentText(selectedCashierRecord)}</dd></div>
-              <div><dt>金额</dt><dd>{money(selectedCashierRecord.paidAmount)}</dd></div>
-              <div><dt>状态</dt><dd>{selectedCashierRecord.status}</dd></div>
-              <div><dt>时间</dt><dd>{shortDate(selectedCashierRecord.createdAt)}</dd></div>
-              <div><dt>流水编号</dt><dd>{selectedCashierRecord.orderNo}</dd></div>
-              <div><dt>关联预约</dt><dd>{selectedCashierAppointment ? appointmentTimeRange(data, selectedCashierAppointment) : "-"}</dd></div>
-              <div><dt>会员卡</dt><dd>{selectedCashierMemberCard?.name ?? "-"}</dd></div>
-              <div>
-                <dt>客户签名</dt>
-                <dd>
-                  {selectedCashierSignature ? (
-                    <span className="cashier-record-signature-status">
-                      <Badge
-                        text={customerSignatureIsExpired(selectedCashierSignature, signatureNow) ? "已过期" : selectedCashierSignature.status}
-                        tone={selectedCashierSignature.status === "已签名" ? "ok" : "warn"}
-                      />
-                      {selectedCashierSignature.status === "待签名" && !customerSignatureIsExpired(selectedCashierSignature, signatureNow) && (
-                        <button type="button" onClick={openCashierSignature}>
-                          让客户签名
-                        </button>
-                      )}
-                      {selectedCashierSignature.status === "已签名" && (
-                        <button type="button" onClick={openCashierSignature}>
-                          查看签名
-                        </button>
-                      )}
-                      {selectedCashierSignature.status === "待签名" && customerSignatureIsExpired(selectedCashierSignature, signatureNow) && (
-                        <small>签名已过期，请重新生成</small>
-                      )}
-                    </span>
-                  ) : "-"}
-                </dd>
-              </div>
-            </dl>
-            {(selectedCashierSignatureImage || (selectedCashierSignature?.status === "已签名" && selectedSignatureImageLoading)) && (
-              <div className="cashier-record-signature">
-                <strong>客户签名</strong>
-                {selectedCashierSignatureImage ? (
-                  <img src={selectedCashierSignatureImage} alt="客户签名" />
-                ) : (
-                  <p>签名图片加载中...</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        </section>
+          <Suspense fallback={<p className="empty">收银流水加载中...</p>}><LazyCashierFlowPanel
+            records={visibleCashierFlowRecords}
+            totalCount={cashierFlowPageTotalCount}
+            page={currentCashierFlowPage}
+            pageCount={cashierFlowPageCount}
+            pageStart={cashierFlowPageStart}
+            pageSize={cashierFlowPageSize}
+            loading={posRemote.pageLoading}
+            error={posRemote.pageError}
+            selectedRecord={selectedCashierRecord}
+            detailLoading={posRemote.detailLoading}
+            detailError={posRemote.detailError}
+            selectedCustomerText={selectedCashierCustomer ? `${selectedCashierCustomer.name} · ${selectedCashierCustomer.phone || "-"}` : selectedCashierRecord?.customerName ?? "-"}
+            selectedAppointmentText={selectedCashierAppointment ? appointmentTimeRange(posData, selectedCashierAppointment) : "-"}
+            selectedMemberCardName={selectedCashierMemberCard?.name ?? "-"}
+            selectedSignature={selectedCashierSignature}
+            selectedSignatureImage={selectedCashierSignatureImage}
+            selectedSignatureImageLoading={selectedSignatureImageLoading}
+            selectedSignatureExpired={Boolean(selectedCashierSignature && customerSignatureIsExpired(selectedCashierSignature, signatureNow))}
+            onPageChange={posRemote.changePage}
+            onRetry={posRemote.invalidatePage}
+            onSelectRecord={posRemote.selectRecord}
+            onClearSelection={posRemote.clearDetail}
+            onRetryDetail={posRemote.retryDetail}
+            onOpenSignature={openCashierSignature}
+          /></Suspense>
         )}
       </div>
       </Modal>
@@ -5517,18 +5507,33 @@ function Customers({
       }),
     );
   };
-
-  const activeCards = data.memberCards.filter((card) => card.status === "正常");
-  const totalRemainingTimes = activeCards.reduce((sum, card) => sum + card.remainingTimes, 0);
+  const activeCards = useMemo(() => data.memberCards.filter(memberCardHasAvailableValue), [data.memberCards]);
+  const availableCardCountByCustomerId = useMemo(() => {
+    const result = new Map<string, number>();
+    activeCards.forEach((card) => result.set(card.customerId, (result.get(card.customerId) ?? 0) + 1));
+    return result;
+  }, [activeCards]);
+  const serviceRecordCountByCustomerId = useMemo(() => {
+    const result = new Map<string, number>();
+    data.customerServiceRecords.forEach((record) => result.set(record.customerId, (result.get(record.customerId) ?? 0) + 1));
+    return result;
+  }, [data.customerServiceRecords]);
+  const pendingFollowUpCustomerIds = useMemo(() => {
+    const result = new Set<string>();
+    data.customerFollowUps.forEach((followUp) => {
+      if (followUp.status === "待跟进") result.add(followUp.customerId);
+    });
+    return result;
+  }, [data.customerFollowUps]);
+  const activeProjectCards = activeCards.filter((card) => card.type === "次数卡" || card.type === "套餐卡");
+  const totalRemainingTimes = activeProjectCards.reduce((sum, card) => sum + card.remainingTimes, 0);
   const pendingSignatures = data.customerSignatures.filter((signature) => signature.status === "待签名").length;
   const recordLinkedOrderIds = new Set(data.customerServiceRecords.map((record) => record.orderId).filter(Boolean));
   const staffOptions = serviceStaff.map(optionOf);
-
   useEffect(() => {
     const firstStaffId = serviceStaff[0]?.id ?? "";
     if (!serviceStaff.some((staff) => staff.id === recordStaffId)) setRecordStaffId(firstStaffId);
   }, [recordStaffId, serviceStaff]);
-
   useEffect(() => {
     if (data.customers.length === 0) {
       if (selectedCustomerId) setSelectedCustomerId("");
@@ -5635,8 +5640,8 @@ function Customers({
     const days = (Date.now() - +new Date(lastVisit)) / 86400000;
     return Number.isFinite(days) && days <= 30;
   };
-  const customerHasPendingFollowUp = (id: string) => data.customerFollowUps.some((followUp) => followUp.customerId === id && followUp.status === "待跟进");
-  const customerHasActiveCard = (id: string) => data.memberCards.some((card) => card.customerId === id && card.status === "正常");
+  const customerHasPendingFollowUp = (id: string) => pendingFollowUpCustomerIds.has(id);
+  const customerHasActiveCard = (id: string) => availableCardCountByCustomerId.has(id);
   const filteredCustomers = data.customers.filter((customer) => {
     const keyword = customerSearch.trim().toLowerCase();
     const matchesKeyword = !keyword
@@ -5652,7 +5657,8 @@ function Customers({
   });
   const selectedCustomer = data.customers.find((customer) => customer.id === selectedCustomerId) ?? filteredCustomers[0] ?? data.customers[0];
   const selectedCustomerCards = selectedCustomer ? data.memberCards.filter((card) => card.customerId === selectedCustomer.id) : [];
-  const selectedCustomerActiveCards = selectedCustomerCards.filter((card) => card.status === "正常");
+  const selectedCustomerAvailableCards = selectedCustomerCards.filter(memberCardHasAvailableValue);
+  const selectedCustomerAvailableProjectCards = selectedCustomerAvailableCards.filter((card) => card.type === "次数卡" || card.type === "套餐卡");
   const selectedCustomerRecords = selectedCustomer
     ? data.customerServiceRecords
         .filter((record) => record.customerId === selectedCustomer.id)
@@ -5684,12 +5690,12 @@ function Customers({
         .slice()
         .sort((left, right) => +new Date(right.dueAt) - +new Date(left.dueAt))
     : [];
-  const selectedCardBalance = selectedCustomerActiveCards.reduce((sum, card) => sum + card.balance, 0);
-  const selectedRemainingTimes = selectedCustomerActiveCards.reduce((sum, card) => sum + card.remainingTimes, 0);
-  const selectedCardTimesSummary = selectedCustomerActiveCards.length
-    ? memberCardAvailableTimesText(selectedCustomerActiveCards[0], data.services)
+  const selectedCardBalance = selectedCustomerAvailableCards.reduce((sum, card) => sum + card.balance, 0);
+  const selectedRemainingTimes = selectedCustomerAvailableProjectCards.reduce((sum, card) => sum + card.remainingTimes, 0);
+  const selectedCardTimesSummary = selectedCustomerAvailableProjectCards.length
+    ? selectedCustomerAvailableProjectCards.map((card) => memberCardAvailableTimesText(card, data.services)).join("；")
     : "-";
-  const activeCardCustomerCount = new Set(activeCards.map((card) => card.customerId)).size;
+  const activeCardCustomerCount = availableCardCountByCustomerId.size;
   const lastServiceRecord = selectedCustomerRecords[0];
   const latestOrder = selectedCustomerOrders[0];
   const nextFollowUp = selectedCustomerFollowUps.find((followUp) => followUp.status === "待跟进");
@@ -5697,7 +5703,7 @@ function Customers({
   const customerFilterOptions = [
     { key: "all", label: "全部", count: data.customers.length },
     { key: "follow", label: "待跟进", count: pendingFollowUps },
-    { key: "card", label: "有项目卡", count: activeCardCustomerCount },
+    { key: "card", label: "有可用卡", count: activeCardCustomerCount },
     { key: "recent", label: "近期到店", count: recentVisits },
   ] as const;
   const customerDetailTabs = [
@@ -5712,7 +5718,7 @@ function Customers({
   type CustomerModuleKey = NonNullable<typeof activeModule>;
   const customerModules: Array<FeatureModule<CustomerModuleKey>> = [
     { key: "profile", title: "客户档案", icon: UsersRound, tone: "violet", meta: `${data.customers.length} 位` },
-    { key: "cards", title: "项目次数卡", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张` },
+    { key: "cards", title: "会员卡 / 项目卡", icon: CreditCard, tone: "rose", meta: `${activeCards.length} 张可用` },
     { key: "followup", title: "新增跟进计划", icon: MessageCircle, tone: "jade", meta: `${pendingFollowUps} 位` },
     { key: "signature", title: "服务确认签名", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
@@ -5747,7 +5753,7 @@ function Customers({
         title="客户管理"
         stats={[
           { label: "客户总数", value: `${data.customers.length} 位`, hint: `${recentVisits} 位近 7 天到店`, icon: <UsersRound size={18} /> },
-          { label: "有效项目卡", value: `${activeCards.length} 张`, hint: `${totalRemainingTimes} 次可核销`, icon: <CreditCard size={18} /> },
+          { label: "有效卡项", value: `${activeCards.length} 张`, hint: `${totalRemainingTimes} 次项目可核销`, icon: <CreditCard size={18} /> },
           { label: "待跟进", value: `${pendingFollowUps} 位`, hint: "客户关怀任务", icon: <MessageCircle size={18} /> },
           { label: "待签名", value: `${pendingSignatures} 份`, hint: "客户确认签名", icon: <LockKeyhole size={18} /> },
         ]}
@@ -5779,8 +5785,8 @@ function Customers({
           </div>
           <div className="customer-list">
             {filteredCustomers.map((customer) => {
-              const cardCount = data.memberCards.filter((card) => card.customerId === customer.id && card.status === "正常").length;
-              const recordCount = data.customerServiceRecords.filter((record) => record.customerId === customer.id).length;
+              const cardCount = availableCardCountByCustomerId.get(customer.id) ?? 0;
+              const recordCount = serviceRecordCountByCustomerId.get(customer.id) ?? 0;
               const hasFollow = customerHasPendingFollowUp(customer.id);
               return (
                 <button
@@ -5856,7 +5862,7 @@ function Customers({
                 <div>
                   <span>项目次数明细</span>
                   <strong>{selectedCardTimesSummary}</strong>
-                  <small>{selectedCustomerActiveCards.length} 张有效卡 · 总剩 {selectedRemainingTimes} 次</small>
+                  <small>{selectedCustomerAvailableProjectCards.length} 张可用项目卡 · 总剩 {selectedRemainingTimes} 次</small>
                 </div>
                 <div>
                   <span>储值余额</span>
@@ -5897,16 +5903,21 @@ function Customers({
                       <strong>项目卡</strong>
                     </div>
                     <div className="customer-card-stack">
-                      {selectedCustomerCards.slice(0, 3).map((card) => (
+                      {selectedCustomerAvailableCards.slice(0, 3).map((card) => (
                         <article key={card.id}>
                           <div>
                             <strong>{card.name}</strong>
-                            <span>{card.type} · {memberCardProjectScopeText(card, data.services)}</span>
+                            <span>{card.type} · {card.type === "次数卡" || card.type === "套餐卡"
+                                ? memberCardAvailableProjectScopeText(card, data.services)
+                                : memberCardProjectScopeText(card, data.services)}
+                            </span>
                           </div>
                           <em>{memberCardAvailableTimesText(card, data.services)}</em>
                         </article>
                       ))}
-                      {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">暂无项目卡</p>}
+                      {selectedCustomerAvailableCards.length === 0 && (
+                        <p className="customer-soft-empty">当前暂无可用卡项，历史记录可在“项目卡”标签查看。</p>
+                      )}
                     </div>
                   </section>
                   <section className="customer-info-card">
@@ -5947,7 +5958,7 @@ function Customers({
                       memberCardAvailableTimesText(card, data.services),
                       memberCardProjectScopeText(card, data.services),
                       shortDate(card.expiresAt),
-                      <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "正常" ? "ok" : "warn"} />,
+                      <Badge key={`${card.id}-status`} text={memberCardDisplayStatus(card)} tone={memberCardDisplayStatus(card) === "正常" ? "ok" : "warn"} />,
                     ])}
                   />
                   {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">当前客户暂无项目卡</p>}
@@ -6286,7 +6297,7 @@ function Customers({
             card.benefitText ?? (card.discountRate ? `${Number((card.discountRate * 10).toFixed(1))} 折` : "-"),
             memberCardProjectScopeText(card, data.services),
             shortDate(card.expiresAt),
-            <Badge key={`${card.id}-status`} text={card.status} tone={card.status === "已退卡" ? "warn" : "ok"} />,
+            <Badge key={`${card.id}-status`} text={memberCardDisplayStatus(card)} tone={memberCardDisplayStatus(card) === "正常" ? "ok" : "warn"} />,
             card.status === "正常" ? "客户退费办理" : "已处理",
           ])}
         />

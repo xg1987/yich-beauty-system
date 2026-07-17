@@ -8,7 +8,8 @@ import { BeautyDatabase } from "../server/database";
 import pkg from "../package.json" with { type: "json" };
 import { defaultSystemConfigs, platformInviteCodeForUser } from "../src/domain/business";
 import { testFixtureData } from "../src/domain/testFixture";
-import { emptyAppData, type AppDataPatch, type AppDataSlice } from "../src/domain/dataSlices";
+import { emptyAppData, POS_REMOTE_PAGING_CAPABILITY, type AppDataPatch, type AppDataSlice } from "../src/domain/dataSlices";
+import type { CashierFlowDetailResult, CashierFlowPageResult, PosContextResult } from "../src/domain/cashierFlow";
 import type { AppData, WorkerUsageSnapshot } from "../src/domain/types";
 
 const tempDir = mkdtempSync(join(tmpdir(), "beauty-api-"));
@@ -84,6 +85,27 @@ try {
       { id: "log_store2", storeId: "store2", userId: "u_store2_owner", action: "隔离验证", targetType: "customer", targetId: "c_store2", summary: "隔离验证日志", createdAt: new Date().toISOString() },
       ...crossStoreData.operationLogs,
     ],
+    memberCardTransactions: [
+      {
+        id: "legacy_empty_store_card_income",
+        storeId: "",
+        memberCardId: "m1",
+        type: "充值",
+        amountDelta: 100,
+        timesDelta: 0,
+        balanceAfter: 2_700,
+        remainingTimesAfter: 0,
+        paidAmount: 100,
+        payMethod: "现金",
+        note: "旧数据空门店字段兼容验证",
+        createdAt: "2020-01-01T00:00:00.000Z",
+      },
+      ...crossStoreData.memberCardTransactions,
+    ],
+    customerSignatures: [
+      { id: "signature_store2", storeId: "store2", token: "signature-store2-token", customerId: "c_store2", orderId: "o_store2", title: "隔离签名", content: "另一门店签名", status: "待签名", requestedBy: "u_store2_owner", createdAt: new Date().toISOString() },
+      ...crossStoreData.customerSignatures,
+    ],
   });
   const scopedCustomerSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=customers", {
     token: session.token,
@@ -110,16 +132,53 @@ try {
     afterStoreScopedMutation.customers.some((customer) => customer.name === "门店写入隔离客户" && customer.storeId === "store1"),
     "store-scoped mutation should persist the current store customer",
   );
-  const posSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=pos", {
+  const legacyPosSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=pos", {
     token: session.token,
     headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "pos" },
   });
+  assert.ok(legacyPosSlice.data.orders, "already-open legacy POS clients should keep receiving orders during a rolling release");
+  assert.ok(legacyPosSlice.data.memberCardTransactions, "legacy POS clients should keep receiving member card transactions");
+  assert.ok(legacyPosSlice.data.customerSignatures, "legacy POS clients should keep receiving signature rows");
+  assert.ok(legacyPosSlice.data.customerServiceRecords, "legacy POS clients should keep receiving service records");
+  const posSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=pos", {
+    token: session.token,
+    headers: {
+      "X-App-Data-Mode": "slice",
+      "X-App-Data-View": "pos",
+      "X-Yich-Capabilities": POS_REMOTE_PAGING_CAPABILITY,
+    },
+  });
   assert.equal(posSlice.kind, "app-data-slice", "data slice API should return slice marker");
   assert.equal(posSlice.view, "pos", "data slice API should echo requested view");
-  assert.ok(posSlice.data.orders, "POS slice should include orders");
+  assert.equal("orders" in posSlice.data, false, "POS slice should load historical orders through the paged cashier API");
+  assert.equal("memberCardTransactions" in posSlice.data, false, "POS slice should not transfer all member card transactions");
+  assert.equal("customerSignatures" in posSlice.data, false, "POS slice should load only the selected signature context");
+  assert.equal("customerServiceRecords" in posSlice.data, false, "POS slice should not transfer every service record");
   assert.ok(posSlice.data.products, "POS slice should include products");
   assert.equal("storeOwnerApplications" in posSlice.data, false, "POS slice should omit unrelated platform application data");
   assert.ok(JSON.stringify(posSlice).length < JSON.stringify(initialData).length, "view slice should be smaller than full AppData");
+  const posDayStart = new Date();
+  posDayStart.setHours(0, 0, 0, 0);
+  const posDayEnd = new Date(posDayStart);
+  posDayEnd.setHours(24, 0, 0, 0);
+  const posContext = await request<PosContextResult>(baseUrl, `/api/pos/context?dayStart=${encodeURIComponent(posDayStart.toISOString())}&dayEnd=${encodeURIComponent(posDayEnd.toISOString())}`, { token: session.token });
+  assert.equal(posContext.cashierFlowTotal, 1, "POS context should include resolvable empty-store legacy rows and exclude another store's rows");
+  const emptyCashierPage = await request<CashierFlowPageResult>(baseUrl, "/api/pos/cashier-flow?page=1&pageSize=50", { token: session.token });
+  assert.deepEqual(
+    emptyCashierPage.items.map((item) => item.id),
+    ["legacy_empty_store_card_income"],
+    "cashier page should recover an empty-store legacy transaction through its card/customer without leaking another store",
+  );
+  await assert.rejects(
+    () => request<CashierFlowDetailResult>(baseUrl, "/api/pos/cashier-flow/order/o_store2", { token: session.token }),
+    /不存在/,
+    "cashier detail should not expose another store's order",
+  );
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/customer-signatures/signature_store2/sign", { method: "POST", token: session.token, body: { signerName: "越权", signatureText: "data:image/jpeg;base64,AA==" } }),
+    /不存在/,
+    "signature save should reject another store's signature id",
+  );
   const appointmentSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=appointments", {
     token: session.token,
     headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "appointments" },
@@ -1073,6 +1132,20 @@ try {
   assert.equal(afterOpenCard.customerSignatures[0].title, "开卡确认签名", "open card API should create a customer confirmation signature");
   assert.equal(afterOpenCard.customerSignatures[0].status, "待签名", "open card API signature should wait for customer signing");
   assert.equal(afterOpenCard.customerSignatures.some((signature) => Boolean(signature.signatureText)), false, "open card API response should not include signature images");
+  const cashierPage = await request<CashierFlowPageResult>(baseUrl, "/api/pos/cashier-flow?page=1&pageSize=2", { token: session.token });
+  assert.equal(cashierPage.items.length, 2, "cashier API should apply database page size before returning rows");
+  assert.ok(cashierPage.totalCount >= cashierPage.items.length, "cashier API should return a matching total count");
+  assert.ok(cashierPage.items.every((item) => !("order" in item) && !("transaction" in item)), "cashier list should not expose full source objects");
+  const openCardFlowDetail = await request<CashierFlowDetailResult>(
+    baseUrl,
+    `/api/pos/cashier-flow/memberCard/${encodeURIComponent(afterOpenCard.memberCardTransactions[0].id)}`,
+    { token: session.token },
+  );
+  assert.equal(openCardFlowDetail.record.kind, "memberCard", "cashier detail should resolve the requested source kind");
+  assert.equal(openCardFlowDetail.data.memberCardTransactions[0]?.id, afterOpenCard.memberCardTransactions[0].id, "cashier detail should return only the requested source context");
+  assert.ok(openCardFlowDetail.data.customerSignatures.every((signature) => !signature.signatureText), "cashier detail should strip signature images");
+  const refreshedPosContext = await request<PosContextResult>(baseUrl, `/api/pos/context?dayStart=${encodeURIComponent(posDayStart.toISOString())}&dayEnd=${encodeURIComponent(posDayEnd.toISOString())}`, { token: session.token });
+  assert.equal(refreshedPosContext.cashierFlowTotal, cashierPage.totalCount, "POS summary and paged flow should share the same count predicate");
   const repeatedOpenCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,

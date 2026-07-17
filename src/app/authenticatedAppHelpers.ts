@@ -101,6 +101,32 @@ export function memberCardPurchasedServiceIds(card: AppData["memberCards"][numbe
   return card.serviceId ? [card.serviceId] : [];
 }
 
+export function memberCardAvailableServiceIds(card: AppData["memberCards"][number]) {
+  if (card.serviceEntitlements?.length) {
+    return card.serviceEntitlements
+      .filter((item) => item.remainingTimes > 0)
+      .map((item) => item.serviceId)
+      .filter(Boolean);
+  }
+  return card.remainingTimes > 0 ? memberCardPurchasedServiceIds(card) : [];
+}
+
+export function memberCardAvailableProjectScopeText(card: AppData["memberCards"][number], services: AppData["services"]) {
+  const serviceIds = memberCardAvailableServiceIds(card);
+  return serviceIds.length ? serviceIds.map((id) => nameOf(services, id)).join(" / ") : "暂无可用项目";
+}
+
+export function memberCardHasAvailableValue(card: AppData["memberCards"][number]) {
+  if (card.status !== "正常") return false;
+  if (card.type === "储值卡") return card.balance > 0;
+  if (card.type === "折扣卡") return true;
+  return memberCardAvailableServiceIds(card).length > 0;
+}
+
+export function memberCardDisplayStatus(card: AppData["memberCards"][number]) {
+  return card.status === "正常" && !memberCardHasAvailableValue(card) ? "已用完" : card.status;
+}
+
 export function memberCardTimesText(
   card: AppData["memberCards"][number],
   services: AppData["services"],

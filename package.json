@@ -1,6 +1,6 @@
 {
   "name": "yich-beauty-system",
-  "version": "0.1.330",
+  "version": "0.1.331",
   "private": true,
   "type": "module",
   "scripts": {
@@ -20,6 +20,8 @@
     "verify:signature-persistence": "tsx scripts/verify-signature-persistence.ts",
     "verify:night-theme": "tsx scripts/verify-night-theme.ts",
     "verify:bundle": "tsx scripts/verify-bundle-budget.ts",
+    "verify:release-safety": "tsx scripts/verify-release-safety.ts",
+    "verify:production-release": "tsx scripts/verify-production-release.ts",
     "android:sync": "sh scripts/build-android-apk.sh sync",
     "android:apk": "sh scripts/build-android-apk.sh apk",
     "preview": "vite preview --host 0.0.0.0",
@@ -28,7 +30,7 @@
     "d1:migrate:local": "wrangler d1 migrations apply yich-beauty-db --local",
     "d1:migrate:remote": "wrangler d1 migrations apply yich-beauty-db --remote",
     "dev:cloudflare": "npm run build && wrangler pages dev dist --compatibility-date=2026-05-24",
-    "deploy:pages": "npm run android:apk && wrangler r2 object put yich-beauty-system-assets/releases/zhurongkftech-app.apk --file public/zhurongkftech-app.apk --content-type application/vnd.android.package-archive --remote && rm -f dist/zhurongkftech-app.apk && wrangler pages deploy dist --project-name yich-beauty-system --branch main --commit-dirty=true",
+    "deploy:pages": "npm run verify:production-release && npm run d1:migrate:remote && npm run android:apk && wrangler r2 object put yich-beauty-system-assets/releases/zhurongkftech-app.apk --file public/zhurongkftech-app.apk --content-type application/vnd.android.package-archive --remote && rm -f dist/zhurongkftech-app.apk && wrangler pages deploy dist --project-name yich-beauty-system --branch main",
     "verify:pwa-version": "tsx scripts/verify-pwa-version.ts"
   },
   "dependencies": {

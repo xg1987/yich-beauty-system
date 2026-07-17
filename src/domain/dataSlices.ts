@@ -19,6 +19,8 @@ export type AppDataUpdate = AppData | AppDataSlice | AppDataPatch;
 
 type AppDataKey = keyof AppData;
 
+export const POS_REMOTE_PAGING_CAPABILITY = "pos-remote-paging-v1";
+
 const commonKeys: AppDataKey[] = [
   "storeProfiles",
   "authUsers",
@@ -39,8 +41,6 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "approvalRequests",
     "customerSignatures",
     "customerFollowUps",
-    "dailyCloses",
-    "operationLogs",
   ],
   appointments: [
     "customers",
@@ -58,17 +58,6 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "products",
     "appointments",
     "memberCards",
-    "orders",
-    "refunds",
-    "commissions",
-    "inventoryBatches",
-    "inventoryLogs",
-    "memberCardTransactions",
-    "approvalRequests",
-    "customerServiceRecords",
-    "customerSignatures",
-    "customerFollowUps",
-    "dailyCloses",
   ],
   customers: [
     "customers",
@@ -204,6 +193,20 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
   ],
 };
 
+const legacyPosKeys: AppDataKey[] = [
+  "orders",
+  "refunds",
+  "commissions",
+  "inventoryBatches",
+  "inventoryLogs",
+  "memberCardTransactions",
+  "approvalRequests",
+  "customerServiceRecords",
+  "customerSignatures",
+  "customerFollowUps",
+  "dailyCloses",
+];
+
 export function isAppDataSlice(value: unknown): value is AppDataSlice {
   return typeof value === "object"
     && value !== null
@@ -224,8 +227,9 @@ export function isViewKey(value: string | undefined | null): value is ViewKey {
   return typeof value === "string" && value in viewKeys;
 }
 
-export function dataKeysForView(view: ViewKey) {
-  return Array.from(new Set([...commonKeys, ...viewKeys[view]]));
+export function dataKeysForView(view: ViewKey, options: { includeLegacyPosData?: boolean } = {}) {
+  const compatibilityKeys = view === "pos" && options.includeLegacyPosData ? legacyPosKeys : [];
+  return Array.from(new Set([...commonKeys, ...viewKeys[view], ...compatibilityKeys]));
 }
 
 export function emptyAppData(): AppData {
@@ -271,19 +275,27 @@ export function emptyAppData(): AppData {
   };
 }
 
-export function dataSliceForView(data: AppData, view: ViewKey): Partial<AppData> {
+export function dataSliceForView(
+  data: AppData,
+  view: ViewKey,
+  keys: readonly AppDataKey[] = dataKeysForView(view),
+): Partial<AppData> {
   const slice: Partial<AppData> = {};
-  for (const key of dataKeysForView(view)) {
+  for (const key of keys) {
     slice[key] = data[key] as never;
   }
   return slice;
 }
 
-export function makeAppDataSlice(data: AppData, view: ViewKey): AppDataSlice {
+export function makeAppDataSlice(
+  data: AppData,
+  view: ViewKey,
+  keys: readonly AppDataKey[] = dataKeysForView(view),
+): AppDataSlice {
   return {
     kind: "app-data-slice",
     view,
-    data: dataSliceForView(data, view),
+    data: dataSliceForView(data, view, keys),
     generatedAt: new Date().toISOString(),
   };
 }

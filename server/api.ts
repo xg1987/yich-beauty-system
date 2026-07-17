@@ -83,9 +83,9 @@ import { normalizeUserSession, type Permission, type UserSession } from "../src/
 import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../src/domain/aiBilling";
 import { requireMobilePhone } from "../src/domain/phone";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, WorkerUsageSnapshot } from "../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
-import { dataKeysForView, diffAppData, isViewKey, makeAppDataPatch, makeAppDataSlice } from "../src/domain/dataSlices";
+import { dataKeysForView, diffAppData, isViewKey, makeAppDataPatch, makeAppDataSlice, POS_REMOTE_PAGING_CAPABILITY } from "../src/domain/dataSlices";
 import { makeId, nowIso } from "../src/domain/utils";
 import { destroySession, getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase, type TableName } from "./database";
@@ -180,18 +180,16 @@ export function createApiServer(database = new BeautyDatabase()) {
         const account = requiredString(body, "account");
         const plainPassword = requiredString(body, "password");
 
-        const currentData = database.readData();
+        const currentData = database.readDataTables(["authUsers", "systemConfigs"]);
         const loginResult = await login(account, plainPassword, currentData.authUsers, currentData.systemConfigs);
 
         // Auto-migrate legacy plaintext password to bcrypt hash on successful login
         if (loginResult.needsPasswordMigration && loginResult.userIdNeedingMigration) {
-          const currentData = database.readData();
           const hashed = await hashPassword(plainPassword);
           const migratedUsers = currentData.authUsers.map((u) =>
             u.id === loginResult.userIdNeedingMigration ? { ...u, password: hashed } : u
           );
-          const migratedData = { ...currentData, authUsers: migratedUsers };
-          database.replaceData(migratedData);
+          database.replaceDataTables({ ...currentData, authUsers: migratedUsers }, ["authUsers"]);
         }
 
         sendJson(response, 200, loginResult.session);
@@ -333,7 +331,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         sendJson(response, 401, { error: "请先登录" });
         return;
       }
-      session = normalizeUserSession(session, database.readData().systemConfigs);
+      session = normalizeUserSession(session, database.readDataTables(["systemConfigs"]).systemConfigs);
 
       if (request.method === "GET" && url.pathname === "/api/auth/me") {
         sendJson(response, 200, session);
@@ -417,6 +415,45 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "GET" && url.pathname === "/api/data") {
         requirePermission(session, "dashboard:view");
         sendScopedData(request, response, 200, readDataForRequest(database, request, session), session);
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/pos/context") {
+        requirePermission(session, "pos:manage");
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const { dayStart, dayEnd } = requiredPosDayRange(url);
+        sendJson(response, 200, database.readPosContext(storeId, {
+          dayStart,
+          dayEnd,
+          appointmentId: url.searchParams.get("appointmentId") || undefined,
+          signatureId: url.searchParams.get("signatureId") || undefined,
+        }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/pos/cashier-flow") {
+        requirePermission(session, "pos:manage");
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        sendJson(response, 200, database.readCashierFlowPage(
+          storeId,
+          positiveIntegerQuery(url, "page", 1),
+          positiveIntegerQuery(url, "pageSize", 50),
+        ));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/api/pos/cashier-flow/")) {
+        requirePermission(session, "pos:manage");
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const kind = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const id = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        if (kind !== "order" && kind !== "memberCard") throw new Error("流水类型不正确");
+        const detail = database.readCashierFlowDetail(storeId, kind, id);
+        if (!detail) throw new Error("收银流水不存在");
+        sendJson(response, 200, detail);
         return;
       }
 
@@ -1499,10 +1536,10 @@ export function createApiServer(database = new BeautyDatabase()) {
         requireAnyPermission(session, ["customers:manage", "pos:manage"]);
         const signatureId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const signature = database.readCustomerSignatureById(signatureId);
-        if (!signature) throw new Error("签名记录不存在");
-        const storeId = signature.storeId ?? resolveSessionStoreIdLocal(database, session);
+        const storeId = resolveSessionStoreIdLocal(database, session);
         if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const signature = database.readCustomerSignatureByIdForStore(signatureId, storeId);
+        if (!signature) throw new Error("签名记录不存在");
         const currentData = database.readCustomerSignatureContext(storeId, signature);
         const previousData = { ...currentData, customerSignatures: [signature] };
         const nextData = signCustomerSignature(previousData, {
@@ -4205,13 +4242,30 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
   response.end(JSON.stringify(payload));
 }
 
+function positiveIntegerQuery(url: URL, key: string, fallback: number) {
+  const value = Number.parseInt(url.searchParams.get(key) ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function requiredPosDayRange(url: URL) {
+  const dayStart = url.searchParams.get("dayStart") ?? "";
+  const dayEnd = url.searchParams.get("dayEnd") ?? "";
+  const startMs = Date.parse(dayStart);
+  const endMs = Date.parse(dayEnd);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || endMs - startMs > 3 * 24 * 60 * 60 * 1000) {
+    throw new Error("收银统计日期范围不正确");
+  }
+  return { dayStart: new Date(startMs).toISOString(), dayEnd: new Date(endMs).toISOString() };
+}
+
 function readDataForRequest(database: BeautyDatabase, request: IncomingMessage, session: UserSession) {
   if (!isSliceRequest(request)) return expireStaleMarketingAiRecords(database.readData());
   const requestedView = requestedDataView(request);
   if (!requestedView) return expireStaleMarketingAiRecords(database.readData());
+  const keys = dataKeysForRequest(request, requestedView);
   const data = session.user.role !== "superadmin" && session.user.storeId
-    ? database.readDataTablesForStore(dataKeysForView(requestedView), session.user.storeId)
-    : database.readDataTables(dataKeysForView(requestedView));
+    ? database.readDataTablesForStore(keys, session.user.storeId)
+    : database.readDataTables(keys);
   return expireStaleMarketingAiRecords(data);
 }
 
@@ -4227,7 +4281,7 @@ function sendScopedData(request: IncomingMessage, response: ServerResponse, stat
   if (isSliceRequest(request)) {
     const requestedView = requestedDataView(request);
     if (requestedView) {
-      sendJson(response, statusCode, makeAppDataSlice(responseData, requestedView));
+      sendJson(response, statusCode, makeAppDataSlice(responseData, requestedView, dataKeysForRequest(request, requestedView)));
       return;
     }
   }
@@ -4281,6 +4335,17 @@ function requestedDataView(request: IncomingMessage) {
   return isViewKey(requestedView) ? requestedView : undefined;
 }
 
+function dataKeysForRequest(request: IncomingMessage, view: ViewKey) {
+  return dataKeysForView(view, {
+    includeLegacyPosData: view === "pos" && !requestSupportsCapability(request, POS_REMOTE_PAGING_CAPABILITY),
+  });
+}
+
+function requestSupportsCapability(request: IncomingMessage, capability: string) {
+  const capabilities = stringHeader(request.headers["x-yich-capabilities"]);
+  return capabilities?.split(",").map((item) => item.trim()).includes(capability) ?? false;
+}
+
 function stringHeader(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -4288,7 +4353,7 @@ function stringHeader(value: string | string[] | undefined) {
 function setCorsHeaders(response: ServerResponse) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View, Cache-Control, Pragma");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View, X-Yich-Capabilities, Cache-Control, Pragma");
 }
 
 function requiredString(body: JsonBody, key: string) {

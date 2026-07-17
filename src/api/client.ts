@@ -1,6 +1,7 @@
 import type { UserSession } from "../domain/auth";
 import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiCost, MarketingAiCostBreakdown, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
-import type { AppDataSlice, AppDataUpdate } from "../domain/dataSlices";
+import { POS_REMOTE_PAGING_CAPABILITY, type AppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
+import type { CashierFlowDetailResult, CashierFlowPageResult, PosContextResult } from "../domain/cashierFlow";
 import { recoverFromStaleAssets } from "../appRecovery";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -163,7 +164,18 @@ export function createApiClient(getToken: () => string | undefined) {
         token: getToken(),
         dataMode: "slice",
         dataScope: view,
+        capabilities: view === "pos" ? [POS_REMOTE_PAGING_CAPABILITY] : undefined,
       }),
+    fetchPosContext: (input: { dayStart: string; dayEnd: string; appointmentId?: string; signatureId?: string }) => {
+      const query = new URLSearchParams({ dayStart: input.dayStart, dayEnd: input.dayEnd });
+      if (input.appointmentId) query.set("appointmentId", input.appointmentId);
+      if (input.signatureId) query.set("signatureId", input.signatureId);
+      return request<PosContextResult>(`/api/pos/context?${query}`, { token: getToken() });
+    },
+    fetchCashierFlowPage: (page: number, pageSize = 50) =>
+      request<CashierFlowPageResult>(`/api/pos/cashier-flow?page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`, { token: getToken() }),
+    fetchCashierFlowDetail: (kind: "order" | "memberCard", id: string) =>
+      request<CashierFlowDetailResult>(`/api/pos/cashier-flow/${kind}/${encodeURIComponent(id)}`, { token: getToken() }),
     fetchR2Usage: () => request<R2UsageSnapshot>("/api/usage/r2", { token: getToken() }),
     fetchWorkerUsage: () => request<WorkerUsageSnapshot>("/api/usage/worker", { token: getToken() }),
     fetchDataQuality: () => request<DataCleanupReport>("/api/data-quality", { token: getToken() }),
@@ -529,13 +541,14 @@ export function createApiClient(getToken: () => string | undefined) {
 
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; token?: string; dataMode?: "slice"; dataScope?: ViewKey; timeoutMs?: number; timeoutMessage?: string } = {},
+  options: { method?: string; body?: unknown; token?: string; dataMode?: "slice"; dataScope?: ViewKey; capabilities?: string[]; timeoutMs?: number; timeoutMessage?: string } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
   const cacheKey = requestCacheKey(path, options.token);
   const cacheable = method === "GET" && isCacheableGet(path);
   const dataScope = options.dataScope ?? (method === "GET" ? undefined : activeDataScope);
   const dataMode = options.dataMode ?? (method === "GET" || !dataScope ? undefined : "slice");
+  const capabilities = options.capabilities ?? (dataScope === "pos" ? [POS_REMOTE_PAGING_CAPABILITY] : undefined);
   if (cacheable) {
     const cached = responseCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -556,6 +569,7 @@ async function request<T>(
           ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
           ...(dataMode ? { "X-App-Data-Mode": dataMode } : {}),
           ...(dataScope ? { "X-App-Data-View": dataScope } : {}),
+          ...(capabilities?.length ? { "X-Yich-Capabilities": capabilities.join(",") } : {}),
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
       },
