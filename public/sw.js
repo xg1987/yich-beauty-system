@@ -1,4 +1,4 @@
-const ICON_VERSION = "0.1.333";
+const ICON_VERSION = "0.1.334";
 const CACHE_REVISION = "zoom-lock-20260704";
 const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}-${CACHE_REVISION}`;
 const APP_SHELL_ASSETS = [
@@ -94,13 +94,16 @@ async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
     const response = await fetch(request, { cache: "no-store" });
+    if (!response.ok || !isExpectedAssetResponse(request, response)) {
+      throw new Error("Unexpected asset response");
+    }
     if (response.ok) {
       cache.put(request, response.clone()).catch(() => undefined);
     }
     return response;
   } catch {
     const cached = await cache.match(request);
-    if (cached) return cached;
+    if (cached && isExpectedAssetResponse(request, cached)) return cached;
     throw new Error("Network request failed");
   }
 }
@@ -119,4 +122,13 @@ async function cacheFirst(request) {
 
 function isHtmlResponse(response) {
   return response.headers.get("content-type")?.includes("text/html") ?? false;
+}
+
+function isExpectedAssetResponse(request, response) {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (["script", "worker"].includes(request.destination)) {
+    return contentType.includes("javascript") || contentType.includes("wasm");
+  }
+  if (request.destination === "style") return contentType.includes("text/css");
+  return !isHtmlResponse(response);
 }

@@ -11,6 +11,7 @@ type AssetCheck = {
 const root = process.cwd();
 const distDir = join(root, "dist");
 const assetsDir = join(distDir, "assets");
+const packageVersion = (JSON.parse(readFileSync(join(root, "package.json"), "utf-8")) as { version?: string }).version;
 
 function fail(message: string): never {
   throw new Error(`[bundle-budget] ${message}`);
@@ -51,6 +52,13 @@ for (const eagerChunk of ["AuthenticatedApp", "Reports", "OperationLogs"]) {
 }
 
 const assets = readdirSync(assetsDir).filter((file) => file.endsWith(".js"));
+const unversionedBuildAssets = readdirSync(assetsDir)
+  .filter((file) => /\.(?:js|css)$/.test(file))
+  .filter((file) => !packageVersion || !file.includes(`-v${packageVersion}-`));
+if (unversionedBuildAssets.length > 0) {
+  fail(`生产 JS/CSS 文件名必须包含版本号，发现：${unversionedBuildAssets.slice(0, 3).join("、")}`);
+}
+
 const lazyAuthGateChunk = assets.find((file) => /^AuthGate-.*\.js$/.test(file));
 if (lazyAuthGateChunk) {
   fail(`认证门控 AuthGate 不应拆成懒加载 chunk：${lazyAuthGateChunk}`);

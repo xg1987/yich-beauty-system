@@ -5,7 +5,7 @@
   Cache-Control: no-cache
 
 /assets/*
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, max-age=0, must-revalidate
 
 /marketing-video-template-previews/*.mp4
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0

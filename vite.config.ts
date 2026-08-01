@@ -22,6 +22,9 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
+        entryFileNames: `assets/[name]-v${pkg.version}-[hash].js`,
+        chunkFileNames: `assets/[name]-v${pkg.version}-[hash].js`,
+        assetFileNames: `assets/[name]-v${pkg.version}-[hash][extname]`,
         manualChunks(id) {
           if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) return "vendor-react";
           if (id.includes("node_modules/lucide-react")) return "vendor-icons";
