@@ -62,7 +62,18 @@ import { DataTable } from "../components/ui/DataTable";
 import { DateTimeInput } from "../components/ui/DateTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
-import { memberCardVoidEligibility, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
+import {
+  buildMemberCardDebitPlan,
+  memberCardDebitPlanCoversServices,
+  memberCardDebitPlanShortfalls,
+  memberCardServiceEntitlement,
+  memberCardVoidEligibility,
+  normalizeMemberCardServiceEntitlements,
+  platformInviteCodeForPlatformAdmin,
+  reportSummary,
+  storeStaffInviteCodeForStoreUser,
+  type MemberCardDebitPlanLine,
+} from "../domain/business";
 import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, isAppointmentInArrivalConfirmationWindow, appointmentArrivalConfirmationWindow, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import {
@@ -3377,29 +3388,19 @@ function Pos({
       : Array.from(selectedCustomerProjectServiceIds),
   );
   const selectedCustomerSelectableServiceIdsKey = Array.from(selectedCustomerSelectableServiceIds).sort().join("|");
-  const checkoutAutoDebitPlan = buildUiMemberCardDebitPlan(
-    selectedCustomerProjectCards,
-    selectedServices.map((service) => service.id),
-    data.services,
-  );
-  const checkoutAutoDebitCoveredQuantity = checkoutAutoDebitPlan.reduce((sum, row) => sum + row.quantity, 0);
-  const checkoutAutoDebitRequiredQuantity = selectedServices.length;
-  const checkoutAutoDebitCoversOrder = checkoutAutoDebitRequiredQuantity === 0 || checkoutAutoDebitCoveredQuantity >= checkoutAutoDebitRequiredQuantity;
+  const selectedCheckoutServiceIds = selectedServices.map((service) => service.id);
+  const checkoutAutoDebitPlanLines = buildMemberCardDebitPlan(data, customerId, selectedCheckoutServiceIds);
+  const checkoutAutoDebitPlan = buildUiMemberCardDebitPlan(data, checkoutAutoDebitPlanLines);
+  const checkoutAutoDebitCoversOrder = memberCardDebitPlanCoversServices(checkoutAutoDebitPlanLines, selectedCheckoutServiceIds);
   const checkoutRelevantProjectCards = selectedCustomerProjectCards.filter((card) =>
     selectedServices.some((service) => signatureMemberCardSupportsService(card, service.id)),
   );
-  const checkoutAutoDebitShortfalls = selectedServiceRows
-    .map(({ service, quantity }) => {
-      const covered = checkoutAutoDebitPlan
-        .filter((row) => row.service.id === service.id)
-        .reduce((sum, row) => sum + row.quantity, 0);
-      if (covered >= quantity) return "";
-      const available = checkoutRelevantProjectCards
-        .filter((card) => signatureMemberCardSupportsService(card, service.id))
-        .reduce((sum, card) => sum + signatureMemberCardRemainingForService(card, service.id), 0);
-      return `${service.name} 剩余${available}次，本单需${quantity}次`;
-    })
-    .filter(Boolean);
+  const checkoutAutoDebitShortfalls = memberCardDebitPlanShortfalls(
+    data,
+    customerId,
+    selectedCheckoutServiceIds,
+    checkoutAutoDebitPlanLines,
+  );
   const checkoutCardSelectedServiceText = (card: AppData["memberCards"][number]) => {
     if (!usesService || selectedServiceRows.length === 0) return memberCardAvailableTimesText(card, data.services);
     return selectedServiceRows
@@ -3418,7 +3419,7 @@ function Pos({
         blocked: checkoutDiscountedPrice > 0 && card.balance < checkoutDiscountedPrice,
       }];
     }
-    const entitlementMap = new Map((card.serviceEntitlements ?? []).map((item) => [item.serviceId, item]));
+    const entitlementMap = new Map(normalizeMemberCardServiceEntitlements(card.serviceEntitlements).map((item) => [item.serviceId, item]));
     const scopedServiceIds = memberCardAvailableServiceIds(card);
     const rows = selectedServiceRows.length
       ? selectedServiceRows.map(({ service, quantity }) => {
@@ -3663,6 +3664,10 @@ function Pos({
     setAppointmentId("");
   };
 
+  const clearAppointmentForServiceChange = () => {
+    if (!selectedCheckoutAppointment || selectedCheckoutAppointmentServiceIds.length > 0) clearAppointment();
+  };
+
   const updateCheckoutCustomerSearch = (value: string) => {
     setCustomerSearch(value);
     const uniqueMatch = findUniqueCustomerBySearchText(data.customers, value);
@@ -3858,10 +3863,8 @@ function Pos({
     setGuestName("");
     setGuestPhone("");
     setStaffId(appointment.staffId);
-    if (nextServiceIds.length > 0) {
-      setCheckoutServiceIds(nextServiceIds);
-      resetCheckoutDiscount();
-    }
+    setCheckoutServiceIds(nextServiceIds);
+    resetCheckoutDiscount();
     setCollaboratorStaffIds([]);
     setCardId("");
     setServicePickerOpen(false);
@@ -3947,7 +3950,7 @@ function Pos({
 
   const setCheckoutServiceQuantity = (nextServiceId: string, quantity: number) => {
     const nextQuantity = Math.max(0, Math.floor(quantity));
-    clearAppointment();
+    clearAppointmentForServiceChange();
     resetCheckoutDiscount();
     setCheckoutServiceIds((previous) => {
       let inserted = false;
@@ -3969,7 +3972,7 @@ function Pos({
   };
 
   const selectCheckoutService = (nextServiceId: string) => {
-    clearAppointment();
+    clearAppointmentForServiceChange();
     resetCheckoutDiscount();
     setCheckoutServiceIds((previous) => {
       return previous.includes(nextServiceId)
@@ -4630,7 +4633,7 @@ function Pos({
               <div className="checkout-product-toolbar single">
                 <button type="button" onClick={openServicePicker}>
                   <Sparkles size={16} />
-                  选择项目
+                  {selectedCheckoutAppointmentNeedsServiceSelection ? "选择实际服务" : "选择项目"}
                 </button>
               </div>
               <div className="checkout-product-section">
@@ -4775,7 +4778,7 @@ function Pos({
               {appointmentId && (
                 <p className="form-note">
                   {selectedCheckoutAppointmentNeedsServiceSelection
-                    ? "到店确认项目，请选择实际服务；签完才完成。"
+                    ? "该预约未预选服务，请选择本次实际服务；收银并签名后预约完成。"
                     : "已带入预约信息，签完才完成。"}
                 </p>
               )}
@@ -8206,7 +8209,7 @@ function signatureServiceQuantityRows(data: AppData, order: Order) {
 function signatureMemberCardSupportsService(card: AppData["memberCards"][number], serviceId: string) {
   if (card.type === "储值卡") return true;
   if (!serviceId) return false;
-  if (card.serviceEntitlements?.length) return card.serviceEntitlements.some((item) => item.serviceId === serviceId);
+  if (card.serviceEntitlements?.length) return Boolean(memberCardServiceEntitlement(card, serviceId));
   if (card.serviceIds?.length) return card.serviceIds.includes(serviceId);
   if (card.serviceId && card.serviceId !== serviceId) return false;
   return true;
@@ -8215,7 +8218,7 @@ function signatureMemberCardSupportsService(card: AppData["memberCards"][number]
 function signatureMemberCardRemainingForService(card: AppData["memberCards"][number], serviceId: string) {
   if (card.type === "储值卡") return Number.POSITIVE_INFINITY;
   if (card.serviceEntitlements?.length) {
-    return card.serviceEntitlements.find((item) => item.serviceId === serviceId)?.remainingTimes ?? 0;
+    return memberCardServiceEntitlement(card, serviceId)?.remainingTimes ?? 0;
   }
   return signatureMemberCardSupportsService(card, serviceId) ? card.remainingTimes : 0;
 }
@@ -8236,69 +8239,34 @@ function signatureCardPriority(card: AppData["memberCards"][number], serviceId: 
   return (serviceSpecific ? 0 : 10) + typePriority;
 }
 
-function uiDebitCardPriority(card: AppData["memberCards"][number], serviceId: string) {
-  const serviceSpecific = card.serviceEntitlements?.some((item) => item.serviceId === serviceId)
-    || card.serviceId === serviceId
-    || Boolean(card.serviceIds?.includes(serviceId));
-  const typePriority = card.type === "次数卡" ? 0 : card.type === "套餐卡" ? 1 : 2;
-  const expiresAt = card.expiresAt ? +new Date(card.expiresAt) : Number.POSITIVE_INFINITY;
-  return { serviceSpecific, typePriority, expiresAt };
-}
-
-function compareUiDebitCardPriority(left: AppData["memberCards"][number], right: AppData["memberCards"][number], serviceId: string) {
-  const a = uiDebitCardPriority(left, serviceId);
-  const b = uiDebitCardPriority(right, serviceId);
-  if (a.serviceSpecific !== b.serviceSpecific) return a.serviceSpecific ? -1 : 1;
-  if (a.typePriority !== b.typePriority) return a.typePriority - b.typePriority;
-  if (a.expiresAt !== b.expiresAt) return a.expiresAt - b.expiresAt;
-  return signatureMemberCardRemainingForService(left, serviceId) - signatureMemberCardRemainingForService(right, serviceId);
-}
-
-function buildUiMemberCardDebitPlan(cards: AppData["memberCards"], serviceIds: string[], services: AppData["services"]) {
-  const projectCards = cards.filter((card) => card.status === "正常" && card.type !== "储值卡" && card.type !== "折扣卡");
-  const allocatedTotalByCard = new Map<string, number>();
-  const allocatedByCardService = new Map<string, number>();
-  const lines = new Map<string, {
+function buildUiMemberCardDebitPlan(data: AppData, plan: MemberCardDebitPlanLine[]) {
+  const allocatedTotalByCard = plan.reduce((totals, line) => {
+    totals.set(line.cardId, (totals.get(line.cardId) ?? 0) + line.quantity);
+    return totals;
+  }, new Map<string, number>());
+  return plan.flatMap<{
     card: AppData["memberCards"][number];
     service: Service;
     quantity: number;
     beforeText: string;
     afterText: string;
-  }>();
-  serviceIds.filter(Boolean).forEach((serviceId) => {
-    const service = services.find((item) => item.id === serviceId);
-    if (!service) return;
-    const selectedCard = projectCards
-      .filter((card) => signatureMemberCardSupportsService(card, serviceId))
-      .filter((card) => {
-        const entitlement = card.serviceEntitlements?.find((item) => item.serviceId === serviceId);
-        if (card.serviceEntitlements?.length) {
-          return (entitlement?.remainingTimes ?? 0) - (allocatedByCardService.get(`${card.id}:${serviceId}`) ?? 0) > 0;
-        }
-        return card.remainingTimes - (allocatedTotalByCard.get(card.id) ?? 0) > 0;
-      })
-      .sort((left, right) => compareUiDebitCardPriority(left, right, serviceId))[0];
-    if (!selectedCard) return;
-    allocatedTotalByCard.set(selectedCard.id, (allocatedTotalByCard.get(selectedCard.id) ?? 0) + 1);
-    allocatedByCardService.set(`${selectedCard.id}:${serviceId}`, (allocatedByCardService.get(`${selectedCard.id}:${serviceId}`) ?? 0) + 1);
-    const key = `${selectedCard.id}:${serviceId}`;
-    const current = lines.get(key);
-    const quantity = (current?.quantity ?? 0) + 1;
-    const entitlement = selectedCard.serviceEntitlements?.find((item) => item.serviceId === serviceId);
-    const beforeRemaining = signatureMemberCardRemainingForService(selectedCard, serviceId);
-    const allocatedForService = allocatedByCardService.get(`${selectedCard.id}:${serviceId}`) ?? 0;
-    const afterRemaining = selectedCard.serviceEntitlements?.length
-      ? Math.max(0, beforeRemaining - allocatedForService)
-      : Math.max(0, selectedCard.remainingTimes - (allocatedTotalByCard.get(selectedCard.id) ?? 0));
-    lines.set(key, {
-      card: selectedCard,
+  }>((line) => {
+    const card = data.memberCards.find((item) => item.id === line.cardId);
+    const service = data.services.find((item) => item.id === line.serviceId);
+    if (!card || !service) return [];
+    const entitlement = memberCardServiceEntitlement(card, line.serviceId);
+    const beforeRemaining = signatureMemberCardRemainingForService(card, line.serviceId);
+    const afterRemaining = entitlement
+      ? Math.max(0, beforeRemaining - line.quantity)
+      : Math.max(0, card.remainingTimes - (allocatedTotalByCard.get(card.id) ?? 0));
+    return [{
+      card,
       service,
-      quantity,
+      quantity: line.quantity,
       beforeText: entitlement ? `剩 ${beforeRemaining}/${entitlement.totalTimes} 次` : `剩 ${beforeRemaining} 次`,
       afterText: entitlement ? `扣后 ${afterRemaining}/${entitlement.totalTimes} 次` : `扣后 ${afterRemaining} 次`,
-    });
+    }];
   });
-  return Array.from(lines.values());
 }
 
 function signatureOrderDebitCard(data: AppData, order: Order) {
@@ -8315,17 +8283,23 @@ function signatureOrderDebitCard(data: AppData, order: Order) {
 function signatureMemberCardUsageRows(data: AppData, order: Order) {
   const alreadyDebited = data.memberCardTransactions.some((transaction) => transaction.orderId === order.id && transaction.type === "消费");
   const orderServiceIds = (order.serviceIds?.length ? order.serviceIds : [order.serviceId]).filter(Boolean);
-  const projectPlan = buildUiMemberCardDebitPlan(
-    data.memberCards.filter((card) => card.customerId === order.customerId),
-    orderServiceIds,
-    data.services,
-  );
+  const projectPlanLines = buildMemberCardDebitPlan(data, order.customerId, orderServiceIds, order.cardId);
+  const projectPlan = buildUiMemberCardDebitPlan(data, projectPlanLines);
   if (projectPlan.length > 0) {
+    const allocatedTotalByCard = projectPlan.reduce((totals, line) => {
+      totals.set(line.card.id, (totals.get(line.card.id) ?? 0) + line.quantity);
+      return totals;
+    }, new Map<string, number>());
     const plannedRows = projectPlan.map((line) => {
       const currentRemaining = signatureMemberCardRemainingForService(line.card, line.service.id);
-      const entitlement = line.card.serviceEntitlements?.find((item) => item.serviceId === line.service.id);
-      const beforeTimes = alreadyDebited ? currentRemaining + line.quantity : currentRemaining;
-      const afterTimes = alreadyDebited ? currentRemaining : Math.max(0, currentRemaining - line.quantity);
+      const entitlement = memberCardServiceEntitlement(line.card, line.service.id);
+      const allocatedTotal = allocatedTotalByCard.get(line.card.id) ?? line.quantity;
+      const beforeTimes = entitlement
+        ? alreadyDebited ? currentRemaining + line.quantity : currentRemaining
+        : alreadyDebited ? line.card.remainingTimes + allocatedTotal : line.card.remainingTimes;
+      const afterTimes = entitlement
+        ? alreadyDebited ? currentRemaining : Math.max(0, currentRemaining - line.quantity)
+        : alreadyDebited ? line.card.remainingTimes : Math.max(0, line.card.remainingTimes - allocatedTotal);
       const formatTimes = (value: number) => entitlement ? `${value}/${entitlement.totalTimes}次` : `${value}次`;
       return {
         key: `${order.id}:${line.card.id}:${line.service.id}`,
@@ -8347,14 +8321,15 @@ function signatureMemberCardUsageRows(data: AppData, order: Order) {
         const available = data.memberCards
           .filter((card) => card.customerId === order.customerId && signatureMemberCardSupportsService(card, row.serviceId))
           .reduce((sum, card) => sum + signatureMemberCardRemainingForService(card, row.serviceId), 0);
+        const sharedPoolConflict = available >= row.quantity;
         return {
           key: `${order.id}:shortfall:${row.serviceId}`,
           cardName: "客户项目次数",
           serviceName: row.name,
           usedText: `${row.quantity}次`,
-          beforeText: `${available}次`,
-          afterText: `${available}次`,
-          statusText: "不足",
+          beforeText: sharedPoolConflict ? `可分配${covered}次` : `${available}次`,
+          afterText: sharedPoolConflict ? "与其他项目共用" : `${available}次`,
+          statusText: sharedPoolConflict ? "共用次数不足" : "不足",
           blocked: true,
         };
       })
@@ -8388,7 +8363,7 @@ function signatureMemberCardUsageRows(data: AppData, order: Order) {
     }];
   }
   return signatureServiceQuantityRows(data, order).map((row) => {
-    const entitlement = card.serviceEntitlements?.find((item) => item.serviceId === row.serviceId);
+    const entitlement = memberCardServiceEntitlement(card, row.serviceId);
     const currentRemaining = signatureMemberCardRemainingForService(card, row.serviceId);
     const supports = signatureMemberCardSupportsService(card, row.serviceId);
     const blocked = !alreadyDebited && (!supports || currentRemaining < row.quantity);

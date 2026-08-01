@@ -70,7 +70,7 @@ import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData, MarketingAiRecord } from "../src/domain/types";
 import { money } from "../src/domain/utils";
 import { isVersionGreater } from "../src/appUpdate";
-import { memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue } from "../src/app/authenticatedAppHelpers";
+import { aggregateMemberCardServiceAvailability, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue } from "../src/app/authenticatedAppHelpers";
 import { mergePosRemoteData } from "../src/hooks/usePosRemoteData";
 
 const cloneSeed = (): AppData => structuredClone(testFixtureData);
@@ -2336,6 +2336,114 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     refunded.memberCardTransactions.filter((transaction) => transaction.orderId === signed.orders[0].id && transaction.type === "退款").length,
     2,
     "cross-card refund should write one refund transaction per restored card",
+  );
+}
+
+{
+  const sharedPoolData = cloneSeed();
+  sharedPoolData.memberCards = [
+    {
+      id: "shared_pool_card",
+      storeId: sharedPoolData.customers[0].storeId,
+      customerId: "c1",
+      name: "历史共享项目卡",
+      type: "次数卡",
+      balance: 0,
+      remainingTimes: 11,
+      expiresAt: "2026-12-31",
+      status: "正常",
+      serviceId: "v1",
+      serviceIds: ["v1", "v2"],
+    },
+    {
+      id: "dedicated_v1_card",
+      storeId: sharedPoolData.customers[0].storeId,
+      customerId: "c1",
+      name: "面部专用卡",
+      type: "次数卡",
+      balance: 0,
+      remainingTimes: 3,
+      expiresAt: "2027-12-31",
+      status: "正常",
+      serviceId: "v1",
+      serviceIds: ["v1"],
+    },
+  ];
+  const serviceIds = [...Array(3).fill("v1"), ...Array(9).fill("v2")];
+  const checkedOut = checkoutOrder(
+    sharedPoolData,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceIds,
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signed = signCustomerSignature(
+    checkedOut,
+    {
+      token: checkedOut.customerSignatures[0].token,
+      signerName: "共享次数客户",
+      signatureText: "data:image/png;base64,shared-pool-reallocation",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(
+    signed.memberCards.reduce((sum, item) => sum + item.remainingTimes, 0),
+    2,
+    "shared-pool allocation should reassign earlier services instead of falsely blocking a feasible order",
+  );
+  assert.equal(card(signed, "dedicated_v1_card").remainingTimes, 0, "shared-pool allocation should consume the constrained service card first");
+  assert.equal(card(signed, "shared_pool_card").remainingTimes, 2, "shared-pool allocation should preserve flexible uses for other supported services");
+  assert.equal(
+    signed.memberCardTransactions
+      .filter((transaction) => transaction.orderId === signed.orders[0].id && transaction.type === "消费")
+      .reduce((sum, transaction) => sum + transaction.timesDelta, 0),
+    -12,
+    "shared-pool allocation should debit every selected service exactly once",
+  );
+}
+
+{
+  const duplicateEntitlementData = cloneSeed();
+  duplicateEntitlementData.memberCards = [{
+    id: "duplicate_entitlement_card",
+    storeId: duplicateEntitlementData.customers[0].storeId,
+    customerId: "c1",
+    name: "历史重复权益卡",
+    type: "套餐卡",
+    balance: 0,
+    remainingTimes: 11,
+    expiresAt: "2027-12-31",
+    status: "正常",
+    serviceId: "v2",
+    serviceIds: ["v2", "v2"],
+    serviceEntitlements: [
+      { serviceId: "v2", totalTimes: 5, remainingTimes: 5 },
+      { serviceId: "v2", totalTimes: 6, remainingTimes: 6 },
+    ],
+  }];
+  const availability = aggregateMemberCardServiceAvailability(duplicateEntitlementData.memberCards, duplicateEntitlementData.services);
+  assert.deepEqual(memberCardAvailableServiceIds(duplicateEntitlementData.memberCards[0]), ["v2"], "duplicate historical entitlements should expose one selectable service");
+  assert.equal(availability[0]?.remainingTimes, 11, "duplicate historical entitlements should aggregate the full remaining balance");
+  assert.equal(availability[0]?.sources.length, 1, "duplicate historical entitlements should expose one normalized card source");
+  const checkedOut = checkoutOrder(
+    duplicateEntitlementData,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceIds: Array(9).fill("v2"),
+      payMethod: "会员卡",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const updatedCard = card(checkedOut, "duplicate_entitlement_card");
+  assert.equal(updatedCard.remainingTimes, 2, "duplicate historical entitlements should debit nine uses only once");
+  assert.deepEqual(
+    updatedCard.serviceEntitlements,
+    [{ serviceId: "v2", totalTimes: 11, remainingTimes: 2 }],
+    "duplicate historical entitlements should normalize to one balance after mutation",
   );
 }
 

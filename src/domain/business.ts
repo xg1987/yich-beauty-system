@@ -2816,7 +2816,7 @@ function assertMemberCardServiceQuantityAvailable(card: MemberCard, serviceIds: 
   }
 }
 
-type MemberCardDebitPlanLine = {
+export type MemberCardDebitPlanLine = {
   cardId: string;
   serviceId: string;
   quantity: number;
@@ -2846,7 +2846,50 @@ function compareMemberCardDebitPriority(left: MemberCard, right: MemberCard, ser
   return memberCardRemainingForService(left, serviceId) - memberCardRemainingForService(right, serviceId);
 }
 
-function buildMemberCardDebitPlan(data: AppData, customerId: string, serviceIds: string[], preferredCardId?: string): MemberCardDebitPlanLine[] {
+type MemberCardDebitCapacityPool = {
+  key: string;
+  card: MemberCard;
+  capacity: number;
+  serviceId?: string;
+};
+
+type MemberCardDebitFlowEdge = {
+  to: number;
+  reverseIndex: number;
+  capacity: number;
+  initialCapacity: number;
+};
+
+function memberCardDebitPoolFlexibility(pool: MemberCardDebitCapacityPool) {
+  if (pool.serviceId) return 1;
+  const scopedServiceCount = new Set([...(pool.card.serviceIds ?? []), pool.card.serviceId ?? ""].filter(Boolean)).size;
+  return scopedServiceCount > 0 ? scopedServiceCount : Number.MAX_SAFE_INTEGER;
+}
+
+function addMemberCardDebitFlowEdge(
+  graph: MemberCardDebitFlowEdge[][],
+  from: number,
+  to: number,
+  capacity: number,
+) {
+  const forward: MemberCardDebitFlowEdge = {
+    to,
+    reverseIndex: graph[to].length,
+    capacity,
+    initialCapacity: capacity,
+  };
+  const reverse: MemberCardDebitFlowEdge = {
+    to: from,
+    reverseIndex: graph[from].length,
+    capacity: 0,
+    initialCapacity: 0,
+  };
+  graph[from].push(forward);
+  graph[to].push(reverse);
+  return forward;
+}
+
+export function buildMemberCardDebitPlan(data: AppData, customerId: string, serviceIds: string[], preferredCardId?: string): MemberCardDebitPlanLine[] {
   const selectedServiceIds = serviceIds.filter(Boolean);
   if (!customerId || selectedServiceIds.length === 0) return [];
   const cards = data.memberCards.filter((card) =>
@@ -2855,42 +2898,103 @@ function buildMemberCardDebitPlan(data: AppData, customerId: string, serviceIds:
     && card.type !== "储值卡"
     && card.type !== "折扣卡",
   );
-  const allocatedTotalByCard = new Map<string, number>();
-  const allocatedByCardService = new Map<string, number>();
-  const lines = new Map<string, MemberCardDebitPlanLine>();
-  for (const serviceId of selectedServiceIds) {
-    const eligibleCards = cards
-      .filter((card) => memberCardSupportsService(card, serviceId))
-      .filter((card) => {
-        const entitlement = memberCardServiceEntitlement(card, serviceId);
-        if (card.serviceEntitlements?.length) {
-          return (entitlement?.remainingTimes ?? 0) - (allocatedByCardService.get(`${card.id}:${serviceId}`) ?? 0) > 0;
-        }
-        return card.remainingTimes - (allocatedTotalByCard.get(card.id) ?? 0) > 0;
-      })
+  const requirements = serviceQuantityCounts(selectedServiceIds);
+  const requiredServiceIds = Array.from(requirements.keys());
+  const pools: MemberCardDebitCapacityPool[] = cards.flatMap((card) => {
+    const entitlements = normalizeMemberCardServiceEntitlements(card.serviceEntitlements);
+    if (entitlements.length > 0) {
+      return entitlements
+        .filter((entitlement) => entitlement.remainingTimes > 0 && requirements.has(entitlement.serviceId))
+        .map((entitlement) => ({
+          key: `${card.id}:${entitlement.serviceId}`,
+          card,
+          capacity: entitlement.remainingTimes,
+          serviceId: entitlement.serviceId,
+        }));
+    }
+    const capacity = Math.max(0, Math.floor(card.remainingTimes));
+    return capacity > 0 && requiredServiceIds.some((serviceId) => memberCardSupportsService(card, serviceId))
+      ? [{ key: card.id, card, capacity }]
+      : [];
+  });
+
+  const sourceNode = 0;
+  const serviceNodeOffset = 1;
+  const poolNodeOffset = serviceNodeOffset + requiredServiceIds.length;
+  const sinkNode = poolNodeOffset + pools.length;
+  const graph: MemberCardDebitFlowEdge[][] = Array.from({ length: sinkNode + 1 }, () => []);
+  const servicePoolEdges = new Map<string, Array<{ pool: MemberCardDebitCapacityPool; edge: MemberCardDebitFlowEdge }>>();
+
+  requiredServiceIds.forEach((serviceId, serviceIndex) => {
+    const serviceNode = serviceNodeOffset + serviceIndex;
+    addMemberCardDebitFlowEdge(graph, sourceNode, serviceNode, requirements.get(serviceId) ?? 0);
+    const eligiblePools = pools
+      .map((pool, poolIndex) => ({ pool, poolIndex }))
+      .filter(({ pool }) => pool.serviceId ? pool.serviceId === serviceId : memberCardSupportsService(pool.card, serviceId))
       .sort((left, right) => {
         if (preferredCardId) {
-          if (left.id === preferredCardId && right.id !== preferredCardId) return -1;
-          if (right.id === preferredCardId && left.id !== preferredCardId) return 1;
+          if (left.pool.card.id === preferredCardId && right.pool.card.id !== preferredCardId) return -1;
+          if (right.pool.card.id === preferredCardId && left.pool.card.id !== preferredCardId) return 1;
         }
-        return compareMemberCardDebitPriority(left, right, serviceId);
+        return memberCardDebitPoolFlexibility(left.pool) - memberCardDebitPoolFlexibility(right.pool)
+          || compareMemberCardDebitPriority(left.pool.card, right.pool.card, serviceId)
+          || left.pool.key.localeCompare(right.pool.key);
       });
-    const selectedCard = eligibleCards[0];
-    if (!selectedCard) continue;
-    allocatedTotalByCard.set(selectedCard.id, (allocatedTotalByCard.get(selectedCard.id) ?? 0) + 1);
-    allocatedByCardService.set(`${selectedCard.id}:${serviceId}`, (allocatedByCardService.get(`${selectedCard.id}:${serviceId}`) ?? 0) + 1);
-    const lineKey = `${selectedCard.id}:${serviceId}`;
-    const current = lines.get(lineKey);
-    lines.set(lineKey, {
-      cardId: selectedCard.id,
-      serviceId,
-      quantity: (current?.quantity ?? 0) + 1,
-    });
+    const edges = eligiblePools.map(({ pool, poolIndex }) => ({
+      pool,
+      edge: addMemberCardDebitFlowEdge(graph, serviceNode, poolNodeOffset + poolIndex, pool.capacity),
+    }));
+    servicePoolEdges.set(serviceId, edges);
+  });
+  pools.forEach((pool, poolIndex) => {
+    addMemberCardDebitFlowEdge(graph, poolNodeOffset + poolIndex, sinkNode, pool.capacity);
+  });
+
+  const levels = new Array<number>(graph.length).fill(-1);
+  const cursors = new Array<number>(graph.length).fill(0);
+  const buildLevels = () => {
+    levels.fill(-1);
+    levels[sourceNode] = 0;
+    const queue = [sourceNode];
+    for (let index = 0; index < queue.length; index += 1) {
+      const node = queue[index];
+      graph[node].forEach((edge) => {
+        if (edge.capacity <= 0 || levels[edge.to] >= 0) return;
+        levels[edge.to] = levels[node] + 1;
+        queue.push(edge.to);
+      });
+    }
+    return levels[sinkNode] >= 0;
+  };
+  const pushFlow = (node: number, available: number): number => {
+    if (node === sinkNode) return available;
+    for (; cursors[node] < graph[node].length; cursors[node] += 1) {
+      const edge = graph[node][cursors[node]];
+      if (edge.capacity <= 0 || levels[edge.to] !== levels[node] + 1) continue;
+      const pushed = pushFlow(edge.to, Math.min(available, edge.capacity));
+      if (pushed <= 0) continue;
+      edge.capacity -= pushed;
+      graph[edge.to][edge.reverseIndex].capacity += pushed;
+      return pushed;
+    }
+    return 0;
+  };
+  while (buildLevels()) {
+    cursors.fill(0);
+    while (pushFlow(sourceNode, Number.MAX_SAFE_INTEGER) > 0) {
+      // Continue until this level graph cannot carry more project-card uses.
+    }
   }
-  return Array.from(lines.values());
+
+  return requiredServiceIds.flatMap((serviceId) =>
+    (servicePoolEdges.get(serviceId) ?? []).flatMap(({ pool, edge }) => {
+      const quantity = edge.initialCapacity - edge.capacity;
+      return quantity > 0 ? [{ cardId: pool.card.id, serviceId, quantity }] : [];
+    }),
+  );
 }
 
-function memberCardDebitPlanCoversServices(plan: MemberCardDebitPlanLine[], serviceIds: string[]) {
+export function memberCardDebitPlanCoversServices(plan: MemberCardDebitPlanLine[], serviceIds: string[]) {
   const required = serviceQuantityCounts(serviceIds.filter(Boolean));
   const available = new Map<string, number>();
   plan.forEach((line) => available.set(line.serviceId, (available.get(line.serviceId) ?? 0) + line.quantity));
@@ -2908,7 +3012,7 @@ function projectCardsForServices(data: AppData, customerId: string, serviceIds: 
   );
 }
 
-function memberCardDebitPlanShortfalls(data: AppData, customerId: string, serviceIds: string[], plan: MemberCardDebitPlanLine[]) {
+export function memberCardDebitPlanShortfalls(data: AppData, customerId: string, serviceIds: string[], plan: MemberCardDebitPlanLine[]) {
   const allocated = new Map<string, number>();
   plan.forEach((line) => allocated.set(line.serviceId, (allocated.get(line.serviceId) ?? 0) + line.quantity));
   return Array.from(serviceQuantityCounts(serviceIds.filter(Boolean)))
@@ -2925,7 +3029,9 @@ function memberCardDebitPlanShortfalls(data: AppData, customerId: string, servic
         )
         .reduce((sum, card) => sum + memberCardRemainingForService(card, serviceId), 0);
       const serviceName = data.services.find((service) => service.id === serviceId)?.name ?? "当前项目";
-      return `${serviceName}剩余次数不足；${serviceName}剩余${available}次，本次需要${quantity}次`;
+      return available >= quantity
+        ? `${serviceName}与其他项目共用卡内次数，可分配${covered}次，本次需要${quantity}次`
+        : `${serviceName}剩余次数不足；${serviceName}剩余${available}次，本次需要${quantity}次`;
     })
     .filter(Boolean);
 }
@@ -5648,7 +5754,7 @@ function memberCardEntitlementRemainingTimes(entitlements: NonNullable<MemberCar
   return entitlements.reduce((sum, item) => sum + Math.max(0, Math.floor(item.remainingTimes)), 0);
 }
 
-function normalizeMemberCardServiceEntitlements(entitlements: MemberCard["serviceEntitlements"] | undefined) {
+export function normalizeMemberCardServiceEntitlements(entitlements: MemberCard["serviceEntitlements"] | undefined) {
   if (!entitlements?.length) return [];
   const merged = new Map<string, NonNullable<MemberCard["serviceEntitlements"]>[number]>();
   for (const item of entitlements) {
@@ -5671,15 +5777,16 @@ function normalizeMemberCardServiceEntitlements(entitlements: MemberCard["servic
   return Array.from(merged.values());
 }
 
-function memberCardServiceEntitlement(card: MemberCard, serviceId: string) {
-  return card.serviceEntitlements?.find((item) => item.serviceId === serviceId);
+export function memberCardServiceEntitlement(card: MemberCard, serviceId: string) {
+  return normalizeMemberCardServiceEntitlements(card.serviceEntitlements)
+    .find((item) => item.serviceId === serviceId);
 }
 
 function updateMemberCardServiceTimes(card: MemberCard, serviceId: string, delta: number) {
   if (!card.serviceEntitlements?.length) {
     return { ...card, remainingTimes: Math.max(0, card.remainingTimes + delta) };
   }
-  const serviceEntitlements = card.serviceEntitlements.map((item) =>
+  const serviceEntitlements = normalizeMemberCardServiceEntitlements(card.serviceEntitlements).map((item) =>
     item.serviceId === serviceId
       ? {
           ...item,

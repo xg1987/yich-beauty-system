@@ -5,6 +5,7 @@ import {
   productServiceUnit,
   serviceStockQuantityForProduct,
 } from "../domain/products";
+import { normalizeMemberCardServiceEntitlements } from "../domain/business";
 import type { AppData, Product, Service, ServiceConsumable } from "../domain/types";
 import { money } from "../domain/utils";
 
@@ -89,21 +90,21 @@ export function optionalNumberFromInput(value: string) {
 
 export function memberCardProjectScopeText(card: AppData["memberCards"][number], services: AppData["services"]) {
   if (card.serviceEntitlements?.length) {
-    return card.serviceEntitlements.map((item) => nameOf(services, item.serviceId)).join(" / ");
+    return normalizeMemberCardServiceEntitlements(card.serviceEntitlements).map((item) => nameOf(services, item.serviceId)).join(" / ");
   }
   if (card.serviceIds?.length) return card.serviceIds.map((id) => nameOf(services, id)).join(" / ");
   return card.serviceId ? nameOf(services, card.serviceId) : "通用";
 }
 
 export function memberCardPurchasedServiceIds(card: AppData["memberCards"][number]) {
-  if (card.serviceEntitlements?.length) return card.serviceEntitlements.map((item) => item.serviceId).filter(Boolean);
-  if (card.serviceIds?.length) return card.serviceIds.filter(Boolean);
+  if (card.serviceEntitlements?.length) return normalizeMemberCardServiceEntitlements(card.serviceEntitlements).map((item) => item.serviceId).filter(Boolean);
+  if (card.serviceIds?.length) return Array.from(new Set(card.serviceIds.filter(Boolean)));
   return card.serviceId ? [card.serviceId] : [];
 }
 
 export function memberCardAvailableServiceIds(card: AppData["memberCards"][number]) {
   if (card.serviceEntitlements?.length) {
-    return card.serviceEntitlements
+    return normalizeMemberCardServiceEntitlements(card.serviceEntitlements)
       .filter((item) => item.remainingTimes > 0)
       .map((item) => item.serviceId)
       .filter(Boolean);
@@ -135,9 +136,10 @@ export function memberCardTimesText(
 ) {
   if (card.type === "储值卡") return money(card.balance);
   if (card.serviceEntitlements?.length) {
+    const normalizedEntitlements = normalizeMemberCardServiceEntitlements(card.serviceEntitlements);
     const entitlements = focusedServiceId
-      ? card.serviceEntitlements.filter((item) => item.serviceId === focusedServiceId)
-      : card.serviceEntitlements;
+      ? normalizedEntitlements.filter((item) => item.serviceId === focusedServiceId)
+      : normalizedEntitlements;
     if (entitlements.length === 0 && focusedServiceId) return `${nameOf(services, focusedServiceId)} 0次`;
     const visibleEntitlements = options.hideZeroEntitlements
       ? entitlements.filter((item) => item.remainingTimes > 0)
@@ -196,7 +198,7 @@ export function aggregateMemberCardServiceAvailability(
     .filter((card) => card.status === "正常" && card.type !== "储值卡" && card.type !== "折扣卡")
     .forEach((card) => {
       if (card.serviceEntitlements?.length) {
-        card.serviceEntitlements
+        normalizeMemberCardServiceEntitlements(card.serviceEntitlements)
           .filter((entitlement) => entitlement.serviceId && entitlement.remainingTimes > 0)
           .forEach((entitlement) => addSource(entitlement.serviceId, {
             cardId: card.id,
