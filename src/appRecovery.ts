@@ -1,10 +1,10 @@
 const RECOVERY_RELOAD_KEY = "yich-app-recovery-reload";
 const RECOVERY_RELOAD_COOLDOWN_MS = 20_000;
-const UPDATE_QUERY_KEYS = ["__yich_update", "__yich_t", "__yich_recover"];
+const UPDATE_QUERY_KEYS = ["__yich_update", "__yich_t", "__yich_recover", "__yich_fresh"];
 
 export function isRecoverableLoadError(reason: unknown) {
   const message = reason instanceof Error ? reason.message : String(reason ?? "");
-  return /Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload|Loading chunk|ChunkLoadError|dynamically imported module/i.test(message);
+  return /Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload|Loading chunk|ChunkLoadError|dynamically imported module|Cannot read properties of undefined \(reading ['"]default['"]\)/i.test(message);
 }
 
 export async function recoverFromStaleAssets() {

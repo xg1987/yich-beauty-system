@@ -801,20 +801,21 @@ button[aria-busy="true"] {
 
 .loading-progress i {
   display: block;
-  width: 42%;
+  width: 100%;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, transparent 0%, #f0cf7e 40%, #fbe4b4 60%, transparent 100%);
-  animation: loading-progress-flow 1.35s ease-in-out infinite;
+  background: linear-gradient(90deg, rgba(240, 207, 126, 0.58), #fbe4b4, rgba(240, 207, 126, 0.58));
+  animation: loading-progress-pulse 1.35s ease-in-out infinite;
 }
 
-@keyframes loading-progress-flow {
-  0% {
-    transform: translateX(-120%);
+@keyframes loading-progress-pulse {
+  0%,
+  100% {
+    opacity: 0.42;
   }
 
-  100% {
-    transform: translateX(340%);
+  50% {
+    opacity: 1;
   }
 }
 

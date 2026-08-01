@@ -2,7 +2,10 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { BrandedLoading } from "../components/AppLoadingViews";
 import { useApiData } from "../hooks/useApiData";
 
-const loadAuthenticatedApp = () => import("./AuthenticatedApp");
+// Keep the React.lazy contract explicit. Rollup may otherwise optimize a module
+// with re-exports into a namespace alias whose resolved value is not shaped as
+// `{ default: Component }` in the production bundle.
+const loadAuthenticatedApp = () => import("./AuthenticatedApp").then((module) => ({ default: module.default }));
 const AuthenticatedApp = lazy(loadAuthenticatedApp);
 const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
 

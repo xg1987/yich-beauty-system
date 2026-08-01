@@ -1,4 +1,4 @@
-const ICON_VERSION = "0.1.332";
+const ICON_VERSION = "0.1.333";
 const CACHE_REVISION = "zoom-lock-20260704";
 const CACHE_NAME = `yich-beauty-pwa-v${ICON_VERSION}-${CACHE_REVISION}`;
 const APP_SHELL_ASSETS = [
@@ -64,7 +64,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (["script", "style", "worker"].includes(request.destination)) {
-    event.respondWith(cacheFirst(request));
+    event.respondWith(networkFirst(request));
     return;
   }
 

@@ -38,6 +38,11 @@ if (authenticatedLines > 8500) {
   fail(`src/app/AuthenticatedApp.tsx 行数 ${authenticatedLines} 超过 8500，请继续拆页面，不要回退第三期成果`);
 }
 
+const authRuntime = readFileSync(join(root, "src/app/AuthRuntime.tsx"), "utf-8");
+if (!authRuntime.includes(".then((module) => ({ default: module.default }))")) {
+  fail("AuthRuntime 必须显式保持 React.lazy 的 default 模块契约，避免生产分包登录后卡在启动页");
+}
+
 const indexHtml = readFileSync(join(distDir, "index.html"), "utf-8");
 for (const eagerChunk of ["AuthenticatedApp", "Reports", "OperationLogs"]) {
   if (indexHtml.includes(eagerChunk)) {

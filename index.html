@@ -86,46 +86,68 @@
 
       .startup-loading__progress i {
         display: block;
-        width: 78%;
+        width: 100%;
         height: 100%;
         border-radius: inherit;
         background: linear-gradient(90deg, #fff0b6 0%, #d7ad55 56%, #f2e6ff 100%);
-        animation: startup-loading-flow 1.8s ease-in-out infinite;
+        animation: startup-loading-pulse 1.4s ease-in-out infinite;
       }
 
-      @keyframes startup-loading-flow {
+      .startup-loading__progress.is-stopped i {
+        animation: none;
+        opacity: 0.45;
+      }
+
+      .startup-loading__retry {
+        border: 1px solid rgba(255, 240, 188, 0.58);
+        border-radius: 999px;
+        padding: 9px 18px;
+        background: rgba(45, 11, 81, 0.5);
+        color: #fff0bc;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 760;
+        cursor: pointer;
+      }
+
+      .startup-loading__retry:disabled {
+        cursor: wait;
+        opacity: 0.62;
+      }
+
+      @keyframes startup-loading-pulse {
         0%,
         100% {
-          transform: translateX(-18%) scaleX(0.72);
+          opacity: 0.42;
         }
 
         50% {
-          transform: translateX(34%) scaleX(0.96);
+          opacity: 1;
         }
       }
     </style>
-    <link rel="icon" href="/favicon.ico?v=0.1.332" sizes="any" />
-    <link rel="icon" type="image/png" href="/favicon-32x32.png?v=0.1.332" sizes="32x32" />
-    <link rel="icon" type="image/png" href="/favicon-16x16.png?v=0.1.332" sizes="16x16" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.1.332" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-640x1136.png?v=0.1.332" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-750x1334.png?v=0.1.332" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-750x1624.png?v=0.1.332" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1125x2436.png?v=0.1.332" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1080x2340.png?v=0.1.332" media="(device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-828x1792.png?v=0.1.332" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1242x2208.png?v=0.1.332" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1242x2688.png?v=0.1.332" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1170x2532.png?v=0.1.332" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1179x2556.png?v=0.1.332" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1206x2622.png?v=0.1.332" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1284x2778.png?v=0.1.332" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1290x2796.png?v=0.1.332" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1320x2868.png?v=0.1.332" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1536x2048.png?v=0.1.332" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1668x2388.png?v=0.1.332" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="apple-touch-startup-image" href="/ios-splash/splash-2048x2732.png?v=0.1.332" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
-    <link rel="manifest" href="/manifest.webmanifest?v=0.1.332" />
+    <link rel="icon" href="/favicon.ico?v=0.1.333" sizes="any" />
+    <link rel="icon" type="image/png" href="/favicon-32x32.png?v=0.1.333" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/favicon-16x16.png?v=0.1.333" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.1.333" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-640x1136.png?v=0.1.333" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-750x1334.png?v=0.1.333" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-750x1624.png?v=0.1.333" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1125x2436.png?v=0.1.333" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1080x2340.png?v=0.1.333" media="(device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-828x1792.png?v=0.1.333" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1242x2208.png?v=0.1.333" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1242x2688.png?v=0.1.333" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1170x2532.png?v=0.1.333" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1179x2556.png?v=0.1.333" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1206x2622.png?v=0.1.333" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1284x2778.png?v=0.1.333" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1290x2796.png?v=0.1.333" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1320x2868.png?v=0.1.333" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1536x2048.png?v=0.1.333" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-1668x2388.png?v=0.1.333" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/ios-splash/splash-2048x2732.png?v=0.1.333" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="manifest" href="/manifest.webmanifest?v=0.1.333" />
   </head>
   <body>
     <div id="root">
@@ -140,6 +162,69 @@
         </div>
       </div>
     </div>
+    <script>
+      (() => {
+        const recoveryKeys = ["__yich_update", "__yich_t", "__yich_recover", "__yich_fresh"];
+        const hardRecoveryKey = "yich-bootstrap-hard-recovery";
+
+        const hardReload = async () => {
+          const button = document.querySelector(".startup-loading__retry");
+          if (button) {
+            button.disabled = true;
+            button.textContent = "正在重新进入";
+          }
+          try {
+            if ("caches" in window) {
+              const cacheNames = await window.caches.keys();
+              await Promise.all(cacheNames.map((cacheName) => window.caches.delete(cacheName)));
+            }
+          } catch {}
+          try {
+            if ("serviceWorker" in navigator) {
+              const registrations = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(registrations.map((registration) => registration.unregister()));
+            }
+          } catch {}
+          const nextUrl = new URL(window.location.href);
+          recoveryKeys.forEach((key) => nextUrl.searchParams.delete(key));
+          nextUrl.searchParams.set("__yich_fresh", `${Date.now()}`);
+          window.location.replace(nextUrl.toString());
+        };
+
+        const showRecovery = () => {
+          const loading = document.querySelector(".startup-loading");
+          if (!loading || document.querySelector(".startup-loading__retry")) return;
+          loading.querySelector(".startup-loading__progress")?.classList.add("is-stopped");
+          const status = loading.querySelector("small");
+          if (status) status.textContent = "加载遇到问题，请重新进入";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "startup-loading__retry";
+          button.textContent = "重新进入系统";
+          button.addEventListener("click", () => void hardReload());
+          loading.querySelector(".startup-loading__inner")?.appendChild(button);
+        };
+
+        const query = new URLSearchParams(window.location.search);
+        const recoveryNavigation = query.has("__yich_update") || query.has("__yich_recover");
+        const lastHardRecovery = Number(window.sessionStorage.getItem(hardRecoveryKey));
+        if (recoveryNavigation && (!Number.isFinite(lastHardRecovery) || Date.now() - lastHardRecovery > 20_000)) {
+          window.sessionStorage.setItem(hardRecoveryKey, `${Date.now()}`);
+          const status = document.querySelector(".startup-loading small");
+          if (status) status.textContent = "正在修复更新缓存";
+          window.stop();
+          void hardReload();
+          return;
+        }
+
+        window.addEventListener("error", (event) => {
+          const source = event.filename || event.target?.src || "";
+          if (event.error || /\/assets\/.*\.js(?:\?|$)/.test(source)) showRecovery();
+        }, true);
+        window.addEventListener("unhandledrejection", showRecovery);
+        window.setTimeout(showRecovery, 12_000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
