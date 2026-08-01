@@ -46,6 +46,7 @@ import {
   updateAppointmentStatus,
   updateAuthUserAiCredits,
   transferMemberCard,
+  voidMemberCardOpening,
   upsertOnlineStorefront,
   joinInviteByCode,
   markAllVisibleNotificationsRead,
@@ -1347,6 +1348,28 @@ export function createApiServer(database = new BeautyDatabase()) {
         });
         persistDataTableChanges(database, session, currentData, nextData, memberCardRefundWriteKeys);
         sendMutationPatch(request, response, 201, currentData, nextData, session, memberCardRefundWriteKeys);
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname.startsWith("/api/member-cards/") && url.pathname.endsWith("/void")) {
+        requirePermission(session, "customers:manage");
+        if (session.user.role !== "owner" && session.user.role !== "manager") {
+          throw new Error("只有门店老板或店长可以作废错录开卡");
+        }
+        const memberCardId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
+        const body = await readJson(request);
+        if (requiredString(body, "confirm") !== "确认作废") throw new Error("请确认作废操作");
+        const storeId = resolveSessionStoreIdLocal(database, session);
+        if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+        const currentData = database.readMemberCardMutationData(storeId, { memberCardId });
+        const nextData = voidMemberCardOpening(currentData, {
+          memberCardId,
+          reason: requiredString(body, "reason"),
+          userId: session.user.id,
+          staffId: session.user.staffId,
+        });
+        persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
+        sendMutationPatch(request, response, 201, currentData, nextData, session, memberCardWriteKeys);
         return;
       }
 

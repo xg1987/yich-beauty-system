@@ -824,6 +824,13 @@ export type RefundMemberCardInput = {
   staffId?: string;
 };
 
+export type VoidMemberCardOpeningInput = {
+  memberCardId: string;
+  reason: string;
+  userId: string;
+  staffId?: string;
+};
+
 export type OpenMemberCardInput = {
   storeId?: string;
   customerId?: string;
@@ -3724,11 +3731,122 @@ export function memberCardCashIn(transaction: MemberCardTransaction) {
 }
 
 export function memberCardCashRefund(transaction: MemberCardTransaction) {
-  if (transaction.type !== "退卡" && transaction.type !== "退款") return 0;
+  if (transaction.type !== "退卡" && transaction.type !== "退款" && transaction.type !== "作废") return 0;
   if (typeof transaction.paidAmount === "number" && Number.isFinite(transaction.paidAmount)) {
     return Math.max(0, transaction.paidAmount);
   }
   return Math.max(0, -transaction.amountDelta);
+}
+
+export type MemberCardVoidEligibility = {
+  eligible: boolean;
+  reason: string;
+  openingTransaction?: MemberCardTransaction;
+};
+
+export function memberCardIsClosed(card: MemberCard) {
+  return card.status === "已退卡" || card.status === "已作废";
+}
+
+export function memberCardVoidEligibility(card: MemberCard, transactions: MemberCardTransaction[]): MemberCardVoidEligibility {
+  if (memberCardIsClosed(card)) {
+    return { eligible: false, reason: card.status === "已作废" ? "该卡已经作废" : "该卡已经退卡" };
+  }
+  const cardTransactions = transactions.filter((transaction) => transaction.memberCardId === card.id);
+  const openingTransactions = cardTransactions.filter((transaction) => transaction.type === "开卡");
+  if (openingTransactions.length !== 1) {
+    return { eligible: false, reason: openingTransactions.length ? "存在多条开卡流水，需要人工核查" : "缺少开卡流水，请走正式退卡流程" };
+  }
+  const openingTransaction = openingTransactions[0];
+  const blockingTransaction = cardTransactions.find((transaction) =>
+    transaction.type !== "开卡" && transaction.type !== "冻结" && transaction.type !== "解冻",
+  );
+  if (blockingTransaction) {
+    return { eligible: false, reason: `已有${blockingTransaction.type}流水，不能按错录作废`, openingTransaction };
+  }
+  if (card.balance !== openingTransaction.balanceAfter || card.remainingTimes !== openingTransaction.remainingTimesAfter) {
+    return { eligible: false, reason: "当前余额或次数已经变化，请走正式退卡流程", openingTransaction };
+  }
+  if (card.serviceEntitlements?.length) {
+    const entitlementRemaining = memberCardEntitlementRemainingTimes(card.serviceEntitlements);
+    if (entitlementRemaining !== card.remainingTimes) {
+      return { eligible: false, reason: "分项目次数与卡总次数不一致，需要人工核查", openingTransaction };
+    }
+  }
+  return { eligible: true, reason: "未发生消费、充值、调整或转卡，可按错录作废", openingTransaction };
+}
+
+export function voidMemberCardOpening(
+  data: AppData,
+  input: VoidMemberCardOpeningInput,
+  options: { idFactory?: IdFactory; now?: () => string } = {},
+): AppData {
+  const idFactory = options.idFactory ?? makeId;
+  const createdAt = (options.now ?? nowIso)();
+  const card = data.memberCards.find((item) => item.id === input.memberCardId);
+  if (!card) throw new Error("会员卡不存在");
+  const reason = trimText(input.reason);
+  if (reason.length < 4) throw new Error("请填写至少4个字的错录原因");
+  const eligibility = memberCardVoidEligibility(card, data.memberCardTransactions);
+  if (!eligibility.eligible || !eligibility.openingTransaction) throw new Error(eligibility.reason);
+
+  const openingTransaction = eligibility.openingTransaction;
+  const reversedPaidAmount = memberCardCashIn(openingTransaction);
+  const reversedPoints = Math.max(0, card.pointsEarned ?? Math.floor(reversedPaidAmount / 10));
+  const customer = data.customers.find((item) => item.id === card.customerId);
+  if (!customer) throw new Error("开卡客户不存在，不能直接作废");
+  if ((customer.points ?? 0) < reversedPoints) {
+    throw new Error("该卡赠送积分已被使用，请先核对积分后走正式退卡流程");
+  }
+  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
+  const voidedCard: MemberCard = {
+    ...card,
+    balance: 0,
+    remainingTimes: 0,
+    status: "已作废",
+    serviceEntitlements: card.serviceEntitlements?.map((entitlement) => ({ ...entitlement, remainingTimes: 0 })),
+  };
+
+  return {
+    ...data,
+    customers: reversedPoints > 0
+      ? data.customers.map((customer) => customer.id === card.customerId
+        ? { ...customer, points: Math.max(0, (customer.points ?? 0) - reversedPoints) }
+        : customer)
+      : data.customers,
+    memberCards: data.memberCards.map((item) => item.id === card.id ? voidedCard : item),
+    memberCardTransactions: [
+      {
+        id: idFactory("mt"),
+        storeId,
+        memberCardId: card.id,
+        staffId: trimText(input.staffId) || undefined,
+        type: "作废",
+        paidAmount: reversedPaidAmount > 0 ? reversedPaidAmount : undefined,
+        payMethod: reversedPaidAmount > 0 ? openingTransaction.payMethod : undefined,
+        amountDelta: -card.balance,
+        timesDelta: -card.remainingTimes,
+        balanceAfter: 0,
+        remainingTimesAfter: 0,
+        note: `错录开卡作废：${reason} · 原开卡流水 ${openingTransaction.id}`,
+        createdAt,
+      },
+      ...data.memberCardTransactions,
+    ],
+    operationLogs: [
+      {
+        id: idFactory("op"),
+        storeId,
+        userId: input.userId,
+        action: "开卡错录作废",
+        targetType: "memberCard",
+        targetId: card.id,
+        summary: `${card.name} 错录作废：冲销实收 ${reversedPaidAmount} 元、次数 ${card.remainingTimes} 次、积分 ${reversedPoints}，原因：${reason}`,
+        createdAt,
+      },
+      ...data.operationLogs,
+    ],
+  };
 }
 
 export type MemberCardRefundQuote = {
@@ -3781,8 +3899,8 @@ export function refundMemberCard(
     throw new Error("会员卡不存在");
   }
 
-  if (card.status === "已退卡") {
-    throw new Error("会员卡已退卡");
+  if (memberCardIsClosed(card)) {
+    throw new Error(card.status === "已作废" ? "会员卡已作废" : "会员卡已退卡");
   }
 
   const refundQuote = calculateMemberCardRefundQuote(card, data.memberCardTransactions);
@@ -3823,7 +3941,13 @@ export function refundMemberCard(
   return {
     ...data,
     memberCards: data.memberCards.map((item) =>
-      item.id === card.id ? { ...item, balance: 0, remainingTimes: 0, status: "已退卡" } : item,
+      item.id === card.id ? {
+        ...item,
+        balance: 0,
+        remainingTimes: 0,
+        status: "已退卡",
+        serviceEntitlements: item.serviceEntitlements?.map((entitlement) => ({ ...entitlement, remainingTimes: 0 })),
+      } : item,
     ),
     memberCardTransactions: [
       {
@@ -3940,7 +4064,7 @@ export function rechargeMemberCard(
   const createdAt = (options.now ?? nowIso)();
   assertBusinessDateOpen(data, createdAt.slice(0, 10));
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
-  if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可充值");
+  if (!card || memberCardIsClosed(card)) throw new Error("会员卡不存在或不可充值");
 
   const amountDelta = (input.amount ?? 0) + (input.giftAmount ?? 0);
   const timesDelta = (input.times ?? 0) + (input.giftTimes ?? 0);
@@ -4003,7 +4127,7 @@ export function updateMemberCardStatus(
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
-  if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可操作");
+  if (!card || memberCardIsClosed(card)) throw new Error("会员卡不存在或不可操作");
   const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {
@@ -4036,7 +4160,7 @@ export function extendMemberCard(
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
-  if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可延期");
+  if (!card || memberCardIsClosed(card)) throw new Error("会员卡不存在或不可延期");
   const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 
   return {
@@ -4069,7 +4193,7 @@ export function transferMemberCard(
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
-  if (!card || card.status === "已退卡") throw new Error("会员卡不存在或不可转卡");
+  if (!card || memberCardIsClosed(card)) throw new Error("会员卡不存在或不可转卡");
   if (!data.customers.some((customer) => customer.id === input.toCustomerId)) throw new Error("转入客户不存在");
   const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
 

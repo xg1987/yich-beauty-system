@@ -62,7 +62,7 @@ import { DataTable } from "../components/ui/DataTable";
 import { DateTimeInput } from "../components/ui/DateTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { Select } from "../components/ui/Select";
-import { platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
+import { memberCardVoidEligibility, platformInviteCodeForPlatformAdmin, reportSummary, storeStaffInviteCodeForStoreUser } from "../domain/business";
 import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, isAppointmentInArrivalConfirmationWindow, appointmentArrivalConfirmationWindow, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import {
@@ -88,6 +88,7 @@ import { displayRoleName } from "./accountDisplay";
 import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "./mutationPending";
 import {
   findCreatedProduct,
+  aggregateMemberCardServiceAvailability,
   memberCardAvailableProjectScopeText,
   memberCardAvailableServiceIds,
   memberCardAvailableTimesText,
@@ -1035,6 +1036,10 @@ const LazyOperationLogs = lazy(() => import("../pages/shared/OperationLogs"));
 const LazyCustomerRefundManagement = lazy(() => import("../components/business/ManagementOperations").then((module) => ({ default: module.CustomerRefundManagement })));
 const LazyStaffScheduleManagement = lazy(() => import("../components/business/ManagementOperations").then((module) => ({ default: module.StaffScheduleManagement })));
 const LazyNotificationPanel = lazy(() => import("../components/business/NotificationPanel").then((module) => ({ default: module.NotificationPanel })));
+const LazyCustomerAssetSummary = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.CustomerAssetSummary })));
+const LazyCustomerMemberOverview = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.CustomerMemberOverview })));
+const LazyCustomerProjectCardList = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.CustomerProjectCardList })));
+const LazyVoidMemberCardModal = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.VoidMemberCardModal })));
 
 function ViewFallback({ title }: { title: string }) {
   return (
@@ -1300,7 +1305,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
             ))}
             {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} setView={navigate} initialAppointmentId={appointmentEntryId} initialAppointmentKey={appointmentEntryKey} />}
             {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialSignatureId={posEntrySignatureId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
-            {activeView === "customers" && <MemoCustomers data={data} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} />}
+            {activeView === "customers" && <Suspense fallback={<ViewFallback title="客户档案" />}><MemoCustomers data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} /></Suspense>}
             {activeView === "marketing" && (
               <Suspense fallback={<ViewFallback title="营销中心" />}>
                 <LazyMarketingCenter data={data} session={session} actions={actions} refreshMarketingData={() => refreshDataView("marketing")} />
@@ -3356,10 +3361,10 @@ function Pos({
     ? data.memberCards.filter((card) => card.customerId === customerId && card.status === "正常")
     : [];
   const selectedCustomerProjectCards = selectedCustomerCheckoutCards.filter((card) =>
-    card.type !== "储值卡"
-    && card.type !== "折扣卡"
-    && memberCardAvailableServiceIds(card).length > 0,
+    card.type !== "储值卡" && card.type !== "折扣卡" && memberCardAvailableServiceIds(card).length > 0,
   );
+  const selectedCustomerProjectAvailability = aggregateMemberCardServiceAvailability(selectedCustomerProjectCards, data.services);
+  const selectedCustomerProjectAvailabilityByServiceId = new Map(selectedCustomerProjectAvailability.map((row) => [row.serviceId, row]));
   const selectedCustomerStoredValueCards = selectedCustomerCheckoutCards.filter((card) => card.type === "储值卡");
   const selectedCustomerStoreServices = data.services.filter((service) =>
     service.status !== "停用"
@@ -4640,12 +4645,17 @@ function Pos({
                         <strong>{service.name}</strong>
                         <span>{service.category || "未分类"} · 单价 {money(service.price)}</span>
                         {usesCustomer && (
-                          <small className="checkout-service-card-source">
-                            扣卡：{checkoutAutoDebitPlan
-                              .filter((row) => row.service.id === service.id)
-                              .map((row) => `${row.card.name} ${row.quantity}次`)
-                              .join("；") || "无可扣次数"}
-                          </small>
+                          <>
+                            <small className="checkout-service-card-balance">
+                              可用：总剩 {selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.remainingTimes ?? 0} 次 · 来自 {selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.cardCount ?? 0} 张卡
+                            </small>
+                            <small className="checkout-service-card-source">
+                              本次扣卡：{checkoutAutoDebitPlan
+                                .filter((row) => row.service.id === service.id)
+                                .map((row) => `${row.card.name} ${row.quantity}次`)
+                                .join("；") || "无可扣次数"}
+                            </small>
+                          </>
                         )}
                       </div>
                       <div className="checkout-product-qty" aria-label={`${service.name} 份数`}>
@@ -4988,6 +4998,7 @@ function Pos({
           <div className="product-picker-grid">
             {servicePickerServices.length ? servicePickerServices.map((service) => {
               const quantity = checkoutServiceIds.filter((id) => id === service.id).length;
+              const availability = selectedCustomerProjectAvailabilityByServiceId.get(service.id);
               return (
               <button
                 type="button"
@@ -5000,8 +5011,13 @@ function Pos({
                   <span>{service.category || "未分类"} · {service.duration} 分钟</span>
                 </div>
                 <div className="product-picker-card-meta">
-                  <span>{money(service.price)}</span>
+                  <span>{usesCustomer ? `总剩 ${availability?.remainingTimes ?? 0} 次` : money(service.price)}</span>
                   <small>{quantity > 0 ? `已选 ${quantity} 份` : "默认 1 份"}</small>
+                  {usesCustomer && availability && (
+                    <em title={availability.sources.map((source) => `${source.cardName} ${source.remainingTimes}次${source.sharedPool ? "（共享）" : ""}`).join("；")}>
+                      来自 {availability.cardCount} 张卡 · {availability.sources.map((source) => `${source.cardName} ${source.remainingTimes}次${source.sharedPool ? "（共享）" : ""}`).join("；")}
+                    </em>
+                  )}
                 </div>
               </button>
               );
@@ -5114,6 +5130,7 @@ function Pos({
 
 function Customers({
   data,
+  session,
   actions,
   runMutation,
   setView,
@@ -5121,6 +5138,7 @@ function Customers({
   onReturnManagement,
 }: {
   data: AppData;
+  session: UserSession;
   actions: ApiActions;
   runMutation: RunMutation;
   setView: NavigateToView;
@@ -5210,6 +5228,10 @@ function Customers({
   const [editFollowUpDueAt, setEditFollowUpDueAt] = useState("");
   const [editFollowUpNote, setEditFollowUpNote] = useState("");
   const [editFollowUpReason, setEditFollowUpReason] = useState("");
+  const [voidCardId, setVoidCardId] = useState("");
+  const [voidCardReason, setVoidCardReason] = useState("");
+  const [voidCardConfirmed, setVoidCardConfirmed] = useState(false);
+  const [voidCardMessage, setVoidCardMessage] = useState<{ type: "success" | "error"; text: string }>();
 
   useEffect(() => {
     if (customerCardServiceSelectionTouchedRef.current) return;
@@ -5659,6 +5681,10 @@ function Customers({
   const selectedCustomerCards = selectedCustomer ? data.memberCards.filter((card) => card.customerId === selectedCustomer.id) : [];
   const selectedCustomerAvailableCards = selectedCustomerCards.filter(memberCardHasAvailableValue);
   const selectedCustomerAvailableProjectCards = selectedCustomerAvailableCards.filter((card) => card.type === "次数卡" || card.type === "套餐卡");
+  const selectedCustomerProjectAvailability = aggregateMemberCardServiceAvailability(selectedCustomerAvailableProjectCards, data.services);
+  const canVoidMemberCards = session.user.role === "owner" || session.user.role === "manager";
+  const selectedVoidCard = selectedCustomerCards.find((card) => card.id === voidCardId);
+  const selectedVoidCardEligibility = selectedVoidCard ? memberCardVoidEligibility(selectedVoidCard, data.memberCardTransactions) : undefined;
   const selectedCustomerRecords = selectedCustomer
     ? data.customerServiceRecords
         .filter((record) => record.customerId === selectedCustomer.id)
@@ -5692,9 +5718,6 @@ function Customers({
     : [];
   const selectedCardBalance = selectedCustomerAvailableCards.reduce((sum, card) => sum + card.balance, 0);
   const selectedRemainingTimes = selectedCustomerAvailableProjectCards.reduce((sum, card) => sum + card.remainingTimes, 0);
-  const selectedCardTimesSummary = selectedCustomerAvailableProjectCards.length
-    ? selectedCustomerAvailableProjectCards.map((card) => memberCardAvailableTimesText(card, data.services)).join("；")
-    : "-";
   const activeCardCustomerCount = availableCardCountByCustomerId.size;
   const lastServiceRecord = selectedCustomerRecords[0];
   const latestOrder = selectedCustomerOrders[0];
@@ -5743,6 +5766,35 @@ function Customers({
   const renewSelectedCustomer = () => {
     if (!selectedCustomer) return;
     setView("pos", { posModule: "card", posCustomerId: selectedCustomer.id });
+  };
+  const openVoidMemberCard = (cardId: string) => {
+    setVoidCardId(cardId);
+    setVoidCardReason("");
+    setVoidCardConfirmed(false);
+    setVoidCardMessage(undefined);
+  };
+  const closeVoidMemberCard = () => {
+    if (mutationPending) return;
+    setVoidCardId("");
+    setVoidCardReason("");
+    setVoidCardConfirmed(false);
+    setVoidCardMessage(undefined);
+  };
+  const submitVoidMemberCard = (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedVoidCard || !selectedVoidCardEligibility?.eligible || !voidCardConfirmed) return;
+    setVoidCardMessage(undefined);
+    void runMutation(() => actions.voidMemberCardOpening(selectedVoidCard.id, {
+      reason: voidCardReason.trim(),
+      confirm: "确认作废",
+    })).then(() => {
+      setVoidCardId("");
+      setVoidCardReason("");
+      setVoidCardConfirmed(false);
+      setVoidCardMessage({ type: "success", text: `${selectedVoidCard.name} 已按错录作废，开卡收入、次数和积分已经冲销。` });
+    }).catch((caught) => {
+      setVoidCardMessage({ type: "error", text: caught instanceof Error ? caught.message : "错录作废失败" });
+    });
   };
 
   return (
@@ -5858,28 +5910,11 @@ function Customers({
                 </div>
               </div>
 
-              <div className="customer-asset-grid">
-                <div>
-                  <span>项目次数明细</span>
-                  <strong>{selectedCardTimesSummary}</strong>
-                  <small>{selectedCustomerAvailableProjectCards.length} 张可用项目卡 · 总剩 {selectedRemainingTimes} 次</small>
-                </div>
-                <div>
-                  <span>储值余额</span>
-                  <strong>{money(selectedCardBalance)}</strong>
-                  <small>可用于卡扣/储值消费</small>
-                </div>
-                <div>
-                  <span>最近消费</span>
-                  <strong>{latestOrder ? money(latestOrder.paidAmount) : "-"}</strong>
-                  <small>{latestOrder ? shortDate(latestOrder.createdAt) : "暂无订单"}</small>
-                </div>
-                <div>
-                  <span>下次跟进</span>
-                  <strong>{nextFollowUp ? shortDate(nextFollowUp.dueAt) : "-"}</strong>
-                  <small>{nextFollowUp ? nextFollowUp.note : "暂无待跟进"}</small>
-                </div>
-              </div>
+              <LazyCustomerAssetSummary
+                availability={selectedCustomerProjectAvailability} activeProjectCardCount={selectedCustomerAvailableProjectCards.length}
+                remainingTimes={selectedRemainingTimes} storedValueBalance={selectedCardBalance}
+                latestOrder={latestOrder} nextFollowUp={nextFollowUp}
+              />
 
               <div className="customer-detail-tabs" aria-label="客户详情标签">
                 {customerDetailTabs.map((tab) => (
@@ -5897,72 +5932,29 @@ function Customers({
               </div>
 
               {customerDetailTab === "overview" && (
-                <div className="customer-overview-grid">
-                  <section className="customer-info-card">
-                    <div className="customer-section-title">
-                      <strong>项目卡</strong>
-                    </div>
-                    <div className="customer-card-stack">
-                      {selectedCustomerAvailableCards.slice(0, 3).map((card) => (
-                        <article key={card.id}>
-                          <div>
-                            <strong>{card.name}</strong>
-                            <span>{card.type} · {card.type === "次数卡" || card.type === "套餐卡"
-                                ? memberCardAvailableProjectScopeText(card, data.services)
-                                : memberCardProjectScopeText(card, data.services)}
-                            </span>
-                          </div>
-                          <em>{memberCardAvailableTimesText(card, data.services)}</em>
-                        </article>
-                      ))}
-                      {selectedCustomerAvailableCards.length === 0 && (
-                        <p className="customer-soft-empty">当前暂无可用卡项，历史记录可在“项目卡”标签查看。</p>
-                      )}
-                    </div>
-                  </section>
-                  <section className="customer-info-card">
-                    <div className="customer-section-title">
-                      <strong>最近服务</strong>
-                      <button type="button" onClick={() => setCustomerDetailTab("records")}>查看</button>
-                    </div>
-                    <div className="customer-timeline">
-                      {selectedCustomerRecords.slice(0, 3).map((record) => (
-                        <article key={record.id}>
-                          <time>{shortDate(record.createdAt)}</time>
-                          <div>
-                            <strong>{nameOf(data.services, record.serviceId)}</strong>
-                            <span>{nameOf(data.staff, record.staffId)} · {record.customerFeedback || record.nextCareAdvice || "已完成服务"}</span>
-                          </div>
-                        </article>
-                      ))}
-                      {selectedCustomerRecords.length === 0 && <p className="customer-soft-empty">暂无服务记录</p>}
-                    </div>
-                  </section>
-                  <section className="customer-info-card customer-advice-card">
-                    <div className="customer-section-title">
-                      <strong>{selectedCustomer.note ? "客户备注" : "下次建议"}</strong>
-                    </div>
-                    <p>{selectedCustomer.note || lastServiceRecord?.nextCareAdvice || nextFollowUp?.note || "暂无护理建议。"}</p>
-                  </section>
-                </div>
+                <LazyCustomerMemberOverview
+                  cards={selectedCustomerCards}
+                  services={data.services}
+                  serviceRecords={selectedCustomerRecords}
+                  staff={data.staff}
+                  customerNote={selectedCustomer.note}
+                  nextCareAdvice={lastServiceRecord?.nextCareAdvice}
+                  nextFollowUpNote={nextFollowUp?.note}
+                  onShowRecords={() => setCustomerDetailTab("records")}
+                />
               )}
 
               {customerDetailTab === "cards" && (
-                <div className="customer-table-panel">
-                  <DataTable
-                    columns={["卡名", "类型", "余额", "次数", "适用项目", "有效期", "状态"]}
-                    rows={selectedCustomerCards.map((card) => [
-                      card.name,
-                      card.type,
-                      money(card.balance),
-                      memberCardAvailableTimesText(card, data.services),
-                      memberCardProjectScopeText(card, data.services),
-                      shortDate(card.expiresAt),
-                      <Badge key={`${card.id}-status`} text={memberCardDisplayStatus(card)} tone={memberCardDisplayStatus(card) === "正常" ? "ok" : "warn"} />,
-                    ])}
-                  />
-                  {selectedCustomerCards.length === 0 && <p className="customer-soft-empty">当前客户暂无项目卡</p>}
-                </div>
+                <LazyCustomerProjectCardList
+                  cards={selectedCustomerCards}
+                  services={data.services}
+                  transactions={data.memberCardTransactions}
+                  canVoid={canVoidMemberCards}
+                  mutationPending={mutationPending}
+                  message={voidCardMessage}
+                  voidCardId={voidCardId}
+                  onVoid={openVoidMemberCard}
+                />
               )}
 
               {customerDetailTab === "orders" && (
@@ -6069,6 +6061,14 @@ function Customers({
           )}
         </section>
       </section>
+      <LazyVoidMemberCardModal
+        card={selectedVoidCard} customer={selectedCustomer}
+        services={data.services} eligibility={selectedVoidCardEligibility}
+        reason={voidCardReason} confirmed={voidCardConfirmed}
+        mutationPending={mutationPending} message={voidCardMessage}
+        onReasonChange={setVoidCardReason} onConfirmedChange={setVoidCardConfirmed}
+        onClose={closeVoidMemberCard} onSubmit={submitVoidMemberCard}
+      />
       <Modal
         open={customerEditOpen && Boolean(selectedCustomer)}
         title="编辑客户资料"
@@ -6298,7 +6298,7 @@ function Customers({
             memberCardProjectScopeText(card, data.services),
             shortDate(card.expiresAt),
             <Badge key={`${card.id}-status`} text={memberCardDisplayStatus(card)} tone={memberCardDisplayStatus(card) === "正常" ? "ok" : "warn"} />,
-            card.status === "正常" ? "客户退费办理" : "已处理",
+            card.status === "正常" ? "客户退费办理" : card.status,
           ])}
         />
         <div className="divider" />

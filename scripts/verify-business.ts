@@ -48,6 +48,8 @@ import {
   settleCommissions,
   storeStaffInviteCodeForStoreUser,
   transferMemberCard,
+  voidMemberCardOpening,
+  memberCardVoidEligibility,
   updateAppointmentStatus,
   updateAccountProfile,
   updateAuthUserStatus,
@@ -1266,6 +1268,93 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  const before = cloneSeed();
+  const beforePoints = before.customers.find((customer) => customer.id === "c1")?.points ?? 0;
+  const opened = openMemberCard(
+    before,
+    {
+      customerId: "c1",
+      name: "重复录入套餐卡",
+      type: "套餐卡",
+      serviceIds: ["v1", "v2"],
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 3, remainingTimes: 3 },
+        { serviceId: "v2", totalTimes: 2, remainingTimes: 2 },
+      ],
+      paidAmount: 1000,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+      staffId: "s1",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const openedCard = opened.memberCards[0];
+  assert.equal(memberCardVoidEligibility(openedCard, opened.memberCardTransactions).eligible, true, "unused opening should be eligible for void");
+  assert.equal(opened.customers.find((customer) => customer.id === "c1")?.points, beforePoints + 100, "opening should award points before correction");
+
+  const voided = voidMemberCardOpening(
+    opened,
+    { memberCardId: openedCard.id, reason: "重复开卡录入", userId: "u_manager", staffId: "s1" },
+    { idFactory: testId, now: fixedNow },
+  );
+  const correctedCard = card(voided, openedCard.id);
+  assert.equal(correctedCard.status, "已作废", "void should mark an erroneous opening as voided");
+  assert.equal(correctedCard.remainingTimes, 0, "void should clear card remaining times");
+  assert.ok(correctedCard.serviceEntitlements?.every((item) => item.remainingTimes === 0), "void should clear every project entitlement");
+  assert.equal(voided.customers.find((customer) => customer.id === "c1")?.points, beforePoints, "void should reverse opening points");
+  assert.equal(voided.memberCardTransactions[0].type, "作废", "void should write a dedicated reversal transaction");
+  assert.equal(memberCardCashRefund(voided.memberCardTransactions[0]), 1000, "void should reverse recorded opening cash");
+  assert.equal(reportSummary(voided).revenue - reportSummary(voided).refundAmount, 0, "void should neutralize erroneous opening net revenue");
+  assert.equal(voided.operationLogs[0].action, "开卡错录作废", "void should write an audit log");
+  assert.throws(
+    () => voidMemberCardOpening(voided, { memberCardId: openedCard.id, reason: "重复再次作废", userId: "u_manager" }),
+    /已经作废/,
+    "void should be idempotently blocked after completion",
+  );
+
+  const spentOpeningPoints = {
+    ...opened,
+    customers: opened.customers.map((customer) => customer.id === openedCard.customerId ? { ...customer, points: 0 } : customer),
+  };
+  assert.throws(
+    () => voidMemberCardOpening(spentOpeningPoints, { memberCardId: openedCard.id, reason: "积分已经使用", userId: "u_manager" }),
+    /赠送积分已被使用/,
+    "void should not silently remove points after opening points have already been spent",
+  );
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerId: "c1",
+      name: "已使用卡",
+      type: "次数卡",
+      serviceIds: ["v1"],
+      serviceEntitlements: [{ serviceId: "v1", totalTimes: 2, remainingTimes: 2 }],
+      paidAmount: 398,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+      staffId: "s1",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const used = checkoutOrder(
+    opened,
+    { customerId: "c1", staffId: "s2", serviceId: "v1", payMethod: "会员卡", cardId: opened.memberCards[0].id },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(memberCardVoidEligibility(card(used, opened.memberCards[0].id), used.memberCardTransactions).eligible, false, "used card should not be eligible for void");
+  assert.throws(
+    () => voidMemberCardOpening(used, { memberCardId: opened.memberCards[0].id, reason: "尝试错录作废", userId: "u_manager" }),
+    /已有消费流水/,
+    "void should refuse cards with consumption history",
+  );
+}
+
+{
   assert.throws(
     () =>
       refundMemberCard(
@@ -1305,6 +1394,41 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(memberCardCashRefund(refundedCard.memberCardTransactions[0]), 500, "member card refund should count as cash refund");
   assert.equal(reportSummary(refundedCard).refundAmount, 500, "report should include member card refund amount");
   assert.equal(refundedCard.operationLogs[0].action, "会员退卡", "member card refund should write operation log");
+}
+
+{
+  const opened = openMemberCard(
+    cloneSeed(),
+    {
+      customerId: "c1",
+      name: "分项目退卡验证",
+      type: "套餐卡",
+      serviceIds: ["v1", "v2"],
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 2, remainingTimes: 2 },
+        { serviceId: "v2", totalTimes: 3, remainingTimes: 3 },
+      ],
+      paidAmount: 500,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signed = signedRefundSignature(opened, "c1", "分项目退卡验证", 500, "微信");
+  const refunded = refundMemberCard(
+    signed,
+    {
+      memberCardId: opened.memberCards[0].id,
+      reason: "客户正式退卡",
+      refundAmount: 500,
+      payMethod: "微信",
+      signatureId: signed.customerSignatures[0].id,
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.ok(card(refunded, opened.memberCards[0].id).serviceEntitlements?.every((item) => item.remainingTimes === 0), "formal refund should clear every project entitlement");
 }
 
 {

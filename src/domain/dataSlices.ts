@@ -38,6 +38,7 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "orders",
     "products",
     "memberCards",
+    "memberCardTransactions",
     "approvalRequests",
     "customerSignatures",
     "customerFollowUps",
@@ -106,9 +107,11 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "stocktakes",
   ],
   reports: [
+    "storeProfiles",
     "customers",
     "services",
     "products",
+    "inventoryBatches",
     "appointments",
     "orders",
     "refunds",
@@ -118,6 +121,8 @@ const viewKeys: Record<ViewKey, AppDataKey[]> = {
     "memberCards",
     "memberCardTransactions",
     "dailyCloses",
+    "suppliers",
+    "purchaseOrders",
   ],
   approvals: [
     "customers",

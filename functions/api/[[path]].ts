@@ -40,6 +40,7 @@ import {
   updateAppointmentStatus,
   updateAuthUserAiCredits,
   transferMemberCard,
+  voidMemberCardOpening,
   upsertOnlineStorefront,
   joinInviteByCode,
   isStoreStaffInviteCode,
@@ -2493,6 +2494,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       await persistDataTableChanges(database, session, currentData, nextData, memberCardRefundWriteKeys);
       markMutationWrite(timing);
       return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, memberCardRefundWriteKeys), timing, "scoped");
+    }
+
+    if (context.request.method === "POST" && pathname.startsWith("/api/member-cards/") && pathname.endsWith("/void")) {
+      requirePermission(session, "customers:manage");
+      if (session.user.role !== "owner" && session.user.role !== "manager") {
+        throw new Error("只有门店老板或店长可以作废错录开卡");
+      }
+      const timing = startMutationTiming("member-card-void");
+      const memberCardId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
+      const body = await readJson(context.request);
+      if (requiredString(body, "confirm") !== "确认作废") throw new Error("请确认作废操作");
+      const storeId = await resolveSessionStoreId(database, session);
+      const currentData = await database.readMemberCardMutationData(storeId, { memberCardId });
+      markMutationRead(timing);
+      const nextData = voidMemberCardOpening(currentData, {
+        memberCardId,
+        reason: requiredString(body, "reason"),
+        userId: session.user.id,
+        staffId: session.user.staffId,
+      });
+      startMutationWrite(timing);
+      await persistDataTableChanges(database, session, currentData, nextData, memberCardWriteKeys);
+      markMutationWrite(timing);
+      return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, memberCardWriteKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname === "/api/services") {

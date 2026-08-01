@@ -153,7 +153,7 @@ function summaryForDate(date: Date, staffList: Staff[], data: AppData) {
 }
 
 export function CustomerRefundManagement({ data, actions, runMutation }: ManagementOperationProps) {
-  const refundableCards = data.memberCards.filter((card) => card.status !== "已退卡");
+  const refundableCards = data.memberCards.filter((card) => card.status !== "已退卡" && card.status !== "已作废");
   const [activeTab, setActiveTab] = useState<MemberCardRefundTab>("储值卡");
   const [searchText, setSearchText] = useState("");
   const [refundPickerOpen, setRefundPickerOpen] = useState(false);
@@ -433,7 +433,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   };
 
   const recentRefundRows = data.memberCardTransactions
-    .filter((transaction) => transaction.type === "退卡" || transaction.type === "退款")
+    .filter((transaction) => transaction.type === "退卡" || transaction.type === "退款" || transaction.type === "作废")
     .slice(0, 80)
     .map((transaction) => [
       customerNameForTransaction(data, transaction),
@@ -449,7 +449,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
   const selectedCustomerRefunds = selectedCustomer
     ? data.memberCardTransactions.filter((transaction) => {
       const card = data.memberCards.find((item) => item.id === transaction.memberCardId);
-      return card?.customerId === selectedCustomer.id && (transaction.type === "退卡" || transaction.type === "退款");
+      return card?.customerId === selectedCustomer.id && (transaction.type === "退卡" || transaction.type === "退款" || transaction.type === "作废");
     })
     : [];
 
@@ -532,7 +532,7 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
                     <strong>{selectedCustomerCards.length} 张</strong>
                   </div>
                   <div>
-                    <small>退费记录</small>
+                    <small>退费/作废记录</small>
                     <strong>{selectedCustomerRefunds.length} 条</strong>
                   </div>
                 </div>
@@ -599,19 +599,19 @@ export function CustomerRefundManagement({ data, actions, runMutation }: Managem
       </section>
 
       <section className="panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="退费记录" action={`${recentRefundRows.length} 条`} />
-        <DataTable columns={["客户", "会员卡", "类型", "实退", "方式", "原因", "时间", "操作"]} rows={recentRefundRows} />
+        <PanelTitle icon={<CreditCard size={18} />} title="退费与作废记录" action={`${recentRefundRows.length} 条`} />
+        <DataTable columns={["客户", "会员卡", "类型", "实退/冲销", "方式", "原因", "时间", "操作"]} rows={recentRefundRows} />
         {selectedRefundTransaction && (
           <div className="refund-record-detail">
             <div>
-              <strong>退费详情</strong>
+              <strong>{selectedRefundTransaction.type === "作废" ? "作废冲销详情" : "退费详情"}</strong>
               <button type="button" onClick={() => setSelectedRefundTransactionId("")}>收起</button>
             </div>
             <dl>
               <div><dt>客户</dt><dd>{selectedRefundCustomer?.name ?? "-"} · {selectedRefundCustomer?.phone || "-"}</dd></div>
               <div><dt>会员卡</dt><dd>{selectedRefundCard?.name ?? "-"}</dd></div>
               <div><dt>类型</dt><dd>{selectedRefundTransaction.type}</dd></div>
-              <div><dt>实退</dt><dd>{selectedRefundTransaction.paidAmount ? money(selectedRefundTransaction.paidAmount) : money(Math.abs(selectedRefundTransaction.amountDelta))}</dd></div>
+              <div><dt>{selectedRefundTransaction.type === "作废" ? "冲销金额" : "实退"}</dt><dd>{selectedRefundTransaction.paidAmount ? money(selectedRefundTransaction.paidAmount) : money(Math.abs(selectedRefundTransaction.amountDelta))}</dd></div>
               <div><dt>方式</dt><dd>{selectedRefundTransaction.payMethod ?? "-"}</dd></div>
               <div><dt>时间</dt><dd>{shortDate(selectedRefundTransaction.createdAt)}</dd></div>
               <div><dt>余额变化</dt><dd>{money(selectedRefundTransaction.amountDelta)}，退后余额 {money(selectedRefundTransaction.balanceAfter)}</dd></div>

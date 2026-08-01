@@ -153,6 +153,75 @@ export function memberCardAvailableTimesText(card: AppData["memberCards"][number
   return memberCardTimesText(card, services, undefined, { hideZeroEntitlements: true, emptyText: "暂无可用次数" });
 }
 
+export type MemberCardServiceAvailabilitySource = {
+  cardId: string;
+  cardName: string;
+  remainingTimes: number;
+  totalTimes?: number;
+  sharedPool: boolean;
+};
+
+export type MemberCardServiceAvailability = {
+  serviceId: string;
+  serviceName: string;
+  remainingTimes: number;
+  cardCount: number;
+  sources: MemberCardServiceAvailabilitySource[];
+};
+
+export function aggregateMemberCardServiceAvailability(
+  cards: AppData["memberCards"],
+  services: AppData["services"],
+): MemberCardServiceAvailability[] {
+  const rows = new Map<string, MemberCardServiceAvailability>();
+  const addSource = (serviceId: string, source: MemberCardServiceAvailabilitySource) => {
+    const serviceName = serviceId ? nameOf(services, serviceId) : "通用项目";
+    const current = rows.get(serviceId);
+    if (current) {
+      current.remainingTimes += source.remainingTimes;
+      current.sources.push(source);
+      current.cardCount = new Set(current.sources.map((item) => item.cardId)).size;
+      return;
+    }
+    rows.set(serviceId, {
+      serviceId,
+      serviceName,
+      remainingTimes: source.remainingTimes,
+      cardCount: 1,
+      sources: [source],
+    });
+  };
+
+  cards
+    .filter((card) => card.status === "正常" && card.type !== "储值卡" && card.type !== "折扣卡")
+    .forEach((card) => {
+      if (card.serviceEntitlements?.length) {
+        card.serviceEntitlements
+          .filter((entitlement) => entitlement.serviceId && entitlement.remainingTimes > 0)
+          .forEach((entitlement) => addSource(entitlement.serviceId, {
+            cardId: card.id,
+            cardName: card.name,
+            remainingTimes: entitlement.remainingTimes,
+            totalTimes: entitlement.totalTimes,
+            sharedPool: false,
+          }));
+        return;
+      }
+      const serviceIds = Array.from(new Set(memberCardPurchasedServiceIds(card)));
+      const sourceIds = serviceIds.length ? serviceIds : [""];
+      sourceIds.forEach((serviceId) => addSource(serviceId, {
+        cardId: card.id,
+        cardName: card.name,
+        remainingTimes: Math.max(0, card.remainingTimes),
+        sharedPool: sourceIds.length > 1 || serviceId === "",
+      }));
+    });
+
+  return Array.from(rows.values()).sort((left, right) =>
+    right.remainingTimes - left.remainingTimes || left.serviceName.localeCompare(right.serviceName, "zh-CN"),
+  );
+}
+
 export function nameOf(collection: Array<{ id: string; name: string }>, id: string) {
   return collection.find((item) => item.id === id)?.name ?? "-";
 }

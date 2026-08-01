@@ -62,6 +62,10 @@ const CASHIER_FLOW_CASH_IN_PREDICATE = `
   t.type IN ('开卡', '充值')
   AND CASE WHEN t.paidAmount IS NOT NULL THEN t.paidAmount ELSE t.amountDelta END > 0
 `;
+const MEMBER_CARD_CASH_REFUND_PREDICATE = `
+  t.type IN ('退款', '退卡', '作废')
+  AND CASE WHEN t.paidAmount IS NOT NULL THEN t.paidAmount ELSE -t.amountDelta END > 0
+`;
 const CASHIER_FLOW_LEGACY_TRANSACTION_STORE_PREDICATE = `
   COALESCE(TRIM(t.storeId), '') = ''
   AND COALESCE(
@@ -361,6 +365,26 @@ export class BeautyDatabase {
               COALESCE(SUM(CASE WHEN paidAmount IS NOT NULL THEN paidAmount ELSE amountDelta END), 0) AS paid
        FROM memberCardCash`,
     ).get(storeId, input.dayStart, input.dayEnd, storeId, input.dayStart, input.dayEnd) as { count: number; paid: number };
+    const todayMemberCardRefund = this.db.prepare(
+      `WITH memberCardRefund AS (
+         SELECT t.paidAmount, t.amountDelta
+         FROM memberCardTransactions t
+         WHERE t.storeId = ?
+           AND ${MEMBER_CARD_CASH_REFUND_PREDICATE}
+           AND t.createdAt >= ? AND t.createdAt < ?
+         UNION ALL
+         SELECT t.paidAmount, t.amountDelta
+         FROM memberCardTransactions t
+         LEFT JOIN orders linkedOrder ON linkedOrder.id = t.orderId
+         LEFT JOIN memberCards linkedCard ON linkedCard.id = t.memberCardId
+         LEFT JOIN customers linkedCustomer ON linkedCustomer.id = linkedCard.customerId
+         WHERE ${CASHIER_FLOW_LEGACY_TRANSACTION_STORE_PREDICATE}
+           AND ${MEMBER_CARD_CASH_REFUND_PREDICATE}
+           AND t.createdAt >= ? AND t.createdAt < ?
+       )
+       SELECT COALESCE(SUM(CASE WHEN paidAmount IS NOT NULL THEN paidAmount ELSE -amountDelta END), 0) AS paid
+       FROM memberCardRefund`,
+    ).get(storeId, input.dayStart, input.dayEnd, storeId, input.dayStart, input.dayEnd) as { paid: number };
     const arrivedAppointments = this.db.prepare(
       `SELECT appointments.*
        FROM appointments
@@ -384,7 +408,7 @@ export class BeautyDatabase {
 
     return {
       cashierFlowTotal: this.readCashierFlowTotal(storeId),
-      todayPaid: Number(todayOrder.paid ?? 0) + Number(todayMemberCard.paid ?? 0),
+      todayPaid: Number(todayOrder.paid ?? 0) + Number(todayMemberCard.paid ?? 0) - Number(todayMemberCardRefund.paid ?? 0),
       todayOrderCount: Number(todayOrder.count ?? 0),
       todayMemberCardIncomeCount: Number(todayMemberCard.count ?? 0),
       arrivedAppointments,

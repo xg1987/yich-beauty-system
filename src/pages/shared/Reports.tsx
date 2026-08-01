@@ -1,5 +1,5 @@
 import { BadgeCent, ChartNoAxesColumnIncreasing, ClipboardList, CreditCard, Sparkles, UsersRound } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { ModuleOverview, type FeatureModule } from "../../components/layout/ModuleOverview";
 import { PageHero } from "../../components/layout/PageHero";
 import { PanelTitle } from "../../components/layout/PanelTitle";
@@ -7,12 +7,14 @@ import { Badge } from "../../components/ui/Badge";
 import { DataTable } from "../../components/ui/DataTable";
 import { Modal } from "../../components/ui/Modal";
 import { memberCardCashIn, reportSummary } from "../../domain/business";
+import { addReportPeriod, reportPeriodData, type ReportPeriodMode } from "../../domain/reportPeriods";
 import type { AppData, CashPayMethod, Staff } from "../../domain/types";
 import { money, shortDate } from "../../domain/utils";
 import type { ApiActions } from "../../hooks/useApiData";
 
+const BusinessOverviewPanel = lazy(() => import("../../components/business/BusinessOverviewPanel"));
+
 type RunMutation = (mutation: () => Promise<AppData>) => Promise<AppData>;
-type ReportPeriodMode = "day" | "week" | "month" | "year";
 
 type ReportsProps = {
   data: AppData;
@@ -83,197 +85,6 @@ function DailyCloseControl({
   );
 }
 
-function startOfLocalDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function addReportPeriod(date: Date, mode: ReportPeriodMode, delta: number) {
-  const next = new Date(date);
-  if (mode === "day") next.setDate(next.getDate() + delta);
-  if (mode === "week") next.setDate(next.getDate() + delta * 7);
-  if (mode === "month") next.setMonth(next.getMonth() + delta);
-  if (mode === "year") next.setFullYear(next.getFullYear() + delta);
-  return next;
-}
-
-function reportPeriodRange(date: Date, mode: ReportPeriodMode) {
-  const start = startOfLocalDay(date);
-  if (mode === "week") {
-    const day = start.getDay() || 7;
-    start.setDate(start.getDate() - day + 1);
-  }
-  if (mode === "month") start.setDate(1);
-  if (mode === "year") {
-    start.setMonth(0);
-    start.setDate(1);
-  }
-  const end = new Date(start);
-  if (mode === "day") end.setDate(end.getDate() + 1);
-  if (mode === "week") end.setDate(end.getDate() + 7);
-  if (mode === "month") end.setMonth(end.getMonth() + 1);
-  if (mode === "year") end.setFullYear(end.getFullYear() + 1);
-  return { start, end };
-}
-
-function inReportPeriod(value: string | undefined, start: Date, end: Date) {
-  if (!value) return false;
-  const time = Date.parse(value);
-  return Number.isFinite(time) && time >= +start && time < +end;
-}
-
-function reportPeriodLabel(date: Date, mode: ReportPeriodMode) {
-  if (mode === "day") return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-  if (mode === "month") return `${date.getFullYear()}年${date.getMonth() + 1}月`;
-  if (mode === "year") return `${date.getFullYear()}年`;
-  const { start, end } = reportPeriodRange(date, "week");
-  const weekEnd = new Date(+end - 1);
-  return `${start.getFullYear()}年${start.getMonth() + 1}月${start.getDate()}日 - ${weekEnd.getMonth() + 1}月${weekEnd.getDate()}日`;
-}
-
-function reportPeriodHint(mode: ReportPeriodMode) {
-  if (mode === "day") return "今日 · 可左右切换昨天/明天";
-  if (mode === "week") return "本周 · 可左右切换上周/下周";
-  if (mode === "month") return "本月 · 可左右切换上月/下月";
-  return "本年 · 可左右切换去年/明年";
-}
-
-function reportComparisonLabel(mode: ReportPeriodMode) {
-  if (mode === "day") return "较上一日";
-  if (mode === "week") return "较上周";
-  if (mode === "month") return "较上月";
-  return "较去年";
-}
-
-function reportPeriodData(data: AppData, mode: ReportPeriodMode, date: Date) {
-  const { start, end } = reportPeriodRange(date, mode);
-  return {
-    ...data,
-    orders: data.orders.filter((order) => inReportPeriod(order.createdAt, start, end)),
-    refunds: data.refunds.filter((refund) => inReportPeriod(refund.createdAt, start, end)),
-    memberCardTransactions: data.memberCardTransactions.filter((transaction) => inReportPeriod(transaction.createdAt, start, end)),
-    appointments: data.appointments.filter((appointment) => inReportPeriod(appointment.startAt, start, end)),
-    commissions: data.commissions.filter((commission) => inReportPeriod(commission.createdAt, start, end)),
-  };
-}
-
-function BusinessOverviewPanel({
-  data,
-  summary,
-  mode,
-  date,
-  setMode,
-  movePeriod,
-  exportReportSummary,
-  onOpenDaily,
-}: {
-  data: AppData;
-  summary: ReturnType<typeof reportSummary>;
-  mode: ReportPeriodMode;
-  date: Date;
-  setMode: (mode: ReportPeriodMode) => void;
-  movePeriod: (delta: number) => void;
-  exportReportSummary: () => void;
-  onOpenDaily: () => void;
-}) {
-  const periodOptions: Array<{ key: ReportPeriodMode; label: string }> = [
-    { key: "day", label: "日" },
-    { key: "week", label: "周" },
-    { key: "month", label: "月" },
-    { key: "year", label: "年" },
-  ];
-  const productIncome = data.orders.reduce((sum, order) => sum + (order.productItems ?? []).reduce((itemSum, item) => itemSum + item.amount, 0), 0);
-  const cardIncome = data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
-  const serviceIncome = Math.max(0, summary.revenue - productIncome - cardIncome);
-  const structureTotal = Math.max(1, serviceIncome + productIncome + cardIncome);
-  return (
-    <section className="business-overview-redesign">
-      <div className="business-overview-hero">
-        <div>
-          <span>店长经营看板</span>
-          <strong>经营按周期看</strong>
-          <small>日、周、月、年自由切换，可回看历史周期</small>
-        </div>
-        <button type="button" onClick={exportReportSummary}>导出</button>
-      </div>
-
-      <div className="business-period-card">
-        <div className="business-period-tabs">
-          {periodOptions.map((item) => (
-            <button key={item.key} type="button" className={mode === item.key ? "active" : ""} onClick={() => setMode(item.key)}>
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="business-period-main">
-          <div>
-            <strong>{reportPeriodLabel(date, mode)}</strong>
-            <span>{reportPeriodHint(mode)}</span>
-          </div>
-          <div className="business-period-arrows">
-            <button type="button" aria-label="上一周期" onClick={() => movePeriod(-1)}>‹</button>
-            <button type="button" aria-label="下一周期" onClick={() => movePeriod(1)}>›</button>
-          </div>
-        </div>
-      </div>
-
-      <section className="business-overview-card business-core-card">
-        <header>
-          <h3>核心结果</h3>
-          <span>{reportComparisonLabel(mode)}</span>
-        </header>
-        <div className="business-core-grid">
-          <article>
-            <span>实收金额</span>
-            <strong>{money(summary.revenue)}</strong>
-            <small>--</small>
-          </article>
-          <article>
-            <span>净收入</span>
-            <strong>{money(summary.netRevenue)}</strong>
-            <small>--</small>
-          </article>
-        </div>
-      </section>
-
-      <section className="business-overview-card">
-        <h3>订单与客流</h3>
-        <div className="business-mini-grid">
-          <article><span>订单数</span><strong>{summary.serviceCount} 单</strong></article>
-          <article><span>客单价</span><strong>{money(summary.averageOrderValue)}</strong></article>
-          <article><span>到店客户</span><strong>{summary.activeCustomerCount} 人</strong></article>
-        </div>
-      </section>
-
-      <section className="business-overview-card business-income-card">
-        <h3>收入结构</h3>
-        <div className="business-income-bar">
-          <i style={{ width: `${(serviceIncome / structureTotal) * 100}%` }} />
-          <b style={{ width: `${(productIncome / structureTotal) * 100}%` }} />
-          <em style={{ width: `${(cardIncome / structureTotal) * 100}%` }} />
-        </div>
-        <div className="business-income-list">
-          <span>服务收入<strong>{money(serviceIncome)}</strong></span>
-          <span>商品收入<strong>{money(productIncome)}</strong></span>
-          <span>开卡/充值<strong>{money(cardIncome)}</strong></span>
-        </div>
-      </section>
-
-      <section className="business-overview-card">
-        <h3>会员与转化</h3>
-        <div className="business-core-grid">
-          <article><span>预约转化</span><strong>{summary.serviceCount} / {data.appointments.length}</strong></article>
-          <article><span>复购率</span><strong>{(summary.repeatRate * 100).toFixed(1)}%</strong></article>
-        </div>
-      </section>
-
-      <button type="button" className="business-daily-close-link" onClick={onOpenDaily}>
-        <strong>财务日结</strong>
-        <span>流水 / 退款 / 毛利 / 库存成本 ›</span>
-      </button>
-    </section>
-  );
-}
-
 export default function Reports({
   data,
   actions,
@@ -286,8 +97,11 @@ export default function Reports({
   const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | "trend" | undefined>(fromManagement ? "summary" : undefined);
   const [reportPeriodMode, setReportPeriodMode] = useState<ReportPeriodMode>("day");
   const [reportPeriodDate, setReportPeriodDate] = useState(() => new Date());
-  const periodData = reportPeriodData(data, reportPeriodMode, reportPeriodDate);
-  const summary = reportSummary(periodData);
+  const periodData = useMemo(
+    () => reportPeriodData(data, reportPeriodMode, reportPeriodDate),
+    [data, reportPeriodDate, reportPeriodMode],
+  );
+  const summary = useMemo(() => reportSummary(periodData), [periodData]);
   const percentText = (value: number) => `${(value * 100).toFixed(1)}%`;
   const exportCsv = (filename: string, columns: string[], rows: Array<Array<string | number>>) => {
     downloadCsvFile(filename, columns, rows);
@@ -318,11 +132,6 @@ export default function Reports({
 
   const totalCardBalance = data.memberCards.reduce((sum, card) => sum + (card.balance || 0), 0);
   const activeMembers = data.memberCards.filter((card) => card.status === "正常").length;
-  const newCustomersThisMonth = data.customers.filter((customer) => {
-    const created = new Date(customer.lastVisit || Date.now());
-    const now = new Date();
-    return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
-  }).length;
 
   const serviceRevenue = data.services.map((service) => {
     const revenue = data.orders
@@ -344,21 +153,6 @@ export default function Reports({
       appointments: data.appointments.filter((appointment) => appointment.startAt.slice(0, 10) === key).length,
     };
   });
-  const exportReportSummary = () => exportCsv("yich-report-summary.csv", ["指标", "结果", "说明"], [
-    ["实收现金流", summary.revenue, "扣除退款前的实收订单合计"],
-    ["净收入", summary.netRevenue, "实收现金流 - 退款"],
-    ["毛利", summary.grossProfit, "净收入 - 商品/库存成本"],
-    ["毛利率", percentText(summary.grossMargin), "毛利 / 净收入"],
-    ["退款金额", summary.refundAmount, "退款记录合计"],
-    ["服务订单", summary.serviceCount, "已完成收银订单"],
-    ["员工提成", summary.commission, "服务提成合计"],
-    ["会员卡余额", summary.cardBalance, "客户未消耗储值"],
-    ["会员积分", summary.totalMemberPoints, "客户积分合计"],
-    ["复购率", percentText(summary.repeatRate), "复购客户 / 活跃客户"],
-    ["库存估值", summary.inventoryCost, "剩余批次成本"],
-    ["临期库存", summary.expiringInventoryCount, "30 天内到期批次"],
-    ["低库存项", summary.lowStockCount, "低于预警值"],
-  ]);
   const moveReportPeriod = (delta: number) => {
     setReportPeriodDate((current) => addReportPeriod(current, reportPeriodMode, delta));
   };
@@ -426,16 +220,18 @@ export default function Reports({
             </section>
           )}
           {activeModule === "summary" && (
-            <BusinessOverviewPanel
-              data={periodData}
-              summary={summary}
-              mode={reportPeriodMode}
-              date={reportPeriodDate}
-              setMode={setReportPeriodMode}
-              movePeriod={moveReportPeriod}
-              exportReportSummary={exportReportSummary}
-              onOpenDaily={() => setActiveModule("daily")}
-            />
+            <Suspense fallback={<div className="empty-state">正在加载经营明细...</div>}>
+              <BusinessOverviewPanel
+                data={data}
+                periodData={periodData}
+                summary={summary}
+                mode={reportPeriodMode}
+                date={reportPeriodDate}
+                setMode={setReportPeriodMode}
+                movePeriod={moveReportPeriod}
+                onOpenDaily={() => setActiveModule("daily")}
+              />
+            </Suspense>
           )}
           {activeModule === "trend" && (
             <section className="panel">
@@ -502,8 +298,8 @@ export default function Reports({
                   ["有效会员卡", `${activeMembers} 张`, "当前正常状态"],
                   ["会员卡总余额", money(totalCardBalance), "客户未消耗储值"],
                   ["客户积分", `${summary.totalMemberPoints} 分`, "开卡、充值和消费累计"],
-                  ["复购率", percentText(summary.repeatRate), `${summary.repeatCustomerCount} 位复购客户`],
-                  ["本月新增客户", `${newCustomersThisMonth} 人`, "按最近到店时间"],
+                  ["本期二次消费占比", percentText(summary.repeatRate), `${summary.repeatCustomerCount} 位客户本期至少消费2次`],
+                  ["本期到店客户", `${summary.activeCustomerCount} 人`, "按有效订单客户去重"],
                   ["客户总数", `${data.customers.length} 人`, "累计建档"],
                 ]}
               />

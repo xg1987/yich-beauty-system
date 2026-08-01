@@ -426,6 +426,12 @@ export function createApiClient(getToken: () => string | undefined) {
         body: typeof body === "string" ? { reason: body } : body,
         token: getToken(),
       }),
+    voidMemberCardOpening: (memberCardId: string, body: { reason: string; confirm: "确认作废" }) =>
+      request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/void`, {
+        method: "POST",
+        body,
+        token: getToken(),
+      }),
     rechargeMemberCard: (memberCardId: string, body: { amount?: number; giftAmount?: number; times?: number; giftTimes?: number; paidAmount?: number; payMethod?: CashPayMethod; note?: string }) =>
       request<AppData>(`/api/member-cards/${encodeURIComponent(memberCardId)}/recharge`, {
         method: "POST",

@@ -424,7 +424,7 @@ export type MemberCard = {
   pointsEarned?: number;
   benefitText?: string;
   expiresAt: string;
-  status: "正常" | "冻结" | "过期" | "已退卡";
+  status: "正常" | "冻结" | "过期" | "已退卡" | "已作废";
   serviceId?: string;
   serviceIds?: string[];
   serviceEntitlements?: MemberCardServiceEntitlement[];
@@ -559,7 +559,7 @@ export type MemberCardTransaction = {
   memberCardId: string;
   orderId?: string;
   staffId?: string;
-  type: "开卡" | "充值" | "消费" | "退款" | "退卡" | "冻结" | "解冻" | "延期" | "转卡" | "调整";
+  type: "开卡" | "充值" | "消费" | "退款" | "退卡" | "作废" | "冻结" | "解冻" | "延期" | "转卡" | "调整";
   paidAmount?: number;
   payMethod?: CashPayMethod;
   amountDelta: number;

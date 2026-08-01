@@ -1,6 +1,6 @@
 {
   "name": "yich-beauty-system",
-  "version": "0.1.331",
+  "version": "0.1.332",
   "private": true,
   "type": "module",
   "scripts": {
@@ -22,6 +22,7 @@
     "verify:bundle": "tsx scripts/verify-bundle-budget.ts",
     "verify:release-safety": "tsx scripts/verify-release-safety.ts",
     "verify:production-release": "tsx scripts/verify-production-release.ts",
+    "verify:reporting": "tsx scripts/verify-reporting.ts",
     "android:sync": "sh scripts/build-android-apk.sh sync",
     "android:apk": "sh scripts/build-android-apk.sh apk",
     "preview": "vite preview --host 0.0.0.0",
@@ -39,6 +40,7 @@
     "@capacitor/splash-screen": "^8.0.1",
     "@vitejs/plugin-react": "^5.1.1",
     "bcryptjs": "^2.4.3",
+    "fflate": "^0.8.2",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

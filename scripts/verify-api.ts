@@ -179,6 +179,11 @@ try {
     /不存在/,
     "signature save should reject another store's signature id",
   );
+  const dashboardSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=dashboard", {
+    token: session.token,
+    headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "dashboard" },
+  });
+  assert.ok(dashboardSlice.data.memberCardTransactions, "dashboard slice should include member-card cash and reversal transactions");
   const appointmentSlice = await request<AppDataSlice>(baseUrl, "/api/data?view=appointments", {
     token: session.token,
     headers: { "X-App-Data-Mode": "slice", "X-App-Data-View": "appointments" },
@@ -1178,6 +1183,48 @@ try {
   const openCardCustomer = afterOpenNewCustomerCard.customers.find((customer) => customer.phone === "13600000999");
   assert.equal(openCardCustomer?.birthday, "1995-09-09", "open card API should persist new customer birthday");
   assert.equal(openCardCustomer?.note, "API 开卡登记客户备注", "open card API should persist new customer note");
+  const afterOpenVoidCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: {
+      openCardRequestId: `verify-open-void-${Date.now()}`,
+      customerId: "c2",
+      name: "API 错录套餐卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 3, remainingTimes: 3 },
+        { serviceId: "v2", totalTimes: 2, remainingTimes: 2 },
+      ],
+      paidAmount: 1000,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+    },
+  }));
+  const voidCardId = afterOpenVoidCard.memberCards[0].id;
+  const afterOpenVoidPosContext = await request<PosContextResult>(baseUrl, `/api/pos/context?dayStart=${encodeURIComponent(posDayStart.toISOString())}&dayEnd=${encodeURIComponent(posDayEnd.toISOString())}`, { token: session.token });
+  await assert.rejects(
+    () => request<AppData>(baseUrl, `/api/member-cards/${voidCardId}/void`, {
+      method: "POST",
+      token: frontdeskSession.token,
+      body: { reason: "前台尝试作废", confirm: "确认作废" },
+    }),
+    /只有门店老板或店长/,
+    "frontdesk should not void a member card opening",
+  );
+  const afterVoidCard = await request<AppData>(baseUrl, `/api/member-cards/${voidCardId}/void`, {
+    method: "POST",
+    token: session.token,
+    body: { reason: "API 重复开卡录入", confirm: "确认作废" },
+  });
+  const voidedCard = afterVoidCard.memberCards.find((card) => card.id === voidCardId);
+  assert.equal(voidedCard?.status, "已作废", "manager should void an unused erroneous opening");
+  assert.equal(voidedCard?.remainingTimes, 0, "void API should clear card times");
+  assert.ok(voidedCard?.serviceEntitlements?.every((item) => item.remainingTimes === 0), "void API should clear project entitlement balances");
+  assert.equal(afterVoidCard.memberCardTransactions[0].type, "作废", "void API should persist reversal transaction");
+  assert.equal(afterVoidCard.memberCardTransactions[0].paidAmount, 1000, "void API should reverse recorded opening cash");
+  assert.equal(afterVoidCard.operationLogs[0].action, "开卡错录作废", "void API should persist audit log");
+  const afterVoidPosContext = await request<PosContextResult>(baseUrl, `/api/pos/context?dayStart=${encodeURIComponent(posDayStart.toISOString())}&dayEnd=${encodeURIComponent(posDayEnd.toISOString())}`, { token: session.token });
+  assert.equal(afterVoidPosContext.todayPaid, afterOpenVoidPosContext.todayPaid - 1000, "POS context should subtract voided opening cash from today's paid total");
   const afterOpenPackageCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,

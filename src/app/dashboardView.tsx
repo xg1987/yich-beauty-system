@@ -3,7 +3,7 @@ import { CalendarDays, ChartNoAxesColumnIncreasing, CreditCard, HeartHandshake, 
 import { PanelTitle } from "../components/layout/PanelTitle";
 import { appointmentEndAt, appointmentServiceIds } from "../domain/appointments";
 import type { UserSession } from "../domain/auth";
-import { memberCardCashIn } from "../domain/business";
+import { memberCardCashIn, memberCardCashRefund } from "../domain/business";
 import type { AppData, Appointment, CustomerSignature, Staff, UserRole, ViewKey } from "../domain/types";
 import { money, shortDate } from "../domain/utils";
 
@@ -41,13 +41,15 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
   const paidRevenue = data.orders
     .filter((order) => order.payMethod !== "会员卡")
     .reduce((sum, order) => sum + order.paidAmount, 0)
-    + data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
+    + data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0)
+    - data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashRefund(transaction), 0);
   const today = new Date();
   const todayAppointmentsList = data.appointments
     .filter((item) => new Date(item.startAt).toDateString() === today.toDateString())
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
   const todayOrders = data.orders.filter((item) => new Date(item.createdAt).toDateString() === today.toDateString());
   const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashIn(transaction) > 0);
+  const todayMemberCardRefundTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashRefund(transaction) > 0);
   const userStaffId = session.user.staffId;
   const roleAppointmentsList = session.user.role === "therapist" && userStaffId
     ? todayAppointmentsList.filter((item) => item.staffId === userStaffId)
@@ -66,7 +68,10 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
   const pendingFollowUps = roleFollowUps.length;
   const activeCards = data.memberCards.filter((item) => item.status === "正常").length;
   const todayRevenue = roleCashOrders.reduce((sum, item) => sum + item.paidAmount, 0)
-    + roleMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
+    + roleMemberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0)
+    - (session.user.role === "therapist"
+      ? 0
+      : todayMemberCardRefundTransactions.reduce((sum, transaction) => sum + memberCardCashRefund(transaction), 0));
   const completedAppointments = roleAppointmentsList.filter((item) => item.status === "已完成").length;
   const pendingConfirmAppointments = roleAppointmentsList.filter((item) => item.status === "待确认");
   const pendingArrivalAppointments = roleAppointmentsList.filter((item) => item.status === "已确认");

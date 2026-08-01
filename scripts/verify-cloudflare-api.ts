@@ -469,6 +469,45 @@ const afterOpenPackageCard = memberCardPatchData(await request<AppDataPatch>(bas
 }));
 assert.equal(afterOpenPackageCard.memberCards[0].type, "套餐卡", "D1 should persist package card type");
 assert.deepEqual(afterOpenPackageCard.memberCards[0].serviceIds, [serviceId], "D1 should persist package card services");
+const afterOpenVoidCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    openCardRequestId: `cf-open-void-${runId}`,
+    customerId,
+    name: "Cloudflare 错录套餐卡",
+    type: "套餐卡",
+    serviceEntitlements: [{ serviceId, totalTimes: 4, remainingTimes: 4 }],
+    paidAmount: 800,
+    payMethod: "微信",
+    expiresAt: "2027-12-31",
+  },
+}));
+const voidCardId = afterOpenVoidCard.memberCards[0].id;
+const posDayStart = new Date();
+posDayStart.setHours(0, 0, 0, 0);
+const posDayEnd = new Date(posDayStart);
+posDayEnd.setHours(24, 0, 0, 0);
+const afterOpenVoidPosContext = await request<{ todayPaid: number }>(baseUrl, `/api/pos/context?dayStart=${encodeURIComponent(posDayStart.toISOString())}&dayEnd=${encodeURIComponent(posDayEnd.toISOString())}`, { token: ownerSession.token });
+await assert.rejects(
+  () => request<AppData>(baseUrl, `/api/member-cards/${voidCardId}/void`, {
+    method: "POST",
+    token: frontdeskSession.token,
+    body: { reason: "前台尝试作废", confirm: "确认作废" },
+  }),
+  /只有门店老板或店长/,
+  "D1 frontdesk should not void a member card opening",
+);
+const afterVoidCard = await request<AppData>(baseUrl, `/api/member-cards/${voidCardId}/void`, {
+  method: "POST",
+  token: ownerSession.token,
+  body: { reason: "Cloudflare 重复开卡", confirm: "确认作废" },
+});
+assert.equal(afterVoidCard.memberCards.find((item) => item.id === voidCardId)?.status, "已作废", "D1 should persist voided card status");
+assert.ok(afterVoidCard.memberCards.find((item) => item.id === voidCardId)?.serviceEntitlements?.every((item) => item.remainingTimes === 0), "D1 should clear voided entitlements");
+assert.equal(afterVoidCard.memberCardTransactions[0].type, "作废", "D1 should persist void reversal transaction");
+const afterVoidPosContext = await request<{ todayPaid: number }>(baseUrl, `/api/pos/context?dayStart=${encodeURIComponent(posDayStart.toISOString())}&dayEnd=${encodeURIComponent(posDayEnd.toISOString())}`, { token: ownerSession.token });
+assert.equal(afterVoidPosContext.todayPaid, afterOpenVoidPosContext.todayPaid - 800, "D1 POS context should subtract voided opening cash from today's paid total");
 const afterRecharge = await request<AppData>(baseUrl, `/api/member-cards/${cardId}/recharge`, {
   method: "POST",
   token: ownerSession.token,
