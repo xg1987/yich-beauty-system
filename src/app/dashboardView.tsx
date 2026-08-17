@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { CalendarDays, ChartNoAxesColumnIncreasing, CreditCard, HeartHandshake, LayoutDashboard, PackagePlus, Share2, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import { appointmentEndAt, appointmentServiceIds } from "../domain/appointments";
@@ -108,51 +108,6 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
     : isOrdinaryEmployee
       ? `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 客户 ${data.customers.length}`
       : `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 今日实收 ${money(todayRevenue)}`;
-  const effectiveTodayAppointments = todayAppointmentsList.filter((item) => !["已取消", "爽约"].includes(item.status));
-  const scheduleStaff = dashboardActiveStaffOf(data);
-  const scheduleDayStart = new Date(today);
-  scheduleDayStart.setHours(WORKBENCH_SCHEDULE_START_HOUR, 0, 0, 0);
-  const scheduleDayEnd = new Date(today);
-  scheduleDayEnd.setHours(WORKBENCH_SCHEDULE_END_HOUR, 0, 0, 0);
-  const visibleScheduleAppointments = effectiveTodayAppointments.filter((appointment) => {
-    const start = new Date(appointment.startAt);
-    const end = new Date(appointmentEndAt(appointment, data.services));
-    return +end > +scheduleDayStart && +start < +scheduleDayEnd;
-  });
-  const freeStaffCount = scheduleStaff.filter((staff) => !visibleScheduleAppointments.some((appointment) => appointment.staffId === staff.id)).length;
-  const scheduleRows = scheduleStaff.map((staff) => {
-    const appointments = visibleScheduleAppointments
-      .filter((appointment) => appointment.staffId === staff.id)
-      .map((appointment) => {
-        const start = new Date(appointment.startAt);
-        const end = new Date(appointmentEndAt(appointment, data.services));
-        const startMinutes = Math.max(0, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+start - +scheduleDayStart) / 60000)));
-        const endMinutes = Math.max(startMinutes, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+end - +scheduleDayStart) / 60000)));
-        const left = (startMinutes / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
-        const rawDurationMinutes = Math.max(0, endMinutes - startMinutes);
-        const visualDurationMinutes = Math.max(60, Math.ceil(rawDurationMinutes / 30) * 30);
-        const visualEndMinutes = Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, startMinutes + visualDurationMinutes);
-        const visualWidth = ((visualEndMinutes - startMinutes) / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
-        const serviceNames = appointmentServiceIds(appointment)
-          .map((serviceId) => dashboardNameOf(data.services, serviceId))
-          .filter((name) => name && name !== "-");
-        const timeLabel = start.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
-        const customerName = dashboardNameOf(data.customers, appointment.customerId);
-        const serviceLabel = serviceNames[0] ?? "预约";
-        const fullLabel = `${timeLabel} ${customerName} ${serviceLabel}`;
-        return {
-          appointment,
-          label: fullLabel,
-          left,
-          primaryLabel: timeLabel,
-          secondaryLabel: customerName,
-          tone: scheduleAppointmentTone(appointment.status),
-          width: visualWidth,
-        };
-      });
-    return { appointments, staff };
-  });
-
   if (isOrdinaryEmployee) {
     const todayCardOpens = todayMemberCardIncomeTransactions.length;
     return (
@@ -186,56 +141,171 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
         ))}
       </section>
 
-      <section className="workbench-panel workbench-schedule-panel">
-        <div className="workbench-schedule-head">
-          <div>
-            <h2>今日预约排班表</h2>
-          </div>
-          <div>
-            <strong>今日{effectiveTodayAppointments.length}单 · {scheduleStaff.length}人 · 空闲{freeStaffCount}人</strong>
-            <div className="workbench-schedule-legend" aria-label="预约状态">
-              <span className="legend-pending"><i className="pending" />待确认</span>
-              <span className="legend-waiting"><i className="waiting" />待到店</span>
-              <span className="legend-active"><i className="active" />服务中</span>
-              <span className="legend-done"><i className="done" />已完成</span>
-            </div>
-          </div>
-        </div>
-        <div className="workbench-schedule-table" aria-label="今日预约排班时间轴">
-          <div className="workbench-schedule-time-row">
-            <span aria-hidden="true" />
-            <div>
-              {WORKBENCH_SCHEDULE_HOURS.map((hour) => <b key={hour}>{hour.toString().padStart(2, "0")}</b>)}
-            </div>
-          </div>
-          {scheduleRows.map((row) => (
-            <div key={row.staff.id} className="workbench-schedule-row">
-              <div className="workbench-schedule-staff">
-                <strong>{row.staff.name}</strong>
-              </div>
-              <div className="workbench-schedule-lane">
-                {row.appointments.map((item) => (
-                  <button
-                    key={item.appointment.id}
-                    type="button"
-                    className={`workbench-schedule-block ${item.tone}`}
-                    style={{ "--schedule-left": `${item.left}%`, "--schedule-width": `${item.width}%` } as CSSProperties}
-                    title={item.label}
-                    onClick={() => setView("appointments", { appointmentId: item.appointment.id })}
-                  >
-                    <span>{item.primaryLabel}</span>
-                    <small>{item.secondaryLabel}</small>
-                  </button>
-                ))}
-                {row.appointments.length === 0 && <span className="workbench-schedule-free">空闲 · 可安排</span>}
-              </div>
-            </div>
-          ))}
-          {scheduleRows.length === 0 && <p className="empty">暂无排班数据</p>}
-        </div>
-      </section>
+      <ManagerSchedulePanel data={data} setView={setView} />
     </div>
   );
+}
+
+function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: NavigateToView }) {
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const scheduleStaff = dashboardActiveStaffOf(data);
+  const effectiveAppointments = useMemo(
+    () => data.appointments
+      .filter((appointment) => !["已取消", "爽约"].includes(appointment.status))
+      .slice()
+      .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
+    [data.appointments],
+  );
+  const visibleDates = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() + index);
+    return date;
+  });
+  const selectedDate = visibleDates[selectedDayIndex];
+  const dayAppointments = effectiveAppointments.filter((appointment) => sameScheduleDate(appointment.startAt, selectedDate));
+  const scheduleDayStart = new Date(selectedDate);
+  scheduleDayStart.setHours(WORKBENCH_SCHEDULE_START_HOUR, 0, 0, 0);
+  const scheduleDayEnd = new Date(selectedDate);
+  scheduleDayEnd.setHours(WORKBENCH_SCHEDULE_END_HOUR, 0, 0, 0);
+  const visibleScheduleAppointments = dayAppointments.filter((appointment) => {
+    const start = new Date(appointment.startAt);
+    const end = new Date(appointmentEndAt(appointment, data.services));
+    return +end > +scheduleDayStart && +start < +scheduleDayEnd;
+  });
+  const freeStaffCount = scheduleStaff.filter((staff) => !visibleScheduleAppointments.some((appointment) => appointment.staffId === staff.id)).length;
+  const scheduleRows = scheduleStaff.map((staff) => {
+    const appointments = visibleScheduleAppointments
+      .filter((appointment) => appointment.staffId === staff.id)
+      .map((appointment) => {
+        const start = new Date(appointment.startAt);
+        const end = new Date(appointmentEndAt(appointment, data.services));
+        const startMinutes = Math.max(0, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+start - +scheduleDayStart) / 60000)));
+        const endMinutes = Math.max(startMinutes, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+end - +scheduleDayStart) / 60000)));
+        const left = (startMinutes / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
+        const rawDurationMinutes = Math.max(0, endMinutes - startMinutes);
+        const visualDurationMinutes = Math.max(60, Math.ceil(rawDurationMinutes / 30) * 30);
+        const visualEndMinutes = Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, startMinutes + visualDurationMinutes);
+        const visualWidth = ((visualEndMinutes - startMinutes) / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
+        const serviceNames = appointmentServiceIds(appointment)
+          .map((serviceId) => dashboardNameOf(data.services, serviceId))
+          .filter((name) => name && name !== "-");
+        const timeLabel = start.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+        const customerName = dashboardNameOf(data.customers, appointment.customerId);
+        const serviceLabel = serviceNames[0] ?? "预约";
+        return {
+          appointment,
+          label: `${timeLabel} ${customerName} ${serviceLabel}`,
+          left,
+          primaryLabel: timeLabel,
+          secondaryLabel: customerName,
+          tone: scheduleAppointmentTone(appointment.status),
+          width: visualWidth,
+        };
+      });
+    return { appointments, staff };
+  });
+  const selectedDateLabel = selectedDayIndex === 0 ? "今日" : selectedDayIndex === 1 ? "明日" : scheduleShortDate(selectedDate);
+  const title = selectedDayIndex === 0 ? "今日预约排班表" : selectedDayIndex === 1 ? "明日预约排班表" : `${scheduleDateTitle(selectedDate)}预约排班表`;
+  const summary = selectedDayIndex > 1
+    ? `${selectedDateLabel} · ${dayAppointments.length}单 · ${scheduleStaff.length}人 · 空闲${freeStaffCount}人`
+    : `${selectedDateLabel}${dayAppointments.length}单 · ${scheduleStaff.length}人 · 空闲${freeStaffCount}人`;
+
+  return (
+    <section className="workbench-panel workbench-schedule-panel">
+      <div className="workbench-schedule-head">
+        <div>
+          <h2>{title}</h2>
+          <div className="workbench-schedule-date-tabs" role="group" aria-label="未来七天预约日期">
+            {visibleDates.map((date, index) => {
+              const count = effectiveAppointments.filter((appointment) => sameScheduleDate(appointment.startAt, date)).length;
+              const weekdayLabel = scheduleWeekday(date);
+              const label = index === 0 ? "今天" : index === 1 ? "明天" : weekdayLabel;
+              return (
+                <button
+                  key={date.toISOString()}
+                  type="button"
+                  className={selectedDayIndex === index ? "active" : undefined}
+                  aria-pressed={selectedDayIndex === index}
+                  onClick={() => setSelectedDayIndex(index)}
+                >
+                  <span>{label}</span>
+                  <strong>{scheduleShortDate(date)}</strong>
+                  <small>{index < 2 ? `${weekdayLabel} · ` : ""}{count}单</small>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <strong>{summary}</strong>
+          <ScheduleLegend />
+        </div>
+      </div>
+
+      <div className="workbench-schedule-table" aria-label={`${selectedDateLabel}预约排班时间轴`}>
+        <div className="workbench-schedule-time-row">
+          <span aria-hidden="true" />
+          <div>
+            {WORKBENCH_SCHEDULE_HOURS.map((hour) => <b key={hour}>{hour.toString().padStart(2, "0")}</b>)}
+          </div>
+        </div>
+        {scheduleRows.map((row) => (
+          <div key={row.staff.id} className="workbench-schedule-row">
+            <div className="workbench-schedule-staff">
+              <strong>{row.staff.name}</strong>
+            </div>
+            <div className="workbench-schedule-lane">
+              {row.appointments.map((item) => (
+                <button
+                  key={item.appointment.id}
+                  type="button"
+                  className={`workbench-schedule-block ${item.tone}`}
+                  style={{ "--schedule-left": `${item.left}%`, "--schedule-width": `${item.width}%` } as CSSProperties}
+                  title={item.label}
+                  onClick={() => setView("appointments", { appointmentId: item.appointment.id })}
+                >
+                  <span>{item.primaryLabel}</span>
+                  <small>{item.secondaryLabel}</small>
+                </button>
+              ))}
+              {row.appointments.length === 0 && <span className="workbench-schedule-free">空闲 · 可安排</span>}
+            </div>
+          </div>
+        ))}
+        {scheduleRows.length === 0 && <p className="empty">暂无排班数据</p>}
+      </div>
+    </section>
+  );
+}
+
+function ScheduleLegend() {
+  return (
+    <div className="workbench-schedule-legend" aria-label="预约状态">
+      <span className="legend-pending"><i className="pending" />待确认</span>
+      <span className="legend-waiting"><i className="waiting" />待到店</span>
+      <span className="legend-active"><i className="active" />服务中</span>
+      <span className="legend-done"><i className="done" />已完成</span>
+    </div>
+  );
+}
+
+function sameScheduleDate(value: string, date: Date) {
+  return new Date(value).toDateString() === date.toDateString();
+}
+
+function scheduleShortDate(date: Date) {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function scheduleWeekday(date: Date) {
+  return date.toLocaleDateString("zh-CN", { weekday: "short" });
+}
+
+function scheduleDateTitle(date: Date) {
+  return date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
 }
 
 function scheduleAppointmentTone(status: Appointment["status"]) {

@@ -32,6 +32,7 @@ import {
 import { formatStockQuantity } from "../../domain/products";
 import type { AppData } from "../../domain/types";
 import { money } from "../../domain/utils";
+import SalesPerformanceDetails from "./SalesPerformanceDetails";
 
 type ExportState = {
   status: "idle" | "working" | "success" | "error";
@@ -301,8 +302,8 @@ export default function BusinessOverviewPanel({
       <div className="business-overview-hero">
         <div>
           <span>店长经营驾驶舱</span>
-          <strong>客户、交付、产品、补货一页看清</strong>
-          <small>日、周、月、年自由切换，Excel同步导出全部明细</small>
+          <strong>销售业绩明细</strong>
+          <small>消费客户、未消费客户、库存占压、服务交付和补货一页看清</small>
         </div>
         <button type="button" onClick={exportWorkbook} disabled={exportState.status === "working"}>
           <FileSpreadsheet size={17} />
@@ -330,6 +331,14 @@ export default function BusinessOverviewPanel({
           </div>
         </div>
       </div>
+
+      <SalesPerformanceDetails
+        data={data}
+        periodData={periodData}
+        summary={summary}
+        mode={mode}
+        date={date}
+      />
 
       <section className="business-overview-card business-core-card">
         <header>
