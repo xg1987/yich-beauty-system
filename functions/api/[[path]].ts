@@ -72,7 +72,7 @@ import {
   isStaleMarketingAiRecord,
   storeIdForUser,
 } from "../../src/domain/business";
-import { hashPassword } from "../../src/lib/password";
+import { assertStrongResetPassword, hashPassword } from "../../src/lib/password";
 import { requireMobilePhone } from "../../src/domain/phone";
 import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../../src/domain/aiBilling";
 
@@ -82,8 +82,9 @@ import type { Permission, UserSession } from "../../src/domain/auth";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, diffAppData, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice, POS_REMOTE_PAGING_CAPABILITY } from "../../src/domain/dataSlices";
-import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../../src/domain/products";
-import { makeId, nowIso } from "../../src/domain/utils";
+import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, requireConfirmedProductStockRule } from "../../src/domain/products";
+import { businessDateToday, makeId, nowIso } from "../../src/domain/utils";
+import { AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS, DEFAULT_AI_VIDEO_RESOLUTION } from "../../src/domain/aiVideoDefaults";
 import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1, destroySessionInD1 } from "../../src/cloudflare/auth";
 import type { D1DatabaseBinding } from "../../src/cloudflare/d1Types";
@@ -833,7 +834,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const account = requiredString(body, "account");
       const plainPassword = requiredString(body, "password");
 
-      const loginResult = await loginWithD1(context.env.DB, account, plainPassword);
+      const loginResult = await loginWithD1(context.env.DB, account, plainPassword, requestClientKey(context.request));
 
       // Auto-migrate legacy plaintext password to secure hash
       if (loginResult.needsPasswordMigration && loginResult.userIdNeedingMigration) {
@@ -873,7 +874,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       await database.replaceTables(nextData, registerStoreWriteKeys);
       markMutationWrite(timing);
 
-      const loginResult = await loginWithD1(context.env.DB, requiredString(body, "account"), plainPassword);
+      const loginResult = await loginWithD1(context.env.DB, requiredString(body, "account"), plainPassword, requestClientKey(context.request));
       return withMutationTiming(sendJson(201, loginResult.session), timing, "full");
     }
 
@@ -992,6 +993,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(401, { error: "请先登录" });
     }
 
+    const storeMutationLock = session.user.storeId && requiresStoreMutationLock(context.request.method, pathname)
+      ? { storeId: session.user.storeId, ownerId: makeId("store-mutation") }
+      : undefined;
+    if (storeMutationLock) {
+      const acquired = await database.acquireCheckoutStoreLock(storeMutationLock.storeId, storeMutationLock.ownerId, nowIso());
+      if (!acquired) throw new Error("本门店正在处理另一笔库存或资金操作，请稍后重试");
+    }
+
+    try {
+
     if (context.request.method === "GET" && pathname === "/api/auth/me") {
       return sendJson(200, session);
     }
@@ -1051,12 +1062,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const timing = startMutationTiming("auth-user-password-reset");
       const userId = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
+      const resetPlainPassword = requiredString(body, "password");
+      assertStrongResetPassword(resetPlainPassword);
       const currentData = await readMutationDataForRequest(database, context.request, session, authUserMutationKeys);
       markMutationRead(timing);
       assertCanManageAuthUser(currentData, session, userId);
       const nextData = resetAuthUserPassword(currentData, {
         userId,
-        password: await hashPassword(requiredString(body, "password")),
+        password: await hashPassword(resetPlainPassword),
         operatedBy: session.user.id,
       });
       startMutationWrite(timing);
@@ -1726,49 +1739,56 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const body = await readJson(context.request);
       const checkoutRequestId = optionalString(body, "checkoutRequestId");
       const currentData = await readRequiredMutationData(database, session, checkoutMutationKeys);
+      const checkoutStoreId = sessionStoreId(currentData, session);
       markMutationRead(timing);
-      const existingSignatureIds = new Set((currentData.customerSignatures ?? []).map((signature) => signature.id));
-      const checkedOutData = checkoutOrder(currentData, {
-        storeId: sessionStoreId(currentData, session),
-        customerId: optionalString(body, "customerId"),
-        guestName: optionalString(body, "guestName"),
-        guestPhone: optionalString(body, "guestPhone"),
-        staffId: requiredString(body, "staffId"),
-        collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
-        serviceId: optionalString(body, "serviceId"),
-        serviceIds: optionalStringArray(body, "serviceIds"),
-        productId: optionalString(body, "productId"),
-        giftProductId: optionalString(body, "giftProductId"),
-        productItems: optionalProductItems(body, "productItems"),
-        giftProductItems: optionalProductItems(body, "giftProductItems"),
-        discountAmount: optionalNumber(body, "discountAmount"),
-        adjustmentReason: optionalString(body, "adjustmentReason"),
-        approvalId: optionalString(body, "approvalId"),
-        appointmentId: optionalString(body, "appointmentId"),
-        payMethod: requiredString(body, "payMethod") as Order["payMethod"],
-        cardId: optionalString(body, "cardId"),
-        requestedBy: session.user.id,
-      });
-      const checkoutReserved = checkoutRequestId ? await database.reserveCheckoutSubmission(checkoutRequestId, nowIso()) : true;
-      if (!checkoutReserved) {
-        throw new Error("检测到刚刚已提交相同收银请求，请勿重复提交");
+      let checkoutReserved = false;
+      try {
+        if (checkoutRequestId) {
+          checkoutReserved = await database.reserveCheckoutSubmission(checkoutRequestId, nowIso());
+          if (!checkoutReserved) throw new Error("检测到刚刚已提交相同收银请求，请勿重复提交");
+        }
+        const existingSignatureIds = new Set((currentData.customerSignatures ?? []).map((signature) => signature.id));
+        const checkedOutData = checkoutOrder(currentData, {
+          storeId: checkoutStoreId,
+          customerId: optionalString(body, "customerId"),
+          guestName: optionalString(body, "guestName"),
+          guestPhone: optionalString(body, "guestPhone"),
+          staffId: requiredString(body, "staffId"),
+          collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
+          serviceId: optionalString(body, "serviceId"),
+          serviceIds: optionalStringArray(body, "serviceIds"),
+          productId: optionalString(body, "productId"),
+          giftProductId: optionalString(body, "giftProductId"),
+          productItems: optionalProductItems(body, "productItems"),
+          giftProductItems: optionalProductItems(body, "giftProductItems"),
+          discountAmount: optionalNumber(body, "discountAmount"),
+          adjustmentReason: optionalString(body, "adjustmentReason"),
+          approvalId: optionalString(body, "approvalId"),
+          appointmentId: optionalString(body, "appointmentId"),
+          payMethod: requiredString(body, "payMethod") as Order["payMethod"],
+          cardId: optionalString(body, "cardId"),
+          requestedBy: session.user.id,
+        });
+        const nextData = addOperationLog(
+          checkedOutData,
+          {
+            userId: session.user.id,
+            action: "开单收银",
+            targetType: "order",
+            targetId: "latest",
+            summary: `${session.user.name} 完成开单收银`,
+          },
+        );
+        const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
+        startMutationWrite(timing);
+        await persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
+        await database.upsertCustomerSignatures(newSignatures);
+        markMutationWrite(timing);
+        return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, checkoutResponseKeys), timing, "scoped");
+      } catch (caught) {
+        if (checkoutRequestId && checkoutReserved) await database.releaseCheckoutSubmission(checkoutRequestId);
+        throw caught;
       }
-      const nextData = addOperationLog(
-        checkedOutData,
-        {
-          userId: session.user.id,
-          action: "开单收银",
-          targetType: "order",
-          targetId: "latest",
-          summary: `${session.user.name} 完成开单收银`,
-        },
-      );
-      const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
-      startMutationWrite(timing);
-      await persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
-      await database.upsertCustomerSignatures(newSignatures);
-      markMutationWrite(timing);
-      return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, checkoutResponseKeys), timing, "scoped");
     }
 
     if (context.request.method === "POST" && pathname.startsWith("/api/orders/") && pathname.endsWith("/refund")) {
@@ -2534,10 +2554,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         summary: `${session.user.name} 新增服务项目 ${requiredString(body, "name")}`,
       }, (data) => {
         const storeId = sessionStoreId(data, session);
-        const stockConsumables = consumables.filter((item) => {
+        const linkedConsumables = consumables.filter((item) => {
           const product = data.products.find((candidate) => candidate.id === item.productId);
           if (!product) throw new Error("商品不存在");
-          return productServiceStockDeductible(product);
+          return true;
         });
         return {
           ...data,
@@ -2550,9 +2570,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               price: requiredNumber(body, "price"),
               duration: optionalNumber(body, "duration") ?? 60,
               defaultTimes: optionalNumber(body, "defaultTimes") ?? 1,
-              consumables: stockConsumables,
-              consumableProductId: stockConsumables[0]?.productId ?? optionalString(body, "consumableProductId"),
-              consumableQty: stockConsumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
+              consumables: linkedConsumables,
+              consumableProductId: linkedConsumables[0]?.productId ?? optionalString(body, "consumableProductId"),
+              consumableQty: linkedConsumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
             },
             ...data.services,
           ],
@@ -2579,10 +2599,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         summary: `${session.user.name} 更新项目使用产品`,
       }, (data) => {
         if (!data.services.some((service) => service.id === serviceId)) throw new Error("服务项目不存在");
-        const stockConsumables = consumables.filter((item) => {
+        const linkedConsumables = consumables.filter((item) => {
           const product = data.products.find((candidate) => candidate.id === item.productId);
           if (!product) throw new Error("商品不存在");
-          return productServiceStockDeductible(product);
+          return true;
         });
         return {
           ...data,
@@ -2590,9 +2610,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             service.id === serviceId
               ? {
                   ...service,
-                  consumables: stockConsumables,
-                  consumableProductId: stockConsumables[0]?.productId,
-                  consumableQty: stockConsumables[0]?.quantity,
+                  consumables: linkedConsumables,
+                  consumableProductId: linkedConsumables[0]?.productId,
+                  consumableQty: linkedConsumables[0]?.quantity,
                 }
               : service,
           ),
@@ -2647,21 +2667,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const subcategory = optionalString(body, "subcategory") ?? "";
       const unit = optionalString(body, "unit") ?? "件";
       const expiryAt = optionalString(body, "expiryAt");
-      const serviceStockDeductible = productServiceStockDeductible({
-        name,
-        category,
-        subcategory,
-        unit,
+      const stockRule = requireConfirmedProductStockRule({
         serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
-        serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"),
         serviceUnit: optionalString(body, "serviceUnit"),
+        serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"),
       });
-      const serviceUnit = serviceStockDeductible
-        ? productServiceUnit({ name, category, subcategory, unit, serviceStockDeductible, serviceUnit: optionalString(body, "serviceUnit") })
-        : undefined;
-      const serviceUnitsPerStockUnit = serviceStockDeductible
-        ? normalizeProductServiceUnitsPerStockUnit(optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"))
-        : undefined;
+      const { serviceStockDeductible, serviceUnit, serviceUnitsPerStockUnit } = stockRule;
+      const serviceStockReviewStatus = "confirmed" as const;
       const currentData = await readMutationDataForRequest(database, context.request, session, productCatalogMutationKeys);
       markMutationRead(timing);
       const nextData = updateData(currentData, session, {
@@ -2687,6 +2699,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
             expiryAt,
             serviceStockDeductible,
+            serviceStockReviewStatus,
+            serviceStockReviewedAt: serviceStockReviewStatus === "confirmed" ? createdAt : undefined,
+            serviceStockReviewedBy: serviceStockReviewStatus === "confirmed" ? session.user.id : undefined,
             serviceUnit,
             serviceUnitsPerStockUnit,
             serviceUsesPerUnit: serviceUnitsPerStockUnit,
@@ -2757,6 +2772,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         warningStock: optionalNumber(body, "warningStock"),
         shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
         serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
+        serviceStockReviewStatus: optionalBoolean(body, "serviceStockDeductible") === undefined ? undefined : "confirmed",
+        serviceStockReviewedAt: optionalBoolean(body, "serviceStockDeductible") === undefined ? undefined : nowIso(),
+        serviceStockReviewedBy: optionalBoolean(body, "serviceStockDeductible") === undefined ? undefined : session.user.id,
         serviceUnit: optionalString(body, "serviceUnit"),
         serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit"),
         status: optionalString(body, "status") as "启用" | "停用" | undefined,
@@ -2880,7 +2898,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       markMutationRead(timing);
       const nextData = createDailyClose(currentData, {
         storeId: sessionStoreId(currentData, session),
-        businessDate: optionalString(body, "businessDate") ?? new Date().toISOString().slice(0, 10),
+        businessDate: optionalString(body, "businessDate") ?? businessDateToday(),
         userId: session.user.id,
       });
       startMutationWrite(timing);
@@ -2906,12 +2924,34 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return withMutationTiming(sendScopedData(context.request, 200, nextData, session), timing, "scoped");
     }
 
-    return sendJson(404, { error: "Not found" });
+      return sendJson(404, { error: "Not found" });
+    } finally {
+      if (storeMutationLock) await database.releaseCheckoutStoreLock(storeMutationLock.storeId, storeMutationLock.ownerId);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return sendJson(400, { error: message });
   }
 };
+
+function requiresStoreMutationLock(method: string, pathname: string) {
+  if (method !== "POST" && method !== "PATCH") return false;
+  return pathname === "/api/checkout"
+    || pathname.startsWith("/api/orders/")
+    || pathname.startsWith("/api/member-cards")
+    || pathname.startsWith("/api/products")
+    || pathname.startsWith("/api/inventory/")
+    || pathname === "/api/purchase-orders"
+    || pathname === "/api/stocktakes"
+    || pathname.startsWith("/api/daily-close")
+    || pathname === "/api/commissions/settle";
+}
+
+function requestClientKey(request: Request) {
+  return request.headers.get("CF-Connecting-IP")
+    ?? request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim()
+    ?? "unknown";
+}
 
 function updateData(
   data: AppData,
@@ -3026,6 +3066,7 @@ function catalogEditSummary(userName: string, targetName: string, body: JsonBody
     duration: "时长",
     defaultTimes: "可服务次数",
     consumables: "耗材配置",
+    serviceStockDeductible: "项目扣减规则",
     status: "状态",
   };
   const changed = Object.keys(fieldLabels).filter((key) => hasBodyKey(body, key)).map((key) => fieldLabels[key]);
@@ -3812,10 +3853,10 @@ const defaultAiGenerationConfig: AiGenerationConfig = {
   video: {
     defaultProvider: "seedance",
     providers: [
-      { provider: "seedance", enabled: true, model: defaultSeedanceModel, apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "grok", enabled: false, model: "grok-imagine-video-1.5", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "seedance", enabled: true, model: defaultSeedanceModel, apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.seedance, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.kling, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.hailuo, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "grok", enabled: false, model: "grok-imagine-video-1.5", apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.grok, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
     ],
   },
 };
@@ -4905,7 +4946,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const durationSeconds = aiVideoDurations.includes(Number(generateBody.videoDuration)) ? Number(generateBody.videoDuration) : provider?.defaultDurationSeconds ?? 5;
   const resolution = aiVideoResolutions.includes(generateBody.videoResolution as AiVideoResolution)
     ? generateBody.videoResolution as AiVideoResolution
-    : provider?.defaultResolution ?? "480p";
+    : provider?.defaultResolution ?? DEFAULT_AI_VIDEO_RESOLUTION;
   const result = await runAiVideoTest(data, {
     ...generateBody,
     prompt,
@@ -5748,7 +5789,6 @@ function handleCors(request: Request) {
 
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View, X-Yich-Capabilities, Cache-Control, Pragma",
   };

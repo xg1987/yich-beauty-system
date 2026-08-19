@@ -5,16 +5,18 @@ import { PanelTitle } from "../components/layout/PanelTitle";
 import type { UserSession } from "../domain/auth";
 import { AI_CREDIT_CNY_PER_USD, aiFreeQuotaState } from "../domain/aiBilling";
 import { isMarketingAiRecordPending, isStaleMarketingAiRecord } from "../domain/business";
-import type { AppData, MarketingAiRecord } from "../domain/types";
-import type { MarketingTalkTopic, MarketingTalkTopicsResult } from "../api/client";
-import type { ApiActions } from "../hooks/useApiData";
 import {
   AI_PROVIDER_LABELS,
   aiCapabilityUsageState,
   aiGenerationConfigFromSystemConfigs,
+  storeAiUsagePermissions,
+} from "../domain/aiGenerationConfig";
+import type { AppData, MarketingAiRecord } from "../domain/types";
+import type { MarketingTalkTopic, MarketingTalkTopicsResult } from "../api/client";
+import type { ApiActions } from "../hooks/useApiData";
+import {
   copyTextToClipboard,
   primaryStoreName,
-  storeAiUsagePermissions,
 } from "./AuthenticatedApp";
 
 type MarketingViewKey = "content" | "records";

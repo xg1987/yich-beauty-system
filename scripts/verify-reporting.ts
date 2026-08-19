@@ -131,6 +131,8 @@ assert.equal(p3.status, "立即补货", "stock below warning should require imme
 assert.equal(p4.soldQuantity, 1, "retail product sale should appear in product usage");
 assert.equal(p4.status, "立即补货", "low retail stock should require immediate replenishment");
 assert.ok(p4.suggestedPurchaseQuantity > 0, "replenishment row should calculate a purchase suggestion");
+const pendingProducts = productUsageReport({ ...data, products: data.products.map((product) => product.id === "p1" ? { ...product, serviceStockReviewStatus: "pending" } : product) }, julyStart, augustStart, now);
+assert.equal(pendingProducts.find((item) => item.productId === "p1")?.status, "待确认扣减规则", "reporting should surface pending historical product review before purchase advice");
 
 const workbook = buildBusinessWorkbook({
   storeName: "祝融｜坤锋美学门店",

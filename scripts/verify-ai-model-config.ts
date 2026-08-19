@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 const files = [
   "functions/api/[[path]].ts",
-  "src/app/AuthenticatedApp.tsx",
+  "src/domain/aiGenerationConfig.ts",
   "src/app/platformViews.tsx",
 ];
 
@@ -20,7 +20,8 @@ for (const file of files) {
 }
 
 const backendSource = readFileSync(join(process.cwd(), "functions/api/[[path]].ts"), "utf8");
-const appSource = readFileSync(join(process.cwd(), "src/app/AuthenticatedApp.tsx"), "utf8");
+const appSource = readFileSync(join(process.cwd(), "src/domain/aiGenerationConfig.ts"), "utf8");
+const localApiSource = readFileSync(join(process.cwd(), "server/api.ts"), "utf8");
 const platformSource = readFileSync(join(process.cwd(), "src/app/platformViews.tsx"), "utf8");
 
 if (!backendSource.includes('"gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"')) {
@@ -33,6 +34,10 @@ if (!backendSource.includes('model: "gpt-image-2"')) {
 
 if (!appSource.includes('model: "gpt-image-2"')) {
   violations.push("Frontend default image model must be gpt-image-2.");
+}
+
+if (!backendSource.includes('from "../../src/domain/aiVideoDefaults"') || !localApiSource.includes('from "../src/domain/aiVideoDefaults"')) {
+  violations.push("Local and Cloudflare APIs must share the same AI video defaults.");
 }
 
 if (!platformSource.includes("OPENAI_IMAGE_MODEL_OPTIONS.map")) {

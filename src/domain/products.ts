@@ -2,21 +2,44 @@ import type { Product } from "./types";
 
 type ProductUsageFields = Pick<
   Product,
-  "name" | "category" | "subcategory" | "unit" | "serviceStockDeductible" | "serviceUsesPerUnit" | "serviceUnitsPerStockUnit" | "serviceUnit"
+  "name" | "category" | "subcategory" | "unit" | "serviceStockDeductible" | "serviceStockReviewStatus" | "serviceUsesPerUnit" | "serviceUnitsPerStockUnit" | "serviceUnit"
 >;
 
-export function isLiquidProduct(product: Pick<ProductUsageFields, "name" | "category" | "subcategory" | "unit">) {
-  const text = [product.name, product.category, product.subcategory, product.unit].filter(Boolean).join(" ");
-  return /(精华|精油|按摩油|身体油|爽肤水|化妆水|乳液|喷雾|液|油)/.test(text);
+export function productServiceStockDeductible(product: ProductUsageFields) {
+  if (productServiceStockReviewStatus(product) !== "confirmed") return false;
+  return product.serviceStockDeductible === true;
 }
 
-export function productServiceStockDeductible(product: ProductUsageFields) {
-  return !isLiquidProduct(product);
+export function productServiceStockReviewStatus(product: ProductUsageFields) {
+  return product.serviceStockReviewStatus ?? "pending";
 }
 
 export function normalizeProductServiceUnitsPerStockUnit(value?: number) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return 1;
   return Math.max(1, Math.floor(value));
+}
+
+export function requireConfirmedProductStockRule(input: {
+  serviceStockDeductible?: boolean;
+  serviceUnit?: string;
+  serviceUnitsPerStockUnit?: number;
+}) {
+  if (input.serviceStockDeductible === undefined) {
+    throw new Error("请根据商品真实用途选择“扣库存”或“不扣库存”");
+  }
+  if (!input.serviceStockDeductible) {
+    return { serviceStockDeductible: false as const, serviceUnit: undefined, serviceUnitsPerStockUnit: undefined };
+  }
+  const serviceUnit = input.serviceUnit?.trim();
+  if (!serviceUnit) throw new Error("扣库存商品必须填写扣减单位");
+  if (typeof input.serviceUnitsPerStockUnit !== "number" || !Number.isFinite(input.serviceUnitsPerStockUnit) || input.serviceUnitsPerStockUnit <= 0) {
+    throw new Error("扣库存商品必须填写正确的每件数量");
+  }
+  return {
+    serviceStockDeductible: true as const,
+    serviceUnit,
+    serviceUnitsPerStockUnit: normalizeProductServiceUnitsPerStockUnit(input.serviceUnitsPerStockUnit),
+  };
 }
 
 export function inferProductServiceUnit(product: Pick<ProductUsageFields, "name" | "category" | "subcategory" | "unit">) {
@@ -62,7 +85,8 @@ export function normalizeProductServiceFields<T extends ProductUsageFields>(prod
 }
 
 export function productServiceDeductionLabel(product: ProductUsageFields) {
-  if (!productServiceStockDeductible(product)) return "不计项目";
+  if (product.serviceStockReviewStatus === "pending") return "待确认 · 暂不扣库存";
+  if (!productServiceStockDeductible(product)) return "不扣库存";
   return `扣库存 · ${productServiceUnitsPerStockUnit(product)}${productServiceUnit(product)}/${product.unit || "件"}`;
 }
 

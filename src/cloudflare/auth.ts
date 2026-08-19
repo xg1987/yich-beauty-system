@@ -12,19 +12,58 @@ export type LoginResult = {
   userIdNeedingMigration?: string;
 };
 
-export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string): Promise<LoginResult> {
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 5;
+
+async function assertLoginAllowed(db: D1DatabaseBinding, key: string, now: Date) {
+  await db.prepare("CREATE TABLE IF NOT EXISTS loginAttempts (id TEXT PRIMARY KEY, attempts INTEGER NOT NULL, windowStartedAt TEXT NOT NULL, lockedUntil TEXT)").run();
+  const row = await db.prepare("SELECT attempts, windowStartedAt, lockedUntil FROM loginAttempts WHERE id = ?").bind(key).first<{ attempts: number; windowStartedAt: string; lockedUntil: string | null }>();
+  if (!row) return;
+  if (row.lockedUntil && Date.parse(row.lockedUntil) > now.getTime()) throw new Error("登录尝试过多，请15分钟后再试");
+  if (Date.parse(row.windowStartedAt) + LOGIN_WINDOW_MS <= now.getTime()) {
+    await db.prepare("DELETE FROM loginAttempts WHERE id = ?").bind(key).run();
+  }
+}
+
+async function recordLoginFailure(db: D1DatabaseBinding, key: string, now: Date) {
+  const nowIso = now.toISOString();
+  const cutoffIso = new Date(now.getTime() - LOGIN_WINDOW_MS).toISOString();
+  const lockedUntil = new Date(now.getTime() + LOGIN_WINDOW_MS).toISOString();
+  await db.prepare(`
+    INSERT INTO loginAttempts (id, attempts, windowStartedAt, lockedUntil) VALUES (?, 1, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET
+      attempts = CASE WHEN windowStartedAt <= ? THEN 1 ELSE attempts + 1 END,
+      windowStartedAt = CASE WHEN windowStartedAt <= ? THEN ? ELSE windowStartedAt END,
+      lockedUntil = CASE
+        WHEN windowStartedAt > ? AND attempts + 1 >= ? THEN ?
+        ELSE NULL
+      END
+  `).bind(key, nowIso, cutoffIso, cutoffIso, nowIso, cutoffIso, LOGIN_MAX_FAILURES, lockedUntil).run();
+}
+
+async function clearLoginFailures(db: D1DatabaseBinding, key: string) {
+  await db.prepare("DELETE FROM loginAttempts WHERE id = ?").bind(key).run();
+}
+
+export async function loginWithD1(db: D1DatabaseBinding, account: string, password: string, clientKey = "unknown"): Promise<LoginResult> {
+  const attemptKey = `${clientKey.trim().toLowerCase()}:${account.trim().toLowerCase()}`;
+  const attemptTime = new Date();
+  await assertLoginAllowed(db, attemptKey, attemptTime);
   const [user, systemConfigs] = await Promise.all([
     readAuthUserByAccount(db, account),
     readSystemConfigs(db),
   ]);
   if (!user) {
+    await recordLoginFailure(db, attemptKey, attemptTime);
     throw new Error("账号或密码不正确");
   }
 
   const { ok, needsMigration } = await verifyPasswordWithLegacySupport(password, user.password);
   if (!ok) {
+    await recordLoginFailure(db, attemptKey, attemptTime);
     throw new Error("账号或密码不正确");
   }
+  await clearLoginFailures(db, attemptKey);
   if (user.status === "pending") {
     throw new Error("账号正在等待店长审批，请通过后再登录");
   }

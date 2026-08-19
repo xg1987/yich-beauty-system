@@ -8,6 +8,15 @@ export type AppointmentRangeMeta = {
   end: Date;
 };
 
+export type AppointmentMonthSummary = {
+  range: AppointmentRangeMeta;
+  appointments: Appointment[];
+  arrived: Appointment[];
+  missed: Appointment[];
+  upcoming: Appointment[];
+  canceled: Appointment[];
+};
+
 export type AppointmentRoomAssignment = {
   appointment: Appointment;
   roomName: string;
@@ -110,6 +119,54 @@ export function filterAppointmentsByRange(appointments: Appointment[], range: Ap
     })
     .slice()
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
+}
+
+export function appointmentMonthRange(monthDate = new Date()): AppointmentRangeMeta {
+  const start = startOfDay(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
+  const end = endOfDay(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
+  return {
+    label: `${monthDate.getFullYear()}年${monthDate.getMonth() + 1}月`,
+    start,
+    end,
+  };
+}
+
+export function summarizeAppointmentsForMonth(
+  appointments: Appointment[],
+  services: Service[],
+  monthDate = new Date(),
+  now = new Date(),
+): AppointmentMonthSummary {
+  const range = appointmentMonthRange(monthDate);
+  const monthlyAppointments = appointments
+    .filter((appointment) => {
+      const startAt = new Date(appointment.startAt).getTime();
+      return startAt >= range.start.getTime() && startAt <= range.end.getTime();
+    })
+    .slice()
+    .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
+  const arrived: Appointment[] = [];
+  const missed: Appointment[] = [];
+  const upcoming: Appointment[] = [];
+  const canceled: Appointment[] = [];
+
+  monthlyAppointments.forEach((appointment) => {
+    if (appointment.status === "已到店" || appointment.status === "已完成") {
+      arrived.push(appointment);
+      return;
+    }
+    if (appointment.status === "已取消") {
+      canceled.push(appointment);
+      return;
+    }
+    if (appointment.status === "爽约" || appointmentEndAt(appointment, services) < now) {
+      missed.push(appointment);
+      return;
+    }
+    upcoming.push(appointment);
+  });
+
+  return { range, appointments: monthlyAppointments, arrived, missed, upcoming, canceled };
 }
 
 function countCalendarDays(start: Date, end: Date) {

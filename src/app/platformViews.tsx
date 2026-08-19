@@ -39,6 +39,12 @@ import { accountAiCredits, aiFreeQuotaState } from "../domain/aiBilling";
 import { buildCashierFlowRecords } from "../domain/cashierFlow";
 import { canAccessView, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import { formatStockQuantity } from "../domain/products";
+import {
+  aiGenerationConfigFromSystemConfigs,
+  boundedPrice,
+  serializeAiGenerationConfig,
+  videoSpecKey,
+} from "../domain/aiGenerationConfig";
 import type { AiUsageCapability, AppData, AuthUser, Order, R2UsageSnapshot, StoreAiUsagePermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { money, shortDate } from "../domain/utils";
 import type { ApiActions } from "../hooks/useApiData";
@@ -54,10 +60,8 @@ import {
   isVisiblePlatformAdmin,
 } from "./accountDisplay";
 import {
-  aiGenerationConfigFromSystemConfigs,
   appointmentServiceNames,
   appointmentTimeRange,
-  boundedPrice,
   businessStaffOf,
   downloadCsvFile,
   maintenanceRoomNamesOf,
@@ -66,12 +70,10 @@ import {
   nameOf,
   roomNamesOf,
   searchInputSync,
-  serializeAiGenerationConfig,
   serviceConsumablesOf,
   serviceFormulaSummary,
   signatureRecordContext,
   SignatureRecordDetail,
-  videoSpecKey,
 } from "./AuthenticatedApp";
 import { permissionLabels, permissionOptions, roleScopeLabels } from "./permissionDisplay";
 
@@ -1964,7 +1966,7 @@ export function PlatformAccountAdminView({
 }) {
   const mutationPending = useMutationPending();
   const [resetUserId, setResetUserId] = useState("");
-  const [resetPassword, setResetPassword] = useState("123456");
+  const [resetPassword, setResetPassword] = useState("");
   const [creditUserId, setCreditUserId] = useState("");
   const [creditAmount, setCreditAmount] = useState(30);
   const [accountSearch, setAccountSearch] = useState("");
@@ -1999,10 +2001,10 @@ export function PlatformAccountAdminView({
   };
   const submitPasswordReset = (event: FormEvent) => {
     event.preventDefault();
-    if (!resetUserId || !resetPassword.trim()) return;
+    if (!resetUserId || resetPassword.trim().length < 10) return;
     void runMutation(() => actions.resetAuthUserPassword(resetUserId, resetPassword.trim())).then(() => {
       setResetUserId("");
-      setResetPassword("123456");
+      setResetPassword("");
     });
   };
   const submitAiCredits = (event: FormEvent) => {
@@ -2088,7 +2090,7 @@ export function PlatformAccountAdminView({
                 <strong>重置密码</strong>
                 <span>{resetUser.name} · {resetUser.account}</span>
               </div>
-              <label>新密码<input value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} required /></label>
+              <label>新密码<input type="password" minLength={10} autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} placeholder="至少10位，禁止使用默认密码" required /></label>
               <div className="staff-edit-actions">
                 <SubmitStatusButton idleText="确认重置" busyText="重置中..." />
                 <button type="button" onClick={() => setResetUserId("")}>取消</button>

@@ -328,6 +328,9 @@ export type Product = {
   shelfLifeMonths?: number;
   expiryAt?: string;
   serviceStockDeductible?: boolean;
+  serviceStockReviewStatus?: "pending" | "confirmed";
+  serviceStockReviewedAt?: string;
+  serviceStockReviewedBy?: string;
   serviceUnit?: string;
   serviceUnitsPerStockUnit?: number;
   serviceUsesPerUnit?: number;

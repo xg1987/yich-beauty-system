@@ -1,5 +1,5 @@
 import type { AppData, Order, Product, ServiceConsumable } from "./types";
-import { productServiceStockDeductible, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
+import { productServiceStockDeductible, productServiceStockReviewStatus, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 
 export type CustomerPeriodDetail = {
   customerId: string;
@@ -80,7 +80,7 @@ export type ServiceDeliveryReport = {
   details: ServiceDeliveryDetail[];
 };
 
-export type ProductRestockStatus = "立即补货" | "准备补货" | "临期关注" | "需完善扣耗" | "库存充足";
+export type ProductRestockStatus = "待确认扣减规则" | "立即补货" | "准备补货" | "临期关注" | "需完善扣耗" | "库存充足";
 
 export type ProductUsageReportRow = {
   productId: string;
@@ -400,7 +400,7 @@ function orderServiceIds(order: Order) {
 }
 
 function orderServiceStockConsumption(order: Order, data: AppData) {
-  if (order.serviceConsumables?.length) return order.serviceConsumables;
+  if (order.serviceConsumables !== undefined) return order.serviceConsumables;
   const productMap = new Map(data.products.map((product) => [product.id, product]));
   const merged = new Map<string, number>();
   orderServiceIds(order).forEach((serviceId) => {
@@ -458,6 +458,7 @@ function restockStatus(input: {
   usageTrackingComplete: boolean;
   linkedServiceCount: number;
 }): ProductRestockStatus {
+  if (productServiceStockReviewStatus(input.product) === "pending") return "待确认扣减规则";
   if (input.product.stock <= input.product.warningStock || (input.daysCover !== undefined && input.daysCover <= 7)) {
     return "立即补货";
   }
@@ -499,11 +500,12 @@ export function productUsageReport(data: AppData, start: Date, end: Date, now = 
   });
 
   const statusOrder: Record<ProductRestockStatus, number> = {
-    "立即补货": 0,
-    "准备补货": 1,
-    "临期关注": 2,
-    "需完善扣耗": 3,
-    "库存充足": 4,
+    "待确认扣减规则": 0,
+    "立即补货": 1,
+    "准备补货": 2,
+    "临期关注": 3,
+    "需完善扣耗": 4,
+    "库存充足": 5,
   };
 
   return data.products.map((product) => {

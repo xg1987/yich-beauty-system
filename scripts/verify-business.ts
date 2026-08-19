@@ -69,8 +69,9 @@ import { buildCashierFlowRecords } from "../src/domain/cashierFlow";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData, MarketingAiRecord } from "../src/domain/types";
 import { money } from "../src/domain/utils";
+import { productServiceStockDeductible } from "../src/domain/products";
 import { isVersionGreater } from "../src/appUpdate";
-import { aggregateMemberCardServiceAvailability, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue } from "../src/app/authenticatedAppHelpers";
+import { aggregateMemberCardServiceAvailability, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue, mergeUsedProducts } from "../src/app/authenticatedAppHelpers";
 import { mergePosRemoteData } from "../src/hooks/usePosRemoteData";
 
 const cloneSeed = (): AppData => structuredClone(testFixtureData);
@@ -900,6 +901,142 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  const explicitlyIgnoredProduct = {
+    ...cloneSeed().products.find((product) => product.id === "p3")!,
+    stock: 0,
+    serviceStockDeductible: false,
+  };
+  assert.equal(
+    productServiceStockDeductible(explicitlyIgnoredProduct),
+    false,
+    "explicit no-deduction setting should override a non-liquid product name",
+  );
+  assert.deepEqual(
+    mergeUsedProducts([{ productId: "p3", quantity: 1 }], [explicitlyIgnoredProduct]),
+    [{ productId: "p3", quantity: 1 }],
+    "service recipes should preserve linked products even when they do not deduct inventory",
+  );
+  const noDeductionData = {
+    ...cloneSeed(),
+    products: cloneSeed().products.map((product) => (product.id === "p3" ? explicitlyIgnoredProduct : product)),
+    services: [
+      {
+        id: "v_no_deduction",
+        name: "不扣库存私密护理",
+        category: "身体管理",
+        price: 198,
+        duration: 60,
+        consumables: [{ productId: "p3", quantity: 1 }],
+      },
+      ...cloneSeed().services,
+    ],
+  };
+  const checkedOut = checkoutOrder(
+    noDeductionData,
+    { customerId: "c1", staffId: "s2", serviceId: "v_no_deduction", payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(checkedOut, "p3"), 0, "no-deduction service product should allow checkout at zero stock");
+  assert.equal(checkedOut.inventoryLogs.length, 0, "no-deduction service product should not create a service inventory log");
+  assert.equal(checkedOut.orders[0].status, "已支付", "no-deduction service product should not block checkout");
+  assert.deepEqual(checkedOut.orders[0].serviceConsumables, [], "checkout should snapshot an explicitly empty service deduction list");
+
+  const toggledAfterCheckout = {
+    ...checkedOut,
+    products: checkedOut.products.map((product) => (
+      product.id === "p3" ? { ...product, serviceStockDeductible: true } : product
+    )),
+  };
+  const refunded = refundOrder(
+    toggledAfterCheckout,
+    { orderId: checkedOut.orders[0].id, reason: "不扣库存订单退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(refunded, "p3"), 0, "refund should not restore stock that the original order never deducted");
+  assert.equal(
+    refunded.inventoryLogs.filter((item) => item.productId === "p3" && item.type === "退款回滚").length,
+    0,
+    "refund should honor the order-time empty deduction snapshot after product configuration changes",
+  );
+}
+
+{
+  const pendingProduct = {
+    ...cloneSeed().products.find((product) => product.id === "p3")!,
+    stock: 0,
+    serviceStockDeductible: true,
+    serviceStockReviewStatus: "pending" as const,
+  };
+  assert.equal(productServiceStockDeductible(pendingProduct), false, "pending historical products should never deduct from an unverified setting");
+  const pendingData = {
+    ...cloneSeed(),
+    products: cloneSeed().products.map((product) => (product.id === "p3" ? pendingProduct : product)),
+    services: [{ id: "v_pending", name: "待确认耗材项目", category: "身体管理", price: 198, duration: 60, consumables: [{ productId: "p3", quantity: 1 }] }, ...cloneSeed().services],
+  };
+  const checkedOut = checkoutOrder(pendingData, { customerId: "c1", staffId: "s2", serviceId: "v_pending", payMethod: "微信" }, { idFactory: testId, now: fixedNow });
+  assert.equal(productStock(checkedOut, "p3"), 0, "pending product should not deduct stock");
+  assert.equal(checkedOut.orders[0].status, "已支付", "pending product should not block service checkout");
+  assert.deepEqual(checkedOut.orders[0].serviceConsumables, [], "pending checkout should preserve an empty order-time deduction snapshot");
+}
+
+{
+  const explicitlyTrackedLiquid = {
+    ...cloneSeed().products.find((product) => product.id === "p2")!,
+    serviceStockDeductible: true,
+    serviceUnitsPerStockUnit: 1,
+  };
+  assert.equal(
+    productServiceStockDeductible(explicitlyTrackedLiquid),
+    true,
+    "explicit deduction setting should override a legacy liquid-name heuristic",
+  );
+  const trackedLiquidData = {
+    ...cloneSeed(),
+    products: cloneSeed().products.map((product) => (product.id === "p2" ? explicitlyTrackedLiquid : product)),
+    services: [
+      {
+        id: "v_tracked_liquid",
+        name: "显式扣库存护理",
+        category: "身体管理",
+        price: 198,
+        duration: 60,
+        consumables: [{ productId: "p2", quantity: 1 }],
+      },
+      ...cloneSeed().services,
+    ],
+  };
+  const checkedOut = checkoutOrder(
+    trackedLiquidData,
+    { customerId: "c1", staffId: "s2", serviceId: "v_tracked_liquid", payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(checkedOut, "p2"), 11, "explicitly tracked liquid product should deduct inventory");
+}
+
+{
+  const aggregateStockData = {
+    ...cloneSeed(),
+    products: cloneSeed().products.map((product) => (
+      product.id === "p3" ? { ...product, stock: 1, serviceStockDeductible: true } : product
+    )),
+    services: [
+      { id: "v_stock_a", name: "库存验证 A", category: "身体管理", price: 100, duration: 30, consumables: [{ productId: "p3", quantity: 1 }] },
+      { id: "v_stock_b", name: "库存验证 B", category: "身体管理", price: 100, duration: 30, consumables: [{ productId: "p3", quantity: 1 }] },
+      ...cloneSeed().services,
+    ],
+  };
+  assert.throws(
+    () => checkoutOrder(
+      aggregateStockData,
+      { customerId: "c1", staffId: "s2", serviceIds: ["v_stock_a", "v_stock_b"], payMethod: "微信" },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /本单需 2套，当前 1套.*不扣库存/,
+    "checkout should explain aggregate service stock shortage and the corrective setting",
+  );
+}
+
+{
   const usageData = {
     ...cloneSeed(),
     products: cloneSeed().products.map((product) => (product.id === "p3" ? { ...product, serviceUnit: "片", serviceUnitsPerStockUnit: 5 } : product)),
@@ -1699,6 +1836,19 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(closed.dailyCloses[0].revenue, 398, "daily close should summarize revenue");
   assert.equal(closed.dailyCloses[0].orderCount, 1, "daily close should count paid orders");
   assert.equal(closed.operationLogs[0].action, "财务日结", "daily close should write operation log");
+
+  const afterMidnightCheckout = checkoutOrder(
+    cloneSeed(),
+    { customerId: "c1", staffId: "s2", serviceId: "v1", payMethod: "微信" },
+    { idFactory: testId, now: () => "2026-05-23T16:30:00.000Z" },
+  );
+  const afterMidnightClose = createDailyClose(
+    afterMidnightCheckout,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(afterMidnightClose.dailyCloses[0].orderCount, 1, "Shanghai 00:30 checkout should belong to the new business day");
+  assert.equal(afterMidnightClose.dailyCloses[0].revenue, 398, "Shanghai midnight revenue should not fall into the previous UTC date");
 }
 
 {
@@ -2845,6 +2995,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
       productPrice: 198,
       productCategory: "面护类",
       productSubcategory: "膏霜",
+      serviceStockDeductible: false,
       quantity: 7,
       unitCost: 55,
       expiryAt: "2028-06-30",
@@ -2863,6 +3014,18 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(newPurchase.inventoryBatches[0].remainingQuantity, 7, "new supplier purchase batch remaining should match inbound quantity");
   assert.equal(newPurchase.inventoryLogs[0].delta, 7, "new supplier purchase log delta should match inbound quantity");
   assert.equal(newPurchase.inventoryLogs[0].stockAfter, 7, "new supplier purchase stockAfter should match initial stock");
+  assert.throws(
+    () => receiveSupplierPurchase(cloneSeed(), {
+      supplierName: "未确认供应商",
+      productName: "未确认商品",
+      productPrice: 100,
+      quantity: 1,
+      unitCost: 50,
+      userId: "u_manager",
+    }),
+    /选择.*扣库存.*不扣库存/,
+    "new supplier product should require an explicit stock rule",
+  );
 
   const lowStockData = {
     ...cloneSeed(),

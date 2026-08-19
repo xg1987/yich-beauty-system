@@ -67,6 +67,7 @@ function stockText(value: number, unit: string) {
 }
 
 function productStatusClass(status: ProductRestockStatus) {
+  if (status === "待确认扣减规则") return "tracking";
   if (status === "立即补货") return "urgent";
   if (status === "准备补货") return "soon";
   if (status === "临期关注") return "expiring";
@@ -187,7 +188,7 @@ function ServiceDeliveryPanel({ report }: { report: ServiceDeliveryReport }) {
 function ProductUsagePanel({ rows }: { rows: ProductUsageReportRow[] }) {
   const urgentCount = rows.filter((item) => item.status === "立即补货").length;
   const soonCount = rows.filter((item) => item.status === "准备补货").length;
-  const attentionCount = rows.filter((item) => item.status === "临期关注" || item.status === "需完善扣耗").length;
+  const attentionCount = rows.filter((item) => item.status === "临期关注" || item.status === "需完善扣耗" || item.status === "待确认扣减规则").length;
   return (
     <section className="business-overview-card business-product-card">
       <header>
@@ -230,7 +231,7 @@ function ProductUsagePanel({ rows }: { rows: ProductUsageReportRow[] }) {
               <span>销售/赠送<strong>{stockText(item.soldQuantity + item.giftedQuantity, item.unit)}</strong></span>
               <span>当前库存<strong>{stockText(item.currentStock, item.unit)}</strong><small>预警 {stockText(item.warningStock, item.unit)}</small></span>
               <span>预计可用<strong>{item.daysCover === undefined ? "--" : `${item.daysCover}天`}</strong><small>近30天日均 {formatStockQuantity(item.averageDailyOutbound)}</small></span>
-              <span>建议采购<strong>{item.status === "需完善扣耗" ? "先完善扣耗" : stockText(item.suggestedPurchaseQuantity, item.unit)}</strong><small>{item.expiringQuantity > 0 ? `临期 ${stockText(item.expiringQuantity, item.unit)}` : "按30天备货需求计算"}</small></span>
+              <span>建议采购<strong>{item.status === "待确认扣减规则" ? "先确认规则" : item.status === "需完善扣耗" ? "先完善扣耗" : stockText(item.suggestedPurchaseQuantity, item.unit)}</strong><small>{item.expiringQuantity > 0 ? `临期 ${stockText(item.expiringQuantity, item.unit)}` : "按30天备货需求计算"}</small></span>
             </div>
           </article>
         ))}

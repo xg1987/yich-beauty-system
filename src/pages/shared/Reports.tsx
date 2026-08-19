@@ -9,7 +9,7 @@ import { Modal } from "../../components/ui/Modal";
 import { memberCardCashIn, reportSummary } from "../../domain/business";
 import { addReportPeriod, reportPeriodData, type ReportPeriodMode } from "../../domain/reportPeriods";
 import type { AppData, CashPayMethod, Staff } from "../../domain/types";
-import { money, shortDate } from "../../domain/utils";
+import { addBusinessDays, businessDateOf, businessDateToday, money, shortDate } from "../../domain/utils";
 import type { ApiActions } from "../../hooks/useApiData";
 
 const BusinessOverviewPanel = lazy(() => import("../../components/business/BusinessOverviewPanel"));
@@ -93,7 +93,7 @@ export default function Reports({
   fromManagement = false,
   onReturnManagement,
 }: ReportsProps) {
-  const [businessDate, setBusinessDate] = useState(new Date().toISOString().slice(0, 10));
+  const [businessDate, setBusinessDate] = useState(() => businessDateToday());
   const [activeModule, setActiveModule] = useState<"summary" | "payments" | "daily" | "staff" | "members" | "services" | "trend" | undefined>(fromManagement ? "summary" : undefined);
   const [reportPeriodMode, setReportPeriodMode] = useState<ReportPeriodMode>("day");
   const [reportPeriodDate, setReportPeriodDate] = useState(() => new Date());
@@ -140,17 +140,15 @@ export default function Reports({
     return { name: service.name, revenue };
   }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
   const dailyTrend = Array.from({ length: 14 }).map((_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (13 - index));
-    const key = date.toISOString().slice(0, 10);
-    const dayOrders = data.orders.filter((order) => order.createdAt.slice(0, 10) === key && order.status !== "已退款");
-    const dayRefunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === key);
+    const key = addBusinessDays(businessDateToday(), -(13 - index));
+    const dayOrders = data.orders.filter((order) => businessDateOf(order.createdAt) === key && order.status !== "已退款");
+    const dayRefunds = data.refunds.filter((refund) => businessDateOf(refund.createdAt) === key);
     return {
       date: key,
       revenue: dayOrders.reduce((sum, order) => sum + order.paidAmount, 0),
       orders: dayOrders.length,
       refunds: dayRefunds.reduce((sum, refund) => sum + refund.amount, 0),
-      appointments: data.appointments.filter((appointment) => appointment.startAt.slice(0, 10) === key).length,
+      appointments: data.appointments.filter((appointment) => businessDateOf(appointment.startAt) === key).length,
     };
   });
   const moveReportPeriod = (delta: number) => {

@@ -637,7 +637,7 @@ async function fetchJsonWithTimeout(
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), options.timeoutMs ?? REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(`${API_BASE_URL}${path}`, { ...init, signal: controller.signal });
+    return await fetch(`${API_BASE_URL}${path}`, { ...init, credentials: "same-origin", signal: controller.signal });
   } catch (caught) {
     if (caught instanceof DOMException && caught.name === "AbortError") {
       throw new Error(options.timeoutMessage ?? DEFAULT_TIMEOUT_MESSAGE);

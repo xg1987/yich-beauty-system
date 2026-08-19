@@ -53,6 +53,7 @@ const styleIds: Record<CellStyle, number> = {
 };
 
 const statusStyles: Record<ProductUsageReportRow["status"], CellStyle> = {
+  "待确认扣减规则": "status-blue",
   "立即补货": "status-red",
   "准备补货": "status-yellow",
   "临期关注": "status-purple",
@@ -413,7 +414,9 @@ function workbookSheets(input: BusinessWorkbookInput): WorkbookSheet[] {
         item.averageDailyOutbound,
         item.daysCover ?? "-",
         `${item.suggestedPurchaseQuantity}${item.unit}`,
-        item.status === "需完善扣耗"
+        item.status === "待确认扣减规则"
+          ? "历史商品的项目扣减规则尚未由门店确认，确认前服务项目暂不扣库存"
+          : item.status === "需完善扣耗"
           ? "产品已关联服务项目，但尚未启用自动扣耗，补货预测可能偏低"
           : item.status === "临期关注"
             ? `30天内临期 ${item.expiringQuantity}${item.unit}`

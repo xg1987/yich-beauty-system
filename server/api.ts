@@ -76,18 +76,19 @@ import {
   isStoreStaffInviteCode,
   storeIdForUser,
 } from "../src/domain/business";
-import { hashPassword } from "../src/lib/password";
+import { assertStrongResetPassword, hashPassword } from "../src/lib/password";
 
 // Read version from package.json (Node.js ESM)
 import pkg from "../package.json" with { type: "json" };
 import { normalizeUserSession, type Permission, type UserSession } from "../src/domain/auth";
 import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../src/domain/aiBilling";
 import { requireMobilePhone } from "../src/domain/phone";
-import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit } from "../src/domain/products";
+import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, requireConfirmedProductStockRule } from "../src/domain/products";
 import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { dataKeysForView, diffAppData, isViewKey, makeAppDataPatch, makeAppDataSlice, POS_REMOTE_PAGING_CAPABILITY } from "../src/domain/dataSlices";
-import { makeId, nowIso } from "../src/domain/utils";
+import { businessDateToday, makeId, nowIso } from "../src/domain/utils";
+import { AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS, DEFAULT_AI_VIDEO_RESOLUTION } from "../src/domain/aiVideoDefaults";
 import { destroySession, getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase, type TableName } from "./database";
 
@@ -182,7 +183,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const plainPassword = requiredString(body, "password");
 
         const currentData = database.readDataTables(["authUsers", "systemConfigs"]);
-        const loginResult = await login(account, plainPassword, currentData.authUsers, currentData.systemConfigs);
+        const loginResult = await login(account, plainPassword, currentData.authUsers, currentData.systemConfigs, requestClientKey(request));
 
         // Auto-migrate legacy plaintext password to bcrypt hash on successful login
         if (loginResult.needsPasswordMigration && loginResult.userIdNeedingMigration) {
@@ -219,7 +220,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         database.replaceData(nextData);
 
         // New registration is always hashed, no legacy migration needed
-        const loginResult = await login(requiredString(body, "account"), plainPassword, nextData.authUsers);
+        const loginResult = await login(requiredString(body, "account"), plainPassword, nextData.authUsers, undefined, requestClientKey(request));
         sendJson(response, 201, loginResult.session);
         return;
       }
@@ -386,11 +387,13 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "staff:manage");
         const userId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
+        const resetPlainPassword = requiredString(body, "password");
+        assertStrongResetPassword(resetPlainPassword);
         const currentData = database.readData();
         assertCanManageAuthUser(currentData, session, userId);
         const nextData = resetAuthUserPassword(currentData, {
           userId,
-          password: await hashPassword(requiredString(body, "password")),
+          password: await hashPassword(resetPlainPassword),
           operatedBy: session.user.id,
         });
         persistData(database, session, nextData);
@@ -915,7 +918,8 @@ export function createApiServer(database = new BeautyDatabase()) {
           cardId: optionalString(body, "cardId"),
           requestedBy: session.user.id,
         });
-        if (checkoutRequestId && !database.reserveCheckoutSubmission(checkoutRequestId, nowIso())) {
+        const checkoutReserved = checkoutRequestId ? database.reserveCheckoutSubmission(checkoutRequestId, nowIso()) : false;
+        if (checkoutRequestId && !checkoutReserved) {
           throw new Error("检测到刚刚已提交相同收银请求，请勿重复提交");
         }
         const nextData = addOperationLog(
@@ -929,8 +933,13 @@ export function createApiServer(database = new BeautyDatabase()) {
           },
         );
         const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
-        persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
-        database.upsertCustomerSignatures(newSignatures);
+        try {
+          persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
+          database.upsertCustomerSignatures(newSignatures);
+        } catch (caught) {
+          if (checkoutRequestId && checkoutReserved) database.releaseCheckoutSubmission(checkoutRequestId);
+          throw caught;
+        }
         sendMutationPatch(request, response, 201, currentData, nextData, session, checkoutResponseKeys);
         return;
       }
@@ -1633,10 +1642,10 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 新增服务项目 ${requiredString(body, "name")}`,
         }, (data) => {
           const storeId = sessionStoreId(data, session);
-          const stockConsumables = consumables.filter((item) => {
+          const linkedConsumables = consumables.filter((item) => {
             const product = data.products.find((candidate) => candidate.id === item.productId);
             if (!product) throw new Error("商品不存在");
-            return productServiceStockDeductible(product);
+            return true;
           });
           return {
             ...data,
@@ -1649,9 +1658,9 @@ export function createApiServer(database = new BeautyDatabase()) {
                 price: requiredNumber(body, "price"),
                 duration: optionalNumber(body, "duration") ?? 60,
                 defaultTimes: optionalNumber(body, "defaultTimes") ?? 1,
-                consumables: stockConsumables,
-                consumableProductId: stockConsumables[0]?.productId ?? optionalString(body, "consumableProductId"),
-                consumableQty: stockConsumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
+                consumables: linkedConsumables,
+                consumableProductId: linkedConsumables[0]?.productId ?? optionalString(body, "consumableProductId"),
+                consumableQty: linkedConsumables[0]?.quantity ?? optionalNumber(body, "consumableQty"),
               },
               ...data.services,
             ],
@@ -1673,10 +1682,10 @@ export function createApiServer(database = new BeautyDatabase()) {
           summary: `${session.user.name} 更新项目使用产品`,
         }, (data) => {
           if (!data.services.some((service) => service.id === serviceId)) throw new Error("服务项目不存在");
-          const stockConsumables = consumables.filter((item) => {
+          const linkedConsumables = consumables.filter((item) => {
             const product = data.products.find((candidate) => candidate.id === item.productId);
             if (!product) throw new Error("商品不存在");
-            return productServiceStockDeductible(product);
+            return true;
           });
           return {
             ...data,
@@ -1684,9 +1693,9 @@ export function createApiServer(database = new BeautyDatabase()) {
               service.id === serviceId
                 ? {
                     ...service,
-                    consumables: stockConsumables,
-                    consumableProductId: stockConsumables[0]?.productId,
-                    consumableQty: stockConsumables[0]?.quantity,
+                    consumables: linkedConsumables,
+                    consumableProductId: linkedConsumables[0]?.productId,
+                    consumableQty: linkedConsumables[0]?.quantity,
                   }
                 : service,
             ),
@@ -1734,21 +1743,13 @@ export function createApiServer(database = new BeautyDatabase()) {
         const subcategory = optionalString(body, "subcategory") ?? "";
         const unit = optionalString(body, "unit") ?? "件";
         const expiryAt = optionalString(body, "expiryAt");
-        const serviceStockDeductible = productServiceStockDeductible({
-          name,
-          category,
-          subcategory,
-          unit,
+        const stockRule = requireConfirmedProductStockRule({
           serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
-          serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"),
           serviceUnit: optionalString(body, "serviceUnit"),
+          serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"),
         });
-        const serviceUnit = serviceStockDeductible
-          ? productServiceUnit({ name, category, subcategory, unit, serviceStockDeductible, serviceUnit: optionalString(body, "serviceUnit") })
-          : undefined;
-        const serviceUnitsPerStockUnit = serviceStockDeductible
-          ? normalizeProductServiceUnitsPerStockUnit(optionalNumber(body, "serviceUnitsPerStockUnit") ?? optionalNumber(body, "serviceUsesPerUnit"))
-          : undefined;
+        const { serviceStockDeductible, serviceUnit, serviceUnitsPerStockUnit } = stockRule;
+        const serviceStockReviewStatus = "confirmed" as const;
         const nextData = updateData(database, session, {
           action: "新增商品",
           targetType: "product",
@@ -1772,6 +1773,9 @@ export function createApiServer(database = new BeautyDatabase()) {
               shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
               expiryAt,
               serviceStockDeductible,
+              serviceStockReviewStatus,
+              serviceStockReviewedAt: serviceStockReviewStatus === "confirmed" ? createdAt : undefined,
+              serviceStockReviewedBy: serviceStockReviewStatus === "confirmed" ? session.user.id : undefined,
               serviceUnit,
               serviceUnitsPerStockUnit,
               serviceUsesPerUnit: serviceUnitsPerStockUnit,
@@ -1838,6 +1842,9 @@ export function createApiServer(database = new BeautyDatabase()) {
           warningStock: optionalNumber(body, "warningStock"),
           shelfLifeMonths: optionalNumber(body, "shelfLifeMonths"),
           serviceStockDeductible: optionalBoolean(body, "serviceStockDeductible"),
+          serviceStockReviewStatus: optionalBoolean(body, "serviceStockDeductible") === undefined ? undefined : "confirmed",
+          serviceStockReviewedAt: optionalBoolean(body, "serviceStockDeductible") === undefined ? undefined : nowIso(),
+          serviceStockReviewedBy: optionalBoolean(body, "serviceStockDeductible") === undefined ? undefined : session.user.id,
           serviceUnit: optionalString(body, "serviceUnit"),
           serviceUnitsPerStockUnit: optionalNumber(body, "serviceUnitsPerStockUnit"),
           status: optionalString(body, "status") as "启用" | "停用" | undefined,
@@ -1940,7 +1947,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const currentData = database.readData();
         const nextData = createDailyClose(currentData, {
           storeId: sessionStoreId(currentData, session),
-          businessDate: optionalString(body, "businessDate") ?? new Date().toISOString().slice(0, 10),
+          businessDate: optionalString(body, "businessDate") ?? businessDateToday(),
           userId: session.user.id,
         });
         persistData(database, session, nextData);
@@ -2082,6 +2089,7 @@ function catalogEditSummary(userName: string, targetName: string, body: JsonBody
     duration: "时长",
     defaultTimes: "可服务次数",
     consumables: "耗材配置",
+    serviceStockDeductible: "项目扣减规则",
     status: "状态",
   };
   const changed = Object.keys(fieldLabels).filter((key) => hasBodyKey(body, key)).map((key) => fieldLabels[key]);
@@ -3011,10 +3019,10 @@ const defaultAiGenerationConfig: AiGenerationConfig = {
   video: {
     defaultProvider: "seedance",
     providers: [
-      { provider: "seedance", enabled: true, model: defaultSeedanceModel, apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "720p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
-      { provider: "grok", enabled: false, model: "grok-imagine-video-1.5", apiKey: "", defaultDurationSeconds: 5, defaultResolution: "480p", defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "seedance", enabled: true, model: defaultSeedanceModel, apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.seedance, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "kling", enabled: false, model: "kling-v3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.kling, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "hailuo", enabled: false, model: "MiniMax-Hailuo-2.3", apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.hailuo, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
+      { provider: "grok", enabled: false, model: "grok-imagine-video-1.5", apiKey: "", defaultDurationSeconds: 5, defaultResolution: AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS.grok, defaultAspectRatio: "9:16", priceUsdBySpec: {} },
     ],
   },
 };
@@ -3805,7 +3813,7 @@ async function runMarketingAiGenerate(data: AppData, session: UserSession, body:
   const config = aiGenerationConfigFromData(data);
   const provider = config.video.providers.find((item) => item.provider === config.video.defaultProvider) ?? config.video.providers[0];
   const durationSeconds = aiVideoDurations.includes(Number(body.videoDuration)) ? Number(body.videoDuration) : provider?.defaultDurationSeconds ?? 5;
-  const resolution = provider?.defaultResolution ?? "720p";
+  const resolution = provider?.defaultResolution ?? DEFAULT_AI_VIDEO_RESOLUTION;
   const result = await runAiVideoTest(data, {
     prompt,
     provider: config.video.defaultProvider,
@@ -4374,7 +4382,6 @@ function stringHeader(value: string | string[] | undefined) {
 }
 
 function setCorsHeaders(response: ServerResponse) {
-  response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-App-Data-Mode, X-App-Data-View, X-Yich-Capabilities, Cache-Control, Pragma");
 }
@@ -4424,6 +4431,12 @@ function optionalNumber(body: JsonBody, key: string) {
 function optionalBoolean(body: JsonBody, key: string) {
   const value = body[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function requestClientKey(request: IncomingMessage) {
+  const forwarded = request.headers["x-forwarded-for"];
+  const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0]?.trim();
+  return forwardedValue || request.socket.remoteAddress || "local";
 }
 
 function optionalStringArray(body: JsonBody, key: string) {

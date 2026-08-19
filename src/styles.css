@@ -21568,6 +21568,35 @@ textarea,
   font-weight: 900;
 }
 
+.inventory-deduction-note {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.inventory-deduction-note span {
+  color: #766f82;
+  font-size: 0.86rem;
+}
+
+.inventory-deduction-note strong {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 12px;
+  background: rgba(111, 66, 193, 0.08);
+  color: #5b2ca8;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.inventory-deduction-note.compact {
+  align-self: end;
+}
+
 .form-submit-row {
   grid-column: 1 / -1;
   display: flex;
@@ -22149,7 +22178,8 @@ textarea,
   .inventory-restock-form input,
   .inventory-restock-form select,
   .inventory-restock-current,
-  .inventory-deduction-fixed {
+  .inventory-deduction-fixed,
+  .inventory-deduction-note {
     min-width: 0;
     max-width: 100%;
     width: 100%;
@@ -25380,6 +25410,45 @@ textarea,
   line-height: 1.25;
 }
 
+.workbench-schedule-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.workbench-schedule-title-row h2 {
+  flex: 1 1 250px;
+}
+
+.workbench-schedule-query-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 12px;
+  background: rgba(244, 239, 255, 0.76);
+}
+
+.workbench-schedule-query-tabs button {
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #5f4b82;
+  font-size: 12px;
+  font-weight: 860;
+  cursor: pointer;
+}
+
+.workbench-schedule-query-tabs button.active {
+  background: #6f42c1;
+  color: #ffffff;
+  box-shadow: 0 5px 12px rgba(111, 66, 193, 0.2);
+}
+
 .workbench-schedule-head span,
 .workbench-schedule-head strong {
   color: rgba(47, 37, 95, 0.68);
@@ -25677,6 +25746,293 @@ textarea,
   font-weight: 920;
 }
 
+.workbench-month-picker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.workbench-month-picker > button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(111, 66, 193, 0.18);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  color: #4f2b91;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workbench-month-picker label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.workbench-month-picker label span {
+  color: #5f4b82 !important;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.workbench-month-picker input {
+  width: 118px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #2f255f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 860;
+}
+
+.workbench-month-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.workbench-month-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workbench-month-kpis article {
+  min-width: 0;
+  min-height: 82px;
+  padding: 13px 15px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(247, 242, 255, 0.72));
+}
+
+.workbench-month-kpis article.arrived {
+  border-color: rgba(4, 120, 87, 0.18);
+  background: linear-gradient(145deg, rgba(246, 255, 252, 0.94), rgba(221, 247, 239, 0.68));
+}
+
+.workbench-month-kpis article.absent {
+  border-color: rgba(190, 18, 60, 0.16);
+  background: linear-gradient(145deg, rgba(255, 249, 250, 0.94), rgba(255, 231, 235, 0.68));
+}
+
+.workbench-month-kpis article.upcoming {
+  border-color: rgba(91, 33, 182, 0.17);
+}
+
+.workbench-month-kpis article.canceled {
+  border-color: rgba(180, 83, 9, 0.18);
+  background: linear-gradient(145deg, rgba(255, 252, 245, 0.94), rgba(254, 243, 199, 0.62));
+}
+
+.workbench-month-kpis span,
+.workbench-month-kpis small {
+  display: block;
+  color: rgba(47, 37, 95, 0.62) !important;
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.workbench-month-kpis strong {
+  display: inline-block;
+  margin: 7px 5px 3px 0;
+  color: #2f255f !important;
+  font-size: 26px !important;
+  font-weight: 940 !important;
+}
+
+.workbench-month-lists {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.workbench-month-list {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(111, 66, 193, 0.13);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.workbench-month-list > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(111, 66, 193, 0.1);
+  background: rgba(247, 243, 255, 0.72);
+}
+
+.workbench-month-list > header div {
+  min-width: 0;
+}
+
+.workbench-month-list > header strong,
+.workbench-month-list > header span {
+  display: block;
+}
+
+.workbench-month-list > header strong {
+  color: #2f255f !important;
+  font-size: 15px !important;
+  font-weight: 920 !important;
+}
+
+.workbench-month-list > header span {
+  margin-top: 2px;
+  color: rgba(47, 37, 95, 0.58) !important;
+  font-size: 10px;
+}
+
+.workbench-month-list > header b {
+  align-self: center;
+  flex: 0 0 auto;
+  color: #6f42c1;
+  font-size: 13px;
+}
+
+.workbench-month-customer-list {
+  display: grid;
+  gap: 7px;
+  max-height: 310px;
+  overflow-y: auto;
+  padding: 9px;
+}
+
+.workbench-month-table-head,
+.workbench-month-customer-list > button {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.05fr) minmax(110px, 1.1fr) minmax(120px, 1.2fr) minmax(130px, 1.3fr) minmax(118px, 1.15fr) 74px;
+  gap: 10px;
+  align-items: center;
+}
+
+.workbench-month-table-head {
+  padding: 4px 11px 2px;
+}
+
+.workbench-month-table-head span {
+  color: rgba(47, 37, 95, 0.52) !important;
+  font-size: 9px !important;
+  font-weight: 860 !important;
+  letter-spacing: 0.04em;
+}
+
+.workbench-month-customer-list > button {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #2f255f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workbench-month-customer-list > button:hover {
+  border-color: rgba(111, 66, 193, 0.28);
+  box-shadow: 0 7px 18px rgba(77, 48, 131, 0.08);
+}
+
+.workbench-month-customer-main,
+.workbench-month-customer-profile,
+.workbench-month-customer-detail,
+.workbench-month-customer-service,
+.workbench-month-customer-result {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.workbench-month-customer-main strong,
+.workbench-month-customer-profile strong,
+.workbench-month-customer-detail strong,
+.workbench-month-customer-service strong {
+  overflow: hidden;
+  color: #2f255f !important;
+  font-size: 11px !important;
+  font-weight: 880 !important;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+.workbench-month-customer-main strong {
+  font-size: 14px !important;
+  font-weight: 920 !important;
+}
+
+.workbench-month-customer-main small,
+.workbench-month-customer-profile small,
+.workbench-month-customer-detail,
+.workbench-month-customer-detail small,
+.workbench-month-customer-service small,
+.workbench-month-customer-result small {
+  overflow: hidden;
+  color: rgba(47, 37, 95, 0.61) !important;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-month-customer-detail {
+  color: #4f3a75 !important;
+  font-size: 11px;
+}
+
+.workbench-month-customer-result {
+  align-content: center;
+  justify-items: start;
+}
+
+.workbench-month-customer-result small {
+  width: 100%;
+  margin-top: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-month-customer-list em {
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: #f3edff;
+  color: #5b21b6;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.workbench-month-customer-list em.arrived {
+  background: #dcfce7;
+  color: #047857;
+}
+
+.workbench-month-customer-list em.absent {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.workbench-month-customer-list em.canceled {
+  background: #f2f0f5;
+  color: #6b6478;
+}
+
+.workbench-month-customer-action {
+  color: #6f42c1 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .workbench-staff-row div {
   min-width: 0;
 }
@@ -25782,6 +26138,54 @@ textarea,
     justify-content: flex-start;
   }
 
+  .workbench-schedule-title-row {
+    align-items: stretch;
+  }
+
+  .workbench-schedule-query-tabs {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workbench-month-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workbench-month-lists {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-month-customer-list {
+    max-height: none;
+  }
+
+  .workbench-month-table-head {
+    display: none;
+  }
+
+  .workbench-month-customer-list > button {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 11px 14px;
+    padding: 13px;
+  }
+
+  .workbench-month-customer-list > button > span[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 3px;
+    color: rgba(47, 37, 95, 0.48);
+    font-size: 9px;
+    font-weight: 860;
+  }
+
+  .workbench-month-customer-action {
+    grid-column: 1 / -1;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(111, 66, 193, 0.14);
+    text-align: right;
+  }
+
   .workbench-business-grid,
   .workbench-pay-list div,
   .workbench-staff-row {
@@ -25790,6 +26194,38 @@ textarea,
 
   .workbench-staff-row > div:last-child {
     text-align: left;
+  }
+}
+
+@media (max-width: 520px) {
+  .workbench-month-picker {
+    width: 100%;
+  }
+
+  .workbench-month-picker label {
+    flex: 1 1 auto;
+  }
+
+  .workbench-month-picker input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .workbench-month-kpis {
+    gap: 7px;
+  }
+
+  .workbench-month-kpis article {
+    min-height: 74px;
+    padding: 11px;
+  }
+
+  .workbench-month-customer-list > button {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-month-customer-action {
+    grid-column: 1;
   }
 }
 
@@ -34629,7 +35065,8 @@ textarea,
 .theme-night .system-modal .catalog-product-tags span,
 .theme-night .system-modal .catalog-product-usage-chip,
 .theme-night .system-modal .inventory-product-card-metrics > span,
-.theme-night .system-modal .inventory-deduction-fixed strong {
+.theme-night .system-modal .inventory-deduction-fixed strong,
+.theme-night .system-modal .inventory-deduction-note strong {
   border-color: var(--night-modal-border) !important;
   background:
     radial-gradient(circle at 92% 8%, rgba(160, 127, 226, 0.11), transparent 34%),

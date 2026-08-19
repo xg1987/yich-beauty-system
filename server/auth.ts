@@ -5,6 +5,9 @@ import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../s
 import { SESSION_TTL_MS } from "../src/lib/session";
 
 const sessions = new Map<string, { session: UserSession; expiresAt: number }>();
+const loginAttempts = new Map<string, { attempts: number; windowStartedAt: number; lockedUntil?: number }>();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 5;
 
 export type LoginResult = {
   session: UserSession;
@@ -14,17 +17,33 @@ export type LoginResult = {
   userIdNeedingMigration?: string;
 };
 
-export async function login(account: string, password: string, users: AuthUser[], systemConfigs?: SystemConfig[]): Promise<LoginResult> {
+export async function login(account: string, password: string, users: AuthUser[], systemConfigs?: SystemConfig[], clientKey = "local"): Promise<LoginResult> {
+  const attemptKey = `${clientKey.trim().toLowerCase()}:${account.trim().toLowerCase()}`;
+  const now = Date.now();
+  const attempt = loginAttempts.get(attemptKey);
+  if (attempt?.lockedUntil && attempt.lockedUntil > now) throw new Error("登录尝试过多，请15分钟后再试");
+  if (attempt && attempt.windowStartedAt + LOGIN_WINDOW_MS <= now) loginAttempts.delete(attemptKey);
+  const recordFailure = () => {
+    const current = loginAttempts.get(attemptKey);
+    const next = !current || current.windowStartedAt + LOGIN_WINDOW_MS <= now
+      ? { attempts: 1, windowStartedAt: now }
+      : { ...current, attempts: current.attempts + 1 };
+    if (next.attempts >= LOGIN_MAX_FAILURES) next.lockedUntil = now + LOGIN_WINDOW_MS;
+    loginAttempts.set(attemptKey, next);
+  };
   const user = users.find((item) => item.account === account);
   if (!user) {
+    recordFailure();
     throw new Error("账号或密码不正确");
   }
 
   const { ok, needsMigration } = await verifyPasswordWithLegacySupport(password, user.password);
 
   if (!ok) {
+    recordFailure();
     throw new Error("账号或密码不正确");
   }
+  loginAttempts.delete(attemptKey);
   if (user.status === "pending") {
     throw new Error("账号正在等待店长审批，请通过后再登录");
   }

@@ -7,6 +7,13 @@ import bcrypt from "bcryptjs";
  */
 
 const SALT_ROUNDS = 10;
+const FORBIDDEN_PASSWORDS = new Set(["123456", "12345678", "123456789", "password", "qwerty123", "admin123"]);
+
+export function assertStrongResetPassword(plain: string) {
+  const normalized = plain.trim().toLowerCase();
+  if (plain.trim().length < 10) throw new Error("重置密码至少需要 10 位");
+  if (FORBIDDEN_PASSWORDS.has(normalized) || /^(.)\1+$/.test(normalized)) throw new Error("密码过于简单，请使用不易猜测的新密码");
+}
 
 /**
  * Hash a plaintext password.

@@ -158,6 +158,7 @@ const tableNames: D1DataTableName[] = [
   "purchaseOrders",
   "stocktakes",
 ];
+const infrastructureTableNames = ["checkoutStoreLocks", "loginAttempts"] as const;
 
 const storeScopedDeleteOrder: D1DataTableName[] = [
   "commissionSettlements",
@@ -214,7 +215,7 @@ export class D1BeautyDatabase {
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all<{ name: string }>();
     const existingTables = new Set((rows.results ?? []).map((row) => row.name));
-    const missingTables = tableNames.filter((tableName) => !existingTables.has(tableName));
+    const missingTables = [...tableNames, ...infrastructureTableNames].filter((tableName) => !existingTables.has(tableName));
     return {
       ok: missingTables.length === 0,
       missingTables,
@@ -592,8 +593,14 @@ export class D1BeautyDatabase {
 
   async replaceStoreData(storeId: string, data: AppData) {
     const statements: D1PreparedStatement[] = [];
+    const storeData = dataForStoreWrite(data, storeId);
     this.deleteStoreDataStatements(statements, storeId);
-    statements.push(...this.writeDataStatements(dataForStoreWrite(data, storeId)));
+    for (const tableName of tableNames) {
+      for (const row of storeData[tableName] as Array<{ id: string }>) {
+        statements.push(this.db.prepare(`DELETE FROM ${tableName} WHERE id = ?`).bind(row.id));
+      }
+    }
+    statements.push(...this.writeDataStatements(storeData));
     await this.db.batch(statements);
   }
 
@@ -836,6 +843,25 @@ export class D1BeautyDatabase {
     await this.db.prepare("DELETE FROM checkoutSubmissionLocks WHERE createdAt < ?").bind(cutoff).run();
     const result = await this.db.prepare("INSERT OR IGNORE INTO checkoutSubmissionLocks (id, createdAt) VALUES (?, ?)").bind(id, createdAt).run();
     return (result.meta?.changes ?? 0) > 0;
+  }
+
+  async releaseCheckoutSubmission(id: string) {
+    await this.db.prepare("DELETE FROM checkoutSubmissionLocks WHERE id = ?").bind(id).run();
+  }
+
+  async acquireCheckoutStoreLock(storeId: string, ownerId: string, createdAt: string) {
+    await this.db.prepare("CREATE TABLE IF NOT EXISTS checkoutStoreLocks (storeId TEXT PRIMARY KEY, ownerId TEXT NOT NULL, expiresAt TEXT NOT NULL)").run();
+    const expiresAt = new Date(Date.parse(createdAt) + 30_000).toISOString();
+    await this.db.prepare("DELETE FROM checkoutStoreLocks WHERE expiresAt <= ?").bind(createdAt).run();
+    const result = await this.db
+      .prepare("INSERT OR IGNORE INTO checkoutStoreLocks (storeId, ownerId, expiresAt) VALUES (?, ?, ?)")
+      .bind(storeId, ownerId, expiresAt)
+      .run();
+    return (result.meta?.changes ?? 0) > 0;
+  }
+
+  async releaseCheckoutStoreLock(storeId: string, ownerId: string) {
+    await this.db.prepare("DELETE FROM checkoutStoreLocks WHERE storeId = ? AND ownerId = ?").bind(storeId, ownerId).run();
   }
 
   async acquireAiGenerationLocks(input: { ownerId: string; kind: string; createdAt: string; expiresAt: string; maxGlobalSlots: number }) {
@@ -1574,7 +1600,7 @@ export class D1BeautyDatabase {
             order.serviceIds?.length ? JSON.stringify(order.serviceIds) : null,
             order.serviceName ?? null,
             order.servicePrice ?? null,
-            order.serviceConsumables?.length ? JSON.stringify(order.serviceConsumables) : null,
+            order.serviceConsumables !== undefined ? JSON.stringify(order.serviceConsumables) : null,
             order.productId ?? null,
             order.giftProductId ?? null,
             order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -1709,7 +1735,7 @@ export class D1BeautyDatabase {
 
     for (const product of data.products) {
       statements.push(
-        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceUsesPerUnit, serviceUnit, serviceUnitsPerStockUnit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
+        this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceStockReviewStatus, serviceStockReviewedAt, serviceStockReviewedBy, serviceUsesPerUnit, serviceUnit, serviceUnitsPerStockUnit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           product.id,
           product.storeId ?? null,
           product.name,
@@ -1724,6 +1750,9 @@ export class D1BeautyDatabase {
           product.shelfLifeMonths ?? null,
           product.expiryAt ?? null,
           productServiceStockDeductible(product) ? 1 : 0,
+          product.serviceStockReviewStatus ?? null,
+          product.serviceStockReviewedAt ?? null,
+          product.serviceStockReviewedBy ?? null,
           productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
           productServiceStockDeductible(product) ? productServiceUnit(product) : null,
           productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
@@ -1795,7 +1824,7 @@ export class D1BeautyDatabase {
             order.serviceIds?.length ? JSON.stringify(order.serviceIds) : null,
             order.serviceName ?? null,
             order.servicePrice ?? null,
-            order.serviceConsumables?.length ? JSON.stringify(order.serviceConsumables) : null,
+            order.serviceConsumables !== undefined ? JSON.stringify(order.serviceConsumables) : null,
             order.productId ?? null,
             order.giftProductId ?? null,
             order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -2550,6 +2579,9 @@ function mapService(row: unknown): Service {
 function mapProduct(row: unknown): Product {
   const value = row as Product & {
     serviceStockDeductible?: boolean | number | null;
+    serviceStockReviewStatus?: string | null;
+    serviceStockReviewedAt?: string | null;
+    serviceStockReviewedBy?: string | null;
     serviceUnit?: string | null;
     serviceUnitsPerStockUnit?: number | null;
     serviceUsesPerUnit?: number | null;
@@ -2565,6 +2597,11 @@ function mapProduct(row: unknown): Product {
     serviceStockDeductible: value.serviceStockDeductible === undefined || value.serviceStockDeductible === null
       ? undefined
       : Boolean(value.serviceStockDeductible),
+    serviceStockReviewStatus: value.serviceStockReviewStatus === "pending" || value.serviceStockReviewStatus === "confirmed"
+      ? value.serviceStockReviewStatus
+      : undefined,
+    serviceStockReviewedAt: value.serviceStockReviewedAt ?? undefined,
+    serviceStockReviewedBy: value.serviceStockReviewedBy ?? undefined,
     serviceUnit: value.serviceUnit ?? undefined,
     serviceUnitsPerStockUnit: value.serviceUnitsPerStockUnit ?? value.serviceUsesPerUnit ?? undefined,
     serviceUsesPerUnit: value.serviceUsesPerUnit ?? undefined,

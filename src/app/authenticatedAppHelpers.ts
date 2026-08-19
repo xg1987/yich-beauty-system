@@ -7,7 +7,89 @@ import {
 } from "../domain/products";
 import { normalizeMemberCardServiceEntitlements } from "../domain/business";
 import type { AppData, Product, Service, ServiceConsumable } from "../domain/types";
-import { money } from "../domain/utils";
+import { money, shortDate } from "../domain/utils";
+
+export const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
+  面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
+  养生类: ["泥灸", "私密", "套盒", "膏霜", "身体油", "泡脚汤", "艾灸"],
+};
+
+function inventoryCategoryMap(products: Product[], presets: Record<string, string[]> = INVENTORY_CATEGORY_PRESETS) {
+  const map = new Map<string, Set<string>>();
+  const addCategory = (category: string) => {
+    const name = category.trim();
+    if (!name) return undefined;
+    if (!map.has(name)) map.set(name, new Set());
+    return map.get(name);
+  };
+  Object.entries(presets).forEach(([category, subcategories]) => {
+    const bucket = addCategory(category);
+    subcategories.forEach((subcategory) => {
+      const name = subcategory.trim();
+      if (name) bucket?.add(name);
+    });
+  });
+  products.forEach((product) => {
+    const bucket = addCategory(product.category ?? "面护类");
+    const subcategory = product.subcategory?.trim();
+    if (subcategory) bucket?.add(subcategory);
+  });
+  return map;
+}
+
+export function inventoryCategoryNames(products: Product[], presets?: Record<string, string[]>) {
+  return Array.from(inventoryCategoryMap(products, presets).keys());
+}
+
+export function inventorySubcategoryNames(products: Product[], category: string, presets?: Record<string, string[]>) {
+  const map = inventoryCategoryMap(products, presets);
+  if (category === "全部") return Array.from(new Set(Array.from(map.values()).flatMap((items) => Array.from(items))));
+  return Array.from(map.get(category) ?? []);
+}
+
+export function dateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function addMonthsInputValue(months: number, baseDate = new Date()) {
+  if (!Number.isFinite(months) || months <= 0) return "";
+  const date = new Date(baseDate);
+  date.setMonth(date.getMonth() + Math.round(months));
+  return dateInputValue(date);
+}
+
+export function productExpiryText(product: Product) {
+  if (!product.expiryAt) return "未设置";
+  return /^\d{4}-\d{2}-\d{2}$/.test(product.expiryAt) ? product.expiryAt.replace(/-/g, "/") : shortDate(product.expiryAt);
+}
+
+export function productShelfLifeText(product: Product) {
+  return product.shelfLifeMonths ? `${product.shelfLifeMonths}个月` : "未设置";
+}
+
+export function productExpiryDaysText(product: Product) {
+  if (!product.expiryAt) return "-";
+  const today = new Date(`${dateInputValue()}T00:00:00`).getTime();
+  const expiry = new Date(`${product.expiryAt}T00:00:00`).getTime();
+  if (Number.isNaN(expiry)) return "-";
+  const daysLeft = Math.ceil((expiry - today) / 86400000);
+  if (daysLeft < 0) return `已过期${Math.abs(daysLeft)}天`;
+  return `${daysLeft}天`;
+}
+
+export function productExpiryStatus(product: Product) {
+  if (!product.expiryAt) return undefined;
+  const today = new Date(`${dateInputValue()}T00:00:00`).getTime();
+  const expiry = new Date(`${product.expiryAt}T00:00:00`).getTime();
+  if (Number.isNaN(expiry)) return undefined;
+  const daysLeft = Math.ceil((expiry - today) / 86400000);
+  if (daysLeft < 0) return { text: "已过期", tone: "warn" as const };
+  if (daysLeft <= 30) return { text: "临期", tone: "warn" as const };
+  return undefined;
+}
 
 export function productServicePackageText(product: Product) {
   return productServiceDeductionLabel(product).replace("扣库存 · ", "");
@@ -41,7 +123,7 @@ export function mergeUsedProducts(consumables: ServiceConsumable[], products?: P
   consumables.forEach((item) => {
     if (!item.productId || seen.has(item.productId)) return;
     const product = products?.find((candidate) => candidate.id === item.productId);
-    if (product && !productServiceStockDeductible(product)) return;
+    if (products && !product) return;
     seen.add(item.productId);
     merged.push({ productId: item.productId, quantity: Math.max(0, roundDisplayQuantity(item.quantity)) });
   });
@@ -59,16 +141,14 @@ export function serviceConsumableDisplay(item: ServiceConsumable, products: Prod
 export function serviceConsumableModeText(item: ServiceConsumable, products: Product[]) {
   const product = products.find((candidate) => candidate.id === item.productId);
   if (!product) return "未配置";
-  if (!productServiceStockDeductible(product)) return "不计项目";
+  if (product.serviceStockReviewStatus === "pending") return "待确认 · 暂不扣库存";
+  if (!productServiceStockDeductible(product)) return "不扣库存";
   if (item.quantity <= 0) return `待填用量 · ${productServicePackageText(product)}`;
   return `每次${formatStockQuantity(item.quantity)}${productServiceUnit(product)} · 折${formatStockQuantity(serviceStockQuantityForProduct(product, item.quantity))}${product.unit}`;
 }
 
 export function serviceFormulaSummary(service: Service, products: Product[]) {
-  const consumables = serviceConsumablesOf(service).filter((item) => {
-    const product = products.find((candidate) => candidate.id === item.productId);
-    return product ? productServiceStockDeductible(product) : false;
-  });
+  const consumables = serviceConsumablesOf(service).filter((item) => products.some((product) => product.id === item.productId));
   if (consumables.length === 0) return "未配置";
   return consumables.map((item) => `${serviceConsumableDisplay(item, products)}（${serviceConsumableModeText(item, products)}）`).join(" / ");
 }
