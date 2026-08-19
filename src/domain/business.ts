@@ -52,8 +52,8 @@ import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { accountAiCredits, defaultAiBillingConfig, normalizeAiBillingConfig, roundAiCreditAmount, serializeAiBillingConfig } from "./aiBilling";
 import { appointmentEndAt, appointmentServiceIds, assignAppointmentRooms } from "./appointments";
 import { optionalMobilePhone, requireMobilePhone } from "./phone";
-import { normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
-import { makeId, money, nowIso } from "./utils";
+import { formatStockQuantity, normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit, requireConfirmedProductStockRule, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
+import { businessDateOf, makeId, money, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
 
@@ -130,13 +130,12 @@ function itemStoreId<T extends { storeId?: string }>(item: T | undefined, fallba
 
 export function storeIdForUser(data: AppData, user: Pick<AuthUser, "id" | "role" | "staffId" | "storeId">) {
   if (user.role === "superadmin") return undefined;
-  const fallbackStoreId = defaultStoreId(data);
   if (user.storeId) return user.storeId;
   if (user.staffId) {
     const staff = data.staff.find((item) => item.id === user.staffId);
     if (staff?.storeId) return staff.storeId;
   }
-  return fallbackStoreId;
+  return undefined;
 }
 
 function storeIdForStaff(data: AppData, staffId: string, fallbackStoreId?: string) {
@@ -169,10 +168,9 @@ function storeProfileOf(data: AppData, storeId?: string) {
 }
 
 export function normalizeStoreScopedData(data: AppData): AppData {
-  const fallbackStoreId = defaultStoreId(data);
   const withStore = <T extends { storeId?: string }>(item: T, storeId?: string): T => ({
     ...item,
-    storeId: item.storeId ?? storeId ?? fallbackStoreId,
+    storeId: item.storeId ?? storeId,
   });
   const staff = data.staff.map((item) => withStore(item));
   const authUsers = data.authUsers.map((item) =>
@@ -183,41 +181,41 @@ export function normalizeStoreScopedData(data: AppData): AppData {
   const customers = data.customers.map((item) => withStore(item));
   const services = data.services.map((item) => withStore(item));
   const products = data.products.map((item) => normalizeProductServiceFields(withStore(item)));
-  const memberCards = data.memberCards.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId)));
-  const orders = data.orders.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId)));
-  const appointments = data.appointments.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId)));
+  const memberCards = data.memberCards.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId)));
+  const orders = data.orders.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId)));
+  const appointments = data.appointments.map((item) => withStore(item, storeIdForAppointment({ ...data, staff, customers } as AppData, item)));
   const inventoryBatches = data.inventoryBatches ?? [];
   return {
     ...data,
     staff,
     authUsers,
-    staffInvites: data.staffInvites.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId))),
+    staffInvites: data.staffInvites.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId))),
     customers,
     tagDefinitions: data.tagDefinitions.map((item) => withStore(item)),
     services,
     products,
-    inventoryBatches: inventoryBatches.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
+    inventoryBatches: inventoryBatches.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId))),
     appointments,
     onlineBookingRequests: data.onlineBookingRequests.map((item) =>
       withStore(item, data.onlineStorefronts.find((storefront) => storefront.id === item.storefrontId)?.storeId),
     ),
-    staffUnavailableSlots: data.staffUnavailableSlots.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId))),
-    staffShifts: data.staffShifts.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId))),
+    staffUnavailableSlots: data.staffUnavailableSlots.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId))),
+    staffShifts: data.staffShifts.map((item) => withStore(item, storeIdForStaff({ ...data, staff } as AppData, item.staffId))),
     memberCards,
     orders,
     refunds: data.refunds.map((item) => withStore(item, orders.find((order) => order.id === item.orderId)?.storeId)),
-    inventoryLogs: data.inventoryLogs.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
-    memberCardTransactions: data.memberCardTransactions.map((item) => withStore(item, storeIdForMemberCard({ ...data, customers, memberCards } as AppData, item.memberCardId, fallbackStoreId))),
+    inventoryLogs: data.inventoryLogs.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId))),
+    memberCardTransactions: data.memberCardTransactions.map((item) => withStore(item, storeIdForMemberCard({ ...data, customers, memberCards } as AppData, item.memberCardId))),
     operationLogs: data.operationLogs.map((item) => withStore(item, authUsers.find((user) => user.id === item.userId)?.storeId)),
-    notifications: data.notifications.map((item) => withStore(item, item.staffId ? storeIdForStaff({ ...data, staff } as AppData, item.staffId, fallbackStoreId) : item.storeId)),
+    notifications: data.notifications.map((item) => withStore(item, item.staffId ? storeIdForStaff({ ...data, staff } as AppData, item.staffId) : item.storeId)),
     dailyCloses: data.dailyCloses.map((item) => withStore(item)),
     approvalRequests: data.approvalRequests.map((item) => withStore(item)),
-    customerServiceRecords: data.customerServiceRecords.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId))),
-    customerSignatures: data.customerSignatures.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId))),
-    customerFollowUps: data.customerFollowUps.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId, fallbackStoreId))),
+    customerServiceRecords: data.customerServiceRecords.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId))),
+    customerSignatures: data.customerSignatures.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId))),
+    customerFollowUps: data.customerFollowUps.map((item) => withStore(item, storeIdForCustomer({ ...data, customers } as AppData, item.customerId))),
     suppliers: data.suppliers.map((item) => withStore(item)),
-    purchaseOrders: data.purchaseOrders.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
-    stocktakes: data.stocktakes.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId, fallbackStoreId))),
+    purchaseOrders: data.purchaseOrders.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId))),
+    stocktakes: data.stocktakes.map((item) => withStore(item, storeIdForProduct({ ...data, products } as AppData, item.productId))),
   };
 }
 
@@ -1061,6 +1059,9 @@ export type SupplierPurchaseInput = {
   warningStock?: number;
   shelfLifeMonths?: number;
   serviceStockDeductible?: boolean;
+  serviceStockReviewStatus?: Product["serviceStockReviewStatus"];
+  serviceStockReviewedAt?: string;
+  serviceStockReviewedBy?: string;
   serviceUnit?: string;
   serviceUnitsPerStockUnit?: number;
   quantity: number;
@@ -1120,6 +1121,9 @@ export type UpdateProductCatalogInput = {
   warningStock?: number;
   shelfLifeMonths?: number;
   serviceStockDeductible?: boolean;
+  serviceStockReviewStatus?: Product["serviceStockReviewStatus"];
+  serviceStockReviewedAt?: string;
+  serviceStockReviewedBy?: string;
   serviceUnit?: string;
   serviceUnitsPerStockUnit?: number;
   status?: Product["status"];
@@ -1262,7 +1266,7 @@ export function updateServiceCatalog(data: AppData, input: UpdateServiceCatalogI
     : input.consumables.filter((item) => {
         const product = data.products.find((candidate) => candidate.id === item.productId);
         if (!product) throw new Error("商品不存在");
-        return productServiceStockDeductible(product);
+        return true;
       });
   const nextName = input.name === undefined ? target.name : trimText(input.name);
   if (!nextName) throw new Error("请填写项目名称");
@@ -1300,10 +1304,14 @@ export function updateProductCatalog(data: AppData, input: UpdateProductCatalogI
   const nextPrice = Math.max(0, positiveNumber(input.price, target.price));
   const nextCost = Math.max(0, positiveNumber(input.cost, target.cost));
   const nextWarningStock = Math.max(0, positiveNumber(input.warningStock, target.warningStock));
-  const serviceStockDeductible = input.serviceStockDeductible ?? productServiceStockDeductible(target);
-  const serviceUnitsPerStockUnit = serviceStockDeductible
-    ? normalizeProductServiceUnitsPerStockUnit(input.serviceUnitsPerStockUnit ?? productServiceUnitsPerStockUnit(target))
-    : undefined;
+  const explicitStockRule = input.serviceStockDeductible === undefined ? undefined : requireConfirmedProductStockRule({
+    serviceStockDeductible: input.serviceStockDeductible,
+    serviceUnit: input.serviceUnit,
+    serviceUnitsPerStockUnit: input.serviceUnitsPerStockUnit,
+  });
+  const serviceStockDeductible = explicitStockRule?.serviceStockDeductible ?? productServiceStockDeductible(target);
+  const serviceUnitsPerStockUnit = explicitStockRule?.serviceUnitsPerStockUnit
+    ?? (serviceStockDeductible ? productServiceUnitsPerStockUnit(target) : undefined);
   const frozenData = freezeOrderCatalogSnapshots(data);
   return {
     ...frozenData,
@@ -1320,9 +1328,10 @@ export function updateProductCatalog(data: AppData, input: UpdateProductCatalogI
             warningStock: nextWarningStock,
             shelfLifeMonths: input.shelfLifeMonths === undefined ? product.shelfLifeMonths : Math.max(0, positiveNumber(input.shelfLifeMonths, 0)) || undefined,
             serviceStockDeductible,
-            serviceUnit: serviceStockDeductible
-              ? productServiceUnit({ ...product, serviceStockDeductible, serviceUnit: input.serviceUnit ?? product.serviceUnit })
-              : undefined,
+            serviceStockReviewStatus: input.serviceStockReviewStatus ?? product.serviceStockReviewStatus,
+            serviceStockReviewedAt: input.serviceStockReviewedAt ?? product.serviceStockReviewedAt,
+            serviceStockReviewedBy: input.serviceStockReviewedBy ?? product.serviceStockReviewedBy,
+            serviceUnit: explicitStockRule?.serviceUnit ?? (serviceStockDeductible ? product.serviceUnit : undefined),
             serviceUnitsPerStockUnit,
             serviceUsesPerUnit: serviceUnitsPerStockUnit,
             status: normalizeCatalogStatus(input.status) ?? product.status ?? "启用",
@@ -1512,7 +1521,7 @@ export function registerStore(
         role: "老板",
         status: "active",
         accountId: ownerUserId,
-        hiredAt: createdAt.slice(0, 10),
+        hiredAt: businessDateOf(createdAt),
         baseSalary: 0,
         commissionRate: 0,
       },
@@ -1675,6 +1684,16 @@ export function updateStoreOperationalPermissions(data: AppData, input: StoreOpe
 
 export function formalDataAudit(data: AppData): DataQualityReport {
   const issues: DataQualityIssue[] = [];
+  const inspectStoreOwnership = (scope: string, item: { id: string; storeId?: string }, name: string) => {
+    if (item.storeId) return;
+    issues.push({
+      id: item.id,
+      scope,
+      name: name || item.id,
+      detail: "未绑定门店，已从所有门店业务视图隔离",
+      reason: "需要平台管理员确认真实门店归属",
+    });
+  };
   const inspect = (scope: string, id: string, name: string, fields: string[], detail: string) => {
     const hit = fields.map((field) => suspiciousReason(field)).find(Boolean);
     if (!hit) return;
@@ -1696,6 +1715,16 @@ export function formalDataAudit(data: AppData): DataQualityReport {
   data.onlineStorefronts.forEach((storefront) =>
     inspect("线上店铺", storefront.id, storefront.headline, [storefront.shareCode, storefront.headline, storefront.description], `分享码 ${storefront.shareCode}`),
   );
+  data.staff.forEach((item) => inspectStoreOwnership("员工", item, item.name));
+  data.customers.forEach((item) => inspectStoreOwnership("客户", item, item.name));
+  data.services.forEach((item) => inspectStoreOwnership("项目", item, item.name));
+  data.products.forEach((item) => inspectStoreOwnership("商品", item, item.name));
+  data.orders.forEach((item) => inspectStoreOwnership("订单", item, item.orderNo));
+  data.memberCards.forEach((item) => inspectStoreOwnership("会员卡", item, item.name));
+  data.suppliers.forEach((item) => inspectStoreOwnership("供应商", item, item.name));
+  data.purchaseOrders.forEach((item) => inspectStoreOwnership("采购单", item, item.id));
+  data.inventoryLogs.forEach((item) => inspectStoreOwnership("库存流水", item, item.id));
+  data.dailyCloses.forEach((item) => inspectStoreOwnership("日结", item, item.businessDate));
 
   return {
     issueCount: issues.length,
@@ -2076,7 +2105,7 @@ export function availableStaffForOnlineBooking(data: AppData, serviceId: string,
     );
     if (hasUnavailableConflict) return false;
 
-    const shiftsForDay = data.staffShifts.filter((shift) => shift.staffId === staff.id && shift.startAt.slice(0, 10) === preferredAt.slice(0, 10));
+    const shiftsForDay = data.staffShifts.filter((shift) => shift.staffId === staff.id && businessDateOf(shift.startAt) === businessDateOf(preferredAt));
     return shiftsForDay.length === 0 || shiftsForDay.some((shift) => startAt >= new Date(shift.startAt) && endAt <= new Date(shift.endAt));
   });
 }
@@ -2168,7 +2197,7 @@ export function addStaffMember(
     phone,
     role,
     status: "active",
-    hiredAt: createdAt.slice(0, 10),
+    hiredAt: businessDateOf(createdAt),
     baseSalary: input.baseSalary ?? 0,
     commissionRate: input.commissionRate ?? 0,
   };
@@ -2594,7 +2623,7 @@ export function joinStoreStaffInvite(
         role: "员工",
         status: "active",
         accountId: userId,
-        hiredAt: createdAt.slice(0, 10),
+        hiredAt: businessDateOf(createdAt),
         baseSalary: 0,
         commissionRate: 0,
       },
@@ -3118,7 +3147,7 @@ export function checkoutOrder(
     throw new Error(`商品 ${zeroPriceProductNames.join("、")} 的售价为 0，请先到商品资料填写售价`);
   }
 
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const explicitAppointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
   if (input.appointmentId && !explicitAppointment) {
     throw new Error("预约不存在");
@@ -3128,7 +3157,7 @@ export function checkoutOrder(
       if (item.status !== "已到店") return false;
       if ((item.storeId ?? storeId) !== storeId) return false;
       if (item.customerId !== customerId || item.staffId !== input.staffId) return false;
-      if (item.startAt.slice(0, 10) !== createdAt.slice(0, 10)) return false;
+      if (businessDateOf(item.startAt) !== businessDateOf(createdAt)) return false;
       if (!selectedServiceIds.every((id) => appointmentAllowsService(item, id))) return false;
       if (data.orders.some((order) => order.appointmentId === item.id && order.status !== "已退款")) return false;
       const appointmentStart = +new Date(item.startAt);
@@ -3252,7 +3281,7 @@ export function checkoutOrder(
     serviceIds: selectedServiceIds.length ? selectedServiceIds : undefined,
     serviceName: serviceNameSnapshot,
     servicePrice: selectedServices.length ? serviceSubtotal : undefined,
-    serviceConsumables: serviceConsumption.length ? serviceConsumption : undefined,
+    serviceConsumables: serviceConsumption,
     productId: productItems[0]?.productId,
     giftProductId: giftProductItems[0]?.productId,
     productItems: productItems.length ? withProductNameSnapshots(data, productItems) : undefined,
@@ -3288,7 +3317,11 @@ export function checkoutOrder(
   for (const [productId, quantity] of consumptionByProduct) {
     const product = data.products.find((item) => item.id === productId);
     if (!product) throw new Error("商品不存在");
-    if (product.stock < quantity) throw new Error(`${product.name} 库存不足`);
+    if (product.stock < quantity) {
+      throw new Error(
+        `${product.name} 库存不足：本单需 ${formatStockQuantity(quantity)}${product.unit || "件"}，当前 ${formatStockQuantity(product.stock)}${product.unit || "件"}。如该商品不参与项目扣减，请在商品资料中设为“不扣库存”。`,
+      );
+    }
   }
 
   const products = data.products.map((product) => {
@@ -3481,7 +3514,7 @@ export function refundOrder(
     throw new Error("订单已退款");
   }
 
-  assertBusinessDateOpen(data, order.createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(order.createdAt));
 
   const refundAmount = input.amount ?? order.paidAmount;
   if (refundAmount <= 0 || refundAmount > order.paidAmount) {
@@ -3673,7 +3706,7 @@ export function openMemberCard(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
 
   const serviceEntitlements = normalizeMemberCardServiceEntitlements(input.serviceEntitlements);
   const serviceIds = Array.from(new Set([
@@ -4168,7 +4201,7 @@ export function rechargeMemberCard(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
   if (!card || memberCardIsClosed(card)) throw new Error("会员卡不存在或不可充值");
 
@@ -4755,7 +4788,7 @@ function validateAppointmentSchedule(
   }
 
   const shiftsForDay = data.staffShifts.filter(
-    (shift) => shift.staffId === input.staffId && shift.startAt.slice(0, 10) === input.startAt.slice(0, 10),
+    (shift) => shift.staffId === input.staffId && businessDateOf(shift.startAt) === businessDateOf(input.startAt),
   );
   const insideShift =
     shiftsForDay.length === 0 ||
@@ -4911,15 +4944,15 @@ export function createDailyClose(
     throw new Error("该营业日已日结");
   }
 
-  const orders = data.orders.filter((order) => order.createdAt.slice(0, 10) === input.businessDate && (order.storeId ?? defaultStoreId(data)) === storeId);
+  const orders = data.orders.filter((order) => businessDateOf(order.createdAt) === input.businessDate && (order.storeId ?? defaultStoreId(data)) === storeId);
   const orderIds = new Set(orders.map((order) => order.id));
-  const refunds = data.refunds.filter((refund) => refund.createdAt.slice(0, 10) === input.businessDate && ((refund.storeId ?? defaultStoreId(data)) === storeId || orderIds.has(refund.orderId)));
-  const commissions = data.commissions.filter((commission) => commission.createdAt.slice(0, 10) === input.businessDate && (commission.storeId ?? defaultStoreId(data)) === storeId);
+  const refunds = data.refunds.filter((refund) => businessDateOf(refund.createdAt) === input.businessDate && ((refund.storeId ?? defaultStoreId(data)) === storeId || orderIds.has(refund.orderId)));
+  const commissions = data.commissions.filter((commission) => businessDateOf(commission.createdAt) === input.businessDate && (commission.storeId ?? defaultStoreId(data)) === storeId);
   const memberCardIncomeTransactions = data.memberCardTransactions.filter(
-    (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashIn(transaction) > 0,
+    (transaction) => businessDateOf(transaction.createdAt) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashIn(transaction) > 0,
   );
   const memberCardRefundTransactions = data.memberCardTransactions.filter(
-    (transaction) => transaction.createdAt.slice(0, 10) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashRefund(transaction) > 0,
+    (transaction) => businessDateOf(transaction.createdAt) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashRefund(transaction) > 0,
   );
 
   const orderAmountByMethod = (method: Order["payMethod"]) =>
@@ -5022,9 +5055,9 @@ function splitAmount(amount: number, parts: number) {
 }
 
 function addMonthsToIsoDate(dateIso: string, months: number) {
-  const date = new Date(dateIso);
+  const date = new Date(`${businessDateOf(dateIso)}T12:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || !Number.isFinite(months) || months <= 0) return undefined;
-  date.setMonth(date.getMonth() + Math.round(months));
+  date.setUTCMonth(date.getUTCMonth() + Math.round(months));
   return date.toISOString().slice(0, 10);
 }
 
@@ -5100,7 +5133,7 @@ export function adjustInventory(
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
   const createdAt = currentTime();
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const direction = input.type === "入库" ? 1 : -1;
   const targetProduct = data.products.find((product) => product.id === input.productId);
   if (!targetProduct) {
@@ -5174,7 +5207,7 @@ export function receivePurchaseOrder(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
   if (!data.suppliers.some((supplier) => supplier.id === input.supplierId)) throw new Error("供应商不存在");
   const product = data.products.find((item) => item.id === input.productId);
   if (!product) throw new Error("商品不存在");
@@ -5233,7 +5266,7 @@ export function receiveSupplierPurchase(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const storeId = scopedStoreId(data, input.storeId);
   const normalizedSupplierName = trimText(input.supplierName);
   const supplier = input.supplierId
@@ -5266,10 +5299,13 @@ export function receiveSupplierPurchase(
   const category = input.productCategory?.trim() || existingProduct?.category || "面护类";
   const subcategory = input.productSubcategory?.trim() || existingProduct?.subcategory || "";
   const unit = input.productUnit?.trim() || existingProduct?.unit || "件";
-  const serviceStockDeductible = input.serviceStockDeductible ?? (existingProduct ? productServiceStockDeductible(existingProduct) : true);
-  const serviceUnitsPerStockUnit = serviceStockDeductible
-    ? normalizeProductServiceUnitsPerStockUnit(input.serviceUnitsPerStockUnit ?? (existingProduct ? productServiceUnitsPerStockUnit(existingProduct) : undefined))
-    : undefined;
+  const newProductStockRule = existingProduct ? undefined : requireConfirmedProductStockRule({
+    serviceStockDeductible: input.serviceStockDeductible,
+    serviceUnit: input.serviceUnit,
+    serviceUnitsPerStockUnit: input.serviceUnitsPerStockUnit,
+  });
+  const serviceStockDeductible = newProductStockRule?.serviceStockDeductible ?? productServiceStockDeductible(existingProduct!);
+  const serviceUnitsPerStockUnit = newProductStockRule?.serviceUnitsPerStockUnit ?? (serviceStockDeductible ? productServiceUnitsPerStockUnit(existingProduct!) : undefined);
   const newProduct: Product | undefined = existingProduct ? undefined : {
     id: productId,
     storeId,
@@ -5285,7 +5321,10 @@ export function receiveSupplierPurchase(
     shelfLifeMonths: input.shelfLifeMonths,
     expiryAt: input.expiryAt,
     serviceStockDeductible,
-    serviceUnit: serviceStockDeductible ? productServiceUnit({ name: normalizedProductName, category, subcategory, unit, serviceStockDeductible, serviceUnit: input.serviceUnit }) : undefined,
+    serviceStockReviewStatus: "confirmed",
+    serviceStockReviewedAt: createdAt,
+    serviceStockReviewedBy: input.userId,
+    serviceUnit: newProductStockRule?.serviceUnit,
     serviceUnitsPerStockUnit,
     serviceUsesPerUnit: serviceUnitsPerStockUnit,
   };
@@ -5350,7 +5389,7 @@ export function restockLowInventory(
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
   const createdAt = currentTime();
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const storeId = scopedStoreId(data, input.storeId);
   const lowStockProducts = data.products.filter((product) => product.stock <= product.warningStock && (!storeId || (product.storeId ?? defaultStoreId(data)) === storeId));
   if (lowStockProducts.length === 0) throw new Error("当前没有需要补货的商品");
@@ -5448,7 +5487,7 @@ export function createStocktake(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, createdAt.slice(0, 10));
+  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const product = data.products.find((item) => item.id === input.productId);
   if (!product) throw new Error("商品不存在");
   const storeId = scopedStoreId(data, input.storeId ?? product.storeId);

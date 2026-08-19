@@ -1,9 +1,30 @@
 import type { AppData } from "./types";
+import { addBusinessDays, businessDateOf } from "./utils";
 
 export type ReportPeriodMode = "day" | "week" | "month" | "year";
 
-function startOfLocalDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function businessDateStart(dateValue: string) {
+  return new Date(`${dateValue}T00:00:00+08:00`);
+}
+
+function monthStart(dateValue: string) {
+  return `${dateValue.slice(0, 7)}-01`;
+}
+
+function yearStart(dateValue: string) {
+  return `${dateValue.slice(0, 4)}-01-01`;
+}
+
+function addBusinessMonths(dateValue: string, months: number) {
+  const date = new Date(`${monthStart(dateValue)}T12:00:00.000Z`);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
+function addBusinessYears(dateValue: string, years: number) {
+  const date = new Date(`${yearStart(dateValue)}T12:00:00.000Z`);
+  date.setUTCFullYear(date.getUTCFullYear() + years);
+  return date.toISOString().slice(0, 10);
 }
 
 export function addReportPeriod(date: Date, mode: ReportPeriodMode, delta: number) {
@@ -16,22 +37,22 @@ export function addReportPeriod(date: Date, mode: ReportPeriodMode, delta: numbe
 }
 
 export function reportPeriodRange(date: Date, mode: ReportPeriodMode) {
-  const start = startOfLocalDay(date);
+  const selectedDate = businessDateOf(date);
+  let startDate = selectedDate;
   if (mode === "week") {
-    const day = start.getDay() || 7;
-    start.setDate(start.getDate() - day + 1);
+    const day = new Date(`${selectedDate}T12:00:00.000Z`).getUTCDay() || 7;
+    startDate = addBusinessDays(selectedDate, -day + 1);
   }
-  if (mode === "month") start.setDate(1);
-  if (mode === "year") {
-    start.setMonth(0);
-    start.setDate(1);
-  }
-  const end = new Date(start);
-  if (mode === "day") end.setDate(end.getDate() + 1);
-  if (mode === "week") end.setDate(end.getDate() + 7);
-  if (mode === "month") end.setMonth(end.getMonth() + 1);
-  if (mode === "year") end.setFullYear(end.getFullYear() + 1);
-  return { start, end };
+  if (mode === "month") startDate = monthStart(selectedDate);
+  if (mode === "year") startDate = yearStart(selectedDate);
+  const endDate = mode === "day"
+    ? addBusinessDays(startDate, 1)
+    : mode === "week"
+      ? addBusinessDays(startDate, 7)
+      : mode === "month"
+        ? addBusinessMonths(startDate, 1)
+        : addBusinessYears(startDate, 1);
+  return { start: businessDateStart(startDate), end: businessDateStart(endDate) };
 }
 
 export function inReportPeriod(value: string | undefined, start: Date, end: Date) {
@@ -41,12 +62,15 @@ export function inReportPeriod(value: string | undefined, start: Date, end: Date
 }
 
 export function reportPeriodLabel(date: Date, mode: ReportPeriodMode) {
-  if (mode === "day") return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-  if (mode === "month") return `${date.getFullYear()}年${date.getMonth() + 1}月`;
-  if (mode === "year") return `${date.getFullYear()}年`;
+  const selectedDate = businessDateOf(date);
+  const [year, month, day] = selectedDate.split("-").map(Number);
+  if (mode === "day") return `${year}年${month}月${day}日`;
+  if (mode === "month") return `${year}年${month}月`;
+  if (mode === "year") return `${year}年`;
   const { start, end } = reportPeriodRange(date, "week");
-  const weekEnd = new Date(+end - 1);
-  return `${start.getFullYear()}年${start.getMonth() + 1}月${start.getDate()}日 - ${weekEnd.getMonth() + 1}月${weekEnd.getDate()}日`;
+  const [startYear, startMonth, startDay] = businessDateOf(start).split("-").map(Number);
+  const [, endMonth, endDay] = businessDateOf(new Date(+end - 1)).split("-").map(Number);
+  return `${startYear}年${startMonth}月${startDay}日 - ${endMonth}月${endDay}日`;
 }
 
 export function reportPeriodHint(mode: ReportPeriodMode) {

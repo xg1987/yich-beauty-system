@@ -19,7 +19,7 @@ function initialDataView(): ViewKey {
 function readSavedSession() {
   let savedSession: string | null = null;
   try {
-    savedSession = localStorage.getItem(SESSION_KEY);
+    savedSession = sessionStorage.getItem(SESSION_KEY);
   } catch {
     return fallbackSession;
   }
@@ -37,7 +37,8 @@ function saveSession(session: UserSession) {
   const normalized = normalizeUserSession(session);
   fallbackSession = normalized;
   try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(normalized));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(normalized));
+    localStorage.removeItem(SESSION_KEY);
   } catch {
     // Some tablets can exhaust or disable Web Storage. Keep the login usable
     // for the current app session instead of blocking a valid login.
@@ -48,6 +49,7 @@ function saveSession(session: UserSession) {
 function safeRemoveSavedSession() {
   fallbackSession = undefined;
   try {
+    sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_KEY);
   } catch {
     // Ignore storage cleanup failures; session state is already cleared in memory.

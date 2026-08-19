@@ -442,8 +442,13 @@ export class BeautyDatabase {
   replaceStoreData(storeId: string, data: AppData) {
     this.db.exec("BEGIN IMMEDIATE;");
     try {
+      const storeData = dataForStoreWrite(data, storeId);
       this.deleteStoreData(storeId);
-      this.writeData(dataForStoreWrite(data, storeId));
+      for (const tableName of tableNames) {
+        const deleteById = this.db.prepare(`DELETE FROM ${tableName} WHERE id = ?`);
+        for (const row of storeData[tableName] as Array<{ id: string }>) deleteById.run(row.id);
+      }
+      this.writeData(storeData);
       this.db.exec("COMMIT;");
     } catch (error) {
       this.db.exec("ROLLBACK;");
@@ -886,6 +891,10 @@ export class BeautyDatabase {
     return (result.changes ?? 0) > 0;
   }
 
+  releaseCheckoutSubmission(id: string) {
+    this.db.prepare("DELETE FROM checkoutSubmissionLocks WHERE id = ?").run(id);
+  }
+
   readMemberCardOpenData(storeId: string, input: { customerId?: string; customerPhone?: string }) {
     const data = this.readDataTablesForStore(["storeProfiles", "authUsers", "staff", "services", "dailyCloses"], storeId);
     if (input.customerId) {
@@ -1157,7 +1166,7 @@ export class BeautyDatabase {
 
     for (const product of data.products) {
       this.db
-        .prepare("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .prepare("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceStockReviewStatus, serviceStockReviewedAt, serviceStockReviewedBy, serviceUsesPerUnit, serviceUnit, serviceUnitsPerStockUnit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .run(
           product.id,
           product.storeId ?? null,
@@ -1172,6 +1181,13 @@ export class BeautyDatabase {
           product.warningStock,
           product.shelfLifeMonths ?? null,
           product.expiryAt ?? null,
+          typeof product.serviceStockDeductible === "boolean" ? (product.serviceStockDeductible ? 1 : 0) : null,
+          product.serviceStockReviewStatus ?? null,
+          product.serviceStockReviewedAt ?? null,
+          product.serviceStockReviewedBy ?? null,
+          product.serviceUsesPerUnit ?? null,
+          product.serviceUnit ?? null,
+          product.serviceUnitsPerStockUnit ?? null,
           product.status ?? "启用",
         );
     }
@@ -1261,7 +1277,7 @@ export class BeautyDatabase {
           order.serviceIds?.length ? JSON.stringify(order.serviceIds) : null,
           order.serviceName ?? null,
           order.servicePrice ?? null,
-          order.serviceConsumables?.length ? JSON.stringify(order.serviceConsumables) : null,
+          order.serviceConsumables !== undefined ? JSON.stringify(order.serviceConsumables) : null,
           order.productId ?? null,
           order.giftProductId ?? null,
           order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -1888,6 +1904,13 @@ export class BeautyDatabase {
         warningStock REAL NOT NULL,
         shelfLifeMonths REAL,
         expiryAt TEXT,
+        serviceStockDeductible INTEGER,
+        serviceStockReviewStatus TEXT,
+        serviceStockReviewedAt TEXT,
+        serviceStockReviewedBy TEXT,
+        serviceUsesPerUnit REAL,
+        serviceUnit TEXT,
+        serviceUnitsPerStockUnit REAL,
         status TEXT
       );
 
@@ -2182,6 +2205,14 @@ export class BeautyDatabase {
     this.addColumnIfMissing("products", "subcategory", "TEXT");
     this.addColumnIfMissing("products", "shelfLifeMonths", "REAL");
     this.addColumnIfMissing("products", "expiryAt", "TEXT");
+    this.addColumnIfMissing("products", "serviceStockDeductible", "INTEGER");
+    this.addColumnIfMissing("products", "serviceStockReviewStatus", "TEXT");
+    this.addColumnIfMissing("products", "serviceStockReviewedAt", "TEXT");
+    this.addColumnIfMissing("products", "serviceStockReviewedBy", "TEXT");
+    this.db.exec("UPDATE products SET serviceStockReviewStatus = 'pending', serviceStockReviewedAt = NULL, serviceStockReviewedBy = NULL WHERE serviceStockReviewStatus IS NULL;");
+    this.addColumnIfMissing("products", "serviceUsesPerUnit", "REAL");
+    this.addColumnIfMissing("products", "serviceUnit", "TEXT");
+    this.addColumnIfMissing("products", "serviceUnitsPerStockUnit", "REAL");
     this.addColumnIfMissing("products", "status", "TEXT");
     this.addColumnIfMissing("inventoryLogs", "expiryAt", "TEXT");
     this.addColumnIfMissing("commissions", "rate", "REAL NOT NULL DEFAULT 0");
@@ -2557,7 +2588,12 @@ function mapService(row: unknown): Service {
 }
 
 function mapProduct(row: unknown): Product {
-  const value = row as Product;
+  const value = row as Product & {
+    serviceStockDeductible?: boolean | number | null;
+    serviceStockReviewStatus?: string | null;
+    serviceStockReviewedAt?: string | null;
+    serviceStockReviewedBy?: string | null;
+  };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
@@ -2565,6 +2601,17 @@ function mapProduct(row: unknown): Product {
     subcategory: value.subcategory ?? undefined,
     shelfLifeMonths: value.shelfLifeMonths ?? undefined,
     expiryAt: value.expiryAt ?? undefined,
+    serviceStockDeductible: value.serviceStockDeductible === undefined || value.serviceStockDeductible === null
+      ? undefined
+      : Boolean(value.serviceStockDeductible),
+    serviceStockReviewStatus: value.serviceStockReviewStatus === "pending" || value.serviceStockReviewStatus === "confirmed"
+      ? value.serviceStockReviewStatus
+      : undefined,
+    serviceStockReviewedAt: value.serviceStockReviewedAt ?? undefined,
+    serviceStockReviewedBy: value.serviceStockReviewedBy ?? undefined,
+    serviceUsesPerUnit: value.serviceUsesPerUnit ?? undefined,
+    serviceUnit: value.serviceUnit ?? undefined,
+    serviceUnitsPerStockUnit: value.serviceUnitsPerStockUnit ?? undefined,
     status: value.status ?? "启用",
   };
 }

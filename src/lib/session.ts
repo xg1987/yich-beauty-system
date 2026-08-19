@@ -3,7 +3,7 @@
  * Node backends. Sessions used to never expire and could not be revoked; both
  * backends now stamp an expiry and reject/clear sessions past it.
  */
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+export const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 /** ISO timestamp for a freshly issued session's expiry. */
 export function newSessionExpiry(fromMs: number = Date.now()): string {

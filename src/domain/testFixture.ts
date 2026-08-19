@@ -124,10 +124,10 @@ export const testFixtureData: AppData = {
     },
   ],
   products: [
-    { id: "p1", storeId: "store1", name: "清洁精华液", type: "sale", category: "面护类", subcategory: "精华", unit: "瓶", price: 128, cost: 65, stock: 18, warningStock: 5, shelfLifeMonths: 24 },
-    { id: "p2", storeId: "store1", name: "草本按摩油", type: "sale", category: "养生类", subcategory: "身体油", unit: "瓶", price: 168, cost: 80, stock: 12, warningStock: 4, shelfLifeMonths: 24 },
-    { id: "p3", storeId: "store1", name: "修复护理包", type: "sale", category: "养生类", subcategory: "套盒", unit: "套", price: 298, cost: 150, stock: 9, warningStock: 3, shelfLifeMonths: 24 },
-    { id: "p4", storeId: "store1", name: "家用补水面膜", type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8, shelfLifeMonths: 24 },
+    { id: "p1", storeId: "store1", name: "清洁精华液", type: "sale", category: "面护类", subcategory: "精华", unit: "瓶", price: 128, cost: 65, stock: 18, warningStock: 5, shelfLifeMonths: 24, serviceStockDeductible: false, serviceStockReviewStatus: "confirmed" },
+    { id: "p2", storeId: "store1", name: "草本按摩油", type: "sale", category: "养生类", subcategory: "身体油", unit: "瓶", price: 168, cost: 80, stock: 12, warningStock: 4, shelfLifeMonths: 24, serviceStockDeductible: false, serviceStockReviewStatus: "confirmed" },
+    { id: "p3", storeId: "store1", name: "修复护理包", type: "sale", category: "养生类", subcategory: "套盒", unit: "套", price: 298, cost: 150, stock: 9, warningStock: 3, shelfLifeMonths: 24, serviceStockDeductible: true, serviceStockReviewStatus: "confirmed" },
+    { id: "p4", storeId: "store1", name: "家用补水面膜", type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 199, cost: 92, stock: 24, warningStock: 8, shelfLifeMonths: 24, serviceStockDeductible: true, serviceStockReviewStatus: "confirmed" },
   ],
   inventoryBatches: [],
   appointments: [
@@ -142,9 +142,10 @@ export const testFixtureData: AppData = {
     { id: "ss3", staffId: "s3", startAt: tomorrowAt(9), endAt: tomorrowAt(21), note: "标准早晚班", createdBy: "u_manager", createdAt: nowIso() },
   ],
   memberCards: [
-    { id: "m1", customerId: "c1", name: "尊享储值卡", type: "储值卡", balance: 2600, remainingTimes: 0, expiresAt: "2027-12-31", status: "正常" },
+    { id: "m1", storeId: "store1", customerId: "c1", name: "尊享储值卡", type: "储值卡", balance: 2600, remainingTimes: 0, expiresAt: "2027-12-31", status: "正常" },
     {
       id: "m2",
+      storeId: "store1",
       customerId: "c3",
       name: "小气泡 10 次卡",
       type: "次数卡",
@@ -196,7 +197,7 @@ export const testFixtureData: AppData = {
   customerSignatures: [],
   customerFollowUps: [],
   suppliers: [
-    { id: "sp1", name: "祝融｜坤锋商品供应商", phone: "021-6666-0000", contact: "张经理", status: "active" },
+    { id: "sp1", storeId: "store1", name: "祝融｜坤锋商品供应商", phone: "021-6666-0000", contact: "张经理", status: "active" },
   ],
   purchaseOrders: [],
   stocktakes: [],

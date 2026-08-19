@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import {
   appointmentArrivalConfirmationWindow,
   appointmentEndAt,
+  appointmentMonthRange,
   appointmentRangeMap,
   calculateAppointmentRoomUsage,
   filterAppointmentsByRange,
   isAppointmentInArrivalConfirmationWindow,
+  summarizeAppointmentsForMonth,
 } from "../src/domain/appointments";
 import type { Appointment } from "../src/domain/types";
 
@@ -73,6 +75,30 @@ assert.deepEqual(
   ["today-early", "today-late"],
   "today filter should include only current day appointments in time order",
 );
+
+const monthRange = appointmentMonthRange(baseDate);
+assert.equal(monthRange.label, "2026年6月", "month range should use the selected calendar month");
+assert.equal(monthRange.start.toLocaleDateString("en-CA"), "2026-06-01", "month range should start on the first day");
+assert.equal(monthRange.end.toLocaleDateString("en-CA"), "2026-06-30", "month range should end on the last day");
+
+const monthSummary = summarizeAppointmentsForMonth(
+  [
+    { ...appointment("arrived", "2026-06-03T09:00:00+08:00"), status: "已到店" },
+    { ...appointment("completed", "2026-06-04T09:00:00+08:00"), status: "已完成" },
+    { ...appointment("explicit-no-show", "2026-06-05T09:00:00+08:00"), status: "爽约" },
+    appointment("expired-pending", "2026-06-06T09:00:00+08:00"),
+    { ...appointment("canceled-month", "2026-06-07T09:00:00+08:00"), status: "已取消" },
+    { ...appointment("future-confirmed", "2026-06-20T09:00:00+08:00"), status: "已确认" },
+    { ...appointment("other-month", "2026-07-01T09:00:00+08:00"), status: "已完成" },
+  ],
+  [{ id: "v1", name: "测试项目", category: "测试", price: 100, duration: 60 }],
+  baseDate,
+  new Date("2026-06-10T12:00:00+08:00"),
+);
+assert.deepEqual(monthSummary.arrived.map((item) => item.id), ["arrived", "completed"], "arrived summary should include checked-in and completed customers");
+assert.deepEqual(monthSummary.missed.map((item) => item.id), ["explicit-no-show", "expired-pending"], "missed summary should include no-shows and overdue pending arrivals");
+assert.deepEqual(monthSummary.canceled.map((item) => item.id), ["canceled-month"], "canceled appointments should stay distinguishable");
+assert.deepEqual(monthSummary.upcoming.map((item) => item.id), ["future-confirmed"], "future appointments should not be mislabeled as missed");
 
 assert.deepEqual(
   filterAppointmentsByRange(appointments, "tomorrow", baseDate).map((item) => item.id),

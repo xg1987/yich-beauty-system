@@ -77,11 +77,25 @@ import {
 import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, assignAppointmentRooms, calculateAppointmentRoomUsage, filterAppointmentsByRange, isAppointmentInArrivalConfirmationWindow, appointmentArrivalConfirmationWindow, type AppointmentRange } from "../domain/appointments";
 import { canAccessView, hasPermission, parseRolePermissionTemplates, serializeRolePermissionTemplates, type Permission, type UserSession } from "../domain/auth";
 import {
+  AI_PROVIDER_LABELS,
+  aiCapabilityPlatformEnabled,
+  aiCapabilityUsageState,
+  aiGenerationConfigFromSystemConfigs,
+  normalizeStoreAiUsagePermissions,
+  serializeAiGenerationConfig,
+  storeAiUsagePermissions,
+  videoSpecKey,
+  boundedPrice,
+  type AiGenerationConfig,
+  type AiVideoResolution,
+} from "../domain/aiGenerationConfig";
+import {
   formatProductStockWithServiceUnits,
   formatStockQuantity,
   normalizeProductServiceUnitsPerStockUnit,
   productServiceDeductionLabel,
   productServiceStockDeductible,
+  productServiceStockReviewStatus,
   productServiceUnit,
   productServiceUnitsPerStockUnit,
   serviceStockQuantityForProduct,
@@ -100,6 +114,11 @@ import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "
 import {
   findCreatedProduct,
   aggregateMemberCardServiceAvailability,
+  addMonthsInputValue,
+  dateInputValue,
+  INVENTORY_CATEGORY_PRESETS,
+  inventoryCategoryNames,
+  inventorySubcategoryNames,
   memberCardAvailableProjectScopeText,
   memberCardAvailableServiceIds,
   memberCardAvailableTimesText,
@@ -115,12 +134,15 @@ import {
   optionalNumberFromInput,
   parseTags,
   productServicePackageText,
+  productExpiryDaysText,
+  productExpiryStatus,
+  productExpiryText,
+  productShelfLifeText,
   serviceConsumableDisplay,
   serviceConsumableModeText,
   serviceConsumablesOf,
   serviceFormulaSummary,
 } from "./authenticatedAppHelpers";
-
 export {
   memberCardAvailableProjectScopeText,
   memberCardAvailableServiceIds,
@@ -135,7 +157,6 @@ export {
   serviceConsumablesOf,
   serviceFormulaSummary,
 } from "./authenticatedAppHelpers";
-
 type WorkbarKey = "workbench" | "appointments" | "cashier" | "card" | "customers" | "marketing" | "reports" | "accounts" | "logs" | "admin";
 type WorkbarItem = { key: WorkbarKey; label: string; icon: typeof LayoutDashboard; view: ViewKey; options?: NavigateOptions };
 type ThemeMode = "day" | "night";
@@ -148,55 +169,12 @@ type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
 type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; posSignatureId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
-type AiProviderKey = "openai" | "deepseek" | "seedance" | "kling" | "hailuo" | "grok";
-type AiVideoResolution = "480p" | "720p" | "1080p";
-type AiVideoAspectRatio = "9:16" | "1:1" | "16:9";
 
 function cardCustomerDraftError(mode: CardCustomerMode, name: string, phone: string) {
   if (mode !== "new") return "";
   if (!name || !phone) return "请登记客户姓名和手机号";
   return phone.length === 11 ? "" : "客户手机号必须为 11 位数字";
 }
-type AiTextModelConfig = {
-  enabled: boolean;
-  provider: Extract<AiProviderKey, "openai" | "deepseek">;
-  model: string;
-  apiKey: string;
-  inputTokenUsdPerMillion: number;
-  outputTokenUsdPerMillion: number;
-};
-const OPENAI_IMAGE_MODELS = ["gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"] as const;
-type OpenAiImageModel = typeof OPENAI_IMAGE_MODELS[number];
-type AiImageModelConfig = {
-  enabled: boolean;
-  provider: "openai";
-  model: OpenAiImageModel;
-  apiKey: string;
-  defaultSize: "1024x1024" | "1024x1536" | "1536x1024";
-  defaultQuality: "standard" | "high";
-  maxImagesPerRequest: number;
-  textInputUsdPerMillion: number;
-  imageInputUsdPerMillion: number;
-  imageOutputUsdPerMillion: number;
-};
-type AiVideoProviderConfig = {
-  provider: Extract<AiProviderKey, "seedance" | "kling" | "hailuo" | "grok">;
-  enabled: boolean;
-  model: string;
-  apiKey: string;
-  defaultDurationSeconds: number;
-  defaultResolution: AiVideoResolution;
-  defaultAspectRatio: AiVideoAspectRatio;
-  priceUsdBySpec: Record<string, number>;
-};
-type AiGenerationConfig = {
-  copy: AiTextModelConfig;
-  image: AiImageModelConfig;
-  video: {
-    defaultProvider: AiVideoProviderConfig["provider"];
-    providers: AiVideoProviderConfig[];
-  };
-};
 type LoadingGateStage = "connecting" | "slow" | "stalled";
 type EditableNumber = number | "";
 
@@ -212,143 +190,16 @@ const DEFAULT_STORED_VALUE_CARD_NAME = "储值卡";
 const DEFAULT_PROJECT_CARD_NAME = "面部护理十次卡";
 const DEFAULT_DISCOUNT_CARD_NAME = "会员折扣卡";
 const normalizeMobilePhoneDraft = (value: string) => value.replace(/\D/g, "").slice(0, 11);
-const AI_VIDEO_DURATIONS = [5, 10, 15];
-const AI_VIDEO_RESOLUTIONS: AiVideoResolution[] = ["480p", "720p", "1080p"];
-export const AI_VIDEO_ASPECT_RATIOS: AiVideoAspectRatio[] = ["9:16", "1:1", "16:9"];
-const DEFAULT_SEEDANCE_MODEL = "doubao-seedance-2-0-fast-260128";
-export const AI_PROVIDER_LABELS: Record<AiProviderKey, string> = {
-  openai: "OpenAI",
-  deepseek: "DeepSeek",
-  seedance: "Seedance",
-  kling: "Kling",
-  hailuo: "海螺",
-  grok: "Grok Imagine",
-};
 const AI_USAGE_CAPABILITY_LABELS: Record<AiUsageCapability, string> = {
   copy: "AI 写文案",
   image: "AI 做产品设计图",
   video: "AI 做产品视频",
 };
-const DEFAULT_STORE_AI_USAGE_PERMISSIONS: StoreAiUsagePermissions = {
-  owner: { copy: true, image: true, video: true },
-  staff: { copy: true, image: true, video: false },
-};
 const DEFAULT_STORE_OPERATIONAL_PERMISSIONS: StoreOperationalPermissions = {
   staffCanViewAllAppointments: true,
 };
-const DEFAULT_AI_GENERATION_CONFIG: AiGenerationConfig = {
-  copy: {
-    enabled: true,
-    provider: "deepseek",
-    model: "deepseek-v4-pro",
-    apiKey: "",
-    inputTokenUsdPerMillion: 0.435,
-    outputTokenUsdPerMillion: 0.87,
-  },
-  image: {
-    enabled: true,
-    provider: "openai",
-    model: "gpt-image-2",
-    apiKey: "",
-    defaultSize: "1024x1024",
-    defaultQuality: "high",
-    maxImagesPerRequest: 4,
-    textInputUsdPerMillion: 5,
-    imageInputUsdPerMillion: 8,
-    imageOutputUsdPerMillion: 30,
-  },
-  video: {
-    defaultProvider: "seedance",
-    providers: [
-      {
-        provider: "seedance",
-        enabled: true,
-        model: DEFAULT_SEEDANCE_MODEL,
-        apiKey: "",
-        defaultDurationSeconds: 5,
-        defaultResolution: "480p",
-        defaultAspectRatio: "9:16",
-        priceUsdBySpec: {
-          "5s:480p": 0.3408,
-          "5s:720p": 0.7332,
-          "5s:1080p": 1.8279,
-          "10s:480p": 0.6816,
-          "10s:720p": 1.4665,
-          "10s:1080p": 3.6558,
-          "15s:480p": 1.0224,
-          "15s:720p": 2.1997,
-          "15s:1080p": 5.4837,
-        },
-      },
-      {
-        provider: "kling",
-        enabled: false,
-        model: "kling-v3",
-        apiKey: "",
-        defaultDurationSeconds: 5,
-        defaultResolution: "480p",
-        defaultAspectRatio: "9:16",
-        priceUsdBySpec: {
-          "5s:480p": 0,
-          "5s:720p": 0.42,
-          "5s:1080p": 0.56,
-          "10s:480p": 0,
-          "10s:720p": 0.84,
-          "10s:1080p": 1.12,
-          "15s:480p": 0,
-          "15s:720p": 1.26,
-          "15s:1080p": 1.68,
-        },
-      },
-      {
-        provider: "hailuo",
-        enabled: false,
-        model: "MiniMax-Hailuo-2.3",
-        apiKey: "",
-        defaultDurationSeconds: 5,
-        defaultResolution: "480p",
-        defaultAspectRatio: "9:16",
-        priceUsdBySpec: {
-          "5s:480p": 0.1,
-          "5s:720p": 0.28,
-          "5s:1080p": 0.49,
-          "10s:480p": 0.15,
-          "10s:720p": 0.56,
-          "10s:1080p": 0,
-          "15s:480p": 0,
-          "15s:720p": 0,
-          "15s:1080p": 0,
-        },
-      },
-      {
-        provider: "grok",
-        enabled: false,
-        model: "grok-imagine-video-1.5",
-        apiKey: "",
-        defaultDurationSeconds: 5,
-        defaultResolution: "480p",
-        defaultAspectRatio: "9:16",
-        priceUsdBySpec: {
-          "5s:480p": 0.4,
-          "5s:720p": 0.4,
-          "5s:1080p": 0,
-          "10s:480p": 0.8,
-          "10s:720p": 0.8,
-          "10s:1080p": 0,
-          "15s:480p": 1.2,
-          "15s:720p": 1.2,
-          "15s:1080p": 0,
-        },
-      },
-    ],
-  },
-};
 const cashPayMethodOptions = (["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((item) => ({ value: item, label: item }));
 const customerFollowUpTypeOptions = (["服务后回访", "下次护理提醒", "卡项会员提醒", "客户关系维护", "异常处理"] as CustomerFollowUpType[]).map((item) => ({ value: item, label: item }));
-const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
-  面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
-  养生类: ["泥灸", "私密", "套盒", "膏霜", "身体油", "泡脚汤", "艾灸"],
-};
 const inventoryLossReasonOptions = ["破损", "过期", "试用", "盘点差异", "其他损耗"];
 
 function parseEditableNumber(value: string): EditableNumber {
@@ -441,42 +292,6 @@ function normalizeBirthdayForSubmit(value: string) {
   return birthday;
 }
 
-function inventoryCategoryMap(products: Product[], presets: Record<string, string[]> = INVENTORY_CATEGORY_PRESETS) {
-  const map = new Map<string, Set<string>>();
-  const addCategory = (category: string) => {
-    const name = category.trim();
-    if (!name) return undefined;
-    if (!map.has(name)) map.set(name, new Set());
-    return map.get(name);
-  };
-
-  Object.entries(presets).forEach(([category, subcategories]) => {
-    const bucket = addCategory(category);
-    subcategories.forEach((subcategory) => {
-      const name = subcategory.trim();
-      if (name) bucket?.add(name);
-    });
-  });
-  products.forEach((product) => {
-    const bucket = addCategory(product.category ?? "面护类");
-    const subcategory = product.subcategory?.trim();
-    if (subcategory) bucket?.add(subcategory);
-  });
-  return map;
-}
-
-function inventoryCategoryNames(products: Product[], presets?: Record<string, string[]>) {
-  return Array.from(inventoryCategoryMap(products, presets).keys());
-}
-
-function inventorySubcategoryNames(products: Product[], category: string, presets?: Record<string, string[]>) {
-  const map = inventoryCategoryMap(products, presets);
-  if (category === "全部") {
-    return Array.from(new Set(Array.from(map.values()).flatMap((items) => Array.from(items))));
-  }
-  return Array.from(map.get(category) ?? []);
-}
-
 function GlobalMutationStatus() {
   const pending = useMutationPending();
   if (!pending) return null;
@@ -513,49 +328,6 @@ export function downloadCsvFile(filename: string, columns: Array<string | number
   }, 0);
 }
 
-function dateInputValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function addMonthsInputValue(months: number, baseDate = new Date()) {
-  if (!Number.isFinite(months) || months <= 0) return "";
-  const date = new Date(baseDate);
-  date.setMonth(date.getMonth() + Math.round(months));
-  return dateInputValue(date);
-}
-
-function productExpiryText(product: Product) {
-  if (!product.expiryAt) return "未设置";
-  return /^\d{4}-\d{2}-\d{2}$/.test(product.expiryAt) ? product.expiryAt.replace(/-/g, "/") : shortDate(product.expiryAt);
-}
-
-function productShelfLifeText(product: Product) {
-  return product.shelfLifeMonths ? `${product.shelfLifeMonths}个月` : "未设置";
-}
-
-function productExpiryDaysText(product: Product) {
-  if (!product.expiryAt) return "-";
-  const today = new Date(`${dateInputValue()}T00:00:00`).getTime();
-  const expiry = new Date(`${product.expiryAt}T00:00:00`).getTime();
-  if (Number.isNaN(expiry)) return "-";
-  const daysLeft = Math.ceil((expiry - today) / 86400000);
-  if (daysLeft < 0) return `已过期${Math.abs(daysLeft)}天`;
-  return `${daysLeft}天`;
-}
-
-function productExpiryStatus(product: Product) {
-  if (!product.expiryAt) return undefined;
-  const today = new Date(`${dateInputValue()}T00:00:00`).getTime();
-  const expiry = new Date(`${product.expiryAt}T00:00:00`).getTime();
-  if (Number.isNaN(expiry)) return undefined;
-  const daysLeft = Math.ceil((expiry - today) / 86400000);
-  if (daysLeft < 0) return { text: "已过期", tone: "warn" as const };
-  if (daysLeft <= 30) return { text: "临期", tone: "warn" as const };
-  return undefined;
-}
 const viewTitles: Record<ViewKey, string> = {
   dashboard: "今日总览",
   appointments: "预约管理",
@@ -780,138 +552,6 @@ function isThemeMode(value: string | null): value is ThemeMode {
   return value === "day" || value === "night";
 }
 
-function cloneAiGenerationConfig(config: AiGenerationConfig = DEFAULT_AI_GENERATION_CONFIG): AiGenerationConfig {
-  return JSON.parse(JSON.stringify(config)) as AiGenerationConfig;
-}
-
-export function videoSpecKey(durationSeconds: number, resolution: AiVideoResolution) {
-  return `${durationSeconds}s:${resolution}`;
-}
-
-export function boundedPrice(value: unknown) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
-}
-
-function normalizeOpenAiImageModel(value: unknown, fallback: OpenAiImageModel): OpenAiImageModel {
-  if (typeof value !== "string") return fallback;
-  const model = value.trim();
-  return OPENAI_IMAGE_MODELS.includes(model as OpenAiImageModel) ? model as OpenAiImageModel : fallback;
-}
-
-function normalizeSeedanceModel(value: unknown, fallback = DEFAULT_SEEDANCE_MODEL) {
-  if (typeof value !== "string") return fallback;
-  const model = value.trim();
-  const normalized = model.toLowerCase();
-  if (!normalized) return fallback;
-  if (normalized === "seedance-2.0" || normalized === "doubao-seedance-2.0" || normalized === "doubao-seedance-2-0") {
-    return "doubao-seedance-2-0-260128";
-  }
-  if (normalized === "seedance-2.0-fast" || normalized === "doubao-seedance-2.0-fast" || normalized === "doubao-seedance-2-0-fast") {
-    return DEFAULT_SEEDANCE_MODEL;
-  }
-  if (normalized === "seedance-1.5-pro" || normalized === "doubao-seedance-1.5-pro" || normalized === "doubao-seedance-1-5-pro") {
-    return "doubao-seedance-1-5-pro-250728";
-  }
-  return model;
-}
-
-function normalizeAiGenerationConfig(input: unknown): AiGenerationConfig {
-  const fallback = cloneAiGenerationConfig();
-  if (!input || typeof input !== "object") return fallback;
-  const record = input as Partial<AiGenerationConfig>;
-  const copy = record.copy && typeof record.copy === "object" ? record.copy as Partial<AiTextModelConfig> : {};
-  const image = record.image && typeof record.image === "object" ? record.image as Partial<AiImageModelConfig> : {};
-  const video = record.video && typeof record.video === "object" ? record.video as Partial<AiGenerationConfig["video"]> : {};
-  const inputProviders = Array.isArray(video.providers) ? video.providers : [];
-  const providers = fallback.video.providers.map((defaultProvider) => {
-    const incoming = inputProviders.find((item) => item && typeof item === "object" && (item as Partial<AiVideoProviderConfig>).provider === defaultProvider.provider) as Partial<AiVideoProviderConfig> | undefined;
-    return {
-      ...defaultProvider,
-      ...incoming,
-      enabled: typeof incoming?.enabled === "boolean" ? incoming.enabled : defaultProvider.enabled,
-      apiKey: typeof incoming?.apiKey === "string" ? incoming.apiKey : defaultProvider.apiKey,
-      model: defaultProvider.provider === "seedance"
-        ? normalizeSeedanceModel(incoming?.model, defaultProvider.model)
-        : typeof incoming?.model === "string" ? incoming.model : defaultProvider.model,
-      defaultDurationSeconds: AI_VIDEO_DURATIONS.includes(Number(incoming?.defaultDurationSeconds)) ? Number(incoming?.defaultDurationSeconds) : defaultProvider.defaultDurationSeconds,
-      defaultResolution: AI_VIDEO_RESOLUTIONS.includes(incoming?.defaultResolution as AiVideoResolution) ? incoming?.defaultResolution as AiVideoResolution : defaultProvider.defaultResolution,
-      defaultAspectRatio: AI_VIDEO_ASPECT_RATIOS.includes(incoming?.defaultAspectRatio as AiVideoAspectRatio) ? incoming?.defaultAspectRatio as AiVideoAspectRatio : defaultProvider.defaultAspectRatio,
-      priceUsdBySpec: Object.fromEntries(
-        Object.entries(incoming?.priceUsdBySpec ?? defaultProvider.priceUsdBySpec ?? {}).map(([key, value]) => [key, boundedPrice(value)]),
-      ),
-    };
-  });
-  const defaultProvider = providers.some((provider) => provider.provider === video.defaultProvider)
-    ? video.defaultProvider as AiVideoProviderConfig["provider"]
-    : fallback.video.defaultProvider;
-  return {
-    copy: {
-      ...fallback.copy,
-      ...copy,
-      enabled: typeof copy.enabled === "boolean" ? copy.enabled : fallback.copy.enabled,
-      provider: copy.provider === "openai" || copy.provider === "deepseek" ? copy.provider : fallback.copy.provider,
-      apiKey: typeof copy.apiKey === "string" ? copy.apiKey : fallback.copy.apiKey,
-      model: typeof copy.model === "string" ? copy.model : fallback.copy.model,
-      inputTokenUsdPerMillion: boundedPrice(copy.inputTokenUsdPerMillion),
-      outputTokenUsdPerMillion: boundedPrice(copy.outputTokenUsdPerMillion),
-    },
-    image: {
-      ...fallback.image,
-      ...image,
-      enabled: typeof image.enabled === "boolean" ? image.enabled : fallback.image.enabled,
-      apiKey: typeof image.apiKey === "string" ? image.apiKey : fallback.image.apiKey,
-      model: normalizeOpenAiImageModel(image.model, fallback.image.model),
-      defaultSize: ["1024x1024", "1024x1536", "1536x1024"].includes(image.defaultSize ?? "") ? image.defaultSize as AiImageModelConfig["defaultSize"] : fallback.image.defaultSize,
-      defaultQuality: image.defaultQuality === "standard" || image.defaultQuality === "high" ? image.defaultQuality : fallback.image.defaultQuality,
-      maxImagesPerRequest: Math.max(1, Math.min(8, Math.trunc(Number(image.maxImagesPerRequest) || fallback.image.maxImagesPerRequest))),
-      textInputUsdPerMillion: boundedPrice(image.textInputUsdPerMillion),
-      imageInputUsdPerMillion: boundedPrice(image.imageInputUsdPerMillion),
-      imageOutputUsdPerMillion: boundedPrice(image.imageOutputUsdPerMillion),
-    },
-    video: {
-      defaultProvider,
-      providers,
-    },
-  };
-}
-
-export function aiGenerationConfigFromSystemConfigs(configs?: AppData["systemConfigs"]) {
-  const rawValue = configs?.find((item) => item.key === "ai_generation_config")?.value;
-  if (!rawValue) return cloneAiGenerationConfig();
-  try {
-    return normalizeAiGenerationConfig(JSON.parse(rawValue));
-  } catch {
-    return cloneAiGenerationConfig();
-  }
-}
-
-export function serializeAiGenerationConfig(config: AiGenerationConfig) {
-  return JSON.stringify(normalizeAiGenerationConfig(config));
-}
-
-function normalizeStoreAiUsagePermissions(input: unknown): StoreAiUsagePermissions {
-  const source = input && typeof input === "object" ? input as Partial<StoreAiUsagePermissions> : {};
-  const owner = source.owner && typeof source.owner === "object" ? source.owner as Partial<StoreAiUsagePermissions["owner"]> : {};
-  const staff = source.staff && typeof source.staff === "object" ? source.staff as Partial<StoreAiUsagePermissions["staff"]> : {};
-  return {
-    owner: {
-      copy: typeof owner.copy === "boolean" ? owner.copy : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.copy,
-      image: typeof owner.image === "boolean" ? owner.image : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.image,
-      video: typeof owner.video === "boolean" ? owner.video : DEFAULT_STORE_AI_USAGE_PERMISSIONS.owner.video,
-    },
-    staff: {
-      copy: typeof staff.copy === "boolean" ? staff.copy : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.copy,
-      image: typeof staff.image === "boolean" ? staff.image : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.image,
-      video: typeof staff.video === "boolean" ? staff.video : DEFAULT_STORE_AI_USAGE_PERMISSIONS.staff.video,
-    },
-  };
-}
-
-export function storeAiUsagePermissions(data: AppData) {
-  return normalizeStoreAiUsagePermissions(data.storeProfiles[0]?.aiUsagePermissions);
-}
-
 function normalizeStoreOperationalPermissions(input: unknown): StoreOperationalPermissions {
   const source = input && typeof input === "object" ? input as Partial<StoreOperationalPermissions> : {};
   return {
@@ -919,23 +559,6 @@ function normalizeStoreOperationalPermissions(input: unknown): StoreOperationalP
       ? source.staffCanViewAllAppointments
       : DEFAULT_STORE_OPERATIONAL_PERMISSIONS.staffCanViewAllAppointments,
   };
-}
-
-function aiUsagePermissionGroup(role: UserRole): keyof StoreAiUsagePermissions {
-  return role === "owner" || role === "manager" ? "owner" : "staff";
-}
-
-function aiCapabilityPlatformEnabled(config: AiGenerationConfig, capability: AiUsageCapability) {
-  if (capability === "copy") return config.copy.enabled;
-  if (capability === "image") return config.image.enabled;
-  return config.video.providers.some((provider) => provider.enabled);
-}
-
-export function aiCapabilityUsageState(config: AiGenerationConfig, permissions: StoreAiUsagePermissions, role: UserRole, capability: AiUsageCapability) {
-  if (!aiCapabilityPlatformEnabled(config, capability)) return { enabled: false, label: "平台未启用" };
-  const group = aiUsagePermissionGroup(role);
-  if (!permissions[group][capability]) return { enabled: false, label: "未开通" };
-  return { enabled: true, label: "可用" };
 }
 
 const navItems: Array<{ key: ViewKey; label: string; icon: typeof LayoutDashboard }> = [
@@ -5571,7 +5194,7 @@ function Customers({
   const serviceProductSummary = (order: Order) => {
     const service = data.services.find((item) => item.id === order.serviceId);
     const consumables =
-      order.serviceConsumables?.length
+      order.serviceConsumables !== undefined
         ? order.serviceConsumables
         : service?.consumables?.length
         ? service.consumables
@@ -6765,11 +6388,8 @@ function ProductUsagePicker({
   const [category, setCategory] = useState("全部");
   const [subcategory, setSubcategory] = useState("全部");
   const [query, setQuery] = useState("");
-  const usableProducts = products.filter(productServiceStockDeductible);
-  const usableSelected = selected.filter((item) => {
-    const product = products.find((candidate) => candidate.id === item.productId);
-    return product ? productServiceStockDeductible(product) : false;
-  });
+  const usableProducts = products.filter((product) => product.status !== "停用");
+  const usableSelected = selected.filter((item) => products.some((product) => product.id === item.productId));
   const selectedIds = new Set(usableSelected.map((item) => item.productId));
   const categories = Array.from(new Set([
     ...inventoryCategoryNames(usableProducts, {}),
@@ -6793,12 +6413,7 @@ function ProductUsagePicker({
   const exactProduct = scopedProducts.find((product) => normalizeProductName(product.name) === normalizedQuery);
   const createCategory = category === "全部" ? "面护类" : category;
   const createSubcategory = subcategory === "全部" ? "" : subcategory;
-  const canCreate = query.trim().length > 0 && !exactProduct && productServiceStockDeductible({
-    name: query.trim(),
-    category: createCategory,
-    subcategory: createSubcategory,
-    unit: "件",
-  });
+  const canCreate = query.trim().length > 0 && !exactProduct;
 
   const addProduct = (productId: string) => {
     onAdd(productId);
@@ -6942,8 +6557,9 @@ function Inventory({
   const [newInventoryCategoryName, setNewInventoryCategoryName] = useState("");
   const [showInventoryCategoryManager, setShowInventoryCategoryManager] = useState(false);
   const newInventoryProductUnit = "件";
-  const initialInventoryServiceDraft = { name: "", category: "面护类", subcategory: "膏霜", unit: "件" };
-  const [newInventoryServiceUnitsPerStockUnit, setNewInventoryServiceUnitsPerStockUnit] = useState(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
+  const [newInventoryServiceStockDeductible, setNewInventoryServiceStockDeductible] = useState<boolean | undefined>();
+  const [newInventoryServiceUnit, setNewInventoryServiceUnit] = useState("");
+  const [newInventoryServiceUnitsPerStockUnit, setNewInventoryServiceUnitsPerStockUnit] = useState("");
   const [newInventoryProductPrice, setNewInventoryProductPrice] = useState("");
   const [newInventoryProductStock, setNewInventoryProductStock] = useState("");
   const [newInventorySupplierName, setNewInventorySupplierName] = useState("");
@@ -6963,6 +6579,9 @@ function Inventory({
   const [editProductWarningStock, setEditProductWarningStock] = useState<EditableNumber>(0);
   const [editProductShelfLifeMonths, setEditProductShelfLifeMonths] = useState<EditableNumber>(0);
   const [editProductStatus, setEditProductStatus] = useState<"启用" | "停用">("启用");
+  const [editProductServiceStockDeductible, setEditProductServiceStockDeductible] = useState<boolean | undefined>(true);
+  const [editProductServiceUnit, setEditProductServiceUnit] = useState("");
+  const [editProductServiceUnitsPerStockUnit, setEditProductServiceUnitsPerStockUnit] = useState("1");
   const [editProductReason, setEditProductReason] = useState("");
   const [stockExpiryAt, setStockExpiryAt] = useState(addMonthsInputValue(data.products[0]?.shelfLifeMonths ?? 24));
   const [activeModule, setActiveModule] = useState<InventoryModuleKey>(initialModule ?? "stockIn");
@@ -6982,18 +6601,6 @@ function Inventory({
   const lookupText = (value: string) => value.trim().toLowerCase();
   const findPurchaseSupplierByName = (name: string) => data.suppliers.find((item) => lookupText(item.name) === lookupText(name));
   const findPurchaseProductByName = (name: string) => data.products.find((item) => lookupText(item.name) === lookupText(name));
-
-  const inventoryProductServiceDraft = (input: { name?: string; category?: string; subcategory?: string; unit?: string }) => ({
-    name: input.name ?? newInventoryProductName,
-    category: input.category ?? newInventoryProductCategory,
-    subcategory: input.subcategory ?? newInventoryProductSubcategory,
-    unit: input.unit ?? newInventoryProductUnit,
-  });
-
-  const syncInventoryProductServiceDefaults = (input: { name?: string; category?: string; subcategory?: string; unit?: string }) => {
-    const draft = inventoryProductServiceDraft(input);
-    setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(draft)));
-  };
 
   const openInventoryCategoryManager = () => {
     setInventoryCategoryMessage(undefined);
@@ -7063,6 +6670,14 @@ function Inventory({
       setInventoryProductSaveMessage({ type: "error", text: "有供应商来货时，请填写初始库存数量。" });
       return;
     }
+    if (newInventoryServiceStockDeductible === undefined) {
+      setInventoryProductSaveMessage({ type: "error", text: "请根据商品真实用途选择“扣库存”或“不扣库存”。" });
+      return;
+    }
+    if (newInventoryServiceStockDeductible && (!newInventoryServiceUnit.trim() || optionalNumberFromInput(newInventoryServiceUnitsPerStockUnit) === undefined)) {
+      setInventoryProductSaveMessage({ type: "error", text: "扣库存商品必须填写扣减单位和每件数量。" });
+      return;
+    }
     const mutation = supplierLabel
       ? () => actions.receivePurchaseOrder({
           supplierName: supplierLabel,
@@ -7074,9 +6689,9 @@ function Inventory({
           productUnit: newInventoryProductUnit,
           warningStock,
           shelfLifeMonths,
-          serviceStockDeductible: true,
-          serviceUnit: productServiceUnit(inventoryProductServiceDraft({})),
-          serviceUnitsPerStockUnit,
+          serviceStockDeductible: newInventoryServiceStockDeductible,
+          serviceUnit: newInventoryServiceStockDeductible ? newInventoryServiceUnit.trim() : undefined,
+          serviceUnitsPerStockUnit: newInventoryServiceStockDeductible ? serviceUnitsPerStockUnit : undefined,
           quantity: stock,
           unitCost: unitCostValue ?? 0,
           expiryAt: newInventoryExpiryAt || undefined,
@@ -7093,16 +6708,18 @@ function Inventory({
           warningStock,
           shelfLifeMonths,
           expiryAt: newInventoryExpiryAt || undefined,
-          serviceStockDeductible: true,
-          serviceUnit: productServiceUnit(inventoryProductServiceDraft({})),
-          serviceUnitsPerStockUnit,
+          serviceStockDeductible: newInventoryServiceStockDeductible,
+          serviceUnit: newInventoryServiceStockDeductible ? newInventoryServiceUnit.trim() : undefined,
+          serviceUnitsPerStockUnit: newInventoryServiceStockDeductible ? serviceUnitsPerStockUnit : undefined,
         });
     void runMutation(mutation)
       .then(() => {
         setNewInventoryProductName("");
         setNewInventoryProductCategory("面护类");
         setNewInventoryProductSubcategory("膏霜");
-        setNewInventoryServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(initialInventoryServiceDraft)));
+        setNewInventoryServiceStockDeductible(undefined);
+        setNewInventoryServiceUnit("");
+        setNewInventoryServiceUnitsPerStockUnit("");
         setNewInventoryProductPrice("");
         setNewInventoryProductStock("");
         setNewInventorySupplierName("");
@@ -7128,20 +6745,16 @@ function Inventory({
     setEditProductWarningStock(product.warningStock);
     setEditProductShelfLifeMonths(product.shelfLifeMonths ?? "");
     setEditProductStatus(product.status ?? "启用");
+    setEditProductServiceStockDeductible(productServiceStockReviewStatus(product) === "pending" ? undefined : productServiceStockDeductible(product));
+    setEditProductServiceUnit(productServiceStockReviewStatus(product) === "pending" ? product.serviceUnit ?? "" : productServiceUnit(product));
+    setEditProductServiceUnitsPerStockUnit(String(productServiceUnitsPerStockUnit(product)));
     setEditProductReason("");
   };
 
   const saveProductEdit = (event: FormEvent) => {
     event.preventDefault();
     const product = data.products.find((item) => item.id === editingProductId);
-    if (!product) return;
-    const productDraft = {
-      ...product,
-      name: editProductName,
-      category: editProductCategory,
-      subcategory: editProductSubcategory,
-      unit: editProductUnit,
-    };
+    if (!product || editProductServiceStockDeductible === undefined) return;
     void runMutation(() => actions.updateProduct(editingProductId, {
       name: editProductName,
       category: editProductCategory,
@@ -7150,9 +6763,11 @@ function Inventory({
       price: editableNumberValue(editProductPrice),
       warningStock: editableNumberValue(editProductWarningStock),
       shelfLifeMonths: editProductShelfLifeMonths === "" ? undefined : editableNumberValue(editProductShelfLifeMonths),
-      serviceStockDeductible: productServiceStockDeductible(product),
-      serviceUnit: productServiceStockDeductible(product) ? productServiceUnit(productDraft) : undefined,
-      serviceUnitsPerStockUnit: productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : undefined,
+      serviceStockDeductible: editProductServiceStockDeductible,
+      serviceUnit: editProductServiceStockDeductible ? editProductServiceUnit.trim() : undefined,
+      serviceUnitsPerStockUnit: editProductServiceStockDeductible
+        ? normalizeProductServiceUnitsPerStockUnit(optionalNumberFromInput(editProductServiceUnitsPerStockUnit))
+        : undefined,
       status: editProductStatus,
       reason: editProductReason.trim() || undefined,
     })).then(() => setEditingProductId(""));
@@ -7390,6 +7005,7 @@ function Inventory({
 
   const lowStockItems = data.products.filter((item) => item.stock <= item.warningStock);
   const lowStock = lowStockItems.length;
+  const pendingStockReviewProducts = data.products.filter((item) => productServiceStockReviewStatus(item) === "pending");
   const stockValue = data.products.reduce((sum, item) => sum + item.stock, 0);
   const selectedLossProduct = data.products.find((item) => item.id === lossProductId);
   const selectedManualRestockProduct = data.products.find((item) => item.id === manualRestockProductId);
@@ -7443,9 +7059,10 @@ function Inventory({
       ...categoryFilteredProducts.map((item) => item.subcategory).filter((subcategory): subcategory is string => Boolean(subcategory)),
     ])),
   ];
-  const filteredInventoryProducts = inventorySubcategoryFilter === "全部"
+  const filteredInventoryProducts = [...(inventorySubcategoryFilter === "全部"
     ? categoryFilteredProducts
-    : categoryFilteredProducts.filter((item) => item.subcategory === inventorySubcategoryFilter);
+    : categoryFilteredProducts.filter((item) => item.subcategory === inventorySubcategoryFilter))]
+    .sort((left, right) => Number(productServiceStockReviewStatus(right) === "pending") - Number(productServiceStockReviewStatus(left) === "pending"));
   const filteredLowStock = filteredInventoryProducts.filter((item) => item.stock <= item.warningStock).length;
   const filteredExpiryRisk = filteredInventoryProducts.filter((item) => Boolean(productExpiryStatus(item))).length;
   const productInitialStockLogs = new Map(
@@ -7561,6 +7178,7 @@ function Inventory({
         onClose={closeModule}
       >
       <div className="module-detail-stack inventory-modal-detail">
+        {pendingStockReviewProducts.length > 0 && <div className="inventory-warning-row"><span><strong>{pendingStockReviewProducts.length} 个历史商品待确认项目扣减规则</strong>；确认前继续沿用原有规则，项目收银与库存记录不中断。</span><button type="button" onClick={() => setActiveModule("list")}>逐项确认</button></div>}
         {activeModule === "loss" && (
         <section className="panel">
         <PanelTitle icon={<PackageMinus size={18} />} title="商品损耗" action="损耗登记" />
@@ -7697,7 +7315,6 @@ function Inventory({
                       <label>物品名称<input value={newInventoryProductName} onChange={(event) => {
                         const nextName = event.target.value;
                         setNewInventoryProductName(nextName);
-                        syncInventoryProductServiceDefaults({ name: nextName });
                       }} required /></label>
                       <Select
                         label="大类"
@@ -7707,7 +7324,6 @@ function Inventory({
                           const nextSubcategory = nextSubcategories[0] ?? "";
                           setNewInventoryProductCategory(value);
                           setNewInventoryProductSubcategory(nextSubcategory);
-                          syncInventoryProductServiceDefaults({ category: value, subcategory: nextSubcategory });
                         }}
                         options={inventoryCategoryOptions}
                       />
@@ -7716,7 +7332,6 @@ function Inventory({
                         value={inventorySubcategoryNamesForForm.includes(newInventoryProductSubcategory) ? newInventoryProductSubcategory : ""}
                         onChange={(value) => {
                           setNewInventoryProductSubcategory(value);
-                          syncInventoryProductServiceDefaults({ subcategory: value });
                         }}
                         options={inventorySubcategoryOptionsForForm}
                         disabled={inventorySubcategoryNamesForForm.length === 0}
@@ -7738,11 +7353,23 @@ function Inventory({
                         setNewInventoryExpiryAt(months === undefined ? "" : addMonthsInputValue(months));
                       }} /></label>
                       <label>首批到期<input type="date" value={newInventoryExpiryAt} onChange={(event) => setNewInventoryExpiryAt(event.target.value)} /></label>
-                      <div className="inventory-deduction-fixed">
-                        <span>项目扣减</span>
-                        <strong>扣库存</strong>
-                      </div>
-                      <label>{`每${newInventoryProductUnit || "件"}数量`}<input type="number" min={1} value={newInventoryServiceUnitsPerStockUnit} onChange={(event) => setNewInventoryServiceUnitsPerStockUnit(event.target.value)} /></label>
+                      <Select
+                        label="项目扣减"
+                        value={newInventoryServiceStockDeductible === undefined ? "" : newInventoryServiceStockDeductible ? "deduct" : "ignore"}
+                        onChange={(value) => setNewInventoryServiceStockDeductible(value === "deduct" ? true : value === "ignore" ? false : undefined)}
+                        options={[{ value: "", label: "请选择真实规则", disabled: true }, { value: "deduct", label: "扣库存" }, { value: "ignore", label: "不扣库存" }]}
+                      />
+                      {newInventoryServiceStockDeductible === true ? (
+                        <>
+                          <label>扣减单位<input value={newInventoryServiceUnit} onChange={(event) => setNewInventoryServiceUnit(event.target.value)} placeholder="例如：片、支、份" required /></label>
+                          <label>{`每${newInventoryProductUnit || "件"}数量`}<input type="number" min={1} value={newInventoryServiceUnitsPerStockUnit} onChange={(event) => setNewInventoryServiceUnitsPerStockUnit(event.target.value)} placeholder="必须人工确认" required /></label>
+                        </>
+                      ) : (
+                        <div className="inventory-deduction-note">
+                          <span>收银规则</span>
+                          <strong>{newInventoryServiceStockDeductible === undefined ? "必须选择真实规则后才能保存" : "项目结账不检查、不扣减该商品库存"}</strong>
+                        </div>
+                      )}
                       <div className="form-submit-row">
                         <SubmitStatusButton idleText="保存商品" busyText="保存中..." />
                       </div>
@@ -7767,7 +7394,7 @@ function Inventory({
                               <span><small>售价</small>{product.price > 0 ? money(product.price) : "未设置"}</span>
                               <span><small>首批</small>{formatProductStockWithServiceUnits(product, log ? log.delta : product.stock)}</span>
                               <span><small>当前</small>{formatProductStockWithServiceUnits(product, product.stock)}</span>
-                              <Badge text={productServiceStockDeductible(product) ? "扣库存" : "不计项目"} tone={productServiceStockDeductible(product) ? "ok" : undefined} />
+                              <Badge text={productServiceStockReviewStatus(product) === "pending" ? "待确认" : productServiceStockDeductible(product) ? "扣库存" : "不扣库存"} tone={productServiceStockReviewStatus(product) === "pending" ? "warn" : productServiceStockDeductible(product) ? "ok" : undefined} />
                               <Badge text={product.stock <= product.warningStock ? "需补货" : "已入库"} tone={product.stock <= product.warningStock ? "warn" : "ok"} />
                               <button type="button" className="inventory-intake-edit-button" onClick={() => openManualRestockProduct(product)}>
                                 补货
@@ -7931,6 +7558,7 @@ function Inventory({
                           </span>
                           <span className="inventory-product-card-foot">
                             <span className="inventory-status-stack">
+                              <Badge text={productServiceStockReviewStatus(item) === "pending" ? "待确认扣减规则" : productServiceStockDeductible(item) ? "扣库存" : "不扣库存"} tone={productServiceStockReviewStatus(item) === "pending" ? "warn" : productServiceStockDeductible(item) ? "ok" : undefined} />
                               {expiryStatus && <Badge text={expiryStatus.text} tone={expiryStatus.tone} />}
                               {stockStatus && <Badge text={stockStatus.text} tone={stockStatus.tone} />}
                               {!expiryStatus && !stockStatus && <Badge text="正常" tone="ok" />}
@@ -8124,6 +7752,23 @@ function Inventory({
             <label>预警库存<input type="number" min={0} value={editProductWarningStock} onChange={(event) => setEditProductWarningStock(parseEditableNumber(event.target.value))} /></label>
             <label>保质期（月）<input type="number" min={0} value={editProductShelfLifeMonths} onChange={(event) => setEditProductShelfLifeMonths(parseEditableNumber(event.target.value))} /></label>
             <Select
+              label="项目扣减"
+              value={editProductServiceStockDeductible === undefined ? "pending" : editProductServiceStockDeductible ? "deduct" : "ignore"}
+              onChange={(value) => setEditProductServiceStockDeductible(value === "deduct")}
+              options={[{ value: "pending", label: "待确认（请选择真实规则）", disabled: true }, { value: "deduct", label: "扣库存" }, { value: "ignore", label: "不扣库存" }]}
+            />
+            {editProductServiceStockDeductible === true ? (
+              <>
+                <label>扣减单位<input value={editProductServiceUnit} onChange={(event) => setEditProductServiceUnit(event.target.value)} placeholder="例如：片、支、份" required /></label>
+                <label>{`每${editProductUnit || "件"}数量`}<input type="number" min={1} value={editProductServiceUnitsPerStockUnit} onChange={(event) => setEditProductServiceUnitsPerStockUnit(event.target.value)} required /></label>
+              </>
+            ) : (
+              <div className="inventory-deduction-note compact">
+                <span>收银规则</span>
+                <strong>{editProductServiceStockDeductible === undefined ? "请选择真实规则；确认前继续沿用原有扣减规则" : "项目结账不检查、不扣减该商品库存"}</strong>
+              </div>
+            )}
+            <Select
               label="状态"
               value={editProductStatus}
               onChange={(value) => setEditProductStatus(value as "启用" | "停用")}
@@ -8141,7 +7786,7 @@ function Inventory({
           <label>修改说明<textarea value={editProductReason} onChange={(event) => setEditProductReason(event.target.value)} placeholder="例如：分类选错" /></label>
           <div className="form-submit-row">
             <button type="button" onClick={() => setEditingProductId("")}>取消</button>
-            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editProductName.trim() || !editProductUnit.trim()} />
+            <SubmitStatusButton idleText="保存修改" busyText="保存中..." disabled={!editProductName.trim() || !editProductUnit.trim() || editProductServiceStockDeductible === undefined || (editProductServiceStockDeductible && (!editProductServiceUnit.trim() || optionalNumberFromInput(editProductServiceUnitsPerStockUnit) === undefined))} />
           </div>
         </form>
       </Modal>

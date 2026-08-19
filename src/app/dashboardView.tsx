@@ -1,11 +1,11 @@
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { CalendarDays, ChartNoAxesColumnIncreasing, CreditCard, HeartHandshake, LayoutDashboard, PackagePlus, Share2, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import { PanelTitle } from "../components/layout/PanelTitle";
-import { appointmentEndAt, appointmentServiceIds } from "../domain/appointments";
+import { appointmentEndAt, appointmentServiceIds, summarizeAppointmentsForMonth } from "../domain/appointments";
 import type { UserSession } from "../domain/auth";
 import { memberCardCashIn, memberCardCashRefund } from "../domain/business";
 import type { AppData, Appointment, CustomerSignature, Staff, UserRole, ViewKey } from "../domain/types";
-import { money, shortDate } from "../domain/utils";
+import { businessDateOf, businessDateToday, money, shortDate } from "../domain/utils";
 
 type NavigateToView = (view: ViewKey, options?: { appointmentId?: string; posModule?: "card" | "product" | "signature" | "single" | "orders"; posSignatureId?: string }) => void;
 
@@ -44,12 +44,13 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
     + data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0)
     - data.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashRefund(transaction), 0);
   const today = new Date();
+  const todayBusinessDate = businessDateToday(today);
   const todayAppointmentsList = data.appointments
-    .filter((item) => new Date(item.startAt).toDateString() === today.toDateString())
+    .filter((item) => businessDateOf(item.startAt) === todayBusinessDate)
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
-  const todayOrders = data.orders.filter((item) => new Date(item.createdAt).toDateString() === today.toDateString());
-  const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashIn(transaction) > 0);
-  const todayMemberCardRefundTransactions = data.memberCardTransactions.filter((transaction) => new Date(transaction.createdAt).toDateString() === today.toDateString() && memberCardCashRefund(transaction) > 0);
+  const todayOrders = data.orders.filter((item) => businessDateOf(item.createdAt) === todayBusinessDate);
+  const todayMemberCardIncomeTransactions = data.memberCardTransactions.filter((transaction) => businessDateOf(transaction.createdAt) === todayBusinessDate && memberCardCashIn(transaction) > 0);
+  const todayMemberCardRefundTransactions = data.memberCardTransactions.filter((transaction) => businessDateOf(transaction.createdAt) === todayBusinessDate && memberCardCashRefund(transaction) > 0);
   const userStaffId = session.user.staffId;
   const roleAppointmentsList = session.user.role === "therapist" && userStaffId
     ? todayAppointmentsList.filter((item) => item.staffId === userStaffId)
@@ -108,51 +109,6 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
     : isOrdinaryEmployee
       ? `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 客户 ${data.customers.length}`
       : `预约 ${todayAppointments} · 待到店 ${waitingArrivalCount} · 今日实收 ${money(todayRevenue)}`;
-  const effectiveTodayAppointments = todayAppointmentsList.filter((item) => !["已取消", "爽约"].includes(item.status));
-  const scheduleStaff = dashboardActiveStaffOf(data);
-  const scheduleDayStart = new Date(today);
-  scheduleDayStart.setHours(WORKBENCH_SCHEDULE_START_HOUR, 0, 0, 0);
-  const scheduleDayEnd = new Date(today);
-  scheduleDayEnd.setHours(WORKBENCH_SCHEDULE_END_HOUR, 0, 0, 0);
-  const visibleScheduleAppointments = effectiveTodayAppointments.filter((appointment) => {
-    const start = new Date(appointment.startAt);
-    const end = new Date(appointmentEndAt(appointment, data.services));
-    return +end > +scheduleDayStart && +start < +scheduleDayEnd;
-  });
-  const freeStaffCount = scheduleStaff.filter((staff) => !visibleScheduleAppointments.some((appointment) => appointment.staffId === staff.id)).length;
-  const scheduleRows = scheduleStaff.map((staff) => {
-    const appointments = visibleScheduleAppointments
-      .filter((appointment) => appointment.staffId === staff.id)
-      .map((appointment) => {
-        const start = new Date(appointment.startAt);
-        const end = new Date(appointmentEndAt(appointment, data.services));
-        const startMinutes = Math.max(0, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+start - +scheduleDayStart) / 60000)));
-        const endMinutes = Math.max(startMinutes, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+end - +scheduleDayStart) / 60000)));
-        const left = (startMinutes / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
-        const rawDurationMinutes = Math.max(0, endMinutes - startMinutes);
-        const visualDurationMinutes = Math.max(60, Math.ceil(rawDurationMinutes / 30) * 30);
-        const visualEndMinutes = Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, startMinutes + visualDurationMinutes);
-        const visualWidth = ((visualEndMinutes - startMinutes) / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
-        const serviceNames = appointmentServiceIds(appointment)
-          .map((serviceId) => dashboardNameOf(data.services, serviceId))
-          .filter((name) => name && name !== "-");
-        const timeLabel = start.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
-        const customerName = dashboardNameOf(data.customers, appointment.customerId);
-        const serviceLabel = serviceNames[0] ?? "预约";
-        const fullLabel = `${timeLabel} ${customerName} ${serviceLabel}`;
-        return {
-          appointment,
-          label: fullLabel,
-          left,
-          primaryLabel: timeLabel,
-          secondaryLabel: customerName,
-          tone: scheduleAppointmentTone(appointment.status),
-          width: visualWidth,
-        };
-      });
-    return { appointments, staff };
-  });
-
   if (isOrdinaryEmployee) {
     const todayCardOpens = todayMemberCardIncomeTransactions.length;
     return (
@@ -186,22 +142,223 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
         ))}
       </section>
 
-      <section className="workbench-panel workbench-schedule-panel">
-        <div className="workbench-schedule-head">
-          <div>
-            <h2>今日预约排班表</h2>
-          </div>
-          <div>
-            <strong>今日{effectiveTodayAppointments.length}单 · {scheduleStaff.length}人 · 空闲{freeStaffCount}人</strong>
-            <div className="workbench-schedule-legend" aria-label="预约状态">
-              <span className="legend-pending"><i className="pending" />待确认</span>
-              <span className="legend-waiting"><i className="waiting" />待到店</span>
-              <span className="legend-active"><i className="active" />服务中</span>
-              <span className="legend-done"><i className="done" />已完成</span>
+      <ManagerSchedulePanel data={data} setView={setView} />
+    </div>
+  );
+}
+
+function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: NavigateToView }) {
+  const [queryMode, setQueryMode] = useState<"week" | "month">("week");
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const value = new Date();
+    return new Date(value.getFullYear(), value.getMonth(), 1);
+  });
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const scheduleStaff = dashboardActiveStaffOf(data);
+  const effectiveAppointments = useMemo(
+    () => data.appointments
+      .filter((appointment) => !["已取消", "爽约"].includes(appointment.status))
+      .slice()
+      .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
+    [data.appointments],
+  );
+  const visibleDates = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() + index);
+    return date;
+  });
+  const selectedDate = visibleDates[selectedDayIndex] ?? visibleDates[0];
+  const dayAppointments = effectiveAppointments.filter((appointment) => sameScheduleDate(appointment.startAt, selectedDate));
+  const scheduleDayStart = new Date(selectedDate);
+  scheduleDayStart.setHours(WORKBENCH_SCHEDULE_START_HOUR, 0, 0, 0);
+  const scheduleDayEnd = new Date(selectedDate);
+  scheduleDayEnd.setHours(WORKBENCH_SCHEDULE_END_HOUR, 0, 0, 0);
+  const visibleScheduleAppointments = dayAppointments.filter((appointment) => {
+    const start = new Date(appointment.startAt);
+    const end = new Date(appointmentEndAt(appointment, data.services));
+    return +end > +scheduleDayStart && +start < +scheduleDayEnd;
+  });
+  const freeStaffCount = scheduleStaff.filter((staff) => !visibleScheduleAppointments.some((appointment) => appointment.staffId === staff.id)).length;
+  const scheduleRows = scheduleStaff.map((staff) => {
+    const appointments = visibleScheduleAppointments
+      .filter((appointment) => appointment.staffId === staff.id)
+      .map((appointment) => {
+        const start = new Date(appointment.startAt);
+        const end = new Date(appointmentEndAt(appointment, data.services));
+        const startMinutes = Math.max(0, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+start - +scheduleDayStart) / 60000)));
+        const endMinutes = Math.max(startMinutes, Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, Math.round((+end - +scheduleDayStart) / 60000)));
+        const left = (startMinutes / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
+        const rawDurationMinutes = Math.max(0, endMinutes - startMinutes);
+        const visualDurationMinutes = Math.max(60, Math.ceil(rawDurationMinutes / 30) * 30);
+        const visualEndMinutes = Math.min(WORKBENCH_SCHEDULE_TOTAL_MINUTES, startMinutes + visualDurationMinutes);
+        const visualWidth = ((visualEndMinutes - startMinutes) / WORKBENCH_SCHEDULE_TOTAL_MINUTES) * 100;
+        const serviceNames = appointmentServiceIds(appointment)
+          .map((serviceId) => dashboardNameOf(data.services, serviceId))
+          .filter((name) => name && name !== "-");
+        const timeLabel = start.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+        const customerName = dashboardNameOf(data.customers, appointment.customerId);
+        const serviceLabel = serviceNames[0] ?? "预约";
+        return {
+          appointment,
+          label: `${timeLabel} ${customerName} ${serviceLabel}`,
+          left,
+          primaryLabel: timeLabel,
+          secondaryLabel: customerName,
+          tone: scheduleAppointmentTone(appointment.status),
+          width: visualWidth,
+        };
+      });
+    return { appointments, staff };
+  });
+  const selectedDateLabel = scheduleRelativeDayLabel(selectedDate, today);
+  const title = `${selectedDateLabel === "今天" ? "今日" : selectedDateLabel === "明天" ? "明日" : scheduleDateTitle(selectedDate)}预约排班表`;
+  const summary = `${selectedDateLabel} · ${dayAppointments.length}单 · ${scheduleStaff.length}人 · 空闲${freeStaffCount}人`;
+  const monthSummary = summarizeAppointmentsForMonth(data.appointments, data.services, selectedMonth, now);
+  const arrivedCustomers = monthCustomerSummaryRows(monthSummary.arrived, data, "arrived");
+  const absentCustomers = monthCustomerSummaryRows(monthSummary.missed, data, "absent");
+  const canceledCustomers = monthCustomerSummaryRows(monthSummary.canceled, data, "absent");
+
+  const selectQueryMode = (mode: "week" | "month") => {
+    setQueryMode(mode);
+    if (mode === "week") {
+      setSelectedDayIndex(0);
+    }
+  };
+
+  const shiftMonth = (amount: number) => {
+    setSelectedMonth((value) => new Date(value.getFullYear(), value.getMonth() + amount, 1));
+  };
+
+  return (
+    <section className="workbench-panel workbench-schedule-panel">
+      <div className="workbench-schedule-head">
+        <div>
+          <div className="workbench-schedule-title-row">
+            <h2>{queryMode === "month" ? `${monthSummary.range.label}预约月总结` : title}</h2>
+            <div className="workbench-schedule-query-tabs" role="group" aria-label="预约查询范围">
+              <button type="button" className={queryMode === "week" ? "active" : undefined} onClick={() => selectQueryMode("week")}>本周</button>
+              <button type="button" className={queryMode === "month" ? "active" : undefined} onClick={() => selectQueryMode("month")}>月总结</button>
             </div>
           </div>
+          {queryMode !== "month" && (
+            <div className="workbench-schedule-date-tabs" role="group" aria-label="本周连续七天预约日期">
+              {visibleDates.map((date, index) => {
+                const count = effectiveAppointments.filter((appointment) => sameScheduleDate(appointment.startAt, date)).length;
+                const weekdayLabel = scheduleWeekday(date);
+                const label = scheduleRelativeDayLabel(date, today);
+                return (
+                  <button
+                    key={date.toISOString()}
+                    type="button"
+                    className={selectedDayIndex === index ? "active" : undefined}
+                    aria-pressed={selectedDayIndex === index}
+                    onClick={() => setSelectedDayIndex(index)}
+                  >
+                    <span>{label}</span>
+                    <strong>{scheduleShortDate(date)}</strong>
+                    <small>{label === weekdayLabel ? "" : `${weekdayLabel} · `}{count}单</small>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <div className="workbench-schedule-table" aria-label="今日预约排班时间轴">
+        <div>
+          <strong>{queryMode === "month" ? `共${monthSummary.appointments.length}单 · 已到店${monthSummary.arrived.length}单 · 未到店${monthSummary.missed.length}单 · 取消${monthSummary.canceled.length}单 · 待到店${monthSummary.upcoming.length}单` : summary}</strong>
+          {queryMode === "month" ? (
+            <div className="workbench-month-picker">
+              <button type="button" aria-label="上一个月" onClick={() => shiftMonth(-1)}>‹</button>
+              <label>
+                <span>查询月份</span>
+                <input
+                  type="month"
+                  value={scheduleMonthInputValue(selectedMonth)}
+                  onChange={(event) => {
+                    const [year, month] = event.target.value.split("-").map(Number);
+                    if (year && month) setSelectedMonth(new Date(year, month - 1, 1));
+                  }}
+                />
+              </label>
+              <button type="button" aria-label="下一个月" onClick={() => shiftMonth(1)}>›</button>
+            </div>
+          ) : <ScheduleLegend />}
+        </div>
+      </div>
+
+      {queryMode === "month" ? (
+        <div className="workbench-month-summary" aria-label={`${monthSummary.range.label}预约月总结`}>
+          <div className="workbench-month-kpis">
+            <article><span>本月预约</span><strong>{monthSummary.appointments.length}</strong><small>单 · {new Set(monthSummary.appointments.map((item) => item.customerId)).size}人</small></article>
+            <article className="arrived"><span>已到店</span><strong>{monthSummary.arrived.length}</strong><small>单 · {arrivedCustomers.length}人</small></article>
+            <article className="absent"><span>未到店</span><strong>{monthSummary.missed.length}</strong><small>单 · {new Set(monthSummary.missed.map((item) => item.customerId)).size}人</small></article>
+            <article className="canceled"><span>已取消</span><strong>{monthSummary.canceled.length}</strong><small>单 · {canceledCustomers.length}人</small></article>
+            <article className="upcoming"><span>待到店</span><strong>{monthSummary.upcoming.length}</strong><small>单 · {new Set(monthSummary.upcoming.map((item) => item.customerId)).size}人</small></article>
+          </div>
+          <div className="workbench-month-lists">
+            <section className="workbench-month-list arrived-list">
+              <header><div><strong>已到店客户明细</strong><span>客户档案、预约项目、服务人员与到店结果</span></div><b>{arrivedCustomers.length}人 · {monthSummary.arrived.length}条</b></header>
+              <div className="workbench-month-customer-list">
+                <div className="workbench-month-table-head" aria-hidden="true">
+                  <span>客户信息</span><span>客户档案</span><span>预约明细</span><span>项目/服务人</span><span>到店结果/备注</span><span>操作</span>
+                </div>
+                {arrivedCustomers.map((row) => (
+                  <button key={row.customerId} type="button" onClick={() => setView("appointments", { appointmentId: row.appointmentId })}>
+                    <span className="workbench-month-customer-main" data-label="客户信息"><strong>{row.name}</strong><small>{row.phone}</small></span>
+                    <span className="workbench-month-customer-profile" data-label="客户档案"><strong>{row.level}</strong><small>{row.source} · {row.tags}</small></span>
+                    <span className="workbench-month-customer-detail" data-label="预约明细"><strong>{row.visits}</strong><small>共{row.count}次预约</small></span>
+                    <span className="workbench-month-customer-service" data-label="项目/服务人"><strong>{row.services}</strong><small>{row.staffNames} · 最近到店 {row.lastVisit}</small></span>
+                    <span className="workbench-month-customer-result" data-label="到店结果/备注"><em className="arrived">已到店 {row.count}次</em><small>{row.notes}</small></span>
+                    <span className="workbench-month-customer-action">查看预约 ›</span>
+                  </button>
+                ))}
+                {arrivedCustomers.length === 0 && <p className="empty">该月暂无已到店客户</p>}
+              </div>
+            </section>
+            <section className="workbench-month-list absent-list">
+              <header><div><strong>爽约／未到店客户明细</strong><span>仅统计爽约和逾期未到店，不包含已取消预约</span></div><b>{absentCustomers.length}人 · {monthSummary.missed.length}条</b></header>
+              <div className="workbench-month-customer-list">
+                <div className="workbench-month-table-head" aria-hidden="true">
+                  <span>客户信息</span><span>客户档案</span><span>预约明细</span><span>项目/服务人</span><span>结果/原因</span><span>操作</span>
+                </div>
+                {absentCustomers.map((row) => (
+                  <button key={row.customerId} type="button" onClick={() => setView("appointments", { appointmentId: row.appointmentId })}>
+                    <span className="workbench-month-customer-main" data-label="客户信息"><strong>{row.name}</strong><small>{row.phone}</small></span>
+                    <span className="workbench-month-customer-profile" data-label="客户档案"><strong>{row.level}</strong><small>{row.source} · {row.tags}</small></span>
+                    <span className="workbench-month-customer-detail" data-label="预约明细"><strong>{row.visits}</strong><small>共{row.count}次记录</small></span>
+                    <span className="workbench-month-customer-service" data-label="项目/服务人"><strong>{row.services}</strong><small>{row.staffNames} · 最近到店 {row.lastVisit}</small></span>
+                    <span className="workbench-month-customer-result" data-label="结果/原因"><em className={row.tone}>{row.reason} {row.count}次</em><small>{row.notes}</small></span>
+                    <span className="workbench-month-customer-action">查看预约 ›</span>
+                  </button>
+                ))}
+                {absentCustomers.length === 0 && <p className="empty">该月暂无未到店客户</p>}
+              </div>
+            </section>
+            <section className="workbench-month-list canceled-list">
+              <header><div><strong>已取消客户明细</strong><span>单独展示取消时间、项目、服务人员和取消原因</span></div><b>{canceledCustomers.length}人 · {monthSummary.canceled.length}条</b></header>
+              <div className="workbench-month-customer-list">
+                <div className="workbench-month-table-head" aria-hidden="true">
+                  <span>客户信息</span><span>客户档案</span><span>预约明细</span><span>项目/服务人</span><span>取消原因</span><span>操作</span>
+                </div>
+                {canceledCustomers.map((row) => (
+                  <button key={row.customerId} type="button" onClick={() => setView("appointments", { appointmentId: row.appointmentId })}>
+                    <span className="workbench-month-customer-main" data-label="客户信息"><strong>{row.name}</strong><small>{row.phone}</small></span>
+                    <span className="workbench-month-customer-profile" data-label="客户档案"><strong>{row.level}</strong><small>{row.source} · {row.tags}</small></span>
+                    <span className="workbench-month-customer-detail" data-label="预约明细"><strong>{row.visits}</strong><small>共{row.count}次取消记录</small></span>
+                    <span className="workbench-month-customer-service" data-label="项目/服务人"><strong>{row.services}</strong><small>{row.staffNames} · 最近到店 {row.lastVisit}</small></span>
+                    <span className="workbench-month-customer-result" data-label="取消原因"><em className="canceled">已取消 {row.count}次</em><small>{row.notes}</small></span>
+                    <span className="workbench-month-customer-action">查看预约 ›</span>
+                  </button>
+                ))}
+                {canceledCustomers.length === 0 && <p className="empty">该月暂无已取消客户</p>}
+              </div>
+            </section>
+          </div>
+        </div>
+      ) : (
+        <div className="workbench-schedule-table" aria-label={`${selectedDateLabel}预约排班时间轴`}>
           <div className="workbench-schedule-time-row">
             <span aria-hidden="true" />
             <div>
@@ -210,9 +367,7 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
           </div>
           {scheduleRows.map((row) => (
             <div key={row.staff.id} className="workbench-schedule-row">
-              <div className="workbench-schedule-staff">
-                <strong>{row.staff.name}</strong>
-              </div>
+              <div className="workbench-schedule-staff"><strong>{row.staff.name}</strong></div>
               <div className="workbench-schedule-lane">
                 {row.appointments.map((item) => (
                   <button
@@ -223,8 +378,7 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
                     title={item.label}
                     onClick={() => setView("appointments", { appointmentId: item.appointment.id })}
                   >
-                    <span>{item.primaryLabel}</span>
-                    <small>{item.secondaryLabel}</small>
+                    <span>{item.primaryLabel}</span><small>{item.secondaryLabel}</small>
                   </button>
                 ))}
                 {row.appointments.length === 0 && <span className="workbench-schedule-free">空闲 · 可安排</span>}
@@ -233,9 +387,86 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
           ))}
           {scheduleRows.length === 0 && <p className="empty">暂无排班数据</p>}
         </div>
-      </section>
+      )}
+    </section>
+  );
+}
+
+function ScheduleLegend() {
+  return (
+    <div className="workbench-schedule-legend" aria-label="预约状态">
+      <span className="legend-pending"><i className="pending" />待确认</span>
+      <span className="legend-waiting"><i className="waiting" />待到店</span>
+      <span className="legend-active"><i className="active" />服务中</span>
+      <span className="legend-done"><i className="done" />已完成</span>
     </div>
   );
+}
+
+function sameScheduleDate(value: string, date: Date) {
+  return new Date(value).toDateString() === date.toDateString();
+}
+
+function scheduleShortDate(date: Date) {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function scheduleWeekday(date: Date) {
+  return date.toLocaleDateString("zh-CN", { weekday: "short" });
+}
+
+function scheduleRelativeDayLabel(date: Date, today: Date) {
+  if (sameScheduleDate(date.toISOString(), today)) return "今天";
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (sameScheduleDate(date.toISOString(), tomorrow)) return "明天";
+  return scheduleWeekday(date);
+}
+
+function scheduleMonthInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthCustomerSummaryRows(appointments: Appointment[], data: AppData, kind: "arrived" | "absent") {
+  const grouped = new Map<string, Appointment[]>();
+  appointments.forEach((appointment) => grouped.set(appointment.customerId, [...(grouped.get(appointment.customerId) ?? []), appointment]));
+  return Array.from(grouped.entries()).map(([customerId, rows]) => {
+    const customer = data.customers.find((item) => item.id === customerId);
+    const sortedRows = rows.slice().sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
+    const services = Array.from(new Set(sortedRows.flatMap((appointment) => appointmentServiceIds(appointment).map((id) => dashboardNameOf(data.services, id))))).filter((name) => name !== "-");
+    const staffNames = Array.from(new Set(sortedRows.map((appointment) => dashboardNameOf(data.staff, appointment.staffId)))).filter((name) => name !== "-");
+    const statuses = new Set(sortedRows.map((appointment) => appointment.status));
+    const hasMissed = sortedRows.some((appointment) => appointment.status !== "已取消");
+    const reason = kind === "arrived" ? "已到店" : hasMissed ? (statuses.has("爽约") ? "爽约/未到店" : "未到店") : "已取消";
+    return {
+      appointmentId: sortedRows.at(-1)?.id ?? "",
+      count: rows.length,
+      customerId,
+      lastVisit: scheduleCustomerDate(customer?.lastVisit),
+      level: customer?.level || "普通客户",
+      name: customer?.name ?? "未知客户",
+      notes: Array.from(new Set(sortedRows.flatMap((appointment) => [appointment.cancelReason, appointment.note]).map((value) => value?.trim()).filter(Boolean))).join("、") || "无备注",
+      phone: customer?.phone ?? "暂无手机号",
+      reason,
+      services: services.join("、") || "未填项目",
+      source: customer?.source ? `来源：${customer.source}` : "来源未记录",
+      staffNames: staffNames.join("、") || "未分配员工",
+      tags: customer?.tags?.length ? customer.tags.join("/") : "无标签",
+      tone: hasMissed ? "absent" : "canceled",
+      visits: sortedRows.map((appointment) => `${new Date(appointment.startAt).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })} ${new Date(appointment.startAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false })}`).join("、"),
+    };
+  });
+}
+
+function scheduleCustomerDate(value?: string) {
+  if (!value) return "暂无记录";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("zh-CN", { year: "numeric", month: "numeric", day: "numeric" });
+}
+
+function scheduleDateTitle(date: Date) {
+  return date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
 }
 
 function scheduleAppointmentTone(status: Appointment["status"]) {

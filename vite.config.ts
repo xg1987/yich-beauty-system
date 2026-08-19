@@ -14,6 +14,7 @@ export default defineConfig({
     "import.meta.env.PACKAGE_VERSION": JSON.stringify(pkg.version),
   },
   build: {
+    minify: "esbuild",
     modulePreload: {
       resolveDependencies(_filename, deps, context) {
         if (context.hostType !== "html") return deps;
@@ -28,7 +29,9 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) return "vendor-react";
           if (id.includes("node_modules/lucide-react")) return "vendor-icons";
-          if (id.endsWith("/src/app/authenticatedAppHelpers.ts")) return "authenticated-helpers";
+          if (id.endsWith("/src/app/authenticatedAppHelpers.ts") || id.endsWith("/src/domain/aiGenerationConfig.ts")) return "authenticated-helpers";
+          if (id.includes("/src/domain/business.ts")) return "domain-business";
+          if (id.includes("/src/domain/products.ts")) return "domain-products";
           if (id.endsWith("/src/domain/cashierFlow.ts")) return "cashier-flow";
         },
       },

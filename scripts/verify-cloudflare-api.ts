@@ -21,7 +21,20 @@ assert.equal(health.runtime, "cloudflare-d1", "Cloudflare API should report D1 r
 
 await assert.rejects(() => request<AppData>(baseUrl, "/api/data"), /请先登录/, "protected data endpoint should require login");
 
-const ownerSession = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/register-store", {
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  await assert.rejects(
+    () => request(baseUrl, "/api/auth/login", { method: "POST", body: { account: `rate-limit-${runId}@test.local`, password: "wrong-password" } }),
+    /账号或密码不正确/,
+    "D1 invalid login should not disclose whether the account exists",
+  );
+}
+await assert.rejects(
+  () => request(baseUrl, "/api/auth/login", { method: "POST", body: { account: `rate-limit-${runId}@test.local`, password: "wrong-password" } }),
+  /登录尝试过多/,
+  "D1 should throttle the sixth invalid login in fifteen minutes",
+);
+
+const ownerSession = await request<{ token: string; user: { id: string; roleName: string } }>(baseUrl, "/api/auth/register-store", {
   method: "POST",
   body: {
     storeName: `Cloudflare 正式验证门店 ${runId}`,
@@ -96,10 +109,59 @@ assert.equal(afterProduct.inventoryLogs[0].expiryAt, futureDay(180), "D1 should 
 const afterConsumableProduct = await request<AppData>(baseUrl, "/api/products", {
   method: "POST",
   token: ownerSession.token,
-  body: { name: `验证护理套盒 ${runId}`, type: "consumable", category: "养生类", subcategory: "套盒", unit: "套", price: 88, cost: 36, stock: 12, warningStock: 4, shelfLifeMonths: 12, expiryAt: futureDay(120) },
+  body: { name: `验证护理套盒 ${runId}`, type: "consumable", category: "养生类", subcategory: "套盒", unit: "套", price: 88, cost: 36, stock: 12, warningStock: 4, shelfLifeMonths: 12, expiryAt: futureDay(120), serviceStockDeductible: true, serviceUnit: "套", serviceUnitsPerStockUnit: 1 },
 });
 const consumableProductId = afterConsumableProduct.products[0].id;
-assert.equal(afterConsumableProduct.products[0].serviceStockDeductible, true, "D1 should default intake products to stock deduction");
+assert.equal(afterConsumableProduct.products[0].serviceStockDeductible, true, "D1 should preserve explicit stock deduction configuration");
+assert.equal(afterConsumableProduct.products[0].serviceStockReviewStatus, "confirmed", "D1 should persist explicit stock-rule confirmation");
+
+const afterNoDeductionProduct = await request<AppData>(baseUrl, "/api/products", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    name: `验证非扣减耗材 ${runId}`,
+    type: "consumable",
+    category: "养生类",
+    subcategory: "套盒",
+    unit: "套",
+    price: 0,
+    cost: 0,
+    stock: 0,
+    warningStock: 0,
+    serviceStockDeductible: false,
+  },
+});
+const noDeductionProductId = afterNoDeductionProduct.products[0].id;
+assert.equal(afterNoDeductionProduct.products[0].serviceStockDeductible, false, "D1 should preserve explicit no-deduction for every product type");
+
+await assert.rejects(() => request<AppData>(baseUrl, "/api/products", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `验证未选择规则商品 ${runId}`, type: "consumable", category: "养生类", subcategory: "套盒", unit: "套", price: 0, cost: 0, stock: 0, warningStock: 0 },
+}), /选择.*扣库存.*不扣库存/, "D1 should reject new products without an explicit stock rule");
+
+const afterNoDeductionService = await request<AppData>(baseUrl, "/api/services", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    name: `验证非扣减关联项目 ${runId}`,
+    category: "身体管理",
+    price: 198,
+    duration: 60,
+    consumables: [{ productId: noDeductionProductId, quantity: 1 }],
+  },
+});
+const noDeductionServiceId = afterNoDeductionService.services[0].id;
+assert.deepEqual(
+  afterNoDeductionService.services[0].consumables,
+  [{ productId: noDeductionProductId, quantity: 1 }],
+  "D1 should preserve service-product links independently from stock deduction",
+);
+assert.equal(
+  afterNoDeductionService.products.find((product) => product.id === noDeductionProductId)?.serviceStockDeductible,
+  false,
+  "D1 read-back should keep no-deduction after another persisted mutation",
+);
 
 const afterService = await request<AppData>(baseUrl, "/api/services", {
   method: "POST",
@@ -113,7 +175,11 @@ const afterServiceRecipe = await request<AppData>(baseUrl, `/api/services/${serv
   token: ownerSession.token,
   body: { consumables: [{ productId: consumableProductId, quantity: 1 }] },
 });
-assert.deepEqual(afterServiceRecipe.services[0].consumables, [{ productId: consumableProductId, quantity: 1 }], "D1 should persist service consumable recipe");
+assert.deepEqual(
+  afterServiceRecipe.services.find((service) => service.id === serviceId)?.consumables,
+  [{ productId: consumableProductId, quantity: 1 }],
+  "D1 should persist service consumable recipe",
+);
 
 const afterTherapistStaff = await request<AppData>(baseUrl, "/api/staff", {
   method: "POST",
@@ -424,6 +490,58 @@ assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId), "c
 assert.equal(afterCheckout.commissions.find((item) => item.orderId === orderId)?.rate, 0.1, "D1 should persist staff commission rate");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "服务提成"), "D1 should create service commission");
 assert.ok(afterCheckout.commissions.some((item) => item.orderId === orderId && item.type === "销售提成"), "D1 should create sales commission");
+const afterNoDeductionCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+  method: "POST",
+  token: ownerSession.token,
+  body: {
+    checkoutRequestId: `cf-no-deduction-checkout-${runId}`,
+    customerId: secondCustomerId,
+    staffId: therapistStaffId,
+    serviceId: noDeductionServiceId,
+    payMethod: "微信",
+  },
+});
+assert.equal(afterNoDeductionCheckout.orders[0].status, "已支付", "D1 should allow no-deduction service checkout at zero stock");
+assert.deepEqual(afterNoDeductionCheckout.orders[0].serviceConsumables, [], "D1 checkout should snapshot an empty service deduction list");
+
+const afterConcurrentProduct = await request<AppData>(baseUrl, "/api/products", {
+  method: "POST",
+  token: ownerSession.token,
+  body: { name: `并发库存验证 ${runId}`, type: "sale", category: "面护类", subcategory: "面膜", unit: "盒", price: 20, cost: 10, stock: 1, warningStock: 1, serviceStockDeductible: false },
+});
+const concurrentProductId = afterConcurrentProduct.products[0].id;
+const concurrentResults = await Promise.allSettled([
+  request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: ownerSession.token,
+    body: { checkoutRequestId: `concurrent-a-${runId}`, customerId, staffId: therapistStaffId, serviceId: noDeductionServiceId, productItems: [{ productId: concurrentProductId, quantity: 1 }], payMethod: "微信" },
+  }),
+  request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: ownerSession.token,
+    body: { checkoutRequestId: `concurrent-b-${runId}`, customerId: secondCustomerId, staffId: therapistStaffId, serviceId: noDeductionServiceId, productItems: [{ productId: concurrentProductId, quantity: 1 }], payMethod: "微信" },
+  }),
+]);
+assert.equal(concurrentResults.filter((result) => result.status === "fulfilled").length, 1, "D1 store mutation lock should allow only one simultaneous sale of the last stock unit");
+const afterConcurrentCheckout = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
+assert.equal(afterConcurrentCheckout.products.find((product) => product.id === concurrentProductId)?.stock, 0, "concurrent checkout must never make stock negative");
+assert.equal(afterConcurrentCheckout.orders.filter((order) => order.productItems?.some((item) => item.productId === concurrentProductId)).length, 1, "concurrent checkout must persist only one order for the last stock unit");
+assert.equal(
+  afterNoDeductionCheckout.products.find((product) => product.id === noDeductionProductId)?.stock,
+  0,
+  "D1 no-deduction service checkout should keep zero stock unchanged",
+);
+assert.equal(
+  afterNoDeductionCheckout.inventoryLogs.filter((log) => log.productId === noDeductionProductId && log.type === "服务消耗").length,
+  0,
+  "D1 no-deduction service checkout should not create service inventory logs",
+);
+const persistedNoDeductionCheckout = await request<AppData>(baseUrl, "/api/data", { token: ownerSession.token });
+assert.deepEqual(
+  persistedNoDeductionCheckout.orders.find((order) => order.id === afterNoDeductionCheckout.orders[0].id)?.serviceConsumables,
+  [],
+  "D1 read-back should preserve an empty service deduction snapshot",
+);
 await assert.rejects(
   () =>
     request<AppData>(baseUrl, "/api/checkout", {

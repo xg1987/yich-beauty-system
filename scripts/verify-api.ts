@@ -33,6 +33,19 @@ try {
 
   await assert.rejects(() => request<AppData>(baseUrl, "/api/data"), /请先登录/, "protected data endpoint should require login");
 
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await assert.rejects(
+      () => request(baseUrl, "/api/auth/login", { method: "POST", body: { account: "rate-limit@test.local", password: "wrong-password" } }),
+      /账号或密码不正确/,
+      "invalid login should not disclose whether the account exists",
+    );
+  }
+  await assert.rejects(
+    () => request(baseUrl, "/api/auth/login", { method: "POST", body: { account: "rate-limit@test.local", password: "wrong-password" } }),
+    /登录尝试过多/,
+    "sixth invalid login in fifteen minutes should be throttled",
+  );
+
   const session = await request<{ token: string; user: { roleName: string } }>(baseUrl, "/api/auth/login", {
     method: "POST",
     body: { account: "manager@test.local", password: "test-password" },
@@ -1542,6 +1555,7 @@ try {
       productPrice: 188,
       productCategory: "面护类",
       productSubcategory: "膏霜",
+      serviceStockDeductible: false,
       quantity: 6,
       unitCost: 52,
       expiryAt: "2028-03-31",
@@ -1567,16 +1581,99 @@ try {
   const afterLowStockProduct = await request<AppData>(baseUrl, "/api/products", {
     method: "POST",
     token: session.token,
-    body: { name: "API 低库存面膜", type: "consumable", category: "面护类", subcategory: "面膜", stock: 1, warningStock: 5, unit: "盒", price: 30, cost: 12, shelfLifeMonths: 18, expiryAt: "2027-11-30", serviceUnit: "片", serviceUnitsPerStockUnit: 20 },
+    body: { name: "API 低库存面膜", type: "consumable", category: "面护类", subcategory: "面膜", stock: 1, warningStock: 5, unit: "盒", price: 30, cost: 12, shelfLifeMonths: 18, expiryAt: "2027-11-30", serviceStockDeductible: true, serviceUnit: "片", serviceUnitsPerStockUnit: 20 },
   });
   const lowStockProductId = afterLowStockProduct.products[0].id;
   assert.equal(afterLowStockProduct.products[0].category, "面护类", "product API should persist category");
   assert.equal(afterLowStockProduct.products[0].subcategory, "面膜", "product API should persist subcategory");
   assert.equal(afterLowStockProduct.products[0].expiryAt, "2027-11-30", "product API should persist first-batch expiry");
-  assert.equal(afterLowStockProduct.products[0].serviceStockDeductible, true, "product API should default intake products to stock deduction");
+  assert.equal(afterLowStockProduct.products[0].serviceStockDeductible, true, "product API should preserve explicit stock deduction configuration");
+  assert.equal(afterLowStockProduct.products[0].serviceStockReviewStatus, "confirmed", "explicit product deduction should be marked confirmed");
   assert.equal(afterLowStockProduct.products[0].serviceUnit, "片", "product API should persist service unit");
   assert.equal(afterLowStockProduct.products[0].serviceUnitsPerStockUnit, 20, "product API should persist package quantity");
   assert.equal(afterLowStockProduct.inventoryLogs[0].expiryAt, "2027-11-30", "product API should create first-batch inventory log with expiry");
+  const afterNoDeductionProduct = await request<AppData>(baseUrl, "/api/products", {
+    method: "POST",
+    token: session.token,
+    body: {
+      name: "API 非扣减耗材套盒",
+      type: "consumable",
+      category: "身体管理",
+      subcategory: "套盒",
+      stock: 0,
+      warningStock: 0,
+      unit: "套",
+      price: 0,
+      serviceStockDeductible: false,
+    },
+  });
+  const noDeductionProduct = afterNoDeductionProduct.products.find((product) => product.name === "API 非扣减耗材套盒");
+  assert.ok(noDeductionProduct, "product API should create the no-deduction product");
+  assert.equal(noDeductionProduct.serviceStockDeductible, false, "product API should preserve explicit no-deduction for a non-liquid product");
+  assert.equal(noDeductionProduct.serviceStockReviewStatus, "confirmed", "explicit no-deduction should be marked confirmed");
+  const afterNoDeductionProductEdit = await request<AppData>(baseUrl, `/api/products/${noDeductionProduct.id}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { serviceStockDeductible: false, reason: "API 验证不扣库存配置" },
+  });
+  assert.equal(
+    afterNoDeductionProductEdit.products.find((product) => product.id === noDeductionProduct.id)?.serviceStockDeductible,
+    false,
+    "product edit API should keep explicit no-deduction instead of recalculating it from the name",
+  );
+  const persistedNoDeductionData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.equal(
+    persistedNoDeductionData.products.find((product) => product.id === noDeductionProduct.id)?.serviceStockDeductible,
+    false,
+    "SQLite read-back should preserve the explicit no-deduction setting",
+  );
+  await assert.rejects(() => request<AppData>(baseUrl, "/api/products", {
+    method: "POST",
+    token: session.token,
+    body: { name: "API 未选择规则商品", type: "consumable", category: "身体管理", subcategory: "套盒", stock: 0, warningStock: 0, unit: "套", price: 0 },
+  }), /选择.*扣库存.*不扣库存/, "product API should reject new products without an explicit stock rule");
+  const afterNoDeductionService = await request<AppData>(baseUrl, "/api/services", {
+    method: "POST",
+    token: session.token,
+    body: {
+      name: "API 非扣减耗材关联项目",
+      category: "身体管理",
+      price: 198,
+      duration: 60,
+      defaultTimes: 1,
+      consumables: [{ productId: noDeductionProduct.id, quantity: 1 }],
+    },
+  });
+  assert.deepEqual(
+    afterNoDeductionService.services.find((service) => service.name === "API 非扣减耗材关联项目")?.consumables,
+    [{ productId: noDeductionProduct.id, quantity: 1 }],
+    "service API should preserve product links independently from inventory deduction",
+  );
+  const noDeductionService = afterNoDeductionService.services.find((service) => service.name === "API 非扣减耗材关联项目");
+  assert.ok(noDeductionService, "service API should return the created no-deduction service");
+  const afterNoDeductionCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      checkoutRequestId: "api-no-deduction-checkout",
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: noDeductionService.id,
+      payMethod: "微信",
+    },
+  });
+  assert.deepEqual(afterNoDeductionCheckout.orders[0].serviceConsumables, [], "API checkout should snapshot an empty service deduction list");
+  assert.equal(
+    afterNoDeductionCheckout.products.find((product) => product.id === noDeductionProduct.id)?.stock,
+    0,
+    "API no-deduction checkout should leave zero stock unchanged",
+  );
+  const persistedNoDeductionCheckout = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.deepEqual(
+    persistedNoDeductionCheckout.orders.find((order) => order.id === afterNoDeductionCheckout.orders[0].id)?.serviceConsumables,
+    [],
+    "SQLite read-back should preserve an empty service deduction snapshot",
+  );
   const afterRestock = await request<AppData>(baseUrl, "/api/inventory/restock-low", {
     method: "POST",
     token: session.token,
@@ -1688,7 +1785,7 @@ try {
   assert.ok(restrictedTherapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments after shared appointment permission is closed");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 10, "API data should persist across requests");
+  assert.equal(persistedData.orders.length, 11, "API data should persist across requests");
   assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
   assert.equal(persistedData.distributionCommissions.length, 0, "base API should not expose distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
