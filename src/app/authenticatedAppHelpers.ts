@@ -141,7 +141,7 @@ export function serviceConsumableDisplay(item: ServiceConsumable, products: Prod
 export function serviceConsumableModeText(item: ServiceConsumable, products: Product[]) {
   const product = products.find((candidate) => candidate.id === item.productId);
   if (!product) return "未配置";
-  if (product.serviceStockReviewStatus === "pending") return "待确认 · 暂不扣库存";
+  if (product.serviceStockReviewStatus === "pending") return `待确认 · 沿用原规则${productServiceStockDeductible(product) ? "扣库存" : "不扣库存"}`;
   if (!productServiceStockDeductible(product)) return "不扣库存";
   if (item.quantity <= 0) return `待填用量 · ${productServicePackageText(product)}`;
   return `每次${formatStockQuantity(item.quantity)}${productServiceUnit(product)} · 折${formatStockQuantity(serviceStockQuantityForProduct(product, item.quantity))}${product.unit}`;

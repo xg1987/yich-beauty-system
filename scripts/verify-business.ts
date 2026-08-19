@@ -963,20 +963,27 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 {
   const pendingProduct = {
     ...cloneSeed().products.find((product) => product.id === "p3")!,
-    stock: 0,
+    stock: 1,
     serviceStockDeductible: true,
     serviceStockReviewStatus: "pending" as const,
   };
-  assert.equal(productServiceStockDeductible(pendingProduct), false, "pending historical products should never deduct from an unverified setting");
+  assert.equal(productServiceStockDeductible(pendingProduct), true, "pending historical products should preserve the legacy deduction rule");
   const pendingData = {
     ...cloneSeed(),
     products: cloneSeed().products.map((product) => (product.id === "p3" ? pendingProduct : product)),
     services: [{ id: "v_pending", name: "待确认耗材项目", category: "身体管理", price: 198, duration: 60, consumables: [{ productId: "p3", quantity: 1 }] }, ...cloneSeed().services],
   };
   const checkedOut = checkoutOrder(pendingData, { customerId: "c1", staffId: "s2", serviceId: "v_pending", payMethod: "微信" }, { idFactory: testId, now: fixedNow });
-  assert.equal(productStock(checkedOut, "p3"), 0, "pending product should not deduct stock");
-  assert.equal(checkedOut.orders[0].status, "已支付", "pending product should not block service checkout");
-  assert.deepEqual(checkedOut.orders[0].serviceConsumables, [], "pending checkout should preserve an empty order-time deduction snapshot");
+  assert.equal(productStock(checkedOut, "p3"), 0, "pending product should continue deducting stock under the legacy rule");
+  assert.equal(checkedOut.orders[0].status, "已支付", "pending product should keep service checkout available when legacy stock is sufficient");
+  assert.deepEqual(checkedOut.orders[0].serviceConsumables, [{ productId: "p3", quantity: 1 }], "pending checkout should preserve the legacy deduction snapshot");
+
+  const pendingLiquid = {
+    ...cloneSeed().products.find((product) => product.id === "p2")!,
+    serviceStockDeductible: true,
+    serviceStockReviewStatus: "pending" as const,
+  };
+  assert.equal(productServiceStockDeductible(pendingLiquid), false, "pending liquid products should preserve the legacy no-deduction rule");
 }
 
 {

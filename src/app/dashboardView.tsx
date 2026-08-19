@@ -1,7 +1,7 @@
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { CalendarDays, ChartNoAxesColumnIncreasing, CreditCard, HeartHandshake, LayoutDashboard, PackagePlus, Share2, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import { PanelTitle } from "../components/layout/PanelTitle";
-import { appointmentEndAt, appointmentRangeMap, appointmentServiceIds, summarizeAppointmentsForMonth } from "../domain/appointments";
+import { appointmentEndAt, appointmentServiceIds, summarizeAppointmentsForMonth } from "../domain/appointments";
 import type { UserSession } from "../domain/auth";
 import { memberCardCashIn, memberCardCashRefund } from "../domain/business";
 import type { AppData, Appointment, CustomerSignature, Staff, UserRole, ViewKey } from "../domain/types";
@@ -148,7 +148,7 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
 }
 
 function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: NavigateToView }) {
-  const [queryMode, setQueryMode] = useState<"next7" | "week" | "month">("next7");
+  const [queryMode, setQueryMode] = useState<"week" | "month">("week");
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const value = new Date();
@@ -165,9 +165,8 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
       .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
     [data.appointments],
   );
-  const firstVisibleDate = queryMode === "week" ? appointmentRangeMap(today).week.start : today;
   const visibleDates = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(firstVisibleDate);
+    const date = new Date(today);
     date.setDate(date.getDate() + index);
     return date;
   });
@@ -222,15 +221,10 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
   const absentCustomers = monthCustomerSummaryRows(monthSummary.missed, data, "absent");
   const canceledCustomers = monthCustomerSummaryRows(monthSummary.canceled, data, "absent");
 
-  const selectQueryMode = (mode: "next7" | "week" | "month") => {
+  const selectQueryMode = (mode: "week" | "month") => {
     setQueryMode(mode);
-    if (mode === "next7") {
-      setSelectedDayIndex(0);
-      return;
-    }
     if (mode === "week") {
-      const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
-      setSelectedDayIndex(dayOfWeek - 1);
+      setSelectedDayIndex(0);
     }
   };
 
@@ -250,7 +244,7 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
             </div>
           </div>
           {queryMode !== "month" && (
-            <div className="workbench-schedule-date-tabs" role="group" aria-label={queryMode === "week" ? "本周预约日期" : "连续七天预约日期"}>
+            <div className="workbench-schedule-date-tabs" role="group" aria-label="本周连续七天预约日期">
               {visibleDates.map((date, index) => {
                 const count = effectiveAppointments.filter((appointment) => sameScheduleDate(appointment.startAt, date)).length;
                 const weekdayLabel = scheduleWeekday(date);

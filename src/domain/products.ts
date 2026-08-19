@@ -6,8 +6,13 @@ type ProductUsageFields = Pick<
 >;
 
 export function productServiceStockDeductible(product: ProductUsageFields) {
-  if (productServiceStockReviewStatus(product) !== "confirmed") return false;
+  if (productServiceStockReviewStatus(product) !== "confirmed") return legacyProductServiceStockDeductible(product);
   return product.serviceStockDeductible === true;
+}
+
+function legacyProductServiceStockDeductible(product: Pick<ProductUsageFields, "name" | "category" | "subcategory" | "unit">) {
+  const text = [product.name, product.category, product.subcategory, product.unit].filter(Boolean).join(" ");
+  return !/(精华|精油|按摩油|身体油|爽肤水|化妆水|乳液|喷雾|液|油)/.test(text);
 }
 
 export function productServiceStockReviewStatus(product: ProductUsageFields) {
@@ -85,7 +90,7 @@ export function normalizeProductServiceFields<T extends ProductUsageFields>(prod
 }
 
 export function productServiceDeductionLabel(product: ProductUsageFields) {
-  if (product.serviceStockReviewStatus === "pending") return "待确认 · 暂不扣库存";
+  if (product.serviceStockReviewStatus === "pending") return `待确认 · 沿用原规则${productServiceStockDeductible(product) ? "扣库存" : "不扣库存"}`;
   if (!productServiceStockDeductible(product)) return "不扣库存";
   return `扣库存 · ${productServiceUnitsPerStockUnit(product)}${productServiceUnit(product)}/${product.unit || "件"}`;
 }
