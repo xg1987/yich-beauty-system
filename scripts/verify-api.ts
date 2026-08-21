@@ -1859,6 +1859,12 @@ try {
   const dataQuality = await request<{ issueCount: number; removalCounts: Array<{ scope: string; count: number }> }>(baseUrl, "/api/data-quality", { token: session.token });
   assert.ok(dataQuality.issueCount > 0, "data quality API should preview fixture cleanup issues");
   assert.ok(dataQuality.removalCounts.length > 0, "data quality API should include cleanup removal counts");
+  await request<{ ok: boolean }>(baseUrl, "/api/auth/logout", { method: "POST", token: session.token });
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/data", { token: session.token }),
+    /请先登录/,
+    "logout should revoke the server session immediately",
+  );
   await assert.rejects(
     () => request<AppData>(baseUrl, "/api/data-quality/cleanup", { method: "POST", token: registeredSession.token, body: { confirm: "错误确认" } }),
     /确认短语不正确/,

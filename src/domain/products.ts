@@ -6,11 +6,16 @@ type ProductUsageFields = Pick<
 >;
 
 export function productServiceStockDeductible(product: ProductUsageFields) {
-  if (productServiceStockReviewStatus(product) !== "confirmed") return legacyProductServiceStockDeductible(product);
+  if (productServiceStockReviewStatus(product) !== "confirmed") return false;
   return product.serviceStockDeductible === true;
 }
 
-function legacyProductServiceStockDeductible(product: Pick<ProductUsageFields, "name" | "category" | "subcategory" | "unit">) {
+/**
+ * Historical orders created before service-consumable snapshots existed used
+ * this name/category heuristic. Keep it separate from the current checkout
+ * rule so changing a product today cannot rewrite what an old order consumed.
+ */
+export function legacyProductServiceStockDeductible(product: Pick<ProductUsageFields, "name" | "category" | "subcategory" | "unit">) {
   const text = [product.name, product.category, product.subcategory, product.unit].filter(Boolean).join(" ");
   return !/(精华|精油|按摩油|身体油|爽肤水|化妆水|乳液|喷雾|液|油)/.test(text);
 }
@@ -78,7 +83,16 @@ export function serviceStockQuantityForProduct(product: ProductUsageFields, serv
   return roundStockQuantity(serviceUnits / productServiceUnitsPerStockUnit(product));
 }
 
+export function legacyServiceStockQuantityForProduct(product: ProductUsageFields, serviceUnits: number) {
+  if (!legacyProductServiceStockDeductible(product) || serviceUnits <= 0) return 0;
+  return roundStockQuantity(serviceUnits / productServiceUnitsPerStockUnit(product));
+}
+
 export function normalizeProductServiceFields<T extends ProductUsageFields>(product: T): T {
+  // A pending product is inactive for new service deductions, but its stored
+  // legacy fields are evidence for review and rollback. Do not collapse those
+  // fields to false/undefined during an unrelated business read or write.
+  if (productServiceStockReviewStatus(product) !== "confirmed") return { ...product };
   const serviceStockDeductible = productServiceStockDeductible(product);
   return {
     ...product,
@@ -90,7 +104,7 @@ export function normalizeProductServiceFields<T extends ProductUsageFields>(prod
 }
 
 export function productServiceDeductionLabel(product: ProductUsageFields) {
-  if (product.serviceStockReviewStatus === "pending") return `待确认 · 沿用原规则${productServiceStockDeductible(product) ? "扣库存" : "不扣库存"}`;
+  if (productServiceStockReviewStatus(product) !== "confirmed") return "待确认 · 暂不扣库存";
   if (!productServiceStockDeductible(product)) return "不扣库存";
   return `扣库存 · ${productServiceUnitsPerStockUnit(product)}${productServiceUnit(product)}/${product.unit || "件"}`;
 }

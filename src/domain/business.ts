@@ -52,7 +52,7 @@ import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { accountAiCredits, defaultAiBillingConfig, normalizeAiBillingConfig, roundAiCreditAmount, serializeAiBillingConfig } from "./aiBilling";
 import { appointmentEndAt, appointmentServiceIds, assignAppointmentRooms } from "./appointments";
 import { optionalMobilePhone, requireMobilePhone } from "./phone";
-import { formatStockQuantity, normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit, requireConfirmedProductStockRule, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
+import { formatStockQuantity, legacyProductServiceStockDeductible, legacyServiceStockQuantityForProduct, normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceStockReviewStatus, productServiceUnit, productServiceUnitsPerStockUnit, requireConfirmedProductStockRule, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 import { businessDateOf, makeId, money, nowIso } from "./utils";
 
 type IdFactory = (prefix: string) => string;
@@ -1142,7 +1142,8 @@ function freezeOrderCatalogSnapshots(data: AppData): AppData {
         ...order,
         serviceName: order.serviceName ?? service?.name,
         servicePrice: order.servicePrice ?? service?.price,
-        serviceConsumables: order.serviceConsumables ?? (service ? serviceInventoryConsumables(data, service) : undefined),
+        serviceConsumables: order.serviceConsumables
+          ?? (order.serviceId || order.serviceIds?.length ? legacyOrderServiceInventoryConsumables(data, order) : undefined),
         productItems: snapshotProductItems(order.productItems),
         giftProductItems: snapshotProductItems(order.giftProductItems),
       };
@@ -1309,9 +1310,18 @@ export function updateProductCatalog(data: AppData, input: UpdateProductCatalogI
     serviceUnit: input.serviceUnit,
     serviceUnitsPerStockUnit: input.serviceUnitsPerStockUnit,
   });
-  const serviceStockDeductible = explicitStockRule?.serviceStockDeductible ?? productServiceStockDeductible(target);
+  const preservePendingStockFields = explicitStockRule === undefined && productServiceStockReviewStatus(target) !== "confirmed";
+  const serviceStockDeductible = explicitStockRule?.serviceStockDeductible
+    ?? (preservePendingStockFields ? target.serviceStockDeductible : productServiceStockDeductible(target));
   const serviceUnitsPerStockUnit = explicitStockRule?.serviceUnitsPerStockUnit
-    ?? (serviceStockDeductible ? productServiceUnitsPerStockUnit(target) : undefined);
+    ?? (preservePendingStockFields
+      ? target.serviceUnitsPerStockUnit
+      : serviceStockDeductible ? productServiceUnitsPerStockUnit(target) : undefined);
+  const serviceUsesPerUnit = explicitStockRule
+    ? serviceUnitsPerStockUnit
+    : preservePendingStockFields ? target.serviceUsesPerUnit : serviceUnitsPerStockUnit;
+  const serviceUnit = explicitStockRule?.serviceUnit
+    ?? (preservePendingStockFields ? target.serviceUnit : serviceStockDeductible ? target.serviceUnit : undefined);
   const frozenData = freezeOrderCatalogSnapshots(data);
   return {
     ...frozenData,
@@ -1331,9 +1341,9 @@ export function updateProductCatalog(data: AppData, input: UpdateProductCatalogI
             serviceStockReviewStatus: input.serviceStockReviewStatus ?? product.serviceStockReviewStatus,
             serviceStockReviewedAt: input.serviceStockReviewedAt ?? product.serviceStockReviewedAt,
             serviceStockReviewedBy: input.serviceStockReviewedBy ?? product.serviceStockReviewedBy,
-            serviceUnit: explicitStockRule?.serviceUnit ?? (serviceStockDeductible ? product.serviceUnit : undefined),
+            serviceUnit,
             serviceUnitsPerStockUnit,
-            serviceUsesPerUnit: serviceUnitsPerStockUnit,
+            serviceUsesPerUnit,
             status: normalizeCatalogStatus(input.status) ?? product.status ?? "启用",
           }
         : product,
@@ -1360,6 +1370,26 @@ function serviceInventoryConsumables(data: AppData, service: Service): ServiceCo
     merged.set(item.productId, roundStockQuantity((merged.get(item.productId) ?? 0) + quantity));
   });
   return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
+}
+
+function legacyServiceInventoryConsumables(data: AppData, service: Service): ServiceConsumable[] {
+  const merged = new Map<string, number>();
+  serviceUsedProducts(service).forEach((item) => {
+    const product = data.products.find((candidate) => candidate.id === item.productId);
+    if (!product || !legacyProductServiceStockDeductible(product)) return;
+    const quantity = item.quantity > 0 ? legacyServiceStockQuantityForProduct(product, item.quantity) : 0;
+    if (quantity <= 0) return;
+    merged.set(item.productId, roundStockQuantity((merged.get(item.productId) ?? 0) + quantity));
+  });
+  return Array.from(merged, ([productId, quantity]) => ({ productId, quantity }));
+}
+
+function legacyOrderServiceInventoryConsumables(data: AppData, order: Pick<Order, "serviceId" | "serviceIds">): ServiceConsumable[] {
+  const serviceIds = order.serviceIds?.length ? order.serviceIds : order.serviceId ? [order.serviceId] : [];
+  return serviceIds.flatMap((serviceId) => {
+    const service = data.services.find((item) => item.id === serviceId);
+    return service ? legacyServiceInventoryConsumables(data, service) : [];
+  });
 }
 
 function serviceUsedProductIds(service: Service): string[] {
@@ -3318,8 +3348,12 @@ export function checkoutOrder(
     const product = data.products.find((item) => item.id === productId);
     if (!product) throw new Error("商品不存在");
     if (product.stock < quantity) {
+      const includesDirectProduct = (soldProductByProduct.get(productId) ?? 0) + (giftProductByProduct.get(productId) ?? 0) > 0;
+      const nextStep = includesDirectProduct
+        ? "请先补货，或减少本单销售/赠送数量。"
+        : "如该商品不参与项目扣减，请在商品资料中设为“不扣库存”。";
       throw new Error(
-        `${product.name} 库存不足：本单需 ${formatStockQuantity(quantity)}${product.unit || "件"}，当前 ${formatStockQuantity(product.stock)}${product.unit || "件"}。如该商品不参与项目扣减，请在商品资料中设为“不扣库存”。`,
+        `${product.name} 库存不足：本单需 ${formatStockQuantity(quantity)}${product.unit || "件"}，当前 ${formatStockQuantity(product.stock)}${product.unit || "件"}。${nextStep}`,
       );
     }
   }
@@ -3526,8 +3560,7 @@ export function refundOrder(
     throw new Error("大额退款需要审批通过");
   }
 
-  const service = data.services.find((item) => item.id === order.serviceId);
-  const refundServiceConsumables = order.serviceConsumables ?? (service ? serviceInventoryConsumables(data, service) : []);
+  const refundServiceConsumables = order.serviceConsumables ?? legacyOrderServiceInventoryConsumables(data, order);
   const storeId = scopedStoreId(data, input.storeId ?? order.storeId);
   const refund: Refund = {
     id: idFactory("rf"),
@@ -6013,8 +6046,7 @@ export function reportSummary(data: AppData) {
       const product = data.products.find((candidate) => candidate.id === item.productId);
       return itemSum + (product?.cost ?? 0) * item.quantity;
     }, 0);
-    const service = data.services.find((candidate) => candidate.id === order.serviceId);
-    const serviceConsumables = order.serviceConsumables ?? (service ? serviceInventoryConsumables(data, service) : []);
+    const serviceConsumables = order.serviceConsumables ?? legacyOrderServiceInventoryConsumables(data, order);
     const serviceCost = serviceConsumables.reduce((itemSum, item) => {
       const product = data.products.find((candidate) => candidate.id === item.productId);
       return itemSum + (product?.cost ?? 0) * item.quantity;

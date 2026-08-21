@@ -765,6 +765,12 @@ const therapistData = await request<AppData>(baseUrl, "/api/data", { token: ther
 assert.ok(therapistData.customers.some((item) => item.id === secondCustomerId), "therapist should see same-store customers without own service history");
 assert.ok(therapistData.orders.every((item) => item.staffId === therapistStaffId), "therapist should only see own orders");
 assert.equal(therapistData.dailyCloses.length, 0, "therapist should not receive daily close data");
+await request<{ ok: boolean }>(baseUrl, "/api/auth/logout", { method: "POST", token: therapistSession.token });
+await assert.rejects(
+  () => request<AppData>(baseUrl, "/api/data", { token: therapistSession.token }),
+  /请先登录/,
+  "D1 logout should revoke the bearer token immediately",
+);
 
 console.log(`Cloudflare Workers + D1 API 验证通过：正式注册、邀请、权限、业务链路与无重置接口边界已覆盖 ${baseUrl}`);
 

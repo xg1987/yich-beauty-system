@@ -1,6 +1,6 @@
 import { seedData } from "../domain/seed";
 import { normalizeSystemConfigs } from "../domain/business";
-import { normalizeProductServiceFields, productServiceStockDeductible, productServiceUnit, productServiceUnitsPerStockUnit } from "../domain/products";
+import { normalizeProductServiceFields, productServiceStockDeductible, productServiceStockReviewStatus, productServiceUnit, productServiceUnitsPerStockUnit } from "../domain/products";
 import {
   buildCashierFlowListItemsForKeys,
   type CashierFlowDetailResult,
@@ -1734,6 +1734,19 @@ export class D1BeautyDatabase {
     }
 
     for (const product of data.products) {
+      const stockRuleConfirmed = productServiceStockReviewStatus(product) === "confirmed";
+      const storedServiceStockDeductible = stockRuleConfirmed
+        ? productServiceStockDeductible(product)
+        : product.serviceStockDeductible;
+      const storedServiceUsesPerUnit = stockRuleConfirmed
+        ? storedServiceStockDeductible ? productServiceUnitsPerStockUnit(product) : undefined
+        : product.serviceUsesPerUnit;
+      const storedServiceUnit = stockRuleConfirmed
+        ? storedServiceStockDeductible ? productServiceUnit(product) : undefined
+        : product.serviceUnit;
+      const storedServiceUnitsPerStockUnit = stockRuleConfirmed
+        ? storedServiceStockDeductible ? productServiceUnitsPerStockUnit(product) : undefined
+        : product.serviceUnitsPerStockUnit;
       statements.push(
         this.statement("INSERT INTO products (id, storeId, name, type, category, subcategory, unit, price, cost, stock, warningStock, shelfLifeMonths, expiryAt, serviceStockDeductible, serviceStockReviewStatus, serviceStockReviewedAt, serviceStockReviewedBy, serviceUsesPerUnit, serviceUnit, serviceUnitsPerStockUnit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [
           product.id,
@@ -1749,13 +1762,13 @@ export class D1BeautyDatabase {
           product.warningStock,
           product.shelfLifeMonths ?? null,
           product.expiryAt ?? null,
-          productServiceStockDeductible(product) ? 1 : 0,
+          typeof storedServiceStockDeductible === "boolean" ? (storedServiceStockDeductible ? 1 : 0) : null,
           product.serviceStockReviewStatus ?? null,
           product.serviceStockReviewedAt ?? null,
           product.serviceStockReviewedBy ?? null,
-          productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
-          productServiceStockDeductible(product) ? productServiceUnit(product) : null,
-          productServiceStockDeductible(product) ? productServiceUnitsPerStockUnit(product) : null,
+          storedServiceUsesPerUnit ?? null,
+          storedServiceUnit ?? null,
+          storedServiceUnitsPerStockUnit ?? null,
           product.status ?? "启用",
         ]),
       );

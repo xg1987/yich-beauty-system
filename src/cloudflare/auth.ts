@@ -2,7 +2,7 @@ import { effectiveRoleForUser, effectiveRoleNameForUser, permissionsForRole, typ
 import type { AuthUser, SystemConfig } from "../domain/types";
 import type { D1DatabaseBinding } from "./d1Types";
 import { verifyPasswordWithLegacySupport, isLegacyPlaintextPassword } from "../lib/password";
-import { newSessionExpiry, isSessionExpired } from "../lib/session";
+import { newSessionExpiry, isSessionExpired, shouldUpgradeLegacyShortSession } from "../lib/session";
 
 export type LoginResult = {
   session: UserSession;
@@ -91,13 +91,16 @@ export async function getSessionFromD1(db: D1DatabaseBinding, authorizationHeade
   if (!token) return undefined;
 
   const sessionRow = await db
-    .prepare("SELECT userId, expiresAt FROM sessions WHERE token = ?")
+    .prepare("SELECT userId, createdAt, expiresAt FROM sessions WHERE token = ?")
     .bind(token)
-    .first<{ userId: string; expiresAt: string | null }>();
+    .first<{ userId: string; createdAt: string | null; expiresAt: string | null }>();
   if (!sessionRow) return undefined;
   if (isSessionExpired(sessionRow.expiresAt)) {
     await db.prepare("DELETE FROM sessions WHERE token = ?").bind(token).run();
     return undefined;
+  }
+  if (shouldUpgradeLegacyShortSession(sessionRow.createdAt, sessionRow.expiresAt)) {
+    await db.prepare("UPDATE sessions SET expiresAt = ? WHERE token = ?").bind(newSessionExpiry(), token).run();
   }
 
   const [user, systemConfigs] = await Promise.all([

@@ -145,7 +145,7 @@ export function createApiClient(getToken: () => string | undefined) {
         method: "POST",
         body: { account, password },
       }),
-    logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST", token: getToken() }),
+    logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST", token: getToken(), keepalive: true }),
     registerStore: (body: { storeName: string; ownerName: string; phone: string; address?: string; account: string; password: string }) =>
       request<UserSession>("/api/auth/register-store", { method: "POST", body }),
     joinInvite: (body: { inviteCode: string; name: string; password: string; storeName?: string; phone?: string; address?: string; account?: string }) =>
@@ -547,7 +547,7 @@ export function createApiClient(getToken: () => string | undefined) {
 
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; token?: string; dataMode?: "slice"; dataScope?: ViewKey; capabilities?: string[]; timeoutMs?: number; timeoutMessage?: string } = {},
+  options: { method?: string; body?: unknown; token?: string; dataMode?: "slice"; dataScope?: ViewKey; capabilities?: string[]; timeoutMs?: number; timeoutMessage?: string; keepalive?: boolean } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
   const cacheKey = requestCacheKey(path, options.token);
@@ -578,6 +578,7 @@ async function request<T>(
           ...(capabilities?.length ? { "X-Yich-Capabilities": capabilities.join(",") } : {}),
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
+        keepalive: options.keepalive,
       },
       { timeoutMs: options.timeoutMs, timeoutMessage: options.timeoutMessage },
     );

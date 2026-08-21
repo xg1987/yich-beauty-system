@@ -415,7 +415,7 @@ function workbookSheets(input: BusinessWorkbookInput): WorkbookSheet[] {
         item.daysCover ?? "-",
         `${item.suggestedPurchaseQuantity}${item.unit}`,
         item.status === "待确认扣减规则"
-          ? "历史商品的项目扣减规则尚未由门店确认，确认前继续沿用原有项目扣减规则"
+          ? "历史商品的项目扣减规则尚未由门店确认，确认前暂不扣库存，也不会阻止项目收银"
           : item.status === "需完善扣耗"
           ? "产品已关联服务项目，但尚未启用自动扣耗，补货预测可能偏低"
           : item.status === "临期关注"

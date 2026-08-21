@@ -4,12 +4,27 @@ import { normalizeUserSession, type UserSession } from "../domain/auth";
 import { accountAiCredits, roundAiCreditAmount } from "../domain/aiBilling";
 import { emptyAppData, isAppDataPatch, isAppDataSlice, isViewKey, type AppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
 import type { AppData, ViewKey } from "../domain/types";
+import { clearSessionPayload, persistSessionPayload, readSessionPayload } from "../lib/session";
 import { clearCachedStoreName } from "../lib/storeNameCache";
 
-const SESSION_KEY = "yich-system-session";
 const INITIAL_DATA_RETRY_DELAYS_MS = [800, 1_800, 3_500, 6_000];
 const INITIAL_DATA_OFFLINE_WAIT_MS = 12_000;
 let fallbackSession: UserSession | undefined;
+const unavailableStorage: Pick<Storage, "getItem" | "setItem" | "removeItem"> = {
+  getItem: () => null,
+  setItem: () => {
+    throw new Error("browser storage unavailable");
+  },
+  removeItem: () => undefined,
+};
+
+function browserStorage(name: "localStorage" | "sessionStorage") {
+  try {
+    return window[name];
+  } catch {
+    return unavailableStorage;
+  }
+}
 
 function initialDataView(): ViewKey {
   const requestedView = new URLSearchParams(window.location.search).get("view");
@@ -17,13 +32,12 @@ function initialDataView(): ViewKey {
 }
 
 function readSavedSession() {
-  let savedSession: string | null = null;
-  try {
-    savedSession = sessionStorage.getItem(SESSION_KEY);
-  } catch {
-    return fallbackSession;
-  }
-  if (!savedSession) return undefined;
+  const savedSession = readSessionPayload(browserStorage("localStorage"), browserStorage("sessionStorage"), (payload) => {
+    normalizeUserSession(JSON.parse(payload) as UserSession);
+    return true;
+  });
+  if (!savedSession) return fallbackSession;
+
   try {
     fallbackSession = normalizeUserSession(JSON.parse(savedSession) as UserSession);
     return fallbackSession;
@@ -36,24 +50,13 @@ function readSavedSession() {
 function saveSession(session: UserSession) {
   const normalized = normalizeUserSession(session);
   fallbackSession = normalized;
-  try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(normalized));
-    localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // Some tablets can exhaust or disable Web Storage. Keep the login usable
-    // for the current app session instead of blocking a valid login.
-  }
+  persistSessionPayload(browserStorage("localStorage"), browserStorage("sessionStorage"), JSON.stringify(normalized));
   return normalized;
 }
 
 function safeRemoveSavedSession() {
   fallbackSession = undefined;
-  try {
-    sessionStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // Ignore storage cleanup failures; session state is already cleared in memory.
-  }
+  clearSessionPayload(browserStorage("localStorage"), browserStorage("sessionStorage"));
 }
 
 function userFacingAuthError(caught: unknown, fallback: string) {
@@ -125,6 +128,19 @@ export function useApiData() {
   const dataRef = useRef<AppData | undefined>(undefined);
 
   const client = useMemo(() => createApiClient(() => session?.token), [session?.token]);
+
+  const clearInvalidSession = (caught: unknown) => {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    if (!message.includes("请先登录")) return false;
+    safeRemoveSavedSession();
+    clearCachedStoreName(session);
+    setSession(undefined);
+    setData(undefined);
+    setError(undefined);
+    mutationPendingRef.current = false;
+    setMutationPending(false);
+    return true;
+  };
 
   useEffect(() => {
     dataRef.current = data;
@@ -203,14 +219,7 @@ export function useApiData() {
       setData(mergeAppDataUpdate(undefined, nextData));
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "加载数据失败";
-      if (message.includes("请先登录")) {
-        safeRemoveSavedSession();
-        clearCachedStoreName(session);
-        setSession(undefined);
-        setData(undefined);
-        setError(undefined);
-        return;
-      }
+      if (clearInvalidSession(caught)) return;
       setError(message);
     } finally {
       setLoading(false);
@@ -244,6 +253,7 @@ export function useApiData() {
       const slice = await client.fetchDataSlice(view);
       setData((current) => mergeAppDataUpdate(current, slice));
     } catch (caught) {
+      if (clearInvalidSession(caught)) return;
       setError(caught instanceof Error ? caught.message : "刷新页面数据失败");
     }
   };
@@ -267,7 +277,9 @@ export function useApiData() {
       setData(nextData);
       return nextData;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "操作失败");
+      if (!clearInvalidSession(caught)) {
+        setError(caught instanceof Error ? caught.message : "操作失败");
+      }
       throw caught;
     } finally {
       mutationPendingRef.current = false;
@@ -286,7 +298,9 @@ export function useApiData() {
       setData(result.data);
       return { ...result, session: nextSession };
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "账号资料保存失败");
+      if (!clearInvalidSession(caught)) {
+        setError(caught instanceof Error ? caught.message : "账号资料保存失败");
+      }
       throw caught;
     } finally {
       setLoading(false);

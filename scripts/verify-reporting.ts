@@ -134,6 +134,35 @@ assert.ok(p4.suggestedPurchaseQuantity > 0, "replenishment row should calculate 
 const pendingProducts = productUsageReport({ ...data, products: data.products.map((product) => product.id === "p1" ? { ...product, serviceStockReviewStatus: "pending" } : product) }, julyStart, augustStart, now);
 assert.equal(pendingProducts.find((item) => item.productId === "p1")?.status, "待确认扣减规则", "reporting should surface pending historical product review before purchase advice");
 
+const legacyPendingUsageData: AppData = {
+  ...structuredClone(testFixtureData),
+  products: structuredClone(testFixtureData.products).map((product) => (
+    product.id === "p3" ? { ...product, serviceStockReviewStatus: "pending" as const } : product
+  )),
+  orders: [order({
+    id: "legacy_service_without_snapshot",
+    customerId: "c1",
+    serviceId: "v3",
+    paidAmount: 680,
+    createdAt: "2026-07-12T10:00:00.000+08:00",
+  })],
+};
+const legacyPendingUsage = productUsageReport(legacyPendingUsageData, julyStart, augustStart, now);
+assert.equal(
+  legacyPendingUsage.find((item) => item.productId === "p3")?.serviceConsumedQuantity,
+  1,
+  "historical order without a snapshot should keep legacy inferred service consumption after the product becomes pending",
+);
+const explicitPendingSnapshotUsage = productUsageReport({
+  ...legacyPendingUsageData,
+  orders: [{ ...legacyPendingUsageData.orders[0], serviceConsumables: [] }],
+}, julyStart, augustStart, now);
+assert.equal(
+  explicitPendingSnapshotUsage.find((item) => item.productId === "p3")?.serviceConsumedQuantity,
+  0,
+  "explicit empty pending checkout snapshot should not be replaced by historical inference in reports",
+);
+
 const workbook = buildBusinessWorkbook({
   storeName: "祝融｜坤锋美学门店",
   periodLabel: "2026年7月",

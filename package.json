@@ -1,6 +1,6 @@
 {
   "name": "yich-beauty-system",
-  "version": "0.1.336",
+  "version": "0.1.337",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,6 +18,7 @@
     "verify:scale": "tsx scripts/verify-scale.ts",
     "verify:cloudflare-api": "tsx scripts/verify-cloudflare-api.ts",
     "verify:signature-persistence": "tsx scripts/verify-signature-persistence.ts",
+    "verify:session-persistence": "tsx scripts/verify-session-persistence.ts",
     "verify:night-theme": "tsx scripts/verify-night-theme.ts",
     "verify:bundle": "tsx scripts/verify-bundle-budget.ts",
     "verify:release-safety": "tsx scripts/verify-release-safety.ts",
