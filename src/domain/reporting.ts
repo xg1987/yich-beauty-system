@@ -1,5 +1,5 @@
 import type { AppData, Order, Product, ServiceConsumable } from "./types";
-import { productServiceStockDeductible, productServiceStockReviewStatus, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
+import { legacyProductServiceStockDeductible, legacyServiceStockQuantityForProduct, productServiceStockDeductible, productServiceStockReviewStatus, roundStockQuantity } from "./products";
 
 export type CustomerPeriodDetail = {
   customerId: string;
@@ -408,8 +408,8 @@ function orderServiceStockConsumption(order: Order, data: AppData) {
     if (!service) return;
     serviceConsumables(service).forEach((item) => {
       const product = productMap.get(item.productId);
-      if (!product || !productServiceStockDeductible(product)) return;
-      const quantity = serviceStockQuantityForProduct(product, item.quantity);
+      if (!product || !legacyProductServiceStockDeductible(product)) return;
+      const quantity = legacyServiceStockQuantityForProduct(product, item.quantity);
       if (quantity <= 0) return;
       merged.set(item.productId, roundStockQuantity((merged.get(item.productId) ?? 0) + quantity));
     });

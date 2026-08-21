@@ -53,6 +53,7 @@ import {
   updateAppointmentStatus,
   updateAccountProfile,
   updateAuthUserStatus,
+  updateProductCatalog,
   updateStaffMember,
   updateStoreProfile,
   updateStoreStatus,
@@ -66,10 +67,12 @@ import {
   inviteDefaultDays,
 } from "../src/domain/business";
 import { buildCashierFlowRecords } from "../src/domain/cashierFlow";
+import { D1BeautyDatabase } from "../src/cloudflare/d1Database";
+import type { D1DatabaseBinding, D1PreparedStatement, D1Value } from "../src/cloudflare/d1Types";
 import { testFixtureData } from "../src/domain/testFixture";
 import type { AppData, MarketingAiRecord } from "../src/domain/types";
 import { money } from "../src/domain/utils";
-import { productServiceStockDeductible } from "../src/domain/products";
+import { normalizeProductServiceFields, productServiceStockDeductible } from "../src/domain/products";
 import { isVersionGreater } from "../src/appUpdate";
 import { aggregateMemberCardServiceAvailability, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue, mergeUsedProducts } from "../src/app/authenticatedAppHelpers";
 import { mergePosRemoteData } from "../src/hooks/usePosRemoteData";
@@ -961,29 +964,210 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
-  const pendingProduct = {
+  const privateCareProduct = {
     ...cloneSeed().products.find((product) => product.id === "p3")!,
-    stock: 1,
+    name: "私密洗护套",
+    stock: 0,
     serviceStockDeductible: true,
     serviceStockReviewStatus: "pending" as const,
   };
-  assert.equal(productServiceStockDeductible(pendingProduct), true, "pending historical products should preserve the legacy deduction rule");
+  assert.equal(productServiceStockDeductible(privateCareProduct), false, "pending historical products should not deduct inventory before confirmation");
   const pendingData = {
     ...cloneSeed(),
-    products: cloneSeed().products.map((product) => (product.id === "p3" ? pendingProduct : product)),
-    services: [{ id: "v_pending", name: "待确认耗材项目", category: "身体管理", price: 198, duration: 60, consumables: [{ productId: "p3", quantity: 1 }] }, ...cloneSeed().services],
+    products: cloneSeed().products.map((product) => (product.id === "p3" ? privateCareProduct : product)),
+    services: [{ id: "v_private_care", name: "私密护理", category: "身体管理", price: 198, duration: 60, consumables: [{ productId: "p3", quantity: 1 }] }, ...cloneSeed().services],
   };
-  const checkedOut = checkoutOrder(pendingData, { customerId: "c1", staffId: "s2", serviceId: "v_pending", payMethod: "微信" }, { idFactory: testId, now: fixedNow });
-  assert.equal(productStock(checkedOut, "p3"), 0, "pending product should continue deducting stock under the legacy rule");
-  assert.equal(checkedOut.orders[0].status, "已支付", "pending product should keep service checkout available when legacy stock is sufficient");
-  assert.deepEqual(checkedOut.orders[0].serviceConsumables, [{ productId: "p3", quantity: 1 }], "pending checkout should preserve the legacy deduction snapshot");
+  const pendingCheckout = checkoutOrder(
+    pendingData,
+    { customerId: "c1", staffId: "s2", serviceId: "v_private_care", payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(pendingCheckout, "p3"), 0, "pending private-care product should allow checkout at zero stock");
+  assert.equal(pendingCheckout.orders[0].status, "已支付", "pending private-care product should not block checkout");
+  assert.deepEqual(pendingCheckout.orders[0].serviceConsumables, [], "pending checkout should snapshot no inventory deduction");
+  assert.equal(
+    pendingCheckout.inventoryLogs.filter((item) => item.productId === "p3" && item.type === "服务消耗").length,
+    0,
+    "pending private-care product should not create service inventory logs",
+  );
 
-  const pendingLiquid = {
-    ...cloneSeed().products.find((product) => product.id === "p2")!,
+  const pendingRefund = refundOrder(
+    pendingCheckout,
+    { orderId: pendingCheckout.orders[0].id, reason: "待确认项目退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(pendingRefund, "p3"), 0, "refund should honor a pending checkout's explicit empty deduction snapshot");
+  assert.equal(
+    pendingRefund.inventoryLogs.filter((item) => item.productId === "p3" && item.type === "退款回滚").length,
+    0,
+    "pending checkout refund should not invent an inventory restoration",
+  );
+
+  const pendingRetailData = {
+    ...pendingData,
+    products: pendingData.products.map((product) => (product.id === "p3" ? { ...privateCareProduct, stock: 1 } : product)),
+  };
+  const pendingRetailCheckout = checkoutOrder(
+    pendingRetailData,
+    { customerId: "c1", staffId: "s2", productItems: [{ productId: "p3", quantity: 1 }], payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(pendingRetailCheckout, "p3"), 0, "pending review should exempt only service use; direct retail must still deduct stock");
+  assert.ok(
+    pendingRetailCheckout.inventoryLogs.some((item) => item.productId === "p3" && item.type === "销售出库" && item.delta === -1),
+    "pending product retail should keep a sales inventory log",
+  );
+  assert.throws(
+    () => checkoutOrder(
+      pendingData,
+      { customerId: "c1", staffId: "s2", productItems: [{ productId: "p3", quantity: 1 }], payMethod: "微信" },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /私密洗护套 库存不足/,
+    "pending product direct retail should still block when stock is insufficient",
+  );
+
+  const historicalOrderWithoutSnapshot = {
+    id: "o_legacy_private_care",
+    storeId: "store1",
+    orderNo: "SO-LEGACY-PRIVATE",
+    customerId: "c1",
+    staffId: "s2",
+    serviceId: "v_private_care",
+    totalAmount: 198,
+    paidAmount: 198,
+    discountAmount: 0,
+    payMethod: "微信" as const,
+    status: "已支付" as const,
+    createdAt: fixedNow(),
+  };
+  const historicalRefund = refundOrder(
+    { ...pendingData, orders: [historicalOrderWithoutSnapshot] },
+    { orderId: historicalOrderWithoutSnapshot.id, reason: "历史项目退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(historicalRefund, "p3"), 1, "legacy order without a snapshot should restore stock using the independent historical rule");
+  assert.ok(
+    historicalRefund.inventoryLogs.some((item) => item.productId === "p3" && item.type === "退款回滚" && item.delta === 1),
+    "legacy order refund should record the historically inferred restoration",
+  );
+  const historicalCostSummary = reportSummary({ ...pendingData, orders: [historicalOrderWithoutSnapshot] });
+  assert.equal(historicalCostSummary.orderProductCost, 150, "legacy order without a snapshot should retain historically inferred service cost");
+  assert.equal(historicalCostSummary.grossProfit, 48, "legacy service cost should remain included in historical gross profit");
+  const explicitEmptySnapshotSummary = reportSummary({
+    ...pendingData,
+    orders: [{ ...historicalOrderWithoutSnapshot, id: "o_pending_snapshot", serviceConsumables: [] }],
+  });
+  assert.equal(explicitEmptySnapshotSummary.orderProductCost, 0, "explicit empty pending snapshot should not fall back to historical deduction");
+
+  const confirmedDeductionProduct = {
+    ...privateCareProduct,
+    serviceStockReviewStatus: "confirmed" as const,
+  };
+  assert.equal(productServiceStockDeductible(confirmedDeductionProduct), true, "confirmed deduction rule should enable inventory checks");
+  const confirmedDeductionData = {
+    ...pendingData,
+    products: pendingData.products.map((product) => (product.id === "p3" ? confirmedDeductionProduct : product)),
+  };
+  assert.throws(
+    () => checkoutOrder(
+      confirmedDeductionData,
+      { customerId: "c1", staffId: "s2", serviceId: "v_private_care", payMethod: "微信" },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /私密洗护套 库存不足：本单需 1套，当前 0套/,
+    "confirmed tracked private-care product should still block checkout when stock is insufficient",
+  );
+
+  const confirmedNoDeductionProduct = {
+    ...privateCareProduct,
+    serviceStockDeductible: false,
+    serviceStockReviewStatus: "confirmed" as const,
+  };
+  assert.equal(productServiceStockDeductible(confirmedNoDeductionProduct), false, "confirmed no-deduction rule should bypass inventory checks");
+  const confirmedNoDeductionData = {
+    ...pendingData,
+    products: pendingData.products.map((product) => (product.id === "p3" ? confirmedNoDeductionProduct : product)),
+  };
+  const confirmedNoDeductionCheckout = checkoutOrder(
+    confirmedNoDeductionData,
+    { customerId: "c1", staffId: "s2", serviceId: "v_private_care", payMethod: "微信" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(confirmedNoDeductionCheckout, "p3"), 0, "confirmed no-deduction product should allow checkout at zero stock");
+  assert.equal(confirmedNoDeductionCheckout.orders[0].status, "已支付", "confirmed no-deduction product should not block checkout");
+  assert.deepEqual(confirmedNoDeductionCheckout.orders[0].serviceConsumables, [], "confirmed no-deduction checkout should snapshot no inventory deduction");
+  assert.equal(
+    confirmedNoDeductionCheckout.inventoryLogs.filter((item) => item.productId === "p3" && item.type === "服务消耗").length,
+    0,
+    "confirmed no-deduction product should not create service inventory logs",
+  );
+}
+
+{
+  const pendingRawProduct = {
+    ...cloneSeed().products.find((product) => product.id === "p3")!,
     serviceStockDeductible: true,
     serviceStockReviewStatus: "pending" as const,
+    serviceUsesPerUnit: 7,
+    serviceUnit: "支",
+    serviceUnitsPerStockUnit: 12,
   };
-  assert.equal(productServiceStockDeductible(pendingLiquid), false, "pending liquid products should preserve the legacy no-deduction rule");
+  const normalizedPendingProduct = normalizeProductServiceFields(pendingRawProduct);
+  assert.equal(normalizedPendingProduct.serviceStockDeductible, true, "normalization should preserve a pending product's raw deduction flag");
+  assert.equal(normalizedPendingProduct.serviceUsesPerUnit, 7, "normalization should preserve pending legacy uses per unit");
+  assert.equal(normalizedPendingProduct.serviceUnit, "支", "normalization should preserve a pending product's raw service unit");
+  assert.equal(normalizedPendingProduct.serviceUnitsPerStockUnit, 12, "normalization should preserve pending raw package quantity");
+  assert.equal(productServiceStockDeductible(normalizedPendingProduct), false, "preserved pending metadata must remain inactive for new checkout");
+
+  const editedPendingData = updateProductCatalog(
+    {
+      ...cloneSeed(),
+      products: cloneSeed().products.map((product) => (product.id === "p3" ? pendingRawProduct : product)),
+    },
+    { productId: "p3", name: "待确认护理包（改名）" },
+  );
+  const editedPendingProduct = editedPendingData.products.find((product) => product.id === "p3")!;
+  assert.equal(editedPendingProduct.serviceStockDeductible, true, "unrelated product edits should preserve pending raw deduction flags");
+  assert.equal(editedPendingProduct.serviceUsesPerUnit, 7, "unrelated product edits should preserve pending legacy uses per unit");
+  assert.equal(editedPendingProduct.serviceUnit, "支", "unrelated product edits should preserve pending service units");
+  assert.equal(editedPendingProduct.serviceUnitsPerStockUnit, 12, "unrelated product edits should preserve pending package quantities");
+
+  let persistedPendingValues: D1Value[] | undefined;
+  const fakeD1 = {
+    prepare(query: string) {
+      let statement: D1PreparedStatement;
+      statement = {
+        bind(...values: D1Value[]) {
+          if (query.startsWith("INSERT INTO products") && values[0] === "p3") persistedPendingValues = values;
+          return statement;
+        },
+        async all() {
+          return { success: true, results: [] };
+        },
+        async first() {
+          return null;
+        },
+        async run() {
+          return { success: true };
+        },
+      };
+      return statement;
+    },
+    async batch(statements: D1PreparedStatement[]) {
+      return statements.map(() => ({ success: true }));
+    },
+  } as D1DatabaseBinding;
+  await new D1BeautyDatabase(fakeD1).replaceData({
+    ...cloneSeed(),
+    products: cloneSeed().products.map((product) => (product.id === "p3" ? pendingRawProduct : product)),
+  });
+  assert.ok(persistedPendingValues, "D1 persistence should write the pending product row");
+  assert.equal(persistedPendingValues[13], 1, "D1 persistence should preserve the pending raw deduction flag");
+  assert.equal(persistedPendingValues[14], "pending", "D1 persistence should preserve pending review status");
+  assert.equal(persistedPendingValues[17], 7, "D1 persistence should preserve pending legacy uses per unit");
+  assert.equal(persistedPendingValues[18], "支", "D1 persistence should preserve pending service unit");
+  assert.equal(persistedPendingValues[19], 12, "D1 persistence should preserve pending package quantity");
 }
 
 {
@@ -995,7 +1179,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(
     productServiceStockDeductible(explicitlyTrackedLiquid),
     true,
-    "explicit deduction setting should override a legacy liquid-name heuristic",
+    "confirmed explicit deduction setting should apply to liquid products",
   );
   const trackedLiquidData = {
     ...cloneSeed(),

@@ -7178,7 +7178,7 @@ function Inventory({
         onClose={closeModule}
       >
       <div className="module-detail-stack inventory-modal-detail">
-        {pendingStockReviewProducts.length > 0 && <div className="inventory-warning-row"><span><strong>{pendingStockReviewProducts.length} 个历史商品待确认项目扣减规则</strong>；确认前继续沿用原有规则，项目收银与库存记录不中断。</span><button type="button" onClick={() => setActiveModule("list")}>逐项确认</button></div>}
+        {pendingStockReviewProducts.length > 0 && <div className="inventory-warning-row"><span><strong>{pendingStockReviewProducts.length} 个历史商品待确认项目扣减规则</strong>；确认前暂不扣库存，也不会阻止项目收银。</span><button type="button" onClick={() => setActiveModule("list")}>逐项确认</button></div>}
         {activeModule === "loss" && (
         <section className="panel">
         <PanelTitle icon={<PackageMinus size={18} />} title="商品损耗" action="损耗登记" />
@@ -7765,7 +7765,7 @@ function Inventory({
             ) : (
               <div className="inventory-deduction-note compact">
                 <span>收银规则</span>
-                <strong>{editProductServiceStockDeductible === undefined ? "请选择真实规则；确认前继续沿用原有扣减规则" : "项目结账不检查、不扣减该商品库存"}</strong>
+                <strong>{editProductServiceStockDeductible === undefined ? "请选择真实规则；确认前暂不扣库存，也不会阻止项目收银" : "项目结账不检查、不扣减该商品库存"}</strong>
               </div>
             )}
             <Select
