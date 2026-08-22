@@ -3617,13 +3617,6 @@ export function refundOrder(
 
   const cumulativeRefundAmount = roundMoneyValue(historicalRefundAmount + refundAmount);
   const isFinalRefund = cumulativeRefundAmount >= originalPaidAmount;
-  if (
-    cumulativeRefundAmount > 1000
-    && !hasApprovedRequest(data, input.approvalId, "订单退款", originalPaidAmount, order.id, storeId)
-  ) {
-    throw new Error("大额退款需要审批通过");
-  }
-
   const refundServiceConsumables = order.serviceConsumables ?? legacyOrderServiceInventoryConsumables(data, order);
   const refund: Refund = {
     id: idFactory("rf"),
@@ -4510,6 +4503,9 @@ export function createApprovalRequest(
   input: ApprovalRequestInput,
   options: { idFactory?: IdFactory; now?: () => string } = {},
 ): AppData {
+  if (input.type === "订单退款") {
+    throw new Error("订单撤销无需审批，请返回收银流水直接撤销");
+  }
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
   const storeId = scopedStoreId(data, input.storeId);
@@ -6506,25 +6502,6 @@ export function reportSummary(data: AppData, referenceData: AppData = data) {
     expiringInventoryCount,
     totalMemberPoints: data.customers.reduce((sum, customer) => sum + (customer.points ?? 0), 0),
   };
-}
-
-function hasApprovedRequest(
-  data: AppData,
-  approvalId: string | undefined,
-  type: ApprovalRequest["type"],
-  amount: number,
-  targetId: string,
-  storeId: string,
-) {
-  if (!approvalId) return false;
-  return data.approvalRequests.some((item) =>
-    item.id === approvalId
-    && item.type === type
-    && item.status === "已通过"
-    && item.amount >= amount
-    && item.targetId === targetId
-    && item.storeId === storeId,
-  );
 }
 
 function assertBusinessDateOpen(data: AppData, businessDate: string, storeId: string) {

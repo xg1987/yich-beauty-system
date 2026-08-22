@@ -1089,21 +1089,33 @@ try {
   assert.equal(checkoutCommissions[0].rate, 0.12, "checkout API should persist staff commission rate");
   assert.equal(afterCheckout.operationLogs[0].action, "开单收银", "checkout API should write operation log");
   const catalogSnapshotOrderId = afterCheckout.orders[0].id;
-  const afterRefundApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
-    method: "POST",
-    token: session.token,
-    body: { type: "订单退款", targetId: catalogSnapshotOrderId, amount: afterCheckout.orders[0].paidAmount, reason: "API 误单退款审批" },
-  });
-  const refundApprovalId = afterRefundApprovalRequest.approvalRequests[0].id;
-  await request<AppData>(baseUrl, `/api/approvals/${refundApprovalId}`, {
-    method: "PATCH",
-    token: session.token,
-    body: { approved: true },
-  });
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/approvals", {
+      method: "POST",
+      token: session.token,
+      body: { type: "订单退款", targetId: catalogSnapshotOrderId, amount: afterCheckout.orders[0].paidAmount, reason: "API 误单退款审批" },
+    }),
+    /订单撤销无需审批，请返回收银流水直接撤销/,
+    "Node API must reject new refund approvals and direct the cashier back to the order",
+  );
+  const refundApprovalId = "approval_store1_historical_refund";
   const approvalIsolationData = database.readData();
   database.replaceData({
     ...approvalIsolationData,
     approvalRequests: [
+      {
+        id: refundApprovalId,
+        storeId: "store1",
+        type: "订单退款",
+        targetId: catalogSnapshotOrderId,
+        requestedBy: "u_manager",
+        amount: afterCheckout.orders[0].paidAmount,
+        reason: "历史退款审批记录",
+        status: "已通过",
+        approvedBy: "u_manager",
+        approvedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      },
       {
         id: "approval_store2_same_order",
         storeId: "store2",
@@ -2705,7 +2717,7 @@ try {
     );
   }
 
-  const splitApprovalCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+  const directLargeRefundCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     method: "POST",
     token: session.token,
     body: {
@@ -2716,61 +2728,21 @@ try {
       payMethod: "微信",
     },
   });
-  const splitApprovalOrder = splitApprovalCheckout.orders[0];
-  const pointsAfterSplitCheckout = splitApprovalCheckout.customers.find((customer) => customer.id === "c1")?.points ?? 0;
-  assert.ok(splitApprovalOrder.paidAmount > 1000, "API split-refund fixture should exceed the approval threshold");
+  const splitApprovalOrder = directLargeRefundCheckout.orders[0];
+  const pointsAfterSplitCheckout = directLargeRefundCheckout.customers.find((customer) => customer.id === "c1")?.points ?? 0;
+  assert.ok(splitApprovalOrder.paidAmount > 1000, "API direct-refund fixture should exceed 1000");
   const firstSplitRefund = await request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
     method: "POST",
     token: session.token,
     body: { reason: "Node 首笔 900", amount: 900 },
   });
   assert.equal(firstSplitRefund.customers.find((customer) => customer.id === "c1")?.points, pointsAfterSplitCheckout, "first partial API refund should preserve points");
-  await assert.rejects(
-    () => request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
-      method: "POST",
-      token: session.token,
-      body: { reason: "Node 第二笔不得绕过", amount: splitApprovalOrder.paidAmount - 900 },
-    }),
-    /大额退款需要审批通过/,
-    "Node API must reject a split refund whose cumulative amount exceeds 1000",
-  );
-  const underfundedRequest = await request<AppData>(baseUrl, "/api/approvals", {
-    method: "POST",
-    token: session.token,
-    body: { type: "订单退款", targetId: splitApprovalOrder.id, amount: splitApprovalOrder.paidAmount - 1, reason: "Node 不足额度" },
-  });
-  const underfundedApprovalId = underfundedRequest.approvalRequests[0].id;
-  await request<AppData>(baseUrl, `/api/approvals/${underfundedApprovalId}`, {
-    method: "PATCH",
-    token: session.token,
-    body: { approved: true },
-  });
-  await assert.rejects(
-    () => request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
-      method: "POST",
-      token: session.token,
-      body: { reason: "Node 不足额度不得使用", amount: splitApprovalOrder.paidAmount - 900, approvalId: underfundedApprovalId },
-    }),
-    /大额退款需要审批通过/,
-    "Node API approval must cover the full original payment",
-  );
-  const fullApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
-    method: "POST",
-    token: session.token,
-    body: { type: "订单退款", targetId: splitApprovalOrder.id, amount: splitApprovalOrder.paidAmount, reason: "Node 完整退款额度" },
-  });
-  const fullApprovalId = fullApprovalRequest.approvalRequests[0].id;
-  await request<AppData>(baseUrl, `/api/approvals/${fullApprovalId}`, {
-    method: "PATCH",
-    token: session.token,
-    body: { approved: true },
-  });
   const afterSplitFullRefund = await request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
     method: "POST",
     token: session.token,
-    body: { reason: "Node 审批后退完", amount: splitApprovalOrder.paidAmount - 900, approvalId: fullApprovalId },
+    body: { reason: "Node 录入错误直接退完", amount: splitApprovalOrder.paidAmount - 900 },
   });
-  assert.equal(afterSplitFullRefund.orders.find((order) => order.id === splitApprovalOrder.id)?.status, "已退款", "Node approved cumulative refund should finish the order");
+  assert.equal(afterSplitFullRefund.orders.find((order) => order.id === splitApprovalOrder.id)?.status, "已退款", "Node cumulative refund above 1000 should finish directly without approval");
   assert.equal(
     afterSplitFullRefund.customers.find((customer) => customer.id === "c1")?.points,
     pointsAfterSplitCheckout - Math.floor(splitApprovalOrder.paidAmount / 10),

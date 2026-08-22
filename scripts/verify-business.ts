@@ -9,6 +9,7 @@ import {
   checkoutOrder,
   convertOnlineBookingRequest,
   createAppointment,
+  createApprovalRequest,
   createDailyClose,
   createOnlineBookingRequest,
   createStaffShift,
@@ -1505,6 +1506,37 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  assert.throws(
+    () => createApprovalRequest(
+      cloneSeed(),
+      {
+        type: "订单退款",
+        targetId: "o_wrong_entry",
+        requestedBy: "u_manager",
+        amount: 1296,
+        reason: "录入错误",
+      },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /订单撤销无需审批，请返回收银流水直接撤销/,
+    "new refund approvals must be rejected because wrong orders are directly reversible",
+  );
+
+  const priceApproval = createApprovalRequest(
+    cloneSeed(),
+    {
+      type: "改价折扣",
+      targetId: "o_discount",
+      requestedBy: "u_manager",
+      amount: 100,
+      reason: "老客维护",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(priceApproval.approvalRequests[0].type, "改价折扣", "price adjustment approvals must remain available");
+}
+
+{
   const checkedOut = checkoutOrder(
     cloneSeed(),
     {
@@ -1866,78 +1898,18 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   const order = checkedOut.orders[0];
-  assert.ok(order.paidAmount > 1000, "approval binding fixture should require large-refund approval");
-
-  const approvedRequest = (
-    overrides: Partial<AppData["approvalRequests"][number]>,
-  ): AppData["approvalRequests"][number] => ({
-    id: "approval_refund_binding",
-    storeId: "store1",
-    type: "订单退款",
-    targetId: order.id,
-    requestedBy: "u_manager",
-    amount: order.paidAmount,
-    reason: "大额退款审批",
-    status: "已通过",
-    approvedBy: "u_owner",
-    approvedAt: fixedNow(),
-    createdAt: fixedNow(),
-    ...overrides,
-  });
-
-  const wrongOrderApproval = {
-    ...checkedOut,
-    approvalRequests: [approvedRequest({ targetId: "another_order" }), ...checkedOut.approvalRequests],
-  };
-  assert.throws(
-    () => refundOrder(
-      wrongOrderApproval,
-      {
-        orderId: order.id,
-        reason: "错订单审批不得复用",
-        userId: "u_manager",
-        approvalId: "approval_refund_binding",
-      },
-      { idFactory: testId, now: fixedNow },
-    ),
-    /大额退款需要审批通过/,
-    "refund approval should be bound to the exact order",
-  );
-
-  const crossStoreApproval = {
-    ...checkedOut,
-    approvalRequests: [approvedRequest({ storeId: "store2" }), ...checkedOut.approvalRequests],
-  };
-  assert.throws(
-    () => refundOrder(
-      crossStoreApproval,
-      {
-        orderId: order.id,
-        reason: "跨店审批不得复用",
-        userId: "u_manager",
-        approvalId: "approval_refund_binding",
-      },
-      { idFactory: testId, now: fixedNow },
-    ),
-    /大额退款需要审批通过/,
-    "refund approval should be bound to the order store",
-  );
-
-  const correctlyApproved = {
-    ...checkedOut,
-    approvalRequests: [approvedRequest({}), ...checkedOut.approvalRequests],
-  };
   const refunded = refundOrder(
-    correctlyApproved,
+    checkedOut,
     {
       orderId: order.id,
-      reason: "正确审批退款",
+      reason: "录入错误直接撤销",
       userId: "u_manager",
-      approvalId: "approval_refund_binding",
     },
     { idFactory: testId, now: fixedNow },
   );
-  assert.equal(refunded.orders[0].status, "已退款", "matching order-and-store approval should authorize the refund");
+  assert.ok(order.paidAmount > 1000, "direct large-refund fixture should exceed 1000");
+  assert.equal(refunded.orders[0].status, "已退款", "an order above 1000 should be directly refundable without approval");
+  assert.equal(refunded.refunds.filter((item) => item.orderId === order.id).length, 1, "direct large refund should write exactly one refund record");
 }
 
 {
@@ -1954,7 +1926,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   const order = checkedOut.orders[0];
-  assert.ok(order.paidAmount > 1000, "split-refund fixture should exceed the approval threshold");
+  assert.ok(order.paidAmount > 1000, "split-refund fixture should exceed 1000");
   assert.equal(
     checkedOut.customers.find((customer) => customer.id === "c1")?.points,
     baselinePoints + Math.floor(order.paidAmount / 10),
@@ -1965,60 +1937,22 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { orderId: order.id, reason: "第一笔不超阈值", userId: "u_manager", amount: 900 },
     { idFactory: testId, now: () => "2026-05-24T01:00:10.000Z" },
   );
-  assert.equal(firstPartial.orders[0].status, "部分退款", "first 900 refund may proceed before cumulative amount exceeds the threshold");
+  assert.equal(firstPartial.orders[0].status, "部分退款", "first 900 refund should leave a remaining balance");
   assert.equal(
     firstPartial.customers.find((customer) => customer.id === "c1")?.points,
     baselinePoints + Math.floor(order.paidAmount / 10),
     "partial refund must not remove checkout points early",
   );
-  assert.throws(
-    () => refundOrder(
-      firstPartial,
-      { orderId: order.id, reason: "分拆第二笔不得绕过", userId: "u_manager" },
-      { idFactory: testId, now: () => "2026-05-24T01:00:20.000Z" },
-    ),
-    /大额退款需要审批通过/,
-    "900 plus remaining refund must require approval once the cumulative amount exceeds 1000",
-  );
-  const underfundedApproval = {
-    id: "approval_underfunded_split_refund",
-    storeId: "store1",
-    type: "订单退款" as const,
-    targetId: order.id,
-    requestedBy: "u_manager",
-    amount: order.paidAmount - 1,
-    reason: "额度不足",
-    status: "已通过" as const,
-    approvedBy: "u_owner",
-    approvedAt: fixedNow(),
-    createdAt: fixedNow(),
-  };
-  assert.throws(
-    () => refundOrder(
-      { ...firstPartial, approvalRequests: [underfundedApproval, ...firstPartial.approvalRequests] },
-      {
-        orderId: order.id,
-        reason: "不得复用不足额度",
-        userId: "u_manager",
-        approvalId: underfundedApproval.id,
-      },
-      { idFactory: testId, now: () => "2026-05-24T01:00:20.000Z" },
-    ),
-    /大额退款需要审批通过/,
-    "approval must cover the full original payment rather than only one split",
-  );
-  const fullApproval = { ...underfundedApproval, id: "approval_full_split_refund", amount: order.paidAmount };
   const fullyRefunded = refundOrder(
-    { ...firstPartial, approvalRequests: [fullApproval, ...firstPartial.approvalRequests] },
+    firstPartial,
     {
       orderId: order.id,
-      reason: "审批后退完剩余",
+      reason: "直接退完剩余",
       userId: "u_manager",
-      approvalId: fullApproval.id,
     },
     { idFactory: testId, now: () => "2026-05-24T01:00:20.000Z" },
   );
-  assert.equal(fullyRefunded.orders[0].status, "已退款", "full-original approval should authorize the cumulative final refund");
+  assert.equal(fullyRefunded.orders[0].status, "已退款", "the remaining balance should refund directly without approval");
   assert.equal(
     fullyRefunded.customers.find((customer) => customer.id === "c1")?.points,
     baselinePoints,

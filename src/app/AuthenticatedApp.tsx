@@ -3443,25 +3443,6 @@ function Pos({
     ? orderRefundAmounts(posData, selectedCashierOrder)
     : undefined;
   const selectedCashierOriginalPaidAmount = selectedCashierRefundAmounts?.originalPaidAmount ?? selectedCashierOrder?.paidAmount ?? 0;
-  const selectedCashierRefundApprovals = selectedCashierOrder
-    ? posData.approvalRequests
-        .filter((approval) => approval.type === "订单退款" && approval.targetId === selectedCashierOrder.id && approval.amount >= selectedCashierOriginalPaidAmount)
-        .slice()
-        .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))
-    : [];
-  const selectedCashierApprovedRefundApproval = selectedCashierRefundApprovals.find((approval) => approval.status === "已通过");
-  const selectedCashierPendingRefundApproval = selectedCashierRefundApprovals.find((approval) => approval.status === "待审批");
-  const selectedCashierRejectedRefundApproval = selectedCashierRefundApprovals.find((approval) => approval.status === "已拒绝");
-  const selectedCashierRefundApprovalRequired = Boolean(selectedCashierOrder && selectedCashierOriginalPaidAmount > 1000);
-  const selectedCashierRefundApprovalState = !selectedCashierRefundApprovalRequired
-    ? "not-required" as const
-    : selectedCashierApprovedRefundApproval
-      ? "approved" as const
-      : selectedCashierPendingRefundApproval
-        ? "pending" as const
-        : selectedCashierRejectedRefundApproval
-          ? "rejected" as const
-          : "missing" as const;
   const selectedCashierSignatureImage = selectedSignatureImage && selectedSignatureImage.signatureId === selectedCashierSignature?.id
     ? selectedSignatureImage.signatureText
     : selectedCashierSignature?.signatureText;
@@ -3490,29 +3471,15 @@ function Pos({
     setActiveModule("signature");
     void posRemote.refreshContext();
   };
-  const requestCashierRefundApproval = async (reason: string) => {
-    if (!selectedCashierOrder) throw new Error("订单详情尚未加载完成。");
-    if (selectedCashierPendingRefundApproval) throw new Error("该订单已有待审批的全额退款申请，请勿重复提交。");
-    await runMutation(() => actions.createApproval({
-      type: "订单退款",
-      targetId: selectedCashierOrder.id,
-      amount: selectedCashierOriginalPaidAmount,
-      reason,
-    }));
-  };
   const refundSelectedCashierOrder = async (reason: string) => {
     if (!selectedCashierOrder || !["已支付", "部分退款"].includes(selectedCashierOrder.status)) {
       throw new Error(selectedCashierOrder?.status === "已退款" ? "该订单已经全额退款。" : "只有存在未退余额的订单可以从这里撤销误单。");
-    }
-    if (selectedCashierRefundApprovalRequired && !selectedCashierApprovedRefundApproval) {
-      throw new Error("本单超过 1000 元，必须先通过订单退款审批，不能绕过审批直接撤销。");
     }
     const refundedAppointmentId = selectedCashierOrder.appointmentId;
     await runMutation(() => actions.refundOrder(
       selectedCashierOrder.id,
       reason,
       selectedCashierOrder.paidAmount,
-      selectedCashierApprovedRefundApproval?.id,
     ));
     void posRemote.refreshContext();
     posRemote.invalidatePage();
@@ -4747,7 +4714,6 @@ function Pos({
             selectedSignatureImageLoading={selectedSignatureImageLoading}
             selectedSignatureExpired={Boolean(selectedCashierSignature && customerSignatureIsExpired(selectedCashierSignature, signatureNow))}
             mutationPending={mutationPending}
-            refundApprovalState={selectedCashierRefundApprovalState}
             refundOriginalPaidAmount={selectedCashierOriginalPaidAmount}
             onPageChange={posRemote.changePage}
             onRetry={posRemote.invalidatePage}
@@ -4756,7 +4722,6 @@ function Pos({
             onRetryDetail={posRemote.retryDetail}
             onOpenSignature={openCashierSignature}
             onRegenerateSignature={regenerateCashierSignature}
-            onRequestRefundApproval={requestCashierRefundApproval}
             onRefundOrder={refundSelectedCashierOrder}
           /></Suspense>
         )}

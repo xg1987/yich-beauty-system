@@ -485,17 +485,15 @@ assert.ok(
   persistedCheckoutData.customerSignatures.some((signature) => signature.orderId === orderId && signature.status === "待签名"),
   "D1 checkout response and the same atomic batch should include the pending signature",
 );
-const afterRefundApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { type: "订单退款", targetId: orderId, amount: afterCheckout.orders[0].paidAmount, reason: "Cloudflare 误单退款审批" },
-});
-const refundApprovalId = afterRefundApprovalRequest.approvalRequests[0].id;
-await request<AppData>(baseUrl, `/api/approvals/${refundApprovalId}`, {
-  method: "PATCH",
-  token: ownerSession.token,
-  body: { approved: true },
-});
+await assert.rejects(
+  () => request<AppData>(baseUrl, "/api/approvals", {
+    method: "POST",
+    token: ownerSession.token,
+    body: { type: "订单退款", targetId: orderId, amount: afterCheckout.orders[0].paidAmount, reason: "Cloudflare 误单退款审批" },
+  }),
+  /订单撤销无需审批，请返回收银流水直接撤销/,
+  "D1 API must reject new refund approvals and direct the cashier back to the order",
+);
 const otherStoreOwner = await request<{ token: string }>(baseUrl, "/api/auth/register-store", {
   method: "POST",
   body: {
@@ -510,22 +508,6 @@ const otherStoreOwner = await request<{ token: string }>(baseUrl, "/api/auth/reg
 const otherStoreData = await request<AppData>(baseUrl, "/api/data", { token: otherStoreOwner.token });
 const otherStoreStaffId = otherStoreData.staff[0]?.id;
 assert.ok(otherStoreStaffId, "D1 isolated store registration should create an owner staff record");
-await request<AppData>(baseUrl, "/api/approvals", {
-  method: "POST",
-  token: otherStoreOwner.token,
-  body: { type: "订单退款", targetId: orderId, amount: afterCheckout.orders[0].paidAmount, reason: "其他门店同目标隔离验证" },
-});
-const approvedOrderFlowDetail = await request<CashierFlowDetailResult>(
-  baseUrl,
-  `/api/pos/cashier-flow/order/${encodeURIComponent(orderId)}`,
-  { token: ownerSession.token },
-);
-assert.deepEqual(
-  approvedOrderFlowDetail.data.approvalRequests.map((approval) => approval.id),
-  [refundApprovalId],
-  "D1 cashier detail should isolate refund approvals by both store and order",
-);
-assert.equal(approvedOrderFlowDetail.data.approvalRequests[0]?.status, "已通过", "D1 cashier detail should expose an approved refund request id");
 const afterCheckoutSignature = await request<AppData>(baseUrl, `/api/customer-signatures/${afterCheckout.customerSignatures[0].id}/sign`, {
   method: "POST",
   token: ownerSession.token,
@@ -753,7 +735,7 @@ assert.ok(
     : concurrentAppointment?.status === "已取消",
   "D1 concurrent checkout/cancel must never leave an active order on a canceled appointment",
 );
-const splitApprovalCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+const directLargeRefundCheckout = await request<AppData>(baseUrl, "/api/checkout", {
   method: "POST",
   token: ownerSession.token,
   body: {
@@ -765,10 +747,10 @@ const splitApprovalCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     payMethod: "微信",
   },
 });
-const splitApprovalOrder = splitApprovalCheckout.orders[0];
-const splitOriginalCommissions = splitApprovalCheckout.commissions.filter((commission) => commission.orderId === splitApprovalOrder.id);
-const pointsAfterSplitCheckout = splitApprovalCheckout.customers.find((customer) => customer.id === customerId)?.points ?? 0;
-assert.ok(splitApprovalOrder.paidAmount > 1000, "D1 split-refund fixture should exceed the approval threshold");
+const splitApprovalOrder = directLargeRefundCheckout.orders[0];
+const splitOriginalCommissions = directLargeRefundCheckout.commissions.filter((commission) => commission.orderId === splitApprovalOrder.id);
+const pointsAfterSplitCheckout = directLargeRefundCheckout.customers.find((customer) => customer.id === customerId)?.points ?? 0;
+assert.ok(splitApprovalOrder.paidAmount > 1000, "D1 direct-refund fixture should exceed 1000");
 const firstSplitRefund = await request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
   method: "POST",
   token: ownerSession.token,
@@ -785,52 +767,12 @@ assert.equal(
   splitOriginalCommissions.length,
   "D1 partial refund should create one negative adjustment per original commission",
 );
-await assert.rejects(
-  () => request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
-    method: "POST",
-    token: ownerSession.token,
-    body: { reason: "Cloudflare 第二笔不得绕过", amount: splitApprovalOrder.paidAmount - 900 },
-  }),
-  /大额退款需要审批通过/,
-  "D1 API must reject split refunds once the cumulative amount exceeds 1000",
-);
-const underfundedRequest = await request<AppData>(baseUrl, "/api/approvals", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { type: "订单退款", targetId: splitApprovalOrder.id, amount: splitApprovalOrder.paidAmount - 1, reason: "Cloudflare 不足额度" },
-});
-const underfundedApprovalId = underfundedRequest.approvalRequests[0].id;
-await request<AppData>(baseUrl, `/api/approvals/${underfundedApprovalId}`, {
-  method: "PATCH",
-  token: ownerSession.token,
-  body: { approved: true },
-});
-await assert.rejects(
-  () => request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
-    method: "POST",
-    token: ownerSession.token,
-    body: { reason: "Cloudflare 不足额度不得使用", amount: splitApprovalOrder.paidAmount - 900, approvalId: underfundedApprovalId },
-  }),
-  /大额退款需要审批通过/,
-  "D1 refund approval must cover the full original payment",
-);
-const fullApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
-  method: "POST",
-  token: ownerSession.token,
-  body: { type: "订单退款", targetId: splitApprovalOrder.id, amount: splitApprovalOrder.paidAmount, reason: "Cloudflare 完整退款额度" },
-});
-const fullApprovalId = fullApprovalRequest.approvalRequests[0].id;
-await request<AppData>(baseUrl, `/api/approvals/${fullApprovalId}`, {
-  method: "PATCH",
-  token: ownerSession.token,
-  body: { approved: true },
-});
 const afterSplitFullRefund = await request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
   method: "POST",
   token: ownerSession.token,
-  body: { reason: "Cloudflare 审批后退完", amount: splitApprovalOrder.paidAmount - 900, approvalId: fullApprovalId },
+  body: { reason: "Cloudflare 录入错误直接退完", amount: splitApprovalOrder.paidAmount - 900 },
 });
-assert.equal(afterSplitFullRefund.orders.find((order) => order.id === splitApprovalOrder.id)?.status, "已退款", "D1 approved cumulative refund should finish the order");
+assert.equal(afterSplitFullRefund.orders.find((order) => order.id === splitApprovalOrder.id)?.status, "已退款", "D1 cumulative refund above 1000 should finish directly without approval");
 assert.equal(
   afterSplitFullRefund.customers.find((customer) => customer.id === customerId)?.points,
   pointsAfterSplitCheckout - Math.floor(splitApprovalOrder.paidAmount / 10),

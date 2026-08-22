@@ -6,7 +6,6 @@ import { PanelTitle } from "../components/layout/PanelTitle";
 import { Badge } from "../components/ui/Badge";
 import { DataTable } from "../components/ui/DataTable";
 import { Modal } from "../components/ui/Modal";
-import { Select } from "../components/ui/Select";
 import type { AppData } from "../domain/types";
 import { money, shortDate } from "../domain/utils";
 import type { ApiActions } from "../hooks/useApiData";
@@ -29,7 +28,6 @@ export function ApprovalsView({
   onReturnManagement?: () => void;
 }) {
   const mutationPending = useMutationPending();
-  const [type, setType] = useState<"改价折扣" | "订单退款">("改价折扣");
   const [targetId, setTargetId] = useState("manual");
   const [amount, setAmount] = useState(100);
   const [reason, setReason] = useState("门店例外处理");
@@ -37,14 +35,14 @@ export function ApprovalsView({
 
   const createApproval = (event: FormEvent) => {
     event.preventDefault();
-    void runMutation(() => actions.createApproval({ type, targetId, amount, reason }));
+    void runMutation(() => actions.createApproval({ type: "改价折扣", targetId, amount, reason }));
   };
 
-  const pendingApprovals = data.approvalRequests.filter((item) => item.status === "待审批").length;
+  const pendingApprovals = data.approvalRequests.filter((item) => item.type === "改价折扣" && item.status === "待审批").length;
   const passedApprovals = data.approvalRequests.filter((item) => item.status === "已通过").length;
   const rejectedApprovals = data.approvalRequests.filter((item) => item.status === "已拒绝").length;
   const approvalRows = data.approvalRequests.filter((approval) => {
-    if (activeModule === "pending") return approval.status === "待审批";
+    if (activeModule === "pending") return approval.type === "改价折扣" && approval.status === "待审批";
     if (activeModule === "refund") return approval.type === "订单退款";
     if (activeModule === "passed") return approval.status === "已通过";
     if (activeModule === "rejected") return approval.status === "已拒绝";
@@ -55,7 +53,7 @@ export function ApprovalsView({
   const approvalModules: Array<FeatureModule<ApprovalModuleKey>> = [
     { key: "submit", title: "提交审批", icon: ShieldCheck, tone: "violet", meta: "申请入口" },
     { key: "pending", title: "待审批", icon: ClipboardList, tone: "rose", meta: `${pendingApprovals} 单` },
-    { key: "refund", title: "退款审批", icon: RefreshCw, tone: "jade", meta: `${refundApprovals} 单` },
+    { key: "refund", title: "历史退款审批", icon: RefreshCw, tone: "jade", meta: `${refundApprovals} 单` },
     { key: "passed", title: "已通过", icon: ShieldCheck, tone: "teal", meta: `${passedApprovals} 单` },
     { key: "rejected", title: "已拒绝", icon: LockKeyhole, tone: "amber", meta: `${rejectedApprovals} 单` },
     { key: "all", title: "全部记录", icon: ClipboardList, tone: "plum", meta: `${data.approvalRequests.length} 条` },
@@ -85,16 +83,16 @@ export function ApprovalsView({
       <Modal
         open={Boolean(activeModule)}
         title={activeModuleTitle || "审批中心"}
-        subtitle="改价退款、待审事项和审批记录"
+        subtitle="改价待审事项和历史审批记录"
         size="large"
         onClose={closeModule}
       >
       <div className="module-detail-stack approvals-modal-detail">
         {activeModule === "submit" && (
         <section className="panel">
-        <PanelTitle icon={<ShieldCheck size={18} />} title="提交审批" action="改价/退款" />
+        <PanelTitle icon={<ShieldCheck size={18} />} title="提交审批" action="改价折扣" />
         <form className="form" onSubmit={createApproval}>
-          <Select label="审批类型" value={type} onChange={(value) => setType(value as "改价折扣" | "订单退款")} options={["改价折扣", "订单退款"].map((item) => ({ value: item, label: item }))} />
+          <p className="form-note">订单撤销已改为直接处理；这里仅提交改价折扣审批。</p>
           <label>关联对象<input value={targetId} onChange={(event) => setTargetId(event.target.value)} /></label>
           <label>金额<input type="number" value={amount} onChange={(event) => setAmount(Number(event.target.value))} /></label>
           <label>原因<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label>
@@ -115,11 +113,13 @@ export function ApprovalsView({
             nameOf(data.staff, data.staff.find((staff) => staff.id === approval.requestedBy)?.id ?? "") || approval.requestedBy,
             <Badge key={`${approval.id}-status`} text={approval.status} tone={approval.status === "已拒绝" ? "warn" : approval.status === "已通过" ? "ok" : undefined} />,
             shortDate(approval.createdAt),
-            approval.status === "待审批" ? (
+            approval.status === "待审批" && approval.type === "改价折扣" ? (
               <div key={`${approval.id}-actions`} className="row-actions">
                 <button disabled={mutationPending} onClick={() => void runMutation(() => actions.decideApproval(approval.id, true))}>{mutationPending ? "处理中..." : "通过"}</button>
                 <button disabled={mutationPending} onClick={() => void runMutation(() => actions.decideApproval(approval.id, false))}>{mutationPending ? "处理中..." : "拒绝"}</button>
               </div>
+            ) : approval.status === "待审批" ? (
+              "历史记录（退款审批流程已取消）"
             ) : (
               approval.approvedAt ? shortDate(approval.approvedAt) : "已处理"
             ),

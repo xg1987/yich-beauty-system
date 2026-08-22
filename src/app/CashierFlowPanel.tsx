@@ -27,7 +27,6 @@ type CashierFlowPanelProps = {
   selectedSignatureImageLoading: boolean;
   selectedSignatureExpired: boolean;
   mutationPending: boolean;
-  refundApprovalState: "not-required" | "missing" | "pending" | "rejected" | "approved";
   refundOriginalPaidAmount: number;
   onPageChange: (page: number) => void;
   onRetry?: () => void;
@@ -36,7 +35,6 @@ type CashierFlowPanelProps = {
   onRetryDetail?: () => void;
   onOpenSignature: () => void;
   onRegenerateSignature: () => Promise<void>;
-  onRequestRefundApproval: (reason: string) => Promise<void>;
   onRefundOrder: (reason: string) => Promise<void>;
 };
 
@@ -48,16 +46,12 @@ function cashierPaymentText(record: CashierFlowListItem) {
 function OrderRefundAction({
   record,
   mutationPending,
-  approvalState,
   originalPaidAmount,
-  onRequestApproval,
   onRefund,
 }: {
   record: Extract<CashierFlowListItem, { kind: "order" }>;
   mutationPending: boolean;
-  approvalState: CashierFlowPanelProps["refundApprovalState"];
   originalPaidAmount: number;
-  onRequestApproval: (reason: string) => Promise<void>;
   onRefund: (reason: string) => Promise<void>;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -70,25 +64,10 @@ function OrderRefundAction({
   }
 
   const partiallyRefunded = record.status === "部分退款";
-  const approvalRequired = approvalState !== "not-required";
-  const approvalReady = !approvalRequired || approvalState === "approved";
   const busy = mutationPending || submitting;
   const reasonReady = reason.trim().length > 0;
-  const submitApproval = async () => {
-    if (!reasonReady || busy) return;
-    setSubmitting(true);
-    setMessage(undefined);
-    try {
-      await onRequestApproval(reason.trim());
-      setMessage({ type: "success", text: "退款审批已提交。请到审批中心通过后，再回到本流水完成撤销。" });
-    } catch (caught) {
-      setMessage({ type: "error", text: caught instanceof Error ? caught.message : "退款审批提交失败" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
   const submitRefund = async () => {
-    if (!reasonReady || !approvalReady || busy) return;
+    if (!reasonReady || busy) return;
     setSubmitting(true);
     setMessage(undefined);
     try {
@@ -118,23 +97,11 @@ function OrderRefundAction({
               placeholder="例如：前台重复开单、项目录入错误"
             />
           </label>
-          {approvalRequired && approvalState === "approved" && <p className="form-success">大额退款审批已通过，可以执行全额退款。</p>}
-          {approvalRequired && approvalState === "pending" && <p className="form-warning">该订单的全额退款正在审批中。审批通过后再回来撤销，系统不会绕过审批。</p>}
-          {approvalRequired && approvalState === "rejected" && <p className="form-warning">上一笔全额退款审批已拒绝。如仍需撤销，请填写原因后重新提交审批。</p>}
-          {approvalRequired && approvalState === "missing" && <p className="form-warning">本单超过 1000 元审批阈值，必须先提交并通过“订单退款”审批。</p>}
           {message && <p className={message.type === "success" ? "form-success" : "form-error"} role="status">{message.text}</p>}
           <div className="row-actions">
-            {approvalReady ? (
-              <button type="button" disabled={!reasonReady || busy} onClick={() => void submitRefund()}>
-                {submitting ? "退款处理中..." : `确认全额退款 ${money(record.paidAmount)}`}
-              </button>
-            ) : approvalState === "pending" ? (
-              <button type="button" disabled>等待审批通过</button>
-            ) : (
-              <button type="button" disabled={!reasonReady || busy} onClick={() => void submitApproval()}>
-                {submitting ? "提交中..." : "提交全额退款审批"}
-              </button>
-            )}
+            <button type="button" disabled={!reasonReady || busy} onClick={() => void submitRefund()}>
+              {submitting ? "退款处理中..." : `确认全额退款 ${money(record.paidAmount)}`}
+            </button>
             <button type="button" disabled={busy} onClick={() => { setConfirming(false); setMessage(undefined); }}>返回</button>
           </div>
         </div>
@@ -163,7 +130,6 @@ export function CashierFlowPanel({
   selectedSignatureImageLoading,
   selectedSignatureExpired,
   mutationPending,
-  refundApprovalState,
   refundOriginalPaidAmount,
   onPageChange,
   onRetry,
@@ -172,7 +138,6 @@ export function CashierFlowPanel({
   onRetryDetail,
   onOpenSignature,
   onRegenerateSignature,
-  onRequestRefundApproval,
   onRefundOrder,
 }: CashierFlowPanelProps) {
   const pageEnd = Math.min(pageStart + records.length, totalCount);
@@ -272,9 +237,7 @@ export function CashierFlowPanel({
               key={`${selectedRecord.id}:${selectedRecord.status}`}
               record={selectedRecord}
               mutationPending={mutationPending}
-              approvalState={refundApprovalState}
               originalPaidAmount={refundOriginalPaidAmount}
-              onRequestApproval={onRequestRefundApproval}
               onRefund={onRefundOrder}
             />
           )}
