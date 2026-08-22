@@ -41,10 +41,12 @@ export type CashierFlowListItem = Omit<Extract<CashierFlowRecord, { kind: "order
 export type CashierFlowRelatedData = Pick<
   AppData,
   | "orders"
+  | "refunds"
   | "memberCardTransactions"
   | "customers"
   | "memberCards"
   | "appointments"
+  | "approvalRequests"
   | "customerSignatures"
   | "customerServiceRecords"
 >;

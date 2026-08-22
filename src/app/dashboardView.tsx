@@ -1,7 +1,7 @@
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { CalendarDays, ChartNoAxesColumnIncreasing, CreditCard, HeartHandshake, LayoutDashboard, PackagePlus, Share2, ShieldCheck, Sparkles, UsersRound } from "lucide-react";
 import { PanelTitle } from "../components/layout/PanelTitle";
-import { appointmentEndAt, appointmentServiceIds, summarizeAppointmentsForMonth } from "../domain/appointments";
+import { appointmentEndAt, appointmentRollingSevenDayDates, appointmentServiceIds, summarizeAppointmentsForMonth } from "../domain/appointments";
 import type { UserSession } from "../domain/auth";
 import { memberCardCashIn, memberCardCashRefund } from "../domain/business";
 import type { AppData, Appointment, CustomerSignature, Staff, UserRole, ViewKey } from "../domain/types";
@@ -149,6 +149,7 @@ export function Dashboard({ data, session, setView }: { data: AppData; session: 
 
 function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: NavigateToView }) {
   const [queryMode, setQueryMode] = useState<"week" | "month">("week");
+  const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const value = new Date();
@@ -158,20 +159,16 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const scheduleStaff = dashboardActiveStaffOf(data);
-  const effectiveAppointments = useMemo(
+  const scheduleAppointments = useMemo(
     () => data.appointments
-      .filter((appointment) => !["已取消", "爽约"].includes(appointment.status))
       .slice()
       .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt)),
     [data.appointments],
   );
-  const visibleDates = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(date.getDate() + index);
-    return date;
-  });
+  const visibleDates = appointmentRollingSevenDayDates(today, weekOffset);
   const selectedDate = visibleDates[selectedDayIndex] ?? visibleDates[0];
-  const dayAppointments = effectiveAppointments.filter((appointment) => sameScheduleDate(appointment.startAt, selectedDate));
+  const viewingHistoricalDate = selectedDate < today;
+  const dayAppointments = scheduleAppointmentsForDate(scheduleAppointments, selectedDate, today);
   const scheduleDayStart = new Date(selectedDate);
   scheduleDayStart.setHours(WORKBENCH_SCHEDULE_START_HOUR, 0, 0, 0);
   const scheduleDayEnd = new Date(selectedDate);
@@ -181,7 +178,8 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
     const end = new Date(appointmentEndAt(appointment, data.services));
     return +end > +scheduleDayStart && +start < +scheduleDayEnd;
   });
-  const freeStaffCount = scheduleStaff.filter((staff) => !visibleScheduleAppointments.some((appointment) => appointment.staffId === staff.id)).length;
+  const busyScheduleAppointments = visibleScheduleAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
+  const freeStaffCount = scheduleStaff.filter((staff) => !busyScheduleAppointments.some((appointment) => appointment.staffId === staff.id)).length;
   const scheduleRows = scheduleStaff.map((staff) => {
     const appointments = visibleScheduleAppointments
       .filter((appointment) => appointment.staffId === staff.id)
@@ -214,8 +212,10 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
     return { appointments, staff };
   });
   const selectedDateLabel = scheduleRelativeDayLabel(selectedDate, today);
-  const title = `${selectedDateLabel === "今天" ? "今日" : selectedDateLabel === "明天" ? "明日" : scheduleDateTitle(selectedDate)}预约排班表`;
+  const title = `${selectedDateLabel === "今天" ? "今日" : selectedDateLabel === "明天" ? "明日" : selectedDateLabel === "昨天" ? "昨日" : scheduleDateTitle(selectedDate)}预约排班表`;
   const summary = `${selectedDateLabel} · ${dayAppointments.length}单 · ${scheduleStaff.length}人 · 空闲${freeStaffCount}人`;
+  const visibleDateRangeLabel = scheduleDateRangeLabel(visibleDates[0], visibleDates[visibleDates.length - 1]);
+  const visibleDateRangeHint = weekOffset === 0 ? "今天起连续7天" : weekOffset === -1 ? "过去7天 · 截至昨天" : weekOffset < 0 ? "历史连续7天" : "未来连续7天";
   const monthSummary = summarizeAppointmentsForMonth(data.appointments, data.services, selectedMonth, now);
   const arrivedCustomers = monthCustomerSummaryRows(monthSummary.arrived, data, "arrived");
   const absentCustomers = monthCustomerSummaryRows(monthSummary.missed, data, "absent");
@@ -224,8 +224,20 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
   const selectQueryMode = (mode: "week" | "month") => {
     setQueryMode(mode);
     if (mode === "week") {
+      setWeekOffset(0);
       setSelectedDayIndex(0);
     }
+  };
+
+  const shiftWeek = (amount: number) => {
+    const nextOffset = weekOffset + amount;
+    setWeekOffset(nextOffset);
+    setSelectedDayIndex(nextOffset < 0 ? 6 : 0);
+  };
+
+  const returnToToday = () => {
+    setWeekOffset(0);
+    setSelectedDayIndex(0);
   };
 
   const shiftMonth = (amount: number) => {
@@ -239,31 +251,42 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
           <div className="workbench-schedule-title-row">
             <h2>{queryMode === "month" ? `${monthSummary.range.label}预约月总结` : title}</h2>
             <div className="workbench-schedule-query-tabs" role="group" aria-label="预约查询范围">
-              <button type="button" className={queryMode === "week" ? "active" : undefined} onClick={() => selectQueryMode("week")}>本周</button>
+              <button type="button" className={queryMode === "week" ? "active" : undefined} onClick={() => selectQueryMode("week")}>7天排班</button>
               <button type="button" className={queryMode === "month" ? "active" : undefined} onClick={() => selectQueryMode("month")}>月总结</button>
             </div>
           </div>
           {queryMode !== "month" && (
-            <div className="workbench-schedule-date-tabs" role="group" aria-label="本周连续七天预约日期">
-              {visibleDates.map((date, index) => {
-                const count = effectiveAppointments.filter((appointment) => sameScheduleDate(appointment.startAt, date)).length;
-                const weekdayLabel = scheduleWeekday(date);
-                const label = scheduleRelativeDayLabel(date, today);
-                return (
-                  <button
-                    key={date.toISOString()}
-                    type="button"
-                    className={selectedDayIndex === index ? "active" : undefined}
-                    aria-pressed={selectedDayIndex === index}
-                    onClick={() => setSelectedDayIndex(index)}
-                  >
-                    <span>{label}</span>
-                    <strong>{scheduleShortDate(date)}</strong>
-                    <small>{label === weekdayLabel ? "" : `${weekdayLabel} · `}{count}单</small>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              <div className="workbench-schedule-week-nav" aria-label="连续七天范围切换">
+                <button type="button" aria-label="查看上一周" onClick={() => shiftWeek(-1)}>‹ 上一周</button>
+                <div className="workbench-schedule-week-range">
+                  <strong>{visibleDateRangeLabel}</strong>
+                  <span>{visibleDateRangeHint}</span>
+                </div>
+                <button type="button" className="today" disabled={weekOffset === 0 && selectedDayIndex === 0} onClick={returnToToday}>回到今天</button>
+                <button type="button" aria-label="查看下一周" onClick={() => shiftWeek(1)}>下一周 ›</button>
+              </div>
+              <div className="workbench-schedule-date-tabs" role="group" aria-label={`${visibleDateRangeLabel}连续七天预约日期`}>
+                {visibleDates.map((date, index) => {
+                  const count = scheduleAppointmentsForDate(scheduleAppointments, date, today).length;
+                  const weekdayLabel = scheduleWeekday(date);
+                  const label = scheduleRelativeDayLabel(date, today);
+                  return (
+                    <button
+                      key={date.toISOString()}
+                      type="button"
+                      className={selectedDayIndex === index ? "active" : undefined}
+                      aria-pressed={selectedDayIndex === index}
+                      onClick={() => setSelectedDayIndex(index)}
+                    >
+                      <span>{label}</span>
+                      <strong>{scheduleShortDate(date)}</strong>
+                      <small>{label === weekdayLabel ? "" : `${weekdayLabel} · `}{count}单</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
         <div>
@@ -284,7 +307,7 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
               </label>
               <button type="button" aria-label="下一个月" onClick={() => shiftMonth(1)}>›</button>
             </div>
-          ) : <ScheduleLegend />}
+          ) : <ScheduleLegend showHistoryStatuses={viewingHistoricalDate} />}
         </div>
       </div>
 
@@ -392,13 +415,15 @@ function ManagerSchedulePanel({ data, setView }: { data: AppData; setView: Navig
   );
 }
 
-function ScheduleLegend() {
+function ScheduleLegend({ showHistoryStatuses = false }: { showHistoryStatuses?: boolean }) {
   return (
     <div className="workbench-schedule-legend" aria-label="预约状态">
       <span className="legend-pending"><i className="pending" />待确认</span>
       <span className="legend-waiting"><i className="waiting" />待到店</span>
       <span className="legend-active"><i className="active" />服务中</span>
       <span className="legend-done"><i className="done" />已完成</span>
+      {showHistoryStatuses && <span className="legend-canceled"><i className="canceled" />已取消</span>}
+      {showHistoryStatuses && <span className="legend-missed"><i className="missed" />爽约</span>}
     </div>
   );
 }
@@ -417,10 +442,28 @@ function scheduleWeekday(date: Date) {
 
 function scheduleRelativeDayLabel(date: Date, today: Date) {
   if (sameScheduleDate(date.toISOString(), today)) return "今天";
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (sameScheduleDate(date.toISOString(), yesterday)) return "昨天";
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (sameScheduleDate(date.toISOString(), tomorrow)) return "明天";
   return scheduleWeekday(date);
+}
+
+function scheduleDateRangeLabel(start: Date, end: Date) {
+  if (start.getFullYear() === end.getFullYear()) {
+    return `${start.getFullYear()}年 ${scheduleShortDate(start)}–${scheduleShortDate(end)}`;
+  }
+  return `${start.getFullYear()}年${scheduleShortDate(start)}–${end.getFullYear()}年${scheduleShortDate(end)}`;
+}
+
+function scheduleAppointmentsForDate(appointments: Appointment[], date: Date, today: Date) {
+  const historical = date < today && !sameScheduleDate(date.toISOString(), today);
+  return appointments.filter((appointment) =>
+    sameScheduleDate(appointment.startAt, date)
+    && (historical || (appointment.status !== "已取消" && appointment.status !== "爽约")),
+  );
 }
 
 function scheduleMonthInputValue(date: Date) {
@@ -473,6 +516,8 @@ function scheduleAppointmentTone(status: Appointment["status"]) {
   if (status === "待确认") return "pending";
   if (status === "已到店") return "active";
   if (status === "已完成") return "done";
+  if (status === "已取消") return "canceled";
+  if (status === "爽约") return "missed";
   return "waiting";
 }
 

@@ -32,6 +32,7 @@ export default defineConfig({
           if (id.endsWith("/src/app/authenticatedAppHelpers.ts") || id.endsWith("/src/domain/aiGenerationConfig.ts")) return "authenticated-helpers";
           if (id.includes("/src/domain/business.ts")) return "domain-business";
           if (id.includes("/src/domain/products.ts")) return "domain-products";
+          if (id.endsWith("/src/domain/reporting.ts")) return "domain-reporting";
           if (id.endsWith("/src/domain/cashierFlow.ts")) return "cashier-flow";
         },
       },

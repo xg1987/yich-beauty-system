@@ -79,11 +79,13 @@ import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../../src/dom
 // Read version from package.json at runtime (works in Cloudflare Workers)
 import pkg from "../../package.json" with { type: "json" };
 import type { Permission, UserSession } from "../../src/domain/auth";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceCardSelection, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../../src/domain/types";
 import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, diffAppData, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice, POS_REMOTE_PAGING_CAPABILITY } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, requireConfirmedProductStockRule } from "../../src/domain/products";
-import { businessDateToday, makeId, nowIso } from "../../src/domain/utils";
+import { appointmentEndAt, appointmentServiceIds } from "../../src/domain/appointments";
+import { businessDateOf, businessDateToday, makeId, nowIso } from "../../src/domain/utils";
+import { resolveStoreMutationTarget } from "../../src/domain/storeMutationTarget";
 import { AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS, DEFAULT_AI_VIDEO_RESOLUTION } from "../../src/domain/aiVideoDefaults";
 import { D1BeautyDatabase, type D1DataTableName } from "../../src/cloudflare/d1Database";
 import { buildSession, getSessionFromD1, loginWithD1, destroySessionInD1 } from "../../src/cloudflare/auth";
@@ -100,6 +102,7 @@ type Env = {
 };
 
 type JsonBody = Record<string, unknown>;
+const requestJsonCache = new WeakMap<Request, Promise<JsonBody>>();
 type MarketingTalkTopic = {
   id: string;
   title: string;
@@ -163,6 +166,7 @@ const customerSignatureWriteKeys = [
   "orders",
   "memberCards",
   "memberCardTransactions",
+  "customerSignatures",
 ] as const;
 
 const appointmentMutationKeys = [
@@ -172,6 +176,7 @@ const appointmentMutationKeys = [
   "services",
   "staff",
   "appointments",
+  "orders",
   "staffUnavailableSlots",
   "staffShifts",
 ] as const;
@@ -196,6 +201,7 @@ const checkoutMutationKeys = [
   "commissions",
   "dailyCloses",
   "approvalRequests",
+  "customerSignatures",
   "operationLogs",
 ] as const;
 
@@ -209,6 +215,7 @@ const checkoutWriteKeys = [
   "inventoryLogs",
   "memberCardTransactions",
   "commissions",
+  "customerSignatures",
   "operationLogs",
 ] as const;
 
@@ -229,30 +236,41 @@ const checkoutResponseKeys = [
 const orderRefundMutationKeys = [
   "storeProfiles",
   "authUsers",
+  "customers",
   "services",
   "products",
   "inventoryBatches",
+  "appointments",
   "orders",
   "refunds",
   "memberCards",
   "memberCardTransactions",
   "inventoryLogs",
   "commissions",
+  "commissionSettlements",
   "dailyCloses",
   "approvalRequests",
+  "customerSignatures",
   "operationLogs",
 ] as const;
 
 const orderRefundWriteKeys = [
+  "customers",
   "products",
   "inventoryBatches",
+  "appointments",
   "orders",
   "refunds",
   "memberCards",
   "memberCardTransactions",
   "inventoryLogs",
   "commissions",
+  "customerSignatures",
   "operationLogs",
+] as const;
+
+const storeMutationTargetKeys = [
+  "storeProfiles", "customers", "staff", "services", "products", "suppliers", "memberCards", "appointments", "orders", "customerSignatures",
 ] as const;
 
 const inventoryAdjustmentMutationKeys = [
@@ -970,22 +988,32 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (context.request.method === "POST" && pathname.startsWith("/api/public/customer-signatures/") && pathname.endsWith("/sign")) {
       const token = decodeURIComponent(pathname.split("/").at(-2) ?? "");
       const body = await readJson(context.request);
-      const currentData = await readPublicSignatureData(database, token);
-      const nextData = signCustomerSignature(currentData, {
-        token,
-        signerName: requiredString(body, "signerName"),
-        signatureText: requiredString(body, "signatureText"),
-      });
-      const signedSignature = nextData.customerSignatures.find((item) => item.token === token);
-      if (!signedSignature) throw new Error("签名记录更新失败");
-      const signedSignatureStoreId = signedSignature ? publicSignatureStoreId(nextData, signedSignature) : undefined;
-      if (signedSignatureStoreId) {
-        await database.applyStoreTableChanges(signedSignatureStoreId, currentData, nextData, customerSignatureWriteKeys);
-        await database.upsertCustomerSignatures([signedSignature]);
-      } else {
-        throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
+      const initialSignature = await database.readCustomerSignatureByToken(token);
+      const storeId = initialSignature?.storeId ?? (initialSignature ? await database.resolveCustomerSignatureStoreId(initialSignature) : undefined);
+      if (!storeId) throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
+      const lock = { storeId, ownerId: makeId("store-mutation") };
+      if (!await acquireStoreMutationLock(database, lock.storeId, lock.ownerId)) {
+        throw new Error("本门店正在处理另一笔库存或资金操作，请稍后重试");
       }
-      return sendJson(201, publicSignaturePayload(nextData, token));
+      try {
+        const signature = await database.readCustomerSignatureByToken(token);
+        if (!signature || (signature.storeId && signature.storeId !== storeId)) throw new Error("签名链接已失效");
+        const currentData = {
+          ...await database.readCustomerSignatureContext(storeId, signature),
+          customerSignatures: [signature],
+        };
+        const nextData = signCustomerSignature(currentData, {
+          token,
+          signerName: requiredString(body, "signerName"),
+          signatureText: requiredString(body, "signatureText"),
+        });
+        const signedSignature = nextData.customerSignatures.find((item) => item.token === token);
+        if (!signedSignature) throw new Error("签名记录更新失败");
+        await database.applyStoreTableChanges(storeId, currentData, nextData, customerSignatureWriteKeys);
+        return sendJson(201, publicSignaturePayload(nextData, token));
+      } finally {
+        await database.releaseCheckoutStoreLock(lock.storeId, lock.ownerId);
+      }
     }
 
     const session = await getSessionFromD1(context.env.DB, context.request.headers.get("Authorization"));
@@ -993,12 +1021,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return sendJson(401, { error: "请先登录" });
     }
 
-    const storeMutationLock = session.user.storeId && requiresStoreMutationLock(context.request.method, pathname)
-      ? { storeId: session.user.storeId, ownerId: makeId("store-mutation") }
-      : undefined;
-    if (storeMutationLock) {
-      const acquired = await database.acquireCheckoutStoreLock(storeMutationLock.storeId, storeMutationLock.ownerId, nowIso());
-      if (!acquired) throw new Error("本门店正在处理另一笔库存或资金操作，请稍后重试");
+    const storeMutationLocks: Array<{ storeId: string; ownerId: string }> = [];
+    if (requiresStoreMutationLock(context.request.method, pathname)) {
+      const targetData = session.user.role === "superadmin"
+        ? await database.readDataTables(storeMutationTargetKeys)
+        : undefined;
+      const storeIds = session.user.role === "superadmin" && pathname === "/api/commissions/settle"
+        ? targetData!.storeProfiles.map((store) => store.id).filter(Boolean).sort()
+        : [session.user.role === "superadmin"
+            ? resolveStoreMutationTarget(targetData!, pathname, await readJson(context.request))
+            : await resolveSessionStoreId(database, session)];
+      for (const storeId of storeIds) {
+        const lock = { storeId, ownerId: makeId("store-mutation") };
+        const acquired = await acquireStoreMutationLock(database, lock.storeId, lock.ownerId);
+        if (!acquired) {
+          for (const acquiredLock of [...storeMutationLocks].reverse()) {
+            await database.releaseCheckoutStoreLock(acquiredLock.storeId, acquiredLock.ownerId);
+          }
+          throw new Error("本门店正在处理另一笔库存或资金操作，请稍后重试");
+        }
+        storeMutationLocks.push(lock);
+      }
     }
 
     try {
@@ -1743,11 +1786,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       markMutationRead(timing);
       let checkoutReserved = false;
       try {
+        const checkoutAt = nowIso();
         if (checkoutRequestId) {
-          checkoutReserved = await database.reserveCheckoutSubmission(checkoutRequestId, nowIso());
+          checkoutReserved = await database.reserveCheckoutSubmission(checkoutRequestId, checkoutAt);
           if (!checkoutReserved) throw new Error("检测到刚刚已提交相同收银请求，请勿重复提交");
         }
-        const existingSignatureIds = new Set((currentData.customerSignatures ?? []).map((signature) => signature.id));
+        await assertNoPersistedAppointmentCheckout(database, currentData, checkoutStoreId, body, checkoutAt);
         const checkedOutData = checkoutOrder(currentData, {
           storeId: checkoutStoreId,
           customerId: optionalString(body, "customerId"),
@@ -1757,6 +1801,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
           serviceId: optionalString(body, "serviceId"),
           serviceIds: optionalStringArray(body, "serviceIds"),
+          serviceCardSelections: optionalServiceCardSelections(body),
           productId: optionalString(body, "productId"),
           giftProductId: optionalString(body, "giftProductId"),
           productItems: optionalProductItems(body, "productItems"),
@@ -1779,14 +1824,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             summary: `${session.user.name} 完成开单收银`,
           },
         );
-        const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
         startMutationWrite(timing);
         await persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
-        await database.upsertCustomerSignatures(newSignatures);
         markMutationWrite(timing);
         return withMutationTiming(sendMutationPatch(context.request, 201, currentData, nextData, session, checkoutResponseKeys), timing, "scoped");
       } catch (caught) {
         if (checkoutRequestId && checkoutReserved) await database.releaseCheckoutSubmission(checkoutRequestId);
+        if (isActiveAppointmentUniqueError(caught)) {
+          throw new Error("该预约已生成收银单，请勿重复开单");
+        }
         throw caught;
       }
     }
@@ -1807,7 +1853,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         approvalId: optionalString(body, "approvalId"),
       });
       startMutationWrite(timing);
-      await persistDataTables(database, session, nextData, orderRefundWriteKeys);
+      await persistDataTableChanges(database, session, currentData, nextData, orderRefundWriteKeys);
       markMutationWrite(timing);
       return withMutationTiming(sendScopedData(context.request, 201, nextData, session), timing, "scoped");
     }
@@ -1984,6 +2030,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const status = requiredString(body, "status") as Appointment["status"];
       const currentData = await readRequiredMutationData(database, session, appointmentMutationKeys);
       markMutationRead(timing);
+      if (status === "已取消" && currentData.orders.some((order) => order.appointmentId === appointmentId && order.status !== "已退款")) {
+        throw new Error("该预约已有有效收银单，不能取消；如需处理请先退款");
+      }
       const nextData = updateData(currentData, session, {
         action: "更新预约状态",
         targetType: "appointment",
@@ -2437,8 +2486,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const signedSignature = nextData.customerSignatures.find((item) => item.id === signature.id);
       if (!signedSignature) throw new Error("签名记录更新失败");
       await persistDataTableChanges(database, session, previousData, nextData, customerSignatureWriteKeys);
-      await database.upsertCustomerSignatures([signedSignature]);
-      return sendMutationPatch(context.request, 201, previousData, nextData, session, [...customerSignatureWriteKeys, "customerSignatures"]);
+      return sendMutationPatch(context.request, 201, previousData, nextData, session, customerSignatureWriteKeys);
     }
 
     if (context.request.method === "POST" && pathname === "/api/follow-ups") {
@@ -2926,7 +2974,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       return sendJson(404, { error: "Not found" });
     } finally {
-      if (storeMutationLock) await database.releaseCheckoutStoreLock(storeMutationLock.storeId, storeMutationLock.ownerId);
+      for (const lock of [...storeMutationLocks].reverse()) {
+        await database.releaseCheckoutStoreLock(lock.storeId, lock.ownerId);
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -2937,6 +2987,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 function requiresStoreMutationLock(method: string, pathname: string) {
   if (method !== "POST" && method !== "PATCH") return false;
   return pathname === "/api/checkout"
+    || pathname === "/api/appointments"
+    || pathname.startsWith("/api/appointments/")
     || pathname.startsWith("/api/orders/")
     || pathname.startsWith("/api/member-cards")
     || pathname.startsWith("/api/products")
@@ -2944,7 +2996,16 @@ function requiresStoreMutationLock(method: string, pathname: string) {
     || pathname === "/api/purchase-orders"
     || pathname === "/api/stocktakes"
     || pathname.startsWith("/api/daily-close")
-    || pathname === "/api/commissions/settle";
+    || pathname === "/api/commissions/settle"
+    || (pathname.startsWith("/api/customer-signatures/") && pathname.endsWith("/sign"));
+}
+
+async function acquireStoreMutationLock(database: D1BeautyDatabase, storeId: string, ownerId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (await database.acquireCheckoutStoreLock(storeId, ownerId, nowIso())) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return false;
 }
 
 function requestClientKey(request: Request) {
@@ -3089,6 +3150,61 @@ function updateCustomerFollowUpRecord(data: AppData, followUpId: string, body: J
         : item,
     ),
   };
+}
+
+async function assertNoPersistedAppointmentCheckout(
+  database: D1BeautyDatabase,
+  data: AppData,
+  sessionStoreIdValue: string | undefined,
+  body: JsonBody,
+  checkoutAt: string,
+) {
+  const staffId = requiredString(body, "staffId");
+  const customerId = optionalString(body, "customerId");
+  const storeId = sessionStoreIdValue
+    ?? data.staff.find((staff) => staff.id === staffId)?.storeId
+    ?? (customerId ? data.customers.find((customer) => customer.id === customerId)?.storeId : undefined);
+  if (!storeId) return;
+
+  const explicitAppointmentId = optionalString(body, "appointmentId");
+  if (explicitAppointmentId) {
+    if (await database.hasActiveOrderForAppointment(storeId, explicitAppointmentId)) {
+      throw new Error("该预约已生成收银单，请勿重复开单");
+    }
+    return;
+  }
+
+  if (!customerId) return;
+  const requestedServiceIds = optionalStringArray(body, "serviceIds");
+  const serviceIds = Array.from(new Set(
+    requestedServiceIds?.length
+      ? requestedServiceIds
+      : [optionalString(body, "serviceId")].filter((id): id is string => Boolean(id)),
+  ));
+  if (serviceIds.length === 0) return;
+
+  const checkoutTime = +new Date(checkoutAt);
+  const checkedOutAppointments = await database.readCheckedOutAppointmentsForCustomerStaff(storeId, customerId, staffId);
+  const hasImplicitConflict = checkedOutAppointments.some((appointment) => {
+    if (businessDateOf(appointment.startAt) !== businessDateOf(checkoutAt)) return false;
+    const allowedServiceIds = appointmentServiceIds(appointment);
+    if (allowedServiceIds.length > 0 && !serviceIds.every((serviceId) => allowedServiceIds.includes(serviceId))) return false;
+    const appointmentStart = +new Date(appointment.startAt);
+    const appointmentEnd = +appointmentEndAt(appointment, data.services);
+    return Number.isFinite(checkoutTime)
+      && checkoutTime >= appointmentStart - 30 * 60 * 1000
+      && checkoutTime <= appointmentEnd + 4 * 60 * 60 * 1000;
+  });
+  if (hasImplicitConflict) {
+    throw new Error("匹配到的预约已生成收银单，请勿重复开单");
+  }
+}
+
+function isActiveAppointmentUniqueError(caught: unknown) {
+  const message = caught instanceof Error ? caught.message : String(caught);
+  return message.includes("idx_orders_unique_active_appointment")
+    || message.includes("UNIQUE constraint failed: orders.storeId, orders.appointmentId")
+    || message.includes("UNIQUE constraint failed: index 'idx_orders_unique_active_appointment'");
 }
 
 function sessionStoreId(data: AppData, session: UserSession) {
@@ -5511,10 +5627,12 @@ function readNestedString(payload: Record<string, unknown>, paths: string[][]) {
   return undefined;
 }
 
-async function readJson(request: Request): Promise<JsonBody> {
-  const text = await request.text();
-  if (!text) return {};
-  return JSON.parse(text) as JsonBody;
+function readJson(request: Request): Promise<JsonBody> {
+  const cached = requestJsonCache.get(request);
+  if (cached) return cached;
+  const pending = request.text().then((text) => text ? JSON.parse(text) as JsonBody : {});
+  requestJsonCache.set(request, pending);
+  return pending;
 }
 
 function sendJson(statusCode: number, payload: unknown) {
@@ -5845,6 +5963,22 @@ function optionalStringArray(body: JsonBody, key: string) {
   const value = body[key];
   if (!Array.isArray(value)) return undefined;
   return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function optionalServiceCardSelections(body: JsonBody): ServiceCardSelection[] | undefined {
+  const value = body.serviceCardSelections;
+  if (!Array.isArray(value)) return undefined;
+  const selections = new Map<string, string>();
+  value.forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const serviceId = (item as { serviceId?: unknown }).serviceId;
+    const cardId = (item as { cardId?: unknown }).cardId;
+    if (typeof serviceId === "string" && serviceId.trim() && typeof cardId === "string" && cardId.trim()) {
+      selections.set(serviceId.trim(), cardId.trim());
+    }
+  });
+  const normalized = Array.from(selections, ([serviceId, cardId]) => ({ serviceId, cardId }));
+  return normalized.length ? normalized : undefined;
 }
 
 function optionalMemberCardServiceEntitlements(body: JsonBody): MemberCard["serviceEntitlements"] {

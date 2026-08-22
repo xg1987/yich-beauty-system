@@ -1,5 +1,5 @@
 import type { UserSession } from "../domain/auth";
-import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiCost, MarketingAiCostBreakdown, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AppData, Appointment, CashPayMethod, CustomerSignature, DataCleanupReport, InventoryLog, MarketingAiCost, MarketingAiCostBreakdown, MarketingAiRecord, OnlineStorefront, Order, R2UsageSnapshot, Service, ServiceCardSelection, ServiceConsumable, StoreAiUsagePermissions, StoreOperationalPermissions, StoreProfile, SystemConfigKey, TagDefinition, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { POS_REMOTE_PAGING_CAPABILITY, type AppDataSlice, type AppDataUpdate } from "../domain/dataSlices";
 import type { CashierFlowDetailResult, CashierFlowPageResult, PosContextResult } from "../domain/cashierFlow";
 import { recoverFromStaleAssets } from "../appRecovery";
@@ -349,6 +349,7 @@ export function createApiClient(getToken: () => string | undefined) {
       collaboratorStaffIds?: string[];
       serviceId?: string;
       serviceIds?: string[];
+      serviceCardSelections?: ServiceCardSelection[];
       productId?: string;
       giftProductId?: string;
       productItems?: { productId: string; quantity: number }[];

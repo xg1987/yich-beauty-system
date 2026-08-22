@@ -41,6 +41,7 @@ import type {
   ReferralRelation,
   Refund,
   Service,
+  ServiceCardSelection,
   ServiceConsumable,
   Staff,
   StaffInvite,
@@ -736,6 +737,25 @@ export class BeautyDatabase {
     }
     orders = orders.slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
     const orderIds = uniqueStrings(orders.map((order) => order.id));
+    const refunds = orderIds.length
+      ? this.all(
+          `SELECT * FROM refunds
+           WHERE orderId IN (${sqlPlaceholders(orderIds.length)})
+             AND (storeId = ? OR COALESCE(TRIM(storeId), '') = '')
+           ORDER BY rowid DESC`,
+          mapRefund,
+          [...orderIds, storeId],
+        )
+      : [];
+    const approvalRequests = orderIds.length
+      ? this.db.prepare(
+          `SELECT payload_json FROM approvalRequests
+           WHERE json_extract(payload_json, '$.storeId') = ?
+             AND json_extract(payload_json, '$.type') = '订单退款'
+             AND json_extract(payload_json, '$.targetId') IN (${sqlPlaceholders(orderIds.length)})
+           ORDER BY rowid DESC LIMIT 50`,
+        ).all(storeId, ...orderIds).map(mapJsonPayload<ApprovalRequest>)
+      : [];
     if (orderIds.length) {
       serviceRecords = dedupeById([
         ...serviceRecords,
@@ -851,10 +871,12 @@ export class BeautyDatabase {
 
     return {
       orders,
+      refunds,
       memberCardTransactions: transactions,
       customers,
       memberCards,
       appointments,
+      approvalRequests,
       customerSignatures: signatures.map(withoutSignatureText),
       customerServiceRecords: serviceRecords,
     };
@@ -1263,7 +1285,7 @@ export class BeautyDatabase {
     for (const order of data.orders) {
       this.db
         .prepare(
-          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceIds_json, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceIds_json, serviceName, servicePrice, serviceConsumables_json, serviceCardSelections_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .run(
           order.id,
@@ -1278,6 +1300,7 @@ export class BeautyDatabase {
           order.serviceName ?? null,
           order.servicePrice ?? null,
           order.serviceConsumables !== undefined ? JSON.stringify(order.serviceConsumables) : null,
+          order.serviceCardSelections?.length ? JSON.stringify(order.serviceCardSelections) : null,
           order.productId ?? null,
           order.giftProductId ?? null,
           order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -1990,6 +2013,7 @@ export class BeautyDatabase {
         serviceName TEXT,
         servicePrice REAL,
         serviceConsumables_json TEXT,
+        serviceCardSelections_json TEXT,
         productId TEXT,
         giftProductId TEXT,
         productItems_json TEXT,
@@ -2201,6 +2225,7 @@ export class BeautyDatabase {
     this.addColumnIfMissing("orders", "serviceName", "TEXT");
     this.addColumnIfMissing("orders", "servicePrice", "REAL");
     this.addColumnIfMissing("orders", "serviceConsumables_json", "TEXT");
+    this.addColumnIfMissing("orders", "serviceCardSelections_json", "TEXT");
     this.addColumnIfMissing("products", "category", "TEXT");
     this.addColumnIfMissing("products", "subcategory", "TEXT");
     this.addColumnIfMissing("products", "shelfLifeMonths", "REAL");
@@ -2257,7 +2282,9 @@ export class BeautyDatabase {
     this.addColumnIfMissing("operationLogs", "storeId", "TEXT");
     this.addColumnIfMissing("dailyCloses", "storeId", "TEXT");
     this.ensureDailyClosesStoreDateUnique();
+    this.ensureAppointmentCheckoutIntegrity();
     this.createIndexes();
+    this.ensureLegacySettledCommissionRefundAdjustments();
   }
 
   private ensureAiGenerationLocks() {
@@ -2325,6 +2352,300 @@ export class BeautyDatabase {
     `);
   }
 
+  private ensureAppointmentCheckoutIntegrity() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS orderAppointmentConflictAudit (
+        detachedOrderId TEXT PRIMARY KEY,
+        storeId TEXT,
+        appointmentId TEXT NOT NULL,
+        retainedOrderId TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        detectedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      WITH ranked_active_orders AS (
+        SELECT
+          id,
+          storeId,
+          appointmentId,
+          FIRST_VALUE(id) OVER (
+            PARTITION BY COALESCE(NULLIF(TRIM(storeId), ''), ''), appointmentId
+            ORDER BY createdAt ASC, rowid ASC, id ASC
+          ) AS retainedOrderId,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(NULLIF(TRIM(storeId), ''), ''), appointmentId
+            ORDER BY createdAt ASC, rowid ASC, id ASC
+          ) AS appointmentOrderRank
+        FROM orders
+        WHERE appointmentId IS NOT NULL
+          AND TRIM(appointmentId) <> ''
+          AND status <> '已退款'
+      )
+      INSERT OR IGNORE INTO orderAppointmentConflictAudit (
+        detachedOrderId, storeId, appointmentId, retainedOrderId, reason
+      )
+      SELECT
+        id, storeId, appointmentId, retainedOrderId, 'server-active-appointment-duplicate'
+      FROM ranked_active_orders
+      WHERE appointmentOrderRank > 1;
+
+      WITH ranked_active_orders AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(NULLIF(TRIM(storeId), ''), ''), appointmentId
+            ORDER BY createdAt ASC, rowid ASC, id ASC
+          ) AS appointmentOrderRank
+        FROM orders
+        WHERE appointmentId IS NOT NULL
+          AND TRIM(appointmentId) <> ''
+          AND status <> '已退款'
+      )
+      UPDATE orders
+      SET appointmentId = NULL
+      WHERE id IN (
+        SELECT id FROM ranked_active_orders WHERE appointmentOrderRank > 1
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unique_active_appointment
+        ON orders(COALESCE(NULLIF(TRIM(storeId), ''), ''), appointmentId)
+        WHERE appointmentId IS NOT NULL
+          AND TRIM(appointmentId) <> ''
+          AND status <> '已退款';
+
+      DROP TABLE IF EXISTS migration0051SignedOrderTimes;
+      DROP TABLE IF EXISTS migration0051ActiveOrderLinks;
+      DROP TABLE IF EXISTS migration0051AppointmentCompletion;
+
+      CREATE TABLE migration0051SignedOrderTimes (
+        orderId TEXT PRIMARY KEY,
+        signedAt TEXT NOT NULL
+      );
+
+      INSERT INTO migration0051SignedOrderTimes (orderId, signedAt)
+      WITH extractedSignatures AS (
+        SELECT
+          CASE
+            WHEN json_valid(signature.payload_json)
+            THEN json_extract(signature.payload_json, '$.orderId')
+          END AS orderId,
+          CASE
+            WHEN json_valid(signature.payload_json) THEN
+              CASE
+                WHEN json_extract(signature.payload_json, '$.title') = '服务完成确认签名'
+                  AND json_extract(signature.payload_json, '$.status') = '已签名'
+                THEN NULLIF(json_extract(signature.payload_json, '$.signedAt'), '')
+              END
+          END AS signedAt
+        FROM customerSignatures AS signature
+      )
+      SELECT
+        orderId,
+        MIN(signedAt) AS signedAt
+      FROM extractedSignatures
+      WHERE NULLIF(TRIM(COALESCE(orderId, '')), '') IS NOT NULL
+        AND NULLIF(TRIM(COALESCE(signedAt, '')), '') IS NOT NULL
+      GROUP BY orderId;
+
+      CREATE TABLE migration0051ActiveOrderLinks (
+        orderId TEXT PRIMARY KEY,
+        appointmentId TEXT NOT NULL,
+        orderCreatedAt TEXT NOT NULL
+      );
+
+      INSERT INTO migration0051ActiveOrderLinks (orderId, appointmentId, orderCreatedAt)
+      SELECT
+        linkedOrder.id,
+        appointment.id,
+        linkedOrder.createdAt
+      FROM orders AS linkedOrder
+      JOIN appointments AS appointment
+        ON appointment.id = linkedOrder.appointmentId
+      WHERE linkedOrder.appointmentId IS NOT NULL
+        AND TRIM(linkedOrder.appointmentId) <> ''
+        AND linkedOrder.status <> '已退款'
+        AND (
+          linkedOrder.storeId = appointment.storeId
+          OR COALESCE(TRIM(linkedOrder.storeId), '') = ''
+          OR COALESCE(TRIM(appointment.storeId), '') = ''
+        );
+
+      CREATE INDEX migration0051ActiveOrderLinksAppointment
+        ON migration0051ActiveOrderLinks(appointmentId);
+
+      CREATE TABLE migration0051AppointmentCompletion (
+        appointmentId TEXT PRIMARY KEY,
+        signedAt TEXT,
+        orderCreatedAt TEXT NOT NULL
+      );
+
+      INSERT INTO migration0051AppointmentCompletion (appointmentId, signedAt, orderCreatedAt)
+      SELECT
+        activeLink.appointmentId,
+        MIN(signedOrder.signedAt) AS signedAt,
+        MIN(activeLink.orderCreatedAt) AS orderCreatedAt
+      FROM migration0051ActiveOrderLinks AS activeLink
+      LEFT JOIN migration0051SignedOrderTimes AS signedOrder
+        ON signedOrder.orderId = activeLink.orderId
+      GROUP BY activeLink.appointmentId;
+
+      UPDATE appointments
+      SET
+        status = '已完成',
+        completedAt = COALESCE(
+          (
+            SELECT COALESCE(completion.signedAt, completion.orderCreatedAt)
+            FROM migration0051AppointmentCompletion AS completion
+            WHERE completion.appointmentId = appointments.id
+          ),
+          completedAt,
+          CURRENT_TIMESTAMP
+        ),
+        canceledAt = NULL,
+        cancelReason = NULL,
+        noShowAt = NULL,
+        updatedAt = COALESCE(
+          (
+            SELECT COALESCE(completion.signedAt, completion.orderCreatedAt)
+            FROM migration0051AppointmentCompletion AS completion
+            WHERE completion.appointmentId = appointments.id
+          ),
+          updatedAt,
+          CURRENT_TIMESTAMP
+        )
+      WHERE status <> '已完成'
+        AND id IN (SELECT appointmentId FROM migration0051AppointmentCompletion);
+
+      DROP TABLE migration0051AppointmentCompletion;
+      DROP TABLE migration0051ActiveOrderLinks;
+      DROP TABLE migration0051SignedOrderTimes;
+    `);
+  }
+
+  private ensureLegacySettledCommissionRefundAdjustments() {
+    type CommissionRow = {
+      id: string;
+      storeId: string | null;
+      staffId: string;
+      orderId: string;
+      type: string;
+      baseAmount: number;
+      rate: number;
+      amount: number;
+      status: string;
+      settledAt: string | null;
+      settlementId: string | null;
+    };
+    type RefundRow = { id: string; orderId: string; amount: number; createdAt: string };
+    type SettlementPayload = { type?: unknown; commissionIds?: unknown; createdAt?: unknown };
+
+    const orders = new Map(
+      (this.db.prepare("SELECT id, paidAmount, storeId FROM orders").all() as Array<{ id: string; paidAmount: number; storeId: string | null }>)
+        .map((order) => [order.id, order]),
+    );
+    const staffStores = new Map(
+      (this.db.prepare("SELECT id, storeId FROM staff").all() as Array<{ id: string; storeId: string | null }>)
+        .map((staff) => [staff.id, staff.storeId]),
+    );
+    const refundsByOrder = new Map<string, RefundRow[]>();
+    (this.db.prepare("SELECT id, orderId, amount, createdAt FROM refunds").all() as RefundRow[])
+      .forEach((refund) => {
+        const refunds = refundsByOrder.get(refund.orderId) ?? [];
+        refunds.push(refund);
+        refundsByOrder.set(refund.orderId, refunds);
+      });
+    const commissions = this.db.prepare(`
+      SELECT id, storeId, staffId, orderId, type, baseAmount, rate, amount, status, settledAt, settlementId
+      FROM commissions
+    `).all() as CommissionRow[];
+    const adjustmentsByOrder = new Map<string, CommissionRow[]>();
+    commissions.forEach((commission) => {
+      if (commission.amount >= 0 || !commission.id.startsWith("cmr_")) return;
+      const adjustments = adjustmentsByOrder.get(commission.orderId) ?? [];
+      adjustments.push(commission);
+      adjustmentsByOrder.set(commission.orderId, adjustments);
+    });
+    const settlements = new Map<string, { type?: string; commissionIds: Set<string>; createdAt?: string }>();
+    (this.db.prepare("SELECT id, payload_json FROM commissionSettlements").all() as Array<{ id: string; payload_json: string }>)
+      .forEach((row) => {
+        try {
+          const payload = JSON.parse(row.payload_json) as SettlementPayload;
+          const commissionIds = Array.isArray(payload.commissionIds)
+            ? payload.commissionIds.filter((id): id is string => typeof id === "string")
+            : [];
+          settlements.set(row.id, {
+            type: typeof payload.type === "string" ? payload.type : undefined,
+            commissionIds: new Set(commissionIds),
+            createdAt: typeof payload.createdAt === "string" ? payload.createdAt : undefined,
+          });
+        } catch {
+          // Malformed legacy settlement payloads are not safe to auto-reconcile.
+        }
+      });
+
+    const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+    const createdAt = new Date().toISOString();
+    const insert = this.db.prepare(`
+      INSERT INTO commissions (
+        id, storeId, staffId, orderId, type, baseAmount, rate, amount,
+        status, createdAt, settledAt, settlementId
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '待结算', ?, NULL, NULL)
+    `);
+
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      commissions.forEach((commission) => {
+        if (commission.id.startsWith("cmr_") || commission.amount < 0 || commission.baseAmount <= 0 || commission.rate <= 0) return;
+        if (commission.status !== "已结算" && commission.status !== "已冲销") return;
+        if (!commission.settlementId) return;
+        const settlement = settlements.get(commission.settlementId);
+        if (settlement?.type !== "员工提成" || !settlement.commissionIds.has(commission.id)) return;
+        const settledAt = commission.settledAt ?? settlement.createdAt;
+        const settledTime = settledAt ? Date.parse(settledAt) : Number.NaN;
+        if (!Number.isFinite(settledTime)) return;
+        const refunds = refundsByOrder.get(commission.orderId) ?? [];
+        if (!refunds.length || refunds.some((refund) => {
+          const refundTime = Date.parse(refund.createdAt);
+          return refund.amount <= 0 || !Number.isFinite(refundTime) || refundTime <= settledTime;
+        })) return;
+        const order = orders.get(commission.orderId);
+        if (!order || order.paidAmount < 0) return;
+        const totalRefund = roundMoney(refunds.reduce((sum, refund) => sum + Math.max(0, refund.amount), 0));
+        const originalPaidAmount = roundMoney(Math.max(0, order.paidAmount) + totalRefund);
+        if (originalPaidAmount <= 0) return;
+        const cumulativeRefund = Math.min(originalPaidAmount, totalRefund);
+        const remainingRatio = Math.max(0, originalPaidAmount - cumulativeRefund) / originalPaidAmount;
+        const originalAmount = Math.round(commission.baseAmount * commission.rate);
+        const targetReversedAmount = Math.max(0, originalAmount - Math.round(originalAmount * remainingRatio));
+        const targetReversedBaseAmount = roundMoney(Math.max(0, commission.baseAmount - roundMoney(commission.baseAmount * remainingRatio)));
+        const existingAdjustments = (adjustmentsByOrder.get(commission.orderId) ?? []).filter((adjustment) =>
+          adjustment.id.endsWith(`_${commission.id}`));
+        const existingReversedAmount = existingAdjustments.reduce((sum, adjustment) => sum + Math.max(0, -adjustment.amount), 0);
+        const existingReversedBaseAmount = roundMoney(
+          existingAdjustments.reduce((sum, adjustment) => sum + Math.max(0, -adjustment.baseAmount), 0),
+        );
+        const missingAmount = Math.max(0, targetReversedAmount - existingReversedAmount);
+        if (missingAmount <= 0) return;
+        const missingBaseAmount = roundMoney(Math.max(0, targetReversedBaseAmount - existingReversedBaseAmount));
+        insert.run(
+          `cmr_m0052_${commission.id}`,
+          commission.storeId?.trim() || order.storeId?.trim() || staffStores.get(commission.staffId)?.trim() || commission.storeId,
+          commission.staffId,
+          commission.orderId,
+          commission.type,
+          -missingBaseAmount,
+          commission.rate,
+          -missingAmount,
+          createdAt,
+        );
+      });
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   private createIndexes() {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_staff_store ON staff(storeId);
@@ -2342,6 +2663,8 @@ export class BeautyDatabase {
       CREATE INDEX IF NOT EXISTS idx_orders_store_customer_created ON orders(storeId, customerId, createdAt);
       CREATE INDEX IF NOT EXISTS idx_orders_store_staff_created ON orders(storeId, staffId, createdAt);
       CREATE INDEX IF NOT EXISTS idx_refunds_store_created ON refunds(storeId, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_refunds_order_id ON refunds(orderId);
+      CREATE INDEX IF NOT EXISTS idx_commissions_order_id ON commissions(orderId);
       CREATE INDEX IF NOT EXISTS idx_inventory_logs_store_created ON inventoryLogs(storeId, createdAt);
       CREATE INDEX IF NOT EXISTS idx_inventory_logs_store_product_created ON inventoryLogs(storeId, productId, createdAt);
       CREATE INDEX IF NOT EXISTS idx_member_card_transactions_store_created ON memberCardTransactions(storeId, createdAt);
@@ -2654,7 +2977,7 @@ function mapMemberCard(row: unknown): MemberCard {
 }
 
 function mapOrder(row: unknown): Order {
-  const value = row as Order & { serviceIds_json?: string | null; serviceConsumables_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
+  const value = row as Order & { serviceIds_json?: string | null; serviceConsumables_json?: string | null; serviceCardSelections_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
@@ -2664,6 +2987,7 @@ function mapOrder(row: unknown): Order {
     serviceName: value.serviceName ?? undefined,
     servicePrice: value.servicePrice ?? undefined,
     serviceConsumables: parseJsonArray<ServiceConsumable>(value.serviceConsumables_json) ?? value.serviceConsumables,
+    serviceCardSelections: parseJsonArray<ServiceCardSelection>(value.serviceCardSelections_json) ?? value.serviceCardSelections,
     productId: value.productId ?? undefined,
     giftProductId: value.giftProductId ?? undefined,
     productItems: parseJsonArray<OrderProductItem>(value.productItems_json) ?? value.productItems,

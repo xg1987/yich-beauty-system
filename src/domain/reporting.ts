@@ -1,5 +1,219 @@
 import type { AppData, Order, Product, ServiceConsumable } from "./types";
+import { commissionAccrualByStaff, memberCardCashIn, memberCardCashRefund, orderRefundAmounts } from "./business";
 import { legacyProductServiceStockDeductible, legacyServiceStockQuantityForProduct, productServiceStockDeductible, productServiceStockReviewStatus, roundStockQuantity } from "./products";
+
+export type PeriodStaffPerformance = {
+  id: string;
+  name: string;
+  orderCount: number;
+  customerCount: number;
+  revenue: number;
+  refundAmount: number;
+  netAmount: number;
+  commission: number;
+};
+
+export type PeriodServicePerformance = {
+  id: string;
+  name: string;
+  count: number;
+  customerCount: number;
+  revenue: number;
+};
+
+function refundedOrderIds(data: Pick<AppData, "refunds">) {
+  return new Set(data.refunds.map((refund) => refund.orderId));
+}
+
+export function isLegacyRefundedOrderWithoutEvent(
+  data: Pick<AppData, "refunds">,
+  order: Pick<Order, "id" | "status">,
+) {
+  return order.status === "已退款" && !data.refunds.some((refund) => refund.orderId === order.id);
+}
+
+export function reportableOrderOriginalPaidAmount(allData: AppData, order: Order) {
+  if (isLegacyRefundedOrderWithoutEvent(allData, order)) return 0;
+  return orderRefundAmounts(allData, order).originalPaidAmount;
+}
+
+export function reportOrderAuditAmounts(allData: AppData, order: Order) {
+  const paidAmount = orderRefundAmounts(allData, order).originalPaidAmount;
+  const legacyRefundAmount = isLegacyRefundedOrderWithoutEvent(allData, order) ? paidAmount : 0;
+  return {
+    paidAmount,
+    refundAmount: legacyRefundAmount,
+    netAmount: paidAmount - legacyRefundAmount,
+  };
+}
+
+export function reportablePeriodData(allData: AppData, periodData: AppData): AppData {
+  const recordedRefundOrderIds = refundedOrderIds(allData);
+  const reportableOrderIds = new Set(allData.orders
+    .filter((order) => order.status !== "已退款" || recordedRefundOrderIds.has(order.id))
+    .map((order) => order.id));
+  return {
+    ...periodData,
+    orders: periodData.orders.filter((order) => reportableOrderIds.has(order.id)),
+    commissions: periodData.commissions.filter((commission) => reportableOrderIds.has(commission.orderId)),
+  };
+}
+
+export function periodStaffPerformance(allData: AppData, periodData: AppData): PeriodStaffPerformance[] {
+  const reportableData = reportablePeriodData(allData, periodData);
+  const orderById = new Map(allData.orders.map((order) => [order.id, order]));
+  const staffNames = new Map(allData.staff.map((staff) => [staff.id, staff.name]));
+  const cardById = new Map(allData.memberCards.map((card) => [card.id, card]));
+  const performance = new Map<string, {
+    id: string;
+    name: string;
+    orderCount: number;
+    customerIds: Set<string>;
+    revenue: number;
+    refundAmount: number;
+    commission: number;
+  }>();
+  const row = (staffId: string) => {
+    const current = performance.get(staffId) ?? {
+      id: staffId,
+      name: staffNames.get(staffId) ?? "未找到员工",
+      orderCount: 0,
+      customerIds: new Set<string>(),
+      revenue: 0,
+      refundAmount: 0,
+      commission: 0,
+    };
+    performance.set(staffId, current);
+    return current;
+  };
+
+  reportableData.orders.forEach((order) => {
+    const current = row(order.staffId);
+    current.orderCount += 1;
+    if (order.customerId) current.customerIds.add(order.customerId);
+    current.revenue += reportableOrderOriginalPaidAmount(allData, order);
+  });
+  periodData.refunds.forEach((refund) => {
+    const order = orderById.get(refund.orderId);
+    if (!order) return;
+    row(order.staffId).refundAmount += refund.amount;
+  });
+  periodData.memberCardTransactions.forEach((transaction) => {
+    if (!transaction.staffId) return;
+    const cashIn = memberCardCashIn(transaction);
+    const cashRefund = memberCardCashRefund(transaction);
+    if (cashIn <= 0 && cashRefund <= 0) return;
+    const current = row(transaction.staffId);
+    if (cashIn > 0) current.orderCount += 1;
+    const customerId = cardById.get(transaction.memberCardId)?.customerId;
+    if (customerId) current.customerIds.add(customerId);
+    current.revenue += cashIn;
+    current.refundAmount += cashRefund;
+  });
+  commissionAccrualByStaff(reportableData, allData).forEach((amount, staffId) => {
+    row(staffId).commission += amount;
+  });
+
+  return Array.from(performance.values())
+    .map((item) => ({
+      ...item,
+      customerCount: item.customerIds.size,
+      netAmount: item.revenue - item.refundAmount,
+    }))
+    .sort((left, right) => right.netAmount - left.netAmount);
+}
+
+function orderServiceGross(allData: AppData, order: Order, servicePrices: Map<string, number>) {
+  const serviceIds = orderServiceIds(order);
+  if (!serviceIds.length) return 0;
+  const serviceSubtotal = Math.max(0, order.servicePrice
+    ?? serviceIds.reduce((sum, serviceId) => sum + (servicePrices.get(serviceId) ?? 0), 0));
+  const originalPaidAmount = reportableOrderOriginalPaidAmount(allData, order);
+  const ratio = order.totalAmount > 0
+    ? Math.max(0, Math.min(1, serviceSubtotal / order.totalAmount))
+    : 1;
+  return originalPaidAmount * ratio;
+}
+
+function orderServiceRevenueLines(allData: AppData, order: Order, servicePrices: Map<string, number>) {
+  const serviceIds = orderServiceIds(order);
+  if (!serviceIds.length) return [];
+  const serviceGross = orderServiceGross(allData, order, servicePrices);
+  const catalogWeights = serviceIds.map((serviceId) => Math.max(0, servicePrices.get(serviceId) ?? 0));
+  const catalogWeightTotal = catalogWeights.reduce((sum, weight) => sum + weight, 0);
+  return serviceIds.map((serviceId, index) => ({
+    serviceId,
+    revenue: serviceGross * (catalogWeightTotal > 0 ? catalogWeights[index] / catalogWeightTotal : 1 / serviceIds.length),
+  }));
+}
+
+export function periodServicePerformance(allData: AppData, periodData: AppData): PeriodServicePerformance[] {
+  const reportableData = reportablePeriodData(allData, periodData);
+  const serviceNames = new Map(allData.services.map((service) => [service.id, service.name]));
+  const servicePrices = new Map(allData.services.map((service) => [service.id, service.price]));
+  const orderById = new Map(allData.orders.map((order) => [order.id, order]));
+  const performance = new Map<string, {
+    id: string;
+    name: string;
+    count: number;
+    customerIds: Set<string>;
+    revenue: number;
+  }>();
+  const row = (serviceId: string) => {
+    const current = performance.get(serviceId) ?? {
+      id: serviceId,
+      name: serviceNames.get(serviceId) ?? "未找到项目",
+      count: 0,
+      customerIds: new Set<string>(),
+      revenue: 0,
+    };
+    performance.set(serviceId, current);
+    return current;
+  };
+
+  reportableData.orders.forEach((order) => {
+    orderServiceRevenueLines(allData, order, servicePrices).forEach((line) => {
+      const current = row(line.serviceId);
+      current.count += 1;
+      if (order.customerId) current.customerIds.add(order.customerId);
+      current.revenue += line.revenue;
+    });
+  });
+  periodData.refunds.forEach((refund) => {
+    const order = orderById.get(refund.orderId);
+    if (!order) return;
+    const originalPaidAmount = reportableOrderOriginalPaidAmount(allData, order);
+    const refundRatio = originalPaidAmount > 0 ? refund.amount / originalPaidAmount : 0;
+    orderServiceRevenueLines(allData, order, servicePrices).forEach((line) => {
+      row(line.serviceId).revenue -= line.revenue * refundRatio;
+    });
+  });
+
+  return Array.from(performance.values())
+    .map((item) => ({ ...item, customerCount: item.customerIds.size }))
+    .sort((left, right) => right.revenue - left.revenue);
+}
+
+export function periodPaymentAmounts(allData: AppData, periodData: AppData) {
+  const reportableData = reportablePeriodData(allData, periodData);
+  const orderById = new Map(allData.orders.map((order) => [order.id, order]));
+  const amounts = new Map<string, number>();
+  reportableData.orders.forEach((order) => {
+    amounts.set(order.payMethod, (amounts.get(order.payMethod) ?? 0) + reportableOrderOriginalPaidAmount(allData, order));
+  });
+  periodData.refunds.forEach((refund) => {
+    const order = orderById.get(refund.orderId);
+    if (!order) return;
+    amounts.set(order.payMethod, (amounts.get(order.payMethod) ?? 0) - refund.amount);
+  });
+  periodData.memberCardTransactions.forEach((transaction) => {
+    const amount = memberCardCashIn(transaction) - memberCardCashRefund(transaction);
+    if (!amount) return;
+    const method = transaction.payMethod ?? "其他";
+    amounts.set(method, (amounts.get(method) ?? 0) + amount);
+  });
+  return amounts;
+}
 
 export type CustomerPeriodDetail = {
   customerId: string;
@@ -115,8 +329,19 @@ function isWithin(value: string | undefined, start: Date, end: Date) {
   return time !== undefined && time >= +start && time < +end;
 }
 
-function effectiveOrders(data: AppData) {
-  return data.orders.filter((order) => order.status !== "已退款" && validTime(order.createdAt) !== undefined);
+function orderPaidAmountAt(data: AppData, order: Order, cutoff = Number.POSITIVE_INFINITY) {
+  const refunds = data.refunds.filter((refund) => refund.orderId === order.id);
+  if (order.status === "已退款" && refunds.length === 0) return 0;
+  const originalPaidAmount = order.paidAmount + refunds.reduce((sum, refund) => sum + Math.max(0, refund.amount), 0);
+  const refundedByCutoff = refunds.reduce((sum, refund) => {
+    const refundTime = validTime(refund.createdAt);
+    return refundTime !== undefined && refundTime < cutoff ? sum + Math.max(0, refund.amount) : sum;
+  }, 0);
+  return Math.max(0, originalPaidAmount - refundedByCutoff);
+}
+
+function effectiveOrders(data: AppData, cutoff = Number.POSITIVE_INFINITY) {
+  return data.orders.filter((order) => validTime(order.createdAt) !== undefined && orderPaidAmountAt(data, order, cutoff) > 0);
 }
 
 function customerFirstPurchaseTimes(orders: Order[]) {
@@ -131,7 +356,7 @@ function customerFirstPurchaseTimes(orders: Order[]) {
 }
 
 export function customerPeriodReport(data: AppData, start: Date, end: Date): CustomerPeriodReport {
-  const orders = effectiveOrders(data);
+  const orders = effectiveOrders(data, +end).filter((order) => (validTime(order.createdAt) ?? Number.POSITIVE_INFINITY) < +end);
   const firstTimes = customerFirstPurchaseTimes(orders);
   const periodOrders = orders.filter((order) => isWithin(order.createdAt, start, end));
   const customerMap = new Map(data.customers.map((customer) => [customer.id, customer]));
@@ -157,7 +382,7 @@ export function customerPeriodReport(data: AppData, start: Date, end: Date): Cus
       firstPurchaseAt: new Date(firstTime).toISOString(),
       lastPurchaseAt: sortedOrders.at(-1)?.createdAt ?? new Date(firstTime).toISOString(),
       visitCount: customerOrders.length,
-      paidAmount: customerOrders.reduce((sum, order) => sum + order.paidAmount, 0),
+      paidAmount: customerOrders.reduce((sum, order) => sum + orderPaidAmountAt(data, order, +end), 0),
     };
   }).sort((left, right) => right.paidAmount - left.paidAmount);
 
@@ -188,12 +413,12 @@ function addMonths(value: Date, delta: number) {
 }
 
 export function customerMonthlyTrend(data: AppData, referenceDate: Date, months = 12): CustomerMonthlyTrendPoint[] {
-  const orders = effectiveOrders(data);
-  const firstTimes = customerFirstPurchaseTimes(orders);
   const lastMonthStart = startOfMonth(referenceDate);
   return Array.from({ length: months }, (_, index) => {
     const start = addMonths(lastMonthStart, index - months + 1);
     const end = addMonths(start, 1);
+    const orders = effectiveOrders(data, +end).filter((order) => (validTime(order.createdAt) ?? Number.POSITIVE_INFINITY) < +end);
+    const firstTimes = customerFirstPurchaseTimes(orders);
     const periodOrders = orders.filter((order) => isWithin(order.createdAt, start, end));
     const activeIds = new Set(periodOrders.map((order) => order.customerId).filter(Boolean));
     const newIds = new Set(Array.from(activeIds).filter((customerId) => {
@@ -212,7 +437,7 @@ export function customerMonthlyTrend(data: AppData, referenceDate: Date, months 
       returningCustomerCount: returningIds.size,
       activeCustomerCount: activeIds.size,
       cumulativePayingCustomerCount: Array.from(firstTimes.values()).filter((time) => time < +end).length,
-      revenue: periodOrders.reduce((sum, order) => sum + order.paidAmount, 0),
+      revenue: periodOrders.reduce((sum, order) => sum + orderPaidAmountAt(data, order, +end), 0),
     };
   });
 }

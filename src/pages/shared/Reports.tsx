@@ -6,9 +6,10 @@ import { PanelTitle } from "../../components/layout/PanelTitle";
 import { Badge } from "../../components/ui/Badge";
 import { DataTable } from "../../components/ui/DataTable";
 import { Modal } from "../../components/ui/Modal";
-import { memberCardCashIn, reportSummary } from "../../domain/business";
+import { cashFlowSummary, reportSummary } from "../../domain/business";
 import { addReportPeriod, reportPeriodData, type ReportPeriodMode } from "../../domain/reportPeriods";
-import type { AppData, CashPayMethod, Staff } from "../../domain/types";
+import { periodPaymentAmounts, periodServicePerformance, periodStaffPerformance, reportablePeriodData } from "../../domain/reporting";
+import type { AppData, CashPayMethod } from "../../domain/types";
 import { addBusinessDays, businessDateOf, businessDateToday, money, shortDate } from "../../domain/utils";
 import type { ApiActions } from "../../hooks/useApiData";
 
@@ -24,14 +25,6 @@ type ReportsProps = {
   fromManagement?: boolean;
   onReturnManagement?: () => void;
 };
-
-function isBusinessStaff(staff: Staff) {
-  return staff.role !== "老板";
-}
-
-function businessStaffOf(data: AppData) {
-  return data.staff.filter(isBusinessStaff);
-}
 
 function displayStaffRole(role: string) {
   return role === "老板" || role === "主管" ? "店长" : role;
@@ -101,64 +94,65 @@ export default function Reports({
     () => reportPeriodData(data, reportPeriodMode, reportPeriodDate),
     [data, reportPeriodDate, reportPeriodMode],
   );
-  const summary = useMemo(() => reportSummary(periodData), [periodData]);
+  const summary = useMemo(() => reportSummary(reportablePeriodData(data, periodData), data), [periodData, data]);
   const percentText = (value: number) => `${(value * 100).toFixed(1)}%`;
   const exportCsv = (filename: string, columns: string[], rows: Array<Array<string | number>>) => {
     downloadCsvFile(filename, columns, rows);
   };
-  const payMethods = [
-    ...(["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((method) => ({
-      method,
-      amount: data.orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + order.paidAmount, 0)
-        + data.memberCardTransactions
-          .filter((transaction) => transaction.payMethod === method)
-          .reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0),
-    })),
-    {
-      method: "会员卡核销",
-      amount: data.orders.filter((order) => order.payMethod === "会员卡").reduce((sum, order) => sum + order.paidAmount, 0),
-    },
-  ];
+  const payMethods = useMemo(() => {
+    const paymentAmounts = periodPaymentAmounts(data, periodData);
+    return [
+      ...(["微信", "支付宝", "现金", "银行卡"] as CashPayMethod[]).map((method) => ({
+        method,
+        amount: paymentAmounts.get(method) ?? 0,
+      })),
+      { method: "会员卡核销", amount: paymentAmounts.get("会员卡") ?? 0 },
+    ];
+  }, [data, periodData]);
+  const positivePayMethodTotal = payMethods.reduce((sum, item) => sum + Math.max(0, item.amount), 0);
 
-  const staffPerformance = businessStaffOf(data)
-    .map((staff) => {
-      const staffOrders = data.orders.filter((order) => order.staffId === staff.id);
-      const revenue = staffOrders.reduce((sum, order) => sum + order.paidAmount, 0);
-      const commissions = data.commissions.filter((commission) => commission.staffId === staff.id).reduce((sum, commission) => sum + (commission.amount || 0), 0);
-      return { staff, revenue, commissions, orderCount: staffOrders.length };
-    })
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 8);
+  const staffPerformance = useMemo(() => {
+    const staffById = new Map(data.staff.map((staff) => [staff.id, staff]));
+    return periodStaffPerformance(data, periodData)
+      .map((item) => ({ ...item, staff: staffById.get(item.id) }))
+      .filter((item) => item.staff && item.staff.role !== "老板")
+      .slice(0, 8);
+  }, [data, periodData]);
 
   const totalCardBalance = data.memberCards.reduce((sum, card) => sum + (card.balance || 0), 0);
   const activeMembers = data.memberCards.filter((card) => card.status === "正常").length;
 
-  const serviceRevenue = data.services.map((service) => {
-    const revenue = data.orders
-      .filter((order) => order.serviceId === service.id)
-      .reduce((sum, order) => sum + order.paidAmount, 0);
-    return { name: service.name, revenue };
-  }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-  const dailyTrend = Array.from({ length: 14 }).map((_, index) => {
+  const serviceRevenue = useMemo(
+    () => periodServicePerformance(data, periodData).slice(0, 5),
+    [data, periodData],
+  );
+  const dailyTrend = useMemo(() => Array.from({ length: 14 }).map((_, index) => {
     const key = addBusinessDays(businessDateToday(), -(13 - index));
-    const dayOrders = data.orders.filter((order) => businessDateOf(order.createdAt) === key && order.status !== "已退款");
-    const dayRefunds = data.refunds.filter((refund) => businessDateOf(refund.createdAt) === key);
+    const dayData: AppData = {
+      ...data,
+      orders: data.orders.filter((order) => businessDateOf(order.createdAt) === key),
+      refunds: data.refunds.filter((refund) => businessDateOf(refund.createdAt) === key),
+      memberCardTransactions: data.memberCardTransactions.filter((transaction) => businessDateOf(transaction.createdAt) === key),
+    };
+    const dayCashFlow = cashFlowSummary(reportablePeriodData(data, dayData), data);
     return {
       date: key,
-      revenue: dayOrders.reduce((sum, order) => sum + order.paidAmount, 0),
-      orders: dayOrders.length,
-      refunds: dayRefunds.reduce((sum, refund) => sum + refund.amount, 0),
+      revenue: dayCashFlow.revenue,
+      netRevenue: dayCashFlow.netRevenue,
+      orders: dayCashFlow.orderCount,
+      refunds: dayCashFlow.refundAmount,
       appointments: data.appointments.filter((appointment) => businessDateOf(appointment.startAt) === key).length,
     };
-  });
+  }), [data]);
   const moveReportPeriod = (delta: number) => {
     setReportPeriodDate((current) => addReportPeriod(current, reportPeriodMode, delta));
   };
-  const exportTrend = () => exportCsv("yich-report-trend.csv", ["日期", "实收", "订单", "退款", "预约"], dailyTrend.map((item) => [
+  const exportTrend = () => exportCsv("yich-report-trend.csv", ["日期", "原始实收", "退款", "净收入", "订单", "预约"], dailyTrend.map((item) => [
     item.date,
     item.revenue,
-    item.orders,
     item.refunds,
+    item.netRevenue,
+    item.orders,
     item.appointments,
   ]));
   type ReportsModuleKey = NonNullable<typeof activeModule>;
@@ -205,12 +199,12 @@ export default function Reports({
         <div className="module-detail-stack reports-modal-detail">
           {activeModule === "payments" && (
             <section className="panel">
-              <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="实收 / 核销" />
+              <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="支付方式分析" action="本期净收 / 核销" />
               <div className="bar-list">
                 {payMethods.map((item) => (
                   <div className="bar-row" key={item.method}>
                     <span>{item.method}</span>
-                    <div><i style={{ width: `${summary.revenue ? Math.max(8, (item.amount / summary.revenue) * 100) : 0}%` }} /></div>
+                    <div><i style={{ width: `${positivePayMethodTotal > 0 && item.amount > 0 ? Math.max(8, (item.amount / positivePayMethodTotal) * 100) : 0}%` }} /></div>
                     <strong>{money(item.amount)}</strong>
                   </div>
                 ))}
@@ -235,12 +229,13 @@ export default function Reports({
             <section className="panel">
               <PanelTitle icon={<ChartNoAxesColumnIncreasing size={18} />} title="经营趋势" action={<button type="button" onClick={exportTrend}>导出 CSV</button>} />
               <DataTable
-                columns={["日期", "实收", "订单", "退款", "预约"]}
+                columns={["日期", "原始实收", "退款", "净收入", "订单", "预约"]}
                 rows={dailyTrend.map((item) => [
                   item.date,
                   money(item.revenue),
-                  `${item.orders} 单`,
                   money(item.refunds),
+                  money(item.netRevenue),
+                  `${item.orders} 单`,
                   `${item.appointments} 单`,
                 ])}
               />
@@ -278,11 +273,11 @@ export default function Reports({
               <DataTable
                 columns={["员工", "角色", "订单数", "实收业绩", "提成合计"]}
                 rows={staffPerformance.map((item) => [
-                  item.staff.name,
-                  displayStaffRole(item.staff.role),
+                  item.staff?.name ?? item.name,
+                  displayStaffRole(item.staff?.role ?? "员工"),
                   item.orderCount,
-                  money(item.revenue),
-                  money(item.commissions),
+                  money(item.netAmount),
+                  money(item.commission),
                 ])}
               />
             </section>

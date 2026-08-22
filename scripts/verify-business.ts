@@ -1530,12 +1530,19 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(refunded.refunds[0].amount, 597, "refund should preserve refund amount");
   assert.equal(productStock(refunded, "p1"), 18, "refund should restore service product stock");
   assert.equal(productStock(refunded, "p4"), 24, "refund should restore retail product stock");
-  assert.equal(refunded.commissions[0].status, "已冲销", "refund should reverse commission");
+  const originalCommissionIds = new Set(checkedOut.commissions.map((commission) => commission.id));
+  const preservedCommissions = refunded.commissions.filter((commission) => originalCommissionIds.has(commission.id));
+  const refundCommissionAdjustments = refunded.commissions.filter((commission) => commission.id.startsWith(`cmr_${refunded.refunds[0].id}_`));
+  assert.deepEqual(preservedCommissions, checkedOut.commissions, "refund should preserve the original commission audit records");
+  assert.equal(refundCommissionAdjustments.length, checkedOut.commissions.length, "refund should create one adjustment per original commission");
+  assert.ok(refundCommissionAdjustments.every((commission) => commission.status === "待结算" && commission.amount < 0), "refund adjustments should be negative and pending");
+  assert.equal(refunded.commissions.reduce((sum, commission) => sum + commission.amount, 0), 0, "full refund adjustments should exactly offset original commissions");
   assert.equal(refunded.operationLogs[0].action, "订单退款", "refund should write operation log");
 
   const summary = reportSummary(refunded);
-  assert.equal(summary.revenue, 0, "refunded order should not count as revenue");
+  assert.equal(summary.revenue, 597, "report gross revenue should reconstruct the original cash order amount");
   assert.equal(summary.refundAmount, 597, "report should include refund amount");
+  assert.equal(summary.netRevenue, 0, "full cash refund should leave zero net revenue without double subtraction");
   assert.equal(summary.commission, 0, "reversed commission should not count in report");
 }
 
@@ -1563,6 +1570,17 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 
   assert.equal(card(refunded, "m1").balance, 2600, "member-card refund should restore balance");
   assert.equal(refunded.memberCardTransactions[0].type, "退款", "member-card refund should write refund transaction");
+  const memberCardRefundSummary = reportSummary(refunded);
+  assert.equal(memberCardRefundSummary.revenue, 0, "member-card service consumption should not be counted as cash revenue");
+  assert.equal(memberCardRefundSummary.refundAmount, 0, "returning stored value to a member card is not a cash refund");
+  const memberCardRefundClose = createDailyClose(
+    refunded,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(memberCardRefundClose.dailyCloses[0].revenue, 0, "daily close should exclude member-card service consumption from cash revenue");
+  assert.equal(memberCardRefundClose.dailyCloses[0].refundAmount, 0, "daily close should exclude member-card service refunds from cash refunds");
+  assert.equal(memberCardRefundClose.dailyCloses[0].memberCardAmount, 398, "daily close should retain the original member-card redemption amount");
 }
 
 {
@@ -1592,7 +1610,543 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(refunded.orders[0].paidAmount, 497, "partial refund should reduce paid amount");
   assert.equal(productStock(refunded, "p1"), 18, "partial refund should keep ignored liquid product stock unchanged");
   assert.equal(productStock(refunded, "p4"), 23, "partial refund should not restore retail stock");
-  assert.ok(refunded.commissions[0].amount < checkedOut.commissions[0].amount, "partial refund should reduce commission");
+  const originalCommissionIds = new Set(checkedOut.commissions.map((commission) => commission.id));
+  assert.deepEqual(
+    refunded.commissions.filter((commission) => originalCommissionIds.has(commission.id)),
+    checkedOut.commissions,
+    "partial refund should not rewrite original commission records",
+  );
+  assert.ok(refunded.commissions.some((commission) => commission.id.startsWith(`cmr_${refunded.refunds[0].id}_`) && commission.amount < 0), "partial refund should create a negative commission adjustment");
+  const partialSummary = reportSummary(refunded);
+  assert.equal(partialSummary.revenue, 597, "partial refund report should reconstruct original cash revenue");
+  assert.equal(partialSummary.refundAmount, 100, "partial refund report should record only the refund event");
+  assert.equal(partialSummary.netRevenue, 497, "partial refund report should not subtract the same 100 twice");
+  const partialClose = createDailyClose(
+    refunded,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(partialClose.dailyCloses[0].revenue, 597, "same-day close should preserve original order cash revenue");
+  assert.equal(partialClose.dailyCloses[0].refundAmount, 100, "same-day close should subtract the cash refund exactly once");
+  assert.equal(partialClose.dailyCloses[0].wechatAmount, 597, "same-day close payment method should preserve the original collection");
+}
+
+{
+  const checkedOut = checkoutOrder(
+    cloneSeed(),
+    { customerId: "c1", staffId: "s2", serviceId: "v1", productId: "p4", payMethod: "微信" },
+    { idFactory: testId, now: () => "2026-05-24T01:00:00.000Z" },
+  );
+  const saleDayClosed = createDailyClose(
+    checkedOut,
+    { businessDate: "2026-05-24", userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-24T14:00:00.000Z" },
+  );
+  const crossDayRefunded = refundOrder(
+    saleDayClosed,
+    { orderId: checkedOut.orders[0].id, reason: "次日撤销误单", userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-25T01:00:00.000Z" },
+  );
+  assert.equal(crossDayRefunded.orders[0].status, "已退款", "a refund on an open later business day should not be blocked by the locked sale day");
+  const saleDayData = {
+    ...crossDayRefunded,
+    commissions: crossDayRefunded.commissions.filter((commission) => commission.createdAt.startsWith("2026-05-24")),
+    refunds: crossDayRefunded.refunds.filter((refund) => refund.createdAt.startsWith("2026-05-24")),
+    memberCardTransactions: crossDayRefunded.memberCardTransactions.filter((transaction) => transaction.createdAt.startsWith("2026-05-24")),
+  };
+  const refundDayData = {
+    ...crossDayRefunded,
+    commissions: crossDayRefunded.commissions.filter((commission) => commission.createdAt.startsWith("2026-05-25")),
+    orders: crossDayRefunded.orders.filter((order) => order.createdAt.startsWith("2026-05-25")),
+    refunds: crossDayRefunded.refunds.filter((refund) => refund.createdAt.startsWith("2026-05-25")),
+    memberCardTransactions: crossDayRefunded.memberCardTransactions.filter((transaction) => transaction.createdAt.startsWith("2026-05-25")),
+  };
+  const saleDaySummary = reportSummary(saleDayData, crossDayRefunded);
+  const refundDaySummary = reportSummary(refundDayData, crossDayRefunded);
+  assert.equal(saleDaySummary.revenue, 597, "later refund must not rewrite the original sale-day gross revenue");
+  assert.equal(saleDaySummary.refundAmount, 0, "later refund must not be backdated to the sale day");
+  assert.equal(saleDaySummary.serviceCount, 1, "later refund must not erase the original sale-day order count");
+  assert.ok(saleDaySummary.commission > 0, "later refund must not rewrite the original sale-day commission accrual");
+  assert.equal(refundDaySummary.revenue, 0, "refund day without new sales should have no gross order revenue");
+  assert.equal(refundDaySummary.refundAmount, 597, "cash refund should appear only on its actual business day");
+  assert.equal(refundDaySummary.netRevenue, -597, "refund day should expose the negative cash movement exactly once");
+  assert.equal(refundDaySummary.commission, -saleDaySummary.commission, "refund-day commission reversal should exactly offset the sale-day accrual");
+  assert.equal(crossDayRefunded.dailyCloses[0].orderCount, 1, "the already locked sale-day close should retain its original order count");
+  const refundDayClosed = createDailyClose(
+    crossDayRefunded,
+    { businessDate: "2026-05-25", userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-25T14:00:00.000Z" },
+  );
+  assert.equal(refundDayClosed.dailyCloses[0].revenue, 0, "cross-day refund close should not invent sale revenue");
+  assert.equal(refundDayClosed.dailyCloses[0].refundAmount, 597, "cross-day refund close should record the cash refund on refund day");
+  assert.equal(refundDayClosed.dailyCloses[0].commissionAmount, -saleDaySummary.commission, "refund-day close should record the negative commission reversal");
+}
+
+{
+  const checkedOut = checkoutOrder(
+    cloneSeed(),
+    { customerId: "c1", staffId: "s2", serviceId: "v1", payMethod: "微信" },
+    { idFactory: testId, now: () => "2026-05-24T01:00:00.000Z" },
+  );
+  const orderId = checkedOut.orders[0].id;
+  const originalCommissions = checkedOut.commissions.filter((commission) => commission.orderId === orderId);
+  const originalCommissionTotal = originalCommissions.reduce((sum, commission) => sum + commission.amount, 0);
+  const settled = settleCommissions(
+    checkedOut,
+    { userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-24T02:00:00.000Z" },
+  );
+  const originalSettlement = structuredClone(settled.commissionSettlements[0]);
+  const settledOriginalCommissions = structuredClone(
+    settled.commissions.filter((commission) => originalCommissions.some((original) => original.id === commission.id)),
+  );
+  const partiallyRefunded = refundOrder(
+    settled,
+    { orderId, reason: "分拆退款", userId: "u_manager", amount: 100 },
+    { idFactory: testId, now: () => "2026-05-25T01:00:00.000Z" },
+  );
+  const fullyRefunded = refundOrder(
+    partiallyRefunded,
+    { orderId, reason: "退剩余金额", userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-26T01:00:00.000Z" },
+  );
+  const preservedOriginalCommissions = fullyRefunded.commissions.filter((commission) =>
+    originalCommissions.some((original) => original.id === commission.id));
+  const negativeAdjustments = fullyRefunded.commissions.filter((commission) =>
+    commission.orderId === orderId && commission.id.startsWith("cmr_"));
+  assert.deepEqual(preservedOriginalCommissions, settledOriginalCommissions, "refund after settlement must preserve original settled commissions");
+  assert.deepEqual(
+    fullyRefunded.commissionSettlements.find((settlement) => settlement.id === originalSettlement.id),
+    originalSettlement,
+    "refund after settlement must preserve the original settlement batch",
+  );
+  assert.equal(negativeAdjustments.reduce((sum, commission) => sum + commission.amount, 0), -originalCommissionTotal, "split refunds must reverse the original commission exactly without rounding residue");
+  assert.equal(new Set(negativeAdjustments.map((commission) => commission.id)).size, negativeAdjustments.length, "refund commission adjustment ids must be unique and retry-safe");
+  assert.ok(negativeAdjustments.every((commission) => commission.status === "待结算"), "refund adjustments should remain pending until the next settlement");
+  assert.throws(
+    () => refundOrder(fullyRefunded, { orderId, reason: "重复退款", userId: "u_manager" }, { idFactory: testId, now: fixedNow }),
+    /订单已退款/,
+    "a third refund must not create duplicate commission adjustments",
+  );
+  const reversalSettled = settleCommissions(
+    fullyRefunded,
+    { userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-27T01:00:00.000Z" },
+  );
+  assert.equal(reversalSettled.commissionSettlements[0].amount, -originalCommissionTotal, "the next settlement should settle the negative refund adjustments");
+  assert.ok(negativeAdjustments.every((commission) => reversalSettled.commissionSettlements[0].commissionIds.includes(commission.id)), "negative adjustments should be auditable in the next settlement batch");
+  assert.deepEqual(
+    reversalSettled.commissionSettlements.find((settlement) => settlement.id === originalSettlement.id),
+    originalSettlement,
+    "settling reversals must not rewrite the original settlement batch",
+  );
+}
+
+{
+  const checkedOut = checkoutOrder(
+    cloneSeed(),
+    { customerId: "c1", staffId: "s2", serviceId: "v1", payMethod: "微信" },
+    { idFactory: testId, now: () => "2026-05-24T01:00:00.000Z" },
+  );
+  const order = checkedOut.orders[0];
+  const originals = checkedOut.commissions.filter((commission) => commission.orderId === order.id);
+  const originalCommissionTotal = originals.reduce(
+    (sum, commission) => sum + Math.round(commission.baseAmount * commission.rate),
+    0,
+  );
+  const settled = settleCommissions(
+    checkedOut,
+    { userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-24T02:00:00.000Z" },
+  );
+  const legacyRefundAmount = 100;
+  const legacyRefundedAfterSettlement: AppData = {
+    ...settled,
+    orders: settled.orders.map((item) => item.id === order.id
+      ? { ...item, paidAmount: item.paidAmount - legacyRefundAmount, status: "部分退款" as const }
+      : item),
+    refunds: [{
+      id: "rf_legacy_after_settlement",
+      storeId: order.storeId,
+      orderId: order.id,
+      amount: legacyRefundAmount,
+      reason: "旧版已结算后部分退款",
+      createdBy: "u_manager",
+      createdAt: "2026-05-25T01:00:00.000Z",
+    }, ...settled.refunds],
+    commissions: settled.commissions.map((commission) => commission.orderId === order.id
+      ? {
+          ...commission,
+          amount: Math.round(commission.amount * ((order.paidAmount - legacyRefundAmount) / order.paidAmount)),
+        }
+      : commission),
+  };
+  const completedAfterUpgrade = refundOrder(
+    legacyRefundedAfterSettlement,
+    { orderId: order.id, reason: "升级后退完剩余", userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-26T01:00:00.000Z" },
+  );
+  const legacyRecoveryAdjustments = completedAfterUpgrade.commissions.filter((commission) =>
+    commission.orderId === order.id && commission.id.startsWith("cmr_"));
+  assert.equal(
+    legacyRecoveryAdjustments.reduce((sum, commission) => sum + commission.amount, 0),
+    -originalCommissionTotal,
+    "continuing a legacy refund after settlement should reverse the cumulative paid commission, not only the last interval",
+  );
+
+  const legacyRefundedBeforeSettlement: AppData = {
+    ...checkedOut,
+    orders: checkedOut.orders.map((item) => item.id === order.id
+      ? { ...item, paidAmount: item.paidAmount - legacyRefundAmount, status: "部分退款" as const }
+      : item),
+    refunds: [{
+      id: "rf_legacy_before_settlement",
+      storeId: order.storeId,
+      orderId: order.id,
+      amount: legacyRefundAmount,
+      reason: "旧版结算前部分退款",
+      createdBy: "u_manager",
+      createdAt: "2026-05-24T01:30:00.000Z",
+    }, ...checkedOut.refunds],
+    commissions: checkedOut.commissions.map((commission) => commission.orderId === order.id
+      ? {
+          ...commission,
+          amount: Math.round(commission.amount * ((order.paidAmount - legacyRefundAmount) / order.paidAmount)),
+        }
+      : commission),
+  };
+  const settledAfterLegacyRefund = settleCommissions(
+    legacyRefundedBeforeSettlement,
+    { userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-24T02:00:00.000Z" },
+  );
+  const paidAfterLegacyRefund = settledAfterLegacyRefund.commissions
+    .filter((commission) => commission.orderId === order.id)
+    .reduce((sum, commission) => sum + commission.amount, 0);
+  const completedWithoutOverReversal = refundOrder(
+    settledAfterLegacyRefund,
+    { orderId: order.id, reason: "结算后退完剩余", userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-26T01:00:00.000Z" },
+  );
+  const preSettlementLegacyAdjustments = completedWithoutOverReversal.commissions.filter((commission) =>
+    commission.orderId === order.id && commission.id.startsWith("cmr_"));
+  assert.equal(
+    preSettlementLegacyAdjustments.reduce((sum, commission) => sum + commission.amount, 0),
+    -paidAfterLegacyRefund,
+    "a legacy refund already reflected before settlement must not be reversed twice",
+  );
+
+  const completedWhilePending = refundOrder(
+    legacyRefundedBeforeSettlement,
+    { orderId: order.id, reason: "未结算时退完剩余", userId: "u_manager" },
+    { idFactory: testId, now: () => "2026-05-24T01:45:00.000Z" },
+  );
+  const pendingOriginalTotal = completedWhilePending.commissions
+    .filter((commission) => commission.orderId === order.id && !commission.id.startsWith("cmr_"))
+    .reduce((sum, commission) => sum + commission.amount, 0);
+  const pendingAdjustmentTotal = completedWhilePending.commissions
+    .filter((commission) => commission.orderId === order.id && commission.id.startsWith("cmr_"))
+    .reduce((sum, commission) => sum + commission.amount, 0);
+  assert.equal(
+    pendingOriginalTotal + pendingAdjustmentTotal,
+    0,
+    "legacy pending commissions should only reverse their still-unsettled balance",
+  );
+}
+
+{
+  const checkedOut = checkoutOrder(
+    cloneSeed(),
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceIds: ["v1", "v3"],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const order = checkedOut.orders[0];
+  assert.ok(order.paidAmount > 1000, "approval binding fixture should require large-refund approval");
+
+  const approvedRequest = (
+    overrides: Partial<AppData["approvalRequests"][number]>,
+  ): AppData["approvalRequests"][number] => ({
+    id: "approval_refund_binding",
+    storeId: "store1",
+    type: "订单退款",
+    targetId: order.id,
+    requestedBy: "u_manager",
+    amount: order.paidAmount,
+    reason: "大额退款审批",
+    status: "已通过",
+    approvedBy: "u_owner",
+    approvedAt: fixedNow(),
+    createdAt: fixedNow(),
+    ...overrides,
+  });
+
+  const wrongOrderApproval = {
+    ...checkedOut,
+    approvalRequests: [approvedRequest({ targetId: "another_order" }), ...checkedOut.approvalRequests],
+  };
+  assert.throws(
+    () => refundOrder(
+      wrongOrderApproval,
+      {
+        orderId: order.id,
+        reason: "错订单审批不得复用",
+        userId: "u_manager",
+        approvalId: "approval_refund_binding",
+      },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /大额退款需要审批通过/,
+    "refund approval should be bound to the exact order",
+  );
+
+  const crossStoreApproval = {
+    ...checkedOut,
+    approvalRequests: [approvedRequest({ storeId: "store2" }), ...checkedOut.approvalRequests],
+  };
+  assert.throws(
+    () => refundOrder(
+      crossStoreApproval,
+      {
+        orderId: order.id,
+        reason: "跨店审批不得复用",
+        userId: "u_manager",
+        approvalId: "approval_refund_binding",
+      },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /大额退款需要审批通过/,
+    "refund approval should be bound to the order store",
+  );
+
+  const correctlyApproved = {
+    ...checkedOut,
+    approvalRequests: [approvedRequest({}), ...checkedOut.approvalRequests],
+  };
+  const refunded = refundOrder(
+    correctlyApproved,
+    {
+      orderId: order.id,
+      reason: "正确审批退款",
+      userId: "u_manager",
+      approvalId: "approval_refund_binding",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(refunded.orders[0].status, "已退款", "matching order-and-store approval should authorize the refund");
+}
+
+{
+  const seed = cloneSeed();
+  const baselinePoints = seed.customers.find((customer) => customer.id === "c1")?.points ?? 0;
+  const checkedOut = checkoutOrder(
+    seed,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceIds: ["v1", "v3"],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const order = checkedOut.orders[0];
+  assert.ok(order.paidAmount > 1000, "split-refund fixture should exceed the approval threshold");
+  assert.equal(
+    checkedOut.customers.find((customer) => customer.id === "c1")?.points,
+    baselinePoints + Math.floor(order.paidAmount / 10),
+    "checkout should award points from the original payment exactly once",
+  );
+  const firstPartial = refundOrder(
+    checkedOut,
+    { orderId: order.id, reason: "第一笔不超阈值", userId: "u_manager", amount: 900 },
+    { idFactory: testId, now: () => "2026-05-24T01:00:10.000Z" },
+  );
+  assert.equal(firstPartial.orders[0].status, "部分退款", "first 900 refund may proceed before cumulative amount exceeds the threshold");
+  assert.equal(
+    firstPartial.customers.find((customer) => customer.id === "c1")?.points,
+    baselinePoints + Math.floor(order.paidAmount / 10),
+    "partial refund must not remove checkout points early",
+  );
+  assert.throws(
+    () => refundOrder(
+      firstPartial,
+      { orderId: order.id, reason: "分拆第二笔不得绕过", userId: "u_manager" },
+      { idFactory: testId, now: () => "2026-05-24T01:00:20.000Z" },
+    ),
+    /大额退款需要审批通过/,
+    "900 plus remaining refund must require approval once the cumulative amount exceeds 1000",
+  );
+  const underfundedApproval = {
+    id: "approval_underfunded_split_refund",
+    storeId: "store1",
+    type: "订单退款" as const,
+    targetId: order.id,
+    requestedBy: "u_manager",
+    amount: order.paidAmount - 1,
+    reason: "额度不足",
+    status: "已通过" as const,
+    approvedBy: "u_owner",
+    approvedAt: fixedNow(),
+    createdAt: fixedNow(),
+  };
+  assert.throws(
+    () => refundOrder(
+      { ...firstPartial, approvalRequests: [underfundedApproval, ...firstPartial.approvalRequests] },
+      {
+        orderId: order.id,
+        reason: "不得复用不足额度",
+        userId: "u_manager",
+        approvalId: underfundedApproval.id,
+      },
+      { idFactory: testId, now: () => "2026-05-24T01:00:20.000Z" },
+    ),
+    /大额退款需要审批通过/,
+    "approval must cover the full original payment rather than only one split",
+  );
+  const fullApproval = { ...underfundedApproval, id: "approval_full_split_refund", amount: order.paidAmount };
+  const fullyRefunded = refundOrder(
+    { ...firstPartial, approvalRequests: [fullApproval, ...firstPartial.approvalRequests] },
+    {
+      orderId: order.id,
+      reason: "审批后退完剩余",
+      userId: "u_manager",
+      approvalId: fullApproval.id,
+    },
+    { idFactory: testId, now: () => "2026-05-24T01:00:20.000Z" },
+  );
+  assert.equal(fullyRefunded.orders[0].status, "已退款", "full-original approval should authorize the cumulative final refund");
+  assert.equal(
+    fullyRefunded.customers.find((customer) => customer.id === "c1")?.points,
+    baselinePoints,
+    "cumulative final refund should remove the original checkout points exactly once",
+  );
+}
+
+{
+  const appointmentId = "a_cumulative_refund";
+  const checkedOut = checkoutOrder(
+    {
+      ...cloneSeed(),
+      appointments: [
+        {
+          id: appointmentId,
+          storeId: "store1",
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v3",
+          serviceIds: ["v3"],
+          startAt: "2026-05-24T00:30:00.000Z",
+          endAt: "2026-05-24T02:00:00.000Z",
+          roomName: "VIP护理房",
+          status: "已到店",
+          note: "累计退款回归",
+        },
+      ],
+    },
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v3",
+      productId: "p4",
+      appointmentId,
+      payMethod: "会员卡",
+      cardId: "m1",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const order = checkedOut.orders[0];
+  const baselinePoints = cloneSeed().customers.find((customer) => customer.id === "c1")?.points ?? 0;
+  assert.equal(order.paidAmount, 879, "cumulative refund fixture should have a known original payment");
+  assert.equal(card(checkedOut, "m1").balance, 1721, "checkout should debit stored-value balance once");
+  assert.equal(productStock(checkedOut, "p3"), 8, "checkout should deduct service consumable stock");
+  assert.equal(productStock(checkedOut, "p4"), 23, "checkout should deduct retail stock");
+  assert.equal(checkedOut.appointments.find((item) => item.id === appointmentId)?.status, "已完成", "checkout should complete linked appointment");
+  assert.equal(checkedOut.customerSignatures.find((item) => item.orderId === order.id)?.status, "待签名", "checkout signature should remain pending");
+
+  const partial = refundOrder(
+    checkedOut,
+    {
+      orderId: order.id,
+      reason: "先退一部分",
+      userId: "u_manager",
+      amount: 100,
+    },
+    { idFactory: testId, now: () => "2026-05-24T01:00:10.000Z" },
+  );
+  assert.equal(partial.orders[0].status, "部分退款", "first refund should keep order partially refunded");
+  assert.equal(partial.orders[0].paidAmount, 779, "first refund should leave the correct remaining amount");
+  assert.equal(partial.customers.find((customer) => customer.id === "c1")?.points, baselinePoints + 87, "partial refund should preserve original checkout points");
+  assert.equal(card(partial, "m1").balance, 1821, "first refund should credit only its own amount");
+  assert.equal(productStock(partial, "p3"), 8, "partial refund should not restore service inventory early");
+  assert.equal(productStock(partial, "p4"), 23, "partial refund should not restore retail inventory early");
+  assert.equal(partial.appointments.find((item) => item.id === appointmentId)?.status, "已完成", "partial refund should not reopen the appointment");
+  assert.equal(partial.customerSignatures.find((item) => item.orderId === order.id)?.status, "待签名", "partial refund should not void the signature");
+  assert.equal(
+    partial.memberCardTransactions
+      .filter((item) => item.orderId === order.id && item.type === "退款")
+      .reduce((sum, item) => sum + item.amountDelta, 0),
+    100,
+    "first refund should record only its own stored-value credit",
+  );
+
+  const fullyRefunded = refundOrder(
+    partial,
+    {
+      orderId: order.id,
+      reason: "退完剩余金额",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: () => "2026-05-24T01:00:20.000Z" },
+  );
+  assert.equal(fullyRefunded.orders[0].status, "已退款", "omitted amount should refund the full remaining balance");
+  assert.equal(fullyRefunded.orders[0].paidAmount, 0, "cumulative full refund should leave no paid amount");
+  assert.equal(fullyRefunded.customers.find((customer) => customer.id === "c1")?.points, baselinePoints, "final cumulative refund should remove checkout points only once");
+  assert.equal(fullyRefunded.refunds.filter((item) => item.orderId === order.id).reduce((sum, item) => sum + item.amount, 0), 879, "refund rows should sum to the original payment");
+  assert.equal(card(fullyRefunded, "m1").balance, 2600, "partial then remaining refund must not over-credit stored value");
+  assert.equal(
+    fullyRefunded.memberCardTransactions
+      .filter((item) => item.orderId === order.id && item.type === "退款")
+      .reduce((sum, item) => sum + item.amountDelta, 0),
+    879,
+    "stored-value refund transactions should never exceed the original debit",
+  );
+  assert.equal(
+    fullyRefunded.memberCardTransactions.filter((item) => item.orderId === order.id && item.type === "退款").length,
+    2,
+    "partial plus remaining refund should create exactly two refund credits",
+  );
+  assert.equal(productStock(fullyRefunded, "p3"), 9, "final cumulative refund should restore service inventory once");
+  assert.equal(productStock(fullyRefunded, "p4"), 24, "final cumulative refund should restore retail inventory once");
+  assert.equal(
+    fullyRefunded.inventoryLogs.filter((item) => item.note === order.orderNo && item.productId === "p3" && item.type === "退款回滚").length,
+    1,
+    "service inventory should have exactly one refund rollback",
+  );
+  assert.equal(
+    fullyRefunded.inventoryLogs.filter((item) => item.note === order.orderNo && item.productId === "p4" && item.type === "退款回滚").length,
+    1,
+    "retail inventory should have exactly one refund rollback",
+  );
+  assert.equal(fullyRefunded.appointments.find((item) => item.id === appointmentId)?.status, "已到店", "final cumulative refund should reopen the appointment once");
+  assert.equal(fullyRefunded.appointments.find((item) => item.id === appointmentId)?.completedAt, undefined, "reopened appointment should clear completion time");
+  assert.equal(fullyRefunded.customerSignatures.find((item) => item.orderId === order.id)?.status, "已作废", "final cumulative refund should void the pending signature");
+  assert.throws(
+    () => refundOrder(
+      fullyRefunded,
+      {
+        orderId: order.id,
+        reason: "第三次重复退款",
+        userId: "u_manager",
+      },
+      { idFactory: testId, now: () => "2026-05-24T01:00:30.000Z" },
+    ),
+    /订单已退款/,
+    "a third refund attempt should be rejected before any second rollback",
+  );
 }
 
 {
@@ -1898,10 +2452,10 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   );
   assert.equal(appointmentCheckout.orders[0].appointmentId, data.appointments[0].id, "checkout should link source appointment");
   assert.equal(appointmentCheckout.orders[0].serviceId, "v2", "appointment checkout should allow any selected appointment service");
-  assert.equal(appointmentCheckout.appointments[0].status, "已到店", "checkout should keep source appointment waiting for customer signature");
-  assert.equal(appointmentCheckout.appointments[0].completedAt, undefined, "checkout should not stamp appointment completion before signature");
+  assert.equal(appointmentCheckout.appointments[0].status, "已完成", "checkout should complete the source appointment immediately after payment");
+  assert.equal(appointmentCheckout.appointments[0].completedAt, fixedNow(), "checkout should stamp appointment completion at payment time");
   assert.equal(appointmentCheckout.customerSignatures[0].orderId, appointmentCheckout.orders[0].id, "appointment checkout should create a pending customer signature");
-  assert.equal(appointmentCheckout.customerSignatures[0].status, "待签名", "appointment checkout signature should start pending");
+  assert.equal(appointmentCheckout.customerSignatures[0].status, "待签名", "appointment checkout should keep signature as a separate pending task");
   const signedAppointmentCheckout = signCustomerSignature(
     appointmentCheckout,
     {
@@ -1911,8 +2465,76 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     },
     { now: fixedNow },
   );
-  assert.equal(signedAppointmentCheckout.appointments[0].status, "已完成", "service signature should complete source appointment");
-  assert.equal(signedAppointmentCheckout.appointments[0].completedAt, fixedNow(), "service signature should stamp appointment completion");
+  assert.equal(signedAppointmentCheckout.appointments[0].status, "已完成", "service signature should preserve the completed appointment");
+  assert.equal(signedAppointmentCheckout.appointments[0].completedAt, fixedNow(), "service signature should preserve the checkout completion time");
+  assert.throws(
+    () =>
+      checkoutOrder(
+        appointmentCheckout,
+        {
+          customerId: data.appointments[0].customerId,
+          staffId: data.appointments[0].staffId,
+          serviceId: "v2",
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: () => "2026-05-24T01:00:01.000Z" },
+      ),
+    /匹配到的预约已生成收银单|刚刚已生成相同订单/,
+    "checkout without appointment id should not bypass an already paid matching appointment",
+  );
+  assert.equal(appointmentCheckout.orders.length, arrivedForCheckout.orders.length + 1, "blocked implicit duplicate should not add another order");
+
+  const legacyArrivedPaidAppointment = {
+    ...appointmentCheckout,
+    appointments: appointmentCheckout.appointments.map((appointment) =>
+      appointment.id === data.appointments[0].id
+        ? { ...appointment, status: "已到店" as const, completedAt: undefined }
+        : appointment,
+    ),
+  };
+  assert.throws(
+    () =>
+      updateAppointmentStatus(
+        legacyArrivedPaidAppointment,
+        { appointmentId: data.appointments[0].id, status: "已取消", reason: "错误取消已付款预约" },
+        { now: fixedNow },
+      ),
+    /已有有效收银单，不能取消/,
+    "appointment with a non-refunded order should not be cancellable",
+  );
+
+  const refundedAppointmentCheckout = refundOrder(
+    appointmentCheckout,
+    {
+      orderId: appointmentCheckout.orders[0].id,
+      reason: "预约收银测试退款",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: () => "2026-05-24T01:00:10.000Z" },
+  );
+  assert.equal(refundedAppointmentCheckout.orders[0].status, "已退款", "full refund should close the linked order");
+  assert.equal(refundedAppointmentCheckout.appointments[0].status, "已到店", "full refund should reopen the linked appointment for a reasonable new checkout");
+  assert.equal(refundedAppointmentCheckout.appointments[0].completedAt, undefined, "reopened appointment should clear the prior completion time");
+  assert.equal(
+    refundedAppointmentCheckout.customerSignatures.find((signature) => signature.orderId === appointmentCheckout.orders[0].id)?.status,
+    "已作废",
+    "full refund should invalidate the old pending checkout signature",
+  );
+  const reopenedAppointmentCheckout = checkoutOrder(
+    refundedAppointmentCheckout,
+    {
+      customerId: data.appointments[0].customerId,
+      staffId: data.appointments[0].staffId,
+      serviceId: "v2",
+      appointmentId: data.appointments[0].id,
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: () => "2026-05-24T01:00:11.000Z" },
+  );
+  assert.equal(reopenedAppointmentCheckout.orders[0].appointmentId, data.appointments[0].id, "fully refunded appointment should allow a new linked checkout");
+  assert.equal(reopenedAppointmentCheckout.orders[0].status, "已支付", "reopened appointment should create a new paid order");
+  assert.equal(reopenedAppointmentCheckout.appointments[0].status, "已完成", "reopened appointment should complete again after the new checkout");
+
   const implicitAppointmentId = "a_implicit_checkout_verify";
   const implicitAppointmentCheckout = checkoutOrder(
     {
@@ -1942,7 +2564,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(implicitAppointmentCheckout.orders[0].appointmentId, implicitAppointmentId, "checkout should infer matching arrived appointment when appointmentId is missing");
-  assert.equal(implicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已到店", "inferred appointment checkout should keep appointment waiting for signature");
+  assert.equal(implicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已完成", "inferred appointment checkout should complete the matched appointment");
   const signedImplicitAppointmentCheckout = signCustomerSignature(
     implicitAppointmentCheckout,
     {
@@ -1952,7 +2574,22 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     },
     { now: fixedNow },
   );
-  assert.equal(signedImplicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已完成", "inferred appointment signature should complete the appointment");
+  assert.equal(signedImplicitAppointmentCheckout.appointments.find((item) => item.id === implicitAppointmentId)?.status, "已完成", "inferred appointment signature should preserve the completed appointment");
+  assert.throws(
+    () =>
+      checkoutOrder(
+        implicitAppointmentCheckout,
+        {
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: () => "2026-05-24T01:00:01.000Z" },
+      ),
+    /匹配到的预约已生成收银单/,
+    "automatically linked checkout should block a second implicit checkout",
+  );
   assert.throws(
     () =>
       checkoutOrder(
@@ -1995,7 +2632,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     { idFactory: testId, now: fixedNow },
   );
   assert.equal(noServiceAppointmentCheckout.orders[0].serviceId, "v2", "checkout should choose the actual service for a service-empty appointment");
-  assert.equal(noServiceAppointmentCheckout.appointments[0].status, "已到店", "checkout should keep a service-empty appointment waiting for signature");
+  assert.equal(noServiceAppointmentCheckout.appointments[0].status, "已完成", "checkout should immediately complete a service-empty appointment after selecting the actual service");
   const signedNoServiceAppointmentCheckout = signCustomerSignature(
     noServiceAppointmentCheckout,
     {
@@ -2005,7 +2642,206 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     },
     { now: fixedNow },
   );
-  assert.equal(signedNoServiceAppointmentCheckout.appointments[0].status, "已完成", "service-empty appointment signature should complete the appointment");
+  assert.equal(signedNoServiceAppointmentCheckout.appointments[0].status, "已完成", "service-empty appointment signature should preserve the completed appointment");
+}
+
+{
+  const seed = cloneSeed();
+  const appointmentId = "a_card_duplicate_guard";
+  const firstCheckout = checkoutOrder(
+    {
+      ...seed,
+      appointments: [
+        {
+          id: appointmentId,
+          storeId: "store1",
+          customerId: "c3",
+          staffId: "s1",
+          serviceId: "v1",
+          serviceIds: ["v1"],
+          startAt: "2026-05-24T00:30:00.000Z",
+          endAt: "2026-05-24T01:30:00.000Z",
+          roomName: "护理房 1",
+          status: "已到店",
+          note: "会员卡重复收银保护",
+        },
+        ...seed.appointments,
+      ],
+    },
+    {
+      customerId: "c3",
+      staffId: "s1",
+      serviceId: "v1",
+      appointmentId,
+      payMethod: "会员卡",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(firstCheckout, "m2").remainingTimes, 5, "first linked checkout should debit the project card once");
+  assert.equal(
+    firstCheckout.memberCardTransactions.filter((transaction) => transaction.orderId === firstCheckout.orders[0].id && transaction.type === "消费").length,
+    1,
+    "first linked checkout should create one card consumption transaction",
+  );
+  assert.throws(
+    () =>
+      checkoutOrder(
+        firstCheckout,
+        {
+          customerId: "c3",
+          staffId: "s1",
+          serviceId: "v1",
+          payMethod: "会员卡",
+        },
+        { idFactory: testId, now: () => "2026-05-24T01:00:01.000Z" },
+      ),
+    /匹配到的预约已生成收银单/,
+    "one-second retry without appointment id should be blocked after linked card checkout",
+  );
+  assert.equal(card(firstCheckout, "m2").remainingTimes, 5, "blocked retry should not debit the project card twice");
+  assert.equal(firstCheckout.orders.length, seed.orders.length + 1, "blocked retry should preserve a single paid order");
+}
+
+{
+  const seed = cloneSeed();
+  const appointmentId = "a_cross_identity_duplicate_guard";
+  const arrivedAppointment = {
+    id: appointmentId,
+    storeId: "store1",
+    customerId: "c1",
+    staffId: "s2",
+    serviceId: "v1",
+    serviceIds: ["v1"],
+    startAt: "2026-05-24T00:30:00.000Z",
+    endAt: "2026-05-24T01:30:00.000Z",
+    roomName: "护理房 1",
+    status: "已到店" as const,
+    note: "跨预约标识重复保护",
+  };
+  const existingUnlinkedOrder: AppData["orders"][number] = {
+    id: "o_recent_unlinked_duplicate_guard",
+    storeId: "store1",
+    orderNo: "SO_RECENT_UNLINKED",
+    customerId: "c1",
+    staffId: "s2",
+    serviceId: "v1",
+    serviceIds: ["v1"],
+    serviceName: "小气泡深层清洁",
+    servicePrice: 398,
+    totalAmount: 398,
+    paidAmount: 398,
+    discountAmount: 0,
+    payMethod: "微信",
+    status: "已支付",
+    createdAt: fixedNow(),
+  };
+  assert.throws(
+    () =>
+      checkoutOrder(
+        {
+          ...seed,
+          appointments: [arrivedAppointment, ...seed.appointments],
+          orders: [existingUnlinkedOrder, ...seed.orders],
+        },
+        {
+          customerId: "c1",
+          staffId: "s2",
+          serviceId: "v1",
+          appointmentId,
+          payMethod: "微信",
+        },
+        { idFactory: testId, now: () => "2026-05-24T01:00:01.000Z" },
+      ),
+    /重复提交/,
+    "recent fingerprint should match when only one side has an appointment id",
+  );
+}
+
+{
+  const seed = cloneSeed();
+  const firstAppointmentId = "a_distinct_checkout_1";
+  const secondAppointmentId = "a_distinct_checkout_2";
+  const makeArrivedAppointment = (id: string, roomName: string): AppData["appointments"][number] => ({
+    id,
+    storeId: "store1",
+    customerId: "c1",
+    staffId: "s2",
+    serviceId: "v1",
+    serviceIds: ["v1"],
+    startAt: "2026-05-24T00:30:00.000Z",
+    endAt: "2026-05-24T01:30:00.000Z",
+    roomName,
+    status: "已到店",
+    note: "不同预约允许分别收银",
+  });
+  const afterFirst = checkoutOrder(
+    {
+      ...seed,
+      appointments: [
+        makeArrivedAppointment(firstAppointmentId, "护理房 1"),
+        makeArrivedAppointment(secondAppointmentId, "护理房 2"),
+        ...seed.appointments,
+      ],
+    },
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      appointmentId: firstAppointmentId,
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const afterSecond = checkoutOrder(
+    afterFirst,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceId: "v1",
+      appointmentId: secondAppointmentId,
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: () => "2026-05-24T01:00:01.000Z" },
+  );
+  assert.equal(afterSecond.orders.length, seed.orders.length + 2, "different non-empty appointment ids should remain distinct checkouts");
+  assert.equal(afterSecond.appointments.find((appointment) => appointment.id === secondAppointmentId)?.status, "已完成", "second distinct appointment should complete normally");
+}
+
+{
+  const seed = cloneSeed();
+  const firstCheckout = checkoutOrder(
+    seed,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceIds: ["v1", "v2"],
+      productItems: [{ productId: "p4", quantity: 1 }],
+      cardId: "m1",
+      payMethod: "会员卡",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const balanceAfterFirst = card(firstCheckout, "m1").balance;
+  const stockAfterFirst = firstCheckout.products.find((product) => product.id === "p4")?.stock;
+  assert.throws(
+    () => checkoutOrder(
+      firstCheckout,
+      {
+        customerId: "c1",
+        staffId: "s2",
+        serviceIds: ["v2", "v1"],
+        productItems: [{ productId: "p4", quantity: 1 }],
+        cardId: "m1",
+        payMethod: "会员卡",
+      },
+      { idFactory: testId, now: () => "2026-05-24T01:00:01.000Z" },
+    ),
+    /重复提交/,
+    "multi-service duplicate fingerprint should ignore service selection order",
+  );
+  assert.equal(firstCheckout.orders.length, seed.orders.length + 1, "reordered multi-service retry must not create a second order");
+  assert.equal(card(firstCheckout, "m1").balance, balanceAfterFirst, "reordered multi-service retry must not debit the member card twice");
+  assert.equal(firstCheckout.products.find((product) => product.id === "p4")?.stock, stockAfterFirst, "reordered multi-service retry must not deduct retail stock twice");
 }
 
 {
@@ -2133,6 +2969,8 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     customers: [],
     memberCards: [],
     appointments: [],
+    approvalRequests: [],
+    refunds: [],
     customerSignatures: [remoteSignedSignature],
     customerServiceRecords: [],
   });
@@ -2552,6 +3390,126 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.equal(card(signed, smallCardId).serviceEntitlements?.[0]?.remainingTimes, 1, "duplicate service should deduct only the selected source card");
   assert.equal(card(signed, largeCardId).serviceEntitlements?.[0]?.remainingTimes, 8, "duplicate service should not deduct other cards that include the same service");
   assert.equal(signed.orders[0].cardId, smallCardId, "order should keep the explicitly selected debit source");
+
+  const preferredLargeCheckout = checkoutOrder(
+    secondOpened,
+    {
+      customerId: secondOpened.customers[0].id,
+      staffId: "s2",
+      serviceIds: ["v1", "v1", "v1"],
+      payMethod: "微信",
+      cardId: largeCardId,
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const signedPreferredLarge = signCustomerSignature(
+    preferredLargeCheckout,
+    {
+      token: preferredLargeCheckout.customerSignatures[0].token,
+      signerName: "重复项目扣卡客户",
+      signatureText: "data:image/png;base64,preferred-large-card",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(card(signedPreferredLarge, largeCardId).serviceEntitlements?.[0]?.remainingTimes, 5, "explicitly selected larger card should cover the requested uses before another matching card");
+  assert.equal(card(signedPreferredLarge, smallCardId).serviceEntitlements?.[0]?.remainingTimes, 2, "preferred-card checkout should leave the other matching card unchanged when the selected card has enough uses");
+  assert.equal(signedPreferredLarge.orders[0].cardId, largeCardId, "order should persist the user-selected preferred card for signature and refund");
+}
+
+{
+  const firstOpened = openMemberCard(
+    cloneSeed(),
+    {
+      customerName: "多项目分别选卡客户",
+      customerPhone: "13800001987",
+      name: "多项目第一张卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 4, remainingTimes: 4 },
+        { serviceId: "v2", totalTimes: 4, remainingTimes: 4 },
+      ],
+      paidAmount: 2980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const secondOpened = openMemberCard(
+    firstOpened,
+    {
+      customerName: "多项目分别选卡客户",
+      customerPhone: "13800001987",
+      name: "多项目第二张卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 4, remainingTimes: 4 },
+        { serviceId: "v2", totalTimes: 4, remainingTimes: 4 },
+      ],
+      paidAmount: 2980,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+      userId: "u_manager",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const secondCardId = secondOpened.memberCards[0].id;
+  const firstCardId = secondOpened.memberCards[1].id;
+  const checkedOut = checkoutOrder(
+    secondOpened,
+    {
+      customerId: secondOpened.customers[0].id,
+      staffId: "s2",
+      serviceIds: ["v1", "v2"],
+      serviceCardSelections: [
+        { serviceId: "v1", cardId: firstCardId },
+        { serviceId: "v2", cardId: secondCardId },
+      ],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.deepEqual(
+    checkedOut.orders[0].serviceCardSelections,
+    [{ serviceId: "v1", cardId: firstCardId }, { serviceId: "v2", cardId: secondCardId }],
+    "multi-service checkout should persist one selected card source per service",
+  );
+  assert.equal(card(checkedOut, firstCardId).serviceEntitlements?.[0]?.remainingTimes, 4, "selected project cards should not deduct before signature");
+  assert.equal(card(checkedOut, secondCardId).serviceEntitlements?.[1]?.remainingTimes, 4, "second selected project card should not deduct before signature");
+  const signed = signCustomerSignature(
+    checkedOut,
+    {
+      token: checkedOut.customerSignatures[0].token,
+      signerName: "多项目分别选卡客户",
+      signatureText: "data:image/png;base64,per-service-card-selection",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.deepEqual(
+    card(signed, firstCardId).serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 3], ["v2", 4]],
+    "v1 should deduct only the card selected for v1",
+  );
+  assert.deepEqual(
+    card(signed, secondCardId).serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 4], ["v2", 3]],
+    "v2 should deduct only the card selected for v2",
+  );
+  const refunded = refundOrder(
+    signed,
+    { orderId: signed.orders[0].id, reason: "多项目分别选卡退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.deepEqual(
+    card(refunded, firstCardId).serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 4], ["v2", 4]],
+    "refund should restore the service deducted from the first selected card",
+  );
+  assert.deepEqual(
+    card(refunded, secondCardId).serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 4], ["v2", 4]],
+    "refund should restore the service deducted from the second selected card",
+  );
 }
 
 {
@@ -3266,6 +4224,21 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     /已日结锁账/,
     "daily close should lock same-day inventory changes",
   );
+  const store2Product = { ...closed.products.find((product) => product.id === "p1")!, id: "p_store2_lock_scope", storeId: "store2", stock: 5 };
+  const crossStoreClosed = {
+    ...closed,
+    storeProfiles: [
+      ...closed.storeProfiles,
+      { id: "store2", name: "日结隔离分店", phone: "13900009998", address: "隔离地址", businessHours: "10:00-22:00", createdAt: fixedNow() },
+    ],
+    products: [store2Product, ...closed.products],
+  };
+  const store2Adjusted = adjustInventory(
+    crossStoreClosed,
+    { productId: store2Product.id, storeId: "store2", type: "入库", quantity: 1 },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(productStock(store2Adjusted, store2Product.id), 6, "store1 close must not lock store2 operations on the same business date");
   const reversed = reverseDailyClose(
     closed,
     { businessDate: "2026-05-24", userId: "u_manager" },

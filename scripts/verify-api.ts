@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "node:http";
+import { DatabaseSync } from "node:sqlite";
 import { createApiServer } from "../server/api";
 import { BeautyDatabase } from "../server/database";
 import pkg from "../package.json" with { type: "json" };
@@ -12,12 +13,118 @@ import { emptyAppData, POS_REMOTE_PAGING_CAPABILITY, type AppDataPatch, type App
 import type { CashierFlowDetailResult, CashierFlowPageResult, PosContextResult } from "../src/domain/cashierFlow";
 import type { AppData, WorkerUsageSnapshot } from "../src/domain/types";
 
+verifyAppointmentCheckoutIntegrityMigration();
+
 const tempDir = mkdtempSync(join(tmpdir(), "beauty-api-"));
 const database = new BeautyDatabase(join(tempDir, "test.sqlite"));
 database.replaceData(testFixtureData);
 const server = createApiServer(database);
 const futureDate = (daysFromNow: number) => new Date(Date.now() + daysFromNow * 86400000).toISOString().slice(0, 10);
 const futureIso = (daysFromNow: number, time: string) => `${futureDate(daysFromNow)}T${time}:00.000Z`;
+
+function verifyAppointmentCheckoutIntegrityMigration() {
+  const migrationDb = new DatabaseSync(":memory:");
+  migrationDb.exec(`
+    CREATE TABLE orders (
+      id TEXT PRIMARY KEY,
+      storeId TEXT,
+      appointmentId TEXT,
+      status TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+    CREATE TABLE appointments (
+      id TEXT PRIMARY KEY,
+      storeId TEXT,
+      status TEXT NOT NULL,
+      completedAt TEXT,
+      canceledAt TEXT,
+      cancelReason TEXT,
+      noShowAt TEXT,
+      updatedAt TEXT
+    );
+    CREATE TABLE customerSignatures (
+      id TEXT PRIMARY KEY,
+      payload_json TEXT NOT NULL
+    );
+
+    INSERT INTO appointments VALUES
+      ('appt_signed', 'store1', '已到店', NULL, NULL, NULL, NULL, '2026-01-01T09:00:00.000Z'),
+      ('appt_pending', 'store1', '已到店', NULL, NULL, NULL, NULL, '2026-01-01T09:00:00.000Z'),
+      ('appt_canceled', 'store1', '已取消', NULL, '2026-01-01T09:30:00.000Z', '旧版收银后误取消', NULL, '2026-01-01T09:30:00.000Z'),
+      ('appt_no_show', 'store1', '爽约', NULL, NULL, NULL, '2026-01-01T09:40:00.000Z', '2026-01-01T09:40:00.000Z'),
+      ('appt_refunded', 'store1', '已到店', NULL, NULL, NULL, NULL, '2026-01-01T09:00:00.000Z'),
+      ('appt_duplicate', NULL, '已到店', NULL, NULL, NULL, NULL, '2026-01-01T09:00:00.000Z');
+
+    INSERT INTO orders VALUES
+      ('order_signed', 'store1', 'appt_signed', '已支付', '2026-01-01T10:00:00.000Z'),
+      ('order_pending', 'store1', 'appt_pending', '已支付', '2026-01-01T10:10:00.000Z'),
+      ('order_canceled', 'store1', 'appt_canceled', '已支付', '2026-01-01T10:20:00.000Z'),
+      ('order_no_show', 'store1', 'appt_no_show', '已支付', '2026-01-01T10:30:00.000Z'),
+      ('order_refunded', 'store1', 'appt_refunded', '已退款', '2026-01-01T10:40:00.000Z'),
+      ('order_duplicate_first', NULL, 'appt_duplicate', '已支付', '2026-01-01T11:00:00.000Z'),
+      ('order_duplicate_second', '', 'appt_duplicate', '已支付', '2026-01-01T11:01:00.000Z');
+
+    INSERT INTO customerSignatures VALUES
+      ('signature_signed', '{"orderId":"order_signed","title":"服务完成确认签名","status":"已签名","signedAt":"2026-01-01T12:00:00.000Z"}'),
+      ('signature_pending', '{"orderId":"order_pending","title":"服务完成确认签名","status":"待签名"}'),
+      ('signature_malformed', '{not-valid-json');
+  `);
+  migrationDb.exec(readFileSync(new URL("../migrations/0051_appointment_checkout_integrity.sql", import.meta.url), "utf8"));
+
+  const appointment = (id: string) => ({ ...migrationDb.prepare(
+    "SELECT status, completedAt, canceledAt, cancelReason, noShowAt FROM appointments WHERE id = ?",
+  ).get(id) }) as { status: string; completedAt?: string; canceledAt?: string; cancelReason?: string; noShowAt?: string };
+  assert.deepEqual(
+    appointment("appt_signed"),
+    { status: "已完成", completedAt: "2026-01-01T12:00:00.000Z", canceledAt: null, cancelReason: null, noShowAt: null },
+    "migration should prefer the signed service-completion timestamp",
+  );
+  assert.equal(appointment("appt_pending").status, "已完成", "pending signatures should no longer leave paid appointments in the cashier queue");
+  assert.equal(appointment("appt_pending").completedAt, "2026-01-01T10:10:00.000Z", "pending signatures should fall back to order time");
+  assert.deepEqual(
+    appointment("appt_canceled"),
+    { status: "已完成", completedAt: "2026-01-01T10:20:00.000Z", canceledAt: null, cancelReason: null, noShowAt: null },
+    "migration should repair legacy canceled appointments with an active paid order",
+  );
+  assert.deepEqual(
+    appointment("appt_no_show"),
+    { status: "已完成", completedAt: "2026-01-01T10:30:00.000Z", canceledAt: null, cancelReason: null, noShowAt: null },
+    "migration should repair legacy no-show appointments with an active paid order",
+  );
+  assert.equal(appointment("appt_refunded").status, "已到店", "refunded orders should not complete an appointment");
+  assert.equal(
+    (migrationDb.prepare("SELECT appointmentId FROM orders WHERE id = 'order_duplicate_second'").get() as { appointmentId: string | null }).appointmentId,
+    null,
+    "migration should detach only the later duplicate link",
+  );
+  assert.equal(
+    (migrationDb.prepare("SELECT retainedOrderId FROM orderAppointmentConflictAudit WHERE detachedOrderId = 'order_duplicate_second'").get() as { retainedOrderId: string }).retainedOrderId,
+    "order_duplicate_first",
+    "migration should audit the preserved order link before detaching it",
+  );
+  assert.equal(
+    (migrationDb.prepare("SELECT json_extract(payload_json, '$.status') AS status FROM customerSignatures WHERE id = 'signature_pending'").get() as { status: string }).status,
+    "待签名",
+    "migration must retain pending signatures for later signing",
+  );
+
+  migrationDb.prepare("INSERT INTO orders VALUES (?, ?, ?, ?, ?)").run("order_constraint_first", "store1", "appt_constraint", "已支付", "2026-01-02T10:00:00.000Z");
+  assert.throws(
+    () => migrationDb.prepare("INSERT INTO orders VALUES (?, ?, ?, ?, ?)").run("order_constraint_second", "store1", "appt_constraint", "已支付", "2026-01-02T10:01:00.000Z"),
+    /UNIQUE constraint failed/,
+    "same-store active orders must not reuse an appointment",
+  );
+  migrationDb.prepare("INSERT INTO orders VALUES (?, ?, ?, ?, ?)").run("order_refunded_duplicate", "store1", "appt_constraint", "已退款", "2026-01-02T10:02:00.000Z");
+  migrationDb.prepare("UPDATE orders SET status = '已退款' WHERE id = 'order_constraint_first'").run();
+  migrationDb.prepare("INSERT INTO orders VALUES (?, ?, ?, ?, ?)").run("order_reopened", "store1", "appt_constraint", "已支付", "2026-01-02T10:03:00.000Z");
+  migrationDb.prepare("INSERT INTO orders VALUES (?, ?, ?, ?, ?)").run("order_null_store_first", null, "appt_null_constraint", "已支付", "2026-01-02T11:00:00.000Z");
+  assert.throws(
+    () => migrationDb.prepare("INSERT INTO orders VALUES (?, ?, ?, ?, ?)").run("order_blank_store_second", "", "appt_null_constraint", "已支付", "2026-01-02T11:01:00.000Z"),
+    /UNIQUE constraint failed/,
+    "NULL and blank legacy stores must share the same uniqueness bucket",
+  );
+  migrationDb.close();
+}
 
 try {
   const baseUrl = await listen(server);
@@ -982,7 +1089,39 @@ try {
   assert.equal(checkoutCommissions[0].rate, 0.12, "checkout API should persist staff commission rate");
   assert.equal(afterCheckout.operationLogs[0].action, "开单收银", "checkout API should write operation log");
   const catalogSnapshotOrderId = afterCheckout.orders[0].id;
+  const afterRefundApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
+    method: "POST",
+    token: session.token,
+    body: { type: "订单退款", targetId: catalogSnapshotOrderId, amount: afterCheckout.orders[0].paidAmount, reason: "API 误单退款审批" },
+  });
+  const refundApprovalId = afterRefundApprovalRequest.approvalRequests[0].id;
+  await request<AppData>(baseUrl, `/api/approvals/${refundApprovalId}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { approved: true },
+  });
+  const approvalIsolationData = database.readData();
+  database.replaceData({
+    ...approvalIsolationData,
+    approvalRequests: [
+      {
+        id: "approval_store2_same_order",
+        storeId: "store2",
+        type: "订单退款",
+        targetId: catalogSnapshotOrderId,
+        requestedBy: "u_store2",
+        amount: afterCheckout.orders[0].paidAmount,
+        reason: "其他门店同目标隔离验证",
+        status: "已通过",
+        approvedBy: "u_store2",
+        approvedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      },
+      ...approvalIsolationData.approvalRequests,
+    ],
+  });
   const productSnapshotName = afterCheckout.products.find((item) => item.id === "p4")?.name;
+  const checkoutCustomerPoints = afterCheckout.customers.find((item) => item.id === "c1")?.points ?? 0;
   assert.equal(afterCheckout.orders[0].serviceName, "API 耗材绑定护理", "checkout API should snapshot service name");
   assert.equal(afterCheckout.orders[0].servicePrice, 398, "checkout API should snapshot service price");
   assert.equal(afterCheckout.orders[0].productItems?.[0]?.productName, productSnapshotName, "checkout API should snapshot sold product name");
@@ -1067,7 +1206,28 @@ try {
   assert.equal(afterRefund.products.find((item) => item.id === "p3")?.stock, 9, "refund API should restore this order's package service stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p2")?.stock, 12, "refund API should restore gift stock");
   assert.equal(afterRefund.products.find((item) => item.id === "p4")?.stock, 24, "refund API should restore retail stock");
-  assert.ok(afterRefund.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id).every((item) => item.status === "已冲销"), "refund API should reverse commission");
+  assert.equal(
+    afterRefund.customers.find((item) => item.id === "c1")?.points,
+    checkoutCustomerPoints - Math.floor(796 / 10),
+    "full refund API should persist the one-time checkout-points reversal",
+  );
+  const refundedOrderCommissions = afterRefund.commissions.filter((item) => item.orderId === afterCheckout.orders[0].id);
+  const originalCommissionIds = new Set(checkoutCommissions.map((commission) => commission.id));
+  assert.deepEqual(
+    refundedOrderCommissions.filter((commission) => originalCommissionIds.has(commission.id)),
+    checkoutCommissions,
+    "refund API should preserve original commission audit records",
+  );
+  const refundCommissionAdjustments = refundedOrderCommissions.filter((commission) => commission.id.startsWith(`cmr_${afterRefund.refunds[0].id}_`));
+  assert.equal(refundCommissionAdjustments.length, checkoutCommissions.length, "refund API should create one adjustment per original commission");
+  assert.ok(refundCommissionAdjustments.every((commission) => commission.status === "待结算" && commission.amount < 0), "refund API should persist negative pending commission adjustments");
+  assert.equal(refundedOrderCommissions.reduce((sum, commission) => sum + commission.amount, 0), 0, "full refund API should offset commission exactly");
+  const persistedRefundData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.deepEqual(
+    persistedRefundData.commissions.filter((commission) => commission.orderId === afterCheckout.orders[0].id).sort((left, right) => left.id.localeCompare(right.id)),
+    [...refundedOrderCommissions].sort((left, right) => left.id.localeCompare(right.id)),
+    "refund and negative commission adjustments should commit in the same API transaction",
+  );
   assert.equal(afterRefund.distributionCommissions.length, 0, "base API should not expose distribution commissions");
 
   const afterPartialCheckout = await request<AppData>(baseUrl, "/api/checkout", {
@@ -1089,6 +1249,98 @@ try {
   assert.ok(partialRefundOrder, "partial refund order should still exist");
   assert.equal(partialRefundOrder.status, "部分退款", "partial refund API should keep partial status");
   assert.equal(partialRefundOrder.paidAmount, 298, "partial refund API should reduce paid amount");
+  assert.equal(
+    afterPartialRefund.customers.find((item) => item.id === "c1")?.points,
+    afterPartialCheckout.customers.find((item) => item.id === "c1")?.points,
+    "partial refund API must not remove checkout points",
+  );
+  const partialOrderFlowDetail = await request<CashierFlowDetailResult>(
+    baseUrl,
+    `/api/pos/cashier-flow/order/${encodeURIComponent(afterPartialCheckout.orders[0].id)}`,
+    { token: session.token },
+  );
+  assert.deepEqual(
+    partialOrderFlowDetail.data.refunds.map((refund) => refund.orderId),
+    [afterPartialCheckout.orders[0].id],
+    "cashier detail should return only refunds linked to the selected order",
+  );
+
+  const legacyCommissionCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: { customerId: "c1", staffId: "s2", serviceId: "v1", payMethod: "微信" },
+  });
+  const legacyCommissionOrder = legacyCommissionCheckout.orders[0];
+  const originalLegacyCommissions = legacyCommissionCheckout.commissions.filter((commission) =>
+    commission.orderId === legacyCommissionOrder.id);
+  const originalLegacyCommissionTotal = originalLegacyCommissions.reduce(
+    (sum, commission) => sum + Math.round(commission.baseAmount * commission.rate),
+    0,
+  );
+  await request<AppData>(baseUrl, "/api/commissions/settle", {
+    method: "POST",
+    token: session.token,
+    body: {},
+  });
+  const legacyPartialRefund = await request<AppData>(baseUrl, `/api/orders/${legacyCommissionOrder.id}/refund`, {
+    method: "POST",
+    token: session.token,
+    body: { reason: "模拟旧版已结算后部分退款", amount: 100 },
+  });
+  const legacySnapshot = database.readData();
+  const legacySettlementId = legacySnapshot.commissions.find((commission) =>
+    commission.orderId === legacyCommissionOrder.id && !commission.id.startsWith("cmr_"))?.settlementId;
+  assert.ok(legacySettlementId, "legacy commission fixture should retain exact settlement membership");
+  database.replaceData({
+    ...legacySnapshot,
+    refunds: legacySnapshot.refunds.map((refund) => refund.orderId === legacyCommissionOrder.id
+      ? { ...refund, createdAt: "2026-05-25T01:00:00.000Z" }
+      : refund),
+    commissions: legacySnapshot.commissions
+      .filter((commission) => !(commission.orderId === legacyCommissionOrder.id && commission.id.startsWith("cmr_")))
+      .map((commission) => commission.orderId === legacyCommissionOrder.id
+        ? {
+            ...commission,
+            amount: Math.round(
+              Math.round(commission.baseAmount * commission.rate)
+                * (legacyCommissionOrder.paidAmount - 100)
+                / legacyCommissionOrder.paidAmount,
+            ),
+            status: "已结算" as const,
+            settledAt: "2026-05-24T02:00:00.000Z",
+          }
+        : commission),
+    commissionSettlements: legacySnapshot.commissionSettlements.map((settlement) =>
+      settlement.id === legacySettlementId
+        ? { ...settlement, createdAt: "2026-05-24T02:00:00.000Z" }
+        : settlement),
+  });
+  assert.ok(
+    legacyPartialRefund.commissions.some((commission) => commission.orderId === legacyCommissionOrder.id && commission.id.startsWith("cmr_")),
+    "the fixture should remove a real new-model adjustment to emulate the legacy gap",
+  );
+  const recoveredLegacyRefund = await request<AppData>(baseUrl, `/api/orders/${legacyCommissionOrder.id}/refund`, {
+    method: "POST",
+    token: session.token,
+    body: { reason: "升级后退完剩余金额" },
+  });
+  const recoveredLegacyAdjustments = recoveredLegacyRefund.commissions.filter((commission) =>
+    commission.orderId === legacyCommissionOrder.id && commission.id.startsWith("cmr_"));
+  assert.equal(
+    recoveredLegacyAdjustments.reduce((sum, commission) => sum + commission.amount, 0),
+    -originalLegacyCommissionTotal,
+    "Node refund API should atomically fill the entire missing settled legacy reversal",
+  );
+  const persistedLegacyRecovery = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.deepEqual(
+    persistedLegacyRecovery.commissions
+      .filter((commission) => commission.orderId === legacyCommissionOrder.id)
+      .sort((left, right) => left.id.localeCompare(right.id)),
+    recoveredLegacyRefund.commissions
+      .filter((commission) => commission.orderId === legacyCommissionOrder.id)
+      .sort((left, right) => left.id.localeCompare(right.id)),
+    "legacy commission recovery and the final refund must persist in the same Node transaction",
+  );
 
   const afterSplitCheckout = await request<AppData>(baseUrl, "/api/checkout", {
     method: "POST",
@@ -1162,6 +1414,17 @@ try {
   assert.equal(openCardFlowDetail.record.kind, "memberCard", "cashier detail should resolve the requested source kind");
   assert.equal(openCardFlowDetail.data.memberCardTransactions[0]?.id, afterOpenCard.memberCardTransactions[0].id, "cashier detail should return only the requested source context");
   assert.ok(openCardFlowDetail.data.customerSignatures.every((signature) => !signature.signatureText), "cashier detail should strip signature images");
+  const approvedOrderFlowDetail = await request<CashierFlowDetailResult>(
+    baseUrl,
+    `/api/pos/cashier-flow/order/${encodeURIComponent(catalogSnapshotOrderId)}`,
+    { token: session.token },
+  );
+  assert.deepEqual(
+    approvedOrderFlowDetail.data.approvalRequests.map((approval) => approval.id),
+    [refundApprovalId],
+    "cashier detail should return only same-store refund approvals for the selected order",
+  );
+  assert.equal(approvedOrderFlowDetail.data.approvalRequests[0]?.status, "已通过", "cashier detail should expose the approved refund request id for recovery");
   const refreshedPosContext = await request<PosContextResult>(baseUrl, `/api/pos/context?dayStart=${encodeURIComponent(posDayStart.toISOString())}&dayEnd=${encodeURIComponent(posDayEnd.toISOString())}`, { token: session.token });
   assert.equal(refreshedPosContext.cashierFlowTotal, cashierPage.totalCount, "POS summary and paged flow should share the same count predicate");
   const repeatedOpenCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
@@ -1274,6 +1537,86 @@ try {
   const afterMultiPackageReload = await request<AppData>(baseUrl, "/api/data", { token: session.token });
   const reloadedMultiPackageOrder = afterMultiPackageReload.orders.find((order) => order.id === afterMultiPackageCheckout.orders[0].id);
   assert.deepEqual(reloadedMultiPackageOrder?.serviceIds, ["v1", "v2"], "checkout API should persist order service ids through database reload");
+  const afterOpenMultiServiceCardA = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: {
+      openCardRequestId: `verify-multi-service-card-a-${Date.now()}`,
+      customerName: "API 多项目分别选卡客户",
+      customerPhone: "13600000991",
+      name: "API 多项目第一张卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 4, remainingTimes: 4 },
+        { serviceId: "v2", totalTimes: 4, remainingTimes: 4 },
+      ],
+      paidAmount: 1800,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+    },
+  }));
+  const multiServiceCardA = afterOpenMultiServiceCardA.memberCards[0];
+  const multiServiceCardCustomerId = multiServiceCardA.customerId;
+  const afterOpenMultiServiceCardB = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
+    method: "POST",
+    token: session.token,
+    body: {
+      openCardRequestId: `verify-multi-service-card-b-${Date.now()}`,
+      customerId: multiServiceCardCustomerId,
+      name: "API 多项目第二张卡",
+      type: "套餐卡",
+      serviceEntitlements: [
+        { serviceId: "v1", totalTimes: 4, remainingTimes: 4 },
+        { serviceId: "v2", totalTimes: 4, remainingTimes: 4 },
+      ],
+      paidAmount: 1800,
+      payMethod: "微信",
+      expiresAt: "2027-12-31",
+    },
+  }));
+  const multiServiceCardB = afterOpenMultiServiceCardB.memberCards[0];
+  const perServiceCardCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: multiServiceCardCustomerId,
+      staffId: "s2",
+      serviceIds: ["v1", "v2"],
+      serviceCardSelections: [
+        { serviceId: "v1", cardId: multiServiceCardA.id },
+        { serviceId: "v2", cardId: multiServiceCardB.id },
+      ],
+      payMethod: "微信",
+    },
+  });
+  assert.deepEqual(
+    perServiceCardCheckout.orders[0].serviceCardSelections,
+    [{ serviceId: "v1", cardId: multiServiceCardA.id }, { serviceId: "v2", cardId: multiServiceCardB.id }],
+    "checkout API should accept and return one selected card per service",
+  );
+  const perServiceSignature = perServiceCardCheckout.customerSignatures.find((signature) => signature.orderId === perServiceCardCheckout.orders[0].id);
+  assert.ok(perServiceSignature, "multi-service checkout should create a pending signature");
+  const signedPerServiceCheckout = await request<AppData>(baseUrl, `/api/customer-signatures/${perServiceSignature!.id}/sign`, {
+    method: "POST",
+    token: session.token,
+    body: { signerName: "API 多项目分别选卡", signatureText: "data:image/png;base64,api-per-service-card" },
+  });
+  assert.deepEqual(
+    signedPerServiceCheckout.memberCards.find((card) => card.id === multiServiceCardA.id)?.serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 3], ["v2", 4]],
+    "API signature should debit v1 only from the card selected for v1",
+  );
+  assert.deepEqual(
+    signedPerServiceCheckout.memberCards.find((card) => card.id === multiServiceCardB.id)?.serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
+    [["v1", 4], ["v2", 3]],
+    "API signature should debit v2 only from the card selected for v2",
+  );
+  const reloadedPerServiceCheckout = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.deepEqual(
+    reloadedPerServiceCheckout.orders.find((order) => order.id === perServiceCardCheckout.orders[0].id)?.serviceCardSelections,
+    perServiceCardCheckout.orders[0].serviceCardSelections,
+    "service-specific card choices should survive database reload",
+  );
   const afterOpenLimitedPackageCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
@@ -1785,10 +2128,225 @@ try {
   assert.ok(restrictedTherapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments after shared appointment permission is closed");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 11, "API data should persist across requests");
-  assert.equal(persistedData.refunds.length, 2, "API data should persist refunds");
+  assert.equal(persistedData.orders.length, 13, "API data should persist across requests, including the multi-project card selection and legacy commission recovery fixtures");
+  assert.equal(persistedData.refunds.length, 4, "API data should persist refunds, including both legacy recovery stages");
   assert.equal(persistedData.distributionCommissions.length, 0, "base API should not expose distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");
+
+  const afterSuperadminLockCustomerA = await request<AppData>(baseUrl, "/api/customers", {
+    method: "POST",
+    token: session.token,
+    body: { name: "系统管理员并发客户甲", phone: "13600009001" },
+  });
+  const superadminLockCustomerAId = afterSuperadminLockCustomerA.customers[0].id;
+  const afterSuperadminLockCustomerB = await request<AppData>(baseUrl, "/api/customers", {
+    method: "POST",
+    token: session.token,
+    body: { name: "系统管理员并发客户乙", phone: "13600009002" },
+  });
+  const superadminLockCustomerBId = afterSuperadminLockCustomerB.customers[0].id;
+
+  const afterSuperadminLockProduct = await request<AppData>(baseUrl, "/api/products", {
+    method: "POST",
+    token: session.token,
+    body: {
+      name: "系统管理员并发库存验证",
+      type: "sale",
+      category: "面护类",
+      subcategory: "面膜",
+      unit: "盒",
+      price: 20,
+      cost: 10,
+      stock: 1,
+      warningStock: 1,
+      serviceStockDeductible: false,
+    },
+  });
+  const superadminLockProductId = afterSuperadminLockProduct.products[0].id;
+  const superadminConcurrentCheckoutResults = await Promise.allSettled([
+    request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: adminSession.token,
+      body: {
+        checkoutRequestId: `node-superadmin-last-stock-a-${Date.now()}`,
+        customerId: superadminLockCustomerAId,
+        staffId: "s2",
+        productItems: [{ productId: superadminLockProductId, quantity: 1 }],
+        payMethod: "微信",
+      },
+    }),
+    request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: adminSession.token,
+      body: {
+        checkoutRequestId: `node-superadmin-last-stock-b-${Date.now()}`,
+        customerId: superadminLockCustomerBId,
+        staffId: "s2",
+        productItems: [{ productId: superadminLockProductId, quantity: 1 }],
+        payMethod: "微信",
+      },
+    }),
+  ]);
+  assert.equal(
+    superadminConcurrentCheckoutResults.filter((result) => result.status === "fulfilled").length,
+    1,
+    "superadmin checkouts must share the target store lock when selling the last stock unit",
+  );
+  const rejectedSuperadminCheckout = superadminConcurrentCheckoutResults.find((result) => result.status === "rejected");
+  assert.match(
+    rejectedSuperadminCheckout?.status === "rejected" ? String(rejectedSuperadminCheckout.reason) : "",
+    /库存不足|当前仅剩/,
+    "the second superadmin checkout must observe the committed inventory deduction",
+  );
+  const afterSuperadminConcurrentCheckout = await request<AppData>(baseUrl, "/api/data", { token: adminSession.token });
+  assert.equal(
+    afterSuperadminConcurrentCheckout.products.find((product) => product.id === superadminLockProductId)?.stock,
+    0,
+    "superadmin concurrency must never make inventory negative",
+  );
+  assert.equal(
+    afterSuperadminConcurrentCheckout.orders.filter((order) =>
+      order.productItems?.some((item) => item.productId === superadminLockProductId),
+    ).length,
+    1,
+    "superadmin concurrency must persist exactly one order for the last stock unit",
+  );
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: adminSession.token,
+      body: {
+        checkoutRequestId: `node-superadmin-mixed-store-${Date.now()}`,
+        customerId: "c_store2",
+        staffId: "s2",
+        productItems: [{ productId: superadminLockProductId, quantity: 1 }],
+        payMethod: "微信",
+      },
+    }),
+    /混合多个门店/,
+    "superadmin business mutations must reject mixed-store targets instead of running without a lock",
+  );
+  const beforeSuperadminSettlement = database.readData();
+  const store1SuperadminOrderId = beforeSuperadminSettlement.orders.find((order) =>
+    order.productItems?.some((item) => item.productId === superadminLockProductId),
+  )?.id;
+  assert.ok(store1SuperadminOrderId, "superadmin stock verification should have persisted its store-one order");
+  database.replaceData({
+    ...beforeSuperadminSettlement,
+    commissions: [
+      {
+        id: "commission_superadmin_store1",
+        storeId: "store1",
+        staffId: "s2",
+        orderId: store1SuperadminOrderId,
+        type: "销售提成" as const,
+        baseAmount: 20,
+        rate: 0.1,
+        amount: 2,
+        status: "待结算" as const,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "commission_superadmin_store2",
+        storeId: "store2",
+        staffId: "s_store2",
+        orderId: "o_store2",
+        type: "销售提成" as const,
+        baseAmount: 88,
+        rate: 0.1,
+        amount: 8.8,
+        status: "待结算" as const,
+        createdAt: new Date().toISOString(),
+      },
+      ...beforeSuperadminSettlement.commissions,
+    ],
+  });
+  const superadminSettlementConcurrency = await Promise.allSettled([
+    request<AppData>(baseUrl, "/api/commissions/settle", {
+      method: "POST",
+      token: adminSession.token,
+    }),
+    request<AppData>(baseUrl, "/api/inventory/adjust", {
+      method: "POST",
+      token: session.token,
+      body: { productId: superadminLockProductId, type: "入库", quantity: 1 },
+    }),
+  ]);
+  assert.equal(
+    superadminSettlementConcurrency.filter((result) => result.status === "fulfilled").length,
+    2,
+    "superadmin all-store settlement must serialize with ordinary store mutations without rejecting either operation",
+  );
+  const afterSuperadminSettlement = await request<AppData>(baseUrl, "/api/data", { token: adminSession.token });
+  assert.equal(
+    afterSuperadminSettlement.products.find((product) => product.id === superadminLockProductId)?.stock,
+    1,
+    "ordinary store inventory writes must survive a concurrent superadmin all-store settlement",
+  );
+  assert.ok(
+    ["commission_superadmin_store1", "commission_superadmin_store2"].every((commissionId) =>
+      afterSuperadminSettlement.commissions.find((commission) => commission.id === commissionId)?.status === "已结算",
+    ),
+    "superadmin settlement must retain its historical all-store contract while holding each store lock",
+  );
+  const afterReorderedServiceCustomer = await request<AppData>(baseUrl, "/api/customers", {
+    method: "POST",
+    token: session.token,
+    body: { name: "多项目防重复客户", phone: "13600009003" },
+  });
+  const reorderedServiceCustomerId = afterReorderedServiceCustomer.customers[0].id;
+  const afterReorderedServiceProduct = await request<AppData>(baseUrl, "/api/products", {
+    method: "POST",
+    token: session.token,
+    body: {
+      name: "多项目防重复库存",
+      type: "sale",
+      category: "面护类",
+      subcategory: "面膜",
+      unit: "盒",
+      price: 20,
+      cost: 10,
+      stock: 2,
+      warningStock: 1,
+      serviceStockDeductible: false,
+    },
+  });
+  const reorderedServiceProductId = afterReorderedServiceProduct.products[0].id;
+  await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      checkoutRequestId: `node-service-order-a-${Date.now()}`,
+      customerId: reorderedServiceCustomerId,
+      staffId: "s2",
+      serviceIds: ["v1", "v2"],
+      productItems: [{ productId: reorderedServiceProductId, quantity: 1 }],
+      payMethod: "微信",
+    },
+  });
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: session.token,
+      body: {
+        checkoutRequestId: `node-service-order-b-${Date.now()}`,
+        customerId: reorderedServiceCustomerId,
+        staffId: "s2",
+        serviceIds: ["v2", "v1"],
+        productItems: [{ productId: reorderedServiceProductId, quantity: 1 }],
+        payMethod: "微信",
+      },
+    }),
+    /重复提交/,
+    "Node API should treat reordered service ids as the same recent checkout",
+  );
+  const afterReorderedServiceRetry = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.equal(afterReorderedServiceRetry.products.find((product) => product.id === reorderedServiceProductId)?.stock, 1, "reordered service retry must deduct retail stock only once");
+  assert.equal(
+    afterReorderedServiceRetry.orders.filter((order) => order.productItems?.some((item) => item.productId === reorderedServiceProductId)).length,
+    1,
+    "reordered service retry must persist only one order",
+  );
 
   const afterArrivedAppointment = await request<AppData>(baseUrl, "/api/appointments", {
     method: "POST",
@@ -1824,9 +2382,15 @@ try {
   });
   assert.equal(afterAppointmentCheckout.orders[0].appointmentId, checkoutAppointmentId, "checkout API should link arrived appointment");
   assert.equal(afterAppointmentCheckout.orders[0].serviceId, "v2", "checkout API should allow one of appointment services");
-  assert.equal(afterAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已到店", "checkout API should keep appointment waiting for service signature");
+  assert.equal(afterAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已完成", "checkout API should remove a paid appointment from the cashier queue immediately");
   assert.equal(afterAppointmentCheckout.customerSignatures[0].orderId, afterAppointmentCheckout.orders[0].id, "checkout API should create pending signature after service checkout");
   assert.equal(afterAppointmentCheckout.customerSignatures[0].status, "待签名", "checkout API signature should start pending");
+  const persistedAppointmentCheckout = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.ok(persistedAppointmentCheckout.orders.some((order) => order.id === afterAppointmentCheckout.orders[0].id), "checkout transaction should persist the order");
+  assert.ok(
+    persistedAppointmentCheckout.customerSignatures.some((signature) => signature.orderId === afterAppointmentCheckout.orders[0].id && signature.status === "待签名"),
+    "the same checkout transaction should persist and return its pending signature",
+  );
   await assert.rejects(
     () =>
       request<AppData>(baseUrl, "/api/checkout", {
@@ -1840,7 +2404,7 @@ try {
           payMethod: "微信",
         },
       }),
-    /只有已到店预约可以直接收银|收银信息与预约不一致/,
+    /只有已到店预约可以直接收银|收银信息与预约不一致|已生成收银单/,
     "checkout API should reject invalid appointment checkout",
   );
   const signedAppointmentCheckout = await request<AppData>(baseUrl, `/api/customer-signatures/${afterAppointmentCheckout.customerSignatures[0].id}/sign`, {
@@ -1849,6 +2413,369 @@ try {
     body: { signerName: "周女士", signatureText: "data:image/png;base64,appointment-api" },
   });
   assert.equal(signedAppointmentCheckout.appointments.find((item) => item.id === checkoutAppointmentId)?.status, "已完成", "service signature API should complete appointment");
+
+  const reopenAppointmentStart = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const afterReopenAppointmentCreate = await request<AppData>(baseUrl, "/api/appointments", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c2",
+      staffId: "s3",
+      serviceId: "v2",
+      startAt: reopenAppointmentStart,
+      roomName: "护理房 1",
+      note: "API 预约去重与退款重开",
+    },
+  });
+  const reopenAppointmentId = afterReopenAppointmentCreate.appointments[0].id;
+  await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(reopenAppointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已到店" },
+  });
+  const firstReopenCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      checkoutRequestId: `node-appointment-first-${Date.now()}`,
+      customerId: "c2",
+      staffId: "s3",
+      serviceId: "v2",
+      appointmentId: reopenAppointmentId,
+      payMethod: "微信",
+    },
+  });
+  const firstReopenOrderId = firstReopenCheckout.orders[0].id;
+  const firstPendingSignatureId = firstReopenCheckout.customerSignatures.find(
+    (signature) => signature.orderId === firstReopenOrderId && signature.status === "待签名",
+  )?.id;
+  assert.ok(firstPendingSignatureId, "appointment checkout should create a pending signature before refund");
+  const legacyCancelGuardData = database.readData();
+  database.replaceData({
+    ...legacyCancelGuardData,
+    appointments: legacyCancelGuardData.appointments.map((appointment) =>
+      appointment.id === reopenAppointmentId
+        ? { ...appointment, status: "已到店" as const, completedAt: undefined }
+        : appointment,
+    ),
+  });
+  await assert.rejects(
+    () => request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(reopenAppointmentId)}`, {
+      method: "PATCH",
+      token: session.token,
+      body: { status: "已取消", reason: "不应允许取消已收银预约" },
+    }),
+    /已有有效收银单/,
+    "appointment API must read orders and reject canceling a legacy arrived appointment with an active order",
+  );
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: session.token,
+      body: {
+        checkoutRequestId: `node-appointment-explicit-duplicate-${Date.now()}`,
+        customerId: "c2",
+        staffId: "s3",
+        serviceId: "v2",
+        appointmentId: reopenAppointmentId,
+        payMethod: "微信",
+      },
+    }),
+    /已生成收银单|只有已到店预约可以直接收银/,
+    "same appointment id should not be checked out twice",
+  );
+  await assert.rejects(
+    () => request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: session.token,
+      body: {
+        checkoutRequestId: `node-appointment-implicit-duplicate-${Date.now()}`,
+        customerId: "c2",
+        staffId: "s3",
+        serviceId: "v2",
+        payMethod: "微信",
+      },
+    }),
+    /匹配到的预约已生成收银单|检测到刚刚已生成相同订单/,
+    "omitting appointmentId must not bypass a checked-out appointment",
+  );
+  const afterFullAppointmentRefund = await request<AppData>(baseUrl, `/api/orders/${firstReopenOrderId}/refund`, {
+    method: "POST",
+    token: session.token,
+    body: { reason: "API 误单全额退款" },
+  });
+  assert.equal(afterFullAppointmentRefund.appointments.find((item) => item.id === reopenAppointmentId)?.status, "已到店", "full refund should restore the appointment for a corrected checkout");
+  assert.equal(afterFullAppointmentRefund.customerSignatures.find((item) => item.id === firstPendingSignatureId)?.status, "已作废", "full refund should void the old pending service signature");
+  const reopenedCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      checkoutRequestId: `node-appointment-reopened-${Date.now()}`,
+      customerId: "c2",
+      staffId: "s3",
+      serviceId: "v2",
+      appointmentId: reopenAppointmentId,
+      payMethod: "微信",
+    },
+  });
+  assert.notEqual(reopenedCheckout.orders[0].id, firstReopenOrderId, "refund should allow a new corrected order");
+  assert.equal(reopenedCheckout.orders[0].appointmentId, reopenAppointmentId, "corrected order should restore the unique appointment link");
+
+  const concurrentCreateStartAt = futureIso(45, "08:00");
+  const concurrentCreateResults = await Promise.allSettled([
+    request<AppData>(baseUrl, "/api/appointments", {
+      method: "POST",
+      token: session.token,
+      body: {
+        customerId: "c1",
+        staffId: "s3",
+        serviceId: "v2",
+        startAt: concurrentCreateStartAt,
+        roomName: "护理房 1",
+        note: "Node 并发新建预约 A",
+      },
+    }),
+    request<AppData>(baseUrl, "/api/appointments", {
+      method: "POST",
+      token: session.token,
+      body: {
+        customerId: "c2",
+        staffId: "s3",
+        serviceId: "v2",
+        startAt: concurrentCreateStartAt,
+        roomName: "护理房 1",
+        note: "Node 并发新建预约 B",
+      },
+    }),
+  ]);
+  assert.equal(concurrentCreateResults.filter((result) => result.status === "fulfilled").length, 1, "concurrent appointment creation should share the store lock");
+  const rejectedConcurrentCreate = concurrentCreateResults.find((result) => result.status === "rejected");
+  assert.match(
+    rejectedConcurrentCreate?.status === "rejected" ? String(rejectedConcurrentCreate.reason) : "",
+    /时间冲突|已有预约|房间.*占用/,
+    "the concurrent appointment loser should observe the first committed appointment",
+  );
+  const afterConcurrentCreate = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.equal(
+    afterConcurrentCreate.appointments.filter((appointment) => appointment.staffId === "s3" && appointment.startAt === concurrentCreateStartAt).length,
+    1,
+    "concurrent appointment creation must persist exactly one overlapping appointment",
+  );
+
+  const concurrentAppointmentCreate = await request<AppData>(baseUrl, "/api/appointments", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c3",
+      staffId: "s3",
+      serviceId: "v2",
+      startAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+      roomName: "护理房 1",
+      note: "API 收银与取消并发一致性",
+    },
+  });
+  const concurrentAppointmentId = concurrentAppointmentCreate.appointments[0].id;
+  await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(concurrentAppointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已到店" },
+  });
+  const concurrentAppointmentResults = await Promise.allSettled([
+    request<AppData>(baseUrl, "/api/checkout", {
+      method: "POST",
+      token: session.token,
+      body: {
+        checkoutRequestId: `node-appointment-concurrent-checkout-${Date.now()}`,
+        customerId: "c3",
+        staffId: "s3",
+        serviceId: "v2",
+        appointmentId: concurrentAppointmentId,
+        payMethod: "微信",
+      },
+    }),
+    request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(concurrentAppointmentId)}`, {
+      method: "PATCH",
+      token: session.token,
+      body: { status: "已取消", reason: "API 并发取消验证" },
+    }),
+  ]);
+  assert.equal(concurrentAppointmentResults.filter((result) => result.status === "fulfilled").length, 1, "checkout and cancellation should serialize to one successful outcome");
+  const rejectedConcurrentAppointmentResult = concurrentAppointmentResults.find((result) => result.status === "rejected");
+  assert.match(
+    rejectedConcurrentAppointmentResult?.status === "rejected" ? String(rejectedConcurrentAppointmentResult.reason) : "",
+    /已有有效收银单|只有已到店预约可以直接收银/,
+    "concurrent loser should observe the serialized appointment/order state",
+  );
+  const afterConcurrentAppointmentMutation = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  const concurrentActiveOrder = afterConcurrentAppointmentMutation.orders.find(
+    (order) => order.appointmentId === concurrentAppointmentId && order.status !== "已退款",
+  );
+  const concurrentAppointment = afterConcurrentAppointmentMutation.appointments.find((item) => item.id === concurrentAppointmentId);
+  assert.ok(
+    concurrentActiveOrder
+      ? concurrentAppointment?.status === "已完成"
+      : concurrentAppointment?.status === "已取消",
+    "concurrent checkout/cancel must never leave an active order on a canceled appointment",
+  );
+
+  const beforeSignatureRefundRace = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  const raceCardId = "m2";
+  const raceCardTimesBefore = beforeSignatureRefundRace.memberCards.find((card) => card.id === raceCardId)?.remainingTimes;
+  assert.ok(typeof raceCardTimesBefore === "number" && raceCardTimesBefore > 0, "signature/refund race fixture needs a usable project card");
+  const signatureRefundRaceAppointmentData = await request<AppData>(baseUrl, "/api/appointments", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: "c3",
+      staffId: "s1",
+      serviceId: "v1",
+      startAt: new Date(Date.now() + 3 * 60 * 1000).toISOString(),
+      roomName: "护理房 2",
+      note: "公开签名与退款并发原子性",
+    },
+  });
+  const signatureRefundRaceAppointmentId = signatureRefundRaceAppointmentData.appointments[0].id;
+  await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(signatureRefundRaceAppointmentId)}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { status: "已到店" },
+  });
+  const signatureRefundRaceCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      checkoutRequestId: `node-signature-refund-race-${Date.now()}`,
+      customerId: "c3",
+      staffId: "s1",
+      serviceId: "v1",
+      appointmentId: signatureRefundRaceAppointmentId,
+      cardId: raceCardId,
+      payMethod: "会员卡",
+    },
+  });
+  const signatureRefundRaceOrder = signatureRefundRaceCheckout.orders[0];
+  const signatureRefundRaceSignature = signatureRefundRaceCheckout.customerSignatures.find((signature) =>
+    signature.orderId === signatureRefundRaceOrder.id,
+  );
+  assert.ok(signatureRefundRaceSignature, "checkout should create a pending signature for the signature/refund race");
+  assert.equal(
+    signatureRefundRaceCheckout.memberCards.find((card) => card.id === raceCardId)?.remainingTimes,
+    raceCardTimesBefore - 1,
+    "race checkout should debit the project card once before signing/refunding",
+  );
+  const signatureRefundRaceResults = await Promise.allSettled([
+    request<{ signature: { status: string } }>(
+      baseUrl,
+      `/api/public/customer-signatures/${encodeURIComponent(signatureRefundRaceSignature.token)}/sign`,
+      {
+        method: "POST",
+        body: { signerName: "并发签名客户", signatureText: "data:image/png;base64,node-signature-refund-race" },
+      },
+    ),
+    request<AppData>(baseUrl, `/api/orders/${encodeURIComponent(signatureRefundRaceOrder.id)}/refund`, {
+      method: "POST",
+      token: session.token,
+      body: { reason: "Node 签名并发全额退款" },
+    }),
+  ]);
+  assert.ok(signatureRefundRaceResults.some((result) => result.status === "fulfilled"), "signature/refund race must complete one serialized outcome");
+  const afterSignatureRefundRace = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  const finalRaceOrder = afterSignatureRefundRace.orders.find((order) => order.id === signatureRefundRaceOrder.id);
+  const finalRaceSignature = afterSignatureRefundRace.customerSignatures.find((signature) => signature.id === signatureRefundRaceSignature.id);
+  const finalRaceCard = afterSignatureRefundRace.memberCards.find((card) => card.id === raceCardId);
+  const finalRaceAppointment = afterSignatureRefundRace.appointments.find((appointment) => appointment.id === signatureRefundRaceAppointmentId);
+  const finalRaceRefunds = afterSignatureRefundRace.refunds.filter((refund) => refund.orderId === signatureRefundRaceOrder.id);
+  const signedOutcome = finalRaceOrder?.status === "已支付"
+    && finalRaceSignature?.status === "已签名"
+    && finalRaceCard?.remainingTimes === raceCardTimesBefore - 1
+    && finalRaceAppointment?.status === "已完成"
+    && finalRaceRefunds.length === 0;
+  const refundedOutcome = finalRaceOrder?.status === "已退款"
+    && finalRaceSignature?.status === "已作废"
+    && finalRaceCard?.remainingTimes === raceCardTimesBefore
+    && finalRaceAppointment?.status === "已到店"
+    && finalRaceRefunds.length === 1;
+  assert.ok(signedOutcome !== refundedOutcome && (signedOutcome || refundedOutcome), "signature/refund concurrency must finish in exactly one coherent paid-or-refunded state");
+  if (refundedOutcome) {
+    assert.equal(finalRaceSignature?.status, "已作废", "a refunded order's signature must never be revived after the refund commits");
+    assert.equal(
+      afterSignatureRefundRace.memberCardTransactions.filter((transaction) => transaction.orderId === signatureRefundRaceOrder.id && transaction.type === "退款").length,
+      1,
+      "signature/refund concurrency must restore the project card exactly once",
+    );
+  }
+
+  const splitApprovalCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      checkoutRequestId: `node-split-refund-${Date.now()}`,
+      customerId: "c1",
+      staffId: "s2",
+      serviceIds: ["v1", "v3"],
+      payMethod: "微信",
+    },
+  });
+  const splitApprovalOrder = splitApprovalCheckout.orders[0];
+  const pointsAfterSplitCheckout = splitApprovalCheckout.customers.find((customer) => customer.id === "c1")?.points ?? 0;
+  assert.ok(splitApprovalOrder.paidAmount > 1000, "API split-refund fixture should exceed the approval threshold");
+  const firstSplitRefund = await request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
+    method: "POST",
+    token: session.token,
+    body: { reason: "Node 首笔 900", amount: 900 },
+  });
+  assert.equal(firstSplitRefund.customers.find((customer) => customer.id === "c1")?.points, pointsAfterSplitCheckout, "first partial API refund should preserve points");
+  await assert.rejects(
+    () => request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
+      method: "POST",
+      token: session.token,
+      body: { reason: "Node 第二笔不得绕过", amount: splitApprovalOrder.paidAmount - 900 },
+    }),
+    /大额退款需要审批通过/,
+    "Node API must reject a split refund whose cumulative amount exceeds 1000",
+  );
+  const underfundedRequest = await request<AppData>(baseUrl, "/api/approvals", {
+    method: "POST",
+    token: session.token,
+    body: { type: "订单退款", targetId: splitApprovalOrder.id, amount: splitApprovalOrder.paidAmount - 1, reason: "Node 不足额度" },
+  });
+  const underfundedApprovalId = underfundedRequest.approvalRequests[0].id;
+  await request<AppData>(baseUrl, `/api/approvals/${underfundedApprovalId}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { approved: true },
+  });
+  await assert.rejects(
+    () => request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
+      method: "POST",
+      token: session.token,
+      body: { reason: "Node 不足额度不得使用", amount: splitApprovalOrder.paidAmount - 900, approvalId: underfundedApprovalId },
+    }),
+    /大额退款需要审批通过/,
+    "Node API approval must cover the full original payment",
+  );
+  const fullApprovalRequest = await request<AppData>(baseUrl, "/api/approvals", {
+    method: "POST",
+    token: session.token,
+    body: { type: "订单退款", targetId: splitApprovalOrder.id, amount: splitApprovalOrder.paidAmount, reason: "Node 完整退款额度" },
+  });
+  const fullApprovalId = fullApprovalRequest.approvalRequests[0].id;
+  await request<AppData>(baseUrl, `/api/approvals/${fullApprovalId}`, {
+    method: "PATCH",
+    token: session.token,
+    body: { approved: true },
+  });
+  const afterSplitFullRefund = await request<AppData>(baseUrl, `/api/orders/${splitApprovalOrder.id}/refund`, {
+    method: "POST",
+    token: session.token,
+    body: { reason: "Node 审批后退完", amount: splitApprovalOrder.paidAmount - 900, approvalId: fullApprovalId },
+  });
+  assert.equal(afterSplitFullRefund.orders.find((order) => order.id === splitApprovalOrder.id)?.status, "已退款", "Node approved cumulative refund should finish the order");
+  assert.equal(
+    afterSplitFullRefund.customers.find((customer) => customer.id === "c1")?.points,
+    pointsAfterSplitCheckout - Math.floor(splitApprovalOrder.paidAmount / 10),
+    "Node full cumulative refund should atomically persist the one-time points reversal",
+  );
 
   await assert.rejects(
     () => request<AppData>(baseUrl, "/api/reset", { method: "POST", token: session.token }),

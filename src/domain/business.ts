@@ -28,6 +28,7 @@ import type {
   PurchaseOrder,
   Refund,
   Service,
+  ServiceCardSelection,
   ServiceConsumable,
   Staff,
   StaffInvite,
@@ -760,6 +761,7 @@ export type CheckoutInput = {
   collaboratorStaffIds?: string[];
   serviceId?: string;
   serviceIds?: string[];
+  serviceCardSelections?: ServiceCardSelection[];
   productId?: string;
   giftProductId?: string;
   productItems?: CheckoutProductItemInput[];
@@ -1458,6 +1460,12 @@ function existingOrderItemsSignature(order: Order, gift = false) {
   return productId ? `${productId}:1` : "";
 }
 
+function serviceIdsSignature(serviceId?: string, serviceIds?: string[]) {
+  return normalizeCheckoutServiceIds(serviceId, serviceIds)
+    .sort((left, right) => left.localeCompare(right))
+    .join("|");
+}
+
 function isRecentDuplicateOrder(
   order: Order,
   draft: {
@@ -1489,9 +1497,12 @@ function isRecentDuplicateOrder(
     && (order.guestName ?? "").trim() === draft.guestName
     && (order.guestPhone ?? "").trim() === draft.guestPhone
     && order.staffId === draft.staffId
-    && (order.serviceId ?? "") === draft.serviceId
-    && (order.serviceIds ?? []).join("|") === (draft.serviceIds ?? []).join("|")
-    && (order.appointmentId ?? "") === (draft.appointmentId ?? "")
+    && serviceIdsSignature(order.serviceId, order.serviceIds) === serviceIdsSignature(draft.serviceId, draft.serviceIds)
+    && (
+      !order.appointmentId
+      || !draft.appointmentId
+      || order.appointmentId === draft.appointmentId
+    )
     && (order.cardId ?? "") === (draft.cardId ?? "")
     && order.payMethod === draft.payMethod
     && order.totalAmount === draft.totalAmount
@@ -2948,9 +2959,28 @@ function addMemberCardDebitFlowEdge(
   return forward;
 }
 
-export function buildMemberCardDebitPlan(data: AppData, customerId: string, serviceIds: string[], preferredCardId?: string): MemberCardDebitPlanLine[] {
+function normalizeServiceCardSelections(selections: ServiceCardSelection[] | undefined) {
+  const byServiceId = new Map<string, string>();
+  (selections ?? []).forEach((selection) => {
+    const serviceId = selection.serviceId?.trim();
+    const cardId = selection.cardId?.trim();
+    if (serviceId && cardId) byServiceId.set(serviceId, cardId);
+  });
+  return Array.from(byServiceId, ([serviceId, cardId]) => ({ serviceId, cardId }));
+}
+
+export function buildMemberCardDebitPlan(
+  data: AppData,
+  customerId: string,
+  serviceIds: string[],
+  preferredCardId?: string,
+  serviceCardSelections?: ServiceCardSelection[],
+): MemberCardDebitPlanLine[] {
   const selectedServiceIds = serviceIds.filter(Boolean);
   if (!customerId || selectedServiceIds.length === 0) return [];
+  const preferredCardIdByServiceId = new Map(
+    normalizeServiceCardSelections(serviceCardSelections).map((selection) => [selection.serviceId, selection.cardId]),
+  );
   const cards = data.memberCards.filter((card) =>
     card.customerId === customerId
     && card.status === "正常"
@@ -2991,9 +3021,10 @@ export function buildMemberCardDebitPlan(data: AppData, customerId: string, serv
       .map((pool, poolIndex) => ({ pool, poolIndex }))
       .filter(({ pool }) => pool.serviceId ? pool.serviceId === serviceId : memberCardSupportsService(pool.card, serviceId))
       .sort((left, right) => {
-        if (preferredCardId) {
-          if (left.pool.card.id === preferredCardId && right.pool.card.id !== preferredCardId) return -1;
-          if (right.pool.card.id === preferredCardId && left.pool.card.id !== preferredCardId) return 1;
+        const servicePreferredCardId = preferredCardIdByServiceId.get(serviceId) ?? preferredCardId;
+        if (servicePreferredCardId) {
+          if (left.pool.card.id === servicePreferredCardId && right.pool.card.id !== servicePreferredCardId) return -1;
+          if (right.pool.card.id === servicePreferredCardId && left.pool.card.id !== servicePreferredCardId) return 1;
         }
         return memberCardDebitPoolFlexibility(left.pool) - memberCardDebitPoolFlexibility(right.pool)
           || compareMemberCardDebitPriority(left.pool.card, right.pool.card, serviceId)
@@ -3177,19 +3208,18 @@ export function checkoutOrder(
     throw new Error(`商品 ${zeroPriceProductNames.join("、")} 的售价为 0，请先到商品资料填写售价`);
   }
 
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
   const explicitAppointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
   if (input.appointmentId && !explicitAppointment) {
     throw new Error("预约不存在");
   }
-  const inferredAppointment = input.appointmentId ? undefined : data.appointments
+  const implicitAppointmentMatches = input.appointmentId ? [] : data.appointments
     .filter((item) => {
-      if (item.status !== "已到店") return false;
+      if (item.status !== "已到店" && item.status !== "已完成") return false;
       if ((item.storeId ?? storeId) !== storeId) return false;
       if (item.customerId !== customerId || item.staffId !== input.staffId) return false;
       if (businessDateOf(item.startAt) !== businessDateOf(createdAt)) return false;
       if (!selectedServiceIds.every((id) => appointmentAllowsService(item, id))) return false;
-      if (data.orders.some((order) => order.appointmentId === item.id && order.status !== "已退款")) return false;
       const appointmentStart = +new Date(item.startAt);
       const appointmentEnd = +appointmentEndAt(item, data.services);
       const checkoutTime = +new Date(createdAt);
@@ -3198,7 +3228,14 @@ export function checkoutOrder(
     .sort((left, right) =>
       Math.abs(+new Date(createdAt) - +appointmentEndAt(left, data.services)) -
       Math.abs(+new Date(createdAt) - +appointmentEndAt(right, data.services)),
-    )[0];
+    );
+  const alreadyCheckedOutImplicitAppointment = implicitAppointmentMatches.find((item) =>
+    data.orders.some((order) => order.appointmentId === item.id && order.status !== "已退款"),
+  );
+  if (alreadyCheckedOutImplicitAppointment) {
+    throw new Error("匹配到的预约已生成收银单，请勿重复开单");
+  }
+  const inferredAppointment = implicitAppointmentMatches.find((item) => item.status === "已到店");
   const appointment = explicitAppointment ?? inferredAppointment;
   if (appointment) {
     if (appointment.status !== "已到店") {
@@ -3212,11 +3249,27 @@ export function checkoutOrder(
     }
   }
 
+  const serviceCardSelections = normalizeServiceCardSelections(input.serviceCardSelections);
+  serviceCardSelections.forEach((selection) => {
+    if (!selectedServiceIds.includes(selection.serviceId)) {
+      throw new Error("扣卡来源包含未选择的服务项目");
+    }
+    const selectedProjectCard = data.memberCards.find((card) => card.id === selection.cardId && card.customerId === customerId);
+    if (
+      !selectedProjectCard
+      || selectedProjectCard.status !== "正常"
+      || selectedProjectCard.type === "储值卡"
+      || selectedProjectCard.type === "折扣卡"
+      || !memberCardSupportsService(selectedProjectCard, selection.serviceId)
+    ) {
+      throw new Error("请选择当前项目可用的扣卡来源");
+    }
+  });
   const selectedCard = input.cardId
     ? data.memberCards.find((item) => item.id === input.cardId && item.customerId === customerId)
     : undefined;
   const serviceDebitPlan = selectedServiceIds.length
-    ? buildMemberCardDebitPlan(data, customerId, selectedServiceIds, input.cardId)
+    ? buildMemberCardDebitPlan(data, customerId, selectedServiceIds, input.cardId, serviceCardSelections)
     : [];
   const serviceDebitPlanCoversOrder = memberCardDebitPlanCoversServices(serviceDebitPlan, selectedServiceIds);
   const relevantProjectCards = selectedServiceIds.length ? projectCardsForServices(data, customerId, selectedServiceIds) : [];
@@ -3276,7 +3329,7 @@ export function checkoutOrder(
     data.orders.some((order) =>
       isRecentDuplicateOrder(order, {
         appointmentId: appointment?.id,
-        cardId: input.cardId,
+        cardId: serviceDebitPlan[0]?.cardId ?? input.cardId,
         customerId,
         createdAt,
         discountAmount: totalDiscount,
@@ -3312,6 +3365,7 @@ export function checkoutOrder(
     serviceName: serviceNameSnapshot,
     servicePrice: selectedServices.length ? serviceSubtotal : undefined,
     serviceConsumables: serviceConsumption,
+    serviceCardSelections: serviceCardSelections.length ? serviceCardSelections : undefined,
     productId: productItems[0]?.productId,
     giftProductId: giftProductItems[0]?.productId,
     productItems: productItems.length ? withProductNameSnapshots(data, productItems) : undefined,
@@ -3522,7 +3576,9 @@ export function checkoutOrder(
     customers: checkoutCustomers.map((customer) => (customer.id === customerId ? { ...customer, lastVisit: createdAt, points: Math.max(0, (customer.points ?? 0) + Math.floor(paidAmount / 10)) } : customer)),
     appointments: appointment
       ? data.appointments.map((item) =>
-          item.id === appointment.id ? { ...item, updatedAt: createdAt } : item,
+          item.id === appointment.id
+            ? { ...item, status: "已完成" as const, completedAt: createdAt, updatedAt: createdAt }
+            : item,
         )
       : data.appointments,
     customerSignatures: [checkoutSignature, ...(data.customerSignatures ?? [])],
@@ -3548,20 +3604,27 @@ export function refundOrder(
     throw new Error("订单已退款");
   }
 
-  assertBusinessDateOpen(data, businessDateOf(order.createdAt));
-
-  const refundAmount = input.amount ?? order.paidAmount;
-  if (refundAmount <= 0 || refundAmount > order.paidAmount) {
+  if (input.storeId && order.storeId && input.storeId !== order.storeId) {
+    throw new Error("订单不属于当前门店");
+  }
+  const storeId = scopedStoreId(data, order.storeId ?? input.storeId);
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
+  const { historicalRefundAmount, originalPaidAmount, remainingRefundAmount } = orderRefundAmounts(data, order);
+  const refundAmount = roundMoneyValue(input.amount ?? remainingRefundAmount);
+  if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > remainingRefundAmount) {
     throw new Error("退款金额无效");
   }
 
-  const isFullRefund = refundAmount === order.paidAmount;
-  if (refundAmount > 1000 && !hasApprovedRequest(data, input.approvalId, "订单退款", refundAmount)) {
+  const cumulativeRefundAmount = roundMoneyValue(historicalRefundAmount + refundAmount);
+  const isFinalRefund = cumulativeRefundAmount >= originalPaidAmount;
+  if (
+    cumulativeRefundAmount > 1000
+    && !hasApprovedRequest(data, input.approvalId, "订单退款", originalPaidAmount, order.id, storeId)
+  ) {
     throw new Error("大额退款需要审批通过");
   }
 
   const refundServiceConsumables = order.serviceConsumables ?? legacyOrderServiceInventoryConsumables(data, order);
-  const storeId = scopedStoreId(data, input.storeId ?? order.storeId);
   const refund: Refund = {
     id: idFactory("rf"),
     storeId,
@@ -3571,6 +3634,35 @@ export function refundOrder(
     createdBy: input.userId,
     createdAt,
   };
+
+  const existingCommissionIds = new Set(data.commissions.map((item) => item.id));
+  const refundCommissionAdjustments = data.commissions
+    .filter((item) => item.orderId === order.id && isOriginalCommission(item))
+    .map((item): Commission | undefined => {
+      const adjustmentId = `cmr_${refund.id}_${item.id}`;
+      if (existingCommissionIds.has(adjustmentId)) return undefined;
+      const adjustment = commissionRefundAdjustmentToCreate(
+        data,
+        item,
+        originalPaidAmount,
+        historicalRefundAmount,
+        cumulativeRefundAmount,
+      );
+      if (adjustment.amount <= 0) return undefined;
+      return {
+        id: adjustmentId,
+        storeId: item.storeId ?? storeId,
+        staffId: item.staffId,
+        orderId: item.orderId,
+        type: item.type,
+        baseAmount: -adjustment.baseAmount,
+        rate: item.rate,
+        amount: -adjustment.amount,
+        status: "待结算",
+        createdAt,
+      };
+    })
+    .filter((item): item is Commission => Boolean(item));
 
   let products = data.products;
   let inventoryBatches = data.inventoryBatches ?? [];
@@ -3605,7 +3697,7 @@ export function refundOrder(
     });
   };
 
-  if (isFullRefund) {
+  if (isFinalRefund) {
     refundServiceConsumables.forEach((item) => restoreProduct(item.productId, item.quantity));
     if (order.productItems?.length) {
       order.productItems.forEach((item) => restoreProduct(item.productId, item.quantity));
@@ -3625,6 +3717,9 @@ export function refundOrder(
     const consumptionTransactions = data.memberCardTransactions.filter(
       (transaction) => transaction.orderId === order.id && transaction.type === "消费",
     );
+    const priorRefundTransactions = data.memberCardTransactions.filter(
+      (transaction) => transaction.orderId === order.id && transaction.type === "退款",
+    );
     const legacyCard = !consumptionTransactions.length && order.cardId
       ? data.memberCards.find((card) => card.id === order.cardId)
       : undefined;
@@ -3639,7 +3734,7 @@ export function refundOrder(
               orderId: order.id,
               staffId: order.staffId,
               type: "消费",
-              amountDelta: legacyCard.type === "储值卡" ? -order.paidAmount : 0,
+              amountDelta: legacyCard.type === "储值卡" ? -originalPaidAmount : 0,
               timesDelta: legacyCard.type === "储值卡"
                 ? 0
                 : -(order.serviceIds?.length ? order.serviceIds.length : order.serviceId ? 1 : 0),
@@ -3651,26 +3746,33 @@ export function refundOrder(
           ]
         : [];
 
-    if (transactionsToRefund.some((transaction) => transaction.timesDelta < 0) && !isFullRefund) {
+    if (transactionsToRefund.some((transaction) => transaction.timesDelta < 0) && !isFinalRefund) {
       throw new Error("次数卡订单只支持全额退款");
     }
 
     const refundTransactions: MemberCardTransaction[] = [];
+    let remainingStoredValueRefund = refundAmount;
+    let hasStoredValueConsumption = false;
     memberCards = data.memberCards.map((card) => {
       const cardConsumptionTransactions = transactionsToRefund.filter((transaction) => transaction.memberCardId === card.id);
       if (!cardConsumptionTransactions.length) return card;
 
-      let nextCard = card;
-      cardConsumptionTransactions.forEach((transaction) => {
-        const refundedServiceIds = card.type === "储值卡"
-          ? []
-          : memberCardTransactionServiceIds(data, order, transaction, card);
-        const amountDelta = card.type === "储值卡"
-          ? Math.max(0, isFullRefund && consumptionTransactions.length ? -transaction.amountDelta : refundAmount)
-          : 0;
-        nextCard = card.type === "储值卡"
-          ? { ...nextCard, balance: nextCard.balance + amountDelta }
-          : refundedServiceIds.reduce((currentCard, serviceId) => updateMemberCardServiceTimes(currentCard, serviceId, 1), nextCard);
+      if (card.type === "储值卡") {
+        hasStoredValueConsumption = true;
+        const consumedAmount = roundMoneyValue(
+          cardConsumptionTransactions.reduce((sum, transaction) => sum + Math.max(0, -transaction.amountDelta), 0),
+        );
+        const alreadyRefundedAmount = roundMoneyValue(
+          priorRefundTransactions
+            .filter((transaction) => transaction.memberCardId === card.id)
+            .reduce((sum, transaction) => sum + Math.max(0, transaction.amountDelta), 0),
+        );
+        const refundableAmount = roundMoneyValue(Math.max(0, consumedAmount - alreadyRefundedAmount));
+        const amountDelta = roundMoneyValue(Math.min(refundableAmount, remainingStoredValueRefund));
+        if (amountDelta <= 0) return card;
+
+        remainingStoredValueRefund = roundMoneyValue(remainingStoredValueRefund - amountDelta);
+        const nextCard = { ...card, balance: roundMoneyValue(card.balance + amountDelta) };
         refundTransactions.push({
           id: idFactory("mt"),
           storeId,
@@ -3679,6 +3781,27 @@ export function refundOrder(
           staffId: order.staffId,
           type: "退款",
           amountDelta,
+          timesDelta: 0,
+          balanceAfter: nextCard.balance,
+          remainingTimesAfter: nextCard.remainingTimes,
+          note: `${order.orderNo} 退款`,
+          createdAt,
+        });
+        return nextCard;
+      }
+
+      let nextCard = card;
+      cardConsumptionTransactions.forEach((transaction) => {
+        const refundedServiceIds = memberCardTransactionServiceIds(data, order, transaction, card);
+        nextCard = refundedServiceIds.reduce((currentCard, serviceId) => updateMemberCardServiceTimes(currentCard, serviceId, 1), nextCard);
+        refundTransactions.push({
+          id: idFactory("mt"),
+          storeId,
+          memberCardId: card.id,
+          orderId: order.id,
+          staffId: order.staffId,
+          type: "退款",
+          amountDelta: 0,
           timesDelta: refundedServiceIds.length,
           balanceAfter: nextCard.balance,
           remainingTimesAfter: nextCard.remainingTimes,
@@ -3688,6 +3811,9 @@ export function refundOrder(
       });
       return nextCard;
     });
+    if (hasStoredValueConsumption && remainingStoredValueRefund > 0) {
+      throw new Error("会员卡可退余额不足，请核对历史退款流水");
+    }
     memberCardTransactions = [...refundTransactions, ...memberCardTransactions];
   }
 
@@ -3697,26 +3823,39 @@ export function refundOrder(
     inventoryBatches,
     memberCards,
     memberCardTransactions,
+    customers: isFinalRefund && order.customerId
+      ? data.customers.map((customer) =>
+          customer.id === order.customerId
+            ? { ...customer, points: Math.max(0, (customer.points ?? 0) - Math.floor(originalPaidAmount / 10)) }
+            : customer,
+        )
+      : data.customers,
     inventoryLogs,
     refunds: [refund, ...data.refunds],
     orders: data.orders.map((item) =>
       item.id === order.id
         ? {
             ...item,
-            paidAmount: item.paidAmount - refundAmount,
-            status: isFullRefund ? "已退款" : "部分退款",
+            paidAmount: roundMoneyValue(Math.max(0, originalPaidAmount - cumulativeRefundAmount)),
+            status: isFinalRefund ? "已退款" : "部分退款",
           }
         : item,
     ),
-    commissions: data.commissions.map((item) =>
-      item.orderId === order.id
-        ? {
-            ...item,
-            amount: isFullRefund ? item.amount : Math.round(item.amount * ((order.paidAmount - refundAmount) / order.paidAmount)),
-            status: isFullRefund ? "已冲销" : item.status,
-          }
-        : item,
-    ),
+    appointments: isFinalRefund && order.appointmentId
+      ? data.appointments.map((appointment) =>
+          appointment.id === order.appointmentId && appointment.status === "已完成"
+            ? { ...appointment, status: "已到店" as const, completedAt: undefined, updatedAt: createdAt }
+            : appointment,
+        )
+      : data.appointments,
+    customerSignatures: isFinalRefund
+      ? (data.customerSignatures ?? []).map((signature) =>
+          signature.orderId === order.id && signature.status !== "已作废"
+            ? { ...signature, status: "已作废" as const }
+            : signature,
+        )
+      : data.customerSignatures,
+    commissions: [...refundCommissionAdjustments, ...data.commissions],
     operationLogs: [
       {
         id: idFactory("op"),
@@ -3724,12 +3863,224 @@ export function refundOrder(
         action: "订单退款",
         targetType: "order",
         targetId: order.id,
-        summary: `${order.orderNo} ${isFullRefund ? "全额退款" : "部分退款"} ${refund.amount} 元：${input.reason}`,
+        summary: `${order.orderNo} ${isFinalRefund ? "全额退款" : "部分退款"} ${refund.amount} 元：${input.reason}`,
         createdAt,
       },
       ...data.operationLogs,
     ],
   };
+}
+
+export function orderRefundAmounts(
+  data: Pick<AppData, "refunds">,
+  order: Pick<Order, "id" | "paidAmount">,
+) {
+  const historicalRefundAmount = roundMoneyValue(
+    data.refunds
+      .filter((item) => item.orderId === order.id)
+      .reduce((sum, item) => sum + Math.max(0, item.amount), 0),
+  );
+  const originalPaidAmount = roundMoneyValue(Math.max(0, order.paidAmount) + historicalRefundAmount);
+  return {
+    historicalRefundAmount,
+    originalPaidAmount,
+    remainingRefundAmount: roundMoneyValue(Math.max(0, originalPaidAmount - historicalRefundAmount)),
+  };
+}
+
+function isOriginalCommission(commission: Commission) {
+  return commission.baseAmount >= 0 && commission.amount >= 0 && !commission.id.startsWith("cmr_");
+}
+
+export function originalCommissionAmount(commission: Commission) {
+  if (commission.rate > 0 && commission.baseAmount > 0) {
+    return Math.max(0, Math.round(commission.baseAmount * commission.rate));
+  }
+  return Math.max(0, commission.amount);
+}
+
+function commissionRefundAdjustment(
+  commission: Commission,
+  originalPaidAmount: number,
+  refundedBefore: number,
+  refundedAfter: number,
+) {
+  if (originalPaidAmount <= 0) return { amount: 0, baseAmount: 0 };
+  const remainingBefore = Math.max(0, originalPaidAmount - Math.min(originalPaidAmount, refundedBefore));
+  const remainingAfter = Math.max(0, originalPaidAmount - Math.min(originalPaidAmount, refundedAfter));
+  const originalAmount = originalCommissionAmount(commission);
+  const commissionBefore = Math.round(originalAmount * (remainingBefore / originalPaidAmount));
+  const commissionAfter = Math.round(originalAmount * (remainingAfter / originalPaidAmount));
+  const baseBefore = roundMoneyValue(Math.max(0, commission.baseAmount) * (remainingBefore / originalPaidAmount));
+  const baseAfter = roundMoneyValue(Math.max(0, commission.baseAmount) * (remainingAfter / originalPaidAmount));
+  return {
+    amount: Math.max(0, commissionBefore - commissionAfter),
+    baseAmount: roundMoneyValue(Math.max(0, baseBefore - baseAfter)),
+  };
+}
+
+function commissionAdjustmentMatchesOriginal(adjustment: Commission, original: Commission) {
+  return adjustment.orderId === original.orderId
+    && adjustment.amount < 0
+    && adjustment.id.startsWith("cmr_")
+    && adjustment.id.endsWith(`_${original.id}`);
+}
+
+function commissionSettlementTime(data: Pick<AppData, "commissionSettlements">, commission: Commission) {
+  if (commission.status === "待结算") return undefined;
+  const settlement = data.commissionSettlements.find((candidate) =>
+    candidate.id === commission.settlementId && candidate.commissionIds.includes(commission.id));
+  if (!settlement) return undefined;
+  const value = commission.settledAt ?? settlement.createdAt;
+  if (!value || !Number.isFinite(Date.parse(value))) return undefined;
+  return value;
+}
+
+function refundHasOwnCommissionAdjustment(
+  data: Pick<AppData, "commissions">,
+  commission: Commission,
+  refund: Refund,
+) {
+  const refundPrefix = `cmr_${refund.id}_`;
+  return data.commissions.some((adjustment) =>
+    commissionAdjustmentMatchesOriginal(adjustment, commission)
+      && adjustment.id.startsWith(refundPrefix));
+}
+
+function commissionRemainingAfterRefund(
+  commission: Commission,
+  originalPaidAmount: number,
+  refundedAmount: number,
+) {
+  if (originalPaidAmount <= 0) return { amount: 0, baseAmount: 0 };
+  const remainingRatio = Math.max(
+    0,
+    originalPaidAmount - Math.min(originalPaidAmount, Math.max(0, refundedAmount)),
+  ) / originalPaidAmount;
+  return {
+    amount: Math.round(originalCommissionAmount(commission) * remainingRatio),
+    baseAmount: roundMoneyValue(Math.max(0, commission.baseAmount) * remainingRatio),
+  };
+}
+
+function commissionRefundAdjustmentToCreate(
+  data: Pick<AppData, "commissions" | "commissionSettlements" | "refunds">,
+  commission: Commission,
+  originalPaidAmount: number,
+  refundedBefore: number,
+  refundedAfter: number,
+) {
+  const settledAt = commissionSettlementTime(data, commission);
+  if (!settledAt) {
+    return commissionRefundAdjustment(commission, originalPaidAmount, refundedBefore, refundedAfter);
+  }
+
+  // Legacy releases rewrote the positive commission row on refund. When the
+  // commission had already been settled, continuing the refund using only the
+  // latest interval left the earlier paid amount unreversed. Rebuild the
+  // cumulative target from the amount actually earned at settlement, then
+  // subtract every existing negative adjustment. Refunds that happened before
+  // settlement without their own cmr_ row were already reflected in the
+  // positive amount paid by the legacy settlement and must not be reversed a
+  // second time.
+  const hasAmbiguousLegacyRefundBeforeSettlement = data.refunds.some((refund) =>
+    refund.orderId === commission.orderId
+      && refund.amount > 0
+      && Date.parse(refund.createdAt) <= Date.parse(settledAt)
+      && !refundHasOwnCommissionAdjustment(data, commission, refund));
+  if (hasAmbiguousLegacyRefundBeforeSettlement) {
+    // Old releases rounded each partial refund in sequence. Without an audit
+    // row for those pre-settlement refunds, reconstructing the exact amount
+    // paid can be off by one yuan. Keep the ordinary interval adjustment for
+    // this ambiguous history rather than risk an automatic over-reversal.
+    return commissionRefundAdjustment(commission, originalPaidAmount, refundedBefore, refundedAfter);
+  }
+  const atSettlement = commissionRemainingAfterRefund(
+    commission,
+    originalPaidAmount,
+    0,
+  );
+  const afterCumulativeRefund = commissionRemainingAfterRefund(
+    commission,
+    originalPaidAmount,
+    refundedAfter,
+  );
+  const cumulativeTarget = {
+    amount: Math.max(0, atSettlement.amount - afterCumulativeRefund.amount),
+    baseAmount: roundMoneyValue(Math.max(0, atSettlement.baseAmount - afterCumulativeRefund.baseAmount)),
+  };
+  const existingAdjustments = data.commissions.filter((adjustment) =>
+    commissionAdjustmentMatchesOriginal(adjustment, commission));
+  const alreadyReversed = {
+    amount: existingAdjustments.reduce((sum, adjustment) => sum + Math.max(0, -adjustment.amount), 0),
+    baseAmount: roundMoneyValue(
+      existingAdjustments.reduce((sum, adjustment) => sum + Math.max(0, -adjustment.baseAmount), 0),
+    ),
+  };
+  return {
+    amount: Math.max(0, cumulativeTarget.amount - alreadyReversed.amount),
+    baseAmount: roundMoneyValue(Math.max(0, cumulativeTarget.baseAmount - alreadyReversed.baseAmount)),
+  };
+}
+
+export function commissionAccrualByStaff(
+  periodData: Pick<AppData, "commissions" | "refunds">,
+  referenceData: Pick<AppData, "commissions" | "orders" | "refunds">,
+) {
+  const result = new Map<string, number>();
+  const add = (staffId: string, amount: number) => {
+    if (!amount) return;
+    result.set(staffId, (result.get(staffId) ?? 0) + amount);
+  };
+
+  periodData.commissions
+    .filter(isOriginalCommission)
+    .forEach((commission) => add(commission.staffId, originalCommissionAmount(commission)));
+
+  const visibleRefundIds = new Set(periodData.refunds.map((refund) => refund.id));
+  const commissionsByOrder = new Map<string, Commission[]>();
+  referenceData.commissions.filter(isOriginalCommission).forEach((commission) => {
+    const commissions = commissionsByOrder.get(commission.orderId) ?? [];
+    commissions.push(commission);
+    commissionsByOrder.set(commission.orderId, commissions);
+  });
+  const refundsByOrder = new Map<string, Refund[]>();
+  referenceData.refunds.forEach((refund) => {
+    const refunds = refundsByOrder.get(refund.orderId) ?? [];
+    refunds.push(refund);
+    refundsByOrder.set(refund.orderId, refunds);
+  });
+  const orderById = new Map(referenceData.orders.map((order) => [order.id, order]));
+  refundsByOrder.forEach((refunds, orderId) => {
+    const order = orderById.get(orderId);
+    if (!order) return;
+    const sortedRefunds = [...refunds].sort((left, right) =>
+      left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+    const originalPaidAmount = roundMoneyValue(
+      Math.max(0, order.paidAmount) + sortedRefunds.reduce((sum, refund) => sum + Math.max(0, refund.amount), 0),
+    );
+    let refundedBefore = 0;
+    sortedRefunds.forEach((refund) => {
+      const refundedAfter = roundMoneyValue(Math.min(originalPaidAmount, refundedBefore + Math.max(0, refund.amount)));
+      if (visibleRefundIds.has(refund.id)) {
+        (commissionsByOrder.get(orderId) ?? []).forEach((commission) => {
+          const adjustment = commissionRefundAdjustment(commission, originalPaidAmount, refundedBefore, refundedAfter);
+          add(commission.staffId, -adjustment.amount);
+        });
+      }
+      refundedBefore = refundedAfter;
+    });
+  });
+
+  return result;
+}
+
+export function commissionAccrualAmount(
+  periodData: Pick<AppData, "commissions" | "refunds">,
+  referenceData: Pick<AppData, "commissions" | "orders" | "refunds">,
+) {
+  return Array.from(commissionAccrualByStaff(periodData, referenceData).values())
+    .reduce((sum, amount) => sum + amount, 0);
 }
 
 export function openMemberCard(
@@ -3739,8 +4090,6 @@ export function openMemberCard(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
-
   const serviceEntitlements = normalizeMemberCardServiceEntitlements(input.serviceEntitlements);
   const serviceIds = Array.from(new Set([
     input.serviceId,
@@ -3776,6 +4125,7 @@ export function openMemberCard(
   let customers = data.customers;
   const existingCustomer = customerId ? data.customers.find((customer) => customer.id === customerId) : undefined;
   const storeId = scopedStoreId(data, input.storeId ?? existingCustomer?.storeId);
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
   if (!existingCustomer) {
     const customerName = trimText(input.customerName);
     const rawCustomerPhone = trimText(input.customerPhone);
@@ -4234,9 +4584,10 @@ export function rechargeMemberCard(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const card = data.memberCards.find((item) => item.id === input.memberCardId);
   if (!card || memberCardIsClosed(card)) throw new Error("会员卡不存在或不可充值");
+  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
 
   const amountDelta = (input.amount ?? 0) + (input.giftAmount ?? 0);
   const timesDelta = (input.times ?? 0) + (input.giftTimes ?? 0);
@@ -4249,7 +4600,6 @@ export function rechargeMemberCard(
     balance: card.balance + amountDelta,
     remainingTimes: card.remainingTimes + timesDelta,
   };
-  const storeId = scopedStoreId(data, card.storeId ?? storeIdForCustomer(data, card.customerId));
   const pointsEarned = Math.floor(paidAmount / 10);
 
   return {
@@ -4567,6 +4917,13 @@ export function updateAppointmentStatus(
 
   if (!allowedTransitions[appointment.status].includes(nextStatus)) {
     throw new Error(`预约状态不能从${appointment.status}改为${nextStatus}`);
+  }
+
+  if (
+    nextStatus === "已取消"
+    && data.orders.some((order) => order.appointmentId === appointment.id && order.status !== "已退款")
+  ) {
+    throw new Error("该预约已有有效收银单，不能取消；如需处理请先退款");
   }
 
   const currentTime = (options.now ?? nowIso)();
@@ -4978,8 +5335,13 @@ export function createDailyClose(
   }
 
   const orders = data.orders.filter((order) => businessDateOf(order.createdAt) === input.businessDate && (order.storeId ?? defaultStoreId(data)) === storeId);
-  const orderIds = new Set(orders.map((order) => order.id));
-  const refunds = data.refunds.filter((refund) => businessDateOf(refund.createdAt) === input.businessDate && ((refund.storeId ?? defaultStoreId(data)) === storeId || orderIds.has(refund.orderId)));
+  const orderById = new Map(data.orders.map((order) => [order.id, order]));
+  const refunds = data.refunds.filter((refund) => {
+    if (businessDateOf(refund.createdAt) !== input.businessDate) return false;
+    const linkedOrder = orderById.get(refund.orderId);
+    const refundStoreId = trimText(refund.storeId) || trimText(linkedOrder?.storeId) || defaultStoreId(data);
+    return refundStoreId === storeId;
+  });
   const commissions = data.commissions.filter((commission) => businessDateOf(commission.createdAt) === input.businessDate && (commission.storeId ?? defaultStoreId(data)) === storeId);
   const memberCardIncomeTransactions = data.memberCardTransactions.filter(
     (transaction) => businessDateOf(transaction.createdAt) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashIn(transaction) > 0,
@@ -4988,31 +5350,39 @@ export function createDailyClose(
     (transaction) => businessDateOf(transaction.createdAt) === input.businessDate && (transaction.storeId ?? defaultStoreId(data)) === storeId && memberCardCashRefund(transaction) > 0,
   );
 
+  const originalOrderAmount = (order: Order) => orderRefundAmounts(data, order).originalPaidAmount;
   const orderAmountByMethod = (method: Order["payMethod"]) =>
-    orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + order.paidAmount, 0);
+    orders.filter((order) => order.payMethod === method).reduce((sum, order) => sum + originalOrderAmount(order), 0);
   const memberCardIncomeByMethod = (method: CashPayMethod) =>
     memberCardIncomeTransactions
       .filter((transaction) => transaction.payMethod === method)
       .reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
   const cashRevenue = orders
     .filter((order) => order.payMethod !== "会员卡")
-    .reduce((sum, order) => sum + order.paidAmount, 0)
+    .reduce((sum, order) => sum + originalOrderAmount(order), 0)
     + memberCardIncomeTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
+  const cashOrderRefundAmount = refunds
+    .filter((refund) => orderById.get(refund.orderId)?.payMethod !== "会员卡")
+    .reduce((sum, refund) => sum + refund.amount, 0);
+  const visibleRefundAmountByOrder = new Map<string, number>();
+  refunds.forEach((refund) => {
+    visibleRefundAmountByOrder.set(refund.orderId, (visibleRefundAmountByOrder.get(refund.orderId) ?? 0) + refund.amount);
+  });
 
   const dailyClose: DailyClose = {
     id: idFactory("dc"),
     storeId,
     businessDate: input.businessDate,
     revenue: cashRevenue,
-    refundAmount: refunds.reduce((sum, refund) => sum + refund.amount, 0)
+    refundAmount: cashOrderRefundAmount
       + memberCardRefundTransactions.reduce((sum, transaction) => sum + memberCardCashRefund(transaction), 0),
-    orderCount: orders.filter((order) => order.status !== "已退款").length,
+    orderCount: orders.filter((order) => (visibleRefundAmountByOrder.get(order.id) ?? 0) < originalOrderAmount(order)).length,
     cashAmount: orderAmountByMethod("现金") + memberCardIncomeByMethod("现金"),
     wechatAmount: orderAmountByMethod("微信") + memberCardIncomeByMethod("微信"),
     alipayAmount: orderAmountByMethod("支付宝") + memberCardIncomeByMethod("支付宝"),
     cardAmount: orderAmountByMethod("银行卡") + memberCardIncomeByMethod("银行卡"),
     memberCardAmount: orderAmountByMethod("会员卡"),
-    commissionAmount: commissions.filter((commission) => commission.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0),
+    commissionAmount: commissionAccrualAmount({ commissions, refunds }, data),
     createdBy: input.userId,
     createdAt,
     status: "已锁定",
@@ -5166,13 +5536,13 @@ export function adjustInventory(
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
   const createdAt = currentTime();
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const direction = input.type === "入库" ? 1 : -1;
   const targetProduct = data.products.find((product) => product.id === input.productId);
   if (!targetProduct) {
     throw new Error("商品不存在");
   }
   const storeId = scopedStoreId(data, input.storeId ?? targetProduct.storeId);
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
   const expiryAt = input.type === "入库" ? stockInExpiryAt(targetProduct, createdAt, input.expiryAt) : undefined;
   const inboundUnitCost = input.type === "入库" && typeof input.unitCost === "number" && Number.isFinite(input.unitCost) && input.unitCost >= 0
     ? input.unitCost
@@ -5240,11 +5610,11 @@ export function receivePurchaseOrder(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
   if (!data.suppliers.some((supplier) => supplier.id === input.supplierId)) throw new Error("供应商不存在");
   const product = data.products.find((item) => item.id === input.productId);
   if (!product) throw new Error("商品不存在");
   const storeId = scopedStoreId(data, input.storeId ?? product.storeId);
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
   const stockAfter = product.stock + input.quantity;
   const expiryAt = stockInExpiryAt(product, createdAt, input.expiryAt);
   const purchaseOrder: PurchaseOrder = {
@@ -5299,8 +5669,8 @@ export function receiveSupplierPurchase(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const storeId = scopedStoreId(data, input.storeId);
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
   const normalizedSupplierName = trimText(input.supplierName);
   const supplier = input.supplierId
     ? data.suppliers.find((item) => item.id === input.supplierId)
@@ -5422,8 +5792,8 @@ export function restockLowInventory(
   const idFactory = options.idFactory ?? makeId;
   const currentTime = options.now ?? nowIso;
   const createdAt = currentTime();
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const storeId = scopedStoreId(data, input.storeId);
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
   const lowStockProducts = data.products.filter((product) => product.stock <= product.warningStock && (!storeId || (product.storeId ?? defaultStoreId(data)) === storeId));
   if (lowStockProducts.length === 0) throw new Error("当前没有需要补货的商品");
 
@@ -5520,10 +5890,10 @@ export function createStocktake(
 ): AppData {
   const idFactory = options.idFactory ?? makeId;
   const createdAt = (options.now ?? nowIso)();
-  assertBusinessDateOpen(data, businessDateOf(createdAt));
   const product = data.products.find((item) => item.id === input.productId);
   if (!product) throw new Error("商品不存在");
   const storeId = scopedStoreId(data, input.storeId ?? product.storeId);
+  assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
   const delta = input.actualStock - product.stock;
   const stocktake: Stocktake = {
     id: idFactory("st"),
@@ -5702,7 +6072,13 @@ export function signCustomerSignature(
         : []
     : [];
   const signatureDebitPlan = linkedOrder && !alreadyDebited && linkedOrderServiceIds.length > 0
-    ? buildMemberCardDebitPlan(data, linkedOrder.customerId, linkedOrderServiceIds, linkedOrder.cardId)
+    ? buildMemberCardDebitPlan(
+        data,
+        linkedOrder.customerId,
+        linkedOrderServiceIds,
+        linkedOrder.cardId,
+        linkedOrder.serviceCardSelections,
+      )
     : [];
   const signatureDebitPlanCoversOrder = memberCardDebitPlanCoversServices(signatureDebitPlan, linkedOrderServiceIds);
   const debitCard = linkedOrder && !alreadyDebited && signatureDebitPlan.length === 0 ? selectSignatureDebitCard(data, linkedOrder) : undefined;
@@ -6022,16 +6398,61 @@ export function settleCommissions(
   };
 }
 
-export function reportSummary(data: AppData) {
+export function cashFlowSummary(data: AppData, referenceData: AppData = data) {
+  const referenceOrderById = new Map(referenceData.orders.map((order) => [order.id, order]));
+  const referenceRefundAmountByOrder = new Map<string, number>();
+  referenceData.refunds.forEach((refund) => {
+    referenceRefundAmountByOrder.set(refund.orderId, (referenceRefundAmountByOrder.get(refund.orderId) ?? 0) + Math.max(0, refund.amount));
+  });
+  const originalPaidAmount = (order: Order) => roundMoneyValue(
+    Math.max(0, order.paidAmount) + (referenceRefundAmountByOrder.get(order.id) ?? 0),
+  );
+  const visibleRefundAmountByOrder = new Map<string, number>();
+  data.refunds.forEach((refund) => {
+    visibleRefundAmountByOrder.set(refund.orderId, (visibleRefundAmountByOrder.get(refund.orderId) ?? 0) + Math.max(0, refund.amount));
+  });
+  const referenceRefundOrderIds = new Set(referenceRefundAmountByOrder.keys());
   const orderCashRevenue = data.orders
     .filter((item) => item.payMethod !== "会员卡")
-    .reduce((sum, item) => sum + item.paidAmount, 0);
+    .reduce((sum, item) => sum + originalPaidAmount(item), 0);
   const revenue = orderCashRevenue + data.memberCardTransactions.reduce((sum, item) => sum + memberCardCashIn(item), 0);
-  const refundAmount = data.refunds.reduce((sum, item) => sum + item.amount, 0)
+  const refundAmount = data.refunds
+    .filter((refund) => referenceOrderById.get(refund.orderId)?.payMethod !== "会员卡")
+    .reduce((sum, item) => sum + item.amount, 0)
     + data.memberCardTransactions.reduce((sum, item) => sum + memberCardCashRefund(item), 0);
+  const orderCount = data.orders.filter((order) => {
+    const visibleRefundAmount = visibleRefundAmountByOrder.get(order.id) ?? 0;
+    if (visibleRefundAmount > 0) return visibleRefundAmount < originalPaidAmount(order);
+    if (referenceRefundOrderIds.has(order.id)) return true;
+    return order.status !== "已退款";
+  }).length;
+  return { revenue, refundAmount, netRevenue: revenue - refundAmount, orderCount };
+}
+
+export function reportSummary(data: AppData, referenceData: AppData = data) {
+  const cashFlow = cashFlowSummary(data, referenceData);
+  const referenceRefundAmountByOrder = new Map<string, number>();
+  referenceData.refunds.forEach((refund) => {
+    referenceRefundAmountByOrder.set(refund.orderId, (referenceRefundAmountByOrder.get(refund.orderId) ?? 0) + Math.max(0, refund.amount));
+  });
+  const originalPaidAmount = (order: Order) => roundMoneyValue(
+    Math.max(0, order.paidAmount) + (referenceRefundAmountByOrder.get(order.id) ?? 0),
+  );
+  const visibleRefundAmountByOrder = new Map<string, number>();
+  data.refunds.forEach((refund) => {
+    visibleRefundAmountByOrder.set(refund.orderId, (visibleRefundAmountByOrder.get(refund.orderId) ?? 0) + Math.max(0, refund.amount));
+  });
+  const referenceRefundOrderIds = new Set(referenceRefundAmountByOrder.keys());
   const cardBalance = data.memberCards.reduce((sum, item) => sum + item.balance, 0);
-  const commission = data.commissions.filter((item) => item.status !== "已冲销").reduce((sum, item) => sum + item.amount, 0);
-  const effectiveOrders = data.orders.filter((item) => item.status !== "已退款");
+  const commission = commissionAccrualAmount(data, referenceData);
+  const effectiveOrders = data.orders.filter((order) => {
+    const visibleRefundAmount = visibleRefundAmountByOrder.get(order.id) ?? 0;
+    if (visibleRefundAmount > 0) {
+      return visibleRefundAmount < originalPaidAmount(order);
+    }
+    if (referenceRefundOrderIds.has(order.id)) return true;
+    return order.status !== "已退款";
+  });
   const serviceCount = effectiveOrders.length;
   const inventoryBatches = data.inventoryBatches ?? [];
   const inventoryCost = inventoryBatches.length
@@ -6067,18 +6488,18 @@ export function reportSummary(data: AppData) {
   }).length;
 
   return {
-    revenue,
-    refundAmount,
-    netRevenue: revenue - refundAmount,
+    revenue: cashFlow.revenue,
+    refundAmount: cashFlow.refundAmount,
+    netRevenue: cashFlow.netRevenue,
     cardBalance,
     commission,
     serviceCount,
-    averageOrderValue: serviceCount ? revenue / serviceCount : 0,
+    averageOrderValue: serviceCount ? cashFlow.revenue / serviceCount : 0,
     lowStockCount: data.products.filter((item) => item.stock <= item.warningStock).length,
     inventoryCost,
     orderProductCost,
-    grossProfit: revenue - refundAmount - orderProductCost,
-    grossMargin: revenue > 0 ? (revenue - refundAmount - orderProductCost) / revenue : 0,
+    grossProfit: cashFlow.netRevenue - orderProductCost,
+    grossMargin: cashFlow.revenue > 0 ? (cashFlow.netRevenue - orderProductCost) / cashFlow.revenue : 0,
     activeCustomerCount,
     repeatCustomerCount,
     repeatRate: activeCustomerCount ? repeatCustomerCount / activeCustomerCount : 0,
@@ -6087,13 +6508,31 @@ export function reportSummary(data: AppData) {
   };
 }
 
-function hasApprovedRequest(data: AppData, approvalId: string | undefined, type: ApprovalRequest["type"], amount: number) {
+function hasApprovedRequest(
+  data: AppData,
+  approvalId: string | undefined,
+  type: ApprovalRequest["type"],
+  amount: number,
+  targetId: string,
+  storeId: string,
+) {
   if (!approvalId) return false;
-  return data.approvalRequests.some((item) => item.id === approvalId && item.type === type && item.status === "已通过" && item.amount >= amount);
+  return data.approvalRequests.some((item) =>
+    item.id === approvalId
+    && item.type === type
+    && item.status === "已通过"
+    && item.amount >= amount
+    && item.targetId === targetId
+    && item.storeId === storeId,
+  );
 }
 
-function assertBusinessDateOpen(data: AppData, businessDate: string) {
-  if (data.dailyCloses.some((item) => item.businessDate === businessDate && item.status === "已锁定")) {
+function assertBusinessDateOpen(data: AppData, businessDate: string, storeId: string) {
+  if (data.dailyCloses.some((item) =>
+    item.businessDate === businessDate
+    && item.status === "已锁定"
+    && (item.storeId ?? defaultStoreId(data)) === storeId,
+  )) {
     throw new Error("该营业日已日结锁账");
   }
 }

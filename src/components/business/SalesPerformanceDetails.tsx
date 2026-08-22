@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { memberCardCashIn, memberCardCashRefund, reportSummary } from "../../domain/business";
+import { periodPaymentAmounts, periodServicePerformance, periodStaffPerformance, reportableOrderOriginalPaidAmount, reportablePeriodData, reportOrderAuditAmounts } from "../../domain/reporting";
 import {
   addReportPeriod,
   reportPeriodData,
@@ -85,10 +86,14 @@ function businessOverviewDetails(allData: AppData, periodData: AppData, mode: Re
   const productNames = new Map(allData.products.map((product) => [product.id, product.name]));
   const staffNames = new Map(allData.staff.map((staff) => [staff.id, staff.name]));
   const cardById = new Map(allData.memberCards.map((card) => [card.id, card]));
-  const refundsByOrder = new Map<string, number>();
-  allData.refunds.forEach((refund) => refundsByOrder.set(refund.orderId, (refundsByOrder.get(refund.orderId) ?? 0) + refund.amount));
+  const periodRefundsByOrder = new Map<string, number>();
+  periodData.refunds.forEach((refund) => periodRefundsByOrder.set(refund.orderId, (periodRefundsByOrder.get(refund.orderId) ?? 0) + refund.amount));
+  const reportableOrderPaidAmount = (order: Order) => reportableOrderOriginalPaidAmount(allData, order);
 
-  const periodOrders = periodData.orders.filter((order) => order.status !== "已退款");
+  const periodOrders = periodData.orders.filter((order) => {
+    const paidAmount = reportableOrderPaidAmount(order);
+    return paidAmount > 0 && (periodRefundsByOrder.get(order.id) ?? 0) < paidAmount;
+  });
   const ordersByCustomer = new Map<string, Order[]>();
   periodOrders.forEach((order) => {
     const orders = ordersByCustomer.get(order.customerId) ?? [];
@@ -118,10 +123,10 @@ function businessOverviewDetails(allData: AppData, periodData: AppData, mode: Re
       const lastOrder = orders.reduce<Order | undefined>((latest, order) => !latest || order.createdAt > latest.createdAt ? order : latest, undefined);
       const lastCardTransaction = cardTransactions.reduce<(typeof cardTransactions)[number] | undefined>((latest, transaction) => !latest || transaction.createdAt > latest.createdAt ? transaction : latest, undefined);
       const lastAt = [lastOrder?.createdAt, lastCardTransaction?.createdAt].filter((value): value is string => Boolean(value)).sort().at(-1) ?? "";
-      const orderPaidAmount = orders.reduce((sum, order) => sum + order.paidAmount, 0);
+      const orderPaidAmount = orders.reduce((sum, order) => sum + reportableOrderPaidAmount(order), 0);
       const cardPaidAmount = cardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
       const paidAmount = orderPaidAmount + cardPaidAmount;
-      const refundAmount = orders.reduce((sum, order) => sum + (refundsByOrder.get(order.id) ?? 0), 0) + (cardRefundsByCustomer.get(customerId) ?? 0);
+      const refundAmount = orders.reduce((sum, order) => sum + (periodRefundsByOrder.get(order.id) ?? 0), 0) + (cardRefundsByCustomer.get(customerId) ?? 0);
       const contentLabels = [
         ...orders.flatMap((order) => orderContent(order, serviceNames, productNames)),
         ...cardTransactions.map((transaction) => `${transaction.type}·${cardById.get(transaction.memberCardId)?.name ?? "会员卡"}`),
@@ -149,7 +154,7 @@ function businessOverviewDetails(allData: AppData, periodData: AppData, mode: Re
   const consumptionRecords = [
     ...periodData.orders.map((order) => {
       const customer = customerById.get(order.customerId);
-      const refundAmount = refundsByOrder.get(order.id) ?? 0;
+      const auditAmounts = reportOrderAuditAmounts(allData, order);
       return {
         id: order.id,
         kind: "收银订单",
@@ -161,12 +166,34 @@ function businessOverviewDetails(allData: AppData, periodData: AppData, mode: Re
         staff: staffNames.get(order.staffId) ?? "-",
         totalAmount: order.totalAmount,
         discountAmount: order.discountAmount,
-        paidAmount: order.paidAmount,
-        refundAmount,
-        netAmount: order.paidAmount - refundAmount,
+        paidAmount: auditAmounts.paidAmount,
+        refundAmount: auditAmounts.refundAmount,
+        netAmount: auditAmounts.netAmount,
         payMethod: order.payMethod,
         status: order.status,
         createdAt: order.createdAt,
+      };
+    }),
+    ...periodData.refunds.map((refund) => {
+      const order = allData.orders.find((candidate) => candidate.id === refund.orderId);
+      const customer = order ? customerById.get(order.customerId) : undefined;
+      return {
+        id: refund.id,
+        kind: "订单退款",
+        orderNo: order?.orderNo ?? refund.orderId,
+        customerId: order?.customerId ?? "unknown",
+        customerName: customer?.name ?? order?.guestName ?? "未建档客户",
+        customerPhone: customer?.phone ?? order?.guestPhone ?? "-",
+        content: order ? uniqueText(orderContent(order, serviceNames, productNames)) : "历史订单退款",
+        staff: order ? staffNames.get(order.staffId) ?? "-" : "-",
+        totalAmount: 0,
+        discountAmount: 0,
+        paidAmount: 0,
+        refundAmount: refund.amount,
+        netAmount: -refund.amount,
+        payMethod: order?.payMethod ?? "-",
+        status: "已退款",
+        createdAt: refund.createdAt,
       };
     }),
     ...periodData.memberCardTransactions.flatMap((transaction) => {
@@ -200,7 +227,14 @@ function businessOverviewDetails(allData: AppData, periodData: AppData, mode: Re
   const referenceDate = new Date(Math.min(Date.now(), +periodEnd - 1));
   const lifetimeOrdersByCustomer = new Map<string, Order[]>();
   allData.orders
-    .filter((order) => order.status !== "已退款" && +new Date(order.createdAt) < +periodEnd)
+    .filter((order) => {
+      if (+new Date(order.createdAt) >= +periodEnd) return false;
+      const refundedBeforePeriodEnd = allData.refunds
+        .filter((refund) => refund.orderId === order.id && +new Date(refund.createdAt) < +periodEnd)
+        .reduce((sum, refund) => sum + refund.amount, 0);
+      const reportablePaidAmount = reportableOrderPaidAmount(order);
+      return reportablePaidAmount > 0 && refundedBeforePeriodEnd < reportablePaidAmount;
+    })
     .forEach((order) => {
       const orders = lifetimeOrdersByCustomer.get(order.customerId) ?? [];
       orders.push(order);
@@ -319,90 +353,10 @@ function businessOverviewDetails(allData: AppData, periodData: AppData, mode: Re
     };
   }).sort((left, right) => Number(right.isBacklog) - Number(left.isBacklog) || right.amount - left.amount);
 
-  const staffPerformanceMap = new Map<string, {
-    id: string;
-    name: string;
-    orderCount: number;
-    customerIds: Set<string>;
-    revenue: number;
-    refundAmount: number;
-    commission: number;
-  }>();
-  periodData.orders.forEach((order) => {
-    const current = staffPerformanceMap.get(order.staffId) ?? {
-      id: order.staffId,
-      name: staffNames.get(order.staffId) ?? "未找到员工",
-      orderCount: 0,
-      customerIds: new Set<string>(),
-      revenue: 0,
-      refundAmount: 0,
-      commission: 0,
-    };
-    current.orderCount += 1;
-    current.customerIds.add(order.customerId);
-    current.revenue += order.paidAmount;
-    current.refundAmount += refundsByOrder.get(order.id) ?? 0;
-    staffPerformanceMap.set(order.staffId, current);
-  });
-  periodData.memberCardTransactions.forEach((transaction) => {
-    const amount = memberCardCashIn(transaction);
-    if (amount <= 0 || !transaction.staffId) return;
-    const card = cardById.get(transaction.memberCardId);
-    const current = staffPerformanceMap.get(transaction.staffId) ?? {
-      id: transaction.staffId,
-      name: staffNames.get(transaction.staffId) ?? "未找到员工",
-      orderCount: 0,
-      customerIds: new Set<string>(),
-      revenue: 0,
-      refundAmount: 0,
-      commission: 0,
-    };
-    current.orderCount += 1;
-    if (card) current.customerIds.add(card.customerId);
-    current.revenue += amount;
-    staffPerformanceMap.set(transaction.staffId, current);
-  });
-  periodData.commissions.filter((commission) => commission.status !== "已冲销").forEach((commission) => {
-    const current = staffPerformanceMap.get(commission.staffId);
-    if (current) current.commission += commission.amount;
-  });
-  const staffRanking = Array.from(staffPerformanceMap.values())
-    .map((item) => ({ ...item, customerCount: item.customerIds.size, netAmount: item.revenue - item.refundAmount }))
-    .sort((left, right) => right.netAmount - left.netAmount);
+  const staffRanking = periodStaffPerformance(allData, periodData);
+  const serviceRanking = periodServicePerformance(allData, periodData);
 
-  const servicePerformanceMap = new Map<string, { id: string; name: string; count: number; customerIds: Set<string>; revenue: number }>();
-  periodOrders.forEach((order) => {
-    const serviceIds = order.serviceIds?.length ? order.serviceIds : order.serviceId ? [order.serviceId] : [];
-    const revenueShare = serviceIds.length ? order.paidAmount / serviceIds.length : 0;
-    serviceIds.forEach((serviceId) => {
-      const current = servicePerformanceMap.get(serviceId) ?? {
-        id: serviceId,
-        name: serviceNames.get(serviceId) ?? "未找到项目",
-        count: 0,
-        customerIds: new Set<string>(),
-        revenue: 0,
-      };
-      current.count += 1;
-      current.customerIds.add(order.customerId);
-      current.revenue += revenueShare;
-      servicePerformanceMap.set(serviceId, current);
-    });
-  });
-  const serviceRanking = Array.from(servicePerformanceMap.values())
-    .map((item) => ({ ...item, customerCount: item.customerIds.size }))
-    .sort((left, right) => right.revenue - left.revenue);
-
-  const paymentAmounts = new Map<string, number>();
-  periodData.orders.forEach((order) => {
-    const netAmount = order.paidAmount - (refundsByOrder.get(order.id) ?? 0);
-    paymentAmounts.set(order.payMethod, (paymentAmounts.get(order.payMethod) ?? 0) + netAmount);
-  });
-  periodData.memberCardTransactions.forEach((transaction) => {
-    const amount = memberCardCashIn(transaction) - memberCardCashRefund(transaction);
-    if (amount === 0) return;
-    const method = transaction.payMethod ?? "其他";
-    paymentAmounts.set(method, (paymentAmounts.get(method) ?? 0) + amount);
-  });
+  const paymentAmounts = periodPaymentAmounts(allData, periodData);
   const paymentBreakdown = Array.from(paymentAmounts.entries())
     .filter(([, amount]) => amount !== 0)
     .map(([method, amount]) => ({ method, amount }))
@@ -471,7 +425,7 @@ export default function SalesPerformanceDetails({
     () => reportPeriodData(data, mode, previousDate),
     [data, mode, previousDate],
   );
-  const previousSummary = useMemo(() => reportSummary(previousPeriodData), [previousPeriodData]);
+  const previousSummary = useMemo(() => reportSummary(reportablePeriodData(data, previousPeriodData), data), [previousPeriodData, data]);
   const previousDetails = useMemo(
     () => businessOverviewDetails(data, previousPeriodData, mode, previousDate),
     [data, previousPeriodData, mode, previousDate],

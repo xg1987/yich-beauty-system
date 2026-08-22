@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ClipboardList } from "lucide-react";
 import { PanelTitle } from "../components/layout/PanelTitle";
 import { Badge } from "../components/ui/Badge";
@@ -25,17 +26,121 @@ type CashierFlowPanelProps = {
   selectedSignatureImage?: string;
   selectedSignatureImageLoading: boolean;
   selectedSignatureExpired: boolean;
+  mutationPending: boolean;
+  refundApprovalState: "not-required" | "missing" | "pending" | "rejected" | "approved";
+  refundOriginalPaidAmount: number;
   onPageChange: (page: number) => void;
   onRetry?: () => void;
   onSelectRecord: (record: CashierFlowListItem) => void;
   onClearSelection: () => void;
   onRetryDetail?: () => void;
   onOpenSignature: () => void;
+  onRegenerateSignature: () => Promise<void>;
+  onRequestRefundApproval: (reason: string) => Promise<void>;
+  onRefundOrder: (reason: string) => Promise<void>;
 };
 
 function cashierPaymentText(record: CashierFlowListItem) {
   if (record.kind === "order" && record.payMethod === "会员卡") return "会员卡扣款";
   return record.payMethod;
+}
+
+function OrderRefundAction({
+  record,
+  mutationPending,
+  approvalState,
+  originalPaidAmount,
+  onRequestApproval,
+  onRefund,
+}: {
+  record: Extract<CashierFlowListItem, { kind: "order" }>;
+  mutationPending: boolean;
+  approvalState: CashierFlowPanelProps["refundApprovalState"];
+  originalPaidAmount: number;
+  onRequestApproval: (reason: string) => Promise<void>;
+  onRefund: (reason: string) => Promise<void>;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string }>();
+
+  if (record.status === "已退款") {
+    return <p className="cashier-refund-note">该单已全额退款；原收银流水继续保留，供财务核对。</p>;
+  }
+
+  const partiallyRefunded = record.status === "部分退款";
+  const approvalRequired = approvalState !== "not-required";
+  const approvalReady = !approvalRequired || approvalState === "approved";
+  const busy = mutationPending || submitting;
+  const reasonReady = reason.trim().length > 0;
+  const submitApproval = async () => {
+    if (!reasonReady || busy) return;
+    setSubmitting(true);
+    setMessage(undefined);
+    try {
+      await onRequestApproval(reason.trim());
+      setMessage({ type: "success", text: "退款审批已提交。请到审批中心通过后，再回到本流水完成撤销。" });
+    } catch (caught) {
+      setMessage({ type: "error", text: caught instanceof Error ? caught.message : "退款审批提交失败" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const submitRefund = async () => {
+    if (!reasonReady || !approvalReady || busy) return;
+    setSubmitting(true);
+    setMessage(undefined);
+    try {
+      await onRefund(reason.trim());
+    } catch (caught) {
+      setMessage({ type: "error", text: caught instanceof Error ? caught.message : "全额退款失败" });
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="cashier-refund-action">
+      {!confirming ? (
+        <button type="button" className="cashier-refund-trigger" disabled={busy} onClick={() => setConfirming(true)}>
+          {partiallyRefunded ? "退完剩余金额" : "撤销误单（全额退款）"}
+        </button>
+      ) : (
+        <div className="cashier-refund-confirm" role="group" aria-label="确认撤销误单">
+          <strong>确认退款 {money(record.paidAmount)}</strong>
+          <p>原单实收 {money(originalPaidAmount)}。退款成功后不会删除原流水；累计全额退完后，库存、会员卡、积分及财务记录按系统规则回滚。</p>
+          <label>
+            撤销原因（必填）
+            <textarea
+              value={reason}
+              disabled={busy}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="例如：前台重复开单、项目录入错误"
+            />
+          </label>
+          {approvalRequired && approvalState === "approved" && <p className="form-success">大额退款审批已通过，可以执行全额退款。</p>}
+          {approvalRequired && approvalState === "pending" && <p className="form-warning">该订单的全额退款正在审批中。审批通过后再回来撤销，系统不会绕过审批。</p>}
+          {approvalRequired && approvalState === "rejected" && <p className="form-warning">上一笔全额退款审批已拒绝。如仍需撤销，请填写原因后重新提交审批。</p>}
+          {approvalRequired && approvalState === "missing" && <p className="form-warning">本单超过 1000 元审批阈值，必须先提交并通过“订单退款”审批。</p>}
+          {message && <p className={message.type === "success" ? "form-success" : "form-error"} role="status">{message.text}</p>}
+          <div className="row-actions">
+            {approvalReady ? (
+              <button type="button" disabled={!reasonReady || busy} onClick={() => void submitRefund()}>
+                {submitting ? "退款处理中..." : `确认全额退款 ${money(record.paidAmount)}`}
+              </button>
+            ) : approvalState === "pending" ? (
+              <button type="button" disabled>等待审批通过</button>
+            ) : (
+              <button type="button" disabled={!reasonReady || busy} onClick={() => void submitApproval()}>
+                {submitting ? "提交中..." : "提交全额退款审批"}
+              </button>
+            )}
+            <button type="button" disabled={busy} onClick={() => { setConfirming(false); setMessage(undefined); }}>返回</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function CashierFlowPanel({
@@ -57,12 +162,18 @@ export function CashierFlowPanel({
   selectedSignatureImage,
   selectedSignatureImageLoading,
   selectedSignatureExpired,
+  mutationPending,
+  refundApprovalState,
+  refundOriginalPaidAmount,
   onPageChange,
   onRetry,
   onSelectRecord,
   onClearSelection,
   onRetryDetail,
   onOpenSignature,
+  onRegenerateSignature,
+  onRequestRefundApproval,
+  onRefundOrder,
 }: CashierFlowPanelProps) {
   const pageEnd = Math.min(pageStart + records.length, totalCount);
   const pageStatusText = loading
@@ -82,7 +193,7 @@ export function CashierFlowPanel({
             record.staffName,
             cashierPaymentText(record),
             money(record.paidAmount),
-            <Badge key={`${record.kind}:${record.id}-status`} text={record.status} tone={record.status === "已退款" ? "warn" : "ok"} />,
+            <Badge key={`${record.kind}:${record.id}-status`} text={record.status} tone={record.kind === "order" && record.status !== "已支付" ? "warn" : "ok"} />,
             shortDate(record.createdAt),
             <button key={`${record.kind}:${record.id}-detail`} type="button" onClick={() => onSelectRecord(record)}>
               查看详情
@@ -133,7 +244,11 @@ export function CashierFlowPanel({
                     <Badge text={selectedSignatureExpired ? "已过期" : selectedSignature.status} tone={selectedSignature.status === "已签名" ? "ok" : "warn"} />
                     {selectedSignature.status === "待签名" && !selectedSignatureExpired && <button type="button" onClick={onOpenSignature}>让客户签名</button>}
                     {selectedSignature.status === "已签名" && <button type="button" onClick={onOpenSignature}>查看签名</button>}
-                    {selectedSignature.status === "待签名" && selectedSignatureExpired && <small>签名已过期，请重新生成</small>}
+                    {selectedSignature.status === "待签名" && selectedSignatureExpired && (
+                      <button type="button" disabled={mutationPending} onClick={() => void onRegenerateSignature().catch(() => undefined)}>
+                        {mutationPending ? "生成中..." : "重新生成签名"}
+                      </button>
+                    )}
                   </span>
                 ) : "-"}
               </dd>
@@ -151,6 +266,17 @@ export function CashierFlowPanel({
               <strong>客户签名</strong>
               {selectedSignatureImage ? <img src={selectedSignatureImage} alt="客户签名" /> : <p>签名图片加载中...</p>}
             </div>
+          )}
+          {selectedRecord.kind === "order" && !detailLoading && !detailError && (
+            <OrderRefundAction
+              key={`${selectedRecord.id}:${selectedRecord.status}`}
+              record={selectedRecord}
+              mutationPending={mutationPending}
+              approvalState={refundApprovalState}
+              originalPaidAmount={refundOriginalPaidAmount}
+              onRequestApproval={onRequestRefundApproval}
+              onRefund={onRefundOrder}
+            />
           )}
         </div>
       )}

@@ -91,6 +91,17 @@ const endOfDay = (date: Date) => {
   return value;
 };
 
+export function appointmentRollingSevenDayDates(baseDate = new Date(), blockOffset = 0) {
+  const safeOffset = Number.isFinite(blockOffset) ? Math.trunc(blockOffset) : 0;
+  const start = startOfDay(baseDate);
+  start.setDate(start.getDate() + safeOffset * 7);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+}
+
 export function appointmentRangeMap(baseDate = new Date()): Record<AppointmentRange, AppointmentRangeMeta> {
   const today = new Date(baseDate);
   const tomorrow = new Date(today);

@@ -455,6 +455,11 @@ export type ReferralRelation = {
   createdAt: string;
 };
 
+export type ServiceCardSelection = {
+  serviceId: string;
+  cardId: string;
+};
+
 export type Order = {
   id: string;
   storeId?: string;
@@ -468,6 +473,7 @@ export type Order = {
   serviceName?: string;
   servicePrice?: number;
   serviceConsumables?: ServiceConsumable[];
+  serviceCardSelections?: ServiceCardSelection[];
   productId?: string;
   giftProductId?: string;
   productItems?: OrderProductItem[];

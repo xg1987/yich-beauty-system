@@ -8455,6 +8455,58 @@ textarea,
   background: #fff;
 }
 
+.cashier-refund-action {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(187, 62, 91, 0.14);
+}
+
+.cashier-refund-trigger {
+  justify-self: start;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(187, 62, 91, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 245, 247, 0.92);
+  color: #9b2946;
+  font-weight: 900;
+}
+
+.cashier-refund-confirm {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(187, 62, 91, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 248, 249, 0.88);
+}
+
+.cashier-refund-confirm > strong {
+  color: #8f2441;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.cashier-refund-confirm > p,
+.cashier-refund-note {
+  margin: 0;
+  color: #756572;
+  line-height: 1.55;
+}
+
+.cashier-refund-confirm label {
+  display: grid;
+  gap: 7px;
+  color: #4d3c49;
+  font-weight: 850;
+}
+
+.cashier-refund-confirm textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
 .refund-picker,
 .refund-card-list,
 .refund-order-list,
@@ -18374,6 +18426,17 @@ textarea,
   background: rgba(255, 255, 255, 0.66);
 }
 
+.checkout-debit-source-select {
+  display: grid;
+  gap: 8px;
+}
+
+.checkout-debit-source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
 .checkout-customer-card-list {
   display: grid;
   gap: 8px;
@@ -18510,6 +18573,10 @@ textarea,
   }
 
   .checkout-customer-card-row {
+    grid-template-columns: 1fr;
+  }
+
+  .service-picker-card-sources {
     grid-template-columns: 1fr;
   }
 
@@ -18723,13 +18790,70 @@ textarea,
 }
 
 .service-picker-card {
-  cursor: pointer;
   text-align: left;
 }
 
 .service-picker-card:hover {
   border-color: rgba(111, 66, 193, 0.28);
   box-shadow: 0 12px 26px rgba(58, 41, 91, 0.08);
+}
+
+.service-picker-card-main {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.service-picker-card-main:hover {
+  background: transparent;
+}
+
+.service-picker-card-main > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.service-picker-card-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  border-top: 1px solid rgba(111, 66, 193, 0.1);
+  padding-top: 10px;
+}
+
+.service-picker-card-sources .checkout-card-source-button {
+  width: 100%;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  justify-items: start;
+  gap: 4px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.service-picker-card-sources .checkout-card-source-button small {
+  color: rgba(47, 37, 95, 0.52);
+  font-size: 11px;
+}
+
+.service-picker-card-sources .checkout-card-source-button strong,
+.service-picker-card-sources .checkout-card-source-button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.service-picker-card-sources .checkout-card-source-button.active small,
+.service-picker-card-sources .checkout-card-source-button.active strong,
+.service-picker-card-sources .checkout-card-source-button.active span {
+  color: #237766;
 }
 
 .product-picker-card.selected {
@@ -25423,7 +25547,7 @@ textarea,
 
 .workbench-schedule-query-tabs {
   display: inline-grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(2, auto);
   gap: 4px;
   padding: 4px;
   border: 1px solid rgba(111, 66, 193, 0.16);
@@ -25504,6 +25628,14 @@ textarea,
   color: #b45309;
 }
 
+.workbench-schedule-legend .legend-canceled {
+  color: #64748b;
+}
+
+.workbench-schedule-legend .legend-missed {
+  color: #9f1239;
+}
+
 .workbench-schedule-legend i {
   width: 11px;
   height: 11px;
@@ -25529,6 +25661,16 @@ textarea,
 .workbench-schedule-legend .done {
   color: #d97706;
   background: #d97706;
+}
+
+.workbench-schedule-legend .canceled {
+  color: #64748b;
+  background: #e2e8f0;
+}
+
+.workbench-schedule-legend .missed {
+  color: #9f1239;
+  background: #fecdd3;
 }
 
 .workbench-schedule-table {
@@ -25688,6 +25830,19 @@ textarea,
   color: #422006;
 }
 
+.workbench-schedule-block.canceled {
+  border: 1px dashed #64748b;
+  background: #e2e8f0;
+  color: #334155;
+  opacity: 0.86;
+}
+
+.workbench-schedule-block.missed {
+  border: 1px solid #9f1239;
+  background: #ffe4e6;
+  color: #881337;
+}
+
 .workbench-schedule-free {
   position: absolute;
   left: 43%;
@@ -25705,6 +25860,65 @@ textarea,
   gap: 5px;
   width: min(100%, 620px);
   margin-top: 8px;
+}
+
+.workbench-schedule-week-nav {
+  display: grid;
+  grid-template-columns: auto minmax(150px, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  width: min(100%, 620px);
+  margin-top: 10px;
+  padding: 6px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 12px;
+  background: rgba(244, 239, 255, 0.62);
+}
+
+.workbench-schedule-week-nav > button {
+  min-height: 34px;
+  border: 1px solid rgba(111, 66, 193, 0.16);
+  border-radius: 9px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #4f2b91;
+  font-size: 11px;
+  font-weight: 880;
+  cursor: pointer;
+}
+
+.workbench-schedule-week-nav > button:hover:not(:disabled) {
+  border-color: rgba(111, 66, 193, 0.42);
+  background: #ffffff;
+}
+
+.workbench-schedule-week-nav > button.today {
+  color: #6f42c1;
+}
+
+.workbench-schedule-week-nav > button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.workbench-schedule-week-range {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.workbench-schedule-week-range strong {
+  color: #2f255f;
+  font-size: 12px;
+  font-weight: 920;
+  white-space: nowrap;
+}
+
+.workbench-schedule-week-range span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 10px;
+  font-weight: 760;
 }
 
 .workbench-schedule-date-tabs button {
@@ -26198,6 +26412,20 @@ textarea,
 }
 
 @media (max-width: 520px) {
+  .workbench-schedule-week-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workbench-schedule-week-range {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .workbench-schedule-week-nav > button {
+    min-width: 0;
+    padding-inline: 5px;
+  }
+
   .workbench-month-picker {
     width: 100%;
   }
@@ -36896,6 +37124,18 @@ img.brand-icon-mark {
 .app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-done,
 .dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-done {
   color: #b45309 !important;
+}
+
+.app-shell.theme-day .dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-canceled,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-canceled,
+.dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-canceled {
+  color: #64748b !important;
+}
+
+.app-shell.theme-day .dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-missed,
+.app-shell.theme-night .dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-missed,
+.dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-legend .legend-missed {
+  color: #9f1239 !important;
 }
 
 .app-shell.theme-day .dashboard-page.workbench-visual-page .workbench-schedule-panel .workbench-schedule-time-row b,

@@ -39,6 +39,7 @@ import type {
   ReferralRelation,
   Refund,
   Service,
+  ServiceCardSelection,
   ServiceConsumable,
   Staff,
   StaffInvite,
@@ -158,7 +159,8 @@ const tableNames: D1DataTableName[] = [
   "purchaseOrders",
   "stocktakes",
 ];
-const infrastructureTableNames = ["checkoutStoreLocks", "loginAttempts"] as const;
+const infrastructureTableNames = ["checkoutStoreLocks", "loginAttempts", "orderAppointmentConflictAudit"] as const;
+const infrastructureIndexNames = ["idx_orders_unique_active_appointment"] as const;
 
 const storeScopedDeleteOrder: D1DataTableName[] = [
   "commissionSettlements",
@@ -212,13 +214,20 @@ export class D1BeautyDatabase {
 
   async checkSchema() {
     const rows = await this.db
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .all<{ name: string }>();
-    const existingTables = new Set((rows.results ?? []).map((row) => row.name));
+      .prepare("SELECT type, name FROM sqlite_master WHERE type IN ('table', 'index')")
+      .all<{ type: "table" | "index"; name: string }>();
+    const existingTables = new Set(
+      (rows.results ?? []).filter((row) => row.type === "table").map((row) => row.name),
+    );
+    const existingIndexes = new Set(
+      (rows.results ?? []).filter((row) => row.type === "index").map((row) => row.name),
+    );
     const missingTables = [...tableNames, ...infrastructureTableNames].filter((tableName) => !existingTables.has(tableName));
+    const missingIndexes = infrastructureIndexNames.filter((indexName) => !existingIndexes.has(indexName));
     return {
-      ok: missingTables.length === 0,
+      ok: missingTables.length === 0 && missingIndexes.length === 0,
       missingTables,
+      missingIndexes,
     };
   }
 
@@ -371,6 +380,42 @@ export class D1BeautyDatabase {
     }));
     data.systemConfigs = normalizeSystemConfigs(data.systemConfigs);
     return data;
+  }
+
+  async hasActiveOrderForAppointment(storeId: string, appointmentId: string) {
+    const row = await this.db
+      .prepare(
+        `SELECT 1 AS found
+         FROM orders
+         WHERE (storeId = ? OR COALESCE(TRIM(storeId), '') = '')
+           AND appointmentId = ?
+           AND status <> '已退款'
+         LIMIT 1`,
+      )
+      .bind(storeId, appointmentId)
+      .first<{ found: number }>();
+    return Boolean(row?.found);
+  }
+
+  async readCheckedOutAppointmentsForCustomerStaff(storeId: string, customerId: string, staffId: string) {
+    return this.all(
+      `SELECT appointments.*
+       FROM appointments
+       WHERE appointments.storeId = ?
+         AND appointments.customerId = ?
+         AND appointments.staffId = ?
+         AND appointments.status IN ('已到店', '已完成')
+         AND EXISTS (
+           SELECT 1
+           FROM orders
+           WHERE (orders.storeId = appointments.storeId OR COALESCE(TRIM(orders.storeId), '') = '')
+             AND orders.appointmentId = appointments.id
+             AND orders.status <> '已退款'
+         )
+       ORDER BY appointments.startAt DESC, appointments.rowid DESC`,
+      mapAppointment,
+      [storeId, customerId, staffId],
+    );
   }
 
   async readCashierFlowPage(storeId: string, page: number, pageSize: number): Promise<CashierFlowPageResult> {
@@ -1166,6 +1211,27 @@ export class D1BeautyDatabase {
     }
     orders = orders.slice(0, CASHIER_FLOW_MAX_PAGE_SIZE);
     const orderIds = uniqueStrings(orders.map((order) => order.id));
+    const refunds = orderIds.length
+      ? await this.all(
+          `SELECT * FROM refunds
+           WHERE orderId IN (${sqlPlaceholders(orderIds.length)})
+             AND (storeId = ? OR COALESCE(TRIM(storeId), '') = '')
+           ORDER BY rowid DESC`,
+          mapRefund,
+          [...orderIds, storeId],
+        )
+      : [];
+    const approvalRequests = orderIds.length
+      ? await this.all(
+          `SELECT payload_json FROM approvalRequests
+           WHERE json_extract(payload_json, '$.storeId') = ?
+             AND json_extract(payload_json, '$.type') = '订单退款'
+             AND json_extract(payload_json, '$.targetId') IN (${sqlPlaceholders(orderIds.length)})
+           ORDER BY rowid DESC LIMIT 50`,
+          mapJsonPayload<ApprovalRequest>,
+          [storeId, ...orderIds],
+        )
+      : [];
     if (orderIds.length) {
       serviceRecords = dedupeById([
         ...serviceRecords,
@@ -1281,10 +1347,12 @@ export class D1BeautyDatabase {
 
     return {
       orders,
+      refunds,
       memberCardTransactions: transactions,
       customers,
       memberCards,
       appointments,
+      approvalRequests,
       customerSignatures: signatures.map(withoutSignatureText),
       customerServiceRecords: serviceRecords,
     };
@@ -1587,7 +1655,7 @@ export class D1BeautyDatabase {
     for (const order of orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceIds_json, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceIds_json, serviceName, servicePrice, serviceConsumables_json, serviceCardSelections_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.storeId ?? null,
@@ -1601,6 +1669,7 @@ export class D1BeautyDatabase {
             order.serviceName ?? null,
             order.servicePrice ?? null,
             order.serviceConsumables !== undefined ? JSON.stringify(order.serviceConsumables) : null,
+            order.serviceCardSelections?.length ? JSON.stringify(order.serviceCardSelections) : null,
             order.productId ?? null,
             order.giftProductId ?? null,
             order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -1824,7 +1893,7 @@ export class D1BeautyDatabase {
     for (const order of data.orders) {
       statements.push(
         this.statement(
-          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceIds_json, serviceName, servicePrice, serviceConsumables_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO orders (id, storeId, orderNo, customerId, guestName, guestPhone, staffId, serviceId, serviceIds_json, serviceName, servicePrice, serviceConsumables_json, serviceCardSelections_json, productId, giftProductId, productItems_json, giftProductItems_json, cardId, totalAmount, paidAmount, discountAmount, adjustmentReason, approvalId, distributorId, appointmentId, payMethod, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             order.id,
             order.storeId ?? null,
@@ -1838,6 +1907,7 @@ export class D1BeautyDatabase {
             order.serviceName ?? null,
             order.servicePrice ?? null,
             order.serviceConsumables !== undefined ? JSON.stringify(order.serviceConsumables) : null,
+            order.serviceCardSelections?.length ? JSON.stringify(order.serviceCardSelections) : null,
             order.productId ?? null,
             order.giftProductId ?? null,
             order.productItems?.length ? JSON.stringify(order.productItems) : null,
@@ -2659,7 +2729,7 @@ function mapMemberCard(row: unknown): MemberCard {
 }
 
 function mapOrder(row: unknown): Order {
-  const value = row as Order & { serviceIds_json?: string | null; serviceConsumables_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
+  const value = row as Order & { serviceIds_json?: string | null; serviceConsumables_json?: string | null; serviceCardSelections_json?: string | null; productItems_json?: string | null; giftProductItems_json?: string | null };
   return {
     ...value,
     storeId: value.storeId ?? undefined,
@@ -2669,6 +2739,7 @@ function mapOrder(row: unknown): Order {
     serviceName: value.serviceName ?? undefined,
     servicePrice: value.servicePrice ?? undefined,
     serviceConsumables: parseJsonArray<ServiceConsumable>(value.serviceConsumables_json) ?? value.serviceConsumables,
+    serviceCardSelections: parseJsonArray<ServiceCardSelection>(value.serviceCardSelections_json) ?? value.serviceCardSelections,
     productId: value.productId ?? undefined,
     giftProductId: value.giftProductId ?? undefined,
     productItems: parseJsonArray<OrderProductItem>(value.productItems_json) ?? value.productItems,

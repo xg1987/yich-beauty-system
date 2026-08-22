@@ -84,34 +84,48 @@ import { normalizeUserSession, type Permission, type UserSession } from "../src/
 import { aiCreditChargeForCost, assertAiFreeQuotaAvailable } from "../src/domain/aiBilling";
 import { requireMobilePhone } from "../src/domain/phone";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, requireConfirmedProductStockRule } from "../src/domain/products";
-import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../src/domain/types";
+import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, CustomerFollowUp, CustomerSignature, InventoryLog, MarketingAiRecord, MemberCard, OperationLog, Order, R2UsageSnapshot, ServiceCardSelection, ServiceConsumable, SystemConfigKey, TagScope, UserRole, ViewKey, WorkerUsageSnapshot } from "../src/domain/types";
 import type { CheckoutProductItemInput } from "../src/domain/business";
 import { dataKeysForView, diffAppData, isViewKey, makeAppDataPatch, makeAppDataSlice, POS_REMOTE_PAGING_CAPABILITY } from "../src/domain/dataSlices";
 import { businessDateToday, makeId, nowIso } from "../src/domain/utils";
+import { resolveStoreMutationTarget } from "../src/domain/storeMutationTarget";
 import { AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS, DEFAULT_AI_VIDEO_RESOLUTION } from "../src/domain/aiVideoDefaults";
 import { destroySession, getSession, login, refreshSessionUser } from "./auth";
 import { BeautyDatabase, type TableName } from "./database";
 
 type JsonBody = Record<string, unknown>;
+const requestJsonCache = new WeakMap<IncomingMessage, Promise<JsonBody>>();
 const execFile = promisify(execFileCallback);
 const aiImageGenerationMaxGlobalSlots = 4;
 const aiImageGenerationLockTtlMs = 5 * 60 * 1000;
 const providerFetchTimeoutMs = 260_000;
 
 const appointmentMutationKeys = [
-  "storeProfiles", "authUsers", "customers", "services", "staff", "appointments", "staffUnavailableSlots", "staffShifts",
+  "storeProfiles", "authUsers", "customers", "services", "staff", "appointments", "orders", "staffUnavailableSlots", "staffShifts",
 ] as const;
 const checkoutMutationKeys = [
   "storeProfiles", "authUsers", "staff", "customers", "services", "products", "inventoryBatches", "appointments", "orders",
-  "memberCards", "inventoryLogs", "memberCardTransactions", "commissions", "dailyCloses", "approvalRequests", "operationLogs",
+  "memberCards", "inventoryLogs", "memberCardTransactions", "commissions", "dailyCloses", "approvalRequests", "customerSignatures", "operationLogs",
 ] as const;
 const checkoutWriteKeys = [
-  "customers", "products", "inventoryBatches", "appointments", "orders", "memberCards", "inventoryLogs", "memberCardTransactions", "commissions", "operationLogs",
+  "customers", "products", "inventoryBatches", "appointments", "orders", "memberCards", "inventoryLogs", "memberCardTransactions", "commissions", "customerSignatures", "operationLogs",
 ] as const;
-const checkoutResponseKeys = [...checkoutWriteKeys, "customerSignatures", "dailyCloses"] as const;
+const checkoutResponseKeys = [...checkoutWriteKeys, "dailyCloses"] as const;
+const orderRefundMutationKeys = [
+  "storeProfiles", "authUsers", "customers", "services", "products", "inventoryBatches", "appointments", "orders", "refunds",
+  "memberCards", "memberCardTransactions", "inventoryLogs", "commissions", "dailyCloses", "approvalRequests", "customerSignatures", "operationLogs",
+  "commissionSettlements",
+] as const;
+const orderRefundWriteKeys = [
+  "customers", "products", "inventoryBatches", "appointments", "orders", "refunds", "memberCards", "memberCardTransactions",
+  "inventoryLogs", "commissions", "customerSignatures", "operationLogs",
+] as const;
+const storeMutationTargetKeys = [
+  "storeProfiles", "customers", "staff", "services", "products", "suppliers", "memberCards", "appointments", "orders", "customerSignatures",
+] as const;
 const memberCardWriteKeys = ["customers", "memberCards", "memberCardTransactions", "operationLogs"] as const;
 const memberCardRefundWriteKeys = ["memberCards", "memberCardTransactions", "operationLogs"] as const;
-const customerSignatureWriteKeys = ["appointments", "orders", "memberCards", "memberCardTransactions"] as const;
+const customerSignatureWriteKeys = ["appointments", "orders", "memberCards", "memberCardTransactions", "customerSignatures"] as const;
 
 function shouldExposeAppVersion(clientVersion: string | null, manualUpdateCheck: boolean) {
   return !clientVersion || manualUpdateCheck || isVersionGreater(pkg.version, clientVersion);
@@ -148,8 +162,10 @@ const LOCAL_ASSET_ROOT = path.join(process.cwd(), ".local-r2");
 
 export function createApiServer(database = new BeautyDatabase()) {
   database.seedIfEmpty();
+  const acquireStoreMutation = createLocalStoreMutationQueue();
 
   return createServer(async (request, response) => {
+    const releaseStoreMutations: Array<() => void> = [];
     try {
       setCorsHeaders(response);
 
@@ -312,8 +328,11 @@ export function createApiServer(database = new BeautyDatabase()) {
       if (request.method === "POST" && url.pathname.startsWith("/api/public/customer-signatures/") && url.pathname.endsWith("/sign")) {
         const token = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
+        const initialSignature = database.readCustomerSignatureByToken(token);
+        if (!initialSignature?.storeId) throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
+        releaseStoreMutations.push(await acquireStoreMutation(initialSignature.storeId));
         const signature = database.readCustomerSignatureByToken(token);
-        if (!signature?.storeId) throw new Error("签名记录未绑定门店，请联系门店重新生成签名链接");
+        if (!signature?.storeId || signature.storeId !== initialSignature.storeId) throw new Error("签名链接已失效");
         const currentData = { ...database.readCustomerSignatureContext(signature.storeId, signature), customerSignatures: [signature] };
         const nextData = signCustomerSignature(currentData, {
           token,
@@ -323,7 +342,6 @@ export function createApiServer(database = new BeautyDatabase()) {
         database.applyStoreTableChanges(signature.storeId, currentData, nextData, customerSignatureWriteKeys);
         const signedSignature = nextData.customerSignatures.find((item) => item.id === signature.id);
         if (!signedSignature) throw new Error("签名记录更新失败");
-        database.upsertCustomerSignatures([signedSignature]);
         sendJson(response, 201, publicSignaturePayload(nextData, token));
         return;
       }
@@ -334,6 +352,20 @@ export function createApiServer(database = new BeautyDatabase()) {
         return;
       }
       session = normalizeUserSession(session, database.readDataTables(["systemConfigs"]).systemConfigs);
+      if (requiresStoreMutationLock(request.method, url.pathname)) {
+        const targetData = session.user.role === "superadmin"
+          ? database.readDataTables(storeMutationTargetKeys)
+          : undefined;
+        const storeIds = session.user.role === "superadmin" && url.pathname === "/api/commissions/settle"
+          ? targetData!.storeProfiles.map((store) => store.id).filter(Boolean).sort()
+          : [session.user.role === "superadmin"
+              ? resolveStoreMutationTarget(targetData!, url.pathname, await readJson(request))
+              : resolveSessionStoreIdLocal(database, session)];
+        for (const storeId of storeIds) {
+          if (!storeId) throw new Error("账号未绑定门店，请联系管理员处理");
+          releaseStoreMutations.push(await acquireStoreMutation(storeId));
+        }
+      }
 
       if (request.method === "GET" && url.pathname === "/api/auth/me") {
         sendJson(response, 200, session);
@@ -896,7 +928,6 @@ export function createApiServer(database = new BeautyDatabase()) {
         const body = await readJson(request);
         const checkoutRequestId = optionalString(body, "checkoutRequestId");
         const currentData = readRequiredMutationData(database, session, checkoutMutationKeys);
-        const existingSignatureIds = new Set((currentData.customerSignatures ?? []).map((signature) => signature.id));
         const checkedOutData = checkoutOrder(currentData, {
           storeId: sessionStoreId(currentData, session),
           customerId: optionalString(body, "customerId"),
@@ -906,6 +937,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           collaboratorStaffIds: optionalStringArray(body, "collaboratorStaffIds"),
           serviceId: optionalString(body, "serviceId"),
           serviceIds: optionalStringArray(body, "serviceIds"),
+          serviceCardSelections: optionalServiceCardSelections(body),
           productId: optionalString(body, "productId"),
           giftProductId: optionalString(body, "giftProductId"),
           productItems: optionalProductItems(body, "productItems"),
@@ -932,10 +964,8 @@ export function createApiServer(database = new BeautyDatabase()) {
             summary: `${session.user.name} 完成开单收银`,
           },
         );
-        const newSignatures = (nextData.customerSignatures ?? []).filter((signature) => !existingSignatureIds.has(signature.id));
         try {
           persistDataTableChanges(database, session, currentData, nextData, checkoutWriteKeys);
-          database.upsertCustomerSignatures(newSignatures);
         } catch (caught) {
           if (checkoutRequestId && checkoutReserved) database.releaseCheckoutSubmission(checkoutRequestId);
           throw caught;
@@ -948,7 +978,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         requirePermission(session, "pos:manage");
         const orderId = decodeURIComponent(url.pathname.split("/").at(-2) ?? "");
         const body = await readJson(request);
-        const currentData = database.readData();
+        const currentData = readRequiredMutationData(database, session, orderRefundMutationKeys);
         const nextData = refundOrder(currentData, {
           storeId: sessionStoreId(currentData, session),
           orderId,
@@ -957,7 +987,7 @@ export function createApiServer(database = new BeautyDatabase()) {
           amount: optionalNumber(body, "amount"),
           approvalId: optionalString(body, "approvalId"),
         });
-        persistData(database, session, nextData);
+        persistDataTableChanges(database, session, currentData, nextData, orderRefundWriteKeys);
         sendScopedData(request, response, 201, nextData, session);
         return;
       }
@@ -1118,6 +1148,9 @@ export function createApiServer(database = new BeautyDatabase()) {
         const body = await readJson(request);
         const status = requiredString(body, "status") as Appointment["status"];
         const currentData = readRequiredMutationData(database, session, appointmentMutationKeys);
+        if (status === "已取消" && currentData.orders.some((order) => order.appointmentId === appointmentId && order.status !== "已退款")) {
+          throw new Error("该预约已有有效收银单，不能取消；如需处理请先退款");
+        }
         const nextData = addOperationLog(
           updateAppointmentStatus(currentData, { appointmentId, status, reason: optionalString(body, "reason") }),
           {
@@ -1582,8 +1615,7 @@ export function createApiServer(database = new BeautyDatabase()) {
         const signedSignature = nextData.customerSignatures.find((item) => item.id === signature.id);
         if (!signedSignature) throw new Error("签名记录更新失败");
         persistDataTableChanges(database, session, previousData, nextData, customerSignatureWriteKeys);
-        database.upsertCustomerSignatures([signedSignature]);
-        sendMutationPatch(request, response, 201, previousData, nextData, session, [...customerSignatureWriteKeys, "customerSignatures"]);
+        sendMutationPatch(request, response, 201, previousData, nextData, session, customerSignatureWriteKeys);
         return;
       }
 
@@ -1973,8 +2005,47 @@ export function createApiServer(database = new BeautyDatabase()) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       sendJson(response, 400, { error: message });
+    } finally {
+      releaseStoreMutations.reverse().forEach((release) => release());
     }
   });
+}
+
+function createLocalStoreMutationQueue() {
+  const tails = new Map<string, Promise<void>>();
+  return async (storeId: string) => {
+    const previous = tails.get(storeId) ?? Promise.resolve();
+    let releaseCurrent = () => {};
+    const current = new Promise<void>((resolve) => {
+      releaseCurrent = resolve;
+    });
+    const tail = previous.then(() => current);
+    tails.set(storeId, tail);
+    await previous;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      releaseCurrent();
+      if (tails.get(storeId) === tail) tails.delete(storeId);
+    };
+  };
+}
+
+function requiresStoreMutationLock(method: string | undefined, pathname: string) {
+  if (method !== "POST" && method !== "PATCH") return false;
+  return pathname === "/api/checkout"
+    || pathname === "/api/appointments"
+    || pathname.startsWith("/api/appointments/")
+    || pathname.startsWith("/api/orders/")
+    || pathname.startsWith("/api/member-cards")
+    || pathname.startsWith("/api/products")
+    || pathname.startsWith("/api/inventory/")
+    || pathname === "/api/purchase-orders"
+    || pathname === "/api/stocktakes"
+    || pathname.startsWith("/api/daily-close")
+    || pathname === "/api/commissions/settle"
+    || (pathname.startsWith("/api/customer-signatures/") && pathname.endsWith("/sign"));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -4259,13 +4330,19 @@ function contentTypeForAsset(key: string) {
   return "image/jpeg";
 }
 
-async function readJson(request: IncomingMessage): Promise<JsonBody> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf-8")) as JsonBody;
+function readJson(request: IncomingMessage): Promise<JsonBody> {
+  const cached = requestJsonCache.get(request);
+  if (cached) return cached;
+  const pending = (async () => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    if (chunks.length === 0) return {};
+    return JSON.parse(Buffer.concat(chunks).toString("utf-8")) as JsonBody;
+  })();
+  requestJsonCache.set(request, pending);
+  return pending;
 }
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown) {
@@ -4443,6 +4520,22 @@ function optionalStringArray(body: JsonBody, key: string) {
   const value = body[key];
   if (!Array.isArray(value)) return undefined;
   return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function optionalServiceCardSelections(body: JsonBody): ServiceCardSelection[] | undefined {
+  const value = body.serviceCardSelections;
+  if (!Array.isArray(value)) return undefined;
+  const selections = new Map<string, string>();
+  value.forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const serviceId = (item as { serviceId?: unknown }).serviceId;
+    const cardId = (item as { cardId?: unknown }).cardId;
+    if (typeof serviceId === "string" && serviceId.trim() && typeof cardId === "string" && cardId.trim()) {
+      selections.set(serviceId.trim(), cardId.trim());
+    }
+  });
+  const normalized = Array.from(selections, ([serviceId, cardId]) => ({ serviceId, cardId }));
+  return normalized.length ? normalized : undefined;
 }
 
 function optionalMemberCardServiceEntitlements(body: JsonBody): MemberCard["serviceEntitlements"] {

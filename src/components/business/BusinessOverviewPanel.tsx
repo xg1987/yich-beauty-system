@@ -23,6 +23,7 @@ import {
   customerMonthlyTrend,
   customerPeriodReport,
   productUsageReport,
+  reportablePeriodData,
   serviceDeliveryReport,
   type CustomerMonthlyTrendPoint,
   type ProductRestockStatus,
@@ -255,7 +256,7 @@ export default function BusinessOverviewPanel({
   const previousDate = useMemo(() => addReportPeriod(date, mode, -1), [date, mode]);
   const previousRange = useMemo(() => reportPeriodRange(previousDate, mode), [previousDate, mode]);
   const previousData = useMemo(() => reportPeriodData(data, mode, previousDate), [data, mode, previousDate]);
-  const previousSummary = useMemo(() => reportSummary(previousData), [previousData]);
+  const previousSummary = useMemo(() => reportSummary(reportablePeriodData(data, previousData), data), [previousData, data]);
   const customers = useMemo(() => customerPeriodReport(data, range.start, range.end), [data, range]);
   const previousCustomers = useMemo(
     () => customerPeriodReport(data, previousRange.start, previousRange.end),
@@ -270,7 +271,8 @@ export default function BusinessOverviewPanel({
     { key: "month", label: "月" },
     { key: "year", label: "年" },
   ];
-  const productIncome = periodData.orders.reduce((sum, order) => sum + (order.productItems ?? []).reduce((itemSum, item) => itemSum + item.amount, 0), 0);
+  const reportableData = useMemo(() => reportablePeriodData(data, periodData), [data, periodData]);
+  const productIncome = reportableData.orders.reduce((sum, order) => sum + (order.productItems ?? []).reduce((itemSum, item) => itemSum + item.amount, 0), 0);
   const cardIncome = periodData.memberCardTransactions.reduce((sum, transaction) => sum + memberCardCashIn(transaction), 0);
   const serviceIncome = Math.max(0, summary.revenue - productIncome - cardIncome);
   const structureTotal = Math.max(1, serviceIncome + productIncome + cardIncome);

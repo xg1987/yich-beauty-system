@@ -43,10 +43,12 @@ function recordKey(record: CashierFlowRecordIdentity) {
 
 const POS_REMOTE_RELATED_KEYS = [
   "orders",
+  "refunds",
   "memberCardTransactions",
   "customers",
   "memberCards",
   "appointments",
+  "approvalRequests",
   "customerSignatures",
   "customerServiceRecords",
 ] as const satisfies readonly (keyof CashierFlowRelatedData)[];

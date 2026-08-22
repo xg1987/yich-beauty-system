@@ -69,6 +69,7 @@ import {
   memberCardServiceEntitlement,
   memberCardVoidEligibility,
   normalizeMemberCardServiceEntitlements,
+  orderRefundAmounts,
   platformInviteCodeForPlatformAdmin,
   reportSummary,
   storeStaffInviteCodeForStoreUser,
@@ -101,7 +102,7 @@ import {
   serviceStockQuantityForProduct,
 } from "../domain/products";
 import type { AppDataUpdate } from "../domain/dataSlices";
-import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceConsumable, Staff, StaffUnavailableSlot, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
+import type { AiUsageCapability, AppData, Appointment, AuthUser, CashPayMethod, CustomerSignature, InventoryLog, Order, Product, R2UsageSnapshot, Service, ServiceCardSelection, ServiceConsumable, Staff, StaffUnavailableSlot, StoreAiUsagePermissions, StoreOperationalPermissions, SystemConfigKey, UserRole, ViewKey, WorkerUsageSnapshot } from "../domain/types";
 import { makeId, money, shortDate, toLocalInputValue, tomorrowAt } from "../domain/utils";
 import type { ApiActions, UseApiDataResult } from "../hooks/useApiData";
 import { mergePosRemoteData, POS_CASHIER_FLOW_PAGE_SIZE, usePosRemoteData } from "../hooks/usePosRemoteData";
@@ -167,7 +168,7 @@ type PosModuleKey = "card" | "product" | "signature" | "single" | "orders";
 type CheckoutCartItem = { productId: string; quantity: number };
 type InventoryModuleKey = "stockIn" | "loss" | "adjust" | "supplier" | "purchase" | "stocktake" | "list" | "batches" | "logs";
 type CatalogModuleKey = "service" | "recipe" | "product" | "serviceList" | "productList" | "formulaList";
-type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; posSignatureId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
+type NavigateOptions = { fromAdmin?: boolean; posModule?: PosModuleKey; appointmentId?: string; posCustomerId?: string; posSignatureId?: string; posOrderId?: string; inventoryModule?: InventoryModuleKey; catalogModule?: CatalogModuleKey };
 type NavigateToView = (view: ViewKey, options?: NavigateOptions) => void;
 
 function cardCustomerDraftError(mode: CardCustomerMode, name: string, phone: string) {
@@ -605,6 +606,17 @@ function initialViewFromUrl(): ViewKey {
   return requestedView && requestedView in viewTitles ? (requestedView as ViewKey) : "dashboard";
 }
 
+function initialPosModuleFromUrl(): PosModuleKey | undefined {
+  const requestedModule = new URLSearchParams(window.location.search).get("module");
+  return ["card", "product", "signature", "single", "orders"].includes(requestedModule ?? "")
+    ? requestedModule as PosModuleKey
+    : undefined;
+}
+
+function initialPosOrderIdFromUrl() {
+  return new URLSearchParams(window.location.search).get("orderId") || undefined;
+}
+
 function initialInventoryModuleFromUrl(): InventoryModuleKey {
   const requestedModule = new URLSearchParams(window.location.search).get("module");
   return inventoryModuleKeys.some((key) => key === requestedModule) ? (requestedModule as InventoryModuleKey) : "stockIn";
@@ -692,10 +704,11 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [adminDetailFromCenter, setAdminDetailFromCenter] = useState(false);
-  const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>();
+  const [posEntryModule, setPosEntryModule] = useState<PosModuleKey | undefined>(() => initialViewFromUrl() === "pos" ? initialPosModuleFromUrl() : undefined);
   const [posEntryAppointmentId, setPosEntryAppointmentId] = useState<string | undefined>();
   const [posEntryCustomerId, setPosEntryCustomerId] = useState<string | undefined>();
   const [posEntrySignatureId, setPosEntrySignatureId] = useState<string | undefined>();
+  const [posEntryOrderId, setPosEntryOrderId] = useState<string | undefined>(() => initialViewFromUrl() === "pos" ? initialPosOrderIdFromUrl() : undefined);
   const [posEntryKey, setPosEntryKey] = useState(0);
   const [appointmentEntryId, setAppointmentEntryId] = useState<string | undefined>();
   const [appointmentEntryKey, setAppointmentEntryKey] = useState(0);
@@ -787,6 +800,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
     setPosEntryAppointmentId(nextView === "pos" ? options?.appointmentId : undefined);
     setPosEntryCustomerId(nextView === "pos" ? options?.posCustomerId : undefined);
     setPosEntrySignatureId(nextView === "pos" ? options?.posSignatureId : undefined);
+    setPosEntryOrderId(nextView === "pos" ? options?.posOrderId : undefined);
     setAppointmentEntryId(nextView === "appointments" ? options?.appointmentId : undefined);
     if (nextView === "appointments" && options?.appointmentId) setAppointmentEntryKey((key) => key + 1);
     if (nextView === "pos") setPosEntryKey((key) => key + 1);
@@ -938,7 +952,7 @@ export default function AuthenticatedApp({ apiState }: { apiState: UseApiDataRes
               </Suspense>
             ))}
             {activeView === "appointments" && <MemoAppointments data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} setView={navigate} initialAppointmentId={appointmentEntryId} initialAppointmentKey={appointmentEntryKey} />}
-            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialSignatureId={posEntrySignatureId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
+            {activeView === "pos" && <MemoPos data={data} session={session} actions={actions} runMutation={runMutation} fetchPublicCustomerSignature={apiState.fetchPublicCustomerSignature} fromManagement={showManagementBack} initialModule={posEntryModule} initialAppointmentId={posEntryAppointmentId} initialCustomerId={posEntryCustomerId} initialSignatureId={posEntrySignatureId} initialOrderId={posEntryOrderId} initialEntryKey={posEntryKey} onReturnManagement={returnToManagement} onReturnAppointments={() => navigate("appointments")} />}
             {activeView === "customers" && <Suspense fallback={<ViewFallback title="客户档案" />}><MemoCustomers data={data} session={session} actions={actions} runMutation={runMutation} setView={navigate} fromManagement={showManagementBack} onReturnManagement={returnToManagement} /></Suspense>}
             {activeView === "marketing" && (
               <Suspense fallback={<ViewFallback title="营销中心" />}>
@@ -2057,12 +2071,6 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
     .slice()
     .sort((left, right) => +new Date(left.startAt) - +new Date(right.startAt));
   const visibleRangeAppointments = rangeAppointments.filter((appointment) => appointment.status !== "已取消" && appointment.status !== "爽约");
-  const confirmationPendingAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已确认" || appointment.status === "待确认");
-  const overdueAppointments = confirmationPendingAppointments.filter((appointment) => appointmentEndAt(appointment, data.services) < appointmentNow);
-  const arrivalConfirmationAppointments = confirmationPendingAppointments.filter((appointment) => isAppointmentInArrivalConfirmationWindow(appointment, data.services, appointmentNow));
-  const bookedAppointments = confirmationPendingAppointments.filter((appointment) => appointmentArrivalConfirmationWindow(appointment, data.services).opensAt > appointmentNow);
-  const arrivedAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店");
-  const completedRangeAppointments = visibleRangeAppointments.filter((appointment) => appointment.status === "已完成");
   const appointmentOrderByAppointmentId = useMemo(() => {
     const result = new Map<string, Order>();
     data.orders.forEach((order) => {
@@ -2072,26 +2080,30 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
     return result;
   }, [data.orders]);
   const preferredSignatureByOrderId = useMemo(() => {
-    const result = new Map<string, { signature: CustomerSignature; priority: number }>();
+    const result = new Map<string, CustomerSignature>();
+    const nowMs = appointmentNow.getTime();
     data.customerSignatures.forEach((signature) => {
-      if (signature.orderId === undefined) return;
-      const isServiceCompletion = signature.title === "服务完成确认签名";
-      const priority = signature.status === "已签名" ? (isServiceCompletion ? 0 : 1) : (isServiceCompletion ? 2 : 3);
+      if (signature.orderId === undefined || signature.status === "已作废") return;
       const current = result.get(signature.orderId);
-      if (!current || priority < current.priority) result.set(signature.orderId, { signature, priority });
+      if (!current || compareCustomerSignaturePreference(signature, current, nowMs) < 0) {
+        result.set(signature.orderId, signature);
+      }
     });
-    return new Map(Array.from(result, ([orderId, item]) => [orderId, item.signature]));
+    return result;
   }, [data.customerSignatures]);
   const findAppointmentOrder = (appointment: Appointment) =>
     appointmentOrderByAppointmentId.get(appointment.id);
   const findAppointmentSignature = (order: Order | undefined) =>
     order ? preferredSignatureByOrderId.get(order.id) : undefined;
-  const arrivedServiceSignatureTasks = arrivedAppointments.map((appointment) => {
-    const order = findAppointmentOrder(appointment);
-    const signature = findAppointmentSignature(order);
-    return { appointment, order, signature };
-  }).filter((item) => item.signature?.status !== "已签名");
-  const completedServiceSignatureTasks = completedRangeAppointments
+  const confirmationPendingAppointments = visibleRangeAppointments.filter((appointment) =>
+    !findAppointmentOrder(appointment) && (appointment.status === "已确认" || appointment.status === "待确认"),
+  );
+  const overdueAppointments = confirmationPendingAppointments.filter((appointment) => appointmentEndAt(appointment, data.services) < appointmentNow);
+  const arrivalConfirmationAppointments = confirmationPendingAppointments.filter((appointment) => isAppointmentInArrivalConfirmationWindow(appointment, data.services, appointmentNow));
+  const bookedAppointments = confirmationPendingAppointments.filter((appointment) => appointmentArrivalConfirmationWindow(appointment, data.services).opensAt > appointmentNow);
+  const arrivedAppointmentsWithoutOrder = visibleRangeAppointments.filter((appointment) => appointment.status === "已到店" && !findAppointmentOrder(appointment));
+  const arrivedServiceSignatureTasks = arrivedAppointmentsWithoutOrder.map((appointment) => ({ appointment, order: undefined, signature: undefined }));
+  const orderLinkedSignatureTasks = visibleRangeAppointments
     .map((appointment) => {
       const order = findAppointmentOrder(appointment);
       const signature = findAppointmentSignature(order);
@@ -2100,7 +2112,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
     .filter((item): item is { appointment: Appointment; order: Order; signature: CustomerSignature | undefined } =>
       Boolean(item.order && item.signature?.status !== "已签名"),
     );
-  const pendingServiceSignatureTasks = [...arrivedServiceSignatureTasks, ...completedServiceSignatureTasks]
+  const pendingServiceSignatureTasks = [...arrivedServiceSignatureTasks, ...orderLinkedSignatureTasks]
     .sort((left, right) => +new Date(left.appointment.startAt) - +new Date(right.appointment.startAt));
   const appointmentHasLinkedSignedOrder = (appointment: Appointment) =>
     findAppointmentSignature(findAppointmentOrder(appointment))?.status === "已签名";
@@ -2121,14 +2133,15 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
     } else {
       setSelectedAppointmentDetailId("");
     }
-    const targetWorkflowKey =
-      (targetAppointment.status === "已确认" || targetAppointment.status === "待确认")
+    const targetWorkflowKey = pendingServiceSignatureTasks.some((item) => item.appointment.id === targetAppointment.id)
+      ? "signature"
+      : (targetAppointment.status === "已确认" || targetAppointment.status === "待确认")
         ? appointmentEndAt(targetAppointment, data.services) < appointmentNow
           ? "overdue"
           : isAppointmentInArrivalConfirmationWindow(targetAppointment, data.services, appointmentNow)
             ? "arrival"
             : "booked"
-        : pendingServiceSignatureTasks.some((item) => item.appointment.id === targetAppointment.id) || targetAppointment.status === "已到店"
+        : targetAppointment.status === "已到店"
           ? "signature"
           : "";
     if (targetWorkflowKey) {
@@ -2224,6 +2237,26 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
   const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
   const appointmentSaveDisabled = !(customerId || resolvedAppointmentCustomer) || appointmentCustomerSearchUnresolved || !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
   const rescheduleSaveDisabled = !rescheduleStaffId || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
+  const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
+  const openSignaturePage = (token: string) => {
+    window.location.assign(signatureUrl(token));
+  };
+  const createServiceSignature = (appointment: Appointment, order: Order) => {
+    void runMutation(() =>
+      actions.createCustomerSignature({
+        customerId: appointment.customerId,
+        orderId: order.id,
+        title: "服务完成确认签名",
+        content: `${nameOf(data.customers, appointment.customerId)} 确认本次到店服务、消费项目、支付金额和服务结果无误。`,
+        validDays: 7,
+      }),
+    ).then((nextData) => {
+      const nextSignature = preferredCustomerSignatureForOrder(nextData.customerSignatures, order.id);
+      if (nextSignature?.status === "待签名" && !customerSignatureIsExpired(nextSignature)) {
+        openSignaturePage(nextSignature.token);
+      }
+    }).catch(() => undefined);
+  };
   const appointmentDetailAction = (appointment: Appointment) => {
     if (appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment)) {
       return (
@@ -2234,7 +2267,31 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
     }
     return <span>-</span>;
   };
+  const openOrderCorrection = (order: Order) => {
+    setView("pos", { posModule: "orders", posOrderId: order.id });
+  };
   const appointmentListAction = (appointment: Appointment) => {
+    const linkedOrder = findAppointmentOrder(appointment);
+    if (linkedOrder) {
+      const linkedSignature = findAppointmentSignature(linkedOrder);
+      if (linkedSignature?.status === "已签名") return appointmentDetailAction(appointment);
+      if (linkedSignature?.status === "待签名" && !customerSignatureIsExpired(linkedSignature, appointmentNow.getTime())) {
+        return (
+          <>
+            <button type="button" onClick={() => openSignaturePage(linkedSignature.token)}>继续签名</button>
+            <button type="button" className="secondary-button" onClick={() => openOrderCorrection(linkedOrder)}>内容有误/撤销重开</button>
+          </>
+        );
+      }
+      return (
+        <>
+          <button type="button" disabled={mutationPending} onClick={() => createServiceSignature(appointment, linkedOrder)}>
+            {linkedSignature?.status === "待签名" ? "重新生成签名" : "生成签名"}
+          </button>
+          <button type="button" className="secondary-button" onClick={() => openOrderCorrection(linkedOrder)}>内容有误/撤销重开</button>
+        </>
+      );
+    }
     if (appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment)) {
       return appointmentDetailAction(appointment);
     }
@@ -2258,7 +2315,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
   };
   const appointmentStatusText = (status: Appointment["status"]) => {
     if (status === "待确认" || status === "已确认") return "已预约";
-    if (status === "已到店") return "待确认到店";
+    if (status === "已到店") return "已到店待服务";
     return status;
   };
   const appointmentBadgeTone = (status: Appointment["status"]) =>
@@ -2303,40 +2360,28 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
       </div>
     </article>
   );
-  const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
-  const openSignaturePage = (token: string) => {
-    window.location.assign(signatureUrl(token));
-  };
-  const createServiceSignature = (appointment: Appointment, order: Order) => {
-    void runMutation(() =>
-      actions.createCustomerSignature({
-        customerId: appointment.customerId,
-        orderId: order.id,
-        title: "服务完成确认签名",
-        content: `${nameOf(data.customers, appointment.customerId)} 确认本次到店服务、消费项目、支付金额和服务结果无误。`,
-        validDays: 7,
-      }),
-    ).then((nextData) => {
-      const nextSignature = nextData.customerSignatures.find(
-        (item) => item.orderId === order.id && item.title === "服务完成确认签名" && item.status === "待签名",
-      );
-      if (nextSignature) openSignaturePage(nextSignature.token);
-    });
-  };
   const renderServiceSignatureCard = ({ signature, order, appointment }: { signature: CustomerSignature | undefined; order?: Order; appointment: Appointment }) => (
     <article className={`appointment-work-card status-待签名${appointmentFocusClass(appointment)}`} data-appointment-id={appointment.id} key={signature?.id ?? appointment.id}>
       <div className="appointment-work-card-main">
         <time>{appointmentTimeRange(data, appointment)}</time>
-        <Badge text={signature?.status === "已签名" ? "已签名" : signature ? "待服务签名" : order ? "待生成签名" : "已到店待服务"} tone="warn" />
+        <Badge text={signature?.status === "已签名" ? "已签名" : signature && customerSignatureIsExpired(signature, appointmentNow.getTime()) ? "签名已过期" : signature ? "待服务签名" : order ? "待生成签名" : "已到店待服务"} tone="warn" />
         <strong>{nameOf(data.customers, appointment.customerId)}</strong>
         <span>{order ? order.serviceName ?? nameOf(data.services, order.serviceId) : appointmentServiceNames(data, appointment)} · {nameOf(data.staff, order?.staffId ?? appointment.staffId)}</span>
         <small>{appointment.roomName ?? "未分配房间"}{order ? ` · ${order.orderNo}` : " · 已确认到店"}</small>
       </div>
       <div className="appointment-work-card-actions">
-        {signature?.status === "待签名" && <button type="button" onClick={() => openSignaturePage(signature.token)}>打开签名</button>}
+        {signature?.status === "待签名" && !customerSignatureIsExpired(signature, appointmentNow.getTime()) && <button type="button" onClick={() => openSignaturePage(signature.token)}>继续签名</button>}
+        {signature?.status === "待签名" && customerSignatureIsExpired(signature, appointmentNow.getTime()) && order && (
+          <button type="button" disabled={mutationPending} onClick={() => createServiceSignature(appointment, order)}>重新生成签名</button>
+        )}
         {!signature && order && (
           <button type="button" disabled={mutationPending} onClick={() => createServiceSignature(appointment, order)}>
             生成签名
+          </button>
+        )}
+        {order && signature?.status !== "已签名" && (
+          <button type="button" className="secondary-button" onClick={() => openOrderCorrection(order)}>
+            内容有误/撤销重开
           </button>
         )}
         {!signature && !order && (
@@ -2385,7 +2430,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
     },
     {
       key: "signature",
-      title: "待服务签名",
+      title: "待服务 / 待签名",
       value: pendingServiceSignatureTasks.length,
       renderItems: () => renderWorkflowItems("signature", pendingServiceSignatureTasks, renderServiceSignatureCard),
       empty: "暂无待签名服务",
@@ -2462,7 +2507,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
             <div className="appointment-workbench-summary" aria-label={`${selectedAppointmentRange.label}预约概览`}>
               <em><CalendarDays size={13} />预约 {visibleRangeAppointments.length}</em>
               <em><DoorOpen size={13} />待到店 {arrivalConfirmationAppointments.length}</em>
-              <em><Pencil size={13} />待签名 {pendingServiceSignatureTasks.length}</em>
+              <em><Pencil size={13} />待服务/签名 {pendingServiceSignatureTasks.length}</em>
             </div>
             <div className="appointment-range-tabs" aria-label="预约日期筛选">
               {(["today", "tomorrow", "week"] as AppointmentRange[]).map((range) => (
@@ -2524,7 +2569,16 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
                 columns={["时间", "客户", "项目", "服务人员", "房间", "状态", "操作"]}
                 rows={visibleRangeAppointments.slice(0, 60).map((appointment) => {
                   const order = findAppointmentOrder(appointment);
+                  const signature = findAppointmentSignature(order);
                   const effectivelyCompleted = appointment.status === "已完成" || appointmentHasLinkedSignedOrder(appointment);
+                  const linkedOrderPendingSignature = Boolean(order && signature?.status !== "已签名");
+                  const displayedStatus = linkedOrderPendingSignature
+                    ? signature && customerSignatureIsExpired(signature, appointmentNow.getTime())
+                      ? "签名已过期"
+                      : "待签名"
+                    : effectivelyCompleted
+                      ? "已完成"
+                      : appointmentStatusText(appointment.status);
                   return {
                     key: appointment.id,
                     className: appointment.id === focusedAppointmentId ? "is-notification-target" : undefined,
@@ -2535,7 +2589,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
                       effectivelyCompleted ? appointmentConsumptionNames(data, appointment, order) : appointmentServiceNames(data, appointment),
                       nameOf(data.staff, order?.staffId ?? appointment.staffId),
                       appointment.roomName ?? "-",
-                      <Badge key={`${appointment.id}-status`} text={effectivelyCompleted ? "已完成" : appointmentStatusText(appointment.status)} tone={effectivelyCompleted ? "ok" : appointmentBadgeTone(appointment.status)} />,
+                      <Badge key={`${appointment.id}-status`} text={displayedStatus} tone={linkedOrderPendingSignature ? "warn" : effectivelyCompleted ? "ok" : appointmentBadgeTone(appointment.status)} />,
                       <div key={`${appointment.id}-action`} className="table-action">
                         {appointmentListAction(appointment)}
                       </div>,
@@ -2564,6 +2618,13 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
                   <div><dt>实收/扣款</dt><dd>{selectedCompletedOrder ? money(selectedCompletedOrder.paidAmount) : "-"}</dd></div>
                   <div><dt>签名状态</dt><dd>{selectedCompletedSignature?.status ?? "-"}</dd></div>
                 </dl>
+                {selectedCompletedOrder && selectedCompletedSignature?.status !== "已签名" && (
+                  <div className="row-actions">
+                    <button type="button" className="secondary-button" onClick={() => openOrderCorrection(selectedCompletedOrder)}>
+                      内容有误/撤销重开
+                    </button>
+                  </div>
+                )}
                 {(selectedCompletedSignature?.status === "已签名" || selectedCompletedSignatureImage || selectedAppointmentSignatureImageLoading) && (
                   <div className="appointment-completed-signature">
                     <strong>客户签名</strong>
@@ -2762,6 +2823,7 @@ function Pos({
   initialAppointmentId,
   initialCustomerId,
   initialSignatureId,
+  initialOrderId,
   initialEntryKey = 0,
   onReturnManagement,
   onReturnAppointments,
@@ -2776,6 +2838,7 @@ function Pos({
   initialAppointmentId?: string;
   initialCustomerId?: string;
   initialSignatureId?: string;
+  initialOrderId?: string;
   initialEntryKey?: number;
   onReturnManagement?: () => void;
   onReturnAppointments?: () => void;
@@ -2807,6 +2870,7 @@ function Pos({
   const [productPickerSearch, setProductPickerSearch] = useState("");
   const [payMethod, setPayMethod] = useState<Order["payMethod"]>("微信");
   const [cardId, setCardId] = useState("");
+  const [serviceCardSelectionByServiceId, setServiceCardSelectionByServiceId] = useState<Record<string, string>>({});
   const [discountAmount, setDiscountAmount] = useState(0);
   const [checkoutDiscountRateInput, setCheckoutDiscountRateInput] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
@@ -2820,6 +2884,7 @@ function Pos({
   const appliedInitialAppointmentRef = useRef<string | undefined>(undefined);
   const appliedInitialCustomerRef = useRef<string | undefined>(undefined);
   const appliedInitialSignatureRef = useRef<string | undefined>(undefined);
+  const appliedInitialOrderRef = useRef<string | undefined>(undefined);
   const cardCustomerDraftTouchedRef = useRef(false);
   const cardServiceSelectionTouchedRef = useRef(false);
   const cardCustomerNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -2934,12 +2999,14 @@ function Pos({
     if (!usesCustomer) {
       setAppointmentId("");
       setCardId("");
+      setServiceCardSelectionByServiceId({});
       if (payMethod === "会员卡") setPayMethod("微信");
     }
     if (!usesService) {
       setAppointmentId("");
       setCollaboratorStaffIds([]);
       setCardId("");
+      setServiceCardSelectionByServiceId({});
       setCheckoutServiceIds((ids) => (ids.length ? [] : ids));
       setServicePickerOpen(false);
     }
@@ -3012,12 +3079,44 @@ function Pos({
   );
   const selectedCustomerSelectableServiceIdsKey = Array.from(selectedCustomerSelectableServiceIds).sort().join("|");
   const selectedCheckoutServiceIds = selectedServices.map((service) => service.id);
-  const checkoutAutoDebitPlanLines = buildMemberCardDebitPlan(data, customerId, selectedCheckoutServiceIds);
+  const checkoutRelevantProjectCardIds = Array.from(new Set(
+    selectedServiceRows.flatMap(({ service }) =>
+      selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources.map((source) => source.cardId) ?? [],
+    ),
+  ));
+  const checkoutRelevantProjectCards = checkoutRelevantProjectCardIds
+    .map((projectCardId) => selectedCustomerProjectCards.find((card) => card.id === projectCardId))
+    .filter((card): card is AppData["memberCards"][number] => Boolean(card));
+  const checkoutServiceCardSelections = selectedServiceRows.flatMap<ServiceCardSelection>(({ service }) => {
+    const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
+    const savedCardId = serviceCardSelectionByServiceId[service.id];
+    const selectedCardId = sources.some((source) => source.cardId === savedCardId)
+      ? savedCardId
+      : sources[0]?.cardId;
+    return selectedCardId ? [{ serviceId: service.id, cardId: selectedCardId }] : [];
+  });
+  const checkoutServiceCardIdByServiceId = new Map(
+    checkoutServiceCardSelections.map((selection) => [selection.serviceId, selection.cardId]),
+  );
+  const checkoutPreferredProjectCardId = checkoutServiceCardSelections[0]?.cardId ?? "";
+  const checkoutRequiresDebitSourceSelection = selectedServiceRows.some(({ service }) =>
+    (selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources.length ?? 0) > 1,
+  );
+  const checkoutDebitSourceSelected = selectedServiceRows.every(({ service }) => {
+    const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
+    return sources.length === 0 || Boolean(checkoutServiceCardIdByServiceId.get(service.id));
+  });
+  const checkoutAutoDebitPlanLines = checkoutDebitSourceSelected
+    ? buildMemberCardDebitPlan(
+        data,
+        customerId,
+        selectedCheckoutServiceIds,
+        checkoutPreferredProjectCardId || undefined,
+        checkoutServiceCardSelections,
+      )
+    : [];
   const checkoutAutoDebitPlan = buildUiMemberCardDebitPlan(data, checkoutAutoDebitPlanLines);
   const checkoutAutoDebitCoversOrder = memberCardDebitPlanCoversServices(checkoutAutoDebitPlanLines, selectedCheckoutServiceIds);
-  const checkoutRelevantProjectCards = selectedCustomerProjectCards.filter((card) =>
-    selectedServices.some((service) => signatureMemberCardSupportsService(card, service.id)),
-  );
   const checkoutAutoDebitShortfalls = memberCardDebitPlanShortfalls(
     data,
     customerId,
@@ -3183,6 +3282,7 @@ function Pos({
     && usesService
     && selectedServiceRows.length > 0
     && checkoutRelevantProjectCards.length > 0
+    && checkoutDebitSourceSelected
     && !checkoutAutoDebitCoversOrder,
   );
   const checkoutServiceCardBlockedText = checkoutAutoDebitShortfalls.join("；");
@@ -3262,10 +3362,7 @@ function Pos({
   }, [fetchPublicCustomerSignature, selectedSignature?.id, selectedSignature?.signatureText, selectedSignature?.status, selectedSignature?.token]);
   useEffect(() => {
     if (!usesCustomer || !usesService || selectedServiceRows.length === 0) return;
-    if (serviceAutoDebitActive) {
-      if (cardId) setCardId("");
-      return;
-    }
+    if (serviceAutoDebitActive) return;
     if (checkoutDebitCandidateCards.length === 0) {
       if (cardId) setCardId("");
       return;
@@ -3298,6 +3395,7 @@ function Pos({
       if (uniqueMatch.id !== customerId) {
         clearAppointment();
         setCardId("");
+        setServiceCardSelectionByServiceId({});
       }
       setCustomerId(uniqueMatch.id);
       return;
@@ -3306,6 +3404,7 @@ function Pos({
       clearAppointment();
       setCustomerId("");
       setCardId("");
+      setServiceCardSelectionByServiceId({});
     }
   };
   const cashierFlowRecordCount = posRemote.context?.cashierFlowTotal ?? posRemote.pageResult?.totalCount ?? 0;
@@ -3338,8 +3437,31 @@ function Pos({
     ? posRemote.detail?.data.appointments.find((appointment) => appointment.id === selectedCashierOrder.appointmentId)
     : undefined;
   const selectedCashierSignature = selectedCashierOrder
-    ? posRemote.detail?.data.customerSignatures.find((signature) => signature.orderId === selectedCashierOrder.id)
+    ? preferredCustomerSignatureForOrder(posData.customerSignatures, selectedCashierOrder.id, signatureNow)
     : undefined;
+  const selectedCashierRefundAmounts = selectedCashierOrder
+    ? orderRefundAmounts(posData, selectedCashierOrder)
+    : undefined;
+  const selectedCashierOriginalPaidAmount = selectedCashierRefundAmounts?.originalPaidAmount ?? selectedCashierOrder?.paidAmount ?? 0;
+  const selectedCashierRefundApprovals = selectedCashierOrder
+    ? posData.approvalRequests
+        .filter((approval) => approval.type === "订单退款" && approval.targetId === selectedCashierOrder.id && approval.amount >= selectedCashierOriginalPaidAmount)
+        .slice()
+        .sort((left, right) => +new Date(right.createdAt) - +new Date(left.createdAt))
+    : [];
+  const selectedCashierApprovedRefundApproval = selectedCashierRefundApprovals.find((approval) => approval.status === "已通过");
+  const selectedCashierPendingRefundApproval = selectedCashierRefundApprovals.find((approval) => approval.status === "待审批");
+  const selectedCashierRejectedRefundApproval = selectedCashierRefundApprovals.find((approval) => approval.status === "已拒绝");
+  const selectedCashierRefundApprovalRequired = Boolean(selectedCashierOrder && selectedCashierOriginalPaidAmount > 1000);
+  const selectedCashierRefundApprovalState = !selectedCashierRefundApprovalRequired
+    ? "not-required" as const
+    : selectedCashierApprovedRefundApproval
+      ? "approved" as const
+      : selectedCashierPendingRefundApproval
+        ? "pending" as const
+        : selectedCashierRejectedRefundApproval
+          ? "rejected" as const
+          : "missing" as const;
   const selectedCashierSignatureImage = selectedSignatureImage && selectedSignatureImage.signatureId === selectedCashierSignature?.id
     ? selectedSignatureImage.signatureText
     : selectedCashierSignature?.signatureText;
@@ -3347,6 +3469,57 @@ function Pos({
     if (!selectedCashierSignature) return;
     setSelectedSignatureId(selectedCashierSignature.id);
     setActiveModule("signature");
+  };
+  const regenerateCashierSignature = async () => {
+    if (!selectedCashierOrder || !selectedCashierCustomerId) throw new Error("当前流水缺少客户或订单信息，无法重新生成签名。");
+    const nextData = await runMutation(() =>
+      actions.createCustomerSignature({
+        customerId: selectedCashierCustomerId,
+        orderId: selectedCashierOrder.id,
+        title: "服务完成确认签名",
+        content: `${selectedCashierCustomer?.name ?? selectedCashierRecord?.customerName ?? "客户"} 确认本次到店服务、消费项目、支付金额和服务结果无误。`,
+        validDays: 7,
+      }),
+    );
+    const nextSignature = preferredCustomerSignatureForOrder(nextData.customerSignatures, selectedCashierOrder.id);
+    if (!nextSignature || nextSignature.status !== "待签名" || customerSignatureIsExpired(nextSignature)) {
+      throw new Error("新签名生成后未能正确选中，请刷新流水后重试。");
+    }
+    setSignatureNow(Date.now());
+    setSelectedSignatureId(nextSignature.id);
+    setActiveModule("signature");
+    void posRemote.refreshContext();
+  };
+  const requestCashierRefundApproval = async (reason: string) => {
+    if (!selectedCashierOrder) throw new Error("订单详情尚未加载完成。");
+    if (selectedCashierPendingRefundApproval) throw new Error("该订单已有待审批的全额退款申请，请勿重复提交。");
+    await runMutation(() => actions.createApproval({
+      type: "订单退款",
+      targetId: selectedCashierOrder.id,
+      amount: selectedCashierOriginalPaidAmount,
+      reason,
+    }));
+  };
+  const refundSelectedCashierOrder = async (reason: string) => {
+    if (!selectedCashierOrder || !["已支付", "部分退款"].includes(selectedCashierOrder.status)) {
+      throw new Error(selectedCashierOrder?.status === "已退款" ? "该订单已经全额退款。" : "只有存在未退余额的订单可以从这里撤销误单。");
+    }
+    if (selectedCashierRefundApprovalRequired && !selectedCashierApprovedRefundApproval) {
+      throw new Error("本单超过 1000 元，必须先通过订单退款审批，不能绕过审批直接撤销。");
+    }
+    const refundedAppointmentId = selectedCashierOrder.appointmentId;
+    await runMutation(() => actions.refundOrder(
+      selectedCashierOrder.id,
+      reason,
+      selectedCashierOrder.paidAmount,
+      selectedCashierApprovedRefundApproval?.id,
+    ));
+    void posRemote.refreshContext();
+    posRemote.invalidatePage();
+    posRemote.clearDetail();
+    if (refundedAppointmentId && onReturnAppointments) {
+      window.setTimeout(() => onReturnAppointments(), 450);
+    }
   };
   const closeSignatureCapture = () => {
     setActiveModule("orders");
@@ -3490,6 +3663,7 @@ function Pos({
     resetCheckoutDiscount();
     setCollaboratorStaffIds([]);
     setCardId("");
+    setServiceCardSelectionByServiceId({});
     setServicePickerOpen(false);
   };
 
@@ -3514,6 +3688,7 @@ function Pos({
     setAppointmentId("");
     setCustomerSearch("");
     setCardId("");
+    setServiceCardSelectionByServiceId({});
     setCollaboratorStaffIds([]);
     setDiscountAmount(0);
     setCheckoutDiscountRateInput("");
@@ -3571,10 +3746,29 @@ function Pos({
     setServicePickerOpen(true);
   };
 
+  const setCheckoutServiceCardSource = (serviceId: string, nextCardId: string) => {
+    setServiceCardSelectionByServiceId((previous) => {
+      if (!nextCardId) {
+        if (!(serviceId in previous)) return previous;
+        const next = { ...previous };
+        delete next[serviceId];
+        return next;
+      }
+      return previous[serviceId] === nextCardId ? previous : { ...previous, [serviceId]: nextCardId };
+    });
+  };
+
   const setCheckoutServiceQuantity = (nextServiceId: string, quantity: number) => {
     const nextQuantity = Math.max(0, Math.floor(quantity));
+    const currentQuantity = checkoutServiceIds.filter((serviceId) => serviceId === nextServiceId).length;
     clearAppointmentForServiceChange();
     resetCheckoutDiscount();
+    if (nextQuantity <= 0) {
+      setCheckoutServiceCardSource(nextServiceId, "");
+    } else if (currentQuantity === 0) {
+      const firstSourceCardId = selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources[0]?.cardId;
+      if (firstSourceCardId) setCheckoutServiceCardSource(nextServiceId, firstSourceCardId);
+    }
     setCheckoutServiceIds((previous) => {
       let inserted = false;
       const replacement = nextQuantity > 0 ? Array.from({ length: nextQuantity }, () => nextServiceId) : [];
@@ -3594,9 +3788,17 @@ function Pos({
     });
   };
 
-  const selectCheckoutService = (nextServiceId: string) => {
+  const selectCheckoutService = (nextServiceId: string, preferredCardId?: string) => {
     clearAppointmentForServiceChange();
     resetCheckoutDiscount();
+    const isAddingService = !checkoutServiceIds.includes(nextServiceId);
+    if (!isAddingService) {
+      setCheckoutServiceCardSource(nextServiceId, "");
+    } else if (usesCustomer) {
+      const nextCardId = preferredCardId
+        ?? selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources[0]?.cardId;
+      if (nextCardId) setCheckoutServiceCardSource(nextServiceId, nextCardId);
+    }
     setCheckoutServiceIds((previous) => {
       return previous.includes(nextServiceId)
         ? previous.filter((id) => id !== nextServiceId)
@@ -3705,6 +3907,18 @@ function Pos({
     setSelectedSignatureId(targetSignature.id);
     setActiveModule("signature");
   }, [initialSignatureId, initialEntryKey, posData.customerSignatures]);
+
+  useEffect(() => {
+    if (!initialOrderId) {
+      appliedInitialOrderRef.current = undefined;
+      return;
+    }
+    const entryId = `${initialEntryKey}:${initialOrderId}`;
+    if (appliedInitialOrderRef.current === entryId) return;
+    appliedInitialOrderRef.current = entryId;
+    setActiveModule("orders");
+    posRemote.selectRecord("order", initialOrderId);
+  }, [initialOrderId, initialEntryKey, posRemote.selectRecord]);
 
   useEffect(() => {
     if (!initialCustomerId) {
@@ -3845,13 +4059,16 @@ function Pos({
         collaboratorStaffIds: usesService ? collaboratorStaffIds : [],
         serviceId: usesService ? selectedServices[0]?.id : undefined,
         serviceIds: usesService ? checkoutServiceIds : undefined,
+        serviceCardSelections: serviceAutoDebitActive ? checkoutServiceCardSelections : undefined,
         productItems: usesProduct ? checkoutProductItems : undefined,
         giftProductItems: usesProduct ? checkoutGiftItems : undefined,
         discountAmount: discountAmount || undefined,
         adjustmentReason: adjustmentReason || undefined,
         appointmentId: usesCustomer && usesService ? appointmentId || undefined : undefined,
         payMethod,
-        cardId: usesCustomer && !serviceAutoDebitActive && (payMethod === "会员卡" || usesService) ? cardId || undefined : undefined,
+        cardId: usesCustomer && (payMethod === "会员卡" || usesService)
+          ? (serviceAutoDebitActive ? undefined : cardId || undefined)
+          : undefined,
       }),
     ).then((nextData) => {
       void posRemote.refreshContext();
@@ -3869,6 +4086,7 @@ function Pos({
       setGuestName("");
       setGuestPhone("");
       setCheckoutServiceIds([]);
+      setServiceCardSelectionByServiceId({});
       if (usesProduct) {
         setCheckoutProductItems([]);
         setCheckoutGiftItems([]);
@@ -3929,6 +4147,7 @@ function Pos({
             return;
           }
           setCardId("");
+          setServiceCardSelectionByServiceId({});
           if (payMethod === "会员卡") setPayMethod("微信");
         }}
         options={[
@@ -3967,6 +4186,7 @@ function Pos({
                     setCustomerId(customer.id);
                     setCustomerSearch("");
                     setCardId("");
+                    setServiceCardSelectionByServiceId({});
                   }}
                 >
                   <strong>{customer.name}</strong>
@@ -3996,8 +4216,35 @@ function Pos({
         <div className="checkout-customer-card-summary">
           <div className="checkout-product-section-head">
             <span>项目扣卡计划</span>
-            <strong>{checkoutAutoDebitPlan.length ? `${checkoutAutoDebitPlan.length} 条自动扣除` : selectedCustomerProjectCards.length ? "待选项目" : "暂无项目卡"}</strong>
+            <strong>{checkoutAutoDebitPlan.length
+                ? `${checkoutAutoDebitPlan.length} 条计划扣除`
+                : selectedCustomerProjectCards.length
+                  ? "待选项目"
+                  : "暂无项目卡"}</strong>
           </div>
+          {selectedServiceRows.length > 0 && checkoutRequiresDebitSourceSelection && (
+            <div className="checkout-debit-source-select">
+              <div className="checkout-debit-source-grid">
+                {selectedServiceRows.flatMap(({ service }) => {
+                  const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
+                  if (sources.length <= 1) return [];
+                  return [(
+                    <Select
+                      key={service.id}
+                      label={`${service.name}扣卡来源`}
+                      value={checkoutServiceCardIdByServiceId.get(service.id) ?? sources[0]?.cardId ?? ""}
+                      onChange={(nextCardId) => setCheckoutServiceCardSource(service.id, nextCardId)}
+                      options={sources.map((source, index) => ({
+                        value: source.cardId,
+                        label: `${["第一张", "第二张", "第三张"][index] ?? `第 ${index + 1} 张`} · ${source.cardName} · 剩 ${source.remainingTimes}${source.totalTimes ? `/${source.totalTimes}` : ""} 次`,
+                      }))}
+                    />
+                  )];
+                })}
+              </div>
+              <p className="form-note">每个项目都默认选择自己的第一张卡；收银员可分别切换，不会影响其他项目。</p>
+            </div>
+          )}
           {selectedServiceRows.length > 0 && checkoutAutoDebitPlan.length > 0 ? (
             <div className="checkout-customer-card-usage auto-debit">
               {checkoutAutoDebitPlan.map((row) => (
@@ -4277,9 +4524,9 @@ function Pos({
                             </small>
                             <small className="checkout-service-card-source">
                               本次扣卡：{checkoutAutoDebitPlan
-                                .filter((row) => row.service.id === service.id)
-                                .map((row) => `${row.card.name} ${row.quantity}次`)
-                                .join("；") || "无可扣次数"}
+                                    .filter((row) => row.service.id === service.id)
+                                    .map((row) => `${row.card.name} ${row.quantity}次`)
+                                    .join("；") || "无可扣次数"}
                             </small>
                           </>
                         )}
@@ -4402,7 +4649,7 @@ function Pos({
                 <p className="form-note">
                   {selectedCheckoutAppointmentNeedsServiceSelection
                     ? "该预约未预选服务，请选择本次实际服务；收银并签名后预约完成。"
-                    : "已带入预约信息，签完才完成。"}
+                    : "已关联预约；完成收银后预约退出待收银，客户签名作为独立待办。"}
                 </p>
               )}
             </>
@@ -4499,12 +4746,18 @@ function Pos({
             selectedSignatureImage={selectedCashierSignatureImage}
             selectedSignatureImageLoading={selectedSignatureImageLoading}
             selectedSignatureExpired={Boolean(selectedCashierSignature && customerSignatureIsExpired(selectedCashierSignature, signatureNow))}
+            mutationPending={mutationPending}
+            refundApprovalState={selectedCashierRefundApprovalState}
+            refundOriginalPaidAmount={selectedCashierOriginalPaidAmount}
             onPageChange={posRemote.changePage}
             onRetry={posRemote.invalidatePage}
             onSelectRecord={posRemote.selectRecord}
             onClearSelection={posRemote.clearDetail}
             onRetryDetail={posRemote.retryDetail}
             onOpenSignature={openCashierSignature}
+            onRegenerateSignature={regenerateCashierSignature}
+            onRequestRefundApproval={requestCashierRefundApproval}
+            onRefundOrder={refundSelectedCashierOrder}
           /></Suspense>
         )}
       </div>
@@ -4625,27 +4878,51 @@ function Pos({
             {servicePickerServices.length ? servicePickerServices.map((service) => {
               const quantity = checkoutServiceIds.filter((id) => id === service.id).length;
               const availability = selectedCustomerProjectAvailabilityByServiceId.get(service.id);
+              const activeSourceCardId = quantity > 0
+                ? checkoutServiceCardIdByServiceId.get(service.id) ?? availability?.sources[0]?.cardId ?? ""
+                : availability?.sources[0]?.cardId ?? "";
               return (
-              <button
-                type="button"
+              <article
                 className={`product-picker-card service-picker-card ${quantity > 0 ? "selected" : ""}`}
                 key={service.id}
-                onClick={() => selectCheckoutService(service.id)}
               >
-                <div>
-                  <strong>{service.name}</strong>
-                  <span>{service.category || "未分类"} · {service.duration} 分钟</span>
-                </div>
-                <div className="product-picker-card-meta">
-                  <span>{usesCustomer ? `总剩 ${availability?.remainingTimes ?? 0} 次` : money(service.price)}</span>
-                  <small>{quantity > 0 ? `已选 ${quantity} 份` : "默认 1 份"}</small>
-                  {usesCustomer && availability && (
-                    <em title={availability.sources.map((source) => `${source.cardName} ${source.remainingTimes}次${source.sharedPool ? "（共享）" : ""}`).join("；")}>
-                      来自 {availability.cardCount} 张卡 · {availability.sources.map((source) => `${source.cardName} ${source.remainingTimes}次${source.sharedPool ? "（共享）" : ""}`).join("；")}
-                    </em>
-                  )}
-                </div>
-              </button>
+                <button type="button" className="service-picker-card-main" onClick={() => selectCheckoutService(service.id)}>
+                  <div>
+                    <strong>{service.name}</strong>
+                    <span>{service.category || "未分类"} · {service.duration} 分钟</span>
+                  </div>
+                  <div className="product-picker-card-meta">
+                    <span>{usesCustomer ? `总剩 ${availability?.remainingTimes ?? 0} 次` : money(service.price)}</span>
+                    <small>{quantity > 0 ? `已选 ${quantity} 份` : "默认 1 份"}</small>
+                    {usesCustomer && availability && (
+                      <em>来自 {availability.cardCount} 张卡 · 默认第一张，收银员可切换</em>
+                    )}
+                  </div>
+                </button>
+                {usesCustomer && availability?.sources.length ? (
+                  <div className="service-picker-card-sources" aria-label={`${service.name}扣卡来源`}>
+                    {availability.sources.map((source, index) => {
+                      const sourceSelected = activeSourceCardId === source.cardId;
+                      return (
+                        <button
+                          type="button"
+                          key={source.cardId}
+                          className={`checkout-card-source-button ${sourceSelected ? "active" : ""}`}
+                          aria-pressed={sourceSelected}
+                          onClick={() => {
+                            if (quantity > 0) setCheckoutServiceCardSource(service.id, source.cardId);
+                            else selectCheckoutService(service.id, source.cardId);
+                          }}
+                        >
+                          <small>{["第一张", "第二张", "第三张"][index] ?? `第 ${index + 1} 张`}{index === 0 ? " · 默认" : " · 可选"}</small>
+                          <strong>{source.cardName}</strong>
+                          <span>剩 {source.remainingTimes}{source.totalTimes ? `/${source.totalTimes}` : ""} 次{source.sharedPool ? " · 共享次数" : ""}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </article>
               );
             }) : (
               <div className="product-picker-empty">{servicePickerEmptyText}</div>
@@ -7928,7 +8205,13 @@ function signatureOrderDebitCard(data: AppData, order: Order) {
 function signatureMemberCardUsageRows(data: AppData, order: Order) {
   const alreadyDebited = data.memberCardTransactions.some((transaction) => transaction.orderId === order.id && transaction.type === "消费");
   const orderServiceIds = (order.serviceIds?.length ? order.serviceIds : [order.serviceId]).filter(Boolean);
-  const projectPlanLines = buildMemberCardDebitPlan(data, order.customerId, orderServiceIds, order.cardId);
+  const projectPlanLines = buildMemberCardDebitPlan(
+    data,
+    order.customerId,
+    orderServiceIds,
+    order.cardId,
+    order.serviceCardSelections,
+  );
   const projectPlan = buildUiMemberCardDebitPlan(data, projectPlanLines);
   if (projectPlan.length > 0) {
     const allocatedTotalByCard = projectPlan.reduce((totals, line) => {
@@ -8032,6 +8315,29 @@ function customerSignatureIsExpired(signature: CustomerSignature, nowMs = Date.n
   return signature.status === "待签名"
     && Boolean(signature.expiresAt)
     && +new Date(signature.expiresAt ?? "") <= nowMs;
+}
+
+function customerSignaturePreference(signature: CustomerSignature, nowMs: number) {
+  if (signature.status === "已作废") return Number.MAX_SAFE_INTEGER;
+  const isServiceCompletion = signature.title === "服务完成确认签名";
+  if (isServiceCompletion && signature.status === "已签名") return 0;
+  if (isServiceCompletion && !customerSignatureIsExpired(signature, nowMs)) return 1;
+  if (isServiceCompletion) return 2;
+  if (signature.status === "已签名") return 3;
+  if (!customerSignatureIsExpired(signature, nowMs)) return 4;
+  return 5;
+}
+
+function compareCustomerSignaturePreference(left: CustomerSignature, right: CustomerSignature, nowMs = Date.now()) {
+  const priorityDifference = customerSignaturePreference(left, nowMs) - customerSignaturePreference(right, nowMs);
+  if (priorityDifference !== 0) return priorityDifference;
+  return +new Date(right.createdAt) - +new Date(left.createdAt);
+}
+
+function preferredCustomerSignatureForOrder(signatures: CustomerSignature[], orderId: string, nowMs = Date.now()) {
+  return signatures
+    .filter((signature) => signature.orderId === orderId && signature.status !== "已作废")
+    .sort((left, right) => compareCustomerSignaturePreference(left, right, nowMs))[0];
 }
 
 function signatureRecordCanCompleteCheckout(context: ReturnType<typeof signatureRecordContext>) {

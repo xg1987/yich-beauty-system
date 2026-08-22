@@ -4,6 +4,7 @@ import {
   appointmentEndAt,
   appointmentMonthRange,
   appointmentRangeMap,
+  appointmentRollingSevenDayDates,
   calculateAppointmentRoomUsage,
   filterAppointmentsByRange,
   isAppointmentInArrivalConfirmationWindow,
@@ -69,6 +70,30 @@ const ranges = appointmentRangeMap(baseDate);
 assert.equal(ranges.today.label, "今日", "today range label should be stable");
 assert.equal(ranges.tomorrow.label, "明日", "tomorrow range label should be stable");
 assert.equal(ranges.week.label, "本周", "week range label should be stable");
+
+const rollingCurrentDates = appointmentRollingSevenDayDates(baseDate, 0);
+const rollingPreviousDates = appointmentRollingSevenDayDates(baseDate, -1);
+const rollingNextDates = appointmentRollingSevenDayDates(baseDate, 1);
+assert.deepEqual(
+  rollingCurrentDates.map((date) => date.toLocaleDateString("en-CA")),
+  ["2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06", "2026-06-07", "2026-06-08", "2026-06-09"],
+  "rolling current range should contain today and the next six consecutive days",
+);
+assert.deepEqual(
+  rollingPreviousDates.map((date) => date.toLocaleDateString("en-CA")),
+  ["2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01", "2026-06-02"],
+  "rolling previous range should end on yesterday",
+);
+assert.deepEqual(
+  rollingNextDates.map((date) => date.toLocaleDateString("en-CA")),
+  ["2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14", "2026-06-15", "2026-06-16"],
+  "rolling next range should start immediately after the current seven-day range",
+);
+assert.deepEqual(
+  appointmentRollingSevenDayDates(new Date("2026-12-30T10:30:00+08:00"), 0).map((date) => date.toLocaleDateString("en-CA")),
+  ["2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02", "2027-01-03", "2027-01-04", "2027-01-05"],
+  "rolling range should stay continuous across year boundaries",
+);
 
 assert.deepEqual(
   filterAppointmentsByRange(appointments, "today", baseDate).map((item) => item.id),

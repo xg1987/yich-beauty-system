@@ -164,6 +164,13 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
   const returnToSystem = () => {
     window.location.assign("/?view=pos");
   };
+  const returnToCorrectOrder = () => {
+    if (!payload?.order?.id) {
+      window.location.assign("/?view=appointments");
+      return;
+    }
+    window.location.assign(`/?view=pos&module=orders&orderId=${encodeURIComponent(payload.order.id)}`);
+  };
 
   return (
     <div className={pageClassName}>
@@ -284,6 +291,11 @@ export default function CustomerSignaturePage({ token, fetchSignature, signSigna
                     </label>
                     <div className="signature-form-actions">
                       <button type="button" className="secondary-button" disabled={submitting} onClick={clearSignature}>清除签名</button>
+                      {payload.order && (
+                        <button type="button" className="secondary-button" disabled={submitting} onClick={returnToCorrectOrder}>
+                          内容有误，放弃签名并改正
+                        </button>
+                      )}
                       <button className="primary-button" disabled={submitting} aria-busy={submitting}>
                         <LockKeyhole size={17} />
                         {submitting ? "签名提交中..." : "确认签名"}
