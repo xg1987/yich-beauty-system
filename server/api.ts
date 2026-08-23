@@ -4525,16 +4525,34 @@ function optionalStringArray(body: JsonBody, key: string) {
 function optionalServiceCardSelections(body: JsonBody): ServiceCardSelection[] | undefined {
   const value = body.serviceCardSelections;
   if (!Array.isArray(value)) return undefined;
-  const selections = new Map<string, string>();
+  const selections = new Map<string, ServiceCardSelection>();
   value.forEach((item) => {
     if (!item || typeof item !== "object") return;
     const serviceId = (item as { serviceId?: unknown }).serviceId;
     const cardId = (item as { cardId?: unknown }).cardId;
+    const quantity = (item as { quantity?: unknown }).quantity;
     if (typeof serviceId === "string" && serviceId.trim() && typeof cardId === "string" && cardId.trim()) {
-      selections.set(serviceId.trim(), cardId.trim());
+      const normalizedServiceId = serviceId.trim();
+      const normalizedCardId = cardId.trim();
+      const normalizedQuantity = typeof quantity === "number" && Number.isFinite(quantity)
+        ? quantity
+        : undefined;
+      const key = `${normalizedServiceId}:${normalizedCardId}`;
+      const existing = selections.get(key);
+      selections.set(key, {
+        serviceId: normalizedServiceId,
+        cardId: normalizedCardId,
+        quantity: normalizedQuantity === undefined
+          ? existing?.quantity
+          : (existing?.quantity ?? 0) + normalizedQuantity,
+      });
     }
   });
-  const normalized = Array.from(selections, ([serviceId, cardId]) => ({ serviceId, cardId }));
+  const normalized = Array.from(selections.values()).map((selection) => (
+    selection.quantity === undefined
+      ? { serviceId: selection.serviceId, cardId: selection.cardId }
+      : selection
+  ));
   return normalized.length ? normalized : undefined;
 }
 

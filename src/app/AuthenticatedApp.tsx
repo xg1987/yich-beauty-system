@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Camera,
   ChartNoAxesColumnIncreasing,
+  Check,
   ClipboardCheck,
   ClipboardList,
   Copy,
@@ -123,8 +124,8 @@ import {
   memberCardAvailableProjectScopeText,
   memberCardAvailableServiceIds,
   memberCardAvailableTimesText,
-  memberCardDisplayStatus,
   memberCardHasAvailableValue,
+  memberCardIsArchived,
   memberCardProjectScopeText,
   memberCardTimesText,
   mergeUsedProducts,
@@ -138,6 +139,7 @@ import {
   productExpiryDaysText,
   productExpiryStatus,
   productExpiryText,
+  replaceRepeatedId,
   productShelfLifeText,
   serviceConsumableDisplay,
   serviceConsumableModeText,
@@ -150,6 +152,7 @@ export {
   memberCardAvailableTimesText,
   memberCardDisplayStatus,
   memberCardHasAvailableValue,
+  memberCardIsArchived,
   memberCardProjectScopeText,
   memberCardPurchasedServiceIds,
   memberCardTimesText,
@@ -655,6 +658,7 @@ function LoadingGate({
 
 const LazyDashboard = lazy(() => import("./dashboardView").then((module) => ({ default: module.Dashboard })));
 const LazyCashierFlowPanel = lazy(() => import("./CashierFlowPanel").then((module) => ({ default: module.CashierFlowPanel })));
+const LazyCheckoutServiceCardAllocations = lazy(() => import("../components/business/CheckoutServiceCardAllocations").then((module) => ({ default: module.CheckoutServiceCardAllocations })));
 const MemoAppointments = memo(Appointments);
 const MemoPos = memo(Pos);
 const MemoCustomers = memo(Customers);
@@ -685,6 +689,7 @@ const LazyNotificationPanel = lazy(() => import("../components/business/Notifica
 const LazyCustomerAssetSummary = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.CustomerAssetSummary })));
 const LazyCustomerMemberOverview = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.CustomerMemberOverview })));
 const LazyCustomerProjectCardList = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.CustomerProjectCardList })));
+const LazyMemberCardManagementList = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.MemberCardManagementList })));
 const LazyVoidMemberCardModal = lazy(() => import("../components/business/CustomerMemberCards").then((module) => ({ default: module.VoidMemberCardModal })));
 
 function ViewFallback({ title }: { title: string }) {
@@ -1160,6 +1165,7 @@ function ManagementCenter({
     { title: "库存流水", icon: ClipboardList, tone: "plum", view: "inventory", inventoryModule: "logs" },
     { title: "销售业绩", icon: ChartNoAxesColumnIncreasing, tone: "violet", view: "reports" },
     { title: "营销中心", icon: Camera, tone: "plum", view: "marketing" },
+    { title: "会员卡归档", icon: CreditCard, tone: "rose", view: "customers" },
     { title: "客户退费", icon: CreditCard, tone: "rose", onClick: () => setCustomerRefundOpen(true) },
     { title: "商品损耗", icon: PackageMinus, tone: "rose", view: "inventory", inventoryModule: "loss" },
     { title: "员工管理", icon: UserCheck, tone: "violet", view: "staff" },
@@ -2870,7 +2876,7 @@ function Pos({
   const [productPickerSearch, setProductPickerSearch] = useState("");
   const [payMethod, setPayMethod] = useState<Order["payMethod"]>("微信");
   const [cardId, setCardId] = useState("");
-  const [serviceCardSelectionByServiceId, setServiceCardSelectionByServiceId] = useState<Record<string, string>>({});
+  const [serviceCardIdsByServiceId, setServiceCardIdsByServiceId] = useState<Record<string, string[]>>({});
   const [discountAmount, setDiscountAmount] = useState(0);
   const [checkoutDiscountRateInput, setCheckoutDiscountRateInput] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
@@ -2999,14 +3005,14 @@ function Pos({
     if (!usesCustomer) {
       setAppointmentId("");
       setCardId("");
-      setServiceCardSelectionByServiceId({});
+      setServiceCardIdsByServiceId({});
       if (payMethod === "会员卡") setPayMethod("微信");
     }
     if (!usesService) {
       setAppointmentId("");
       setCollaboratorStaffIds([]);
       setCardId("");
-      setServiceCardSelectionByServiceId({});
+      setServiceCardIdsByServiceId({});
       setCheckoutServiceIds((ids) => (ids.length ? [] : ids));
       setServicePickerOpen(false);
     }
@@ -3087,24 +3093,31 @@ function Pos({
   const checkoutRelevantProjectCards = checkoutRelevantProjectCardIds
     .map((projectCardId) => selectedCustomerProjectCards.find((card) => card.id === projectCardId))
     .filter((card): card is AppData["memberCards"][number] => Boolean(card));
-  const checkoutServiceCardSelections = selectedServiceRows.flatMap<ServiceCardSelection>(({ service }) => {
+  const checkoutServiceCardIdsByServiceId = new Map(selectedServiceRows.map(({ service, quantity }) => {
     const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
-    const savedCardId = serviceCardSelectionByServiceId[service.id];
-    const selectedCardId = sources.some((source) => source.cardId === savedCardId)
-      ? savedCardId
-      : sources[0]?.cardId;
-    return selectedCardId ? [{ serviceId: service.id, cardId: selectedCardId }] : [];
-  });
-  const checkoutServiceCardIdByServiceId = new Map(
-    checkoutServiceCardSelections.map((selection) => [selection.serviceId, selection.cardId]),
+    const sourceCardIds = new Set(sources.map((source) => source.cardId));
+    const savedCardIds = (serviceCardIdsByServiceId[service.id] ?? [])
+      .filter((savedCardId) => sourceCardIds.has(savedCardId))
+      .slice(0, quantity);
+    const fallbackCardId = savedCardIds[0] ?? sources[0]?.cardId;
+    const resolvedCardIds = fallbackCardId
+      ? [...savedCardIds, ...Array.from({ length: Math.max(0, quantity - savedCardIds.length) }, () => fallbackCardId)]
+      : [];
+    return [service.id, resolvedCardIds] as const;
+  }));
+  const checkoutServiceCardSelections = Array.from(checkoutServiceCardIdsByServiceId).flatMap<ServiceCardSelection>(([serviceId, selectedCardIds]) =>
+    Array.from(selectedCardIds.reduce((counts, selectedCardId) => {
+      counts.set(selectedCardId, (counts.get(selectedCardId) ?? 0) + 1);
+      return counts;
+    }, new Map<string, number>())).map(([selectedCardId, quantity]) => ({ serviceId, cardId: selectedCardId, quantity })),
   );
   const checkoutPreferredProjectCardId = checkoutServiceCardSelections[0]?.cardId ?? "";
   const checkoutRequiresDebitSourceSelection = selectedServiceRows.some(({ service }) =>
     (selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources.length ?? 0) > 1,
   );
-  const checkoutDebitSourceSelected = selectedServiceRows.every(({ service }) => {
+  const checkoutDebitSourceSelected = selectedServiceRows.every(({ service, quantity }) => {
     const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
-    return sources.length === 0 || Boolean(checkoutServiceCardIdByServiceId.get(service.id));
+    return sources.length === 0 || checkoutServiceCardIdsByServiceId.get(service.id)?.length === quantity;
   });
   const checkoutAutoDebitPlanLines = checkoutDebitSourceSelected
     ? buildMemberCardDebitPlan(
@@ -3395,7 +3408,7 @@ function Pos({
       if (uniqueMatch.id !== customerId) {
         clearAppointment();
         setCardId("");
-        setServiceCardSelectionByServiceId({});
+        setServiceCardIdsByServiceId({});
       }
       setCustomerId(uniqueMatch.id);
       return;
@@ -3404,7 +3417,7 @@ function Pos({
       clearAppointment();
       setCustomerId("");
       setCardId("");
-      setServiceCardSelectionByServiceId({});
+      setServiceCardIdsByServiceId({});
     }
   };
   const cashierFlowRecordCount = posRemote.context?.cashierFlowTotal ?? posRemote.pageResult?.totalCount ?? 0;
@@ -3630,7 +3643,7 @@ function Pos({
     resetCheckoutDiscount();
     setCollaboratorStaffIds([]);
     setCardId("");
-    setServiceCardSelectionByServiceId({});
+    setServiceCardIdsByServiceId({});
     setServicePickerOpen(false);
   };
 
@@ -3655,7 +3668,7 @@ function Pos({
     setAppointmentId("");
     setCustomerSearch("");
     setCardId("");
-    setServiceCardSelectionByServiceId({});
+    setServiceCardIdsByServiceId({});
     setCollaboratorStaffIds([]);
     setDiscountAmount(0);
     setCheckoutDiscountRateInput("");
@@ -3713,64 +3726,97 @@ function Pos({
     setServicePickerOpen(true);
   };
 
-  const setCheckoutServiceCardSource = (serviceId: string, nextCardId: string) => {
-    setServiceCardSelectionByServiceId((previous) => {
-      if (!nextCardId) {
-        if (!(serviceId in previous)) return previous;
-        const next = { ...previous };
-        delete next[serviceId];
-        return next;
-      }
-      return previous[serviceId] === nextCardId ? previous : { ...previous, [serviceId]: nextCardId };
-    });
-  };
-
   const setCheckoutServiceQuantity = (nextServiceId: string, quantity: number) => {
     const nextQuantity = Math.max(0, Math.floor(quantity));
     const currentQuantity = checkoutServiceIds.filter((serviceId) => serviceId === nextServiceId).length;
     clearAppointmentForServiceChange();
     resetCheckoutDiscount();
-    if (nextQuantity <= 0) {
-      setCheckoutServiceCardSource(nextServiceId, "");
-    } else if (currentQuantity === 0) {
-      const firstSourceCardId = selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources[0]?.cardId;
-      if (firstSourceCardId) setCheckoutServiceCardSource(nextServiceId, firstSourceCardId);
-    }
-    setCheckoutServiceIds((previous) => {
-      let inserted = false;
-      const replacement = nextQuantity > 0 ? Array.from({ length: nextQuantity }, () => nextServiceId) : [];
-      const next: string[] = [];
-      previous.forEach((id) => {
-        if (id !== nextServiceId) {
-          next.push(id);
-          return;
-        }
-        if (!inserted) {
-          next.push(...replacement);
-          inserted = true;
-        }
-      });
-      if (!inserted) next.push(...replacement);
+    setServiceCardIdsByServiceId((previous) => {
+      const next = { ...previous };
+      if (nextQuantity <= 0) {
+        delete next[nextServiceId];
+        return next;
+      }
+      const sourceCardIds = new Set(
+        selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources.map((source) => source.cardId) ?? [],
+      );
+      const currentCardIds = (previous[nextServiceId] ?? [])
+        .filter((selectedCardId) => sourceCardIds.has(selectedCardId))
+        .slice(0, currentQuantity);
+      const fallbackCardId = currentCardIds[0] ?? Array.from(sourceCardIds)[0];
+      next[nextServiceId] = fallbackCardId
+        ? [
+            ...currentCardIds.slice(0, nextQuantity),
+            ...Array.from({ length: Math.max(0, nextQuantity - currentCardIds.length) }, () => fallbackCardId),
+          ]
+        : [];
       return next;
     });
+    setCheckoutServiceIds((previous) => replaceRepeatedId(previous, nextServiceId, nextQuantity));
   };
 
   const selectCheckoutService = (nextServiceId: string, preferredCardId?: string) => {
     clearAppointmentForServiceChange();
     resetCheckoutDiscount();
     const isAddingService = !checkoutServiceIds.includes(nextServiceId);
-    if (!isAddingService) {
-      setCheckoutServiceCardSource(nextServiceId, "");
-    } else if (usesCustomer) {
-      const nextCardId = preferredCardId
-        ?? selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources[0]?.cardId;
-      if (nextCardId) setCheckoutServiceCardSource(nextServiceId, nextCardId);
-    }
+    setServiceCardIdsByServiceId((previous) => {
+      const next = { ...previous };
+      if (!isAddingService) {
+        delete next[nextServiceId];
+      } else if (usesCustomer) {
+        const nextCardId = preferredCardId
+          ?? selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources[0]?.cardId;
+        if (nextCardId) next[nextServiceId] = [nextCardId];
+      }
+      return next;
+    });
     setCheckoutServiceIds((previous) => {
       return previous.includes(nextServiceId)
         ? previous.filter((id) => id !== nextServiceId)
         : [...previous, nextServiceId];
     });
+  };
+
+  const toggleCheckoutServiceCardSource = (nextServiceId: string, nextCardId: string) => {
+    clearAppointmentForServiceChange();
+    resetCheckoutDiscount();
+    const currentCardIds = checkoutServiceCardIdsByServiceId.get(nextServiceId) ?? [];
+    const sourceAlreadySelected = currentCardIds.includes(nextCardId);
+    const nextCardIds = sourceAlreadySelected
+      ? currentCardIds.filter((selectedCardId) => selectedCardId !== nextCardId)
+      : [...currentCardIds, nextCardId];
+    setServiceCardIdsByServiceId((previous) => {
+      const next = { ...previous };
+      if (nextCardIds.length > 0) next[nextServiceId] = nextCardIds;
+      else delete next[nextServiceId];
+      return next;
+    });
+    setCheckoutServiceIds((previous) => replaceRepeatedId(previous, nextServiceId, nextCardIds.length));
+  };
+
+  const setCheckoutServiceCardQuantity = (nextServiceId: string, nextCardId: string, quantity: number) => {
+    const sources = selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources ?? [];
+    const source = sources.find((item) => item.cardId === nextCardId);
+    if (!source) return;
+    clearAppointmentForServiceChange();
+    resetCheckoutDiscount();
+    const nextQuantity = Math.min(source.remainingTimes, Math.max(0, Math.floor(quantity)));
+    const currentCardIds = checkoutServiceCardIdsByServiceId.get(nextServiceId) ?? [];
+    const quantitiesByCardId = currentCardIds.reduce((counts, selectedCardId) => {
+      counts.set(selectedCardId, (counts.get(selectedCardId) ?? 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+    quantitiesByCardId.set(nextCardId, nextQuantity);
+    const nextCardIds = sources.flatMap((item) =>
+      Array.from({ length: quantitiesByCardId.get(item.cardId) ?? 0 }, () => item.cardId),
+    );
+    setServiceCardIdsByServiceId((previous) => {
+      const next = { ...previous };
+      if (nextCardIds.length > 0) next[nextServiceId] = nextCardIds;
+      else delete next[nextServiceId];
+      return next;
+    });
+    setCheckoutServiceIds((previous) => replaceRepeatedId(previous, nextServiceId, nextCardIds.length));
   };
 
   const applyCheckoutDiscountRate = (value: string) => {
@@ -4053,7 +4099,7 @@ function Pos({
       setGuestName("");
       setGuestPhone("");
       setCheckoutServiceIds([]);
-      setServiceCardSelectionByServiceId({});
+      setServiceCardIdsByServiceId({});
       if (usesProduct) {
         setCheckoutProductItems([]);
         setCheckoutGiftItems([]);
@@ -4114,7 +4160,7 @@ function Pos({
             return;
           }
           setCardId("");
-          setServiceCardSelectionByServiceId({});
+          setServiceCardIdsByServiceId({});
           if (payMethod === "会员卡") setPayMethod("微信");
         }}
         options={[
@@ -4153,7 +4199,7 @@ function Pos({
                     setCustomerId(customer.id);
                     setCustomerSearch("");
                     setCardId("");
-                    setServiceCardSelectionByServiceId({});
+                    setServiceCardIdsByServiceId({});
                   }}
                 >
                   <strong>{customer.name}</strong>
@@ -4195,21 +4241,33 @@ function Pos({
                 {selectedServiceRows.flatMap(({ service }) => {
                   const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
                   if (sources.length <= 1) return [];
+                  const selectedCardIds = checkoutServiceCardIdsByServiceId.get(service.id) ?? [];
                   return [(
-                    <Select
-                      key={service.id}
-                      label={`${service.name}扣卡来源`}
-                      value={checkoutServiceCardIdByServiceId.get(service.id) ?? sources[0]?.cardId ?? ""}
-                      onChange={(nextCardId) => setCheckoutServiceCardSource(service.id, nextCardId)}
-                      options={sources.map((source, index) => ({
-                        value: source.cardId,
-                        label: `${["第一张", "第二张", "第三张"][index] ?? `第 ${index + 1} 张`} · ${source.cardName} · 剩 ${source.remainingTimes}${source.totalTimes ? `/${source.totalTimes}` : ""} 次`,
-                      }))}
-                    />
+                    <section className="checkout-debit-source-group" key={service.id}>
+                      <strong>{service.name}扣卡来源</strong>
+                      <div className="checkout-debit-source-options">
+                        {sources.map((source, index) => {
+                          const allocatedQuantity = selectedCardIds.filter((selectedCardId) => selectedCardId === source.cardId).length;
+                          return (
+                            <button
+                              type="button"
+                              key={source.cardId}
+                              className={`checkout-card-source-button ${allocatedQuantity > 0 ? "active" : ""}`}
+                              aria-pressed={allocatedQuantity > 0}
+                              onClick={() => toggleCheckoutServiceCardSource(service.id, source.cardId)}
+                            >
+                              <small>{["第一张", "第二张", "第三张"][index] ?? `第 ${index + 1} 张`}</small>
+                              <strong>{source.cardName}</strong>
+                              <span>{allocatedQuantity > 0 ? `本单扣 ${allocatedQuantity} 次` : "点击多选"} · 剩 {source.remainingTimes}{source.totalTimes ? `/${source.totalTimes}` : ""} 次</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
                   )];
                 })}
               </div>
-              <p className="form-note">每个项目都默认选择自己的第一张卡；收银员可分别切换，不会影响其他项目。</p>
+              <p className="form-note">默认使用第一张卡；每张卡都可独立设置本单扣次，项目总份数等于各卡扣次合计。</p>
             </div>
           )}
           {selectedServiceRows.length > 0 && checkoutAutoDebitPlan.length > 0 ? (
@@ -4479,44 +4537,39 @@ function Pos({
                   <strong>{money(serviceSubtotal)}</strong>
                 </div>
                 {selectedServiceRows.length ? (
-                  selectedServiceRows.map(({ service, quantity }) => (
+                  selectedServiceRows.map(({ service, quantity }) => {
+                    const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
+                    const selectedCardIds = checkoutServiceCardIdsByServiceId.get(service.id) ?? [];
+                    return (
                     <div className="checkout-service-line" key={service.id}>
                       <div>
                         <strong>{service.name}</strong>
                         <span>{service.category || "未分类"} · 单价 {money(service.price)}</span>
                         {usesCustomer && (
-                          <>
-                            <small className="checkout-service-card-balance">
-                              可用：总剩 {selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.remainingTimes ?? 0} 次 · 来自 {selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.cardCount ?? 0} 张卡
-                            </small>
-                            <small className="checkout-service-card-source">
-                              本次扣卡：{checkoutAutoDebitPlan
-                                    .filter((row) => row.service.id === service.id)
-                                    .map((row) => `${row.card.name} ${row.quantity}次`)
-                                    .join("；") || "无可扣次数"}
-                            </small>
-                          </>
+                          <small className="checkout-service-card-balance">
+                            可用：总剩 {selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.remainingTimes ?? 0} 次 · 来自 {selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.cardCount ?? 0} 张卡
+                          </small>
                         )}
                       </div>
-                      <div className="checkout-product-qty" aria-label={`${service.name} 份数`}>
-                        <button type="button" aria-label={`减少${service.name}`} onClick={() => setCheckoutServiceQuantity(service.id, quantity - 1)}>
-                          <Minus size={14} />
-                        </button>
-                        <input
-                          inputMode="numeric"
-                          value={quantity}
-                          onChange={(event) => setCheckoutServiceQuantity(service.id, Number(event.target.value))}
-                        />
-                        <button type="button" aria-label={`添加${service.name}`} onClick={() => setCheckoutServiceQuantity(service.id, quantity + 1)}>
-                          <Plus size={14} />
-                        </button>
-                      </div>
+                      <strong className="checkout-service-total-quantity">共 {quantity} 份</strong>
                       <span>{money(service.price * quantity)}</span>
                       <button type="button" className="checkout-product-remove" onClick={() => setCheckoutServiceQuantity(service.id, 0)} aria-label={`移除${service.name}`}>
                         <Trash2 size={15} />
                       </button>
+                      {usesCustomer && sources.length > 0 && (
+                        <Suspense fallback={null}>
+                          <LazyCheckoutServiceCardAllocations
+                            serviceId={service.id}
+                            serviceName={service.name}
+                            sources={sources}
+                            selectedCardIds={selectedCardIds}
+                            onSetQuantity={setCheckoutServiceCardQuantity}
+                          />
+                        </Suspense>
+                      )}
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="checkout-product-empty">还没有选择项目</div>
                 )}
@@ -4808,13 +4861,16 @@ function Pos({
       <Modal
         open={servicePickerOpen}
         title="选择项目"
+        subtitle="可多选项目；每张可用卡都能独立设置本单扣次"
         size="large"
         onClose={() => setServicePickerOpen(false)}
         footer={
           <div className="modal-actions">
             <button type="button" onClick={() => setServicePickerOpen(false)}>返回</button>
             <button type="button" className="primary-button" disabled={selectedServices.length === 0} onClick={() => setServicePickerOpen(false)}>
-              确认选择
+              {selectedServiceRows.length > 0
+                ? `确认选择（${selectedServiceRows.length} 个项目 / ${selectedServices.length} 份）`
+                : "确认选择"}
             </button>
           </div>
         }
@@ -4838,50 +4894,64 @@ function Pos({
                 </button>
               ))}
             </div>
+            <div className="service-picker-selection-summary" role="status" aria-live="polite">
+              <strong>{selectedServiceRows.length > 0 ? `已选 ${selectedServiceRows.length} 个项目` : "尚未选择项目"}</strong>
+              <span>{selectedServices.length > 0 ? `共 ${selectedServices.length} 份，可继续多选` : "点击项目卡片即可多选"}</span>
+            </div>
           </div>
           <div className="product-picker-grid">
             {servicePickerServices.length ? servicePickerServices.map((service) => {
               const quantity = checkoutServiceIds.filter((id) => id === service.id).length;
               const availability = selectedCustomerProjectAvailabilityByServiceId.get(service.id);
-              const activeSourceCardId = quantity > 0
-                ? checkoutServiceCardIdByServiceId.get(service.id) ?? availability?.sources[0]?.cardId ?? ""
-                : availability?.sources[0]?.cardId ?? "";
+              const activeSourceCardIds = quantity > 0
+                ? checkoutServiceCardIdsByServiceId.get(service.id) ?? []
+                : [];
               return (
               <article
                 className={`product-picker-card service-picker-card ${quantity > 0 ? "selected" : ""}`}
                 key={service.id}
               >
-                <button type="button" className="service-picker-card-main" onClick={() => selectCheckoutService(service.id)}>
-                  <div>
-                    <strong>{service.name}</strong>
-                    <span>{service.category || "未分类"} · {service.duration} 分钟</span>
+                <button
+                  type="button"
+                  className="service-picker-card-main"
+                  aria-pressed={quantity > 0}
+                  onClick={() => selectCheckoutService(service.id)}
+                >
+                  <div className="service-picker-card-title">
+                    <span className="service-picker-selection-indicator" aria-hidden="true">
+                      {quantity > 0 && <Check size={17} strokeWidth={3} />}
+                    </span>
+                    <span className="service-picker-card-copy">
+                      <strong>{service.name}</strong>
+                      <span>{service.category || "未分类"} · {service.duration} 分钟</span>
+                    </span>
                   </div>
                   <div className="product-picker-card-meta">
                     <span>{usesCustomer ? `总剩 ${availability?.remainingTimes ?? 0} 次` : money(service.price)}</span>
-                    <small>{quantity > 0 ? `已选 ${quantity} 份` : "默认 1 份"}</small>
+                    <small className={quantity > 0 ? "selected" : undefined}>{quantity > 0 ? `已选 ${quantity} 份` : "点击选择"}</small>
                     {usesCustomer && availability && (
-                      <em>来自 {availability.cardCount} 张卡 · 默认第一张，收银员可切换</em>
+                      <em>来自 {availability.cardCount} 张卡 · 默认第一张，可继续多选</em>
                     )}
                   </div>
                 </button>
                 {usesCustomer && availability?.sources.length ? (
                   <div className="service-picker-card-sources" aria-label={`${service.name}扣卡来源`}>
                     {availability.sources.map((source, index) => {
-                      const sourceSelected = activeSourceCardId === source.cardId;
+                      const allocatedQuantity = activeSourceCardIds.filter((selectedCardId) => selectedCardId === source.cardId).length;
+                      const sourceSelected = allocatedQuantity > 0;
                       return (
                         <button
                           type="button"
                           key={source.cardId}
                           className={`checkout-card-source-button ${sourceSelected ? "active" : ""}`}
                           aria-pressed={sourceSelected}
-                          onClick={() => {
-                            if (quantity > 0) setCheckoutServiceCardSource(service.id, source.cardId);
-                            else selectCheckoutService(service.id, source.cardId);
-                          }}
+                          onClick={() => quantity > 0
+                            ? toggleCheckoutServiceCardSource(service.id, source.cardId)
+                            : selectCheckoutService(service.id, source.cardId)}
                         >
-                          <small>{["第一张", "第二张", "第三张"][index] ?? `第 ${index + 1} 张`}{index === 0 ? " · 默认" : " · 可选"}</small>
+                          <small>{["第一张", "第二张", "第三张"][index] ?? `第 ${index + 1} 张`}{sourceSelected ? " · 已选" : index === 0 ? " · 默认" : " · 可多选"}</small>
                           <strong>{source.cardName}</strong>
-                          <span>剩 {source.remainingTimes}{source.totalTimes ? `/${source.totalTimes}` : ""} 次{source.sharedPool ? " · 共享次数" : ""}</span>
+                          <span>剩 {source.remainingTimes}{source.totalTimes ? `/${source.totalTimes}` : ""} 次{sourceSelected ? ` · 本单扣 ${allocatedQuantity} 次` : ""}{source.sharedPool ? " · 共享次数" : ""}</span>
                         </button>
                       );
                     })}
@@ -5044,7 +5114,7 @@ function Customers({
   const customerCardNameInputRef = useRef<HTMLInputElement | null>(null);
   const customerCardPhoneInputRef = useRef<HTMLInputElement | null>(null);
   const customerCardCardNameInputRef = useRef<HTMLInputElement | null>(null);
-  const [operationCardId, setOperationCardId] = useState(data.memberCards[0]?.id ?? "");
+  const [operationCardId, setOperationCardId] = useState(data.memberCards.find((card) => !memberCardIsArchived(card))?.id ?? "");
   const [rechargeAmount, setRechargeAmount] = useState<EditableNumber>(300);
   const [rechargeTimes, setRechargeTimes] = useState<EditableNumber>(0);
   const [rechargePaidAmount, setRechargePaidAmount] = useState<EditableNumber>(300);
@@ -5075,7 +5145,7 @@ function Customers({
   const [followUpMethod, setFollowUpMethod] = useState<"电话" | "微信" | "到店">("微信");
   const [followUpDueAt, setFollowUpDueAt] = useState(toLocalInputValue(tomorrowAt(24)));
   const [followUpNote, setFollowUpNote] = useState("");
-  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "followup" | "signature" | undefined>();
+  const [activeModule, setActiveModule] = useState<"profile" | "cards" | "followup" | "signature" | undefined>(fromManagement ? "cards" : undefined);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerFilter, setCustomerFilter] = useState<"all" | "follow" | "card" | "recent">("all");
   const [selectedCustomerId, setSelectedCustomerId] = useState(data.customers[0]?.id ?? "");
@@ -5113,6 +5183,9 @@ function Customers({
       [firstService.id]: previous[firstService.id] ?? firstService.defaultTimes ?? (typeof cardTimes === "number" && cardTimes > 0 ? cardTimes : 10),
     }));
   }, [cardServiceIds.length, cardTimes, data.services]);
+  useEffect(() => {
+    if (fromManagement) setActiveModule("cards");
+  }, [fromManagement]);
   const cardAmountValue = editableNumberValue(cardAmount);
   const cardPaidAmountValue = editableNumberValue(cardPaidAmount);
   const cardTimesValue = editableNumberValue(cardTimes);
@@ -5547,6 +5620,7 @@ function Customers({
   });
   const selectedCustomer = data.customers.find((customer) => customer.id === selectedCustomerId) ?? filteredCustomers[0] ?? data.customers[0];
   const selectedCustomerCards = selectedCustomer ? data.memberCards.filter((card) => card.customerId === selectedCustomer.id) : [];
+  const selectedCustomerVisibleCards = selectedCustomerCards.filter((card) => !memberCardIsArchived(card));
   const selectedCustomerAvailableCards = selectedCustomerCards.filter(memberCardHasAvailableValue);
   const selectedCustomerAvailableProjectCards = selectedCustomerAvailableCards.filter((card) => card.type === "次数卡" || card.type === "套餐卡");
   const selectedCustomerProjectAvailability = aggregateMemberCardServiceAvailability(selectedCustomerAvailableProjectCards, data.services);
@@ -5599,7 +5673,7 @@ function Customers({
   ] as const;
   const customerDetailTabs = [
     { key: "overview", label: "客户概览", count: selectedCustomer ? 1 : 0 },
-    { key: "cards", label: "项目卡", count: selectedCustomerCards.length },
+    { key: "cards", label: "项目卡", count: selectedCustomerVisibleCards.length },
     { key: "orders", label: "消费记录", count: selectedCustomerOrders.length },
     { key: "records", label: "服务记录", count: selectedCustomerRecords.length },
     { key: "signatures", label: "签名记录", count: selectedCustomerSignatures.length },
@@ -5614,7 +5688,8 @@ function Customers({
     { key: "signature", title: "服务确认签名", icon: LockKeyhole, tone: "plum", meta: `${data.customerSignatures?.length ?? 0} 份` },
   ];
   const activeModuleTitle = activeModule ? customerModules.find((item) => item.key === activeModule)?.title ?? "功能模块" : "";
-  const activeModuleSubtitle = activeModule === "followup" ? "为当前客户设置回访、护理提醒或会员关怀任务" : "客户资料、项目卡和服务确认记录";
+  const activeModuleSubtitle = activeModule === "followup" ? "设置客户回访、护理提醒或会员关怀" : "客户、会员卡和签名记录";
+  const standaloneCardArchive = fromManagement && activeModule === "cards";
   const closeModule = () => {
     if (fromManagement && onReturnManagement) {
       onReturnManagement();
@@ -5801,7 +5876,7 @@ function Customers({
 
               {customerDetailTab === "overview" && (
                 <LazyCustomerMemberOverview
-                  cards={selectedCustomerCards}
+                  cards={selectedCustomerVisibleCards}
                   services={data.services}
                   serviceRecords={selectedCustomerRecords}
                   staff={data.staff}
@@ -5814,7 +5889,7 @@ function Customers({
 
               {customerDetailTab === "cards" && (
                 <LazyCustomerProjectCardList
-                  cards={selectedCustomerCards}
+                  cards={selectedCustomerVisibleCards}
                   services={data.services}
                   transactions={data.memberCardTransactions}
                   canVoid={canVoidMemberCards}
@@ -5982,14 +6057,14 @@ function Customers({
       </Modal>
       <Modal
         open={Boolean(activeModule)}
-        title={activeModuleTitle || "客户档案"}
-        subtitle={activeModuleSubtitle}
+        title={standaloneCardArchive ? "会员卡归档" : activeModuleTitle || "客户档案"}
+        subtitle={standaloneCardArchive ? "" : activeModuleSubtitle}
         size="large"
         className="customer-work-modal"
         onClose={closeModule}
       >
       <div className="module-detail-stack customer-modal-detail">
-        {activeModule && (
+        {activeModule && !standaloneCardArchive && (
         <section className="panel">
         {activeModule === "profile" && (
         <>
@@ -6001,7 +6076,7 @@ function Customers({
         </form>
         </>
         )}
-        {activeModule === "cards" && (
+        {activeModule === "cards" && !standaloneCardArchive && (
         <>
         <PanelTitle icon={<CreditCard size={18} />} title="开卡" action="储值 / 次数 / 套餐 / 折扣" />
         <form className="form member-card-open-form" onSubmit={openCard}>
@@ -6081,7 +6156,7 @@ function Customers({
         <div className="divider" />
         <PanelTitle icon={<CreditCard size={18} />} title="项目卡操作" action="充值/加次/冻结/延期" />
         <form className="form" onSubmit={rechargeCard}>
-          <Select label="项目卡" value={operationCardId} onChange={setOperationCardId} options={data.memberCards.map((card) => ({ value: card.id, label: `${nameOf(data.customers, card.customerId)} · ${card.name}` }))} />
+          <Select label="项目卡" value={operationCardId} onChange={setOperationCardId} options={data.memberCards.filter((card) => !memberCardIsArchived(card)).map((card) => ({ value: card.id, label: `${nameOf(data.customers, card.customerId)} · ${card.name}` }))} />
           <label>充值金额<input type="number" value={rechargeAmount} onChange={(event) => setRechargeAmount(parseEditableNumber(event.target.value))} /></label>
           <label>增加次数<input type="number" value={rechargeTimes} onChange={(event) => setRechargeTimes(parseEditableNumber(event.target.value))} /></label>
           <label>实收金额<input type="number" value={rechargePaidAmount} onChange={(event) => setRechargePaidAmount(parseEditableNumber(event.target.value))} /></label>
@@ -6142,7 +6217,7 @@ function Customers({
             customer.phone,
             shortDate(customer.lastVisit),
             data.memberCards
-              .filter((card) => card.customerId === customer.id)
+              .filter((card) => card.customerId === customer.id && !memberCardIsArchived(card))
               .map((card) => `${card.name}(${memberCardAvailableTimesText(card, data.services)})`)
               .join("，") || "未开卡",
             `${data.customerServiceRecords.filter((record) => record.customerId === customer.id).length} 条`,
@@ -6151,42 +6226,10 @@ function Customers({
         />
         </section>
         )}
-        {activeModule === "cards" && (
-        <section className="panel">
-        <PanelTitle icon={<CreditCard size={18} />} title="会员卡列表" action="余额/次数/权益/退卡" />
-        <DataTable
-          columns={["客户", "会员卡", "类型", "余额", "剩余次数", "权益", "适用项目", "到期", "状态", "操作"]}
-          rows={data.memberCards.map((card) => [
-            nameOf(data.customers, card.customerId),
-            card.name,
-            card.type,
-            money(card.balance),
-            memberCardAvailableTimesText(card, data.services),
-            card.benefitText ?? (card.discountRate ? `${Number((card.discountRate * 10).toFixed(1))} 折` : "-"),
-            memberCardProjectScopeText(card, data.services),
-            shortDate(card.expiresAt),
-            <Badge key={`${card.id}-status`} text={memberCardDisplayStatus(card)} tone={memberCardDisplayStatus(card) === "正常" ? "ok" : "warn"} />,
-            card.status === "正常" ? "客户退费办理" : card.status,
-          ])}
-        />
-        <div className="divider" />
-        <PanelTitle icon={<CreditCard size={18} />} title="项目卡流水" action="开卡/核销/退款" />
-        <DataTable
-          columns={["卡项", "类型", "实收", "支付", "金额变动", "次数变动", "余额", "剩余次数", "备注", "时间"]}
-          rows={data.memberCardTransactions.map((transaction) => [
-            nameOf(data.memberCards, transaction.memberCardId),
-            transaction.type,
-            transaction.paidAmount ? money(transaction.paidAmount) : "-",
-            transaction.payMethod ?? "-",
-            money(transaction.amountDelta),
-            transaction.timesDelta,
-            money(transaction.balanceAfter),
-            transaction.remainingTimesAfter,
-            transaction.note,
-            shortDate(transaction.createdAt),
-          ])}
-        />
-        </section>
+        {standaloneCardArchive && (
+        <Suspense fallback={<ViewFallback title="会员卡管理" />}>
+          <LazyMemberCardManagementList data={data} />
+        </Suspense>
         )}
         {activeModule === "signature" && (
         <section className="panel sg">

@@ -2960,13 +2960,27 @@ function addMemberCardDebitFlowEdge(
 }
 
 function normalizeServiceCardSelections(selections: ServiceCardSelection[] | undefined) {
-  const byServiceId = new Map<string, string>();
+  const byServiceAndCardId = new Map<string, ServiceCardSelection>();
   (selections ?? []).forEach((selection) => {
     const serviceId = selection.serviceId?.trim();
     const cardId = selection.cardId?.trim();
-    if (serviceId && cardId) byServiceId.set(serviceId, cardId);
+    if (!serviceId || !cardId) return;
+    const quantity = selection.quantity;
+    const key = `${serviceId}:${cardId}`;
+    const existing = byServiceAndCardId.get(key);
+    byServiceAndCardId.set(key, {
+      serviceId,
+      cardId,
+      quantity: quantity === undefined
+        ? existing?.quantity
+        : (existing?.quantity ?? 0) + quantity,
+    });
   });
-  return Array.from(byServiceId, ([serviceId, cardId]) => ({ serviceId, cardId }));
+  return Array.from(byServiceAndCardId.values()).map((selection) => (
+    selection.quantity === undefined
+      ? { serviceId: selection.serviceId, cardId: selection.cardId }
+      : selection
+  ));
 }
 
 export function buildMemberCardDebitPlan(
@@ -2978,9 +2992,19 @@ export function buildMemberCardDebitPlan(
 ): MemberCardDebitPlanLine[] {
   const selectedServiceIds = serviceIds.filter(Boolean);
   if (!customerId || selectedServiceIds.length === 0) return [];
-  const preferredCardIdByServiceId = new Map(
-    normalizeServiceCardSelections(serviceCardSelections).map((selection) => [selection.serviceId, selection.cardId]),
-  );
+  const normalizedSelections = normalizeServiceCardSelections(serviceCardSelections);
+  const preferredCardIdByServiceId = new Map<string, string>();
+  const explicitQuantityByServiceAndCardId = new Map<string, number>();
+  const servicesWithExplicitCardQuantities = new Set<string>();
+  normalizedSelections.forEach((selection) => {
+    if (!preferredCardIdByServiceId.has(selection.serviceId)) {
+      preferredCardIdByServiceId.set(selection.serviceId, selection.cardId);
+    }
+    if (selection.quantity !== undefined) {
+      servicesWithExplicitCardQuantities.add(selection.serviceId);
+      explicitQuantityByServiceAndCardId.set(`${selection.serviceId}:${selection.cardId}`, selection.quantity);
+    }
+  });
   const cards = data.memberCards.filter((card) =>
     card.customerId === customerId
     && card.status === "正常"
@@ -3020,6 +3044,10 @@ export function buildMemberCardDebitPlan(
     const eligiblePools = pools
       .map((pool, poolIndex) => ({ pool, poolIndex }))
       .filter(({ pool }) => pool.serviceId ? pool.serviceId === serviceId : memberCardSupportsService(pool.card, serviceId))
+      .filter(({ pool }) => (
+        !servicesWithExplicitCardQuantities.has(serviceId)
+        || explicitQuantityByServiceAndCardId.has(`${serviceId}:${pool.card.id}`)
+      ))
       .sort((left, right) => {
         const servicePreferredCardId = preferredCardIdByServiceId.get(serviceId) ?? preferredCardId;
         if (servicePreferredCardId) {
@@ -3032,7 +3060,15 @@ export function buildMemberCardDebitPlan(
       });
     const edges = eligiblePools.map(({ pool, poolIndex }) => ({
       pool,
-      edge: addMemberCardDebitFlowEdge(graph, serviceNode, poolNodeOffset + poolIndex, pool.capacity),
+      edge: addMemberCardDebitFlowEdge(
+        graph,
+        serviceNode,
+        poolNodeOffset + poolIndex,
+        Math.min(
+          pool.capacity,
+          explicitQuantityByServiceAndCardId.get(`${serviceId}:${pool.card.id}`) ?? pool.capacity,
+        ),
+      ),
     }));
     servicePoolEdges.set(serviceId, edges);
   });
@@ -3250,6 +3286,8 @@ export function checkoutOrder(
   }
 
   const serviceCardSelections = normalizeServiceCardSelections(input.serviceCardSelections);
+  const requiredServiceQuantities = serviceQuantityCounts(selectedServiceIds);
+  const explicitSelectionQuantitiesByServiceId = new Map<string, number>();
   serviceCardSelections.forEach((selection) => {
     if (!selectedServiceIds.includes(selection.serviceId)) {
       throw new Error("扣卡来源包含未选择的服务项目");
@@ -3263,6 +3301,23 @@ export function checkoutOrder(
       || !memberCardSupportsService(selectedProjectCard, selection.serviceId)
     ) {
       throw new Error("请选择当前项目可用的扣卡来源");
+    }
+    if (selection.quantity !== undefined) {
+      if (!Number.isInteger(selection.quantity) || selection.quantity <= 0) {
+        throw new Error("扣卡来源次数必须为正整数");
+      }
+      explicitSelectionQuantitiesByServiceId.set(
+        selection.serviceId,
+        (explicitSelectionQuantitiesByServiceId.get(selection.serviceId) ?? 0) + selection.quantity,
+      );
+    }
+  });
+  explicitSelectionQuantitiesByServiceId.forEach((quantity, serviceId) => {
+    if (serviceCardSelections.some((selection) => selection.serviceId === serviceId && selection.quantity === undefined)) {
+      throw new Error("同一项目的扣卡来源次数必须全部填写");
+    }
+    if (quantity !== (requiredServiceQuantities.get(serviceId) ?? 0)) {
+      throw new Error("扣卡来源次数与项目份数不一致");
     }
   });
   const selectedCard = input.cardId

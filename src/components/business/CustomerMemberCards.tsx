@@ -1,5 +1,8 @@
+import { CreditCard } from "lucide-react";
 import type { FormEvent } from "react";
+import { PanelTitle } from "../layout/PanelTitle";
 import { Badge } from "../ui/Badge";
+import { DataTable } from "../ui/DataTable";
 import { Modal } from "../ui/Modal";
 import type { MemberCardVoidEligibility } from "../../domain/business";
 import { memberCardCashIn, memberCardVoidEligibility } from "../../domain/business";
@@ -8,11 +11,46 @@ import { money, shortDate } from "../../domain/utils";
 import { SubmitStatusButton } from "../../app/mutationPending";
 import {
   memberCardAvailableTimesText,
+  memberCardDisplayStatus,
+  memberCardIsArchived,
   memberCardProjectScopeText,
   type MemberCardServiceAvailability,
 } from "../../app/authenticatedAppHelpers";
 
 type FormMessage = { type: "success" | "error"; text: string } | undefined;
+
+export function MemberCardManagementList({
+  data,
+}: {
+  data: AppData;
+}) {
+  const archivedCards = data.memberCards.filter(memberCardIsArchived);
+
+  return (
+    <section className="panel member-card-archive-panel">
+      <PanelTitle icon={<CreditCard size={18} />} title="已归档会员卡" action={`${archivedCards.length} 张`} />
+      <p className="member-card-archive-note">
+        已用完、已退卡、已作废或过期的卡只在这里保留，客户资料不再展示；卡片档案和历史流水不会删除。
+      </p>
+      <DataTable
+        columns={["客户", "会员卡", "类型", "余额", "剩余次数", "权益", "适用项目", "到期", "状态", "操作"]}
+        rows={archivedCards.map((card) => [
+          data.customers.find((customer) => customer.id === card.customerId)?.name ?? "-",
+          card.name,
+          card.type,
+          money(card.balance),
+          memberCardAvailableTimesText(card, data.services),
+          card.benefitText ?? (card.discountRate ? `${Number((card.discountRate * 10).toFixed(1))} 折` : "-"),
+          memberCardProjectScopeText(card, data.services),
+          shortDate(card.expiresAt),
+          <Badge key={`${card.id}-status`} text={memberCardDisplayStatus(card)} tone={memberCardDisplayStatus(card) === "正常" ? "ok" : "warn"} />,
+          "已归档",
+        ])}
+      />
+      {archivedCards.length === 0 && <p className="customer-soft-empty">暂无归档卡</p>}
+    </section>
+  );
+}
 
 export function CustomerAssetSummary({
   availability,

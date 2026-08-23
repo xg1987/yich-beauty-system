@@ -458,6 +458,7 @@ export type ReferralRelation = {
 export type ServiceCardSelection = {
   serviceId: string;
   cardId: string;
+  quantity?: number;
 };
 
 export type Order = {

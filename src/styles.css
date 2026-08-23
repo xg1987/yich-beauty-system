@@ -9797,6 +9797,11 @@ textarea,
   width: min(980px, 100%);
 }
 
+.system-modal:has(.member-card-archive-panel),
+.system-modal.large:has(.member-card-archive-panel) {
+  width: min(1680px, 100%);
+}
+
 .system-modal-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -18360,8 +18365,8 @@ textarea,
 
 .checkout-service-line {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 116px auto 34px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto auto 34px;
+  align-items: start;
   gap: 12px;
   min-height: 58px;
   border: 1px solid rgba(111, 66, 193, 0.12);
@@ -18407,10 +18412,73 @@ textarea,
   line-height: 1.45;
 }
 
-.checkout-service-line > span:last-child {
+.checkout-service-line > span {
   color: #3d2279;
   font-size: 16px;
   font-weight: 800;
+}
+
+.checkout-service-total-quantity {
+  align-self: center;
+  color: #5a2da0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.checkout-service-card-allocation-list {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 8px;
+  border-top: 1px solid rgba(111, 66, 193, 0.1);
+  padding-top: 9px;
+}
+
+.checkout-service-card-allocation {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(111, 66, 193, 0.12);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: rgba(250, 248, 255, 0.76);
+}
+
+.checkout-service-card-allocation.active {
+  border-color: rgba(47, 191, 143, 0.3);
+  background: rgba(237, 249, 243, 0.82);
+}
+
+.checkout-service-card-allocation > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.checkout-service-card-allocation small,
+.checkout-service-card-allocation span {
+  color: rgba(47, 37, 95, 0.58);
+  font-size: 11px;
+}
+
+.checkout-service-card-allocation strong {
+  overflow: visible;
+  font-size: 13px;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.checkout-service-card-allocation.active small,
+.checkout-service-card-allocation.active strong,
+.checkout-service-card-allocation.active span {
+  color: #237766;
+}
+
+.checkout-service-card-allocation .checkout-card-allocation-qty {
+  min-width: 108px;
 }
 
 .checkout-service-line .checkout-product-qty {
@@ -18435,6 +18503,49 @@ textarea,
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 10px;
+}
+
+.checkout-debit-source-group {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(111, 66, 193, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.checkout-debit-source-group > strong {
+  color: #2f255f;
+  font-size: 13px;
+}
+
+.checkout-debit-source-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.checkout-debit-source-options .checkout-card-source-button {
+  width: 100%;
+  min-height: 74px;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 3px;
+  padding: 9px 11px;
+  text-align: left;
+}
+
+.checkout-debit-source-options .checkout-card-source-button small,
+.checkout-debit-source-options .checkout-card-source-button span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 11px;
+}
+
+.checkout-debit-source-options .checkout-card-source-button.active small,
+.checkout-debit-source-options .checkout-card-source-button.active strong,
+.checkout-debit-source-options .checkout-card-source-button.active span {
+  color: #237766;
 }
 
 .checkout-customer-card-list {
@@ -18572,6 +18683,15 @@ textarea,
     max-width: 140px;
   }
 
+  .checkout-service-card-allocation-list {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-service-card-allocation .checkout-card-allocation-qty {
+    grid-column: auto;
+    max-width: none;
+  }
+
   .checkout-customer-card-row {
     grid-template-columns: 1fr;
   }
@@ -18681,6 +18801,28 @@ textarea,
 
 .product-picker-filters input {
   padding-left: 40px;
+}
+
+.service-picker-selection-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid rgba(111, 66, 193, 0.14);
+  border-radius: 10px;
+  background: rgba(111, 66, 193, 0.06);
+}
+
+.service-picker-selection-summary strong {
+  color: #3d2279;
+  font-size: 13px;
+}
+
+.service-picker-selection-summary span {
+  color: rgba(47, 37, 95, 0.62);
+  font-size: 12px;
 }
 
 .product-picker-category-list {
@@ -18819,6 +18961,34 @@ textarea,
   gap: 5px;
 }
 
+.service-picker-card-main .service-picker-card-title {
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.service-picker-selection-indicator {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 2px solid rgba(111, 66, 193, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #fff !important;
+}
+
+.product-picker-card.selected .service-picker-selection-indicator {
+  border-color: #2fbf8f;
+  background: #2fbf8f;
+}
+
+.service-picker-card-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
 .service-picker-card-sources {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -18909,6 +19079,27 @@ textarea,
   font-weight: 720;
   line-height: 1.45;
   white-space: normal;
+}
+
+.service-picker-card .product-picker-card-meta small.selected {
+  color: #237766;
+  font-weight: 850;
+}
+
+.member-card-list-tabs {
+  max-width: 420px;
+  margin-bottom: 10px;
+}
+
+.member-card-archive-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 4px solid rgba(111, 66, 193, 0.54);
+  border-radius: 8px;
+  background: rgba(111, 66, 193, 0.06);
+  color: rgba(47, 37, 95, 0.68);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .theme-night .service-picker-card .product-picker-card-meta em,
@@ -23079,6 +23270,26 @@ textarea,
 
 .theme-night .product-picker-filters label svg {
   color: var(--night-muted);
+}
+
+.theme-night .service-picker-selection-summary,
+.theme-night .member-card-archive-note {
+  border-color: rgba(202, 184, 255, 0.2);
+  background: rgba(202, 184, 255, 0.08);
+  color: var(--night-muted);
+}
+
+.theme-night .service-picker-selection-summary strong {
+  color: var(--night-text);
+}
+
+.theme-night .service-picker-selection-summary span {
+  color: var(--night-muted);
+}
+
+.theme-night .service-picker-selection-indicator {
+  border-color: rgba(202, 184, 255, 0.42);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .theme-night .product-picker-category-list button.active {

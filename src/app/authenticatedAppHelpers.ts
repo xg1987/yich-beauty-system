@@ -209,6 +209,14 @@ export function memberCardDisplayStatus(card: AppData["memberCards"][number]) {
   return card.status === "正常" && !memberCardHasAvailableValue(card) ? "已用完" : card.status;
 }
 
+export function memberCardIsArchived(card: AppData["memberCards"][number]) {
+  const displayStatus = memberCardDisplayStatus(card);
+  return displayStatus === "已用完"
+    || displayStatus === "已退卡"
+    || displayStatus === "已作废"
+    || displayStatus === "过期";
+}
+
 export function memberCardTimesText(
   card: AppData["memberCards"][number],
   services: AppData["services"],
@@ -311,4 +319,19 @@ export function nameOf(collection: Array<{ id: string; name: string }>, id: stri
 
 export function parseTags(value: string) {
   return Array.from(new Set(value.split(/[,，、/\s]+/).map((item) => item.trim()).filter(Boolean)));
+}
+
+export function replaceRepeatedId(values: string[], targetId: string, quantity: number) {
+  const replacement = Array.from({ length: Math.max(0, Math.floor(quantity)) }, () => targetId);
+  let inserted = false;
+  const next: string[] = [];
+  values.forEach((value) => {
+    if (value !== targetId) next.push(value);
+    else if (!inserted) {
+      next.push(...replacement);
+      inserted = true;
+    }
+  });
+  if (!inserted) next.push(...replacement);
+  return next;
 }

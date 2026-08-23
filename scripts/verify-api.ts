@@ -1629,6 +1629,57 @@ try {
     perServiceCardCheckout.orders[0].serviceCardSelections,
     "service-specific card choices should survive database reload",
   );
+  const sameServiceMultiCardCheckout = await request<AppData>(baseUrl, "/api/checkout", {
+    method: "POST",
+    token: session.token,
+    body: {
+      customerId: multiServiceCardCustomerId,
+      staffId: "s2",
+      serviceIds: ["v1", "v1", "v1"],
+      serviceCardSelections: [
+        { serviceId: "v1", cardId: multiServiceCardA.id, quantity: 2 },
+        { serviceId: "v1", cardId: multiServiceCardB.id, quantity: 1 },
+      ],
+      payMethod: "微信",
+    },
+  });
+  assert.deepEqual(
+    sameServiceMultiCardCheckout.orders[0].serviceCardSelections,
+    [
+      { serviceId: "v1", cardId: multiServiceCardA.id, quantity: 2 },
+      { serviceId: "v1", cardId: multiServiceCardB.id, quantity: 1 },
+    ],
+    "checkout API should preserve multiple selected cards for the same service",
+  );
+  const sameServiceMultiCardSignature = sameServiceMultiCardCheckout.customerSignatures.find(
+    (signature) => signature.orderId === sameServiceMultiCardCheckout.orders[0].id,
+  );
+  assert.ok(sameServiceMultiCardSignature, "same-service multi-card checkout should create a pending signature");
+  const signedSameServiceMultiCard = await request<AppData>(
+    baseUrl,
+    `/api/customer-signatures/${sameServiceMultiCardSignature!.id}/sign`,
+    {
+      method: "POST",
+      token: session.token,
+      body: { signerName: "API 同项目多卡", signatureText: "data:image/png;base64,api-same-service-multi-card" },
+    },
+  );
+  assert.equal(
+    signedSameServiceMultiCard.memberCards.find((card) => card.id === multiServiceCardA.id)?.serviceEntitlements?.find((item) => item.serviceId === "v1")?.remainingTimes,
+    1,
+    "same-service multi-card API signature should debit the selected two uses from the first card",
+  );
+  assert.equal(
+    signedSameServiceMultiCard.memberCards.find((card) => card.id === multiServiceCardB.id)?.serviceEntitlements?.find((item) => item.serviceId === "v1")?.remainingTimes,
+    3,
+    "same-service multi-card API signature should debit the second selected card",
+  );
+  const reloadedSameServiceMultiCard = await request<AppData>(baseUrl, "/api/data", { token: session.token });
+  assert.deepEqual(
+    reloadedSameServiceMultiCard.orders.find((order) => order.id === sameServiceMultiCardCheckout.orders[0].id)?.serviceCardSelections,
+    sameServiceMultiCardCheckout.orders[0].serviceCardSelections,
+    "same-service multi-card selections should survive database reload",
+  );
   const afterOpenLimitedPackageCard = memberCardPatchData(await request<AppDataPatch>(baseUrl, "/api/member-cards", {
     method: "POST",
     token: session.token,
@@ -2140,7 +2191,7 @@ try {
   assert.ok(restrictedTherapistData.appointments.every((item) => item.staffId === "s2"), "therapist should only see own appointments after shared appointment permission is closed");
 
   const persistedData = await request<AppData>(baseUrl, "/api/data", { token: session.token });
-  assert.equal(persistedData.orders.length, 13, "API data should persist across requests, including the multi-project card selection and legacy commission recovery fixtures");
+  assert.equal(persistedData.orders.length, 14, "API data should persist across requests, including multi-project and same-project multi-card selections plus legacy commission recovery fixtures");
   assert.equal(persistedData.refunds.length, 4, "API data should persist refunds, including both legacy recovery stages");
   assert.equal(persistedData.distributionCommissions.length, 0, "base API should not expose distribution commissions");
   assert.ok(persistedData.operationLogs.length >= 4, "API data should persist operation logs");

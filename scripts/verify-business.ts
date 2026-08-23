@@ -75,7 +75,7 @@ import type { AppData, MarketingAiRecord } from "../src/domain/types";
 import { money } from "../src/domain/utils";
 import { normalizeProductServiceFields, productServiceStockDeductible } from "../src/domain/products";
 import { isVersionGreater } from "../src/appUpdate";
-import { aggregateMemberCardServiceAvailability, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue, mergeUsedProducts } from "../src/app/authenticatedAppHelpers";
+import { aggregateMemberCardServiceAvailability, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue, memberCardIsArchived, mergeUsedProducts } from "../src/app/authenticatedAppHelpers";
 import { mergePosRemoteData } from "../src/hooks/usePosRemoteData";
 
 const cloneSeed = (): AppData => structuredClone(testFixtureData);
@@ -3019,6 +3019,7 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.deepEqual(memberCardAvailableServiceIds(card(depleted, cardId)), [], "depleted service should not remain available in checkout");
   assert.equal(memberCardHasAvailableValue(card(depleted, cardId)), false, "depleted card should not count as an active customer asset");
   assert.equal(memberCardDisplayStatus(card(depleted, cardId)), "已用完", "depleted card history should be labeled as used up");
+  assert.equal(memberCardIsArchived(card(depleted, cardId)), true, "depleted card should move into the management archive automatically");
 
   const cashCheckout = checkoutOrder(
     depleted,
@@ -3063,6 +3064,10 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   );
   assert.equal(memberCardHasAvailableValue(partiallyAvailableCard), true, "partially available package card should remain an active customer asset");
   assert.equal(memberCardDisplayStatus(partiallyAvailableCard), "正常", "partially available package card should remain normal");
+  assert.equal(memberCardIsArchived(partiallyAvailableCard), false, "partially available package card should remain visible in customer details");
+  assert.equal(memberCardIsArchived({ ...partiallyAvailableCard, status: "冻结" }), false, "frozen card should remain visible so staff can explain and unfreeze it");
+  assert.equal(memberCardIsArchived({ ...partiallyAvailableCard, status: "已退卡" }), true, "refunded card should remain available only in management archive");
+  assert.equal(memberCardIsArchived({ ...partiallyAvailableCard, status: "已作废" }), true, "voided card should remain available only in management archive");
 }
 
 {
@@ -3443,6 +3448,78 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     card(refunded, secondCardId).serviceEntitlements?.map((item) => [item.serviceId, item.remainingTimes]),
     [["v1", 4], ["v2", 4]],
     "refund should restore the service deducted from the second selected card",
+  );
+
+  const sameServiceMultiCardCheckout = checkoutOrder(
+    secondOpened,
+    {
+      customerId: secondOpened.customers[0].id,
+      staffId: "s2",
+      serviceIds: ["v1", "v1", "v1"],
+      serviceCardSelections: [
+        { serviceId: "v1", cardId: firstCardId, quantity: 2 },
+        { serviceId: "v1", cardId: secondCardId, quantity: 1 },
+      ],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.deepEqual(
+    sameServiceMultiCardCheckout.orders[0].serviceCardSelections,
+    [
+      { serviceId: "v1", cardId: firstCardId, quantity: 2 },
+      { serviceId: "v1", cardId: secondCardId, quantity: 1 },
+    ],
+    "same service checkout should persist multiple selected source cards with exact quantities",
+  );
+  const signedSameServiceMultiCard = signCustomerSignature(
+    sameServiceMultiCardCheckout,
+    {
+      token: sameServiceMultiCardCheckout.customerSignatures[0].token,
+      signerName: "同项目多卡客户",
+      signatureText: "data:image/png;base64,same-service-multi-card",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(
+    card(signedSameServiceMultiCard, firstCardId).serviceEntitlements?.find((item) => item.serviceId === "v1")?.remainingTimes,
+    2,
+    "same service multi-card signature should debit the selected two uses from the first card",
+  );
+  assert.equal(
+    card(signedSameServiceMultiCard, secondCardId).serviceEntitlements?.find((item) => item.serviceId === "v1")?.remainingTimes,
+    3,
+    "same service multi-card signature should debit one use from the second selected card",
+  );
+  const refundedSameServiceMultiCard = refundOrder(
+    signedSameServiceMultiCard,
+    { orderId: signedSameServiceMultiCard.orders[0].id, reason: "同项目多卡退款", userId: "u_manager" },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(
+    card(refundedSameServiceMultiCard, firstCardId).serviceEntitlements?.find((item) => item.serviceId === "v1")?.remainingTimes,
+    4,
+    "same service multi-card refund should restore the first selected card",
+  );
+  assert.equal(
+    card(refundedSameServiceMultiCard, secondCardId).serviceEntitlements?.find((item) => item.serviceId === "v1")?.remainingTimes,
+    4,
+    "same service multi-card refund should restore the second selected card",
+  );
+  assert.throws(
+    () => checkoutOrder(
+      secondOpened,
+      {
+        customerId: secondOpened.customers[0].id,
+        staffId: "s2",
+        serviceIds: ["v1", "v1"],
+        serviceCardSelections: [{ serviceId: "v1", cardId: firstCardId, quantity: 1 }],
+        payMethod: "微信",
+      },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /扣卡来源次数与项目份数不一致/,
+    "same service multi-card checkout should reject source quantities that do not match service quantity",
   );
 }
 
