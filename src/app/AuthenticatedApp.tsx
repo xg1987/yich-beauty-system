@@ -116,6 +116,8 @@ import { MutationPendingContext, SubmitStatusButton, useMutationPending } from "
 import {
   findCreatedProduct,
   aggregateMemberCardServiceAvailability,
+  appointmentTimeRangeWarning,
+  checkoutServiceCardMaxQuantity,
   addMonthsInputValue,
   dateInputValue,
   INVENTORY_CATEGORY_PRESETS,
@@ -129,6 +131,7 @@ import {
   memberCardProjectScopeText,
   memberCardTimesText,
   mergeUsedProducts,
+  type MemberCardServiceAvailabilitySource,
   nameOf,
   normalizeProductName,
   numberFromInput,
@@ -140,6 +143,8 @@ import {
   productExpiryStatus,
   productExpiryText,
   replaceRepeatedId,
+  resolveCheckoutServiceCardIdsByServiceId,
+  shiftedAppointmentEndInputValue,
   productShelfLifeText,
   serviceConsumableDisplay,
   serviceConsumableModeText,
@@ -659,6 +664,7 @@ function LoadingGate({
 const LazyDashboard = lazy(() => import("./dashboardView").then((module) => ({ default: module.Dashboard })));
 const LazyCashierFlowPanel = lazy(() => import("./CashierFlowPanel").then((module) => ({ default: module.CashierFlowPanel })));
 const LazyCheckoutServiceCardAllocations = lazy(() => import("../components/business/CheckoutServiceCardAllocations").then((module) => ({ default: module.CheckoutServiceCardAllocations })));
+const LazyCheckoutServiceCardSources = lazy(() => import("../components/business/CheckoutServiceCardAllocations").then((module) => ({ default: module.CheckoutServiceCardSources })));
 const MemoAppointments = memo(Appointments);
 const MemoPos = memo(Pos);
 const MemoCustomers = memo(Customers);
@@ -1924,6 +1930,16 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
     }
   }, [endAt, startAt]);
 
+  const updateAppointmentStartAt = (nextStartAt: string) => {
+    setStartAt(nextStartAt);
+    setEndAt(shiftedAppointmentEndInputValue(startAt, endAt, nextStartAt));
+  };
+
+  const updateRescheduleStartAt = (nextStartAt: string) => {
+    setRescheduleStartAt(nextStartAt);
+    setRescheduleEndAt(shiftedAppointmentEndInputValue(rescheduleStartAt, rescheduleEndAt, nextStartAt));
+  };
+
   const addAppointment = (event: FormEvent) => {
     event.preventDefault();
     const currentCustomerSearch = syncAppointmentCustomerSearchFromInput();
@@ -2172,21 +2188,22 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
   ]);
   const selectedStartAt = new Date(startAt);
   const selectedEndAt = new Date(endAt);
-  const selectedTimeRangeInvalid = Number.isNaN(selectedStartAt.getTime()) || Number.isNaN(selectedEndAt.getTime()) || !(selectedStartAt < selectedEndAt);
-  const selectedTimeInPast = !selectedTimeRangeInvalid && selectedStartAt < new Date();
-  const selectedTimeLabel = selectedTimeRangeInvalid
+  const selectedTimeRangeWarning = appointmentTimeRangeWarning(selectedStartAt, selectedEndAt);
+  const selectedTimeRangeBlocked = Boolean(selectedTimeRangeWarning);
+  const selectedTimeInPast = !selectedTimeRangeBlocked && selectedStartAt < new Date();
+  const selectedTimeLabel = selectedTimeRangeBlocked
     ? "时间段无效"
     : `${shortTime(selectedStartAt.toISOString())}-${shortTime(selectedEndAt.toISOString())}`;
-  const selectedStaffAppointmentConflict = !staffId || selectedTimeRangeInvalid || selectedTimeInPast
+  const selectedStaffAppointmentConflict = !staffId || selectedTimeRangeBlocked || selectedTimeInPast
     ? undefined
     : findStaffAppointmentConflict(data, staffId, selectedStartAt, selectedEndAt);
-  const selectedStaffUnavailableConflict = !staffId || selectedTimeRangeInvalid || selectedTimeInPast
+  const selectedStaffUnavailableConflict = !staffId || selectedTimeRangeBlocked || selectedTimeInPast
     ? undefined
     : findStaffUnavailableConflict(data, staffId, selectedStartAt, selectedEndAt);
   const selectedStaffAppointmentConflictText = staffAppointmentConflictText(data, selectedStaffAppointmentConflict);
   const selectedStaffUnavailableConflictText = staffUnavailableConflictText(data, selectedStaffUnavailableConflict);
   const selectedTimeConflict = Boolean(selectedStaffAppointmentConflict || selectedStaffUnavailableConflict);
-  const overlappingRoomAssignments = selectedTimeRangeInvalid || selectedTimeInPast
+  const overlappingRoomAssignments = selectedTimeRangeBlocked || selectedTimeInPast
     ? []
     : assignAppointmentRooms(
         data.appointments
@@ -2202,8 +2219,8 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
   const roomAvailabilityOptions = roomNames.map((name) => {
     const isMaintenance = maintenanceRoomNames.has(name);
     const conflictAppointment = overlappingRoomAssignments.find((assignment) => assignment.roomName === name)?.appointment;
-    const disabled = selectedTimeRangeInvalid || selectedTimeInPast || isMaintenance || Boolean(conflictAppointment);
-    const reason = selectedTimeRangeInvalid
+    const disabled = selectedTimeRangeBlocked || selectedTimeInPast || isMaintenance || Boolean(conflictAppointment);
+    const reason = selectedTimeRangeBlocked
       ? "请先填写正确时间段"
       : selectedTimeInPast
         ? "不能预约过去时间"
@@ -2239,10 +2256,11 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
   }, [rescheduleRoomName, roomNames]);
   const rescheduleStartDate = new Date(rescheduleStartAt);
   const rescheduleEndDate = new Date(rescheduleEndAt);
-  const rescheduleTimeRangeInvalid = Number.isNaN(rescheduleStartDate.getTime()) || Number.isNaN(rescheduleEndDate.getTime()) || !(rescheduleStartDate < rescheduleEndDate);
-  const rescheduleTimeInPast = !rescheduleTimeRangeInvalid && rescheduleStartDate < new Date();
-  const appointmentSaveDisabled = !(customerId || resolvedAppointmentCustomer) || appointmentCustomerSearchUnresolved || !staffId || !roomName || selectedTimeRangeInvalid || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
-  const rescheduleSaveDisabled = !rescheduleStaffId || !rescheduleRoomName || rescheduleTimeRangeInvalid || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
+  const rescheduleTimeRangeWarning = appointmentTimeRangeWarning(rescheduleStartDate, rescheduleEndDate, "改约");
+  const rescheduleTimeRangeBlocked = Boolean(rescheduleTimeRangeWarning);
+  const rescheduleTimeInPast = !rescheduleTimeRangeBlocked && rescheduleStartDate < new Date();
+  const appointmentSaveDisabled = !(customerId || resolvedAppointmentCustomer) || appointmentCustomerSearchUnresolved || !staffId || !roomName || selectedTimeRangeBlocked || selectedTimeInPast || !hasConfiguredRooms || !roomNames.includes(roomName);
+  const rescheduleSaveDisabled = !rescheduleStaffId || !rescheduleRoomName || rescheduleTimeRangeBlocked || rescheduleTimeInPast || !hasConfiguredRooms || !roomNames.includes(rescheduleRoomName);
   const signatureUrl = (token: string) => `${window.location.origin}/signature/${token}`;
   const openSignaturePage = (token: string) => {
     window.location.assign(signatureUrl(token));
@@ -2705,7 +2723,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
               options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先到人员账号新增人员" }]}
             />
             <div className="appointment-time-grid">
-              <DateTimeInput label="开始时间" value={startAt} onChange={setStartAt} minDateTime={minAppointmentDateTime} />
+              <DateTimeInput label="开始时间" value={startAt} onChange={updateAppointmentStartAt} minDateTime={minAppointmentDateTime} />
               <DateTimeInput label="结束时间" value={endAt} onChange={setEndAt} minDateTime={startAt > minAppointmentDateTime ? startAt : minAppointmentDateTime} />
             </div>
             <div className="appointment-room-slot-section">
@@ -2743,12 +2761,12 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
               备注
               <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="客户偏好" />
             </label>
-            {selectedTimeRangeInvalid && <p className="form-warning">结束时间必须晚于开始时间。</p>}
+            {selectedTimeRangeWarning && <p className="form-warning">{selectedTimeRangeWarning}</p>}
             {selectedTimeInPast && <p className="form-warning">预约时间不能早于当前时间，请重新选择。</p>}
             {selectedStaffAppointmentConflictText && <p className="form-warning">{selectedStaffAppointmentConflictText}</p>}
             {selectedStaffUnavailableConflictText && <p className="form-warning">{selectedStaffUnavailableConflictText}</p>}
             {!hasConfiguredRooms && <p className="form-warning">当前门店还没有可用于预约的房间，请先到房间管理配置。</p>}
-            {appointmentReviewReady && selectedAppointmentCustomer && selectedAppointmentStaff && !selectedTimeRangeInvalid && (
+            {appointmentReviewReady && selectedAppointmentCustomer && selectedAppointmentStaff && !selectedTimeRangeBlocked && (
               <div className="appointment-confirm-panel">
                 <strong>请核对预约信息</strong>
                 <span>客户：{customerDisplayLabel(selectedAppointmentCustomer)}</span>
@@ -2780,7 +2798,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
             options={appointmentStaffOptions.length ? appointmentStaffOptions : [{ value: "", label: "请先新增人员" }]}
           />
           <div className="appointment-time-grid">
-            <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={setRescheduleStartAt} minDateTime={minAppointmentDateTime} />
+            <DateTimeInput label="开始时间" value={rescheduleStartAt} onChange={updateRescheduleStartAt} minDateTime={minAppointmentDateTime} />
             <DateTimeInput label="结束时间" value={rescheduleEndAt} onChange={setRescheduleEndAt} minDateTime={rescheduleStartAt > minAppointmentDateTime ? rescheduleStartAt : minAppointmentDateTime} />
           </div>
           <Select label="房间" value={rescheduleRoomName} onChange={setRescheduleRoomName} options={roomNames.length ? roomNames.map((name) => ({ value: name, label: name })) : [{ value: "", label: "请先到房间管理配置预约房间" }]} />
@@ -2788,7 +2806,7 @@ function Appointments({ data, session, actions, runMutation, fetchPublicCustomer
             备注
             <textarea value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="改约原因" />
           </label>
-          {rescheduleTimeRangeInvalid && <p className="form-warning">改约结束时间必须晚于开始时间。</p>}
+          {rescheduleTimeRangeWarning && <p className="form-warning">{rescheduleTimeRangeWarning}</p>}
           {rescheduleTimeInPast && <p className="form-warning">改约时间不能早于当前时间，请重新选择。</p>}
           <div className="row-actions">
             <SubmitStatusButton idleText="保存改约" busyText="保存中..." disabled={rescheduleSaveDisabled} />
@@ -3093,18 +3111,18 @@ function Pos({
   const checkoutRelevantProjectCards = checkoutRelevantProjectCardIds
     .map((projectCardId) => selectedCustomerProjectCards.find((card) => card.id === projectCardId))
     .filter((card): card is AppData["memberCards"][number] => Boolean(card));
-  const checkoutServiceCardIdsByServiceId = new Map(selectedServiceRows.map(({ service, quantity }) => {
-    const sources = selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [];
-    const sourceCardIds = new Set(sources.map((source) => source.cardId));
-    const savedCardIds = (serviceCardIdsByServiceId[service.id] ?? [])
-      .filter((savedCardId) => sourceCardIds.has(savedCardId))
-      .slice(0, quantity);
-    const fallbackCardId = savedCardIds[0] ?? sources[0]?.cardId;
-    const resolvedCardIds = fallbackCardId
-      ? [...savedCardIds, ...Array.from({ length: Math.max(0, quantity - savedCardIds.length) }, () => fallbackCardId)]
-      : [];
-    return [service.id, resolvedCardIds] as const;
-  }));
+  const checkoutServiceCardIdsByServiceId = resolveCheckoutServiceCardIdsByServiceId(
+    selectedServiceRows.map(({ service, quantity }) => ({
+      serviceId: service.id,
+      quantity,
+      sources: selectedCustomerProjectAvailabilityByServiceId.get(service.id)?.sources ?? [],
+    })),
+    serviceCardIdsByServiceId,
+  );
+  const checkoutServiceCardSource = (serviceId: string, source: MemberCardServiceAvailabilitySource) => ({
+    ...source,
+    maxQuantity: checkoutServiceCardMaxQuantity(serviceId, source, checkoutServiceCardIdsByServiceId),
+  });
   const checkoutServiceCardSelections = Array.from(checkoutServiceCardIdsByServiceId).flatMap<ServiceCardSelection>(([serviceId, selectedCardIds]) =>
     Array.from(selectedCardIds.reduce((counts, selectedCardId) => {
       counts.set(selectedCardId, (counts.get(selectedCardId) ?? 0) + 1);
@@ -3258,6 +3276,7 @@ function Pos({
   });
   const paidTotal = Math.max(0, total - discountAmount);
   const serviceAutoDebitActive = usesCustomer && usesService && selectedServiceRows.length > 0 && checkoutRelevantProjectCards.length > 0;
+  const checkoutServiceCardSelectionIncomplete = serviceAutoDebitActive && !checkoutDebitSourceSelected;
   const selectedCheckoutCard = payMethod === "会员卡" && !serviceAutoDebitActive ? availableCards.find((card) => card.id === cardId) : undefined;
   const checkoutSelectedCardUsageRows = selectedCheckoutCard ? checkoutCardServiceUsageRows(selectedCheckoutCard) : [];
   const checkoutBlockedCardUsageRows = payMethod === "会员卡" && !serviceAutoDebitActive
@@ -3782,6 +3801,8 @@ function Pos({
     resetCheckoutDiscount();
     const currentCardIds = checkoutServiceCardIdsByServiceId.get(nextServiceId) ?? [];
     const sourceAlreadySelected = currentCardIds.includes(nextCardId);
+    const source = selectedCustomerProjectAvailabilityByServiceId.get(nextServiceId)?.sources.find((item) => item.cardId === nextCardId);
+    if (!sourceAlreadySelected && (!source || checkoutServiceCardMaxQuantity(nextServiceId, source, checkoutServiceCardIdsByServiceId) <= 0)) return;
     const nextCardIds = sourceAlreadySelected
       ? currentCardIds.filter((selectedCardId) => selectedCardId !== nextCardId)
       : [...currentCardIds, nextCardId];
@@ -3800,7 +3821,8 @@ function Pos({
     if (!source) return;
     clearAppointmentForServiceChange();
     resetCheckoutDiscount();
-    const nextQuantity = Math.min(source.remainingTimes, Math.max(0, Math.floor(quantity)));
+    const maxQuantity = checkoutServiceCardMaxQuantity(nextServiceId, source, checkoutServiceCardIdsByServiceId);
+    const nextQuantity = Math.min(maxQuantity, Math.max(0, Math.floor(quantity)));
     const currentCardIds = checkoutServiceCardIdsByServiceId.get(nextServiceId) ?? [];
     const quantitiesByCardId = currentCardIds.reduce((counts, selectedCardId) => {
       counts.set(selectedCardId, (counts.get(selectedCardId) ?? 0) + 1);
@@ -4046,6 +4068,9 @@ function Pos({
     if (payMethod === "会员卡" && !serviceAutoDebitActive && (!usesCustomer || !cardId)) messages.push("会员卡支付需要先选择会员客户和可用会员卡。");
     if (!serviceAutoDebitActive && usesCustomer && usesService && selectedServiceRows.length > 0 && checkoutDebitCandidateCards.length > 0 && !cardId) {
       messages.push("请选择本次扣卡来源。");
+    }
+    if (checkoutServiceCardSelectionIncomplete) {
+      messages.push("共享卡次数已被本单其他项目占用，请调整项目次数或重新分配扣卡来源。");
     }
     if (payMethod === "会员卡" && checkoutMemberCardBlocked) {
       messages.push(`会员卡项目次数不足，不能扣卡：${checkoutMemberCardBlockedText}`);
@@ -4561,7 +4586,7 @@ function Pos({
                           <LazyCheckoutServiceCardAllocations
                             serviceId={service.id}
                             serviceName={service.name}
-                            sources={sources}
+                            sources={sources.map((source) => checkoutServiceCardSource(service.id, source))}
                             selectedCardIds={selectedCardIds}
                             onSetQuantity={setCheckoutServiceCardQuantity}
                           />
@@ -4715,7 +4740,10 @@ function Pos({
           {checkoutServiceCardBlocked && (
             <p className="form-error">客户已购项目次数不足，不能继续开单：{checkoutServiceCardBlockedText}</p>
           )}
-          <button className="primary-button" disabled={checkoutSubmitting || checkoutCustomerSelectionInvalid || checkoutMemberCardBlocked || checkoutServiceCardBlocked}>
+          {checkoutServiceCardSelectionIncomplete && (
+            <p className="form-error">共享卡次数已被本单其他项目占用，请调整项目次数或重新分配扣卡来源。</p>
+          )}
+          <button className="primary-button" disabled={checkoutSubmitting || checkoutCustomerSelectionInvalid || checkoutMemberCardBlocked || checkoutServiceCardBlocked || checkoutServiceCardSelectionIncomplete}>
             {checkoutSubmitting ? "正在收银..." : "完成收银"}
           </button>
         </form>
@@ -4935,27 +4963,17 @@ function Pos({
                   </div>
                 </button>
                 {usesCustomer && availability?.sources.length ? (
-                  <div className="service-picker-card-sources" aria-label={`${service.name}扣卡来源`}>
-                    {availability.sources.map((source, index) => {
-                      const allocatedQuantity = activeSourceCardIds.filter((selectedCardId) => selectedCardId === source.cardId).length;
-                      const sourceSelected = allocatedQuantity > 0;
-                      return (
-                        <button
-                          type="button"
-                          key={source.cardId}
-                          className={`checkout-card-source-button ${sourceSelected ? "active" : ""}`}
-                          aria-pressed={sourceSelected}
-                          onClick={() => quantity > 0
-                            ? toggleCheckoutServiceCardSource(service.id, source.cardId)
-                            : selectCheckoutService(service.id, source.cardId)}
-                        >
-                          <small>{["第一张", "第二张", "第三张"][index] ?? `第 ${index + 1} 张`}{sourceSelected ? " · 已选" : index === 0 ? " · 默认" : " · 可多选"}</small>
-                          <strong>{source.cardName}</strong>
-                          <span>剩 {source.remainingTimes}{source.totalTimes ? `/${source.totalTimes}` : ""} 次{sourceSelected ? ` · 本单扣 ${allocatedQuantity} 次` : ""}{source.sharedPool ? " · 共享次数" : ""}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <Suspense fallback={null}>
+                    <LazyCheckoutServiceCardSources
+                      serviceId={service.id}
+                      serviceName={service.name}
+                      serviceSelected={quantity > 0}
+                      selectedCardIds={activeSourceCardIds}
+                      sources={availability.sources.map((source) => checkoutServiceCardSource(service.id, source))}
+                      onSelectService={selectCheckoutService}
+                      onToggleSource={toggleCheckoutServiceCardSource}
+                    />
+                  </Suspense>
                 ) : null}
               </article>
               );

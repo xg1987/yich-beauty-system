@@ -51,7 +51,7 @@ import type {
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { accountAiCredits, defaultAiBillingConfig, normalizeAiBillingConfig, roundAiCreditAmount, serializeAiBillingConfig } from "./aiBilling";
-import { appointmentEndAt, appointmentServiceIds, assignAppointmentRooms } from "./appointments";
+import { appointmentEndAt, appointmentServiceIds, appointmentTimeRangeIssue, assignAppointmentRooms, DEFAULT_APPOINTMENT_DURATION_MINUTES, MAX_APPOINTMENT_DURATION_MINUTES } from "./appointments";
 import { optionalMobilePhone, requireMobilePhone } from "./phone";
 import { formatStockQuantity, legacyProductServiceStockDeductible, legacyServiceStockQuantityForProduct, normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceStockReviewStatus, productServiceUnit, productServiceUnitsPerStockUnit, requireConfirmedProductStockRule, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 import { businessDateOf, makeId, money, nowIso } from "./utils";
@@ -3328,21 +3328,22 @@ export function checkoutOrder(
     : [];
   const serviceDebitPlanCoversOrder = memberCardDebitPlanCoversServices(serviceDebitPlan, selectedServiceIds);
   const relevantProjectCards = selectedServiceIds.length ? projectCardsForServices(data, customerId, selectedServiceIds) : [];
+  if (selectedServices.length > 0 && relevantProjectCards.length > 0 && !serviceDebitPlanCoversOrder) {
+    const shortfalls = memberCardDebitPlanShortfalls(data, customerId, selectedServiceIds, serviceDebitPlan);
+    throw new Error(shortfalls.length ? `会员卡项目次数不足：${shortfalls.join("；")}` : "会员卡项目次数不足");
+  }
   if (input.payMethod === "会员卡") {
     if (!customerId) {
       throw new Error("新客不能使用会员卡支付");
     }
-    if (selectedServices.length > 0 && relevantProjectCards.length > 0) {
-      if (!serviceDebitPlanCoversOrder) {
-        const shortfalls = memberCardDebitPlanShortfalls(data, customerId, selectedServiceIds, serviceDebitPlan);
-        throw new Error(shortfalls.length ? `会员卡项目次数不足：${shortfalls.join("；")}` : "会员卡项目次数不足");
+    if (!(selectedServices.length > 0 && relevantProjectCards.length > 0)) {
+      if (!selectedCard || selectedCard.status !== "正常") {
+        throw new Error("请选择有效会员卡");
+      } else if (selectedServices.length === 0 && selectedCard.type !== "储值卡") {
+        throw new Error("次数卡或套餐卡只能用于服务项目");
+      } else {
+        assertMemberCardServiceQuantityAvailable(selectedCard, selectedServiceIds, data.services);
       }
-    } else if (!selectedCard || selectedCard.status !== "正常") {
-      throw new Error("请选择有效会员卡");
-    } else if (selectedServices.length === 0 && selectedCard.type !== "储值卡") {
-      throw new Error("次数卡或套餐卡只能用于服务项目");
-    } else {
-      assertMemberCardServiceQuantityAvailable(selectedCard, selectedServiceIds, data.services);
     }
   }
 
@@ -5118,10 +5119,14 @@ function resolveAppointmentEndAt(data: AppData, serviceId: string | undefined, s
   if (endAtInput && (!explicitEndAt || Number.isNaN(explicitEndAt.getTime()))) throw new Error("预约结束时间不正确");
   const durationMinutes = selectedServiceIds.length ? selectedServiceIds.reduce((sum, id) => {
     const service = data.services.find((item) => item.id === id);
-    return sum + (service?.duration && service.duration > 0 ? service.duration : 60);
-  }, 0) : 60;
+    return sum + (service?.duration && service.duration > 0 ? service.duration : DEFAULT_APPOINTMENT_DURATION_MINUTES);
+  }, 0) : DEFAULT_APPOINTMENT_DURATION_MINUTES;
   const endAt = explicitEndAt ?? new Date(startAt.getTime() + durationMinutes * 60 * 1000);
-  if (!(startAt < endAt)) throw new Error("预约结束时间必须晚于开始时间");
+  const timeRangeIssue = appointmentTimeRangeIssue(startAt, endAt);
+  if (timeRangeIssue === "invalid") throw new Error("预约结束时间不正确");
+  if (timeRangeIssue === "end-not-after-start") throw new Error("预约结束时间必须晚于开始时间");
+  if (timeRangeIssue === "cross-day") throw new Error("预约开始和结束时间必须在同一天");
+  if (timeRangeIssue === "too-long") throw new Error(`单次预约不能超过${MAX_APPOINTMENT_DURATION_MINUTES / 60}小时`);
   return endAt;
 }
 

@@ -849,6 +849,25 @@ try {
     },
     "appointment API should reject staff time conflicts",
   );
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, "/api/appointments", {
+        method: "POST",
+        token: session.token,
+        body: {
+          customerId: "c1",
+          staffId: "s3",
+          serviceId: "",
+          serviceIds: [],
+          startAt: futureIso(35, "02:00"),
+          endAt: futureIso(36, "02:00"),
+          roomName: "护理房 1",
+          note: "跨天异常预约",
+        },
+      }),
+    /必须在同一天/,
+    "appointment API should reject cross-day appointment creation",
+  );
 
   const afterAppointment = await request<AppData>(baseUrl, "/api/appointments", {
     method: "POST",
@@ -917,6 +936,23 @@ try {
     },
   });
   const secondAppointmentId = afterSecondAppointment.appointments[0].id;
+  await assert.rejects(
+    () =>
+      request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(secondAppointmentId)}/reschedule`, {
+        method: "POST",
+        token: session.token,
+        body: {
+          staffId: "s3",
+          serviceId: "v2",
+          startAt: futureIso(35, "02:00"),
+          endAt: futureIso(36, "02:00"),
+          roomName: "护理房 2",
+          note: "跨天异常改约",
+        },
+      }),
+    /必须在同一天/,
+    "appointment API should reject cross-day rescheduling",
+  );
   const afterReschedule = await request<AppData>(baseUrl, `/api/appointments/${encodeURIComponent(secondAppointmentId)}/reschedule`, {
     method: "POST",
     token: session.token,

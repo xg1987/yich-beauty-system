@@ -7,8 +7,9 @@ import {
   serviceStockQuantityForProduct,
 } from "../domain/products";
 import { normalizeMemberCardServiceEntitlements } from "../domain/business";
+import { appointmentTimeRangeIssue, MAX_APPOINTMENT_DURATION_MINUTES, shiftedAppointmentEndAt } from "../domain/appointments";
 import type { AppData, Product, Service, ServiceConsumable } from "../domain/types";
-import { money, shortDate } from "../domain/utils";
+import { money, shortDate, toLocalInputValue } from "../domain/utils";
 
 export const INVENTORY_CATEGORY_PRESETS: Record<string, string[]> = {
   面护类: ["洁面", "膏霜", "面膜", "精华", "精油", "防晒", "软膜", "眼护", "套盒", "口服", "次抛", "小样"],
@@ -60,6 +61,18 @@ export function addMonthsInputValue(months: number, baseDate = new Date()) {
   const date = new Date(baseDate);
   date.setMonth(date.getMonth() + Math.round(months));
   return dateInputValue(date);
+}
+
+export function shiftedAppointmentEndInputValue(previousStartAt: string, previousEndAt: string, nextStartAt: string) {
+  return toLocalInputValue(shiftedAppointmentEndAt(previousStartAt, previousEndAt, nextStartAt).toISOString());
+}
+
+export function appointmentTimeRangeWarning(startAt: Date, endAt: Date, action = "预约") {
+  const issue = appointmentTimeRangeIssue(startAt, endAt);
+  if (issue === "invalid" || issue === "end-not-after-start") return `${action}结束时间必须晚于开始时间。`;
+  if (issue === "cross-day") return `${action}开始和结束时间必须在同一天，请重新选择。`;
+  if (issue === "too-long") return `单次${action}不能超过${MAX_APPOINTMENT_DURATION_MINUTES / 60}小时，请重新选择。`;
+  return "";
 }
 
 export function productExpiryText(product: Product) {
@@ -259,6 +272,69 @@ export type MemberCardServiceAvailability = {
   cardCount: number;
   sources: MemberCardServiceAvailabilitySource[];
 };
+
+export type CheckoutServiceCardAllocationRow = {
+  serviceId: string;
+  quantity: number;
+  sources: MemberCardServiceAvailabilitySource[];
+};
+
+function checkoutServiceCardPoolKey(serviceId: string, source: MemberCardServiceAvailabilitySource) {
+  return source.sharedPool ? source.cardId : `${serviceId}:${source.cardId}`;
+}
+
+export function resolveCheckoutServiceCardIdsByServiceId(
+  rows: CheckoutServiceCardAllocationRow[],
+  savedCardIdsByServiceId: Record<string, string[]>,
+) {
+  const allocatedByPoolKey = new Map<string, number>();
+  const resolved = new Map<string, string[]>();
+
+  rows.forEach(({ serviceId, quantity, sources }) => {
+    const targetQuantity = Math.max(0, Math.floor(quantity));
+    const sourceByCardId = new Map(sources.map((source) => [source.cardId, source]));
+    const selectedCardIds: string[] = [];
+    const tryAllocate = (cardId: string) => {
+      if (selectedCardIds.length >= targetQuantity) return;
+      const source = sourceByCardId.get(cardId);
+      if (!source) return;
+      const poolKey = checkoutServiceCardPoolKey(serviceId, source);
+      const allocated = allocatedByPoolKey.get(poolKey) ?? 0;
+      if (allocated >= source.remainingTimes) return;
+      allocatedByPoolKey.set(poolKey, allocated + 1);
+      selectedCardIds.push(cardId);
+    };
+
+    (savedCardIdsByServiceId[serviceId] ?? [])
+      .slice(0, targetQuantity)
+      .forEach(tryAllocate);
+    while (selectedCardIds.length < targetQuantity) {
+      const source = sources.find((candidate) => {
+        const poolKey = checkoutServiceCardPoolKey(serviceId, candidate);
+        return (allocatedByPoolKey.get(poolKey) ?? 0) < candidate.remainingTimes;
+      });
+      if (!source) break;
+      tryAllocate(source.cardId);
+    }
+    resolved.set(serviceId, selectedCardIds);
+  });
+
+  return resolved;
+}
+
+export function checkoutServiceCardMaxQuantity(
+  serviceId: string,
+  source: MemberCardServiceAvailabilitySource,
+  selectedCardIdsByServiceId: Map<string, string[]>,
+) {
+  if (!source.sharedPool) return source.remainingTimes;
+  const allocatedByOtherServices = Array.from(selectedCardIdsByServiceId).reduce((sum, [candidateServiceId, cardIds]) => (
+    candidateServiceId === serviceId
+      ? sum
+      : sum + cardIds.filter((cardId) => cardId === source.cardId).length
+  ), 0);
+  return Math.max(0, source.remainingTimes - allocatedByOtherServices);
+}
 
 export function aggregateMemberCardServiceAvailability(
   cards: AppData["memberCards"],

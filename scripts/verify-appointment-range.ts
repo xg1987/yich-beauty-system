@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import {
   appointmentArrivalConfirmationWindow,
   appointmentEndAt,
+  appointmentTimeRangeIssue,
   appointmentMonthRange,
   appointmentRangeMap,
   appointmentRollingSevenDayDates,
   calculateAppointmentRoomUsage,
   filterAppointmentsByRange,
   isAppointmentInArrivalConfirmationWindow,
+  shiftedAppointmentEndAt,
   summarizeAppointmentsForMonth,
 } from "../src/domain/appointments";
 import type { Appointment } from "../src/domain/types";
@@ -42,6 +44,39 @@ assert.equal(
   appointmentEndAt(appointment("legacy-end", "2026-06-03T09:00:00+08:00"), [{ id: "v1", name: "测试项目", category: "测试", price: 100, duration: 75 }]).toISOString(),
   new Date("2026-06-03T10:15:00+08:00").toISOString(),
   "appointment end helper should derive legacy end time from service duration",
+);
+assert.equal(
+  appointmentEndAt({ ...appointment("cross-day-end", "2026-08-27T20:00:00+08:00"), serviceId: "", serviceIds: [], endAt: "2026-08-28T20:00:00+08:00" }).toISOString(),
+  new Date("2026-08-27T21:00:00+08:00").toISOString(),
+  "appointment end helper should neutralize a stored cross-day range instead of occupying the next day",
+);
+assert.equal(
+  appointmentTimeRangeIssue("2026-08-27T20:00:00+08:00", "2026-08-28T20:00:00+08:00"),
+  "cross-day",
+  "appointment range validation should identify cross-day ranges",
+);
+assert.equal(
+  appointmentTimeRangeIssue("2026-08-27T08:00:00+08:00", "2026-08-27T21:00:00+08:00"),
+  "too-long",
+  "appointment range validation should identify same-day ranges over twelve hours",
+);
+assert.equal(
+  shiftedAppointmentEndAt(
+    "2026-08-27T10:00:00+08:00",
+    "2026-08-27T11:30:00+08:00",
+    "2026-08-28T14:00:00+08:00",
+  ).toISOString(),
+  new Date("2026-08-28T15:30:00+08:00").toISOString(),
+  "changing the appointment start should preserve the current duration",
+);
+assert.equal(
+  shiftedAppointmentEndAt(
+    "2026-08-27T20:00:00+08:00",
+    "2026-08-28T20:00:00+08:00",
+    "2026-08-29T11:30:00+08:00",
+  ).toISOString(),
+  new Date("2026-08-29T12:30:00+08:00").toISOString(),
+  "changing an abnormal appointment start should reset the end to the safe one-hour duration",
 );
 
 const nearStartAppointment = appointment("near-start", "2026-06-03T19:30:00+08:00");

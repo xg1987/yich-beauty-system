@@ -75,7 +75,7 @@ import type { AppData, MarketingAiRecord } from "../src/domain/types";
 import { money } from "../src/domain/utils";
 import { normalizeProductServiceFields, productServiceStockDeductible } from "../src/domain/products";
 import { isVersionGreater } from "../src/appUpdate";
-import { aggregateMemberCardServiceAvailability, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue, memberCardIsArchived, mergeUsedProducts } from "../src/app/authenticatedAppHelpers";
+import { aggregateMemberCardServiceAvailability, checkoutServiceCardMaxQuantity, memberCardAvailableServiceIds, memberCardDisplayStatus, memberCardHasAvailableValue, memberCardIsArchived, mergeUsedProducts, resolveCheckoutServiceCardIdsByServiceId } from "../src/app/authenticatedAppHelpers";
 import { mergePosRemoteData } from "../src/hooks/usePosRemoteData";
 
 const cloneSeed = (): AppData => structuredClone(testFixtureData);
@@ -618,6 +618,60 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
   assert.throws(
     () =>
       createAppointment(
+        roomSchedulingStore,
+        {
+          customerId: "c1",
+          staffId: "s3",
+          serviceId: "",
+          serviceIds: [],
+          startAt: "2026-08-27T12:00:00.000Z",
+          endAt: "2026-08-28T12:00:00.000Z",
+          roomName: "护理房 A",
+        },
+        { idFactory: testId, now: fixedNow },
+      ),
+    /必须在同一天/,
+    "appointment creation should reject the cross-day range reported by the customer",
+  );
+  const corruptedHistoricalAppointmentStore: AppData = {
+    ...roomSchedulingStore,
+    appointments: [
+      {
+        id: "a_cross_day_historical",
+        storeId: "store1",
+        customerId: "c1",
+        staffId: "s3",
+        serviceId: "",
+        serviceIds: [],
+        startAt: "2026-08-27T12:00:00.000Z",
+        endAt: "2026-08-28T12:00:00.000Z",
+        roomName: "护理房 A",
+        status: "已确认",
+        note: "历史异常跨天预约",
+      },
+    ],
+  };
+  const bookingAfterHistoricalCrossDay = createAppointment(
+    corruptedHistoricalAppointmentStore,
+    {
+      customerId: "c2",
+      staffId: "s3",
+      serviceId: "",
+      serviceIds: [],
+      startAt: "2026-08-28T03:30:00.000Z",
+      endAt: "2026-08-28T04:30:00.000Z",
+      roomName: "护理房 A",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  assert.equal(
+    bookingAfterHistoricalCrossDay.appointments[0].startAt,
+    "2026-08-28T03:30:00.000Z",
+    "a historical cross-day end should no longer block the next day's valid staff and room slot",
+  );
+  assert.throws(
+    () =>
+      createAppointment(
         longRoomBookedStore,
         {
           customerId: "c2",
@@ -727,6 +781,23 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
       ),
     /该房间在此时间段已有预约/,
     "appointment reschedule should reject overlapping bookings for the same room",
+  );
+  assert.throws(
+    () =>
+      rescheduleAppointment(
+        roomBookedStore,
+        {
+          appointmentId: firstRoomAppointmentId,
+          staffId: "s3",
+          serviceId: "v1",
+          startAt: "2026-08-27T12:00:00.000Z",
+          endAt: "2026-08-28T12:00:00.000Z",
+          roomName: "护理房 A",
+        },
+        { now: fixedNow },
+      ),
+    /必须在同一天/,
+    "appointment reschedule should reject cross-day ranges too",
   );
   const disabledStore = updateStoreStatus(updatedStore, { storeId: updatedStore.storeProfiles[0].id, status: "disabled", userId: "u_superadmin" }, { idFactory: testId, now: fixedNow });
   assert.equal(disabledStore.storeProfiles[0].status, "disabled", "admin should disable store");
@@ -3758,6 +3829,155 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
 }
 
 {
+  const sharedSource = {
+    cardId: "shared_neck_face_card",
+    cardName: "颈部/面部共享卡",
+    remainingTimes: 4,
+    sharedPool: true,
+  };
+  const resolved = resolveCheckoutServiceCardIdsByServiceId(
+    [
+      { serviceId: "face", quantity: 4, sources: [sharedSource] },
+      {
+        serviceId: "neck",
+        quantity: 10,
+        sources: [
+          { cardId: "neck_card_a", cardName: "颈部专用卡A", remainingTimes: 3, sharedPool: false },
+          sharedSource,
+          { cardId: "neck_card_b", cardName: "颈部专用卡B", remainingTimes: 3, sharedPool: false },
+        ],
+      },
+    ],
+    {
+      face: Array(4).fill(sharedSource.cardId),
+      neck: [
+        ...Array(3).fill("neck_card_a"),
+        ...Array(4).fill(sharedSource.cardId),
+        ...Array(3).fill("neck_card_b"),
+      ],
+    },
+  );
+  assert.equal(resolved.get("face")?.length, 4, "the first selected service should keep its four shared-card uses");
+  assert.deepEqual(
+    resolved.get("neck"),
+    [...Array(3).fill("neck_card_a"), ...Array(3).fill("neck_card_b")],
+    "the same shared card must not be allocated again by another service in one checkout",
+  );
+  assert.equal(
+    checkoutServiceCardMaxQuantity("neck", sharedSource, resolved),
+    0,
+    "a shared card fully allocated to another service should expose zero selectable uses",
+  );
+  assert.equal(
+    checkoutServiceCardMaxQuantity("face", sharedSource, resolved),
+    4,
+    "the service that owns the current shared-card allocation should still be able to reduce or retain it",
+  );
+}
+
+{
+  const conflictingSharedSelectionData = cloneSeed();
+  conflictingSharedSelectionData.memberCards = [
+    {
+      id: "explicit_shared_card",
+      storeId: "store1",
+      customerId: "c1",
+      name: "面部/肩颈共享卡",
+      type: "次数卡",
+      balance: 0,
+      remainingTimes: 4,
+      expiresAt: "2027-12-31",
+      status: "正常",
+      serviceId: "v1",
+      serviceIds: ["v1", "v2"],
+    },
+    {
+      id: "explicit_neck_card_a",
+      storeId: "store1",
+      customerId: "c1",
+      name: "肩颈专用卡A",
+      type: "次数卡",
+      balance: 0,
+      remainingTimes: 3,
+      expiresAt: "2027-12-31",
+      status: "正常",
+      serviceId: "v2",
+      serviceIds: ["v2"],
+    },
+    {
+      id: "explicit_neck_card_b",
+      storeId: "store1",
+      customerId: "c1",
+      name: "肩颈专用卡B",
+      type: "次数卡",
+      balance: 0,
+      remainingTimes: 3,
+      expiresAt: "2027-12-31",
+      status: "正常",
+      serviceId: "v2",
+      serviceIds: ["v2"],
+    },
+  ];
+  assert.throws(
+    () => checkoutOrder(
+      conflictingSharedSelectionData,
+      {
+        customerId: "c1",
+        staffId: "s2",
+        serviceIds: [...Array(4).fill("v1"), ...Array(10).fill("v2")],
+        serviceCardSelections: [
+          { serviceId: "v1", cardId: "explicit_shared_card", quantity: 4 },
+          { serviceId: "v2", cardId: "explicit_neck_card_a", quantity: 3 },
+          { serviceId: "v2", cardId: "explicit_shared_card", quantity: 4 },
+          { serviceId: "v2", cardId: "explicit_neck_card_b", quantity: 3 },
+        ],
+        payMethod: "微信",
+      },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /可分配6次，本次需要10次/,
+    "checkout must reject an over-allocated shared card before it creates a pending order",
+  );
+
+  const guardedLegacyCheckout = checkoutOrder(
+    conflictingSharedSelectionData,
+    {
+      customerId: "c1",
+      staffId: "s2",
+      serviceIds: [...Array(4).fill("v1"), ...Array(6).fill("v2")],
+      serviceCardSelections: [
+        { serviceId: "v1", cardId: "explicit_shared_card", quantity: 4 },
+        { serviceId: "v2", cardId: "explicit_neck_card_a", quantity: 3 },
+        { serviceId: "v2", cardId: "explicit_neck_card_b", quantity: 3 },
+      ],
+      payMethod: "微信",
+    },
+    { idFactory: testId, now: fixedNow },
+  );
+  const guardedLegacyOrder = guardedLegacyCheckout.orders[0];
+  guardedLegacyOrder.serviceIds = [...Array(4).fill("v1"), ...Array(10).fill("v2")];
+  guardedLegacyOrder.serviceCardSelections = [
+    { serviceId: "v1", cardId: "explicit_shared_card", quantity: 4 },
+    { serviceId: "v2", cardId: "explicit_neck_card_a", quantity: 3 },
+    { serviceId: "v2", cardId: "explicit_shared_card", quantity: 4 },
+    { serviceId: "v2", cardId: "explicit_neck_card_b", quantity: 3 },
+  ];
+  assert.throws(
+    () => signCustomerSignature(
+      guardedLegacyCheckout,
+      {
+        token: guardedLegacyCheckout.customerSignatures[0].token,
+        signerName: "共享卡冲突客户",
+        signatureText: "data:image/png;base64,shared-conflict",
+      },
+      { idFactory: testId, now: fixedNow },
+    ),
+    /可分配6次，本次需要10次/,
+    "signature deduction must keep rejecting a historical over-allocated shared-card order",
+  );
+}
+
+{
   const opened = openMemberCard(
     cloneSeed(),
     {
@@ -3777,29 +3997,19 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     },
     { idFactory: testId, now: fixedNow },
   );
-  const checkedOut = checkoutOrder(
-    opened,
-    {
-      customerId: opened.customers[0].id,
-      staffId: "s2",
-      serviceIds: ["v2", "v2"],
-      payMethod: "微信",
-    },
-    { idFactory: testId, now: fixedNow },
-  );
   assert.throws(
-    () =>
-      signCustomerSignature(
-        checkedOut,
-        {
-          token: checkedOut.customerSignatures[0].token,
-          signerName: "签名不足客户",
-          signatureText: "data:image/png;base64,insufficient",
-        },
-        { idFactory: testId, now: fixedNow },
-      ),
+    () => checkoutOrder(
+      opened,
+      {
+        customerId: opened.customers[0].id,
+        staffId: "s2",
+        serviceIds: ["v2", "v2"],
+        payMethod: "微信",
+      },
+      { idFactory: testId, now: fixedNow },
+    ),
     /肩颈舒缓 SPA剩余1次，本次需要2次/,
-    "signature completion should reject service-card deduction when the selected service balance is insufficient",
+    "checkout should reject insufficient service-card deduction before creating a pending order",
   );
 }
 

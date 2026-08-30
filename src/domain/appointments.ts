@@ -1,4 +1,5 @@
 import type { Appointment, Service } from "./types";
+import { businessDateOf } from "./utils";
 
 export type AppointmentRange = "today" | "tomorrow" | "week";
 
@@ -34,6 +35,37 @@ export type AppointmentRoomUsage = {
 };
 
 export const ARRIVAL_CONFIRMATION_LEAD_TIME_MS = 30 * 60 * 1000;
+export const DEFAULT_APPOINTMENT_DURATION_MINUTES = 60;
+export const MAX_APPOINTMENT_DURATION_MINUTES = 12 * 60;
+
+export type AppointmentTimeRangeIssue = "invalid" | "end-not-after-start" | "cross-day" | "too-long";
+
+export function appointmentTimeRangeIssue(startAtInput: string | Date, endAtInput: string | Date): AppointmentTimeRangeIssue | undefined {
+  const startAt = startAtInput instanceof Date ? startAtInput : new Date(startAtInput);
+  const endAt = endAtInput instanceof Date ? endAtInput : new Date(endAtInput);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return "invalid";
+  if (!(startAt < endAt)) return "end-not-after-start";
+  if (businessDateOf(startAt) !== businessDateOf(endAt)) return "cross-day";
+  if (endAt.getTime() - startAt.getTime() > MAX_APPOINTMENT_DURATION_MINUTES * 60 * 1000) return "too-long";
+  return undefined;
+}
+
+export function shiftedAppointmentEndAt(
+  previousStartAtInput: string | Date,
+  previousEndAtInput: string | Date,
+  nextStartAtInput: string | Date,
+  fallbackMinutes = DEFAULT_APPOINTMENT_DURATION_MINUTES,
+) {
+  const previousStartAt = previousStartAtInput instanceof Date ? previousStartAtInput : new Date(previousStartAtInput);
+  const previousEndAt = previousEndAtInput instanceof Date ? previousEndAtInput : new Date(previousEndAtInput);
+  const nextStartAt = nextStartAtInput instanceof Date ? nextStartAtInput : new Date(nextStartAtInput);
+  const previousIssue = appointmentTimeRangeIssue(previousStartAt, previousEndAt);
+  const previousDurationMs = previousIssue ? undefined : previousEndAt.getTime() - previousStartAt.getTime();
+  const safeFallbackMinutes = Number.isFinite(fallbackMinutes) && fallbackMinutes > 0
+    ? Math.min(MAX_APPOINTMENT_DURATION_MINUTES, fallbackMinutes)
+    : DEFAULT_APPOINTMENT_DURATION_MINUTES;
+  return new Date(nextStartAt.getTime() + (previousDurationMs ?? safeFallbackMinutes * 60 * 1000));
+}
 
 export function appointmentServiceIds(appointment: Pick<Appointment, "serviceId" | "serviceIds">) {
   const ids = appointment.serviceIds?.filter(Boolean) ?? [];
@@ -43,15 +75,15 @@ export function appointmentServiceIds(appointment: Pick<Appointment, "serviceId"
 export function appointmentEndAt(appointment: Pick<Appointment, "serviceId" | "serviceIds" | "startAt" | "endAt">, services: Service[] = []) {
   const startAt = new Date(appointment.startAt);
   const savedEndAt = appointment.endAt ? new Date(appointment.endAt) : undefined;
-  if (!Number.isNaN(startAt.getTime()) && savedEndAt && !Number.isNaN(savedEndAt.getTime()) && savedEndAt > startAt) {
+  if (!Number.isNaN(startAt.getTime()) && savedEndAt && !appointmentTimeRangeIssue(startAt, savedEndAt)) {
     return savedEndAt;
   }
   const selectedServices = appointmentServiceIds(appointment)
     .map((serviceId) => services.find((item) => item.id === serviceId))
     .filter((service): service is Service => Boolean(service));
   const minutes = selectedServices.length
-    ? selectedServices.reduce((sum, service) => sum + (service.duration && service.duration > 0 ? service.duration : 60), 0)
-    : 60;
+    ? selectedServices.reduce((sum, service) => sum + (service.duration && service.duration > 0 ? service.duration : DEFAULT_APPOINTMENT_DURATION_MINUTES), 0)
+    : DEFAULT_APPOINTMENT_DURATION_MINUTES;
   return new Date(startAt.getTime() + minutes * 60 * 1000);
 }
 
