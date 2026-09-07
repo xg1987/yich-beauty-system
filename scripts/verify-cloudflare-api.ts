@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyRetailAppointmentIsolation } from "./verify-retail-appointment-isolation";
 import { emptyAppData, type AppDataPatch } from "../src/domain/dataSlices";
 import type { CashierFlowDetailResult } from "../src/domain/cashierFlow";
 import type { AppData } from "../src/domain/types";
@@ -634,6 +635,10 @@ const reopenedDuplicateCheckout = await request<AppData>(baseUrl, "/api/checkout
 });
 assert.notEqual(reopenedDuplicateCheckout.orders[0].id, firstDuplicateOrderId, "D1 refund should allow a corrected new order");
 assert.equal(reopenedDuplicateCheckout.orders[0].appointmentId, duplicateAppointmentId, "D1 corrected order should retain the appointment link");
+await verifyRetailAppointmentIsolation(
+  (path, options = {}) => request<AppData>(baseUrl, path, { ...options, token: ownerSession.token }),
+  { customerId, staffId: therapistStaffId, appointmentId: duplicateAppointmentId, productId },
+);
 const concurrentCreateStartAt = `${futureDay(scheduleDayOffset + 2)}T02:00:00.000Z`;
 const concurrentCreateResults = await Promise.allSettled([
   request<AppData>(baseUrl, "/api/appointments", {

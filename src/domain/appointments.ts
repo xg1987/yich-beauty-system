@@ -72,6 +72,25 @@ export function appointmentServiceIds(appointment: Pick<Appointment, "serviceId"
   return ids.length ? Array.from(new Set(ids)) : [appointment.serviceId].filter(Boolean);
 }
 
+/** Only service checkout can infer a service appointment; retail sales are independent. */
+export function appointmentMatchesServiceCheckout(
+  appointment: Appointment,
+  checkout: { storeId: string; customerId: string; staffId: string; serviceIds: string[]; createdAt: string },
+  services: Service[],
+) {
+  if (checkout.serviceIds.length === 0) return false;
+  if (appointment.status !== "已到店" && appointment.status !== "已完成") return false;
+  if ((appointment.storeId ?? checkout.storeId) !== checkout.storeId) return false;
+  if (appointment.customerId !== checkout.customerId || appointment.staffId !== checkout.staffId) return false;
+  if (businessDateOf(appointment.startAt) !== businessDateOf(checkout.createdAt)) return false;
+  const allowedServiceIds = appointmentServiceIds(appointment);
+  if (allowedServiceIds.length > 0 && !checkout.serviceIds.every((id) => allowedServiceIds.includes(id))) return false;
+  const checkoutTime = +new Date(checkout.createdAt);
+  return Number.isFinite(checkoutTime)
+    && checkoutTime >= +new Date(appointment.startAt) - ARRIVAL_CONFIRMATION_LEAD_TIME_MS
+    && checkoutTime <= +appointmentEndAt(appointment, services) + 4 * 60 * 60 * 1000;
+}
+
 export function appointmentEndAt(appointment: Pick<Appointment, "serviceId" | "serviceIds" | "startAt" | "endAt">, services: Service[] = []) {
   const startAt = new Date(appointment.startAt);
   const savedEndAt = appointment.endAt ? new Date(appointment.endAt) : undefined;

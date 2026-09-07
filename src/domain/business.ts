@@ -51,7 +51,7 @@ import type {
 } from "./types";
 import { effectiveRoleForUser, serializeRolePermissionTemplates } from "./auth";
 import { accountAiCredits, defaultAiBillingConfig, normalizeAiBillingConfig, roundAiCreditAmount, serializeAiBillingConfig } from "./aiBilling";
-import { appointmentEndAt, appointmentServiceIds, appointmentTimeRangeIssue, assignAppointmentRooms, DEFAULT_APPOINTMENT_DURATION_MINUTES, MAX_APPOINTMENT_DURATION_MINUTES } from "./appointments";
+import { appointmentEndAt, appointmentMatchesServiceCheckout, appointmentServiceIds, appointmentTimeRangeIssue, assignAppointmentRooms, DEFAULT_APPOINTMENT_DURATION_MINUTES, MAX_APPOINTMENT_DURATION_MINUTES } from "./appointments";
 import { optionalMobilePhone, requireMobilePhone } from "./phone";
 import { formatStockQuantity, legacyProductServiceStockDeductible, legacyServiceStockQuantityForProduct, normalizeProductServiceFields, normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceStockReviewStatus, productServiceUnit, productServiceUnitsPerStockUnit, requireConfirmedProductStockRule, roundStockQuantity, serviceStockQuantityForProduct } from "./products";
 import { businessDateOf, makeId, money, nowIso } from "./utils";
@@ -2841,7 +2841,7 @@ export function accountForInvite(data: AppData, inviteCode: string) {
     ?? data.staffInvites.find((item) => item.inviteCode.trim().toUpperCase() === normalizedInviteCode)?.account;
 }
 
-function normalizeCheckoutServiceIds(serviceId?: string, serviceIds?: string[]) {
+export function normalizeCheckoutServiceIds(serviceId?: string, serviceIds?: string[]) {
   const rawIds = serviceIds?.length ? serviceIds : serviceId ? [serviceId] : [];
   return rawIds.map((id) => id.trim()).filter(Boolean);
 }
@@ -3245,22 +3245,17 @@ export function checkoutOrder(
   }
 
   assertBusinessDateOpen(data, businessDateOf(createdAt), storeId);
+  if (input.appointmentId && selectedServiceIds.length === 0) {
+    throw new Error("预约收银需选择服务项目；仅购买商品请使用商品开单");
+  }
   const explicitAppointment = input.appointmentId ? data.appointments.find((item) => item.id === input.appointmentId) : undefined;
   if (input.appointmentId && !explicitAppointment) {
     throw new Error("预约不存在");
   }
   const implicitAppointmentMatches = input.appointmentId ? [] : data.appointments
-    .filter((item) => {
-      if (item.status !== "已到店" && item.status !== "已完成") return false;
-      if ((item.storeId ?? storeId) !== storeId) return false;
-      if (item.customerId !== customerId || item.staffId !== input.staffId) return false;
-      if (businessDateOf(item.startAt) !== businessDateOf(createdAt)) return false;
-      if (!selectedServiceIds.every((id) => appointmentAllowsService(item, id))) return false;
-      const appointmentStart = +new Date(item.startAt);
-      const appointmentEnd = +appointmentEndAt(item, data.services);
-      const checkoutTime = +new Date(createdAt);
-      return Number.isFinite(checkoutTime) && checkoutTime >= appointmentStart - 30 * 60 * 1000 && checkoutTime <= appointmentEnd + 4 * 60 * 60 * 1000;
-    })
+    .filter((item) => appointmentMatchesServiceCheckout(item, {
+      storeId, customerId, staffId: input.staffId, serviceIds: selectedServiceIds, createdAt,
+    }, data.services))
     .sort((left, right) =>
       Math.abs(+new Date(createdAt) - +appointmentEndAt(left, data.services)) -
       Math.abs(+new Date(createdAt) - +appointmentEndAt(right, data.services)),
@@ -3390,8 +3385,8 @@ export function checkoutOrder(
         createdAt,
         discountAmount: totalDiscount,
         giftProductItems,
-        guestName,
-        guestPhone,
+        guestName: customerId ? "" : guestName,
+        guestPhone: customerId ? "" : guestPhone,
         paidAmount,
         payMethod: input.payMethod,
         productItems,

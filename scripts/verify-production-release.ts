@@ -24,6 +24,10 @@ run("npm", ["run", "verify:pwa-version"]);
 const dirtyFiles = run("git", ["status", "--porcelain", "--untracked-files=all"]).trim();
 if (dirtyFiles) throw new Error("发布前 Git 工作区必须干净，请先确认并提交本次改动");
 
+// Keep checkout/appointment isolation and duplicate-submit regressions in the release gate.
+run("npm", ["run", "verify:business"]);
+run("npm", ["run", "verify:api"]);
+
 const healthResponse = await fetch(PRODUCTION_HEALTH_URL, { signal: AbortSignal.timeout(15_000) });
 if (!healthResponse.ok) throw new Error(`无法读取线上版本：HTTP ${healthResponse.status}`);
 const health = await healthResponse.json() as { ok?: boolean; version?: string };
@@ -60,6 +64,7 @@ const audit = parseCashierDataAudit(auditOutput);
 assertCashierDataAuditSafe(audit);
 
 console.log(`production release preflight passed: ${health.version} -> ${localVersion}`);
+console.log("- business and API regressions verified");
 console.log("- Cloudflare account verified");
 console.log("- cashier history store ownership verified");
 console.log("- Git worktree and PWA version markers verified");

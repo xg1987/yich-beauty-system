@@ -2612,6 +2612,50 @@ function signedRefundSignature(data: AppData, customerId: string, cardName = "�
     "appointment checkout should reject mismatched service",
   );
 
+  // Retail must remain independent for both new and already checked-out appointments.
+  for (const status of ["已到店", "已完成"] as const) {
+    for (const walkin of [false, true]) {
+      for (const emptyServices of [undefined, [], ["", "  "]]) {
+        const retailBase = structuredClone(implicitAppointmentCheckout);
+        retailBase.appointments = retailBase.appointments.filter((item) => item.id === implicitAppointmentId)
+          .map((item) => ({ ...item, status, completedAt: status === "已完成" ? fixedNow() : undefined }));
+        if (status === "已到店") retailBase.orders = [];
+        const customer = retailBase.customers.find((item) => item.id === "c1")!;
+        const retailInput = {
+          customerId: walkin ? undefined : customer.id,
+          guestName: walkin ? customer.name : undefined,
+          guestPhone: walkin ? customer.phone : undefined,
+          staffId: "s2",
+          serviceIds: emptyServices,
+          productItems: [{ productId: "p4", quantity: 2 }],
+          payMethod: "微信" as const,
+        };
+        const retail = checkoutOrder(retailBase, retailInput, { idFactory: testId, now: fixedNow });
+        const retailOrder = retail.orders[0];
+        assert.equal(retailOrder.appointmentId, undefined, "retail must never infer a service appointment, including walk-in phone matches and empty service arrays");
+        assert.equal(retailOrder.customerId, customer.id, "retail should retain the selected or phone-matched customer");
+        assert.equal(retailOrder.paidAmount, 398, "independent retail should charge only its products");
+        assert.equal(productStock(retail, "p4"), productStock(retailBase, "p4") - 2, "retail should deduct stock once");
+        assert.deepEqual(retail.appointments, retailBase.appointments, "retail must not complete or otherwise alter a service appointment");
+        assert.deepEqual(retail.memberCards, retailBase.memberCards, "cash retail must not consume service cards");
+        assert.ok(retail.customerSignatures.some((item) => item.orderId === retailOrder.id && item.status === "待签名"), "retail still needs its own signature");
+        assert.throws(() => checkoutOrder(retail, retailInput, { idFactory: testId, now: fixedNow }), /重复提交/, "retail duplicate submission protection must remain active");
+        const refundedRetail = refundOrder(retail, { orderId: retailOrder.id, reason: "商品独立退款验证", userId: "u_manager" }, { idFactory: testId, now: fixedNow });
+        assert.equal(productStock(refundedRetail, "p4"), productStock(retailBase, "p4"), "retail refund should restore retail stock");
+        assert.deepEqual(refundedRetail.appointments, retailBase.appointments, "retail refund must not reopen or change a service appointment");
+        assert.throws(() => checkoutOrder(retailBase, { ...retailInput, appointmentId: implicitAppointmentId }, { idFactory: testId, now: fixedNow }), /预约收银需选择服务项目/, "explicit appointment IDs cannot turn retail into appointment checkout");
+      }
+    }
+  }
+  const arrivedRetailAndService = structuredClone(implicitAppointmentCheckout);
+  arrivedRetailAndService.orders = [];
+  arrivedRetailAndService.appointments = arrivedRetailAndService.appointments.filter((item) => item.id === implicitAppointmentId)
+    .map((item) => ({ ...item, status: "已到店", completedAt: undefined }));
+  const mixedInput = { customerId: "c1", staffId: "s2", serviceIds: ["v1"], productItems: [{ productId: "p4", quantity: 1 }], payMethod: "微信" as const };
+  const mixedCheckout = checkoutOrder(arrivedRetailAndService, mixedInput, { idFactory: testId, now: fixedNow });
+  assert.equal(mixedCheckout.orders[0].appointmentId, implicitAppointmentId, "service plus retail still links its service appointment");
+  assert.throws(() => checkoutOrder(mixedCheckout, mixedInput, { idFactory: testId, now: fixedNow }), /匹配到的预约已生成收银单/, "adding retail must not bypass duplicate service checkout protection");
+
   const noServiceAppointmentData = createAppointment(
     cloneSeed(),
     {

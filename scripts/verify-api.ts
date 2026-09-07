@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyRetailAppointmentIsolation } from "./verify-retail-appointment-isolation";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -2619,6 +2620,10 @@ try {
   });
   assert.notEqual(reopenedCheckout.orders[0].id, firstReopenOrderId, "refund should allow a new corrected order");
   assert.equal(reopenedCheckout.orders[0].appointmentId, reopenAppointmentId, "corrected order should restore the unique appointment link");
+  await verifyRetailAppointmentIsolation(
+    (path, options = {}) => request<AppData>(baseUrl, path, { ...options, token: session.token }),
+    { customerId: "c2", staffId: "s3", appointmentId: reopenAppointmentId, productId: "p4" },
+  );
 
   const concurrentCreateStartAt = futureIso(45, "08:00");
   const concurrentCreateResults = await Promise.allSettled([

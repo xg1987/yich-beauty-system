@@ -12,6 +12,7 @@ import {
   cleanupFormalData,
   convertOnlineBookingRequest,
   checkoutOrder,
+  normalizeCheckoutServiceIds,
   createAppointment,
   createOnlineBookingRequest,
   createApprovalRequest,
@@ -83,7 +84,7 @@ import type { AiUsageCapability, AppData, Appointment, CashPayMethod, Customer, 
 import type { CheckoutProductItemInput } from "../../src/domain/business";
 import { dataKeysForView, diffAppData, emptyAppData, isViewKey, makeAppDataPatch, makeAppDataSlice, POS_REMOTE_PAGING_CAPABILITY } from "../../src/domain/dataSlices";
 import { normalizeProductServiceUnitsPerStockUnit, productServiceStockDeductible, productServiceUnit, requireConfirmedProductStockRule } from "../../src/domain/products";
-import { appointmentEndAt, appointmentServiceIds } from "../../src/domain/appointments";
+import { appointmentEndAt, appointmentMatchesServiceCheckout, appointmentServiceIds } from "../../src/domain/appointments";
 import { businessDateOf, businessDateToday, makeId, nowIso } from "../../src/domain/utils";
 import { resolveStoreMutationTarget } from "../../src/domain/storeMutationTarget";
 import { AI_VIDEO_PROVIDER_DEFAULT_RESOLUTIONS, DEFAULT_AI_VIDEO_RESOLUTION } from "../../src/domain/aiVideoDefaults";
@@ -3167,6 +3168,10 @@ async function assertNoPersistedAppointmentCheckout(
   if (!storeId) return;
 
   const explicitAppointmentId = optionalString(body, "appointmentId");
+  const serviceIds = normalizeCheckoutServiceIds(optionalString(body, "serviceId"), optionalStringArray(body, "serviceIds"));
+  if (explicitAppointmentId && serviceIds.length === 0) {
+    throw new Error("预约收银需选择服务项目；仅购买商品请使用商品开单");
+  }
   if (explicitAppointmentId) {
     if (await database.hasActiveOrderForAppointment(storeId, explicitAppointmentId)) {
       throw new Error("该预约已生成收银单，请勿重复开单");
@@ -3175,26 +3180,12 @@ async function assertNoPersistedAppointmentCheckout(
   }
 
   if (!customerId) return;
-  const requestedServiceIds = optionalStringArray(body, "serviceIds");
-  const serviceIds = Array.from(new Set(
-    requestedServiceIds?.length
-      ? requestedServiceIds
-      : [optionalString(body, "serviceId")].filter((id): id is string => Boolean(id)),
-  ));
   if (serviceIds.length === 0) return;
 
-  const checkoutTime = +new Date(checkoutAt);
   const checkedOutAppointments = await database.readCheckedOutAppointmentsForCustomerStaff(storeId, customerId, staffId);
-  const hasImplicitConflict = checkedOutAppointments.some((appointment) => {
-    if (businessDateOf(appointment.startAt) !== businessDateOf(checkoutAt)) return false;
-    const allowedServiceIds = appointmentServiceIds(appointment);
-    if (allowedServiceIds.length > 0 && !serviceIds.every((serviceId) => allowedServiceIds.includes(serviceId))) return false;
-    const appointmentStart = +new Date(appointment.startAt);
-    const appointmentEnd = +appointmentEndAt(appointment, data.services);
-    return Number.isFinite(checkoutTime)
-      && checkoutTime >= appointmentStart - 30 * 60 * 1000
-      && checkoutTime <= appointmentEnd + 4 * 60 * 60 * 1000;
-  });
+  const hasImplicitConflict = checkedOutAppointments.some((appointment) => appointmentMatchesServiceCheckout(appointment, {
+    storeId, customerId, staffId, serviceIds, createdAt: checkoutAt,
+  }, data.services));
   if (hasImplicitConflict) {
     throw new Error("匹配到的预约已生成收银单，请勿重复开单");
   }
